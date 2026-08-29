@@ -587,20 +587,48 @@ amount of local hashing can distinguish it from a ledger that was always short.
 
 An earlier revision of this document claimed truncation defense. That claim was
 overstated: the evidence behind it truncated the log without also rewriting the
-manifest.
+manifest. The first anchor check had the same shape of hole: it matched only a
+PREFIX — `local_count >= anchor_count` plus a hash match at the anchored
+position — so a stale anchor verified against a LONGER ledger, leaving every
+later entry unanchored, and it also verified against a ledger truncated back to
+that same old head, silently discarding every rating appended since.
 
-So the anchor is no longer optional. **A nonempty ledger intake requires a
-coordinator-signed external head anchor** (`goldset-ledger-anchor/v1`,
-`--ledger-anchor` + `--anchor-secret-env`), and it is always verified. A missing,
-unsigned, wrongly-signed or tampered anchor is a **readiness blocker**, and the
-intake yields no ratings.
+So the anchor is required and must describe the ledger **exactly**. **A nonempty
+ledger intake requires a coordinator-signed external head anchor**
+(`goldset-ledger-anchor/v2`), and it is always verified. The anchor binds the
+ledger identity and the campaign contract digest as well as the head, and the
+verifier demands exact equality in order: ledger identity
+(`ANCHOR_LEDGER_MISMATCH`), contract (`ANCHOR_CONTRACT_MISMATCH`),
+`entry_count == local count`, then `head_hash == local head`. An unanchored
+suffix is a refusal (`LEDGER_UNANCHORED_SUFFIX`), never an acceptance. The
+coordinator publishes a fresh anchor after each accepted batch, and until it
+does the newer entries are not admissible — the correct default.
 
-The check compares the entry at the **exact anchored position**, not merely counts.
-A count-only check passes a fork that truncates and then re-appends: the length is
-plausible and the local chain is consistent. Comparing position `entry_count`
-against the anchored head is what reveals it. Tests cover truncation,
-fork-with-extra-entry, wrong trust key, tampered count, unsigned anchor, and the
-missing-anchor readiness blocker.
+The anchor is **looked up, never supplied**: intake resolves it under a fixed
+coordinator-controlled root (`DEFAULT_ANCHOR_ROOT = ~/.goldset/anchors`) keyed by
+the contract digest. The caller-selectable `--ledger-anchor` flag was removed for
+that reason: anyone who could influence the build invocation could otherwise
+point it at any stale anchor. The root must sit outside the rater-writable
+ratings tree and is validated for symlink, owner and mode (not group/world
+writable). An append-only `<contract>.anchor.log` records every publication, and
+monotonicity is enforced — an anchor whose `entry_count` is below the highest
+count ever published is refused (`ANCHOR_ROLLED_BACK`) — so neither a stale
+re-signing nor a ledger truncated back to an old head can be replayed.
+
+Tests cover: current-head acceptance, unanchored suffix, republish-after-batch,
+stale-prefix replay, truncate-to-old-head, missing/absent/symlinked/writable
+anchor roots, wrong trust key, tampered count, unsigned anchor, cross-ledger and
+cross-campaign reuse, and the missing-anchor readiness blocker.
+
+**Residual limitation, stated honestly.** The anchor root and the signing key are
+both in the operator's hands. An actor holding the coordinator signing key, or
+write access to the anchor root, can still publish a stale anchor **together
+with** a rewritten `.anchor.log`, and this code cannot tell. Defending against
+that requires a genuinely external append-only publication channel — a signed
+release note or a VCS commit outside the operator's control — which is a process
+control, not something this code can enforce. The guarantees here hold against a
+ledger writer who does not also hold the anchor authority; they do not hold
+against the operator.
 
 ## 6. Reproduce
 
@@ -612,7 +640,7 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 255 standalone checks + 24 pytest
+python3 research/goldset/test_labeling_package.py   # 274 standalone checks + 24 pytest
 ```
 
 Expect `labeling_package_file_sha256 af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59`

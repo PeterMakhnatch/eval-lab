@@ -1068,7 +1068,7 @@ def load_intake(
     context_digests: Mapping[str, str],
     keyring: Mapping[str, str],
     qualified_rater_ids: Collection[str],
-    anchor_path: Path | None = None,
+    anchor_root: Path | None = None,
     anchor_secret: str | None = None,
     repair: bool = False,
 ) -> tuple[list[dict[str, Any]], str, list[str]]:
@@ -1117,17 +1117,28 @@ def load_intake(
         return [], "ledger", [f"LEDGER_INVALID: {type(exc).__name__}: {exc}"]
 
     if records:
-        if anchor_path is None or anchor_secret is None:
+        root = DEFAULT_ANCHOR_ROOT if anchor_root is None else anchor_root
+        if anchor_secret is None:
             problems.append(
                 "LEDGER_ANCHOR_MISSING: a nonempty ledger intake requires a "
                 "coordinator-signed external head anchor"
             )
-        elif not anchor_path.is_file():
-            problems.append(f"LEDGER_ANCHOR_FILE_ABSENT: {anchor_path}")
         else:
             try:
-                anchor = _read_ledger_json(anchor_path, "ANCHOR")
-                verify_against_anchor(ratings_dir, anchor, anchor_secret=anchor_secret)
+                # LOOKED UP, never supplied: keyed by the contract digest under a
+                # fixed coordinator root. A caller-selectable path let anyone who
+                # could influence the invocation present a stale anchor.
+                anchor = resolve_anchor(
+                    root,
+                    rating_contract_digest=rating_contract_digest,
+                    ratings_dir=ratings_dir,
+                )
+                verify_against_anchor(
+                    ratings_dir,
+                    anchor,
+                    anchor_secret=anchor_secret,
+                    rating_contract_digest=rating_contract_digest,
+                )
             except LedgerError as exc:
                 problems.append(f"LEDGER_ANCHOR_REJECTED: {exc}")
     if problems:
@@ -1411,7 +1422,13 @@ def evaluate_readiness(
 # ---------------------------------------------------------------------------
 
 LEDGER_SCHEMA = "goldset-rating-ledger/v1"
-LEDGER_ANCHOR_SCHEMA = "goldset-ledger-anchor/v1"
+LEDGER_ANCHOR_SCHEMA = "goldset-ledger-anchor/v2"
+
+# FIXED coordinator-controlled anchor root. Production NEVER takes an anchor path
+# from the caller: an attacker who can influence the build invocation could
+# otherwise point it at any stale anchor and replay an old head. Tests inject an
+# authority root explicitly; the production default is fixed and fail-closed.
+DEFAULT_ANCHOR_ROOT = Path.home() / ".goldset" / "anchors"
 
 # SCOPE OF THE GUARANTEE, stated honestly.
 #
@@ -1429,6 +1446,135 @@ LEDGER_ANCHOR_NOTE = (
 GENESIS_HASH = "0" * 64
 
 
+def _assert_coordinator_owned(path: Path, what: str) -> None:
+    """The anchor authority must be owned by us and not writable by anyone else.
+
+    A symlink, a foreign owner, or a group/world-writable mode all mean the
+    "external" anchor is not actually outside the writer's control, which is the
+    entire property the anchor exists to provide.
+    """
+    if path.is_symlink():
+        raise LedgerError(f"{what}_IS_SYMLINK: {path}")
+    try:
+        info = path.lstat()
+    except FileNotFoundError as exc:
+        raise LedgerError(f"{what}_ABSENT: {path}") from exc
+    except OSError as exc:
+        raise LedgerError(f"{what}_UNREADABLE: {path}: {exc.strerror}") from exc
+    if info.st_uid != os.getuid():
+        raise LedgerError(f"{what}_FOREIGN_OWNER: {path} is owned by uid {info.st_uid}")
+    if info.st_mode & 0o022:
+        raise LedgerError(
+            f"{what}_GROUP_OR_WORLD_WRITABLE: {path} has mode {oct(info.st_mode & 0o777)}"
+        )
+
+
+def publish_anchor(
+    anchor_root: Path,
+    ledger_dir: Path,
+    *,
+    rating_contract_digest: str,
+    secret: str,
+) -> dict[str, Any]:
+    """Coordinator action: publish the CURRENT head and record it monotonically.
+
+    Called after each accepted batch. The append-only log is what makes a stale
+    anchor detectable: rolling back the anchor alone is no longer enough, because
+    the highest count ever published is recorded beside it.
+    """
+    anchor_root.mkdir(parents=True, exist_ok=True)
+    head_hash, count = ledger_head(ledger_dir)
+    anchor = sign_ledger_anchor(
+        head_hash,
+        count,
+        secret,
+        ledger=ledger_id(ledger_dir),
+        rating_contract_digest=rating_contract_digest,
+    )
+    log = anchor_root / f"{rating_contract_digest}.anchor.log"
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"entry_count": count, "head_hash": head_hash}) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    _atomic_write(
+        anchor_root / f"{rating_contract_digest}.anchor.json",
+        json.dumps(anchor, indent=2, sort_keys=True) + "\n",
+    )
+    return anchor
+
+
+def highest_published_count(anchor_root: Path, rating_contract_digest: str) -> int:
+    """Highest entry_count ever published for this campaign, from the log."""
+    log = anchor_root / f"{rating_contract_digest}.anchor.log"
+    if not log.exists():
+        return 0
+    _assert_coordinator_owned(log, "ANCHOR_LOG")
+    highest = 0
+    for line in _read_text_or_raise(log, "ANCHOR_LOG").splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise LedgerError(f"ANCHOR_LOG_MALFORMED_JSON: {log}") from exc
+        count = entry.get("entry_count") if isinstance(entry, Mapping) else None
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise LedgerError(f"ANCHOR_LOG_COUNT_INVALID: {count!r}")
+        highest = max(highest, count)
+    return highest
+
+
+def resolve_anchor(
+    anchor_root: Path,
+    *,
+    rating_contract_digest: str,
+    ratings_dir: Path,
+) -> Mapping[str, Any]:
+    """Load the current anchor from the coordinator root, keyed by the contract.
+
+    The anchor is looked up rather than supplied, and the root must live OUTSIDE
+    the rater-writable ratings tree - an anchor a rater can rewrite anchors
+    nothing.
+    """
+    root = anchor_root.resolve()
+    ratings = ratings_dir.resolve()
+    if root == ratings or root.is_relative_to(ratings) or ratings.is_relative_to(root):
+        raise LedgerError(
+            f"ANCHOR_ROOT_INSIDE_RATINGS_TREE: {root} overlaps {ratings}; the "
+            f"anchor authority must be outside the writable ratings tree"
+        )
+    _assert_coordinator_owned(anchor_root, "ANCHOR_ROOT")
+    if not anchor_root.is_dir():
+        raise LedgerError(f"ANCHOR_ROOT_NOT_A_DIRECTORY: {anchor_root}")
+    anchor_file = anchor_root / f"{rating_contract_digest}.anchor.json"
+    _assert_coordinator_owned(anchor_file, "ANCHOR_FILE")
+    anchor = _read_ledger_json(anchor_file, "ANCHOR")
+    # MONOTONICITY. Exact head equality alone cannot distinguish a genuine
+    # 3-entry ledger from a 6-entry ledger truncated to 3 and presented with a
+    # re-signed 3-entry anchor. The append-only publication log can: an anchor
+    # below the highest count ever published is a rollback.
+    highest = highest_published_count(anchor_root, rating_contract_digest)
+    claimed = anchor.get("entry_count") if isinstance(anchor, Mapping) else None
+    if isinstance(claimed, int) and not isinstance(claimed, bool) and claimed < highest:
+        raise LedgerError(
+            f"ANCHOR_ROLLED_BACK: anchor claims {claimed} entries but "
+            f"{highest} were published for this campaign"
+        )
+    return anchor
+
+
+def _read_text_or_raise(path: Path, what: str) -> str:
+    """Read UTF-8 text, funnelling every failure into LedgerError."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise LedgerError(f"{what}_FILE_ABSENT: {path}") from exc
+    except UnicodeDecodeError as exc:
+        raise LedgerError(f"{what}_NOT_UTF8: {path}") from exc
+    except OSError as exc:
+        raise LedgerError(f"{what}_UNREADABLE: {path}: {exc.strerror}") from exc
+
+
 def _read_ledger_json(path: Path, what: str) -> Any:
     """Read and parse JSON on the ledger path, FAIL-CLOSED as a LedgerError.
 
@@ -1438,14 +1584,7 @@ def _read_ledger_json(path: Path, what: str) -> Any:
     it, which turns a corrupt or deleted file into a denial of service rather
     than a NOT_READY package.
     """
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError as exc:
-        raise LedgerError(f"{what}_FILE_ABSENT: {path}") from exc
-    except UnicodeDecodeError as exc:
-        raise LedgerError(f"{what}_NOT_UTF8: {path}") from exc
-    except OSError as exc:
-        raise LedgerError(f"{what}_UNREADABLE: {path}: {exc.strerror}") from exc
+    text = _read_text_or_raise(path, what)
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
@@ -1860,10 +1999,34 @@ def load_ledger(ledger_dir: Path, *, repair: bool = False) -> list[dict[str, Any
         return _walk_ledger(ledger_dir, repair=repair)[0]
 
 
-def sign_ledger_anchor(head_hash: str, entry_count: int, secret: str) -> dict[str, Any]:
-    """Coordinator-signed external head anchor."""
+def ledger_id(ledger_dir: Path) -> str | None:
+    """Stable identity of a ledger: the hash of its FIRST entry.
+
+    Immutable across appends, so an anchor can be bound to the ledger it was
+    published for and cannot be replayed against a different one.
+    """
+    _records, hashes = _walk_ledger(ledger_dir)
+    return hashes[0] if hashes else None
+
+
+def sign_ledger_anchor(
+    head_hash: str,
+    entry_count: int,
+    secret: str,
+    *,
+    ledger: str | None = None,
+    rating_contract_digest: str | None = None,
+) -> dict[str, Any]:
+    """Coordinator-signed external head anchor.
+
+    Binds the LEDGER IDENTITY and the CONTRACT DIGEST as well as the head, so an
+    anchor published for one ledger or one campaign cannot be presented for
+    another.
+    """
     body = {
         "schema": LEDGER_ANCHOR_SCHEMA,
+        "ledger_id": ledger,
+        "rating_contract_digest": rating_contract_digest,
         "head_hash": head_hash,
         "entry_count": entry_count,
     }
@@ -1875,8 +2038,8 @@ def sign_ledger_anchor(head_hash: str, entry_count: int, secret: str) -> dict[st
     return body
 
 
-def verify_ledger_anchor(anchor: Mapping[str, Any], secret: str) -> tuple[str, int]:
-    """Validate an anchor's schema, types and signature. Returns (head, count)."""
+def verify_ledger_anchor(anchor: Mapping[str, Any], secret: str) -> dict[str, Any]:
+    """Validate an anchor's schema, types and signature. Returns its fields."""
     if not isinstance(anchor, Mapping):
         raise LedgerError("ANCHOR_NOT_AN_OBJECT")
     if anchor.get("schema") != LEDGER_ANCHOR_SCHEMA:
@@ -1887,42 +2050,87 @@ def verify_ledger_anchor(anchor: Mapping[str, Any], secret: str) -> tuple[str, i
         raise LedgerError(f"ANCHOR_HEAD_MALFORMED: {head!r}")
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise LedgerError(f"ANCHOR_COUNT_NOT_A_NON_NEGATIVE_INT: {count!r}")
+    for field in ("ledger_id", "rating_contract_digest"):
+        value = anchor.get(field)
+        if value is not None and not isinstance(value, str):
+            raise LedgerError(f"ANCHOR_{field.upper()}_NOT_A_STRING: {type(value).__name__}")
     signature = anchor.get("signature")
     if not isinstance(signature, str):
         raise LedgerError("ANCHOR_SIGNATURE_MISSING")
-    expected = sign_ledger_anchor(str(head), count, secret)["signature"]
+    expected = sign_ledger_anchor(
+        str(head),
+        count,
+        secret,
+        ledger=anchor.get("ledger_id"),
+        rating_contract_digest=anchor.get("rating_contract_digest"),
+    )["signature"]
     if not hmac.compare_digest(signature, expected):
         raise LedgerError("ANCHOR_SIGNATURE_INVALID: anchor is not from the trusted coordinator")
-    return str(head), count
+    return {
+        "head_hash": str(head),
+        "entry_count": count,
+        "ledger_id": anchor.get("ledger_id"),
+        "rating_contract_digest": anchor.get("rating_contract_digest"),
+    }
 
 
 def verify_against_anchor(
-    ledger_dir: Path, anchor: Mapping[str, Any], *, anchor_secret: str
+    ledger_dir: Path,
+    anchor: Mapping[str, Any],
+    *,
+    anchor_secret: str,
+    rating_contract_digest: str | None = None,
 ) -> None:
-    """Check the ledger against an EXTERNALLY published, coordinator-signed anchor.
+    """Require the anchor to describe the ledger EXACTLY. No unanchored suffix.
 
-    This is what makes rollback detectable. The anchor must come from somewhere the
-    ledger's writer does not control - a signed release note or a VCS commit.
+    A prefix match is not enough, and that was a real hole. While the check only
+    required `local_count >= anchor_count` with a matching hash at the anchored
+    position, a STALE anchor verified against a longer ledger - leaving every
+    later entry unanchored - and it also verified against a ledger truncated back
+    to that same old head, silently discarding every rating appended since.
 
-    The check is on the entry at the EXACT anchored position, not merely on counts.
-    A fork that truncates and then appends new entries has a plausible count and a
-    consistent local chain; only comparing position `entry_count` against the
-    anchored head reveals it.
+    So the anchor must name the CURRENT head and the CURRENT count, and be bound
+    to this ledger's identity and this campaign's contract. The coordinator
+    publishes a fresh anchor after each accepted batch; until it does, the newer
+    entries are not admissible, which is the correct default.
     """
-    anchor_head, anchor_count = verify_ledger_anchor(anchor, anchor_secret)
-    with _read_lock(ledger_dir):
-        _records, hashes = _walk_ledger(ledger_dir)
-    if len(hashes) < anchor_count:
+    fields = verify_ledger_anchor(anchor, anchor_secret)
+    _records, hashes = _walk_ledger(ledger_dir)
+    local_count = len(hashes)
+    local_head = hashes[-1] if hashes else GENESIS_HASH
+
+    # IDENTITY FIRST. "Is this even the right ledger, for the right campaign?"
+    # precedes "does it have the right length and head". Checked last, this was
+    # unreachable: if count and head both match then the ledgers are
+    # hash-identical, so their first entries match too and the mismatch could
+    # never fire. Ordered first, it is both reachable and the clearer error.
+    anchored_ledger = fields["ledger_id"]
+    if anchored_ledger is not None and anchored_ledger != (hashes[0] if hashes else None):
+        raise LedgerError("ANCHOR_LEDGER_MISMATCH: anchor was published for a different ledger")
+    anchored_contract = fields["rating_contract_digest"]
+    if (
+        anchored_contract is not None
+        and rating_contract_digest is not None
+        and anchored_contract != rating_contract_digest
+    ):
+        raise LedgerError("ANCHOR_CONTRACT_MISMATCH: anchor was published for a different campaign")
+
+    if fields["entry_count"] != local_count:
+        if fields["entry_count"] < local_count:
+            raise LedgerError(
+                f"LEDGER_UNANCHORED_SUFFIX: anchor covers {fields['entry_count']} "
+                f"of {local_count} entries; entries "
+                f"{fields['entry_count'] + 1}-{local_count} are unanchored. The "
+                f"coordinator must publish a new anchor after each accepted batch."
+            )
         raise LedgerError(
-            f"LEDGER_ROLLBACK_DETECTED: local length {len(hashes)} < anchored {anchor_count}"
+            f"LEDGER_ROLLBACK_DETECTED: local length {local_count} < anchored "
+            f"{fields['entry_count']}"
         )
-    if anchor_count == 0:
-        return
-    at_anchor = hashes[anchor_count - 1]
-    if at_anchor != anchor_head:
+    if fields["head_hash"] != local_head:
         raise LedgerError(
-            f"LEDGER_FORK_DETECTED: entry {anchor_count} hashes {at_anchor[:12]}… "
-            f"but the anchor says {anchor_head[:12]}…"
+            f"LEDGER_FORK_DETECTED: local head {local_head[:12]}… != anchored "
+            f"{fields['head_hash'][:12]}… at count {local_count}"
         )
 
 
@@ -2106,7 +2314,7 @@ def build_package(
     registry_path: Path | None = None,
     authority_secret: str | None = None,
     keystore_path: Path | None = None,
-    anchor_path: Path | None = None,
+    anchor_root: Path | None = None,
     anchor_secret: str | None = None,
     repair_ledger: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -2148,7 +2356,7 @@ def build_package(
         context_digests={i.item_id: i.item_context_digest for i in deliverable},
         keyring=keyring,
         qualified_rater_ids=qualified,
-        anchor_path=anchor_path,
+        anchor_root=anchor_root,
         anchor_secret=anchor_secret,
         repair=repair_ledger,
     )
@@ -2772,15 +2980,6 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--ledger-anchor",
-        type=Path,
-        default=None,
-        help=(
-            "path to the coordinator-signed external head anchor; REQUIRED for a "
-            "nonempty ledger intake, because a local-only ledger can be rolled back"
-        ),
-    )
-    parser.add_argument(
         "--anchor-secret-env",
         default="GOLDSET_ANCHOR_SECRET",
         help="env var holding the anchor trust secret",
@@ -2807,7 +3006,6 @@ def main() -> int:
         core_n=args.core_n,
         boost_per_stratum=args.boost_per_stratum,
         ratings_dir=args.ratings_dir,
-        anchor_path=args.ledger_anchor,
         anchor_secret=os.environ.get(args.anchor_secret_env),
         repair_ledger=args.repair_ledger,
         registry_path=args.rater_registry,

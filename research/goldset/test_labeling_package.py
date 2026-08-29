@@ -55,13 +55,16 @@ from build_labeling_package import (  # noqa: E402
     export_rater_bundle,
     label_item_from_dict,
     ledger_head,
+    ledger_id,
     load_intake,
     load_ledger,
     load_paired_artifacts,
     load_rater_registry,
     logical_trial_digest,
     prepare_rating,
+    publish_anchor,
     read_source_once,
+    resolve_anchor,
     sign_ledger_anchor,
     sign_rating,
     sign_registry,
@@ -156,6 +159,20 @@ def _raises(exc: type[BaseException], fn: Callable[[], object]) -> bool:
     except Exception:
         return False
     return False
+
+
+def _err_msg(fn: Callable[[], object]) -> str:
+    """The LedgerError message fn() raises, or '' when it does not.
+
+    Lets a check assert on the SPECIFIC refusal identifier (e.g. a substring
+    like ``LEDGER_UNANCHORED_SUFFIX``) instead of merely "something went
+    wrong" - the vacuity that let a cycle-detection bug pass its attack tests.
+    """
+    try:
+        fn()
+    except LedgerError as exc:
+        return str(exc)
+    return ""
 
 
 def check(name: str, condition: bool, detail: str = "") -> None:
@@ -1506,12 +1523,14 @@ def main() -> int:
             encoding="utf-8",
         )
         # A nonempty ledger intake REQUIRES a coordinator-signed external anchor.
-        # The coordinator publishes it after the append batch.
+        # The coordinator publishes it after the append batch, into the fixed
+        # authority root keyed by the contract digest - never a caller path.
         ANCHOR_SECRET = "anchor-trust"
-        a_head, a_count = ledger_head(ledger2)
-        (T / "anchor.json").write_text(
-            json.dumps(sign_ledger_anchor(a_head, a_count, ANCHOR_SECRET)),
-            encoding="utf-8",
+        publish_anchor(
+            T / "authority",
+            ledger2,
+            rating_contract_digest=server_contract,
+            secret=ANCHOR_SECRET,
         )
         unanchored, _ = build_package(
             e2e_runs,
@@ -1535,7 +1554,7 @@ def main() -> int:
             registry_path=T / "reg.json",
             authority_secret="AUTH",
             keystore_path=T / "ks.json",
-            anchor_path=T / "anchor.json",
+            anchor_root=T / "authority",
             anchor_secret=ANCHOR_SECRET,
         )
         ri2 = rebuilt["readiness"]["rating_intake"]
@@ -1665,7 +1684,7 @@ def main() -> int:
         ASEC = "anchor-trust"
         AC = "c" * 64
         ACTX = {"i1": "d" * 64}
-        AKR = {f"r{n}": f"s{n}" for n in range(4)}
+        AKR = {f"r{n}": f"s{n}" for n in range(6)}
         AVC: dict[str, Any] = {
             "rating_contract_digest": AC,
             "context_digests": ACTX,
@@ -1689,14 +1708,22 @@ def main() -> int:
         for n in range(3):
             append_rating_record(ledger4, _r4(f"r{n}"), created_at=f"T{n}", **AVC)
         good_head, good_count = ledger_head(ledger4)
-        anchor = sign_ledger_anchor(good_head, good_count, ASEC)
-        verify_against_anchor(ledger4, anchor, anchor_secret=ASEC)
+        anchor = sign_ledger_anchor(
+            good_head,
+            good_count,
+            ASEC,
+            ledger=ledger_id(ledger4),
+            rating_contract_digest=AC,
+        )
+        verify_against_anchor(ledger4, anchor, anchor_secret=ASEC, rating_contract_digest=AC)
         check("a matching signed anchor verifies", True)
         check(
             "an anchor signed with the WRONG key is refused",
             _raises(
                 LedgerError,
-                lambda: verify_against_anchor(ledger4, anchor, anchor_secret="not-the-key"),
+                lambda: verify_against_anchor(
+                    ledger4, anchor, anchor_secret="not-the-key", rating_contract_digest=AC
+                ),
             ),
         )
         check(
@@ -1704,7 +1731,10 @@ def main() -> int:
             _raises(
                 LedgerError,
                 lambda: verify_against_anchor(
-                    ledger4, {**anchor, "entry_count": 99}, anchor_secret=ASEC
+                    ledger4,
+                    {**anchor, "entry_count": 99},
+                    anchor_secret=ASEC,
+                    rating_contract_digest=AC,
                 ),
             ),
         )
@@ -1716,6 +1746,7 @@ def main() -> int:
                     ledger4,
                     {k: v for k, v in anchor.items() if k != "signature"},
                     anchor_secret=ASEC,
+                    rating_contract_digest=AC,
                 ),
             ),
         )
@@ -1747,31 +1778,295 @@ def main() -> int:
             len(load_ledger(truncated)) == 1,
         )
         check(
-            "the signed anchor DETECTS the truncation",
-            _raises(
-                LedgerError,
-                lambda: verify_against_anchor(truncated, anchor, anchor_secret=ASEC),
+            "the signed anchor DETECTS the truncation as LEDGER_ROLLBACK_DETECTED",
+            "LEDGER_ROLLBACK_DETECTED"
+            in _err_msg(
+                lambda: verify_against_anchor(
+                    truncated, anchor, anchor_secret=ASEC, rating_contract_digest=AC
+                )
             ),
         )
-        # A fork that re-extends has a PLAUSIBLE count, so a count-only check
-        # passes it. Only comparing the entry at the anchored position catches it.
+        # EXACT equality, and the count check runs BEFORE the head comparison.
+        # The old code required only `local_count >= anchor_count` with a
+        # matching hash at the anchored position, so a STALE anchor verified
+        # against a LONGER ledger, leaving every later entry unanchored. That
+        # same fork now trips LEDGER_UNANCHORED_SUFFIX rather than
+        # LEDGER_FORK_DETECTED, because the counts no longer match.
+        extended = Path(tmp) / "extended"
+        _rollback(extended)
+        for rater, when in (("r3", "LATER"), ("r4", "LATER2"), ("r5", "LATER3")):
+            append_rating_record(extended, _r4(rater), created_at=when, **AVC)
+        check(
+            "a fork re-extended BEYOND the anchored count passes LOCAL verification",
+            len(load_ledger(extended)) == 4,
+        )
+        check(
+            "the stale anchor is refused as LEDGER_UNANCHORED_SUFFIX, not FORK_DETECTED",
+            "LEDGER_UNANCHORED_SUFFIX"
+            in _err_msg(
+                lambda: verify_against_anchor(
+                    extended, anchor, anchor_secret=ASEC, rating_contract_digest=AC
+                )
+            ),
+        )
+        # A fork re-extended to EXACTLY the anchored length passes the count
+        # check, so the head comparison is what catches it.
         forked = Path(tmp) / "forked"
         _rollback(forked)
         append_rating_record(forked, _r4("r3"), created_at="LATER", **AVC)
+        append_rating_record(forked, _r4("r4"), created_at="LATER2", **AVC)
         check(
-            "a fork re-extended to the anchored length passes LOCAL verification",
-            len(load_ledger(forked)) == 2,
+            "a fork at EXACTLY the anchored length passes LOCAL verification",
+            len(load_ledger(forked)) == 3,
         )
         check(
-            "the signed anchor DETECTS a fork with extra entries",
-            _raises(
-                LedgerError,
-                lambda: verify_against_anchor(forked, anchor, anchor_secret=ASEC),
+            "the signed anchor DETECTS an equal-length fork as LEDGER_FORK_DETECTED",
+            "LEDGER_FORK_DETECTED"
+            in _err_msg(
+                lambda: verify_against_anchor(
+                    forked, anchor, anchor_secret=ASEC, rating_contract_digest=AC
+                )
             ),
         )
         check(
             "a ledger with records but NO head manifest fails closed",
             _raises(LedgerError, lambda: ledger_head(_headless(ledger4, Path(tmp) / "headless"))),
+        )
+
+    print("SEC-ANCHOR-REPLAY - the publication log makes stale anchors unreplayable")
+    with tempfile.TemporaryDirectory() as tmp:
+        R = Path(tmp)
+        root = R / "authority"
+        ledger = R / "ratings" / "l"
+        SEC = "replay-secret"
+        RCON = "c" * 64
+        RCON2 = "d" * 64
+        RCTX = {"i1": "d" * 64}
+        RKR = {f"r{n}": f"s{n}" for n in range(1, 7)}
+        RVC: dict[str, Any] = {
+            "rating_contract_digest": RCON,
+            "context_digests": RCTX,
+            "keyring": RKR,
+            "qualified_rater_ids": list(RKR),
+        }
+
+        def _rrec(rater: str, created_at: str) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": RCON,
+                "item_id": "i1",
+                "item_context_digest": RCTX["i1"],
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            body["signature"] = sign_rating(body, RKR[rater])
+            return body
+
+        # Batch 1: three genuine ratings, then the coordinator publishes.
+        for n in range(1, 4):
+            append_rating_record(ledger, _rrec(f"r{n}", f"T{n}"), created_at=f"T{n}", **RVC)
+        head3, count3 = ledger_head(ledger)
+        publish_anchor(root, ledger, rating_contract_digest=RCON, secret=SEC)
+        recs1, _mode1, probs1 = load_intake(ledger, anchor_root=root, anchor_secret=SEC, **RVC)
+        check(
+            "a current-head anchor accepts the published batch",
+            len(recs1) == 3 and not probs1,
+            f"got {len(recs1)} records, {probs1}",
+        )
+
+        # Batch 2: three more ratings WITHOUT republishing. The anchor still names
+        # the old head/count, so the suffix is refused outright.
+        for n in range(4, 7):
+            append_rating_record(ledger, _rrec(f"r{n}", f"T{n}"), created_at=f"T{n}", **RVC)
+        recs2, _mode2, probs2 = load_intake(ledger, anchor_root=root, anchor_secret=SEC, **RVC)
+        check(
+            "an unrepublished suffix is refused as LEDGER_UNANCHORED_SUFFIX",
+            recs2 == [] and any("LEDGER_UNANCHORED_SUFFIX" in p for p in probs2),
+            f"got {len(recs2)} records, {probs2}",
+        )
+
+        # Legitimate-path canary: republishing admits the whole 6-entry ledger.
+        # Without this, a guard that refused EVERY intake would pass cases 2, 4
+        # and 5 while silently destroying honest intake.
+        publish_anchor(root, ledger, rating_contract_digest=RCON, secret=SEC)
+        recs3, _mode3, probs3 = load_intake(ledger, anchor_root=root, anchor_secret=SEC, **RVC)
+        check(
+            "republishing after the batch admits ALL entries with no problems",
+            len(recs3) == 6 and not probs3,
+            f"got {len(recs3)} records, {probs3}",
+        )
+
+        # STALE-PREFIX REPLAY: a VALIDLY re-signed anchor for the OLD head/count
+        # is written over the current one. The signature verifies - the append-only
+        # publication log is what refuses it, because 3 < highest published 6.
+        stale_anchor = sign_ledger_anchor(
+            head3,
+            count3,
+            SEC,
+            ledger=ledger_id(ledger),
+            rating_contract_digest=RCON,
+        )
+        (root / f"{RCON}.anchor.json").write_text(json.dumps(stale_anchor), encoding="utf-8")
+        recs4, _mode4, probs4 = load_intake(ledger, anchor_root=root, anchor_secret=SEC, **RVC)
+        check(
+            "a stale re-signed anchor is refused as ANCHOR_ROLLED_BACK",
+            recs4 == [] and any("ANCHOR_ROLLED_BACK" in p for p in probs4),
+            f"got {len(recs4)} records, {probs4}",
+        )
+
+        # TRUNCATE-TO-OLD-HEAD: the ledger itself is cut back to the old head and
+        # head.json rewritten consistently, orphaned record files removed. Locally
+        # valid - only the monotonic log still says 6 were published.
+        trunc = R / "truncated"
+        shutil.copytree(ledger, trunc)
+        lines = (trunc / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
+        kept_ids = {json.loads(line)["record_id"] for line in lines[:3]}
+        (trunc / "ledger.jsonl").write_text("\n".join(lines[:3]) + "\n", encoding="utf-8")
+        (trunc / "head.json").write_text(
+            json.dumps({"schema": LEDGER_SCHEMA, "head_hash": head3, "count": 3}),
+            encoding="utf-8",
+        )
+        for stale in (trunc / "records").glob("*.json"):
+            if stale.stem not in kept_ids:
+                stale.chmod(0o644)
+                stale.unlink()
+        check(
+            "the truncated copy is locally consistent (canary)",
+            len(load_ledger(trunc)) == 3,
+        )
+        (root / f"{RCON}.anchor.json").write_text(
+            json.dumps(
+                sign_ledger_anchor(
+                    head3,
+                    count3,
+                    SEC,
+                    ledger=ledger_id(trunc),
+                    rating_contract_digest=RCON,
+                )
+            ),
+            encoding="utf-8",
+        )
+        recs5, _mode5, probs5 = load_intake(trunc, anchor_root=root, anchor_secret=SEC, **RVC)
+        check(
+            "a ledger truncated to the old head is refused as ANCHOR_ROLLED_BACK",
+            recs5 == [] and any("ANCHOR_ROLLED_BACK" in p for p in probs5),
+            f"got {len(recs5)} records, {probs5}",
+        )
+
+        # The caller-selectable path is GONE, and the fixed default is what a
+        # production caller without an explicit root actually gets.
+        sig_params = inspect.signature(load_intake).parameters
+        check(
+            "load_intake has NO caller-supplied anchor_path parameter",
+            "anchor_path" not in sig_params,
+        )
+        check(
+            "the production default root is the fixed home path",
+            Path.home() / ".goldset" / "anchors" == build_labeling_module.DEFAULT_ANCHOR_ROOT,
+        )
+        # Re-publish so the anchor file is current before exercising the default.
+        publish_anchor(root, ledger, rating_contract_digest=RCON, secret=SEC)
+        saved_default = build_labeling_module.DEFAULT_ANCHOR_ROOT
+        try:
+            build_labeling_module.DEFAULT_ANCHOR_ROOT = root
+            recs6, _mode6, probs6 = load_intake(
+                ledger,
+                anchor_secret=SEC,
+                **RVC,  # anchor_root omitted on purpose
+            )
+        finally:
+            build_labeling_module.DEFAULT_ANCHOR_ROOT = saved_default
+        check(
+            "omitting anchor_root uses the FIXED DEFAULT_ANCHOR_ROOT",
+            len(recs6) == 6 and not probs6,
+            f"got {len(recs6)} records, {probs6}",
+        )
+
+        # ANCHOR ROOT HARDENING: the "external" root must actually be outside the
+        # rater-writable ratings tree - not inside it, not a symlink, not
+        # group/world-writable, and present at all.
+        check(
+            "an anchor root INSIDE the ratings tree is refused",
+            "ANCHOR_ROOT_INSIDE_RATINGS_TREE"
+            in _err_msg(
+                lambda: resolve_anchor(ledger, rating_contract_digest=RCON, ratings_dir=ledger)
+            ),
+        )
+        real_dir = R / "real_dir"
+        real_dir.mkdir()
+        link_root = R / "authority_link"
+        link_root.symlink_to(real_dir)
+        check(
+            "a symlinked anchor root is refused",
+            "ANCHOR_ROOT_IS_SYMLINK"
+            in _err_msg(
+                lambda: resolve_anchor(link_root, rating_contract_digest=RCON, ratings_dir=ledger)
+            ),
+        )
+        writable_root = R / "writable_authority"
+        writable_root.mkdir()
+        writable_root.chmod(0o777)
+        check(
+            "a group/world-writable anchor root is refused",
+            "ANCHOR_ROOT_GROUP_OR_WORLD_WRITABLE"
+            in _err_msg(
+                lambda: resolve_anchor(
+                    writable_root, rating_contract_digest=RCON, ratings_dir=ledger
+                )
+            ),
+        )
+        check(
+            "an absent anchor root is refused",
+            "ANCHOR_ROOT_ABSENT"
+            in _err_msg(
+                lambda: resolve_anchor(
+                    R / "no_such_root", rating_contract_digest=RCON, ratings_dir=ledger
+                )
+            ),
+        )
+
+        # CROSS-LEDGER and CROSS-CAMPAIGN: the anchor is bound to BOTH the ledger
+        # identity and the contract digest, so it cannot be replayed against a
+        # different ledger with the SAME entry count (identity fires, not count),
+        # nor against a different campaign.
+        other_ledger = R / "ratings" / "other"
+        for n in range(1, 7):
+            append_rating_record(other_ledger, _rrec(f"r{n}", f"U{n}"), created_at=f"U{n}", **RVC)
+        root2 = R / "authority2"
+        publish_anchor(root2, ledger, rating_contract_digest=RCON, secret=SEC)
+        recsC, _modeC, probsC = load_intake(ledger, anchor_root=root2, anchor_secret=SEC, **RVC)
+        check(
+            "the anchor verifies against its OWN ledger (control)",
+            len(recsC) == 6 and not probsC,
+            f"got {len(recsC)} records, {probsC}",
+        )
+        recsX, _modeX, probsX = load_intake(
+            other_ledger, anchor_root=root2, anchor_secret=SEC, **RVC
+        )
+        check(
+            "a same-count OTHER ledger is refused as ANCHOR_LEDGER_MISMATCH",
+            recsX == [] and any("ANCHOR_LEDGER_MISMATCH" in p for p in probsX),
+            f"got {len(recsX)} records, {probsX}",
+        )
+        head6, count6 = ledger_head(ledger)
+        (root2 / f"{RCON}.anchor.json").write_text(
+            json.dumps(
+                sign_ledger_anchor(
+                    head6,
+                    count6,
+                    SEC,
+                    ledger=ledger_id(ledger),
+                    rating_contract_digest=RCON2,
+                )
+            ),
+            encoding="utf-8",
+        )
+        recsY, _modeY, probsY = load_intake(ledger, anchor_root=root2, anchor_secret=SEC, **RVC)
+        check(
+            "an anchor for a DIFFERENT campaign is refused as ANCHOR_CONTRACT_MISMATCH",
+            recsY == [] and any("ANCHOR_CONTRACT_MISMATCH" in p for p in probsY),
+            f"got {len(recsY)} records, {probsY}",
         )
 
     print("SEC-DOWNGRADE - there is no non-ledger intake to fall back to")
@@ -1804,14 +2099,14 @@ def main() -> int:
             append_rating_record(dled, _drec(f"r{n}"), created_at=f"T{n}", **DVC)
         check(
             "an intact but UNANCHORED ledger yields nothing",
-            load_intake(dled, anchor_path=None, anchor_secret=None, **DVC)[0] == [],
+            load_intake(dled, anchor_root=None, anchor_secret=None, **DVC)[0] == [],
         )
         # THE DOWNGRADE: remove every marker the old code sniffed for. Selecting an
         # intake path by looking for markers is bypassable by deleting them, so the
         # choice itself was removed rather than the heuristic improved.
         (dled / "head.json").unlink()
         (dled / "ledger.jsonl").unlink()
-        drecs, dmode, dprobs = load_intake(dled, anchor_path=None, anchor_secret=None, **DVC)
+        drecs, dmode, dprobs = load_intake(dled, anchor_root=None, anchor_secret=None, **DVC)
         check(
             "removing ALL ledger markers refuses instead of downgrading",
             drecs == []
@@ -1822,7 +2117,7 @@ def main() -> int:
         flat.mkdir()
         for src in (dled / "records").glob("*.json"):
             shutil.copy(src, flat / src.name)
-        frecs, fmode, fprobs = load_intake(flat, anchor_path=None, anchor_secret=None, **DVC)
+        frecs, fmode, fprobs = load_intake(flat, anchor_root=None, anchor_secret=None, **DVC)
         check(
             "a FLAT dump of record files is refused, not ingested",
             frecs == []
@@ -1889,7 +2184,7 @@ def main() -> int:
             "intake reports it as actionable rather than repairing silently",
             any(
                 p.startswith("LEDGER_NEEDS_REPAIR")
-                for p in load_intake(w2, anchor_path=None, anchor_secret=None, **XVC)[2]
+                for p in load_intake(w2, anchor_root=None, anchor_secret=None, **XVC)[2]
             ),
         )
         check(
@@ -2080,16 +2375,22 @@ def main() -> int:
         for n in range(3):
             append_rating_record(dos_ledger, _dos_rec(f"r{n + 1}"), created_at=f"T{n}", **DVC)
         dos_head, dos_count = ledger_head(dos_ledger)
-        dos_anchor = Path(tmp) / "anchor.json"
-        dos_anchor.write_text(
-            json.dumps(sign_ledger_anchor(dos_head, dos_count, ASEC)), encoding="utf-8"
-        )
+        # The anchor is PUBLISHED under a coordinator root keyed by the contract
+        # digest; intake looks it up there. A caller-supplied anchor file path no
+        # longer exists, so every mutation probe works on copies of the root.
+        AROOT_DOS = Path(tmp) / "authority"
+        publish_anchor(AROOT_DOS, dos_ledger, rating_contract_digest=DC, secret=ASEC)
         first_rid = sorted((dos_ledger / "records").glob("*.json"))[0].stem
 
         def _fresh(name: str) -> Path:
             dst = Path(tmp) / name
             shutil.copytree(dos_ledger, dst)
             return dst
+
+        def _fresh_root(name: str) -> Path:
+            root = Path(tmp) / f"root_{name}"
+            shutil.copytree(AROOT_DOS, root)
+            return root
 
         def _rewrite(path: Path, content: str | bytes) -> None:
             # Record files are written 0444; the mutation needs write access first.
@@ -2108,10 +2409,10 @@ def main() -> int:
                 return False
             return records == [] and bool(problems)
 
-        def _probe(ledger_dir: Path, anchor_path: Path) -> tuple[list, list]:
+        def _probe(ledger_dir: Path, anchor_root: Path) -> tuple[list, list]:
             records, _mode, problems = load_intake(
                 ledger_dir,
-                anchor_path=anchor_path,
+                anchor_root=anchor_root,
                 anchor_secret=ASEC,
                 **DVC,
             )
@@ -2120,7 +2421,7 @@ def main() -> int:
         def _head_mutated(name: str, content: str | bytes) -> Callable[[], bool]:
             d = _fresh(name)
             _rewrite(d / "head.json", content)
-            return lambda: _refused(lambda: _probe(d, dos_anchor))
+            return lambda: _refused(lambda: _probe(d, AROOT_DOS))
 
         check("head malformed JSON refuses, never raises", _head_mutated("m1", "{not json")())
         check("head scalar JSON refuses, never raises", _head_mutated("m2", "42")())
@@ -2133,14 +2434,14 @@ def main() -> int:
         def _head_deleted() -> bool:
             d = _fresh("m4")
             (d / "head.json").unlink()
-            return _refused(lambda: _probe(d, dos_anchor))
+            return _refused(lambda: _probe(d, AROOT_DOS))
 
         check("head deleted refuses, never raises", _head_deleted())
 
         def _head_unreadable() -> bool:
             d = _fresh("m5")
             (d / "head.json").chmod(0o000)
-            return _refused(lambda: _probe(d, dos_anchor))
+            return _refused(lambda: _probe(d, AROOT_DOS))
 
         check("head unreadable refuses, never raises", _head_unreadable())
 
@@ -2148,7 +2449,7 @@ def main() -> int:
         def _record_mutated(name: str, content: str | bytes) -> Callable[[], bool]:
             d = _fresh(name)
             _rewrite(d / "records" / f"{first_rid}.json", content)
-            return lambda: _refused(lambda: _probe(d, dos_anchor))
+            return lambda: _refused(lambda: _probe(d, AROOT_DOS))
 
         check(
             "record malformed JSON refuses, never raises",
@@ -2163,14 +2464,14 @@ def main() -> int:
         def _record_unreadable() -> bool:
             d = _fresh("r3")
             (d / "records" / f"{first_rid}.json").chmod(0o000)
-            return _refused(lambda: _probe(d, dos_anchor))
+            return _refused(lambda: _probe(d, AROOT_DOS))
 
         check("record unreadable refuses, never raises", _record_unreadable())
 
         def _record_deleted() -> bool:
             d = _fresh("r5")
             (d / "records" / f"{first_rid}.json").unlink()
-            return _refused(lambda: _probe(d, dos_anchor))
+            return _refused(lambda: _probe(d, AROOT_DOS))
 
         check("record deleted refuses, never raises", _record_deleted())
 
@@ -2178,7 +2479,7 @@ def main() -> int:
         def _log_mutated(name: str, content: str | bytes) -> Callable[[], bool]:
             d = _fresh(name)
             _rewrite(d / "ledger.jsonl", content)
-            return lambda: _refused(lambda: _probe(d, dos_anchor))
+            return lambda: _refused(lambda: _probe(d, AROOT_DOS))
 
         check(
             "log invalid UTF-8 refuses, never raises",
@@ -2188,23 +2489,22 @@ def main() -> int:
         def _log_deleted() -> bool:
             d = _fresh("g2")
             (d / "ledger.jsonl").unlink()
-            return _refused(lambda: _probe(d, dos_anchor))
+            return _refused(lambda: _probe(d, AROOT_DOS))
 
         check("log deleted refuses, never raises", _log_deleted())
 
         def _log_unreadable() -> bool:
             d = _fresh("g3")
             (d / "ledger.jsonl").chmod(0o000)
-            return _refused(lambda: _probe(d, dos_anchor))
+            return _refused(lambda: _probe(d, AROOT_DOS))
 
         check("log unreadable refuses, never raises", _log_unreadable())
 
         # anchor file: malformed, scalar, list, not UTF-8, deleted, unreadable.
         def _anchor_case(name: str, content: str | bytes) -> Callable[[], bool]:
-            a = Path(tmp) / f"anchor_{name}.json"
-            shutil.copy(dos_anchor, a)
-            _rewrite(a, content)
-            return lambda: _refused(lambda: _probe(_fresh(f"am_{name}"), a))
+            root = _fresh_root(name)
+            _rewrite(root / f"{DC}.anchor.json", content)
+            return lambda: _refused(lambda: _probe(_fresh(f"am_{name}"), root))
 
         check(
             "anchor malformed JSON refuses, never raises", _anchor_case("malformed", "{not json")()
@@ -2214,15 +2514,16 @@ def main() -> int:
         check("anchor invalid UTF-8 refuses, never raises", _anchor_case("utf8", b"\xff\xfe bad")())
 
         def _anchor_deleted() -> bool:
-            return _refused(lambda: _probe(_fresh("am_deleted"), Path(tmp) / "no_such_anchor.json"))
+            root = _fresh_root("deleted")
+            (root / f"{DC}.anchor.json").unlink()
+            return _refused(lambda: _probe(_fresh("am_deleted"), root))
 
         check("anchor deleted refuses, never raises", _anchor_deleted())
 
         def _anchor_unreadable() -> bool:
-            a = Path(tmp) / "anchor_unreadable.json"
-            shutil.copy(dos_anchor, a)
-            a.chmod(0o000)
-            return _refused(lambda: _probe(_fresh("am_unreadable"), a))
+            root = _fresh_root("unreadable")
+            (root / f"{DC}.anchor.json").chmod(0o000)
+            return _refused(lambda: _probe(_fresh("am_unreadable"), root))
 
         check("anchor unreadable refuses, never raises", _anchor_unreadable())
 
@@ -2230,7 +2531,7 @@ def main() -> int:
         # an unparseable record file does, instead of being silently dropped while
         # the rest of the ledger ships. The ledger is handcrafted (append would
         # refuse the record) but structurally valid: the chain and head verify.
-        def _handcraft_unhashable(name: str, bad_value: object) -> Path:
+        def _handcraft_unhashable(name: str, bad_value: object) -> tuple[Path, Path]:
             d = Path(tmp) / name
             d.mkdir()
             records_dir = d / "records"
@@ -2277,16 +2578,18 @@ def main() -> int:
                 + "\n",
                 encoding="utf-8",
             )
-            a = Path(tmp) / f"anchor_{name}.json"
-            a.write_text(json.dumps(sign_ledger_anchor(previous, 3, ASEC)), encoding="utf-8")
-            return d
+            # The anchor is published into a FRESH root copy so the shared DOS
+            # root stays pristine: this handcrafted ledger is a DIFFERENT ledger
+            # (its records were never appended) under the same contract.
+            root = _fresh_root(f"hc_{name}")
+            publish_anchor(root, d, rating_contract_digest=DC, secret=ASEC)
+            return d, root
 
         for label, hostile in (("LIST", ["r1"]), ("DICT", {"k": "v"})):
-            d = _handcraft_unhashable(f"h_{label}", hostile)
-            a = Path(tmp) / f"anchor_h_{label}.json"
+            d, root = _handcraft_unhashable(f"h_{label}", hostile)
             check(
                 f"unhashable rater_key_id {label} fails the WHOLE intake closed",
-                _refused(lambda d=d, a=a: _probe(d, a)),
+                _refused(lambda d=d, root=root: _probe(d, root)),
             )
 
         # THE BYPASS: a signed three-rater loose-JSON directory. Each record is
@@ -2371,11 +2674,8 @@ def main() -> int:
                 keyring=doKR,
                 qualified_rater_ids=list(doKR),
             )
-        g_head, g_count = ledger_head(good_ledger)
-        good_anchor = Path(tmp) / "good_anchor.json"
-        good_anchor.write_text(
-            json.dumps(sign_ledger_anchor(g_head, g_count, ASEC)), encoding="utf-8"
-        )
+        good_root = Path(tmp) / "authority_good"
+        publish_anchor(good_root, good_ledger, rating_contract_digest=doC, secret=ASEC)
         good_pkg, _ = build_package(
             dos_runs,
             core_n=None,
@@ -2384,7 +2684,7 @@ def main() -> int:
             registry_path=Path(tmp) / "reg.json",
             authority_secret="AUTH",
             keystore_path=Path(tmp) / "ks.json",
-            anchor_path=good_anchor,
+            anchor_root=good_root,
             anchor_secret=ASEC,
         )
         good_ri = good_pkg["readiness"]["rating_intake"]
@@ -2405,6 +2705,8 @@ def main() -> int:
             "keyring": TKR,
             "qualified_rater_ids": list(TKR),
         }
+        # Coordinator authority root, OUTSIDE every ledger dir, keyed by TC.
+        AROOT = Path(tmp) / "authority"
 
         def _tbase(rater: str) -> dict:
             return {
@@ -2417,7 +2719,7 @@ def main() -> int:
                 **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
             }
 
-        def _tledger(dst: Path, bodies: list[dict]) -> tuple[Path, Path]:
+        def _tledger(dst: Path, bodies: list[dict]) -> Path:
             (dst / "records").mkdir(parents=True)
             previous = GENESIS_HASH
             lines = []
@@ -2458,12 +2760,8 @@ def main() -> int:
                 + "\n",
                 encoding="utf-8",
             )
-            head_hash, count = ledger_head(dst)
-            anchor_file = dst.parent / f"anchor-{dst.name}.json"
-            anchor_file.write_text(
-                json.dumps(sign_ledger_anchor(head_hash, count, "A")), encoding="utf-8"
-            )
-            return dst, anchor_file
+            publish_anchor(AROOT, dst, rating_contract_digest=TC, secret="A")
+            return dst
 
         typed_fields = [
             "schema_version",
@@ -2487,8 +2785,8 @@ def main() -> int:
                 )
                 if field != "signature":
                     hostile[field] = value
-                led, anc = _tledger(Path(tmp) / f"t{index}{shape}", [honest, hostile])
-                got, _mode, probs = load_intake(led, anchor_path=anc, anchor_secret="A", **TVC)
+                led = _tledger(Path(tmp) / f"t{index}{shape}", [honest, hostile])
+                got, _mode, probs = load_intake(led, anchor_root=AROOT, anchor_secret="A", **TVC)
                 if got or not probs:
                     leaks.append(f"{field}/{shape}")
         check(
@@ -2507,8 +2805,8 @@ def main() -> int:
         wrong_value = _tbase("r1")
         wrong_value["step_contribution"] = "NOT_A_REAL_LABEL"
         wrong_value["signature"] = sign_rating(wrong_value, "s1")
-        led, anc = _tledger(Path(tmp) / "value", [honest, wrong_value])
-        got, _mode, probs = load_intake(led, anchor_path=anc, anchor_secret="A", **TVC)
+        led = _tledger(Path(tmp) / "value", [honest, wrong_value])
+        got, _mode, probs = load_intake(led, anchor_root=AROOT, anchor_secret="A", **TVC)
         check(
             "a wrong VALUE only drops that rating; the honest one survives",
             len(got) == 1 and not probs,
@@ -2518,10 +2816,8 @@ def main() -> int:
             body = _tbase(rater)
             body["signature"] = sign_rating(body, secret)
             append_rating_record(clean, body, created_at=f"T{rater}", **TVC)
-        chead, ccount = ledger_head(clean)
-        canchor = Path(tmp) / "clean-anchor.json"
-        canchor.write_text(json.dumps(sign_ledger_anchor(chead, ccount, "A")), encoding="utf-8")
-        got, _mode, probs = load_intake(clean, anchor_path=canchor, anchor_secret="A", **TVC)
+        publish_anchor(AROOT, clean, rating_contract_digest=TC, secret="A")
+        got, _mode, probs = load_intake(clean, anchor_root=AROOT, anchor_secret="A", **TVC)
         check(
             "a fully honest ledger is completely unaffected",
             len(got) == len(TKR) and not probs,
@@ -2558,12 +2854,17 @@ def main() -> int:
                 qualified_rater_ids=list(CKEYS),
             )
         ch, cc = ledger_head(cled)
-        (T / "anchor.json").write_text(
-            json.dumps(sign_ledger_anchor(ch, cc, CSEC)), encoding="utf-8"
-        )
-        (T / "bad.json").write_text(
-            json.dumps(sign_ledger_anchor(ch, cc, "WRONG")), encoding="utf-8"
-        )
+        # The CLI takes NO anchor path: `--ledger-anchor` is gone. The anchor is
+        # LOOKED UP under the fixed coordinator root DEFAULT_ANCHOR_ROOT
+        # (~/.goldset/anchors), keyed by the contract digest - never supplied by
+        # the caller. The subprocess is sandboxed with HOME=T so that fixed root
+        # resolves inside the test directory instead of the operator's real home;
+        # the root itself is still the production constant, not a new flag.
+        CLI_HOME = T / "cli_home"
+        CLI_HOME.mkdir()
+        cli_root = CLI_HOME / ".goldset" / "anchors"
+        cled_contract = ceb["rating_contract_digest"]
+        publish_anchor(cli_root, cled, rating_contract_digest=cled_contract, secret=CSEC)
         creg = {
             "schema_version": REGISTRY_SCHEMA_VERSION,
             "authority_key_id": "a",
@@ -2576,7 +2877,7 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        def _cli(out: str, anchor: str | None) -> dict:
+        def _cli(out: str, secret: str | None = CSEC) -> dict:
             argv = [
                 sys.executable,
                 str(Path(__file__).with_name("build_labeling_package.py")),
@@ -2593,29 +2894,55 @@ def main() -> int:
                 "--rater-keystore",
                 str(T / "ks.json"),
             ]
-            if anchor:
-                argv += ["--ledger-anchor", str(T / anchor)]
             env = {
                 **os.environ,
-                "GOLDSET_ANCHOR_SECRET": CSEC,
+                "HOME": str(CLI_HOME),
                 "GOLDSET_REGISTRY_AUTHORITY_SECRET": "AUTH",
             }
+            if secret is not None:
+                env["GOLDSET_ANCHOR_SECRET"] = secret
             subprocess.run(argv, check=True, capture_output=True, env=env)
             return json.loads((T / out).read_text(encoding="utf-8"))
 
-        no_anchor = _cli("cli1.json", None)
+        no_anchor = _cli("cli1.json", secret=None)
         check(
-            "CLI: a nonempty ledger with NO anchor blocks and accepts nothing",
+            "CLI: a nonempty ledger with NO anchor secret blocks and accepts nothing",
             any(b.startswith("LEDGER_ANCHOR_MISSING") for b in no_anchor["readiness"]["blockers"])
             and no_anchor["readiness"]["rating_intake"]["records_accepted"] == 0,
         )
-        wrong = _cli("cli2.json", "bad.json")
+        help_text = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("build_labeling_package.py")), "--help"],
+            check=True,
+            capture_output=True,
+            env={**os.environ, "HOME": str(CLI_HOME)},
+        ).stdout.decode("utf-8")
+        check(
+            "CLI no longer exposes a caller-selectable --ledger-anchor flag",
+            "--ledger-anchor" not in help_text,
+        )
+        # Wrong-trust key, but against the LOOKED-UP root: overwrite the published
+        # anchor file with one signed by the wrong key. The monotonicity log still
+        # records the real publication, so only the signature is invalid.
+        (cli_root / f"{cled_contract}.anchor.json").write_text(
+            json.dumps(
+                sign_ledger_anchor(
+                    ch,
+                    cc,
+                    "WRONG",
+                    ledger=ledger_id(cled),
+                    rating_contract_digest=cled_contract,
+                )
+            ),
+            encoding="utf-8",
+        )
+        wrong = _cli("cli2.json")
         check(
             "CLI: a wrongly-signed anchor blocks and accepts nothing",
             any("ANCHOR_SIGNATURE_INVALID" in b for b in wrong["readiness"]["blockers"])
             and wrong["readiness"]["rating_intake"]["records_accepted"] == 0,
         )
-        good = _cli("cli3.json", "anchor.json")
+        publish_anchor(cli_root, cled, rating_contract_digest=cled_contract, secret=CSEC)
+        good = _cli("cli3.json")
         gi = good["readiness"]["rating_intake"]
         check(
             "CLI: a valid anchor plus signed roster ACCEPTS the genuine ratings",

@@ -3,7 +3,8 @@
   "truths": [
     {
       "item_id": "0af861f3ce663c85",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -11,7 +12,8 @@
     },
     {
       "item_id": "d169c754558d5e87",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -19,7 +21,8 @@
     },
     {
       "item_id": "50b366b7b36cc0b2",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -27,7 +30,8 @@
     },
     {
       "item_id": "98d788f031a2bd66",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -35,7 +39,8 @@
     },
     {
       "item_id": "b1d5188f9912a3d2",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -43,7 +48,8 @@
     },
     {
       "item_id": "9d5affbb61804a82",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -51,7 +57,8 @@
     },
     {
       "item_id": "f7dc3e7ee88e69fd",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -59,7 +66,8 @@
     },
     {
       "item_id": "a1f9ac58c6ded3ce",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -67,13 +75,15 @@
     },
     {
       "item_id": "991ccd6411bada48",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "44130a9fd7ad8a81",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -81,7 +91,8 @@
     },
     {
       "item_id": "e187c385e096958f",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -89,7 +100,8 @@
     },
     {
       "item_id": "7aaa23988cefcd7c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -97,7 +109,8 @@
     },
     {
       "item_id": "30f1cf8679eb0e27",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -105,7 +118,8 @@
     },
     {
       "item_id": "f8f7d49d95ad646a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -113,13 +127,15 @@
     },
     {
       "item_id": "384d785f24ccb77a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "d5844b67d99511f5",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -127,7 +143,8 @@
     },
     {
       "item_id": "3b393feef2a79760",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -135,7 +152,8 @@
     },
     {
       "item_id": "506a444b84bf0af9",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -143,13 +161,15 @@
     },
     {
       "item_id": "17a731f255325e25",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "9330017a7f840628",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -157,7 +177,8 @@
     },
     {
       "item_id": "f7bf3d866fdca5dd",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -165,7 +186,8 @@
     },
     {
       "item_id": "b51b975aa2a7d023",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -173,7 +195,8 @@
     },
     {
       "item_id": "8d3cdd5e5074561b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -181,7 +204,8 @@
     },
     {
       "item_id": "065b4ebf9eb8af33",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -189,7 +213,8 @@
     },
     {
       "item_id": "2ad346b61745be2b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -197,7 +222,8 @@
     },
     {
       "item_id": "636563ac27761267",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -205,7 +231,8 @@
     },
     {
       "item_id": "a23b611c6c2e4d5d",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -213,7 +240,8 @@
     },
     {
       "item_id": "9d72a72a6734eb4f",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -221,7 +249,8 @@
     },
     {
       "item_id": "909ae9ca02b757e0",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -229,7 +258,8 @@
     },
     {
       "item_id": "5c82cf7cb2791d25",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -237,7 +267,8 @@
     },
     {
       "item_id": "de55bb1b52067f55",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "exec"
@@ -245,7 +276,8 @@
     },
     {
       "item_id": "36288e280b41b0a6",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -253,7 +285,8 @@
     },
     {
       "item_id": "19c6ae673884f3a0",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -261,7 +294,8 @@
     },
     {
       "item_id": "89ff7bc85d3e3916",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -269,13 +303,15 @@
     },
     {
       "item_id": "7b971ea3191bc3b2",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "b46cb164ab2aadfe",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -283,7 +319,8 @@
     },
     {
       "item_id": "2067fbcbc0194478",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -291,7 +328,8 @@
     },
     {
       "item_id": "f68d9754d93868f4",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -299,7 +337,8 @@
     },
     {
       "item_id": "4f773d11ce4e063e",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -307,7 +346,8 @@
     },
     {
       "item_id": "e06226c533471c3e",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -315,7 +355,8 @@
     },
     {
       "item_id": "f489abf0dfe3dd8b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -323,7 +364,8 @@
     },
     {
       "item_id": "c77fee60a4f6c81e",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -331,7 +373,8 @@
     },
     {
       "item_id": "50053d0cd0694dea",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -339,7 +382,8 @@
     },
     {
       "item_id": "203db369d93255aa",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -347,7 +391,8 @@
     },
     {
       "item_id": "fd1b9ad5856cb527",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -355,7 +400,8 @@
     },
     {
       "item_id": "437bf216c241af7a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -363,7 +409,8 @@
     },
     {
       "item_id": "78b0e39a13cabce8",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -371,13 +418,15 @@
     },
     {
       "item_id": "4e89c0d9d345ac14",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "452ecee9a6491d45",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -385,7 +434,8 @@
     },
     {
       "item_id": "8ad20be95900a73d",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -393,7 +443,8 @@
     },
     {
       "item_id": "b1f4006fcae5f90f",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -401,7 +452,8 @@
     },
     {
       "item_id": "f65b69b5725bf50d",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -409,7 +461,8 @@
     },
     {
       "item_id": "a8309c9b8c62dda7",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -417,7 +470,8 @@
     },
     {
       "item_id": "85ea504d3517b584",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -425,7 +479,8 @@
     },
     {
       "item_id": "ab9524db802cd13a",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -433,7 +488,8 @@
     },
     {
       "item_id": "c0da265a055b84e3",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -441,7 +497,8 @@
     },
     {
       "item_id": "10a7bed3e15c6380",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -449,7 +506,8 @@
     },
     {
       "item_id": "96a095da9161deda",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -457,7 +515,8 @@
     },
     {
       "item_id": "a717c1269990e8e2",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -465,7 +524,8 @@
     },
     {
       "item_id": "f2fc4ef35d569c35",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -473,7 +533,8 @@
     },
     {
       "item_id": "fb713ee5656ee997",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -481,7 +542,8 @@
     },
     {
       "item_id": "8ad93b8540e80a02",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -489,7 +551,8 @@
     },
     {
       "item_id": "6b2369ea683d04a3",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -497,13 +560,15 @@
     },
     {
       "item_id": "bdd78d81e0642593",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "fe5200a4b2e61e19",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -511,7 +576,8 @@
     },
     {
       "item_id": "558f49d489f26d2f",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -519,7 +585,8 @@
     },
     {
       "item_id": "cd790e386e3bf854",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -527,7 +594,8 @@
     },
     {
       "item_id": "55977797c87f673a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -535,7 +603,8 @@
     },
     {
       "item_id": "fd8af0902e04b4a4",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -543,13 +612,15 @@
     },
     {
       "item_id": "db7dbaf0c2ef0555",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "74bad812d4e33cb0",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -557,7 +628,8 @@
     },
     {
       "item_id": "ee6917f9dce224a6",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -565,7 +637,8 @@
     },
     {
       "item_id": "00341202dbcb5229",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -573,13 +646,15 @@
     },
     {
       "item_id": "9012394d495a9cd4",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "6e170f771535afbd",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -587,7 +662,8 @@
     },
     {
       "item_id": "f5e1ca44e660685a",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -595,7 +671,8 @@
     },
     {
       "item_id": "8bf73f34bf4ae2b0",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -603,7 +680,8 @@
     },
     {
       "item_id": "c1fecb3f9c6c67b1",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -611,7 +689,8 @@
     },
     {
       "item_id": "52684ed0d951a3ca",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -619,13 +698,15 @@
     },
     {
       "item_id": "d7e5ad9c0ee51c2c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "2b5cb88941f7f131",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -633,7 +714,8 @@
     },
     {
       "item_id": "228a7b38e9c8f5bc",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -641,7 +723,8 @@
     },
     {
       "item_id": "5d7a6a23b07ea66e",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -649,13 +732,15 @@
     },
     {
       "item_id": "02cc58f5cd9dcca1",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "850237636997c0f3",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -663,7 +748,8 @@
     },
     {
       "item_id": "9e39fbb562cb03dd",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -671,7 +757,8 @@
     },
     {
       "item_id": "5a02fcfc6a680dff",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -679,7 +766,8 @@
     },
     {
       "item_id": "2680d722f97eb6d1",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -687,7 +775,8 @@
     },
     {
       "item_id": "c822d9223cf44495",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -695,7 +784,8 @@
     },
     {
       "item_id": "ec74367b9483aa5b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -703,7 +793,8 @@
     },
     {
       "item_id": "db0288b7b7a2be7f",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -711,7 +802,8 @@
     },
     {
       "item_id": "2376868635cbd4eb",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -719,7 +811,8 @@
     },
     {
       "item_id": "688ac547d264b113",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -727,7 +820,8 @@
     },
     {
       "item_id": "bd94e3317022fd18",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -735,7 +829,8 @@
     },
     {
       "item_id": "cd64d82a88971d27",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -743,7 +838,8 @@
     },
     {
       "item_id": "5e3f0b12dfa5a1f4",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -751,7 +847,8 @@
     },
     {
       "item_id": "d274cfd3e37c10da",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -759,19 +856,22 @@
     },
     {
       "item_id": "d707e6468fb38dbe",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "04283e5fa5faf7c2",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "7c42ce5b90ab866a",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -779,7 +879,8 @@
     },
     {
       "item_id": "3a5423b8f02d45a2",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -787,7 +888,8 @@
     },
     {
       "item_id": "1cf801f8117a3ebd",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -795,13 +897,15 @@
     },
     {
       "item_id": "5aa360cc45739a53",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "37ceff7b74699517",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -809,7 +913,8 @@
     },
     {
       "item_id": "d100f893d8163eb0",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -817,7 +922,8 @@
     },
     {
       "item_id": "48dd02d079c45f2f",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -825,7 +931,8 @@
     },
     {
       "item_id": "942a20f330553eb3",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -833,13 +940,15 @@
     },
     {
       "item_id": "123e6f1149c2c6a7",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "291f486babc82c0f",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -847,7 +956,8 @@
     },
     {
       "item_id": "de1f43177f96a391",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -855,7 +965,8 @@
     },
     {
       "item_id": "06d4b90ad33f0329",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -863,13 +974,15 @@
     },
     {
       "item_id": "96a4d075d51c64a8",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "343ab4cde2a2aa2d",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -877,7 +990,8 @@
     },
     {
       "item_id": "ee56a87078f4d633",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -885,7 +999,8 @@
     },
     {
       "item_id": "e6f53b3bb3b1ee2a",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -893,7 +1008,8 @@
     },
     {
       "item_id": "92b915c05aba8bb1",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -901,7 +1017,8 @@
     },
     {
       "item_id": "bd63e5f596373e72",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -909,7 +1026,8 @@
     },
     {
       "item_id": "4141ffa340a3b336",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -917,7 +1035,8 @@
     },
     {
       "item_id": "79cf181cecacdb15",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -925,7 +1044,8 @@
     },
     {
       "item_id": "e8e76145b918f54f",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -933,7 +1053,8 @@
     },
     {
       "item_id": "2abe980feebb7964",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -941,7 +1062,8 @@
     },
     {
       "item_id": "50ddbdeb5b96cc0d",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -949,7 +1071,8 @@
     },
     {
       "item_id": "854003ed88ab9a68",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -957,7 +1080,8 @@
     },
     {
       "item_id": "175a7ffb01e63fdb",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -965,13 +1089,15 @@
     },
     {
       "item_id": "cb5c1ba9df74129b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "fe9351fc6ceade07",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -979,7 +1105,8 @@
     },
     {
       "item_id": "68d8dbf14addd394",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -987,7 +1114,8 @@
     },
     {
       "item_id": "8791d0d8378c739f",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -995,7 +1123,8 @@
     },
     {
       "item_id": "506771ce99d5a9e7",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1003,7 +1132,8 @@
     },
     {
       "item_id": "871bae603b06671c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1011,7 +1141,8 @@
     },
     {
       "item_id": "2a4821b0bdacbe1c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1019,7 +1150,8 @@
     },
     {
       "item_id": "d32a4b733e55b6ef",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1027,7 +1159,8 @@
     },
     {
       "item_id": "c3409231736302c3",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1035,13 +1168,15 @@
     },
     {
       "item_id": "8346e4a897b2843a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "6f834c24fc1b9b8c",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1049,7 +1184,8 @@
     },
     {
       "item_id": "d8de91041d4911a2",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1057,7 +1193,8 @@
     },
     {
       "item_id": "f0ef55b8cb5b37fe",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1065,13 +1202,15 @@
     },
     {
       "item_id": "5a8c4427bf6d36d0",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "e3ad3a1b9d1883a6",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1079,7 +1218,8 @@
     },
     {
       "item_id": "2bed50c9133895a3",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1087,7 +1227,8 @@
     },
     {
       "item_id": "0da3154186e2de06",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1095,7 +1236,8 @@
     },
     {
       "item_id": "d5cb867f7d7dbfe6",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1103,7 +1245,8 @@
     },
     {
       "item_id": "98b7e51450e5b316",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1111,7 +1254,8 @@
     },
     {
       "item_id": "ec8dc96750ef6ca7",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1119,7 +1263,8 @@
     },
     {
       "item_id": "8885a9d41633dda5",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1127,7 +1272,8 @@
     },
     {
       "item_id": "d98bd71f7394eb86",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1135,7 +1281,8 @@
     },
     {
       "item_id": "c892253a220c5a89",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1143,7 +1290,8 @@
     },
     {
       "item_id": "2f4099f45a268742",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1151,7 +1299,8 @@
     },
     {
       "item_id": "c058f28dffa7552b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1159,7 +1308,8 @@
     },
     {
       "item_id": "987046167a9aa156",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "wait"
@@ -1167,7 +1317,8 @@
     },
     {
       "item_id": "c0cdc8f60f9ec2f8",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1175,7 +1326,8 @@
     },
     {
       "item_id": "0ada5b15f912272c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "wait"
@@ -1183,7 +1335,8 @@
     },
     {
       "item_id": "ae752ecb8c4dc44d",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1191,7 +1344,8 @@
     },
     {
       "item_id": "370ead1365158875",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1199,7 +1353,8 @@
     },
     {
       "item_id": "307899db4d4fbe51",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1207,7 +1362,8 @@
     },
     {
       "item_id": "e6b38f725a6395fb",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "wait"
@@ -1215,7 +1371,8 @@
     },
     {
       "item_id": "6768cb5c604216d8",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1223,7 +1380,8 @@
     },
     {
       "item_id": "57bd0e0fb02ab089",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1231,7 +1389,8 @@
     },
     {
       "item_id": "fdfc258303e5082a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1239,7 +1398,8 @@
     },
     {
       "item_id": "74597b65c25c34ad",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1247,7 +1407,8 @@
     },
     {
       "item_id": "bbe2fc6b68fcbb18",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1255,7 +1416,8 @@
     },
     {
       "item_id": "a14946c6d063442c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1263,7 +1425,8 @@
     },
     {
       "item_id": "90aa274914dea9c9",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1271,7 +1434,8 @@
     },
     {
       "item_id": "fba489dfe2678a2f",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": true,
       "tool_names": [
         "wait"
@@ -1279,7 +1443,8 @@
     },
     {
       "item_id": "834c72a46ed803d8",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1287,7 +1452,8 @@
     },
     {
       "item_id": "c07b59fd9953ae3a",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1295,7 +1461,8 @@
     },
     {
       "item_id": "7039fdae053ed27c",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1303,7 +1470,8 @@
     },
     {
       "item_id": "0cf8d9b1eba88c8b",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1311,13 +1479,15 @@
     },
     {
       "item_id": "6734b3e98537bf66",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "42ecb5ae40938b68",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1325,7 +1495,8 @@
     },
     {
       "item_id": "c17538461e594e38",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1333,7 +1504,8 @@
     },
     {
       "item_id": "6db922d72aee349c",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1341,7 +1513,8 @@
     },
     {
       "item_id": "a03c7829d27b27e9",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1349,7 +1522,8 @@
     },
     {
       "item_id": "2df8c3a86ff29354",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1357,7 +1531,8 @@
     },
     {
       "item_id": "632c9b0c094a4a13",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1365,7 +1540,8 @@
     },
     {
       "item_id": "38ba3e956a320739",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1373,7 +1549,8 @@
     },
     {
       "item_id": "0f77a253611c7f57",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1381,13 +1558,15 @@
     },
     {
       "item_id": "12cc61c358915797",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     },
     {
       "item_id": "577ae23ecf3107ba",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1395,7 +1574,8 @@
     },
     {
       "item_id": "faa3195d51891ff2",
-      "prior_error_visible": false,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1403,7 +1583,8 @@
     },
     {
       "item_id": "19226064d4c63d08",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1411,7 +1592,8 @@
     },
     {
       "item_id": "6d03e0df32df8f08",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": [
         "exec"
@@ -1419,7 +1601,8 @@
     },
     {
       "item_id": "e255009cd9fb1121",
-      "prior_error_visible": true,
+      "prior_error_truth_available": false,
+      "prior_error_unavailable_reason": "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from ATIF observation text; substring matching audited at 88% false positives",
       "repeats_prior_action": false,
       "tool_names": []
     }

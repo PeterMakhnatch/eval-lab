@@ -222,8 +222,17 @@ class MachineTruth:
 
     item_id: str
     repeats_prior_action: bool
-    prior_error_visible: bool
     tool_names: tuple[str, ...]
+    # prior_error_visible REMOVED. ATIF observations carry no structured exit
+    # codes, so the only available implementation was substring matching on
+    # observation text. Audited at 88% false positives - it fired on
+    # "Script completed / Wall time 0.1 seconds". An 88%-wrong "truth" is worse
+    # than no truth, so the fact is withdrawn rather than tightened.
+    prior_error_truth_available: bool = False
+    prior_error_unavailable_reason: str = (
+        "NO_STRUCTURED_EXIT_CODES: deterministic detection not implementable from "
+        "ATIF observation text; substring matching audited at 88% false positives"
+    )
 
 
 def _tool_calls_rendered(step: dict[str, Any]) -> list[dict[str, Any]]:
@@ -314,14 +323,6 @@ def _completeness(steps: Sequence[dict[str, Any]], index: int) -> dict[str, Any]
     }
 
 
-def _looks_error(step: dict[str, Any]) -> bool:
-    for result in (step.get("observation") or {}).get("results") or []:
-        content = _as_text((result or {}).get("content")).lower()
-        if any(tok in content for tok in ("traceback", "error", "exit code 1")):
-            return True
-    return False
-
-
 def _action_signature(step: dict[str, Any]) -> str | None:
     calls = step.get("tool_calls") or []
     if not calls:
@@ -385,7 +386,6 @@ def enumerate_universe(
             if step.get("source") != "agent":
                 continue
             identity = ItemIdentity(digest, index, aliases)
-            prior_error = any(_looks_error(s) for s in steps[:index])
             signature = _action_signature(step)
             repeats = signature is not None and any(
                 _action_signature(s) == signature for s in steps[:index]
@@ -416,7 +416,6 @@ def enumerate_universe(
                 MachineTruth(
                     item_id=identity.item_id,
                     repeats_prior_action=repeats,
-                    prior_error_visible=prior_error,
                     tool_names=tuple(
                         str((c or {}).get("function_name"))
                         for c in step.get("tool_calls") or []
@@ -518,6 +517,45 @@ def _rearm(item: LabelItem, weight: float, arm: SelectionArm) -> LabelItem:
 
 REQUIRED_RATERS_PER_ITEM = 3
 
+# Cluster adequacy, set by Tutor (wK:p4) power verdict 2026-08-28.
+MIN_EFFECTIVE_CLUSTERS = 20.0
+MAX_CLUSTER_CONCENTRATION = 0.05
+TARGET_CLUSTER_FLOOR = 30  # K = max(30, 96*rho) pending an ICC pilot
+
+
+def effective_clusters(cluster_sizes: Sequence[int]) -> float:
+    """Kish effective cluster count: (sum n)^2 / sum n^2."""
+    total = sum(cluster_sizes)
+    ss = sum(n * n for n in cluster_sizes)
+    if not total or not ss:
+        return 0.0
+    return (total * total) / ss
+
+
+def evaluate_cluster_adequacy(cluster_sizes: Sequence[int]) -> dict[str, Any]:
+    """Gate on design effect, not raw cluster count (Tutor power verdict)."""
+    total = sum(cluster_sizes)
+    k_eff = effective_clusters(cluster_sizes)
+    concentration = (max(cluster_sizes) / total) if total and cluster_sizes else 0.0
+    blockers: list[str] = []
+    if k_eff < MIN_EFFECTIVE_CLUSTERS:
+        blockers.append(
+            f"EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff={k_eff:.2f} < {MIN_EFFECTIVE_CLUSTERS}"
+        )
+    if concentration > MAX_CLUSTER_CONCENTRATION:
+        blockers.append(
+            f"CLUSTER_CONCENTRATION_TOO_HIGH: {concentration:.1%} > {MAX_CLUSTER_CONCENTRATION:.0%}"
+        )
+    return {
+        "raw_clusters": len(cluster_sizes),
+        "effective_clusters_kish": round(k_eff, 2),
+        "max_cluster_concentration": round(concentration, 4),
+        "min_effective_clusters": MIN_EFFECTIVE_CLUSTERS,
+        "max_cluster_concentration_target": MAX_CLUSTER_CONCENTRATION,
+        "target_cluster_floor_pending_icc_pilot": TARGET_CLUSTER_FLOOR,
+        "blockers": blockers,
+    }
+
 
 def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
     """Load RatingRecord sidecars. Returns [] when the directory is absent."""
@@ -562,8 +600,17 @@ def evaluate_readiness(
     records: Sequence[dict[str, Any]],
     qualified_rater_ids: Sequence[str],
 ) -> dict[str, Any]:
-    """Fail-closed. Validates labels, not merely the presence of rater IDs (B4)."""
+    """Fail-closed. Validates labels, not merely the presence of rater IDs (B4).
+
+    Also gates on cluster adequacy: a package whose design effect cannot support
+    an agreement interval must not be labelled regardless of rater supply.
+    """
     blockers: list[str] = []
+    sizes: dict[str, int] = {}
+    for item in items:
+        sizes[item.cluster_id] = sizes.get(item.cluster_id, 0) + 1
+    adequacy = evaluate_cluster_adequacy(list(sizes.values()))
+    blockers.extend(adequacy["blockers"])
     qualified = set(qualified_rater_ids)
     item_ids = {i.item_id for i in items}
 
@@ -606,6 +653,7 @@ def evaluate_readiness(
 
     return {
         "readiness": "READY" if not blockers else "NOT_READY",
+        "cluster_adequacy": adequacy,
         "required_unique_raters_per_item": REQUIRED_RATERS_PER_ITEM,
         "qualified_rater_pool_size": len(qualified),
         "valid_rating_records": sum(len(v) for v in by_item.values()),
@@ -643,7 +691,15 @@ def build_package(
         },
         "blinding": {
             "machine_truth_withheld": True,
-            "withheld_fields": ["repeats_prior_action", "prior_error_visible"],
+            "withheld_fields": ["repeats_prior_action"],
+            "withdrawn_fields": {
+                "prior_error_visible": (
+                    "Withdrawn. Only implementable as substring matching on "
+                    "observation text; audited at 88% false positives. The "
+                    "error_response FACET remains - humans can read the "
+                    "observation - but no machine truth is claimed."
+                )
+            },
             "note": (
                 "Machine ground truth is emitted to a separate artifact and MUST "
                 "NOT be shown to raters. Leaking it destroys the attention check "

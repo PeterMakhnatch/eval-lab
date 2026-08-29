@@ -2,9 +2,11 @@
   "blinding": {
     "machine_truth_withheld": true,
     "note": "Machine ground truth is emitted to a separate artifact and MUST NOT be shown to raters. Leaking it destroys the attention check and primes the error_response facet.",
+    "withdrawn_fields": {
+      "prior_error_visible": "Withdrawn. Only implementable as substring matching on observation text; audited at 88% false positives. The error_response FACET remains - humans can read the observation - but no machine truth is claimed."
+    },
     "withheld_fields": [
-      "repeats_prior_action",
-      "prior_error_visible"
+      "repeats_prior_action"
     ]
   },
   "census": {
@@ -45746,9 +45748,23 @@
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
     "blockers": [
+      "EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0",
+      "CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%",
       "QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3",
       "ITEMS_WITH_ZERO_VALID_RATINGS: 183"
     ],
+    "cluster_adequacy": {
+      "blockers": [
+        "EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0",
+        "CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%"
+      ],
+      "effective_clusters_kish": 13.33,
+      "max_cluster_concentration": 0.1694,
+      "max_cluster_concentration_target": 0.05,
+      "min_effective_clusters": 20.0,
+      "raw_clusters": 20,
+      "target_cluster_floor_pending_icc_pilot": 30
+    },
     "qualified_rater_pool_size": 0,
     "readiness": "NOT_READY",
     "required_unique_raters_per_item": 3,

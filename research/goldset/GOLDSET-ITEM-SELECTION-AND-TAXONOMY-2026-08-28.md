@@ -7,15 +7,15 @@ type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-2-after-independent-review
-readiness: NOT_READY
+status: revision-3-after-exact-head-review
+readiness: NOT_READY (raters AND cluster adequacy)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: a6b9deec397159f59bf78730977a920643c99471ecacd9095b5994cd36581c2e
-revision: 2
+package_sha256: 4790e490d09fa84882f012840df65302bd1ff5ff65f8df6126c07181181895e8
+revision: 3
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -100,12 +100,17 @@ would silently merge three distinct trials and corrupt a frozen package in a way
 later check could detect. Items are therefore keyed on
 
 ```
-(source_relpath, step_index, source_sha256)
+(source_sha256, step_index)
 ```
 
-with `item_id = sha256(relpath#index#sha)[:16]`. The file digest is recorded per
-item, so any edit to a source trajectory invalidates its items rather than silently
-changing their content.
+with `item_id = sha256(source_sha256#step_index)[:16]`. Identity is **content-
+addressed**: relpaths are recorded as `source_aliases` and in the top-level alias
+manifest, never as identity. Any edit to a source trajectory changes its digest and
+therefore invalidates its items, rather than silently changing their content.
+
+Revision 1 keyed on `(source_relpath, step_index, source_sha256)`. Including the
+relpath made byte-identical trajectories at two paths into distinct items, which is
+what inflated 183 to 237.
 
 ### 2.2 Strata — label-independent by construction
 
@@ -115,10 +120,10 @@ biases the prevalence estimate it is meant to support.
 
 | Stratum | n |
 |---|---|
-| `tool:late` | 141 |
-| `tool:early` | 72 |
-| `notool:terminal` | 23 |
-| `notool:early` | **1** |
+| `tool:late` | 112 |
+| `tool:early` | 50 |
+| `notool:terminal` | 20 |
+| `notool:early` | 1 |
 
 Two facts Tutor needs:
 
@@ -142,7 +147,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `sha256 725daf59…`.
+byte-identical package, `sha256 4790e490…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -187,24 +192,47 @@ If raters mark `INSUFFICIENT_CONTEXT` on items the builder called `COMPLETE`, **
 builder missed a defect it believed it had detected.** That disagreement is a
 measurement of the package, obtainable only because the two signals are separate.
 
-## 3. The clustering finding — this decides the power argument
+## 3. Cluster adequacy — Tutor's power verdict: HOLD LABELING
 
-**183 items nest inside 20 clusters.** Steps within a trial share task, model, and
-context, so they are not independent observations.
+**183 items nest inside 20 clusters, but the design effect is what binds.**
 
-Any agreement interval computed treating 183 steps as independent will be **too
-narrow**. The independent unit for anything generalising across trials is the
-**trial**, giving effective $n \approx 20$. One trial contributes a disproportionate share of items, so per-step statistics carry meaningful single-trial leverage.
+| Quantity | Value | Target |
+|---|---|---|
+| Raw clusters | 20 | — |
+| **Kish $K_{\text{eff}}$** | **13.33** | $\ge$ 20 |
+| Max cluster concentration | **16.9%** | $\le$ 5% |
 
-Consequences, all Tutor's call, but the numbers are settled:
+$$K_{\text{eff}} = \frac{\left(\sum n_i\right)^2}{\sum n_i^2} = \frac{183^2}{2513} = 13.33$$
 
-1. Krippendorff $\alpha$ over items is still the right *estimand* — raters label
-   items, not trials — but its **interval must be obtained by cluster bootstrap
-   resampling trials**, never by an analytic or item-level bootstrap.
-2. If the power argument requires more independent units than 23, the blocker is a
-   **data campaign**, not a protocol document.
-3. `model_name` is absent from every `trajectory.json` top level, so per-model
-   stratification requires a join to `traj_features`. Not attempted here.
+Tutor's verdict, independently reproduced here: $K_{\text{eff}} = 13.33 < 20$, and
+even a perfectly balanced 20-cluster split reaches only 19.97 — so **20 raw clusters
+cannot clear the floor at any concentration.** One cluster carries 31 of 183 items
+(16.9 %) against a 5 % target.
+
+**Labelling is on HOLD. A data campaign is required before raters are recruited.**
+Recruiting three raters now would spend human time on a package that cannot yield a
+usable interval.
+
+### 3.1 Campaign target
+
+- **~35–50 new distinct trajectory digests**
+- **$\le$ 5 % concentration** per cluster
+- **$K = \max(30,\; 96\rho)$** after an ICC pilot establishes $\rho$
+
+### 3.2 The gate is in code, not prose
+
+`evaluate_cluster_adequacy` computes $K_{\text{eff}}$ and concentration and emits
+readiness blockers. It fails closed and is asserted by test, including that a
+balanced 40-cluster design clears it. Current output:
+
+```
+blocker EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
+blocker CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
+```
+
+An agreement interval must still come from a **cluster bootstrap resampling
+`cluster_id`** (the content digest) even once the floor is met. The floor makes the
+bootstrap possible; it does not make item-level independence true.
 
 ## 4. Label taxonomy — grounded in what a rater can actually see
 
@@ -245,10 +273,31 @@ reward.
 
 ### 4.3 Attention check — not a gold label
 
-`repeats_prior_action_verbatim` is **mechanically decidable** and machine ground
-truth ships with each item under `machine_facts`. Rater disagreement with it
-measures **rater attention**, not item ambiguity. It must never be pooled into an
-agreement statistic about the taxonomy.
+`repeats_prior_action` is **mechanically decidable** and its machine ground truth
+ships in the **separate withheld artifact** `machine_truth_WITHHELD.json` — never on
+the item. Rater disagreement with it measures **rater attention**, not item
+ambiguity, and must never be pooled into taxonomy agreement.
+
+Revision 1 shipped this truth inside the rater-facing item under `machine_facts`,
+which showed raters the answer. Asserted absent by test.
+
+### 4.4 Withdrawn machine truth — `prior_error_visible`
+
+Revision 2 shipped a `prior_error_visible` machine fact computed by substring
+matching for `traceback` / `error` / `exit code 1` in observation text. **Audited at
+88 % false positives** (38 of 43 hits) — it fired on
+`'Script completed / Wall time 0.1 seconds'`.
+
+ATIF observations carry **no structured exit codes**, so no deterministic
+implementation is available. The fact is therefore **withdrawn, not tightened**: an
+88 %-wrong "truth" is worse than none. The `error_response` *facet* remains — a
+human can read the observation — but no machine truth is claimed, and
+`prior_error_truth_available` is `False` on every row with the reason recorded.
+
+This is the third substring-heuristic-as-fact error in this workstream: I objected
+to `"distractor" in tool_name` as a Grade-A input on PR #267, had a `_rate` suffix
+heuristic vetoed as a structural gate, and then shipped this one. The rule holds and
+I keep breaching it: **a heuristic may generate candidates, never a fact.**
 
 ### 4.4 Excluded labels, with reasons
 
@@ -293,10 +342,10 @@ python3 research/goldset/build_labeling_package.py \
   --machine-truth-out research/goldset/machine_truth_WITHHELD.json \
   --boost-per-stratum 3
 
-python3 research/goldset/test_labeling_package.py   # 45 checks
+python3 research/goldset/test_labeling_package.py   # 57 checks
 ```
 
-Expect `package_sha256 a6b9deec397159f59bf78730977a920643c99471ecacd9095b5994cd36581c2e`
+Expect `package_sha256 4790e490d09fa84882f012840df65302bd1ff5ff65f8df6126c07181181895e8`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

@@ -71,15 +71,20 @@ plus `load_policy` of `standing-approvals.yaml`. Env presence flags
 and are refused. Enable identity, approval `actor`, and budget `actor` must
 be pairwise distinct. Parallel signed-manifest extra fields are rejected.
 `approval_digest` is an HMAC-SHA256 over canonical policy + budget + scope +
-`spec_id`. Key reference and key_id fingerprints are compiled into the
-operator (active + previous). Policy `approval_signature_ref` must equal the
-pinned ref: Linux `file:/run/secrets/evallab-approval-hmac` (that exact path;
-systemd may expose the same basename under `$CREDENTIALS_DIRECTORY` after
-fstat regular, no symlink, fingerprint, and fstatvfs read-only mount) or
-macOS `keychain:EvalLab/evallab-approval-hmac`. Caller-selected paths, env
-key bytes, and unpinned fingerprints are not trust roots. Records carry
-`issued_at` / `expires_at` / `nonce` / `key_id` / MAC. Unkeyed SHA-256 of
-public fields is not a signature.
+`spec_id`. Allowed key fingerprints are not committed in code; production
+loads active/previous key IDs exclusively from a deployment trust manifest
+outside the repo (`/etc/evallab/trusted-approval-keys.json` on Linux or
+`/Library/Application Support/EvalLab/trusted-approval-keys.json` on macOS:
+root-owned, non-symlink, immutable, exact schema). Missing manifest refuses.
+Policy `approval_signature_ref` must equal the pinned ref: Linux
+`file:/run/secrets/evallab-approval-hmac` (that exact path; systemd may expose
+the same basename under `$CREDENTIALS_DIRECTORY` after fstat regular, no
+symlink, fingerprint, and fstatvfs read-only mount) or macOS
+`keychain:EvalLab/evallab-approval-hmac`. Caller-selected paths, env key
+bytes, unmanifested fingerprints, and fixture keys are not trust roots. Records
+carry `issued_at` / `expires_at` / `nonce` / `key_id` / MAC. Manifest digest
+is bound into recovery audits. Unkeyed SHA-256 of public fields is not a
+signature.
 Never put token material in git or argv logs. There is no production `--now`
 or `EVAL_LAB_OPERATOR_NOW` clock override. A heartbeat timestamp in the
 future is `stale_heartbeat`.
@@ -139,8 +144,12 @@ policy fields also keep the operator DISABLED.
 - Kill, inflight, and observed lease evidence commit as one fsync'd journal
   snapshot (`journal/current.json`). A crash between view files remains
   `KILLED` because the journal is the source of truth.
-- Signed one-time recovery is allowed only after observed evidence. Replay
-  of a spent nonce is `recovery_spent`.
+- Signed one-time recovery is allowed only after observed evidence. The
+  recovery MAC binds sorted fenced IDs to the observer `settlement_digest`
+  values from queue/worker/catalog. A local SHA-256 of `leases.json` is not
+  a settlement digest. Replay of a spent nonce is `recovery_spent`.
+- launchd installer walks every ancestor of state, log, and plist paths and
+  refuses any symlink. It does not `launchctl` load.
 
 ## Health / CAS rotation
 

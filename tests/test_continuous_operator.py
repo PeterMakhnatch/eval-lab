@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -22,11 +23,11 @@ from evallab.ops_continuous import (
     KILL_DISPOSITION,
     LAUNCHD_LOG_TOKEN,
     LAUNCHD_STATE_TOKEN,
+    LINUX_TRUST_MANIFEST_PATH,
     PINNED_INIT_IMAGE,
     PINNED_KEYCHAIN_REF,
     PINNED_LINUX_REF,
     PINNED_LINUX_SECRET_NAME,
-    PINNED_PREVIOUS_KEY_ID,
     REASON_BILLABLE_REFUSED,
     REASON_DEFAULT_DISABLED,
     REASON_DRAIN_INCOMPLETE,
@@ -37,7 +38,10 @@ from evallab.ops_continuous import (
     REASON_SAME_IDENTITY,
     REASON_STALE_HEARTBEAT,
     ContinuousLoopPolicy,
+    DeploymentTrustStore,
     bind_policy_digest,
+    key_id_for,
+    lease_settlement_digest,
     load_macos_keychain_secret,
     ClosedWorkloadOwner,
     main,
@@ -247,12 +251,30 @@ def _settle_kill(state: Path) -> None:
 
     kill = json.loads((state / "kill.json").read_text())
     fenced = [item for item in (kill.get("fenced") or []) if isinstance(item, str)]
-    leases = [_terminal_obs(ident) for ident in fenced]
+    observations = [_terminal_obs(ident) for ident in fenced]
     kill["executed"] = True
     commit_operator_snapshot(
         state,
-        {"mode": "KILLED", "inflight": [], "leases": leases, "kill": kill, "drain": {"complete": True, "observed": True}},
+        {
+            "mode": "KILLED",
+            "inflight": [],
+            "leases": [],
+            "observations": observations,
+            "kill": kill,
+            "drain": {"complete": True, "observed": True},
+        },
     )
+
+
+class FixtureTrustStore:
+    def __init__(self, allowed_keys: list[bytes] | None = None) -> None:
+        self.keys = allowed_keys or [MAC_KEY, PREV_KEY]
+
+    def allowed_key_ids(self) -> frozenset[str]:
+        return frozenset({key_id_for(k) for k in self.keys if k})
+
+    def manifest_digest(self) -> str:
+        return hashlib.sha256(b"fixture-manifest").hexdigest()
 
 
 class FakeOwner:
@@ -318,6 +340,7 @@ def _run(
     secret_store=None,
     secrets_root: Path | None = None,
     owner=None,
+    trust_store=None,
 ) -> SimpleNamespace:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -335,10 +358,19 @@ def _run(
 
     original_path = oc.PINNED_LINUX_SECRET_PATH
     oc.PINNED_LINUX_SECRET_PATH = tmp_path / "run-secrets" / PINNED_LINUX_SECRET_NAME
+    ts = trust_store if trust_store is not None else FixtureTrustStore()
     try:
         with redirect_stdout(buf):
             store = secret_store
-            code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=None, owner=owner)
+            code = main(
+                argv,
+                environ=merged,
+                clock=clock,
+                secret_store=store,
+                secrets_root=None,
+                owner=owner,
+                trust_store=ts,
+            )
     finally:
         oc.PINNED_LINUX_SECRET_PATH = original_path
     return SimpleNamespace(returncode=code, stdout=buf.getvalue())
@@ -577,7 +609,9 @@ def test_graceful_drain_refuses_live_and_does_not_mutate_leases(tmp_path: Path) 
     done = _run(tmp_path, "drain", policy=policy, now=NOW, owner=settled)
     assert done.returncode == 0
     assert json.loads((state / "inflight.json").read_text()) == []
-    assert json.loads((state / "leases.json").read_text())[0]["alive"] is False
+    assert json.loads((state / "leases.json").read_text())[0]["status"] == "running"
+    observations = json.loads((state / "observations.json").read_text())
+    assert observations[0]["settlement_digest"] == _terminal_obs("lease-1")["settlement_digest"]
     assert (state / "mode").read_text().strip() == "DISABLED"
 
 
@@ -1272,10 +1306,12 @@ def test_caller_env_temp_key_and_arbitrary_credentials_path_are_ignored(tmp_path
 def test_wrong_fingerprint_at_pinned_path_is_rejected(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    _install_hmac(tmp_path, key=b"eval-lab-operator-mac-key-WRONG32b!")
+    wrong_key = b"eval-lab-operator-mac-key-WRONG32b!"
+    _install_hmac(tmp_path, key=wrong_key)
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
-    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    # Fixture trust store only allows MAC_KEY, not wrong_key
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, trust_store=FixtureTrustStore([MAC_KEY]))
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
@@ -1311,7 +1347,7 @@ def test_compose_init_image_is_digest_pinned() -> None:
 def test_policy_ref_must_equal_pinned_ref() -> None:
     assert PINNED_LINUX_REF == "file:/run/secrets/evallab-approval-hmac"
     assert PINNED_KEYCHAIN_REF.startswith("keychain:EvalLab/")
-    assert PINNED_PREVIOUS_KEY_ID in __import__("evallab.ops_continuous", fromlist=["PINNED_KEY_IDS"]).PINNED_KEY_IDS
+    assert LINUX_TRUST_MANIFEST_PATH == Path("/etc/evallab/trusted-approval-keys.json")
 
 def test_drain_unknown_and_missing_leases_refuse(tmp_path: Path) -> None:
     state = tmp_path / "state"
@@ -1341,4 +1377,116 @@ def test_crash_between_views_keeps_killed_from_journal(tmp_path: Path) -> None:
     assert (state / "mode").read_text().strip() == "KILLED"
     assert json.loads((state / "kill.json").read_text())["executed"] is False
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
+
+def test_recovery_mac_rejects_synthetic_local_lease_digest(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    state.mkdir()
+    original = [{"id": "lease-1", "status": "running", "evidence": {"pid_alive": True}}]
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    (state / "leases.json").write_text(json.dumps(original))
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    drained = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+    assert drained.returncode == 0
+    dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
+    kill_digest = hashlib.sha256((state / "kill.json").read_bytes()).hexdigest()
+    synthetic = lease_settlement_digest(original[0])
+    put_trusted_record(
+        trust_root_for(state, {}),
+        MAC_KEY,
+        _trust_record(
+            kind="recovery",
+            actor=RECOVERY,
+            kill_digest=kill_digest,
+            fenced_ids=["lease-1"],
+            settlement_digests=[synthetic],
+        ),
+        policy=dump,
+        budget=_budget_fields(),
+        kill_digest=kill_digest,
+    )
+    result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert result.returncode == 2
+    assert (state / "mode").read_text().strip() == "KILLED"
+
+
+def test_launchd_rejects_symlink_ancestor(tmp_path: Path) -> None:
+    from evallab.ops_continuous import render_launchd_plist
+
+    home = tmp_path / "home"
+    real_lib = tmp_path / "elsewhere"
+    real_lib.mkdir(parents=True)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "Library").symlink_to(real_lib)
+    dest = tmp_path / "rendered.plist"
+    try:
+        render_launchd_plist(PLIST, dest, home=home)
+    except OSError:
+        return
+    raise AssertionError("expected symlink ancestor rejection")
+
+def test_production_default_refuses_without_deployment_trust_manifest(tmp_path: Path) -> None:
+    import evallab.ops_continuous as oc
+
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    # Pass DeploymentTrustStore explicitly pointing to nonexistent manifest
+    fake_manifest_path = tmp_path / "nonexistent-trusted-approval-keys.json"
+    ds = oc.DeploymentTrustStore(manifest_path=fake_manifest_path)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, trust_store=ds)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_deployment_trust_store_loads_valid_manifest(tmp_path: Path) -> None:
+    import evallab.ops_continuous as oc
+
+    manifest = tmp_path / "trusted-approval-keys.json"
+    manifest_data = {
+        "active_key_id": key_id_for(MAC_KEY),
+        "previous_key_id": key_id_for(PREV_KEY),
+    }
+    manifest.write_text(json.dumps(manifest_data, indent=2))
+    os.chmod(manifest, 0o400)
+    store = oc.DeploymentTrustStore(manifest_path=manifest)
+    assert key_id_for(MAC_KEY) in store.allowed_key_ids()
+    assert key_id_for(PREV_KEY) in store.allowed_key_ids()
+    assert len(store.manifest_digest()) == 64
+
+
+def test_recover_then_pause_maintenance_restart_take_effect_without_split_brain(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    drained = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+    assert drained.returncode == 0
+    _write_auths(state, recovery_actor=RECOVERY)
+    rec = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert rec.returncode == 0
+    assert (state / "mode").read_text().strip() == "DISABLED"
+
+    # Now pause must take effect in both journal snapshot and mode view
+    paused = _run(tmp_path, "pause", now=NOW)
+    assert paused.returncode == 0
+    assert _payload(paused)["mode"] == "PAUSED"
+    assert (state / "mode").read_text().strip() == "PAUSED"
+
+    # Maintenance must take effect
+    maint = _run(tmp_path, "maintenance", now=NOW)
+    assert maint.returncode == 0
+    assert _payload(maint)["mode"] == "MAINTENANCE"
+    assert (state / "mode").read_text().strip() == "MAINTENANCE"
+
+    # Restart must transition to DISABLED
+    restarted = _run(tmp_path, "restart", now=NOW)
+    assert restarted.returncode == 0
+    assert _payload(restarted)["mode"] == "DISABLED"
+    assert (state / "mode").read_text().strip() == "DISABLED"
 

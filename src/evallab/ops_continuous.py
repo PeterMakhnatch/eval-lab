@@ -58,9 +58,8 @@ PINNED_LINUX_REF = FILE_SECRET_PREFIX + PINNED_LINUX_SECRET_NAME
 PINNED_KEYCHAIN_SERVICE = "EvalLab"
 PINNED_KEYCHAIN_ACCOUNT = "evallab-approval-hmac"
 PINNED_KEYCHAIN_REF = f"keychain:{PINNED_KEYCHAIN_SERVICE}/{PINNED_KEYCHAIN_ACCOUNT}"
-PINNED_ACTIVE_KEY_ID = "9d6d16707b5d953d71e986d26590be11e2d4d637fdd453eaebb014d9a2b96d9f"
-PINNED_PREVIOUS_KEY_ID = "93a4b0ce5d047de908aea646b3c21fdd10896bb3a56c6f338b34e7479ae34c00"
-PINNED_KEY_IDS = frozenset({PINNED_ACTIVE_KEY_ID, PINNED_PREVIOUS_KEY_ID})
+LINUX_TRUST_MANIFEST_PATH = Path("/etc/evallab/trusted-approval-keys.json")
+MACOS_TRUST_MANIFEST_PATH = Path("/Library/Application Support/EvalLab/trusted-approval-keys.json")
 PINNED_INIT_IMAGE = (
     "python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
@@ -106,6 +105,63 @@ NONCE_GRAMMAR = re.compile(r"^[A-Za-z0-9._-]{16,128}$")
 SAFETY_PAYLOAD_KEYS = frozenset({"ok", "reason", "mode", "detail", "running", "authorized"})
 AUTH_FIELDS = frozenset({"spec_id", "actor", "authorized_at", "quota_override"})
 BUDGET_FIELDS = AUTH_FIELDS | frozenset({"scope", "expires_at", "ceiling_usd"})
+
+
+class TrustStore(Protocol):
+    """External deployment trust store. Never committed test key fingerprints."""
+
+    def allowed_key_ids(self) -> frozenset[str]:
+        """Set of active and previous 64-char hex key fingerprints."""
+
+    def manifest_digest(self) -> str:
+        """SHA-256 digest of the deployment trust manifest."""
+
+
+class DeploymentTrustStore:
+    def __init__(self, manifest_path: Path | None = None) -> None:
+        self.manifest_path = manifest_path or (
+            MACOS_TRUST_MANIFEST_PATH if sys.platform == "darwin" else LINUX_TRUST_MANIFEST_PATH
+        )
+
+    def _load_manifest(self) -> tuple[frozenset[str], str]:
+        if self.manifest_path.is_symlink() or not self.manifest_path.is_file():
+            return frozenset(), ""
+        try:
+            info = os.stat(self.manifest_path, follow_symlinks=False)
+        except OSError:
+            return frozenset(), ""
+        if not stat.S_ISREG(info.st_mode) or (info.st_mode & 0o222):
+            return frozenset(), ""
+        try:
+            raw_bytes = self.manifest_path.read_bytes()
+            loaded = json.loads(raw_bytes.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return frozenset(), ""
+        if not isinstance(loaded, dict):
+            return frozenset(), ""
+        active = loaded.get("active_key_id")
+        previous = loaded.get("previous_key_id")
+        allowed = loaded.get("allowed_key_ids")
+        ids: set[str] = set()
+        for cand in (active, previous):
+            if isinstance(cand, str) and len(cand) == SHA256_HEX and all(c in "0123456789abcdef" for c in cand.lower()):
+                ids.add(cand.lower())
+        if isinstance(allowed, list):
+            for cand in allowed:
+                if isinstance(cand, str) and len(cand) == SHA256_HEX and all(c in "0123456789abcdef" for c in cand.lower()):
+                    ids.add(cand.lower())
+        if not ids:
+            return frozenset(), ""
+        digest = hashlib.sha256(raw_bytes).hexdigest()
+        return frozenset(ids), digest
+
+    def allowed_key_ids(self) -> frozenset[str]:
+        ids, _ = self._load_manifest()
+        return ids
+
+    def manifest_digest(self) -> str:
+        _, digest = self._load_manifest()
+        return digest
 
 
 class WorkloadOwner(Protocol):
@@ -358,7 +414,13 @@ def _is_readonly_mount(path: Path) -> bool:
     return bool(vfs.f_flag & flag)
 
 
-def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
+def load_file_key(
+    path: Path,
+    *,
+    state_dir: Path,
+    secrets_root: Path,
+    allowed_key_ids: frozenset[str],
+) -> bytes:
     if path.name not in {PINNED_LINUX_SECRET_NAME, f"{PINNED_LINUX_SECRET_NAME}.previous"}:
         return b""
     if path.is_symlink() or not path.is_file() or _escapes_or_symlinks(secrets_root, path):
@@ -387,12 +449,12 @@ def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
         return b""
     if len(data) < 32:
         return b""
-    if key_id_for(data) not in PINNED_KEY_IDS:
+    if not allowed_key_ids or key_id_for(data) not in allowed_key_ids:
         return b""
     return data
 
 
-def load_macos_keychain_secret(ref: str) -> bytes | None:
+def load_macos_keychain_secret(ref: str, *, allowed_key_ids: frozenset[str] | None = None) -> bytes | None:
     allowed = {PINNED_KEYCHAIN_REF, PINNED_KEYCHAIN_REF + ".previous"}
     if ref not in allowed:
         return None
@@ -414,7 +476,9 @@ def load_macos_keychain_secret(ref: str) -> bytes | None:
     if completed.returncode != 0:
         return None
     key = completed.stdout.strip()
-    if len(key) < 32 or key_id_for(key) not in PINNED_KEY_IDS:
+    if len(key) < 32:
+        return None
+    if allowed_key_ids is not None and (not allowed_key_ids or key_id_for(key) not in allowed_key_ids):
         return None
     return key
 
@@ -423,18 +487,21 @@ def load_keychain_key(
     ref: str,
     *,
     secret_store: Callable[[str], bytes | None] | None,
+    allowed_key_ids: frozenset[str],
 ) -> bytes:
     if ref not in {PINNED_KEYCHAIN_REF, PINNED_KEYCHAIN_REF + ".previous"}:
         return b""
-    resolver = secret_store if secret_store is not None else load_macos_keychain_secret
-    try:
-        data = resolver(ref)
-    except OSError:
-        return b""
+    if secret_store is not None:
+        try:
+            data = secret_store(ref)
+        except OSError:
+            return b""
+    else:
+        data = load_macos_keychain_secret(ref, allowed_key_ids=allowed_key_ids)
     if not isinstance(data, (bytes, bytearray)):
         return b""
     key = bytes(data).strip()
-    if len(key) < 32 or key_id_for(key) not in PINNED_KEY_IDS:
+    if len(key) < 32 or not allowed_key_ids or key_id_for(key) not in allowed_key_ids:
         return b""
     return key
 
@@ -459,9 +526,13 @@ def load_keyring(
     secrets_root: Path | None,
     secret_store: Callable[[str], bytes | None] | None,
     environ: Mapping[str, str] | None = None,
+    trust_store: TrustStore | None = None,
 ) -> dict[str, bytes]:
     del secrets_root
     if not signature_ref_allowed(ref):
+        return {}
+    allowed_ids = trust_store.allowed_key_ids() if trust_store is not None else frozenset()
+    if not allowed_ids:
         return {}
     keys: list[bytes] = []
     env = environ or {}
@@ -480,18 +551,18 @@ def load_keyring(
                     continue
                 if not _is_readonly_mount(root):
                     continue
-            loaded = load_file_key(resolved, state_dir=state_dir, secrets_root=root)
+            loaded = load_file_key(resolved, state_dir=state_dir, secrets_root=root, allowed_key_ids=allowed_ids)
             if loaded:
                 keys.append(loaded)
     elif ref == PINNED_KEYCHAIN_REF:
-        keys.append(load_keychain_key(PINNED_KEYCHAIN_REF, secret_store=secret_store))
-        loaded = load_keychain_key(PINNED_KEYCHAIN_REF + ".previous", secret_store=secret_store)
+        keys.append(load_keychain_key(PINNED_KEYCHAIN_REF, secret_store=secret_store, allowed_key_ids=allowed_ids))
+        loaded = load_keychain_key(PINNED_KEYCHAIN_REF + ".previous", secret_store=secret_store, allowed_key_ids=allowed_ids)
         if loaded:
             keys.append(loaded)
     ring: dict[str, bytes] = {}
     for key in keys:
         kid = key_id_for(key)
-        if kid in PINNED_KEY_IDS:
+        if kid in allowed_ids:
             ring[kid] = key
     return ring
 
@@ -503,6 +574,7 @@ def load_mac_key(
     state_dir: Path,
     policy: ContinuousLoopPolicy | None,
     secrets_root: Path | None,
+    trust_store: TrustStore | None = None,
 ) -> dict[str, bytes]:
     if any(environ.get(name) for name in FORBIDDEN_KEY_ENVS):
         return {}
@@ -516,6 +588,7 @@ def load_mac_key(
         secrets_root=None,
         secret_store=secret_store,
         environ=environ,
+        trust_store=trust_store,
     )
 
 
@@ -913,6 +986,8 @@ class OperatorContext:
     recovery_settlement_digests: list[str]
     log_dir: Path
     owner: WorkloadOwner
+    trust_store: TrustStore
+    trust_manifest_digest: str
 
 
 def load_loop_policy(path: Path | None) -> ContinuousLoopPolicy | None:
@@ -1028,6 +1103,8 @@ def _materialize_snapshot_views(state_dir: Path, snapshot: Mapping[str, Any]) ->
         _atomic_write_json(state_dir / "inflight.json", snapshot.get("inflight") or [])
     if "leases" in snapshot:
         _atomic_write_json(state_dir / "leases.json", snapshot.get("leases") or [])
+    if "observations" in snapshot:
+        _atomic_write_json(state_dir / "observations.json", snapshot.get("observations") or [])
     if snapshot.get("kill") is not None:
         _atomic_write_json(state_dir / "kill.json", snapshot["kill"])
     if snapshot.get("drain") is not None:
@@ -1065,7 +1142,7 @@ def _atomic_write_json(path: Path, payload: Any) -> None:
 
 
 def apply_mode_transition(state_dir: Path, target: str, *, command: str) -> str | None:
-    """Centralize legality. KILLED only from kill; recover only after drain settlement."""
+    """Centralize legality through the single authoritative journal snapshot path."""
     if target not in MODES:
         return "illegal_transition"
     current = read_mode(state_dir)
@@ -1083,7 +1160,11 @@ def apply_mode_transition(state_dir: Path, target: str, *, command: str) -> str 
         return "killed_latched"
     if current == "KILLED" and command != "recover":
         return "killed_latched"
-    write_mode(state_dir, target)
+    snap = dict(load_operator_snapshot(state_dir) or {})
+    snap["mode"] = target
+    snap.setdefault("inflight", _load_inflight(state_dir)[0] or [])
+    snap.setdefault("leases", _load_leases(state_dir)[0] or [])
+    commit_operator_snapshot(state_dir, snap)
     return None
 
 
@@ -1127,7 +1208,9 @@ def context_from_env(
     secret_store: Callable[[str], bytes | None] | None = None,
     secrets_root: Path | None = None,
     owner: WorkloadOwner | None = None,
+    trust_store: TrustStore | None = None,
 ) -> OperatorContext:
+    resolved_trust_store = trust_store if trust_store is not None else DeploymentTrustStore()
     secret_probe = state_dir / "secret_present"
     standing_path = (
         Path(environ["EVAL_LAB_STANDING_POLICY"])
@@ -1144,6 +1227,7 @@ def context_from_env(
         state_dir=state_dir,
         policy=policy,
         secrets_root=secrets_root,
+        trust_store=resolved_trust_store,
     )
     mac_key = next(iter(keyring.values()), b"")
     trust_root = trust_root_for(state_dir, environ)
@@ -1216,6 +1300,8 @@ def context_from_env(
         recovery_settlement_digests=list(recovery_extra.get("settlement_digests") or []),
         log_dir=log_dir,
         owner=owner if owner is not None else ClosedWorkloadOwner(),
+        trust_store=resolved_trust_store,
+        trust_manifest_digest=resolved_trust_store.manifest_digest(),
     )
 
 
@@ -1402,8 +1488,31 @@ def _lease_evidence(item: Mapping[str, Any]) -> bool:
 
 
 def lease_settlement_digest(item: Mapping[str, Any]) -> str:
+    """Local hash of operator-held JSON. Not a recovery MAC input."""
     payload = json.dumps(dict(item), sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _load_observations(state_dir: Path) -> tuple[list[dict[str, Any]] | None, str | None]:
+    snapshot = load_operator_snapshot(state_dir)
+    loaded: Any = None
+    if snapshot is not None and "observations" in snapshot:
+        loaded = snapshot.get("observations")
+    elif (state_dir / "observations.json").is_file():
+        try:
+            loaded = json.loads((state_dir / "observations.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None, "malformed_observations"
+    else:
+        return [], None
+    if not isinstance(loaded, list):
+        return None, "malformed_observations"
+    observations: list[dict[str, Any]] = []
+    for item in loaded:
+        if not isinstance(item, dict):
+            return None, "malformed_observations"
+        observations.append(item)
+    return observations, None
 
 
 def recovery_settlement_binding(state_dir: Path) -> tuple[list[str], list[str]] | None:
@@ -1419,27 +1528,23 @@ def recovery_settlement_binding(state_dir: Path) -> tuple[list[str], list[str]] 
     ids = sorted(ids)
     if not ids:
         return [], []
-    leases, error = _load_leases(state_dir)
-    if error is not None or leases is None:
-        return None
-    if not leases:
+    observations, error = _load_observations(state_dir)
+    if error is not None or observations is None or not observations:
         return None
     by_id: dict[str, dict[str, Any]] = {}
-    for item in leases:
+    for item in observations:
         ident = item.get("id")
         if isinstance(ident, str) and ident.strip():
             by_id[ident] = item
     digests: list[str] = []
     for ident in ids:
         rec = by_id.get(ident)
-        if rec is None:
+        if rec is None or not observation_is_terminal(rec):
             return None
-        status = rec.get("status")
-        if not isinstance(status, str) or status not in TERMINAL_LEASE_STATUSES:
+        digest = rec.get("settlement_digest")
+        if not isinstance(digest, str) or len(digest) != SHA256_HEX:
             return None
-        if not _lease_evidence(rec):
-            return None
-        digests.append(lease_settlement_digest(rec))
+        digests.append(digest)
     return ids, digests
 
 
@@ -1508,34 +1613,50 @@ def macos_operator_paths(home: Path) -> tuple[Path, Path]:
     return (home / MACOS_STATE_REL).expanduser(), (home / MACOS_LOG_REL).expanduser()
 
 
-def _reject_symlink(path: Path) -> None:
-    if path.is_symlink() or path.parent.is_symlink():
-        raise OSError("symlink rejected")
+def _reject_symlink_ancestors(path: Path) -> None:
+    current = path
+    while True:
+        try:
+            if current.is_symlink():
+                raise OSError("symlink ancestor rejected")
+        except OSError as exc:
+            if "symlink" in str(exc):
+                raise
+            raise OSError("symlink ancestor rejected") from exc
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
 
 
 def prepare_macos_operator_dirs(home: Path) -> tuple[Path, Path]:
+    _reject_symlink_ancestors(home)
     state_dir, log_dir = macos_operator_paths(home)
     for directory in (state_dir, log_dir):
+        _reject_symlink_ancestors(directory.parent)
         directory.mkdir(parents=True, exist_ok=True)
-        _reject_symlink(directory)
+        _reject_symlink_ancestors(directory)
         os.chmod(directory, STATE_DIR_MODE)
     for name in ("continuous-operator.out", "continuous-operator.err"):
         path = log_dir / name
-        _reject_symlink(path)
+        _reject_symlink_ancestors(path if path.exists() else path.parent)
         if not path.exists():
             path.write_text("", encoding="utf-8")
+        _reject_symlink_ancestors(path)
         os.chmod(path, STATE_FILE_MODE)
     return state_dir, log_dir
 
 
 def render_launchd_plist(template: Path, dest: Path, *, home: Path) -> Path:
     state_dir, log_dir = prepare_macos_operator_dirs(home)
-    text = template.read_text(encoding="utf-8")
-    rendered = text.replace(LAUNCHD_STATE_TOKEN, str(state_dir.resolve())).replace(
+    rendered_text = template.read_text(encoding="utf-8")
+    rendered = rendered_text.replace(LAUNCHD_STATE_TOKEN, str(state_dir.resolve())).replace(
         LAUNCHD_LOG_TOKEN, str(log_dir.resolve())
     )
     dest.parent.mkdir(parents=True, exist_ok=True)
+    _reject_symlink_ancestors(dest.parent)
     dest.write_text(rendered, encoding="utf-8")
+    _reject_symlink_ancestors(dest)
     os.chmod(dest, STATE_FILE_MODE)
     return dest
 
@@ -1697,6 +1818,7 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
         "jti": nonce,
         "spec_id": ctx.recovery.spec_id,
         "kill_digest": expected_digest,
+        "trust_manifest_digest": ctx.trust_manifest_digest,
         "one_time": True,
     }
     _append_event(ctx.state_dir, audit)
@@ -1721,6 +1843,7 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
             "mode": DEFAULT_MODE,
             "inflight": snapshot.get("inflight") or [],
             "leases": snapshot.get("leases") or [],
+            "observations": snapshot.get("observations") or [],
             "kill": snapshot.get("kill"),
             "drain": snapshot.get("drain"),
             "recovered": True,
@@ -1782,6 +1905,7 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
     next_mode = "KILLED" if current == "KILLED" or next_kill is not None else DEFAULT_MODE
     if current == "KILLED":
         next_mode = "KILLED"
+    original_leases, _lease_error = _load_leases(ctx.state_dir)
     drain = {
         "inflight": [],
         "complete": True,
@@ -1793,7 +1917,8 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
         {
             "mode": next_mode,
             "inflight": [],
-            "leases": observed,
+            "leases": original_leases or [],
+            "observations": observed,
             "kill": next_kill,
             "drain": drain,
         },
@@ -1892,6 +2017,7 @@ def main(
     secret_store: Callable[[str], bytes | None] | None = None,
     secrets_root: Path | None = None,
     owner: WorkloadOwner | None = None,
+    trust_store: TrustStore | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     env = os.environ if environ is None else environ
@@ -1912,6 +2038,7 @@ def main(
         secret_store=resolved_store,
         secrets_root=secrets_root,
         owner=owner if owner is not None else ClosedWorkloadOwner(),
+        trust_store=trust_store,
     )
     mode = read_mode(state_dir)
     if mode == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:

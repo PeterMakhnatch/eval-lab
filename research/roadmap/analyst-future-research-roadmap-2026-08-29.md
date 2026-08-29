@@ -437,9 +437,19 @@ this had not been done.
 
 ### Rank 2 — E1: judge calibration on the 44 keyed items
 
-**Rank 2.** It is the only substantive measurement in the repository that
-requires no agent runs, no isolation host, no rater recruitment and no
-$K_{\text{eff}}$ clearance, because its ground truth is *constructed*.
+**Rank 2.** It requires **no agentic benchmark run**, no isolation host, no rater
+recruitment and no $K_{\text{eff}}$ clearance, because its ground truth is
+*constructed*. That is narrower than "zero unblocking", which an earlier draft
+claimed and which was too broad.
+
+`[OBSERVED]` What it does require: **132 grader model calls per arm** (44 keyed items
+× 3 repetitions at temperature 0), and therefore an **authorized and available grader
+lane**. `allow_billable` defaults `False`
+(`src/evallab/execution_contracts.py:209`) and billable work needs a
+`PaidRunAuthorization` with a daily ceiling, so E1 is gated on that authorization
+even though it touches no benchmark task. `[INFERENCE]` The deterministic lexical
+control arm needs no model calls at all, so it can run first and for free — and it is
+the arm that decides whether the corpus measures diagnosis or surface form.
 
 `[OBSERVED]` Corpus verified at `research/calibration/`: two families, each with
 22 graded variants plus a `corpus` index file and 22/22 answer keys.
@@ -480,10 +490,31 @@ $K_{\text{eff}}$ clearance, because its ground truth is *constructed*.
 
 ### Rank 3 — E2: Linux enforced-isolation and credential-proxy lane certification
 
-**Rank 3.** It converts the pilot from infrastructure evidence into
-admissible measurement, and it is a *strict replication* — same cells, same
-seeds, same repetitions — so it is the cheapest possible test of whether the
-Darwin adaptations changed outcomes.
+**Rank 3.** It converts the pilot lane from infrastructure evidence into an
+admissible one. It re-runs the same cells, seeds and repetitions — but it is
+**lane certification plus replication, not a one-variable replication**, and that
+distinction changes what its outcome can mean.
+
+`[OBSERVED]` Four consequential factors move together between the two lanes:
+
+| Factor | Pilot lane | Certified lane |
+|---|---|---|
+| host / platform | Apple Silicon Darwin | Linux |
+| network mode | `public`, `network_isolation_enforced=False` | enforced no-network |
+| image architecture | `linux/amd64` under emulation | native, or a different platform path |
+| credential handling | read-only secret mount inside the task container | credential proxy outside it |
+
+`[INFERENCE]` So a divergence **cannot be attributed to egress specifically**. Any of
+platform, emulation, isolation or credential path could produce it, and the design
+has no way to separate them. Divergence therefore **triggers investigation** — most
+cheaply by re-running one cell while varying one factor — rather than licensing a
+conclusion.
+
+`[INFERENCE]` Equally, divergence does **not automatically retire every pilot
+statement.** The pilot's per-cell outcomes remain what they were: observed results on
+a described lane. What divergence would retire is the assumption that those outcomes
+*transfer* to the certified lane, which is a narrower claim and the only one E2 was
+ever able to test.
 
 - **Cells:** the identical six from §1.1, seed 42, `--n-attempts 3`.
 - **Lane:** `zai-coding-plan/glm-5.3-flash`, OpenCode pinned `1.18.25`, Harbor
@@ -494,12 +525,13 @@ Darwin adaptations changed outcomes.
   18-trial rate. **Not** a capability estimate.
 - **Refusal criteria:** if `network_isolation_enforced` is `False`, abort and
   report the host as uncertified. Do not run cells on a host that cannot enforce.
-- **Stop/go:** if the enforced-isolation rates differ materially from §1.1
-  (`[INFERENCE]` the sharpest signal would be Action Memory 16k dropping, since
-  that cell has the largest context and the most to gain from egress), then the
-  Darwin pilot's outcomes are contaminated and **every descriptive statement in
-  §1.1 is retired**. If they agree, §1.1 becomes a valid pre-registration of the
-  enforced lane.
+- **Stop/go:** if the certified-lane rates agree with §1.1, §1.1 becomes a valid
+  pre-registration of the enforced lane and the pilot's cells carry forward. If they
+  differ, **open a factor-isolation investigation** rather than drawing a
+  conclusion: the four factors above moved together, so the divergence localises to
+  the *lane*, not to egress. `[INFERENCE]` The cheapest next step would be a single
+  cell varying one factor at a time, and the pilot's per-cell observations stay valid
+  as statements about the lane they were measured on.
 
 ### Rank 4 — E0b: handle-representation pilot on the certified lane
 
@@ -544,17 +576,23 @@ opaque identifiers.
 
 ### Rank 5 — E3: Action Memory, cost-bounded and two-phase
 
-**What is runnable, and what is not.** `[OBSERVED]` Independent review found the
+**What the budget admits, and under what condition.** `[OBSERVED]` Independent review found the
 earlier version of this entry advertising a 72-trial provider ceiling against a
 100-trial design, with the JSON spec stating 24 cells and 72 trials while the prose
 alternated 108 and 100. Reconciled here to **one** set of numbers, asserted
 mechanically by `verify_roadmap_claims.py`:
 
-| Phase | Shape | Trials | Projected input tokens | Ceiling | Runnable |
+| Phase | Shape | Trials | Projected input tokens | Ceiling | Budget-shape admitted after E2 |
 |---|---|---:|---:|---:|---|
-| A — measured doses | 4k/16k/64k × 2 arms × 3 seeds × 2 reps | 36 | **6,291,672** | 7,000,000 | **yes** |
-| B — 128k cost canary | 128k × neutral × seed 42 × 2 reps | 2 | unmeasured, ≤1,250,000/trial | 2,500,000 | **yes** |
-| Broad ladder | 4 doses × 2 arms × 3 seeds × 3 reps | 72 | **cannot be projected** | — | **no** |
+| A — measured doses | 4k/16k/64k × 2 arms × 3 seeds × 2 reps | 36 | **6,291,672** | 7,000,000 | **conditional** — not currently admissible |
+| B — 128k cost canary | 128k × neutral × seed 42 × 2 reps | 2 | unmeasured, ≤1,250,000/trial | 2,500,000 | **conditional** — not currently admissible |
+| Broad ladder | 4 doses × 2 arms × 3 seeds × 3 reps | 72 | **cannot be projected** | — | **not admissible at any ceiling** |
+
+`[OBSERVED]` **Neither phase is runnable today.** Both depend on E2: the isolation
+precondition is unmet (`network_isolation_enforced=False`, `harbor_network.py:53-70`)
+and no credential proxy exists. The spec records this as
+`admissibility: "conditionally_runnable"` with the unmet preconditions named. The
+column above states the budget *shape* E2 would admit, not a present authorization.
 
 `[OBSERVED]` **Per-trial input-token cost, and why the old cap was wrong.**
 Recomputed from the promoted wave-1 bundles, with the user-reported 64k figure:
@@ -638,8 +676,11 @@ rewards at 0.0 on `gemini-3.7-flash-low`, so a second arm there would compare tw
 floors.
 
 - **Cells:** `[OBSERVED]` wave 2 already identifies the discriminating ones.
-  **Include:** FuncDAG **high name-similarity** (ran 2/3) and Action Memory **64k**
-  (ran 2/5), seed-blocked. **Exclude:** FuncDAG **depth 5** (4/4 across both lanes)
+  **Include:** FuncDAG **high name-similarity** (ran **2/3**) and Action Memory
+  **64k**, seed-blocked. `[OBSERVED]` The exact 64k boundary from the merged summary:
+  **3/11 including the two scaffold trials, 2/9 unscaffolded**. Quote whichever
+  matches the comparison being made, and never the pooled figure for an
+  unscaffolded contrast. **Exclude:** FuncDAG **depth 5** (4/4 across both lanes)
   and Recovery `persistent-signature` / `silent-wrong-payload` (8/8) — a cell both
   arms pass cannot separate them.
 - **Lanes:** `zai-coding-plan/glm-5.3` (full) and `zai-coding-plan/glm-5.3-flash`.
@@ -1244,19 +1285,22 @@ No effort or duration estimates, per brief.
 ```mermaid
 graph LR
   E1[E1 judge calibration<br/>44 keyed items] --> H2
-  L[Linux enforced-isolation host<br/>network_isolation_enforced=True] --> E2[E2 replicate the 6 pilot cells]
+  L[Linux enforced-isolation host<br/>network_isolation_enforced=True] --> E2[E2 certify lane + replicate 6 cells]
   P[Credential proxy] --> E2
   E2 --> H2[Horizon 2]
   W5[Refresh STATUS/PROGRAM ledger] --> H2
 ```
 
-1. **E1** — judge calibration on the 44 keyed items with the lexical control.
-   Unblocked today.
+1. **E1** — judge calibration on the 44 keyed items with the lexical control. No
+   agentic benchmark run, no host and no rater recruitment; the lexical arm is free,
+   the model arm needs **132 grader calls per arm** and a `PaidRunAuthorization`.
 2. **Linux host** — certify `network_isolation_enforced=True`; run the
    unreachable-endpoint falsification control (§6.1).
 3. **Credential proxy** — container holds no secret; convert the eight-needle
    scan into a regression test.
-4. **E2** — strict replication of the six pilot cells under enforced isolation.
+4. **E2** — lane certification and replication of the six pilot cells under enforced
+   isolation; divergence opens a factor-isolation investigation, it does not retire
+   the pilot's per-cell observations.
 5. **W5** — refresh `STATUS.md` / `PROGRAM.json` to actual campaign state.
 
 **Gate to Horizon 2:** E2 agrees with §1.1, or §1.1 is retired.
@@ -1392,7 +1436,8 @@ falsifiable failure mode that none of the other five covers.
   is task re-selection or generator extension rather than more runs.
 - **Status: narrowed by wave 2, not confirmed.** `[OBSERVED]` The inventory is
   **not** uniformly at ceiling: high name-similarity produced **one failure in
-  three** and the Action **64k** slice ran 2/9. Depth 5 produced **no failures in
+  three** and the Action **64k** slice ran **2/9 unscaffolded** (3/11 including the
+  scaffold pair). Depth 5 produced **no failures in
   four observed trials**, which is not enough to call that axis saturated.
   `[INFERENCE]` The usable form is narrower: **some cells have produced failures and
   some have not yet**, so E5 should prefer the former (high name-similarity, 64k)

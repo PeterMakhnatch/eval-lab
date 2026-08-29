@@ -640,6 +640,73 @@ def check_c1_landed_features(fail: list[str]) -> None:
                 fail.append(f"{feature} is not surfaced in the benchmark views; E0a queries it")
 
 
+def check_final_claim_corrections(failures: list[str]) -> None:
+    """Assert the four pre-merge claim corrections cannot silently regress.
+
+    1. E2 is lane certification, not a one-variable replication.
+    2. Phase A/B budget shape is conditional, never presented as runnable.
+    3. The Action Memory 64k boundary is stated exactly (3/11 incl. scaffold, 2/9 not).
+    4. E1 requires 132 grader calls per arm and an authorized grader lane.
+    """
+    memo = MEMO.read_text(encoding="utf-8")
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+
+    # 1. E2 is lane certification, not a one-variable replication
+    if "one-variable replication" not in memo:
+        failures.append("E2 no longer disclaims being a one-variable replication")
+    if "strict replication" in memo:
+        failures.append("E2 is described as a strict replication; four factors move together")
+    for phrase in (
+        "cannot be attributed to egress specifically",
+        "factor-isolation investigation",
+        "automatically retire every pilot",
+    ):
+        if phrase not in memo:
+            failures.append(f"E2 divergence semantics missing: {phrase!r}")
+    factors = (spec.get("e2_lane_certification") or {}).get("factors_that_move_together") or {}
+    if len(factors) < 4:
+        failures.append(f"spec names {len(factors)} E2 factors; four move together")
+
+    # 2. Phase A/B budget shape is conditional, not runnable
+    if "| Runnable |" in memo:
+        failures.append("E3 table still carries a bare 'Runnable' column")
+    if "Budget-shape admitted after E2" not in memo:
+        failures.append("E3 table does not name the post-E2 budget-shape condition")
+    if "Neither phase is runnable today" not in memo:
+        failures.append("E3 does not state that neither phase is runnable today")
+    for phase in ("phase_a_measured_doses", "phase_b_128k_cost_canary"):
+        if not (spec.get(phase) or {}).get("budget_shape_admitted_after"):
+            failures.append(f"spec {phase} does not record budget_shape_admitted_after")
+
+    # 3. Exact Action Memory 64k boundary
+    if "ran 2/5" in memo:
+        failures.append("E5 still quotes the stale Action 64k figure 2/5")
+    for phrase in ("3/11 including", "2/9 unscaffolded"):
+        if phrase not in memo:
+            failures.append(f"E5 does not state the exact 64k boundary: {phrase!r}")
+    boundary = (spec.get("wave2_context") or {}).get("action_memory_64k_exact_boundary") or {}
+    if (boundary.get("including_scaffold"), boundary.get("unscaffolded")) != ("3/11", "2/9"):
+        failures.append(
+            f"spec 64k boundary is {boundary.get('including_scaffold')!r}/"
+            f"{boundary.get('unscaffolded')!r}, expected '3/11' and '2/9'"
+        )
+
+    # 4. E1 grader-lane cost, not "zero unblocking"
+    if "132 grader model calls per arm" not in memo:
+        failures.append("E1 does not state its 132 grader model calls per arm")
+    if "44 keyed items" not in memo or "3 repetitions" not in memo:
+        failures.append("E1 does not show how 132 grader calls is derived (44 items x 3 reps)")
+    if "no agentic benchmark run" not in memo:
+        failures.append("E1 does not scope its exemption to agentic benchmark runs")
+    if "PaidRunAuthorization" not in memo:
+        failures.append("E1 does not state that it needs a PaidRunAuthorization")
+    if "Unblocked today." in memo:
+        failures.append("E1 still claims to be unblocked today; it needs an authorized grader lane")
+    e1 = (spec.get("estimands") or {}).get("e1_judge_calibration_cost") or {}
+    if e1.get("grader_calls_per_arm") != 132:
+        failures.append(f"spec E1 grader calls is {e1.get('grader_calls_per_arm')}, expected 132")
+
+
 def main() -> int:
     if not MEMO.is_file():
         print(f"memo not found: {MEMO}")
@@ -661,6 +728,7 @@ def main() -> int:
         check_scaffold_falsification,
         check_promoted_wave2,
         check_c1_landed_features,
+        check_final_claim_corrections,
     ):
         check(failures)
     if failures:

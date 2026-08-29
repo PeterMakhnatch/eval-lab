@@ -81,7 +81,8 @@
       "credential-proxy precondition unmet: the pilot's auth secret was readable inside the task container"
     ],
     "becomes_runnable_when": "E2 certifies a Linux enforced-isolation host AND a credential proxy holds the secret outside the container",
-    "if_run_before_E2": "inadmissible pilot only - label as such, record under the calibration ledger, and re-run after certification before quoting any finding"
+    "if_run_before_E2": "inadmissible pilot only - label as such, record under the calibration ledger, and re-run after certification before quoting any finding",
+    "budget_shape_admitted_after": "E2 lane certification; not a present authorization"
   },
   "phase_b_128k_cost_canary": {
     "purpose": "Measure the 128k per-trial cost before any 128k cell is admitted. No 128k trial has ever run, so its cost is unknown and cannot be projected.",
@@ -106,7 +107,8 @@
       "credential-proxy precondition unmet: the pilot's auth secret was readable inside the task container"
     ],
     "becomes_runnable_when": "E2 certifies a Linux enforced-isolation host AND a credential proxy holds the secret outside the container",
-    "if_run_before_E2": "inadmissible pilot only - label as such, record under the calibration ledger, and re-run after certification before quoting any finding"
+    "if_run_before_E2": "inadmissible pilot only - label as such, record under the calibration ledger, and re-run after certification before quoting any finding",
+    "budget_shape_admitted_after": "E2 lane certification; not a present authorization"
   },
   "broad_ladder_not_runnable": {
     "shape": "4 doses x 2 arms x 3 seeds x 3 reps = 72 trials",
@@ -182,6 +184,13 @@
     "instrumentation_REQUEST_TO_C1_LANE": {
       "note": "SATISFIED: merged on main via PR #303 at 24763988. Retained for provenance; no further C1 request outstanding.",
       "retrieval_sequencing": "USER-REPORTED failure signatures: complete-257-read-but-reordered (count correct, order wrong) and 258/257 (one duplicate, matching the 16k pilot's 66/65). Every Action Memory failure observed so far is a sequencing fault, not a coverage fault. Duplication is detectable as tool_call_count > unique_tools_count; reordering needs observation_index compared against the verifier's expected sequence. No new schema required."
+    },
+    "e1_judge_calibration_cost": {
+      "grader_calls_per_arm": 132,
+      "derivation": "44 keyed items x 3 repetitions at temperature 0",
+      "requires": "authorized and available grader lane; allow_billable defaults False (src/evallab/execution_contracts.py:209) so a PaidRunAuthorization is required",
+      "free_arm": "deterministic lexical control needs zero model calls",
+      "note": "E1 needs no agentic benchmark run, but 'zero unblocking' is too broad."
     }
   },
   "denominator_declaration_REQUEST_TO_C1_LANE": {
@@ -330,6 +339,12 @@
         "in_denominator": false
       },
       "note": "include_in_reward_denominator: false is carried as a FIELD in the promoted summary, not just prose"
+    },
+    "action_memory_64k_exact_boundary": {
+      "including_scaffold": "3/11",
+      "unscaffolded": "2/9",
+      "scaffolded": "1/2",
+      "note": "Never quote the pooled figure for an unscaffolded contrast."
     }
   },
   "explicit_non_goals": [
@@ -366,5 +381,27 @@
     "E4": 6,
     "E5": 7,
     "note": "This spec is E3, rank 5. It is gated on E2 (rank 3)."
+  },
+  "e2_lane_certification": {
+    "note": "E2 is lane certification plus replication, NOT a one-variable replication.",
+    "factors_that_move_together": {
+      "host_platform": [
+        "apple_silicon_darwin",
+        "linux"
+      ],
+      "network_mode": [
+        "public network_isolation_enforced=False",
+        "enforced_no_network"
+      ],
+      "image_architecture": [
+        "linux/amd64 under emulation",
+        "native or different platform path"
+      ],
+      "credential_handling": [
+        "read-only secret mount in task container",
+        "credential proxy outside container"
+      ]
+    },
+    "divergence_semantics": "Divergence cannot be attributed to egress specifically and does not automatically retire pilot per-cell observations; it triggers a factor-isolation investigation and retires only the transfer assumption."
   }
 }

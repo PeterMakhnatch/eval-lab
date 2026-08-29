@@ -863,18 +863,21 @@ def materialize_mcp_sidecar_package(
         if not published:
             shutil.rmtree(staging, ignore_errors=True)
 
-    # Compose and Collect fragments
-    compose_doc = render_mcp_compose_document(
-        sidecar_service=DEFAULT_SIDECAR_SERVICE,
-        sidecar_build_context="./" + target_dir.name,
-        network_name=internal_network_name,
-    )
-
-    collect_fragment = {
-        "service": DEFAULT_SIDECAR_SERVICE,
-        "source": "/app/output/benchmark-events.jsonl",
-        "destination": "benchmark-events.jsonl",
-    }
+    # Compose and Collect fragments (strictly emitted only for complete production packages)
+    if plan_only:
+        compose_doc = None
+        collect_fragment = None
+    else:
+        compose_doc = render_mcp_compose_document(
+            sidecar_service=DEFAULT_SIDECAR_SERVICE,
+            sidecar_build_context="./" + target_dir.name,
+            network_name=internal_network_name,
+        )
+        collect_fragment = {
+            "service": DEFAULT_SIDECAR_SERVICE,
+            "source": "/app/output/benchmark-events.jsonl",
+            "destination": "benchmark-events.jsonl",
+        }
 
     return {
         "sidecar_dir": target_dir.as_posix(),

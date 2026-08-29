@@ -26,6 +26,7 @@ from evallab.mcp_substrate import (
     MCPToolDefinition,
     MCPToolParameter,
     RuntimeAsset,
+    SubstrateError,
     materialize_mcp_sidecar_package,
     render_mcp_compose_document,
     render_mcp_sidecar_dockerfile,
@@ -71,6 +72,9 @@ def materialize(
     inversion_count: int = 1,
     padding_position: str | None = None,
     distractor_count: int = 4,
+    wheelhouse_source: Path | None = None,
+    resolver_provenance: Any | None = None,
+    plan_only: bool = False,
 ) -> dict[str, object]:
     state_mod = _get_state_module()
     generate_scenario = state_mod.generate_scenario
@@ -78,6 +82,10 @@ def materialize(
     safe_cell = cell_id.replace("_", "-")
     if output_dir is None:
         output_dir = output_path(safe_cell, seed)
+
+
+    if not plan_only and (wheelhouse_source is None or resolver_provenance is None):
+        raise SubstrateError("wheelhouse_source is mandatory for production sidecar materialization; pass plan_only=True to emit plan without container build artifacts")
 
     if output_dir.exists():
         shutil.rmtree(output_dir)
@@ -204,17 +212,20 @@ def materialize(
         target_dir=mcp_sidecar_dir,
         tools=tools,
         server_name="action-memory-mcp",
-        plan_only=True,
+        wheelhouse_source=wheelhouse_source,
+        resolver_provenance=resolver_provenance,
+        plan_only=plan_only,
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
         runtime_assets=runtime_assets,
     )
-    compose_doc = pkg["compose_doc"]
-    compose_doc["services"]["main"].pop("image", None)
-    compose_doc["services"]["main"]["build"] = "."
-    (environment / "docker-compose.yaml").write_text(
-        yaml.safe_dump(compose_doc, sort_keys=False),
-        encoding="utf-8",
-    )
+    if not plan_only and pkg["compose_doc"] is not None:
+        compose_doc = pkg["compose_doc"]
+        compose_doc["services"]["main"].pop("image", None)
+        compose_doc["services"]["main"]["build"] = "."
+        (environment / "docker-compose.yaml").write_text(
+            yaml.safe_dump(compose_doc, sort_keys=False),
+            encoding="utf-8",
+        )
 
     # Solution script using http.client with readiness check
     solution_solve_py = f'''#!/usr/bin/env python3

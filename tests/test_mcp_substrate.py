@@ -19,7 +19,8 @@ from evallab.benchmark_program_contracts import (
 )
 from evallab.mcp_substrate import (
     DEFAULT_PINNED_BASE_IMAGE,
-    DEFAULT_TARGET_PLATFORM_TAG,
+    DEFAULT_SIDECAR_SERVICE,
+        DEFAULT_TARGET_PLATFORM_TAG,
     DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
     PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
@@ -81,9 +82,13 @@ def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
         tools=[tool],
         plan_only=True,
     )
+    assert pkg["compose_doc"] is None
     (sidecar_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
-
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg["compose_doc"]), encoding="utf-8")
+    compose_doc = render_mcp_compose_document(
+        sidecar_service=DEFAULT_SIDECAR_SERVICE,
+        sidecar_build_context="./" + sidecar_dir.name,
+    )
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
 
     diagnostics: list[Any] = []
     topology, sidecar_name = _validate_compose_topology(resolved_root, diagnostics)
@@ -514,7 +519,7 @@ def test_target_base_runtime_rejects_mismatch_and_unpinned_images():
             DEFAULT_TARGET_PYTHON_TAG,
             DEFAULT_TARGET_PLATFORM_TAG,
             DEFAULT_PINNED_BASE_IMAGE,
-            base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         )
     with pytest.raises(SubstrateError, match="python tag"):
         validate_target_base_runtime("cp313", DEFAULT_TARGET_PLATFORM_TAG)

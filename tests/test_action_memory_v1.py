@@ -8,6 +8,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "action-memory-v1"
 
 
@@ -71,15 +73,15 @@ def test_state_generation_deterministic_and_dosed():
 def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     mat_mod = load("action_memory_mat_test", "materializer")
     target = tmp_path / "action_mem_task"
-    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+    # Materialize plan_only
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     assert (target / "task.toml").exists()
     assert (target / "instruction.md").exists()
-    assert (target / "environment" / "docker-compose.yaml").exists()
+    assert not (target / "environment" / "docker-compose.yaml").exists()
     assert (target / "environment" / "mcp-server" / "server.py").exists()
-    compose = (target / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
-    assert "workbench-internal" in compose
-    assert "mcp-service:" in compose
-    assert "internal: true" in compose
+    assert (target / "environment" / "mcp-server" / "scenario.json").exists()
+    assert (target / "environment" / "mcp-server" / "offline-build-proof.json").exists()
+    assert not (target / "environment" / "mcp-server" / "Dockerfile").exists()
     assert (target / "verifier" / "verify.py").exists()
     assert (target / "tests" / "verify.py").exists()
     assert (target / "solution" / "solve.sh").exists()
@@ -90,13 +92,22 @@ def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     assert (target / "workbench" / "adversarial" / "empty-output.sh").exists()
 
 
+def test_materializer_production_requires_wheelhouse_and_provenance(tmp_path):
+    mat_mod = load("action_memory_mat_prod_test", "materializer")
+    target = tmp_path / "action_mem_task_prod"
+    from evallab.mcp_substrate import SubstrateError
+    with pytest.raises(SubstrateError, match="wheelhouse_source is mandatory"):
+        mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=False)
+    assert not target.exists()
+
+
 def test_mcp_server_client_protocol_interaction(tmp_path):
     mat_mod = load("action_memory_mat_mcp", "materializer")
     runtime_mod = load("action_memory_runtime_mcp", "runtime")
     oracle_mod = load("action_memory_oracle_mcp", "oracle")
 
     task_dir = tmp_path / "mcp_task"
-    mat_mod.materialize(output_dir=task_dir, cell_id="clean_baseline_4k", seed=42)
+    mat_mod.materialize(output_dir=task_dir, cell_id="clean_baseline_4k", seed=42, plan_only=True)
 
     # Start live runtime server on local free port
     port = 18080
@@ -158,7 +169,7 @@ def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):
     tmpl_mod = load("action_memory_tmpl_discrim", "templates")
 
     target = tmp_path / "task_for_discrim"
-    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     task_dir = target / "task_state"
     evidence_dir = target / "evidence"
     rewards = target / "tests" / "rewards"
@@ -169,14 +180,14 @@ def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):
     assert res_nop["reward"] == 0.0
 
     # Oracle should score 1.0
-    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     tmpl_mod.oracle(task_dir, evidence_dir)
     res_oracle = ver_mod.verify(task_dir, evidence_dir, reward_dir=rewards / "oracle")
     assert res_oracle["reward"] == 1.0
 
     # Mutants should score 0.0
     for name, mutant in tmpl_mod.mutants().items():
-        mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+        mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
         mutant(task_dir, evidence_dir)
         res_mutant = ver_mod.verify(task_dir, evidence_dir, reward_dir=rewards / name)
         assert res_mutant["reward"] == 0.0, f"Mutant {name} must yield reward 0.0"
@@ -187,7 +198,7 @@ def test_verifier_rejects_corrupted_event_order_or_invalid_truth(tmp_path):
     ver_mod = load("action_memory_ver_corrupt", "verifier")
 
     target = tmp_path / "task_for_corrupt"
-    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     output_dir = target / "output"
     rewards = target / "tests" / "rewards"
 

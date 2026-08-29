@@ -1476,6 +1476,18 @@ class LedgerRecoverableError(LedgerError):
 # Everything intake converts into a readiness diagnostic instead of raising.
 # Listed explicitly rather than caught as bare Exception, so a genuine defect in
 # our own code still surfaces as a crash.
+# Every RatingRecord field that MUST be a string for the record to be structurally
+# well-formed. `supersedes` is checked separately: it is str-or-None.
+_MUST_BE_STRING = (
+    "schema_version",
+    "rating_contract_digest",
+    "item_id",
+    "item_context_digest",
+    "rater_key_id",
+    "signature",
+    *HUMAN_JUDGED_FIELDS,
+)
+
 INTAKE_FAILURE_TYPES = (
     LedgerError,
     OSError,
@@ -2006,19 +2018,34 @@ def effective_ratings(
     The verifier context is required rather than optional for the same reason the
     supersedes parameter was removed: an optional guard is a guard someone omits.
     """
-    # A hostile record can carry a container where a rater key id belongs. Such
-    # a record is not merely an invalid rating - it is structurally corrupt, and
-    # it is precisely the shape that can make a keyring lookup raise TypeError
-    # (an unhashable rater id used as a dict key). Failing the WHOLE intake
-    # closed - exactly as an unparseable record file does - beats dropping the
-    # record silently and shipping the rest, because the ledger then accepted
-    # and silently discarded hostile content.
+    # STRUCTURAL type check across every field, before any value check.
+    #
+    # The line drawn here matters. A WRONG VALUE - a well-formed string that is
+    # not in the codebook - is merely an invalid rating, and dropping it while
+    # keeping honest ratings is correct. A WRONG TYPE - a list or dict where a
+    # string belongs - is something authenticated append can never produce, so
+    # its presence means filesystem-level control of the ledger. That is a
+    # compromised ledger, and the whole intake refuses.
+    #
+    # This was previously enforced for `rater_key_id` alone, on exactly that
+    # reasoning, while nineteen other fields carrying a container were silently
+    # dropped and the remaining ratings shipped. One field failing closed and the
+    # rest degrading quietly is not a policy; it is an oversight.
     for record in records:
-        if not isinstance(record.get("rater_key_id"), str):
+        for field in _MUST_BE_STRING:
+            value = record.get(field)
+            if not isinstance(value, str):
+                raise LedgerError(
+                    f"LEDGER_RECORD_FIELD_NOT_A_STRING: {field} is "
+                    f"{type(value).__name__}; a ledger containing a structurally "
+                    f"corrupt record is not partially usable"
+                )
+        supersedes = record.get("supersedes")
+        if supersedes is not None and not isinstance(supersedes, str):
             raise LedgerError(
-                "LEDGER_RECORD_KEY_ID_NOT_A_STRING: got "
-                f"{type(record.get('rater_key_id')).__name__}"
+                f"LEDGER_RECORD_FIELD_NOT_A_STRING: supersedes is {type(supersedes).__name__}"
             )
+
     valid = [
         dict(record)
         for record in records

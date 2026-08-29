@@ -2394,6 +2394,139 @@ def main() -> int:
             f"got {good_ri['records_accepted']}",
         )
 
+    print("SEC-STRUCT - wrong TYPE is corruption; wrong VALUE is just invalid")
+    with tempfile.TemporaryDirectory() as tmp:
+        TC = "c" * 64
+        TCTX = {"i1": "d" * 64}
+        TKR = {"r0": "s0", "r1": "s1"}
+        TVC: dict[str, Any] = {
+            "rating_contract_digest": TC,
+            "context_digests": TCTX,
+            "keyring": TKR,
+            "qualified_rater_ids": list(TKR),
+        }
+
+        def _tbase(rater: str) -> dict:
+            return {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": TC,
+                "item_id": "i1",
+                "item_context_digest": TCTX["i1"],
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+
+        def _tledger(dst: Path, bodies: list[dict]) -> tuple[Path, Path]:
+            (dst / "records").mkdir(parents=True)
+            previous = GENESIS_HASH
+            lines = []
+            for n, body in enumerate(bodies, start=1):
+                stored = dict(body)
+                stored["created_at"] = f"H{n}"
+                stored["previous_entry_hash"] = previous
+                rid = _record_id_for_test(stored)
+                stored["record_id"] = rid
+                (dst / "records" / f"{rid}.json").write_text(
+                    json.dumps(stored, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+                entry_hash = _entry_hash_for_test(previous, rid, f"H{n}")
+                lines.append(
+                    json.dumps(
+                        {
+                            "schema": LEDGER_SCHEMA,
+                            "seq": n,
+                            "record_id": rid,
+                            "created_at": f"H{n}",
+                            "previous_entry_hash": previous,
+                            "entry_hash": entry_hash,
+                            "supersedes": stored.get("supersedes"),
+                        },
+                        sort_keys=True,
+                    )
+                )
+                previous = entry_hash
+            (dst / "ledger.jsonl").write_text(
+                "".join(line + "\n" for line in lines), encoding="utf-8"
+            )
+            (dst / "head.json").write_text(
+                json.dumps(
+                    {"schema": LEDGER_SCHEMA, "head_hash": previous, "count": len(lines)},
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            head_hash, count = ledger_head(dst)
+            anchor_file = dst.parent / f"anchor-{dst.name}.json"
+            anchor_file.write_text(
+                json.dumps(sign_ledger_anchor(head_hash, count, "A")), encoding="utf-8"
+            )
+            return dst, anchor_file
+
+        typed_fields = [
+            "schema_version",
+            "rating_contract_digest",
+            "item_id",
+            "item_context_digest",
+            "rater_key_id",
+            "signature",
+            "supersedes",
+            *HUMAN_JUDGED_FIELDS,
+        ]
+        leaks = []
+        for index, field in enumerate(typed_fields):
+            for shape, value in (("list", ["x"]), ("dict", {"k": "v"})):
+                honest = _tbase("r0")
+                honest["signature"] = sign_rating(honest, "s0")
+                hostile = _tbase("r1")
+                hostile[field] = value
+                hostile["signature"] = (
+                    value if field == "signature" else sign_rating(_tbase("r1"), "s1")
+                )
+                if field != "signature":
+                    hostile[field] = value
+                led, anc = _tledger(Path(tmp) / f"t{index}{shape}", [honest, hostile])
+                got, _mode, probs = load_intake(led, anchor_path=anc, anchor_secret="A", **TVC)
+                if got or not probs:
+                    leaks.append(f"{field}/{shape}")
+        check(
+            "a container in ANY string field refuses the whole intake",
+            not leaks,
+        )
+        check(
+            "the type check is exercised across every field, not one",
+            len(typed_fields) * 2 == 22,
+        )
+        # THE OTHER DIRECTION. A guard that refused everything would pass the
+        # check above while destroying honest intake, so both cases below must
+        # still behave exactly as before.
+        honest = _tbase("r0")
+        honest["signature"] = sign_rating(honest, "s0")
+        wrong_value = _tbase("r1")
+        wrong_value["step_contribution"] = "NOT_A_REAL_LABEL"
+        wrong_value["signature"] = sign_rating(wrong_value, "s1")
+        led, anc = _tledger(Path(tmp) / "value", [honest, wrong_value])
+        got, _mode, probs = load_intake(led, anchor_path=anc, anchor_secret="A", **TVC)
+        check(
+            "a wrong VALUE only drops that rating; the honest one survives",
+            len(got) == 1 and not probs,
+        )
+        clean = Path(tmp) / "clean"
+        for rater, secret in TKR.items():
+            body = _tbase(rater)
+            body["signature"] = sign_rating(body, secret)
+            append_rating_record(clean, body, created_at=f"T{rater}", **TVC)
+        chead, ccount = ledger_head(clean)
+        canchor = Path(tmp) / "clean-anchor.json"
+        canchor.write_text(json.dumps(sign_ledger_anchor(chead, ccount, "A")), encoding="utf-8")
+        got, _mode, probs = load_intake(clean, anchor_path=canchor, anchor_secret="A", **TVC)
+        check(
+            "a fully honest ledger is completely unaffected",
+            len(got) == len(TKR) and not probs,
+        )
+
     print("CLI-GATE - the shipped entry point enforces the anchor")
     with tempfile.TemporaryDirectory() as tmp:
         T = Path(tmp)

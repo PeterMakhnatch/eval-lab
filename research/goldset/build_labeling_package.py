@@ -945,7 +945,7 @@ def load_rater_registry(
     if authority_secret is None:
         return [], {}, ["REGISTRY_AUTHORITY_SECRET_NOT_SUPPLIED"]
     expected = sign_registry(registry, authority_secret)
-    if not hmac.compare_digest(expected, str(registry.get("signature") or "")):
+    if not _digests_equal(expected, str(registry.get("signature") or "")):
         return [], {}, ["REGISTRY_SIGNATURE_INVALID"]
 
     problems: list[str] = []
@@ -1058,7 +1058,7 @@ def verify_rating_signature(record: Mapping[str, Any], keyring: Mapping[str, str
     if not secret:
         return False
     supplied = str(record.get("signature") or "")
-    return hmac.compare_digest(sign_rating(record, secret), supplied)
+    return _digests_equal(sign_rating(record, secret), supplied)
 
 
 def load_intake(
@@ -1116,8 +1116,16 @@ def load_intake(
     except INTAKE_FAILURE_TYPES as exc:
         return [], "ledger", [f"LEDGER_INVALID: {type(exc).__name__}: {exc}"]
 
-    if records:
-        root = DEFAULT_ANCHOR_ROOT if anchor_root is None else anchor_root
+    root = DEFAULT_ANCHOR_ROOT if anchor_root is None else anchor_root
+    # An EMPTY ledger must still be checked against the anchor when this campaign
+    # has ever published one. Guarding the whole check on `records` let a
+    # rollback-to-empty skip it entirely: zero ratings, zero diagnostics, and a
+    # package that looked merely unrated rather than tampered with.
+    try:
+        ever_published = highest_published_count(root, rating_contract_digest)
+    except LedgerError as exc:
+        return [], "ledger", [f"LEDGER_ANCHOR_REJECTED: {exc}"]
+    if records or ever_published:
         if anchor_secret is None:
             problems.append(
                 "LEDGER_ANCHOR_MISSING: a nonempty ledger intake requires a "
@@ -1589,6 +1597,26 @@ def _read_ledger_json(path: Path, what: str) -> Any:
         return json.loads(text)
     except json.JSONDecodeError as exc:
         raise LedgerError(f"{what}_MALFORMED_JSON: {path}: {exc.msg}") from exc
+
+
+def _digests_equal(expected: str, supplied: object) -> bool:
+    """Constant-time compare that FAILS CLOSED on anything not ASCII text.
+
+    `hmac.compare_digest` raises TypeError on strings containing non-ASCII
+    characters. A supplied signature is attacker-controlled, so that turned a
+    hostile anchor, rating or roster into a crashed build rather than a refused
+    one - the registry path was not even inside intake's diagnostic conversion,
+    so it aborted the run outright. A non-ASCII signature is simply not equal to
+    a hex digest, which is what this returns.
+    """
+    if not isinstance(supplied, str):
+        return False
+    try:
+        supplied.encode("ascii")
+        expected.encode("ascii")
+    except UnicodeEncodeError:
+        return False
+    return hmac.compare_digest(expected, supplied)
 
 
 def _is_sha256(value: object) -> bool:
@@ -2064,7 +2092,7 @@ def verify_ledger_anchor(anchor: Mapping[str, Any], secret: str) -> dict[str, An
         ledger=anchor.get("ledger_id"),
         rating_contract_digest=anchor.get("rating_contract_digest"),
     )["signature"]
-    if not hmac.compare_digest(signature, expected):
+    if not _digests_equal(expected, signature):
         raise LedgerError("ANCHOR_SIGNATURE_INVALID: anchor is not from the trusted coordinator")
     return {
         "head_hash": str(head),
@@ -2657,7 +2685,7 @@ def verify_bundle(bundle: Mapping[str, Any], distribution_secret: str | None) ->
         raise BundleVerificationError("NO_DISTRIBUTION_KEY: cannot verify coordinator")
     expected_signature = sign_bundle(bundle, distribution_secret)
     supplied_signature = str(bundle.get("coordinator_signature") or "")
-    if not hmac.compare_digest(expected_signature, supplied_signature):
+    if not _digests_equal(expected_signature, supplied_signature):
         raise BundleVerificationError("COORDINATOR_SIGNATURE_INVALID")
 
     recomputed = compute_bundle_contract_digest(bundle)

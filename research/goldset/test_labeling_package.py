@@ -29,6 +29,7 @@ from build_labeling_package import (  # noqa: E402
     HUMAN_JUDGED_FIELDS,
     INSUFFICIENT_CONTEXT,
     KEYSTORE_SCHEMA_VERSION,
+    LEDGER_ANCHOR_SCHEMA,
     LEDGER_SCHEMA,
     MIN_EFFECTIVE_CLUSTERS,
     RATING_SCHEMA_VERSION,
@@ -71,6 +72,7 @@ from build_labeling_package import (  # noqa: E402
     validate_rating,
     verify_against_anchor,
     verify_bundle,
+    verify_ledger_anchor,
     verify_rating_signature,
     write_paired_outputs,
 )
@@ -2949,6 +2951,144 @@ def main() -> int:
             not [b for b in good["readiness"]["blockers"] if "ANCHOR" in b]
             and gi["records_accepted"] == len(CKEYS)
             and gi["records_rejected"] == 0,
+        )
+
+    print("SEC-FAILCLOSED - hostile signatures refuse; they never crash the build")
+    with tempfile.TemporaryDirectory() as tmp:
+        FC = "c" * 64
+        FCTX = {"i1": "d" * 64}
+        FKR = {"r0": "s0"}
+        FVC: dict[str, Any] = {
+            "rating_contract_digest": FC,
+            "context_digests": FCTX,
+            "keyring": FKR,
+            "qualified_rater_ids": ["r0"],
+        }
+        # hmac.compare_digest RAISES TypeError on non-ASCII strings, and a supplied
+        # signature is attacker-controlled. That turned a hostile artifact into a
+        # crashed build rather than a refused one - and the registry path sits
+        # OUTSIDE intake's diagnostic conversion, so it aborted the run outright.
+        NON_ASCII = "é" * 64
+        check(
+            "a non-ASCII anchor signature is REFUSED, not a TypeError",
+            _raises(
+                LedgerError,
+                lambda: verify_ledger_anchor(
+                    {
+                        "schema": LEDGER_ANCHOR_SCHEMA,
+                        "head_hash": "a" * 64,
+                        "entry_count": 1,
+                        "ledger_id": None,
+                        "rating_contract_digest": None,
+                        "signature": NON_ASCII,
+                    },
+                    "s",
+                ),
+            ),
+        )
+        fbody = {
+            "schema_version": RATING_SCHEMA_VERSION,
+            "rating_contract_digest": FC,
+            "item_id": "i1",
+            "item_context_digest": FCTX["i1"],
+            "rater_key_id": "r0",
+            "supersedes": None,
+            **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            "signature": NON_ASCII,
+        }
+        check(
+            "a non-ASCII rating signature is REJECTED, not a TypeError",
+            "SIGNATURE_INVALID_OR_UNREGISTERED_KEY" in validate_rating(dict(fbody), **FVC),
+        )
+        freg = {
+            "schema_version": REGISTRY_SCHEMA_VERSION,
+            "authority_key_id": "a",
+            "raters": [{"key_id": "r0", "qualified": True}],
+            "signature": NON_ASCII,
+        }
+        freg_path = Path(tmp) / "reg.json"
+        freg_path.write_text(json.dumps(freg), encoding="utf-8")
+        _fq, _fk, fprobs = load_rater_registry(freg_path, "AUTH", None)
+        check(
+            "a non-ASCII roster signature yields a PROBLEM, not a crashed build",
+            "REGISTRY_SIGNATURE_INVALID" in fprobs,
+        )
+        # The other direction: a genuine signature must still verify.
+        good = dict(fbody)
+        good["signature"] = sign_rating(good, "s0")
+        check(
+            "a GENUINE signature still verifies after the fail-closed change",
+            validate_rating(dict(good), **FVC) == [],
+        )
+
+    print("SEC-EMPTY-ANCHOR - rollback to an EMPTY ledger is still caught")
+    with tempfile.TemporaryDirectory() as tmp:
+        T = Path(tmp)
+        EC = "c" * 64
+        ECTX = {"i1": "d" * 64}
+        EKR = {f"r{n}": f"s{n}" for n in range(3)}
+        EVC: dict[str, Any] = {
+            "rating_contract_digest": EC,
+            "context_digests": ECTX,
+            "keyring": EKR,
+            "qualified_rater_ids": list(EKR),
+        }
+
+        def _erec(rater: str) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": EC,
+                "item_id": "i1",
+                "item_context_digest": ECTX["i1"],
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            body["signature"] = sign_rating(body, EKR[rater])
+            return body
+
+        def _empty_ledger(dst: Path) -> Path:
+            (dst / "records").mkdir(parents=True)
+            (dst / "ledger.jsonl").write_text("", encoding="utf-8")
+            (dst / "head.json").write_text(
+                json.dumps(
+                    {"schema": LEDGER_SCHEMA, "head_hash": GENESIS_HASH, "count": 0},
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return dst
+
+        live = T / "ratings" / "live"
+        root = T / "authority"
+        for rater in EKR:
+            append_rating_record(live, _erec(rater), created_at=f"T{rater}", **EVC)
+        publish_anchor(root, live, rating_contract_digest=EC, secret="A")
+        # Guarding the anchor check on `if records:` let a rollback-to-empty skip it
+        # entirely: zero ratings AND zero diagnostics, so the package looked merely
+        # unrated rather than tampered with.
+        rolled = _empty_ledger(T / "ratings" / "rolled")
+        got, _mode, probs = load_intake(rolled, anchor_root=root, anchor_secret="A", **EVC)
+        check(
+            "an empty ledger is still checked against a published anchor",
+            got == [] and bool(probs),
+        )
+        # Both controls: a genuinely fresh campaign is not accused, and a healthy
+        # anchored ledger is unaffected.
+        fresh = _empty_ledger(T / "ratings" / "fresh")
+        got, _mode, probs = load_intake(
+            fresh, anchor_root=T / "never-published", anchor_secret="A", **EVC
+        )
+        check(
+            "a fresh campaign with no published anchor is NOT accused",
+            got == [] and not probs,
+        )
+        got, _mode, probs = load_intake(live, anchor_root=root, anchor_secret="A", **EVC)
+        check(
+            "the healthy anchored ledger is unaffected",
+            len(got) == len(EKR) and not probs,
         )
 
     print("SEC-CLONE - item-level logical dedup with lineage")

@@ -65,7 +65,14 @@ def live_facts() -> dict[str, Any]:
     census = package["census"]
     sizes = list(census["agent_steps_per_cluster"].values())
     total = sum(sizes)
+    complete = sum(
+        1 for i in package["items"] if i["context_completeness"]["builder_verdict"] == "COMPLETE"
+    )
+    tool_bearing = sum(1 for i in package["items"] if str(i.get("stratum", "")).startswith("tool"))
     return {
+        "complete_items": complete,
+        "incomplete_items": len(package["items"]) - complete,
+        "tool_bearing_items": tool_bearing,
         "file_sha256": hashlib.sha256(PACKAGE.read_bytes()).hexdigest(),
         "package_digest": package["package_digest"],
         "build_id": package["build_id"],
@@ -217,6 +224,21 @@ def check(doc: str, facts: dict[str, Any]) -> list[str]:
             violations.append(
                 f"vacuous delta claim: 'from {before} to {after}' asserts a change "
                 f"to the same value; state the real prior value or delete the claim"
+            )
+    # These two went stale across revisions and were caught by a human reviewer
+    # rather than by this checker, which is the checker's failure. Governed now.
+    expected_completeness = f"COMPLETE {facts['complete_items']}"
+    if "COMPLETE " in doc and expected_completeness not in doc:
+        violations.append(
+            f"completeness block is stale: doc must state {expected_completeness!r} "
+            f"/ INCOMPLETE {facts['incomplete_items']}"
+        )
+    tool_pct = 100.0 * facts["tool_bearing_items"] / max(facts["n_items"], 1)
+    if "tool-bearing" in doc:
+        expected_tool = f"{facts['tool_bearing_items']} of {facts['n_items']}"
+        if expected_tool not in doc:
+            violations.append(
+                f"tool-bearing count is stale: doc must state {expected_tool!r} ({tool_pct:.1f} %)"
             )
     return sorted(set(violations))
 

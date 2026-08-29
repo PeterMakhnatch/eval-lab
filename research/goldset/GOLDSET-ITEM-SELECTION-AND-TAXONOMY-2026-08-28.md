@@ -200,7 +200,7 @@ Two facts Tutor needs:
 
 - **`notool:early` has n = 1.** No per-stratum quantity is estimable there. Either
   merge it into `notool:terminal` or exclude and report the exclusion.
-- **90 % of items are tool-bearing** (of 183). The corpus cannot support a
+- **162 of 183 items are tool-bearing (88.5 %)**. The corpus cannot support a
   contrast between tool-using and non-tool-using steps.
 
 ### 2.3 Sampling design and weights
@@ -256,19 +256,20 @@ rate says the builder does.
 builder, not the rater. Current distribution:
 
 ```
-COMPLETE 34    INCOMPLETE 149
+COMPLETE 183    INCOMPLETE 0
 ```
 
-**Current distribution is 34 COMPLETE /
-149 INCOMPLETE — 81.4% incomplete.** <!--hist-->
-Revision 5 reported 158/25, which was false: the verdict examined only the item's
-own truncation and ignored prior-step truncation entirely.
+**Every delivered item is `COMPLETE`.** Revision 7 reported 34 COMPLETE /
+149 INCOMPLETE — 81.4% incomplete — and that was real at the time: <!--hist-->
+`MAX_TEXT_CHARS`/`MAX_OBS_CHARS` were 4000, so four items in five shipped with
+context the builder itself knew was truncated. Raising the limits to 262 144
+eliminated it (7.2). Revision 5's earlier 158/25 was simply wrong: that verdict
+examined only the item's own truncation and ignored prior-step truncation.
 
-**This is now a readiness gate.** `MAX_INCOMPLETE_CONTEXT_FRACTION = 20%`;
-at 81.4% the package emits <!--hist-->
-`CONTEXT_INCOMPLETE_TOO_HIGH` and refuses. A rater forced into
-`INSUFFICIENT_CONTEXT` on four items in five is measuring the builder, not the
-agent.
+**The gate remains in force**, not satisfied and retired.
+`MAX_INCOMPLETE_CONTEXT_FRACTION = 20%`, and any future item that truncates is
+excluded from delivery rather than shipped for a rater to flag. A rater forced
+into `INSUFFICIENT_CONTEXT` would be measuring the builder, not the agent.
 
 If raters mark `INSUFFICIENT_CONTEXT` on items the builder called `COMPLETE`, **the
 builder missed a defect it believed it had detected.** That disagreement is a
@@ -640,7 +641,7 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 274 standalone checks + 24 pytest
+python3 research/goldset/test_labeling_package.py   # 281 standalone checks + 24 pytest
 ```
 
 Expect `labeling_package_file_sha256 af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59`

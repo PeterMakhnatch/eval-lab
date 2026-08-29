@@ -186,7 +186,7 @@ def verify_wheelhouse_inventory(
     inventory: list[dict[str, Any]] = []
 
     for w_file in sorted(wheels, key=lambda p: p.name):
-        w_bytes = _read_runtime_asset_source(w_file)
+        w_bytes = _read_file_source(w_file)
         w_hash = hashlib.sha256(w_bytes).hexdigest()
         pkg_name = w_file.name.split("-")[0].lower().replace("_", "-")
 
@@ -236,10 +236,17 @@ class MCPToolParameter:
 
 @dataclass(frozen=True)
 class RuntimeAsset:
-    """Explicit host file copied into the sidecar package at a confined relative path."""
+    """Explicit host file or raw bytes copied into the sidecar package at a confined relative path."""
 
     destination: str
-    source: Path
+    source: Path | None = None
+    content: bytes | None = None
+
+    def __post_init__(self) -> None:
+        if (self.source is None and self.content is None) or (
+            self.source is not None and self.content is not None
+        ):
+            raise SubstrateError("RuntimeAsset requires exactly one of 'source' or 'content'")
 
 
 def op_registry_module_destination(module: str) -> str:
@@ -288,7 +295,7 @@ def _dockerfile_copy_token(value: str, *, name: str) -> str:
     return value
 
 
-def _read_runtime_asset_source(source: Path) -> bytes:
+def _read_file_source(source: Path) -> bytes:
     try:
         st = os.lstat(source)
     except OSError as exc:
@@ -317,6 +324,16 @@ def _read_runtime_asset_source(source: Path) -> bytes:
     finally:
         if fd >= 0:
             os.close(fd)
+
+
+def _read_runtime_asset(asset: RuntimeAsset) -> bytes:
+    if asset.content is not None:
+        if not isinstance(asset.content, bytes):
+            raise SubstrateError("RuntimeAsset content must be bytes")
+        return asset.content
+    assert asset.source is not None
+    source = asset.source if isinstance(asset.source, Path) else Path(asset.source)
+    return _read_file_source(source)
 
 
 def _reject_runtime_asset_prefix_conflicts(destinations: Sequence[str]) -> None:
@@ -349,10 +366,9 @@ def validate_runtime_assets(
         if folded in seen_fold:
             raise SubstrateError(f"Duplicate runtime asset destination: {destination!r}")
         seen_fold.add(folded)
-        source = asset.source if isinstance(asset.source, Path) else Path(asset.source)
-        content = _read_runtime_asset_source(source)
+        content = _read_runtime_asset(asset)
         prepared[destination] = (
-            RuntimeAsset(destination=destination, source=source),
+            RuntimeAsset(destination=destination, source=None, content=content),
             content,
         )
     destinations = tuple(prepared)
@@ -798,10 +814,28 @@ def materialize_mcp_sidecar_package(
         if resolver_provenance.target != selected_target:
             raise SubstrateError("resolver provenance target does not match requested target")
 
-    # 2. Target path MUST be absent up front; refuse existing file, directory, or symlink
+    # 2. Confine target directory and validate non-symlink
+    if target_dir.is_symlink():
+        raise SubstrateError(f"target_dir is a symlink: {target_dir.as_posix()!r}")
+    raw_target = target_dir
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
-    if target_dir.exists() or target_dir.is_symlink():
-        raise SubstrateError(f"target_dir already exists: {target_dir.as_posix()!r}")
+    if raw_target.is_symlink() or target_dir.is_symlink():
+        raise SubstrateError(f"target_dir is a symlink: {target_dir.as_posix()!r}")
+    if target_dir.exists():
+        if not target_dir.is_dir():
+            raise SubstrateError(f"target_dir must be a directory: {target_dir.as_posix()!r}")
+        for name in (".dockerignore", "Dockerfile.dockerignore", "compose.yaml", "docker-compose.yaml"):
+            planted = target_dir / name
+            if planted.exists() or planted.is_symlink():
+                raise SubstrateError(f"Target contains reserved build-control file: {name}")
+        for name in ("server.py", "requirements.txt", "Dockerfile", "offline-build-proof.json", "wheelhouse"):
+            entry = target_dir / name
+            if entry.is_symlink():
+                raise SubstrateError(f"target contains symlink entry: {name}")
+        for asset, _content in prepared_assets:
+            entry = target_dir / asset.destination
+            if entry.is_symlink():
+                raise SubstrateError(f"target contains symlink destination: {asset.destination}")
 
     parent = target_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -835,8 +869,22 @@ def materialize_mcp_sidecar_package(
         finally:
             os.close(staging_fd)
 
-        # 4. Atomic publish via single rename under parent directory fd
-        os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        # 4. Atomic publish via renameat under parent directory fd (safely parks existing target into private hold)
+        if target_dir.exists():
+            hold = Path(tempfile.mkdtemp(prefix=f".{target_dir.name}.hold.", dir=parent))
+            os.chmod(hold, 0o700)
+            parked_rel = f"{hold.name}/old_target"
+            os.rename(target_dir.name, parked_rel, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            try:
+                os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            except Exception:
+                with contextlib.suppress(Exception):
+                    os.rename(parked_rel, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+                shutil.rmtree(hold, ignore_errors=True)
+                raise
+            shutil.rmtree(hold, ignore_errors=True)
+        else:
+            os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         os.fsync(parent_fd)
         published = True
     finally:
@@ -1107,7 +1155,7 @@ def _wheel_metadata_from_bytes(raw_bytes: bytes, wheel_name: str) -> tuple[str, 
 
 def _wheel_metadata(wheel: Path) -> tuple[str, str]:
     """Return normalized distribution name/version from a wheel file."""
-    raw = _read_runtime_asset_source(wheel)
+    raw = _read_file_source(wheel)
     return _wheel_metadata_from_bytes(raw, wheel.name)
 
 
@@ -1210,6 +1258,7 @@ def stage_platform_wheelhouse(
 
     return lock, inventory
 
+
 @dataclass(frozen=True)
 class ResolverProvenance:
     """Trusted network-prepackaging result, serialized from pip --report/PyPI resolver output."""
@@ -1268,7 +1317,7 @@ def verify_provenance_wheelhouse(
     for filename, record in sorted(expected.items()):
         wheel = found[filename]
         name, version = _wheel_metadata(wheel)
-        content = _read_runtime_asset_source(wheel)
+        content = _read_file_source(wheel)
         actual = hashlib.sha256(content).hexdigest()
         if (
             name != record["name"].lower().replace("_", "-")

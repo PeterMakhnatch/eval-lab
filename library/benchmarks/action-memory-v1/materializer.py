@@ -19,13 +19,16 @@ PINNED_PYTHON_IMAGE = "python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165
 from evallab.benchmark_program_contracts import CellFactorsA, SyntheticFamilySpec, SyntheticFamilyType, compute_sha256
 from evallab.mcp_substrate import (
     DEFAULT_INTERNAL_NETWORK_NAME,
+    DEFAULT_PINNED_BASE_IMAGE,
     DEFAULT_SIDECAR_SERVICE,
     DEFAULT_VOLUME_MOUNT,
     DEFAULT_VOLUME_NAME,
     MCPToolDefinition,
     MCPToolParameter,
+    RuntimeAsset,
     materialize_mcp_sidecar_package,
     render_mcp_compose_document,
+    render_mcp_sidecar_dockerfile,
 )
 import yaml
 
@@ -100,14 +103,13 @@ def materialize(
     evidence = output_dir / "evidence"
     mcp_sidecar_dir = environment / "mcp-server"
 
-    for d in (environment, solution, tests, verifier_dir, workbench, adversarial, task_state, evidence, mcp_sidecar_dir):
+    for d in (environment, solution, tests, verifier_dir, workbench, adversarial, task_state, evidence):
         d.mkdir(parents=True, exist_ok=True)
 
-    # Write scenario json to task_state and mcp-server (agent runtime)
+    # Write scenario json to task_state (agent runtime gets scenario.json canonically via RuntimeAsset)
     scenario_dict = asdict(spec)
     scenario_json_str = json.dumps(scenario_dict, indent=2, sort_keys=True) + "\n"
     (task_state / "scenario.json").write_text(scenario_json_str, encoding="utf-8")
-    (mcp_sidecar_dir / "scenario.json").write_text(scenario_json_str, encoding="utf-8")
 
     family_spec = SyntheticFamilySpec(
         family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
@@ -194,22 +196,23 @@ def materialize(
             ),
         ),
     )
+    runtime_assets = (
+        RuntimeAsset("scenario.json", content=scenario_json_str.encode("utf-8")),
+        RuntimeAsset("runtime.py", source=ROOT / "runtime.py"),
+    )
     pkg = materialize_mcp_sidecar_package(
         target_dir=mcp_sidecar_dir,
         tools=tools,
         server_name="action-memory-mcp",
         plan_only=True,
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
+        runtime_assets=runtime_assets,
     )
-    server_py = mcp_sidecar_dir / "server.py"
-    if server_py.exists():
-        server_py.write_text(
-            server_py.read_text(encoding="utf-8").replace('transport="sse"', 'transport="streamable-http"'),
-            encoding="utf-8",
-        )
-    shutil.copy2(ROOT / "runtime.py", mcp_sidecar_dir / "runtime.py")
     (mcp_sidecar_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/output\nCOPY runtime.py /app/runtime.py\nCOPY scenario.json /app/scenario.json\nENTRYPOINT [\"python3\", \"/app/runtime.py\", \"--task-dir\", \"/app\", \"--evidence-dir\", \"/app/output\", \"--port\", \"8080\"]\n",
+        render_mcp_sidecar_dockerfile(
+            base_image=DEFAULT_PINNED_BASE_IMAGE,
+            runtime_assets=runtime_assets,
+        ),
         encoding="utf-8",
     )
     compose_doc = pkg["compose_doc"]

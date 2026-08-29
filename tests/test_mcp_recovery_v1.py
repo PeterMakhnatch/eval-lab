@@ -493,6 +493,50 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
         verifier.load_fixed_policy_evidence(job, task)
 
 
+def test_retained_evidence_archive_allows_canonical_reconstruction(tmp_path):
+    materializer = load("materializer")
+    verifier = load("verifier")
+    from evallab.registry import discover_control_evidence, harbor_task_digest
+
+    task = materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=os.urandom(32))
+    digest = harbor_task_digest(task)
+
+    # Simulate retained evidence tree containing only result.json, lock.json, config.json, lab-metadata.json, reward files
+    runs_dir = tmp_path / "research" / "evidence" / "runs"
+    for agent_name, reward_val in [("oracle", 1.0), ("nop", 0.0)]:
+        job = runs_dir / f"job-{agent_name}"
+        job.mkdir(parents=True)
+        (job / "result.json").write_text(json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-29T00:00:00Z"}), encoding="utf-8")
+        (job / "lock.json").write_text("{}", encoding="utf-8")
+        (job / "config.json").write_text("{}", encoding="utf-8")
+        (job / "lab-metadata.json").write_text("{}", encoding="utf-8")
+
+        trial = job / f"trial-{agent_name}"
+        trial.mkdir()
+        (trial / "lock.json").write_text(json.dumps({"task": {"digest": digest, "name": task.name, "version": "1.0.0", "type": "local"}, "agent": {"name": agent_name}}), encoding="utf-8")
+        (trial / "config.json").write_text("{}", encoding="utf-8")
+        res_data = {
+            "task_name": f"local-lab/{task.name}",
+            "trial_name": trial.name,
+            "task_id": {"path": str(task)},
+            "config": {"task": {"path": str(task)}},
+            "agent_info": {"name": agent_name},
+            "finished_at": "2026-08-29T00:00:00Z",
+            "verifier_result": {"rewards": {"reward": reward_val}},
+        }
+        (trial / "result.json").write_text(json.dumps(res_data), encoding="utf-8")
+        (trial / "reward.txt").write_text(f"{reward_val:.1f}\n", encoding="utf-8")
+
+    # Discover control evidence succeeds without needing wheelhouse or build context
+    control_evidence = discover_control_evidence(task, tmp_path)
+    assert control_evidence.oracle.reward == 1.0
+    assert control_evidence.nop.reward == 0.0
+
+    # Fixed-policy loader also succeeds on retained trial
+    fp_evidence = verifier.load_fixed_policy_evidence(runs_dir / "job-oracle", task)
+    assert fp_evidence.reward == 1.0
+    assert fp_evidence.task_digest == digest
+
 def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatch):
     wheelhouse = Path("/tmp/mcp-recovery-linux-wheelhouse")
     provenance = Path("/tmp/mcp-recovery-linux-resolver-provenance.json")

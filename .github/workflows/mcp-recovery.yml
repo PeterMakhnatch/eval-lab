@@ -215,11 +215,17 @@ jobs:
             artifacts/
             runs/task-workbench/*/*.json
             runs/task-workbench/*/jobs/**/result.json
+            runs/task-workbench/*/jobs/**/lock.json
+            runs/task-workbench/*/jobs/**/config.json
+            runs/task-workbench/*/jobs/**/lab-metadata.json
             runs/task-workbench/*/jobs/**/job.log
             runs/task-workbench/*/jobs/**/trial.log
             runs/task-workbench/*/jobs/**/checks.json
             research/registration/candidates/ci/${{ github.run_id }}/
             research/evidence/runs/**/result.json
+            research/evidence/runs/**/lock.json
+            research/evidence/runs/**/config.json
+            research/evidence/runs/**/lab-metadata.json
             research/evidence/runs/**/job.log
             research/evidence/runs/**/trial.log
             research/evidence/runs/**/reward.txt

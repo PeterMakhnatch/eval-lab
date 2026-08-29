@@ -72,8 +72,10 @@ and are refused. Enable identity, approval `actor`, and budget `actor` must
 be pairwise distinct. Parallel signed-manifest extra fields are rejected.
 `approval_digest` is an HMAC-SHA256 over the exact policy body plus budget
 payload (`scope`, `expires_at`, `ceiling_usd`) and approval actor/spec/time,
-keyed by `$STATE/approval.mac` or `EVAL_LAB_APPROVAL_MAC_KEY` (path to a
->=32-byte secret). Unkeyed SHA-256 of public fields is not a signature.
+keyed by an HMAC secret loaded from an external store through
+`EVAL_LAB_HMAC_KEY_REF` (closed `keychain:<service>/<account>` grammar). Caller
+JSON, state-dir `trust.mac`, and env-held key bytes are ignored. Unkeyed SHA-256
+of public fields is not a signature.
 Never put token material in git or argv logs. There is no production `--now`
 or `EVAL_LAB_OPERATOR_NOW` clock override. A heartbeat timestamp in the
 future is `stale_heartbeat`.
@@ -81,17 +83,18 @@ future is `stale_heartbeat`.
 | Input | How |
 |---|---|
 | Enable token | `EVAL_LAB_ENABLE_TOKEN` + `EVAL_LAB_ENABLE_IDENTITY` |
-| Standing approval | `$STATE/approval.json` as `PaidRunAuthorization`; HMAC digest must match |
-| Budget | `$STATE/budget.json` with scope `continuous-loop`, future `expires_at`, ceiling, plus `load_policy` standing YAML |
-| MAC key | `$STATE/approval.mac` or `EVAL_LAB_APPROVAL_MAC_KEY` |
-| Recovery | `EVAL_LAB_RECOVERY_TOKEN` distinct from enable token; only `recover` clears `KILLED` |
+| Standing approval | HMAC-indexed CAS trust record `kind=approval` (caller JSON is not the trust root) |
+| Budget | HMAC-indexed CAS trust record `kind=budget` with scope `continuous-loop` |
+| MAC key | External store via `EVAL_LAB_HMAC_KEY_REF=keychain:<service>/<account>` (not caller JSON/env key bytes) |
+| Recovery | Signed, scoped, expiring one-time `kind=recovery` record with `jti`; consumed and audited; not a reusable token |
 | Secret reference | `EVAL_LAB_SECRET_REF` closed grammar `keychain:<service>/<account>` (never logged) |
 | Secret presence probe | `EVAL_LAB_SECRET_PRESENT=1` or `$STATE/secret_present` (existence only) |
 | Policy | `--policy` full typed nested fields; nulls keep DISABLED |
 
 Closed reason codes: `missing_enable_token`, `missing_standing_approval`,
 `missing_budget`, `missing_secret`, `stale_heartbeat`, `drain_incomplete`,
-`default_disabled`, `same_enable_and_approval_identity`, `billable_refused`.
+`default_disabled`, `same_enable_and_approval_identity`, `billable_refused`,
+`recovery_spent`.
 
 Default `validate` with no inputs → `default_disabled`. Incomplete signed
 policy fields also keep the operator DISABLED.
@@ -99,16 +102,19 @@ policy fields also keep the operator DISABLED.
 ## Units (remain disabled)
 
 - launchd: `Disabled=true`, `RunAtLoad=false`, no `KeepAlive`, user-session
-  `Aqua`, interpreter `/usr/local/libexec/evallab/.venv/bin/python`, logs
-  `/dev/null` (launchd does not expand `~`). Do not `launchctl bootstrap`.
+  `Aqua`, interpreter `/usr/local/libexec/evallab/.venv/bin/python`,
+  `Umask=63` (077), state `/var/tmp/evallab-operator/state` (0700), logs
+  `/var/tmp/evallab-operator/logs/continuous-operator.{out,err}` (0600 after
+  `rotate-logs`). Never `/dev/null`. Do not `launchctl bootstrap`.
 - systemd: `[Install]` has no `WantedBy=`. `User=evallab`, `NoNewPrivileges`,
   `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, empty
   `CapabilityBoundingSet`, `RestrictAddressFamilies=AF_UNIX`.
   `StateDirectory=evallab-operator` matches `--state-dir /var/lib/evallab-operator`.
   Do not `systemctl enable`.
-- compose: `restart: "no"` and `profiles: ["manual"]`; `read_only: true` with
-  writable tmpfs at `/var/lib/evallab-operator`; image `uv sync --locked`
-  then non-root `USER`. Do not `docker compose up`.
+- compose: `restart: "no"` and `profiles: ["manual"]`; `read_only: true`;
+  named volume `evallab-operator-state:/var/lib/evallab-operator` (RW) so
+  kill latch/leases/budget/audit survive restart; tmpfs only `/tmp:mode=0700`.
+  Image `uv sync --locked` then non-root `USER`. Do not `docker compose up`.
 - Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 
 ## Drain vs kill
@@ -120,7 +126,8 @@ policy fields also keep the operator DISABLED.
   `executed: false`, and **does not wipe** inflight leases.
 - `KILLED` is a latch: `pause`, `maintenance`, `restart`, `upgrade`, and
   `rollback` refuse and leave the latch set. Only `recover` with a distinct
-  `EVAL_LAB_RECOVERY_TOKEN` (and passing gates) clears it.
+  one-time recovery authorization (and passing gates) clears it. Replay of a
+  spent `jti` is `recovery_spent`.
 
 ## Health / CAS rotation
 

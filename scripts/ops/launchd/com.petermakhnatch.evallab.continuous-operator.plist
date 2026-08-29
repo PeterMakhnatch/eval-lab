@@ -23,6 +23,13 @@
 		<string>--state-dir</string>
 		<string>/var/tmp/evallab-operator/state</string>
 	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>EVAL_LAB_OPERATOR_LOG_DIR</key>
+		<string>/var/tmp/evallab-operator/logs</string>
+		<key>EVAL_LAB_HMAC_KEY_REF</key>
+		<string>keychain:lab/hmac</string>
+	</dict>
 	<key>Umask</key>
 	<integer>63</integer>
 	<key>StandardOutPath</key>

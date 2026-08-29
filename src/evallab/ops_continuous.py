@@ -48,6 +48,8 @@ REASON_DRAIN_INCOMPLETE = "drain_incomplete"
 REASON_DEFAULT_DISABLED = "default_disabled"
 REASON_SAME_IDENTITY = "same_enable_and_approval_identity"
 REASON_BILLABLE_REFUSED = "billable_refused"
+REASON_RECOVERY_SPENT = "recovery_spent"
+HMAC_KEY_REF_ENV = "EVAL_LAB_HMAC_KEY_REF"
 
 CLOSED_REASONS = frozenset(
     {
@@ -60,6 +62,7 @@ CLOSED_REASONS = frozenset(
         REASON_DEFAULT_DISABLED,
         REASON_SAME_IDENTITY,
         REASON_BILLABLE_REFUSED,
+        REASON_RECOVERY_SPENT,
     }
 )
 
@@ -224,14 +227,30 @@ def public_sha256_is_not_a_signature(payload: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
-def load_mac_key(path: Path | None) -> bytes:
-    if path is None or not path.is_file():
+def load_mac_key(
+    environ: Mapping[str, str],
+    *,
+    secret_store: Callable[[str], bytes | None] | None,
+) -> bytes:
+    """HMAC key comes only from an external store keyed by a closed secret ref.
+
+    Caller JSON, state-dir files, and env-held key bytes/paths are ignored.
+    """
+    if environ.get("EVAL_LAB_HMAC_KEY") or environ.get("EVAL_LAB_TRUST_MAC_KEY"):
+        return b""
+    ref = environ.get(HMAC_KEY_REF_ENV, "")
+    if not SECRET_REF_GRAMMAR.fullmatch(ref):
+        return b""
+    if secret_store is None:
         return b""
     try:
-        data = path.read_bytes().strip()
+        data = secret_store(ref)
     except OSError:
         return b""
-    return data if len(data) >= 32 else b""
+    if not isinstance(data, (bytes, bytearray)):
+        return b""
+    key = bytes(data).strip()
+    return key if len(key) >= 32 else b""
 
 
 def parse_paid_authorization(
@@ -398,7 +417,48 @@ def lookup_trusted_record(
         if not isinstance(ceiling, (int, float)) or ceiling <= 0:
             return None, {}
         extra["ceiling_usd"] = ceiling
+    if kind == "recovery":
+        jti = loaded.get("jti")
+        if not isinstance(jti, str) or not re.fullmatch(r"[A-Za-z0-9._-]{16,128}", jti):
+            return None, {}
+        extra["jti"] = jti
     return auth, extra
+
+
+def consume_trusted_record(
+    root: Path,
+    store_key: bytes,
+    *,
+    kind: str,
+    spec_id: str,
+) -> bool:
+    if kind not in TRUST_KINDS or not spec_id or not store_key:
+        return False
+    entries = load_trust_index(root, store_key)
+    key = f"{kind}:{spec_id}"
+    if key not in entries:
+        return False
+    del entries[key]
+    index = {"entries": entries, "mac": _index_mac(entries, store_key)}
+    _write_text(root / "index.json", json.dumps(index, indent=2, sort_keys=True))
+    return True
+
+
+def recovery_spent(state_dir: Path) -> set[str]:
+    spent: set[str] = set()
+    path = state_dir / "recovery-spent.jsonl"
+    if not path.is_file():
+        return spent
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if isinstance(row, dict) and isinstance(row.get("jti"), str):
+                spent.add(row["jti"])
+    except (OSError, json.JSONDecodeError):
+        return spent
+    return spent
 
 
 def load_standing_policy(path: Path | None) -> StandingApprovalsPolicy | None:
@@ -445,6 +505,8 @@ class OperatorContext:
     mac_key: bytes
     budget_payload: dict[str, Any]
     recovery: PaidRunAuthorization | None
+    recovery_jti: str
+    log_dir: Path
 
 
 def load_loop_policy(path: Path | None) -> ContinuousLoopPolicy | None:
@@ -544,6 +606,7 @@ def context_from_env(
     agent: str,
     drain_timeout_seconds: float | None,
     environ: Mapping[str, str],
+    secret_store: Callable[[str], bytes | None] | None = None,
 ) -> OperatorContext:
     secret_probe = state_dir / "secret_present"
     standing_path = (
@@ -555,14 +618,7 @@ def context_from_env(
     standing = load_standing_policy(standing_path)
     env_self_asserted_approval = bool(environ.get("EVAL_LAB_STANDING_APPROVAL"))
     env_self_asserted_budget = environ.get("EVAL_LAB_BUDGET_PRESENT", "") in {"1", "true", "yes"}
-    mac_path = (
-        Path(environ["EVAL_LAB_TRUST_MAC_KEY"])
-        if environ.get("EVAL_LAB_TRUST_MAC_KEY")
-        else state_dir / "trust.mac"
-    )
-    if not mac_path.is_file() and (state_dir / "approval.mac").is_file():
-        mac_path = state_dir / "approval.mac"
-    mac_key = load_mac_key(mac_path)
+    mac_key = load_mac_key(environ, secret_store=secret_store)
     trust_root = trust_root_for(state_dir, environ)
     spec_id = policy.spec_id if policy is not None else ""
     approval, _approval_extra = lookup_trusted_record(
@@ -571,7 +627,7 @@ def context_from_env(
     budget, budget_payload = lookup_trusted_record(
         trust_root, mac_key, kind="budget", spec_id=spec_id, now=now
     )
-    recovery, _recovery_extra = lookup_trusted_record(
+    recovery, recovery_extra = lookup_trusted_record(
         trust_root, mac_key, kind="recovery", spec_id=spec_id, now=now
     )
     if budget is not None and "ceiling_usd" not in budget_payload:
@@ -585,6 +641,8 @@ def context_from_env(
     }
     enable_token = environ.get("EVAL_LAB_ENABLE_TOKEN", "")
     enable_identity = environ.get("EVAL_LAB_ENABLE_IDENTITY", "") or enable_token
+    log_raw = environ.get("EVAL_LAB_OPERATOR_LOG_DIR", "")
+    log_dir = Path(log_raw) if log_raw else state_dir / "logs"
     return OperatorContext(
         state_dir=state_dir,
         now=now,
@@ -603,6 +661,8 @@ def context_from_env(
         mac_key=mac_key,
         budget_payload=budget_payload,
         recovery=recovery,
+        recovery_jti=str(recovery_extra.get("jti", "")),
+        log_dir=log_dir,
     )
 
 
@@ -853,13 +913,36 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
-    if ctx.recovery is None:
+    if ctx.recovery is None or not ctx.recovery_jti:
         return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing")
     identities = {ctx.enable_token, ctx.enable_identity, ctx.approval.actor if ctx.approval else "", ctx.budget.actor if ctx.budget else ""}
     if ctx.recovery.actor in identities or (ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id):
         return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization must be distinct")
+    if ctx.recovery_jti in recovery_spent(ctx.state_dir):
+        return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery jti already consumed")
+    consumed = consume_trusted_record(
+        trust_root_for(ctx.state_dir, {}),
+        ctx.mac_key,
+        kind="recovery",
+        spec_id=ctx.recovery.spec_id,
+    )
+    if not consumed:
+        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery record could not be consumed")
+    audit = {
+        "event": "recovery",
+        "at": ctx.now.isoformat(),
+        "actor": ctx.recovery.actor,
+        "jti": ctx.recovery_jti,
+        "spec_id": ctx.recovery.spec_id,
+        "one_time": True,
+    }
+    _append_event(ctx.state_dir, audit)
+    spent_path = ctx.state_dir / "recovery-spent.jsonl"
+    with spent_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"jti": ctx.recovery_jti, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
+    os.chmod(spent_path, STATE_FILE_MODE)
     write_mode(ctx.state_dir, DEFAULT_MODE)
-    return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by authorized recovery")
+    return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by one-time recovery")
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
@@ -911,7 +994,24 @@ def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_rotate(ctx: OperatorContext, kind: Literal["logs", "cas"]) -> OperatorVerdict:
-    record = {"kind": kind, "intended": True, "deleted": False, "root": "state-dir-only"}
+    record: dict[str, Any] = {"kind": kind, "intended": True, "deleted": False, "root": "state-dir-only"}
+    if kind == "logs":
+        _secure_state_dir(ctx.log_dir)
+        os.chmod(ctx.log_dir, STATE_DIR_MODE)
+        stamp = ctx.now.strftime("%Y%m%dT%H%M%S")
+        rotated: list[str] = []
+        for name in ("continuous-operator.out", "continuous-operator.err"):
+            current = ctx.log_dir / name
+            if current.is_file() and current.stat().st_size:
+                dest = ctx.log_dir / f"{name}.{stamp}"
+                current.replace(dest)
+                os.chmod(dest, STATE_FILE_MODE)
+                rotated.append(dest.name)
+            _write_text(current, "")
+            os.chmod(current, STATE_FILE_MODE)
+        record["rotated"] = rotated
+        record["log_dir"] = str(ctx.log_dir)
+        record["mode"] = oct(STATE_DIR_MODE)
     _write_text(ctx.state_dir / f"rotate-{kind}.json", json.dumps(record, indent=2))
     return _verdict(ctx, ok=True, reason=None, detail=f"recorded {kind} rotation; no production delete")
 
@@ -950,6 +1050,7 @@ def main(
     environ: Mapping[str, str] | None = None,
     *,
     clock: Callable[[], datetime] | None = None,
+    secret_store: Callable[[str], bytes | None] | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     env = os.environ if environ is None else environ
@@ -965,6 +1066,7 @@ def main(
         agent=args.agent,
         drain_timeout_seconds=args.drain_timeout_seconds,
         environ=env,
+        secret_store=secret_store,
     )
     if read_mode(state_dir) == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:
         blocked = _refuse_if_killed(ctx, args.command)

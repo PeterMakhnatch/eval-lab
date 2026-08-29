@@ -13,7 +13,9 @@ services:
     environment:
       EVAL_LAB_OPERATOR_STATE: /var/lib/evallab-operator
     volumes:
+      # Confined named volume: kill latch, leases, budget, and audit survive restart.
       - evallab-operator-state:/var/lib/evallab-operator
     tmpfs:
+      # Scratch only. Operator state must not live on tmpfs.
       - /tmp:mode=0700
     command: ["validate", "--state-dir", "/var/lib/evallab-operator"]

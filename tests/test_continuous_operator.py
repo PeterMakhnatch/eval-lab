@@ -61,6 +61,8 @@ APPROVAL = "approval-key"
 BUDGET = "budget-key"
 RECOVERY = "recovery-key"
 MAC_KEY = b"eval-lab-operator-mac-key-32bytes!"
+HMAC_REF = "keychain:lab/hmac"
+RECOVERY_JTI = "recovery-jti-00000001"
 EXPIRES = NOW + timedelta(days=1)
 SPEC_ID = "01CONTINUOUSLOOPSPEC0000000001"
 
@@ -85,6 +87,8 @@ def _trust_record(*, kind: str, actor: str, spec_id: str = SPEC_ID, at: datetime
         "signer": actor,
         "spec_id": spec_id,
     }
+    if kind == "recovery" and "jti" not in extra:
+        record["jti"] = RECOVERY_JTI
     record.update(extra)
     return record
 
@@ -152,7 +156,6 @@ def _write_auths(
     include_approval: bool = True,
 ) -> None:
     state.mkdir(exist_ok=True)
-    (state / "trust.mac").write_bytes(MAC_KEY)
     root = trust_root_for(state, {})
     if include_approval:
         put_trusted_record(root, MAC_KEY, _trust_record(kind="approval", actor=approval_actor, at=approval_at))
@@ -173,7 +176,14 @@ def _gate_env() -> dict[str, str]:
         "EVAL_LAB_ENABLE_IDENTITY": ENABLE,
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator",
         "EVAL_LAB_SECRET_PRESENT": "1",
+        "EVAL_LAB_HMAC_KEY_REF": HMAC_REF,
     }
+
+
+def _hmac_store(ref: str) -> bytes | None:
+    if ref == HMAC_REF:
+        return MAC_KEY
+    return None
 
 
 def _run(
@@ -185,6 +195,7 @@ def _run(
     policy: Path | None = None,
     agent: str | None = None,
     now: datetime | None = None,
+    secret_store=None,
 ) -> SimpleNamespace:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -199,7 +210,8 @@ def _run(
     buf = io.StringIO()
     clock = (lambda: now) if now is not None else None
     with redirect_stdout(buf):
-        code = main(argv, environ=merged, clock=clock)
+        store = secret_store if secret_store is not None else _hmac_store
+        code = main(argv, environ=merged, clock=clock, secret_store=store)
     return SimpleNamespace(returncode=code, stdout=buf.getvalue())
 
 
@@ -290,6 +302,7 @@ def test_missing_secret(tmp_path: Path) -> None:
         "EVAL_LAB_ENABLE_TOKEN": "enable-1",
         "EVAL_LAB_ENABLE_IDENTITY": ENABLE,
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator",
+        "EVAL_LAB_HMAC_KEY_REF": HMAC_REF,
     }
     result = _run(tmp_path, "quota", policy=policy, env=env, now=NOW)
     assert result.returncode == 2
@@ -539,6 +552,10 @@ def test_launchd_plist_disabled() -> None:
     assert loaded["StandardOutPath"] == "/var/tmp/evallab-operator/logs/continuous-operator.out"
     assert loaded["StandardErrorPath"] == "/var/tmp/evallab-operator/logs/continuous-operator.err"
     assert loaded["ProgramArguments"][-1] == "/var/tmp/evallab-operator/state"
+    assert loaded["Umask"] == 63
+    assert loaded["EnvironmentVariables"]["EVAL_LAB_OPERATOR_LOG_DIR"] == "/var/tmp/evallab-operator/logs"
+    assert "/dev/null" not in loaded["StandardOutPath"]
+    assert "/dev/null" not in loaded["StandardErrorPath"]
     plist_text = PLIST.read_text()
     assert "~" not in plist_text
     assert "/Users/Shared" not in loaded["StandardOutPath"]
@@ -576,6 +593,9 @@ def test_compose_restart_no() -> None:
     assert "evallab-operator-state:/var/lib/evallab-operator" in compose
     assert "read_only: true" in compose
     assert "volumes:" in compose
+    assert "/tmp:mode=0700" in compose
+    assert "tmpfs:\n      - /var/lib/evallab-operator" not in compose
+    assert "/dev/null" not in PLIST.read_text()
     assert "uv sync --locked" in dockerfile
     assert dockerfile.count("validate") == 1
 
@@ -702,7 +722,6 @@ def test_user_json_is_not_trust_root(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     state.mkdir()
-    (state / "trust.mac").write_bytes(MAC_KEY)
     shutil.copy2(STANDING, state / "standing-approvals.yaml")
     (state / "approval.json").write_text(
         json.dumps({"spec_id": SPEC_ID, "actor": APPROVAL, "authorized_at": NOW.isoformat(), "quota_override": False})
@@ -760,3 +779,106 @@ def test_rendered_templates_confine_writable_state() -> None:
     assert plist["StandardOutPath"].startswith("/var/tmp/evallab-operator/logs/")
     assert "~" not in PLIST.read_text()
 
+
+
+def test_hmac_key_from_caller_env_or_state_file_is_ignored(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    (state / "trust.mac").write_bytes(MAC_KEY)
+    env = {**_gate_env(), "EVAL_LAB_HMAC_KEY": MAC_KEY.decode(), "EVAL_LAB_TRUST_MAC_KEY": str(state / "trust.mac")}
+    result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW, secret_store=_hmac_store)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_hmac_key_missing_secret_store_fails_closed(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, secret_store=lambda _ref: None)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_kill_latch_survives_restart_replay(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    (state / "inflight.json").write_text(json.dumps([{"lease": "a", "fenced": True}]))
+    killed = _run(tmp_path, "kill", now=NOW)
+    assert killed.returncode == 0
+    assert (state / "mode").read_text().strip() == "KILLED"
+    replay = _run(tmp_path, "status", policy=policy, now=NOW)
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert _payload(replay)["mode"] == "KILLED"
+    assert json.loads((state / "inflight.json").read_text())[0]["lease"] == "a"
+
+
+def test_recovery_is_one_time_and_audited(tmp_path: Path) -> None:
+    from evallab.ops_continuous import REASON_RECOVERY_SPENT
+
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state, recovery_actor=RECOVERY)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    first = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert first.returncode == 0
+    events = (state / "events.jsonl").read_text()
+    assert RECOVERY_JTI in events
+    assert '"one_time": true' in events
+    spent = (state / "recovery-spent.jsonl").read_text()
+    assert RECOVERY_JTI in spent
+    assert (state / "mode").read_text().strip() == "DISABLED"
+    put_trusted_record(trust_root_for(state, {}), MAC_KEY, _trust_record(kind="recovery", actor=RECOVERY, jti=RECOVERY_JTI))
+    _run(tmp_path, "kill", now=NOW)
+    replay = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert replay.returncode == 2
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert _payload(replay)["reason"] == REASON_RECOVERY_SPENT
+
+
+def test_forged_recovery_template_without_jti_is_rejected(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    record = _trust_record(kind="recovery", actor=RECOVERY)
+    record.pop("jti", None)
+    put_trusted_record(trust_root_for(state, {}), MAC_KEY, record)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert result.returncode == 2
+    assert (state / "mode").read_text().strip() == "KILLED"
+
+
+def test_rotate_logs_writes_0600_files_under_0700_dir(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    logs = state / "logs"
+    logs.mkdir(parents=True)
+    (logs / "continuous-operator.out").write_text("old\n")
+    env = {**_gate_env(), "EVAL_LAB_OPERATOR_LOG_DIR": str(logs)}
+    result = _run(tmp_path, "rotate-logs", env=env, now=NOW)
+    assert result.returncode == 0
+    assert oct(logs.stat().st_mode & 0o777) == "0o700"
+    current = logs / "continuous-operator.out"
+    assert current.is_file()
+    assert oct(current.stat().st_mode & 0o777) == "0o600"
+    rotated = list(logs.glob("continuous-operator.out.*"))
+    assert rotated
+    assert oct(rotated[0].stat().st_mode & 0o777) == "0o600"
+
+
+def test_templates_reject_tmpfs_state_and_dev_null() -> None:
+    compose = COMPOSE.read_text()
+    plist = PLIST.read_text()
+    service = SERVICE.read_text()
+    assert "evallab-operator-state:/var/lib/evallab-operator" in compose
+    assert "read_only: true" in compose
+    assert "/tmp:mode=0700" in compose
+    assert "/dev/null" not in plist
+    assert "/dev/null" not in service
+    assert "EVAL_LAB_RECOVERY_TOKEN" not in (ROOT / "src/evallab/ops_continuous.py").read_text()
+    assert "EVAL_LAB_RECOVERY_TOKEN" not in (ROOT / "docs/continuous-loop-operator.md").read_text()

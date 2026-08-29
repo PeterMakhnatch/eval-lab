@@ -443,8 +443,6 @@ def main():
     res_file = Path("/app/result.json")
     if not res_file.exists():
         res_file = Path("/app/output/result.json")
-    if not res_file.exists():
-        res_file = Path("/app/result.json")
     agent_val = None
     if res_file.exists():
         try:
@@ -536,9 +534,9 @@ async def solve() -> None:
             node_values[nid] = value["value"]
 
     target_val = node_values[target_node_id]
-    out_dir = Path("/logs/agent")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "result.json").write_text(
+    result_path = Path("/app/result.json")
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text(
         json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8"
     )
     print(f"Oracle solved with target_value: {{target_val}}")

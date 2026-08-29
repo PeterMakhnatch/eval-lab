@@ -60,7 +60,7 @@ FACTOR_VARIATIONS = [
     # Baseline (depth=3, width=2 -> 5 nodes)
     {"name": "baseline", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Depth ladder (depth_3 and depth_4, >= 5 nodes)
-    {"name": "depth_3", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "depth_5", "depth": 5, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     {"name": "depth_4", "depth": 4, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Width ladder
     {"name": "width_3", "depth": 3, "width": 3, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},

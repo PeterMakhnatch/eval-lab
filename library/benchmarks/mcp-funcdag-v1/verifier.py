@@ -98,9 +98,15 @@ def verify_execution(
     schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
 
-    # Verify contiguous ordinals
-    ordinals = [e.get("event_index") for e in events if "event_index" in e]
-    contiguous_ordinals = (ordinals == list(range(len(ordinals)))) if ordinals else True
+    # Verify contiguous ordinals (substrate emits 1-based event_ordinal; runtime simulator emits 0-based event_index)
+    if any("event_ordinal" in e for e in events):
+        ordinals = [e["event_ordinal"] for e in events if "event_ordinal" in e]
+        contiguous_ordinals = ordinals == list(range(1, len(ordinals) + 1))
+    elif any("event_index" in e for e in events):
+        ordinals = [e["event_index"] for e in events if "event_index" in e]
+        contiguous_ordinals = ordinals == list(range(len(ordinals)))
+    else:
+        contiguous_ordinals = True
 
     # Exact per-node verification: matching tool, input arguments, and output result in topological order
     tool_idx = 0

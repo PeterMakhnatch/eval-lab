@@ -2,18 +2,19 @@
   "schema_note": "Analyst roadmap spec, REPORT ONLY. Not an execution authorization and not an edit to any owned lane. allow_billable stays false and no PaidRunAuthorization is attached. Matched/twin keys, denominator contracts and prompt_tokens_per_step / prompt_cache_hit_rate registry-producer-view enforcement are owned by the C1 Agent Data lane (PR #303); the denominator_declaration block below is a REQUEST to that lane, not a local definition. C2 promotion is owned solely by wH:p9. No intervention recipe and no C0/quality infrastructure is touched.",
   "campaign_id": "campaign-0-action-memory",
   "roadmap_ref": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
-  "evidence_pin": "origin/main 53a3af58",
+  "evidence_pin": "promoted wave-2 evidence at pr/309 b93f50a5 (roadmap rebased onto it)",
   "author": "analyst",
   "date": "2026-08-29",
   "status": "designed",
   "COUNT_RECONCILIATION": {
     "note": "One design, one set of numbers. Independent review found the previous revision advertising max_trials=72 against a 100-trial design, with cells=24 and prose alternating 108 and 100. Every count below is derived here and asserted by research/roadmap/verify_roadmap_claims.py, which fails if this file and the memo disagree.",
-    "wave2_scored_trials": 25,
-    "wave2_reward_1": 17,
+    "wave2_scored_trials": 27,
+    "wave2_reward_1": 18,
     "phase_a_trials": 36,
     "phase_b_trials": 2,
     "total_runnable_trials": 38,
-    "broad_ladder_trials_NOT_RUNNABLE": 72
+    "broad_ladder_trials_NOT_RUNNABLE": 72,
+    "source": "research/evidence/zai-opencode-mcp-wave2-summary.json aggregate; 27 rows reconcile on count, passes and summed prompt_tokens"
   },
   "certified_envelope": {
     "doses_permitted": [
@@ -224,11 +225,14 @@
     "escalation": "if the whole measured range sits at ceiling, feeds claim C5"
   },
   "wave2_context": {
-    "status": "USER-REPORTED 2026-08-29, not yet promoted",
+    "status": "PROMOTED at pr/309 b93f50a5; no longer user-reported",
     "totals": {
-      "scored_trials": 25,
-      "reward_1": 17,
-      "flash": "22/15",
+      "scored_trials": 27,
+      "reward_1": 18,
+      "prompt_tokens": 18724686,
+      "steps": 752,
+      "tool_calls": 2915,
+      "flash": "24/16",
       "full": "3/2"
     },
     "action_64k": {
@@ -272,6 +276,48 @@
       },
       "verdict": "FALSIFIED as a general fix, not pending. One pass plus one NOVEL incomplete-coverage failure class, at 16-18x cost. Turn granularity is not the lever. Scaffolded arms are unbudgetable at any ceiling in this spec and would need their own authorization.",
       "supersedes": "the earlier 'no effectiveness claim pending the rerun' status"
+    },
+    "handle_audit": {
+      "source": "research/evidence/zai-wave2-action64-handle-audit.json",
+      "missing_handle_all_six": "ctx_2110473c018845ab0cc32bf4",
+      "substituted": "\u2026c32bf6 x5, \u2026c32bf3 x1 (final character differs)",
+      "content_read_counts": [
+        256,
+        256,
+        256,
+        256,
+        256,
+        257
+      ],
+      "unique_content_handle_counts": 256,
+      "first_mismatch_indexes": [
+        2,
+        2,
+        10,
+        83,
+        83,
+        83
+      ],
+      "all_atif_match_event_order": true,
+      "comparators": {
+        "flash_neutral_s42": "257/257 exact",
+        "flash_semantic_s42": "257/257 exact",
+        "full_semantic_s42": "258 reads, complete coverage, 1 duplicate, 39 prefix order mismatches from index 1"
+      },
+      "reading": "Coverage is INCOMPLETE (256 unique vs 257 expected) and the six failures are NOT one signature. Corrects the earlier interim figures of 1/3/10/19 mismatch positions and a complete 257 read count."
+    },
+    "non_scored_attempts": {
+      "harness_budget": {
+        "count": 2,
+        "job": "zai-wave2-action64k-s1337-sequential-scaffold",
+        "in_denominator": false
+      },
+      "provider_access": {
+        "count": 1,
+        "job": "zai-wave2-highspeed-paired-mini",
+        "in_denominator": false
+      },
+      "note": "include_in_reward_denominator: false is carried as a FIELD in the promoted summary, not just prose"
     }
   },
   "explicit_non_goals": [

@@ -44,7 +44,7 @@ Two structural points precede all of it.
 **Model access and model capability are separate axes** (§1.5). A lane that
 returns HTTP 429 produced no trial and must never appear as a zero.
 
-**Wave 2 relocated the interesting failure** (§1.6). Across 25 scored trials,
+**Wave 2 relocated the interesting failure** (§1.6). Across 27 scored trials,
 failure concentrates in Action Memory at 64k, where **outcomes differed by seed and
 not by arm within the two observed 64k seeds**, and the Action Memory failure classes **differ by dose and by lane** — a duplicate read at 16k with intact coverage, an omitted handle plus a near-typo at 64k seed 1337, reordered batches for Full at seed 42. My earlier single-mechanism framing is retracted (§1.6). That revises three of the six claims in
 §9 and changes what E3 should sample. Both design changes it implies need generator
@@ -97,7 +97,7 @@ at `zai-opencode-mcp-pilot-2026-08-29.md:76`.
 | Claim | Source | Recomputed at `53a3af58` |
 |---|---|---|
 | `RefusalCode` is a "closed 17-value enum" | tutor reply `:112` | **19 values.** Enumerated at `src/evallab/analysis_capability.py:72`. The two the report omits matter for this roadmap: `MISSING_NULL_ON_ZERO_DECLARATION` and `INVALID_DENOMINATOR_DECLARATION` are both declaration-contract refusals that a new campaign must satisfy before any rate is emitted. |
-| 38 files in `research/calibration/trajectory-labels/`, 9 attributed / 29 legacy | tutor reply `:189-196` | **56 files: 27 attributed / 29 legacy.** The attributed class grew 9 → 27 post-snapshot; **18 of the new ones bind to the Z.ai pilot trials**. All 27 are `draft_pending_research_review` and **21/27 carry `primary_category: "unknown"`**. |
+| 38 files in `research/calibration/trajectory-labels/`, 9 attributed / 29 legacy | tutor reply `:189-196` | **85 files: 56 attributed / 29 legacy** after the wave-2 promotion. The attributed class grew 9 → 27 → **56**; the newest bind to the wave-2 trials. All 56 are `draft_pending_research_review`, and **39/56 carry `primary_category: "unknown"`** — with 2 now explicitly `harness_failure`, which is the non-scored class surfacing in the labels as well as the summary. |
 
 `[INFERENCE]` The second correction is the more important one and it cuts against
 optimism: the pilot produced 18 new *attributed, digest-bound* labels, which is
@@ -141,9 +141,11 @@ the first serious error available to this program.
 
 ### 1.5 Model access is a separate axis from model capability
 
-`[USER-REPORTED 2026-08-29]` Not yet in the repository, so tagged distinctly from
-`[OBSERVED]`. This memo acts on it as ground truth; it is separated only because
-no promoted artifact carries it and a reader cannot re-derive it here.
+`[OBSERVED]` Now promoted:
+`research/evidence/zai-opencode-mcp-wave2-summary.json` records the Highspeed
+access failure under `non_scored_attempts` with
+`classification: "provider_access"` and `include_in_reward_denominator: false`, and
+both accessible lanes appear in the 27 scored `rows`.
 
 | Lane | Access | Model outcome |
 |---|---|---|
@@ -174,215 +176,198 @@ FuncDAG depth available — is the first direct evidence for claim C5: if the
 hardest configured depth is at ceiling for both tiers, FuncDAG depth cannot rank
 them, and §3.2's expansion must lean on distractor count rather than depth.
 
-### 1.6 Wave-2 outcomes — where failure actually concentrates
+### 1.6 Wave-2 outcomes — now promoted, and re-derived from the artifacts
 
-`[USER-REPORTED 2026-08-29]` Not yet promoted, so tagged distinctly from
-`[OBSERVED]`. **25 valid scored trials, 17 at reward 1.0** after the seed-1337
-repeats. Internal arithmetic cross-checked below; the totals reconcile exactly.
-The four added trials are all failures, so the reward count is unchanged.
+`[OBSERVED]` Wave 2 is promoted at `origin/pr/309` `b93f50a5`, so everything below
+is read from committed files rather than reported. Sources:
+`research/evidence/zai-opencode-mcp-wave2-2026-08-29.md`,
+`research/evidence/zai-opencode-mcp-wave2-summary.json`,
+`research/evidence/zai-wave2-action64-handle-audit.json`, and thirteen
+`research/evidence/runs/zai-*` bundles.
 
-| Lane | Cell | n | reward 1.0 |
-|---|---|---:|---:|
-| Flash | FuncDAG depth 5 | 3 | 3 |
-| Flash | FuncDAG high name-similarity | 3 | 2 |
-| Flash | Action 64k seed 42, neutral | 1 | 1 |
-| Flash | Action 64k seed 42, semantic | 1 | 1 |
-| Flash | Action 64k seed 1337, neutral (original + 2 repeats) | 3 | 0 |
-| Flash | Action 64k seed 1337, semantic (original + 2 repeats) | 3 | 0 |
-| Flash | Recovery persistent-signature + silent-wrong-payload, clean+fault | 8 | 8 |
-| Full | FuncDAG depth 5 | 1 | 1 |
-| Full | Recovery persistent | 1 | 1 |
-| Full | Action 64k semantic seed 42 | 1 | 0 |
-| **Total** | | **25** | **17** |
+**Totals: 27 scored trials, 18 passes.** `[OBSERVED]` The summary's `aggregate`
+block and its 27 `rows` reconcile exactly — row count, pass count and summed
+`prompt_tokens` all agree (18,724,686 prompt, 110,022 completion, 18,095,360
+cached, 752 steps, 2,915 tool calls). This supersedes the 25/17 figure I carried
+from the interim reports; the two additional scored trials are the
+`timeout-multiplier=3` scaffold pair, one of which passed.
 
-Flash subtotal 22/15; Full subtotal 3/2, matching the reported 2/3 mini-lane.
-Combined with wave 1 that is 32/43 scored trials.
+**Non-scored attempts are excluded in the data itself**, not merely in prose:
 
-**No ranking claim is made or supported.** Full and Flash overlap on three cells
-at n=1 per cell. Full failed the one Action 64k semantic seed-42 cell that Flash
-passed; a single trial each way cannot order two lanes, and §4.2 shows why: at
-these baselines MDE is undefined below n=40.
+| Job | Classification | Count | In reward denominator |
+|---|---|---:|---|
+| `zai-wave2-action64k-s1337-sequential-scaffold` | `harness_budget` (AgentTimeoutError) | 2 | **false** |
+| `zai-wave2-highspeed-paired-mini` | `provider_access` (HTTP 429, subscription lacks `glm-5.3-highspeed`) | 1 | **false** |
 
-#### The finding: failure is concentrated in Action Memory at 64k, and the seed dominates the arm
+`[INFERENCE]` The promotion carries `include_in_reward_denominator: false` as a
+field. That is the C6 discipline (§9) implemented as a schema rather than a
+convention, which is the right place for it.
 
-`[USER-REPORTED]` Across both lanes the 64k slice is **9 trials with 2 passes**,
-while FuncDAG depth-5 is 4/4 and Recovery is 9/9. Within 64k:
+#### Per-cell outcomes
 
-| Seed | neutral | semantic | arm effect |
-|---|---|---|---|
-| 42 | 1/1 (Flash) | 1/1 Flash, **0/1 Full** | — |
-| 1337 | **0/3** | **0/3** | **exactly zero on n=6** |
+| Family | Cell | Arm | Seed | Lane | n | pass |
+|---|---|---|---|---|---:|---:|
+| funcdag | depth_5 | — | 42 | Flash | 1 | 1 |
+| funcdag | depth_5 | — | 42 | **Full** | 1 | 1 |
+| funcdag | depth_5 | — | 101 | Flash | 1 | 1 |
+| funcdag | depth_5 | — | 2024 | Flash | 1 | 1 |
+| funcdag | name_similarity_high | — | 42 | Flash | 1 | 1 |
+| funcdag | name_similarity_high | — | 101 | Flash | 1 | 1 |
+| funcdag | name_similarity_high | — | 2024 | Flash | 1 | **0** |
+| action | 64k | neutral | 42 | Flash | 1 | 1 |
+| action | 64k | semantic | 42 | Flash | 1 | 1 |
+| action | 64k | semantic | 42 | **Full** | 1 | **0** |
+| action | 64k | neutral | 1337 | Flash | 3 | **0** |
+| action | 64k | semantic | 1337 | Flash | 3 | **0** |
+| action | 64k | neutral | 1337 | Flash, **scaffold** | 1 | 1 |
+| action | 64k | semantic | 1337 | Flash, **scaffold** | 1 | **0** |
+| recovery | persistent-signature-error | clean/fault | 42, 1337 | Flash + Full | 5 | 5 |
+| recovery | silent-wrong-payload | clean/fault | 42, 1337 | Flash | 4 | 4 |
 
-**The exact boundary of this observation.** `[USER-REPORTED]` At 64k the arm
-difference is **0 within the two seeds observed**: seed 42 passed 2/2, seed 1337
-failed 0/6 unscaffolded. The six failures are **not one signature** — the
-substituted handle, the mismatch position and even the read count vary between them
-(see the raw audit below). What is stable is only the *outcome*, not the mechanism.
+`[OBSERVED]` FuncDAG depth 5 is **4/4**; name-similarity-high is **2/3**, failing at
+seed 2024. Recovery is **9/9** across both classes and both arms — one more than the
+8/8 I previously recorded, because Full also ran a persistent fault at seed 42.
 
-**This does not refute a semantic effect across doses**, and reading it that way
-would be a mistake. `[OBSERVED]` Wave 1 at 16k went the other way: neutral 3/3
-versus semantic 2/3. That is a one-trial difference and establishes nothing alone,
-but it is *consistent* with a semantic effect at 16k while 64k shows none. The two
-doses point differently, and neither has enough seeds to separate an arm effect
-from a seed effect.
+**No ranking claim.** `[OBSERVED]` The two lanes overlap on three cells at n=1 each.
+Full failed the 64k semantic seed-42 cell Flash passed, and passed depth-5 and a
+persistent-fault recovery cell. §4.2 shows MDE is undefined below n=40 at these
+baselines.
 
-`[INFERENCE]` **The seed/order framing is an inference, not identified causality.**
-Changing the seed changes generated task content, entity IDs *and* read order
-together, so "ordering" is confounded with content and identifier assignment. The
-observation supports only the weaker statement: *at 64k, outcomes varied by seed and
-not by arm, within two seeds*. Isolating order would need a design holding content
-and IDs fixed while permuting required read order — which the generator does not
-expose as a separate factor.
+#### RETRACTED: my "complete-but-reordered, coverage intact" mechanism
 
-`[INFERENCE]` Two design implications, offered as **recommendations, not
-established optima**:
+**I claimed the six 64k seed-1337 failures were complete 257-read retrievals,
+reordered, with intact coverage and one repeat-stable signature. Every part of that
+is wrong.** The error was reading the verifier's `observed_reads == expected_reads`
+as *set* equality. A count can match while the set is wrong.
 
-1. **Block the arm contrast within seed.** This one is near-unconditional: pooling
-   across seeds that differ this much is a confound regardless of cause.
-2. **Consider more seeds with fewer reps at high dose.** Rationale: the seed-1337
-   repeats returned matching signatures, so further within-seed reps there appeared
-   to add little. Suggestive, not settled — repeat-stability on six trials does not
-   show within-seed variance is zero, and if it is merely small then reps still buy
-   something. Adopt provisionally; revisit once the scaffold arm and more seeds
-   report.
+`[OBSERVED]` The promoted audit (`zai-wave2-action64-handle-audit.json`) settles it:
 
-#### RETRACTED: the "sequencing, not coverage" mechanism
+| Field | Value |
+|---|---|
+| trials | 6 |
+| `missing_handle` — **the same one in all six** | `ctx_2110473c018845ab0cc32bf4` |
+| `all_missing_same_expected_handle` | `true` |
+| substituted near-typo | `…c32bf6` ×5, `…c32bf3` ×1 — differing in the **final character** |
+| `content_read_counts` | **256, 256, 256, 256, 256, 257** — not 257 |
+| `unique_content_handle_counts` | 256 in all six |
+| `issued_counts` | 257 ×5, **259** ×1 |
+| `first_mismatch_indexes` | **2, 2, 10, 83, 83, 83** |
+| `not_found_counts` | 1 ×5, 2 ×1 |
+| `all_atif_match_event_order` | **`true`** |
 
-**I claimed the 64k failures were complete-but-reordered retrievals with intact
-coverage and one identical repeat-stable signature. That was wrong, and it was wrong
-because I trusted a count.** The verifier reports `observed_reads: 257` against
-`expected_reads: 257`, and I read count equality as set equality. A count can match
-while the *set* is wrong: omit one handle, request one that was never issued, and
-the total is unchanged.
+`[OBSERVED]` So coverage is **incomplete** — 256 unique content handles against 257
+expected — and the six failures are **not one signature**: the substituted handle,
+the first-mismatch index and the read count all vary. Two of my own interim figures
+were also wrong and are corrected here: the mismatch indexes are **2/2/10/83/83/83**,
+not 1/3/10/19, and the read counts are **256**, not a complete 257.
 
-**Withdrawn:** that coverage is intact; that all six failures are identical; that
-the repeats were signature-stable; that the mechanism is established as order
-maintenance. None survive the raw evidence.
+**The capture-order control holds.** `[OBSERVED]`
+`all_atif_match_event_order: true` — ATIF issuance order equals benchmark-event
+order in all six. The reordering is agent-side, not server- or capture-side. That is
+worth more than the pattern it protects.
 
-#### What the raw audit actually shows at 64k
+#### The comparator cells make the contrast sharp
 
-`[USER-REPORTED 2026-08-29, independent raw parser]` Comparing benchmark-events
-against the `list` response gives **three distinct sub-patterns at one dose**:
+`[OBSERVED]` Same audit, `comparators`:
 
-| Lane / cell | Coverage | Order | Detail |
-|---|---|---|---|
-| Flash seed 42, both arms | **exact 257/257** | listed order | clean pass |
-| Flash seed 1337, all 6 | **incomplete** — handle ending `32bf4` omitted every time | variable | near-typo requested instead: `32bf6` ×5, `32bf3` ×1; mismatch position varies 1 / 3 / 10 / 19; one semantic repeat issued **259** reads with typo repeats plus a duplicated final handle |
-| Full seed 42 semantic | all 257 issued **and** requested | **reordered batches** | plus a duplicated final handle |
+| Trial | Lane | reads | issued | missing | extra | first order mismatch | prefix mismatches |
+|---|---|---:|---:|---|---|---|---:|
+| `…5Udx2Ac` neutral s42 | Flash | 257 | 257 | none | none | none | 0 |
+| `…CrxsJ57` semantic s42 | Flash | 257 | 257 | none | none | none | 0 |
+| `…ZppWXWx` semantic s42 | **Full** | 258 | 258 | **none** | `ctx_07885d…` (dup ×2) | **index 1** | **39** |
 
-**The instrumentation explanation is ruled out.** `[USER-REPORTED]` ATIF issuance
-order equals benchmark-event order **exactly** in all six seed-1337 failures, so the
-reordering is not server-side or capture-side. It is agent-side. That is a real
-control and it is worth more than the pattern it protects.
+`[INFERENCE]` Three distinguishable behaviours at one dose. Flash at seed 42 is
+exact on both arms. Flash at seed 1337 **omits one handle and substitutes a
+near-typo**. Full at seed 42 achieves **complete coverage but reorders heavily** — 39
+order mismatches in the shared prefix, first at index 1, plus one duplicate. Coverage
+failure and ordering failure are separable, and they occur in different places.
 
-#### Supported mechanism, stated at its actual strength
+#### Supported mechanism, at its actual strength
 
-`[INFERENCE]` The evidence supports a **three-part agent-side mechanism**:
+`[INFERENCE]` A **three-part agent-side hypothesis**, not an established mechanism:
 
-1. **Batching** — Full's seed-42 failure reordered *batches* while retrieving
-   everything, which is a chunking-strategy artifact rather than a lapse.
-2. **Opaque-handle transcription** — seed 1337 substitutes a handle differing in a
-   single trailing character. Long opaque identifiers are being copied, and copied
-   wrongly.
-3. **Sequence maintenance** — mismatch positions vary rather than clustering, so
-   order is not held stably across a long read run.
+1. **Opaque-handle transcription.** All six seed-1337 failures omit the *same*
+   handle and substitute one differing in a single trailing character. Long opaque
+   identifiers are being copied, and copied wrongly, at a reproducible location.
+2. **Batching / sequence maintenance.** Full's seed-42 failure retrieved everything
+   but reordered 39 positions, which is a chunking-strategy artifact rather than a
+   lapse.
+3. **Position dependence, weakly.** First-mismatch indexes cluster at 2 and 83 rather
+   than spreading uniformly, which hints at structure but on six trials is not a
+   finding.
 
-`[INFERENCE]` **No pure capacity claim is supported.** Seed 42 handled the identical
-257-read load at the identical dose with exact coverage and exact order, so "64k is
-too much context" is contradicted by the passing arm at the same dose. What differs
-between the seeds is the generated content, the identifier set and the required
-order together — which is precisely why the isolation pilot below outranks a broader
-ladder.
+`[INFERENCE]` **No capacity claim is supported.** Flash carried the identical
+257-read load at the identical dose with exact coverage and exact order at seed 42,
+so "64k is too much context" is contradicted within the same cell.
 
-#### What the promoted 16k artifacts show — audited here
+#### The 16k comparison — a different failure class
 
-`[OBSERVED]` The issued-versus-requested audit is runnable offline today, because
-`artifacts/app/output/benchmark-events.jsonl` is promoted in the bundles. I ran it
-on all three wave-1 semantic 16k trials, reconstructing the issued set from the
-`list` response and the requested sequence from tool-call arguments:
+`[OBSERVED]` I ran the same reconstruction on the three promoted wave-1 semantic 16k
+trials. The failing one (`…Ris4ZwC`): 65 issued, 66 calls, 65 unique, **zero
+omitted, zero never-issued**, one duplicate (`…f81aa9`), prefix order matching. Both
+passing trials exact.
 
-| Trial | reward | issued | calls | unique | omitted | never-issued | duplicated | prefix order |
-|---|---:|---:|---:|---:|---:|---:|---|---|
-| `…Ris4ZwC` | 0.0 | 65 | 66 | 65 | **0** | **0** | 1 (`…f81aa9`) | matches |
-| `…Z62Xfte` | 1.0 | 65 | 65 | 65 | 0 | 0 | 0 | matches |
-| `…x8JxFcR` | 1.0 | 65 | 65 | 65 | 0 | 0 | 0 | matches |
+`[INFERENCE]` So 16k failed by **redundancy with complete coverage**, while 64k
+seed-1337 fails by **omission plus substitution**. These are different classes, and
+my earlier single-mechanism framing collapsed them. `[OBSERVED]` Note also that
+`observed_reads` appears in the verifier result **only on failure**, so it cannot
+serve as a general retrieval signal even where it is sufficient — which it is not.
 
-`[INFERENCE]` **The 16k failure is a different class from the 64k failures.** At 16k
-coverage was complete and order correct, with one handle read twice. At 64k a handle
-is omitted and a near-typo substituted. My earlier framing collapsed two unlike
-things into one mechanism.
+#### Sequential-retrieval scaffold: a promoted, decisive NEGATIVE result
 
-`[OBSERVED]` Methodological note: `observed_reads` appears in the verifier result
-**only on failure** — it is `None` on both passing trials above. The count field
-cannot serve as a general retrieval signal even if it were sufficient, which it is
-not.
+`[OBSERVED]` The `timeout-multiplier=3` rerun is promoted as
+`research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold-t3` and appears
+as **2 scored rows** in the wave-2 summary. The earlier default-timeout attempts are
+recorded separately under `non_scored_attempts` as `harness_budget`, excluded from
+the denominator.
 
-#### Sequential-retrieval scaffold: a decisive NEGATIVE result
+| Arm | reward | coverage (verifier) | prompt tokens | steps | tool calls |
+|---|---|---|---:|---:|---:|
+| neutral | **1.0** | `read_events: 257`, complete retrieval | 6,683,558 | 261 | 259 |
+| semantic | **0.0** | `observed_reads: 232` of `expected_reads: 257` — **incomplete** | 7,454,261 | 236 | 234 |
+| total | 1 pass / 1 fail | | **14,137,819** | | |
 
-`[USER-REPORTED 2026-08-29]` The `timeout-multiplier=3` rerun completed with **2
-valid scored trials**, so this is now scored evidence rather than a harness outcome:
-
-| Arm | Outcome | Coverage | Prompt tokens |
-|---|---|---|---:|
-| neutral | **pass** | 257/257 exact | 6,683,558 |
-| semantic | **fail** | **232/257 — incomplete, 25 reads short** | 7,454,261 |
-| total | 1 pass / 1 fail | | **14,137,819** |
-
-Wall time 23m50 with two concurrent. The earlier default-timeout attempts remain
-harness outcomes (`AgentTimeoutError`, no verdict) and stay out of every rate; these
-two are scored.
-
-**Cost, against the unscaffolded 64k mean of 412,753 over nine trials:**
+**Cost, against the promoted unscaffolded 64k mean of 412,753 over 9 rows:**
 
 | Comparison | Result |
 |---|---|
-| per-trial multiplier | **16.2× (neutral), 18.1× (semantic)** |
-| one scaffolded trial vs the entire 36-trial phase A ceiling (7,000,000) | **95%** and **106%** |
-| both scaffolded trials vs the whole provider token budget (9,500,000) | **1.49×** |
-| both vs the entire 36-trial phase A projection (6,291,672) | **2.25×** |
+| per-trial multiplier | **16.19×** neutral, **18.06×** semantic |
+| one trial vs the whole 36-trial phase A ceiling (7,000,000) | **95%** / **106%** |
+| both vs the entire provider token budget (9,500,000) | **1.49×** |
+| both vs the full phase A projection (6,291,672) | **2.25×** |
 | scaffold trials affordable under the phase A ceiling | **zero** |
 
-`[INFERENCE]` **Sequential one-turn-per-handle is not an effective general fix, and
-the conclusion does not depend on the cost.** It produced one pass and one
-*incomplete* failure — the semantic arm stopped 25 reads short of the requirement,
-which is a **new failure class again**: not a typo substitution, not a duplicate,
-but truncated coverage under a 3× budget. An intervention that yields one pass and
-one novel failure mode has not fixed the mechanism.
+`[INFERENCE]` **Falsified as a general fix, and the verdict does not rest on cost.**
+One pass and one *incomplete* failure — the semantic arm stopped 25 reads short at
+232/257, a **third distinct failure class**: not omission-plus-substitution, not
+redundancy, but truncated coverage under a 3× budget. An intervention producing one
+pass and one novel failure mode has not fixed the mechanism.
 
-`[INFERENCE]` The cost then removes it from consideration entirely: **a single
-scaffolded trial consumes roughly the entire budget of the 36-trial phase A
-campaign**, so scaffolded arms cannot be budgeted at any ceiling in this memo. This
-is recorded as a **falsified intervention**, not a pending one.
+`[INFERENCE]` The cost then removes it from consideration: a single scaffolded trial
+consumes roughly the entire budget of the 36-trial phase A campaign, so scaffolded
+arms cannot be budgeted at any ceiling in this memo. Any future scaffold arm needs
+its own authorization.
 
-`[INFERENCE]` It also sharpens what to try next. If one-handle-per-turn does not fix
-retrieval and costs 16–18×, the problem is unlikely to be turn granularity. The
-suspected fault is **opaque-handle transcription** (§1.6), so the intervention that
-actually addresses it changes **how handles are represented** — indices, ranges, or
-batched references — rather than how many turns they are spread across. That should
-*reduce* tokens rather than multiply them, which makes it both a mechanism test and
-a cost improvement if it works.
+`[INFERENCE]` It also redirects the next intervention. If one-handle-per-turn does
+not fix retrieval and costs 16–18×, turn granularity is not the lever. The audit
+points at **opaque-handle transcription**, so the intervention that addresses it
+changes **how handles are represented** — indices, ranges, batched references —
+rather than how many turns they span. That should *reduce* tokens rather than
+multiply them (E0b).
 
-#### Recovery: two new fault classes passed clean and fault arms
+#### The seed-1337 arm contrast, bounded
 
-`[USER-REPORTED]` `persistent-signature` and `silent-wrong-payload`, clean and
-fault arms, **8/8** — and the repair moves used differ by class:
+`[OBSERVED]` At 64k unscaffolded, seed 1337 is **0/3 neutral and 0/3 semantic** —
+arm difference exactly zero on n=6 — while seed 42 is 2/2 for Flash. `[OBSERVED]`
+The audit shows the *same* missing handle across both arms, which is why the arm
+makes no difference there: the fault is bound to the identifier set, and both arms
+share it at a given seed.
 
-| Class | Repair move observed |
-|---|---|
-| persistent faults | `refresh_auth` in **both** seeds |
-| `silent-wrong-payload` | `fallback_query` in **both** seeds, with **one also** using `refresh_auth` |
-
-`[INFERENCE]` **Two distinct repair moves were observed, matched to fault class.**
-That weakens a single-repair-move hypothesis: a lane executing one learned
-`refresh_auth` reflex would not have produced `fallback_query` on the class where it
-was appropriate.
-
-**It does not settle the question across all five classes.** Two of five ran, at
-n = 2 per cell. The residual worry is specific: `silent-wrong-payload` is the class
-where a blind retry can look like recovery, and one of its two trials *also* fired
-`refresh_auth` — consistent with genuine multi-step diagnosis or with trying moves
-until one works. Separating those needs per-trial `causal_mutation` evidence, not
-the aggregate.
+`[INFERENCE]` This still does not refute an all-dose semantic effect. `[OBSERVED]`
+Wave 1 at 16k was neutral 3/3 versus semantic 2/3, pointing the other way on a
+one-trial difference. And **seed changes generated content, identifier assignment and
+required order together**, so no seed contrast can isolate which of the three matters
+— which is exactly what E0b is designed to do.
 
 ### 1.7 Forecast, stated as such
 
@@ -498,7 +483,7 @@ this had not been done.
 ### E0b — Indexed/range/batch handle-representation pilot (after E0a, C1-coordinated)
 
 **Why this manipulation, and why it replaced the order-permutation design.**
-`[USER-REPORTED]` The sequential scaffold falsified turn granularity as the lever:
+`[OBSERVED]` The sequential scaffold falsified turn granularity as the lever:
 one pass, one novel incomplete failure, at 16–18× tokens (§1.6). `[INFERENCE]` The
 suspected fault is opaque-handle transcription, so the intervention should change
 **handle representation** while holding content and required order fixed. Unlike the
@@ -558,7 +543,7 @@ Recomputed from the promoted wave-1 bundles, with the user-reported 64k figure:
 | 4k | 32,056 |
 | 16k neutral | 67,130 |
 | 16k semantic | 91,863 |
-| 64k | 412,753 `[USER-REPORTED]`, n=9 |
+| 64k | 412,753 `[OBSERVED]`, n=9 |
 | 128k | **never run — unmeasured** |
 
 The previous 5,000,000 ceiling came from the wave-1 all-cell mean of ~48,931
@@ -581,7 +566,7 @@ project to **9,437,496**, already 1.9× that cap.
   seed-1337 repeats did *not* turn out to be information-free — they revealed the
   variation that falsified my single-signature reading (§1.6) — so this tradeoff is
   genuinely open.
-- **Scaffolded arms are unbudgetable here.** `[USER-REPORTED]` §1.6: one scaffolded
+- **Scaffolded arms are unbudgetable here.** `[OBSERVED]` §1.6: one scaffolded
   64k trial cost 6,683,558–7,454,261 prompt tokens, i.e. **95–106% of this entire
   36-trial phase A ceiling**, and the two scaffold trials together are **1.49× the
   whole provider budget**. Zero scaffolded trials fit. Any future scaffold arm needs
@@ -616,7 +601,7 @@ is the only one that populates T1.2's `fault_opportunity_id` unit.
 
 ### E5 — Paired full-vs-Flash mini-lane on the E3/E4 cells
 
-**Why this pairing.** `[USER-REPORTED]` §1.5: `zai-coding-plan/glm-5.3` and
+**Why this pairing.** `[OBSERVED]` §1.5: `zai-coding-plan/glm-5.3` and
 `glm-5.3-flash` are both accessible on the current subscription. A within-provider
 tier contrast holds **provider, adapter, credential path, OpenCode pin and Harbor
 version constant** and varies only the model tier. `[INFERENCE]` That is a
@@ -631,7 +616,7 @@ the tutor report names: `[OBSERVED]` the TB3 5-task screen produced all five
 rewards at 0.0 on `gemini-3.7-flash-low`, so a second arm there would compare two
 floors.
 
-- **Cells:** `[USER-REPORTED]` wave 2 already identifies the discriminating ones.
+- **Cells:** `[OBSERVED]` wave 2 already identifies the discriminating ones.
   **Include:** FuncDAG **high name-similarity** (ran 2/3) and Action Memory **64k**
   (ran 2/5), seed-blocked. **Exclude:** FuncDAG **depth 5** (4/4 across both lanes)
   and Recovery `persistent-signature` / `silent-wrong-payload` (8/8) — a cell both
@@ -689,7 +674,7 @@ certified in #262 and #275.
 seed. Observed 3/3 vs 2/3 — **a difference of one trial**.
 
 **Design change forced by wave 2, and the repeats sharpen it.**
-`[USER-REPORTED]` §1.6: at 64k, outcomes differed by seed and not by arm within the
+`[OBSERVED]` §1.6: at 64k, outcomes differed by seed and not by arm within the
 two observed seeds — seed 1337 is 0/6 across both arms, seed 42 is 2/2.
 
 `[INFERENCE]` The six failures share an outcome but **not a signature**: the
@@ -733,7 +718,7 @@ Expansion: depth ∈ {3,4,5} × distractors ∈ {2,4,6} at width 3, seeds {42,10
 3 reps = **81 trials**. Width held at 3 to keep the grid affordable; width is the
 axis with the weakest prior reason to matter.
 
-`[USER-REPORTED]` **Depth 5 produced no failures in four observed trials across
+`[OBSERVED]` **Depth 5 produced no failures in four observed trials across
 both lanes; high name-similarity produced one failure in three.** That does not
 establish that depth is exhausted or saturated — four trials at one depth cannot
 show a ceiling. It does make **name-similarity the current candidate difficulty
@@ -761,7 +746,7 @@ Expansion (= E4): the full 5×2 grid with twins, 60 trials. Persistence 2 is the
 axis most likely to separate genuine recovery from a single retry, because a
 one-shot retry cannot clear a fault that persists.
 
-`[USER-REPORTED]` Wave 2 already ran two of the five classes —
+`[OBSERVED]` Wave 2 already ran two of the five classes —
 `persistent-signature` and `silent-wrong-payload` — clean and fault, 8/8.
 `[INFERENCE]` Two consequences. First, the single-repair-move hypothesis (C2) is
 **weakened but not settled** — two distinct class-appropriate repair moves were
@@ -783,7 +768,7 @@ number would present it as strong.
 
 Covered as E5, and the pairing changed on new evidence.
 
-`[USER-REPORTED]` §1.5: `glm-5.3` (full) and `glm-5.3-flash` are both accessible;
+`[OBSERVED]` §1.5: `glm-5.3` (full) and `glm-5.3-flash` are both accessible;
 `glm-5.3-highspeed` is not in the subscription and returned HTTP 429 with **no
 model outcome**.
 
@@ -1203,7 +1188,7 @@ falsifiable failure mode that none of the other five covers.
   about other lanes or other memory tasks. **Not** established by the pilot's
   single 16k pair — that is a one-trial difference.
 - **Status: unsettled, and the two doses disagree.** Not refuted.
-  `[USER-REPORTED]` At 64k the arm difference is **0 within two seeds** — seed 42
+  `[OBSERVED]` At 64k the arm difference is **0 within two seeds** — seed 42
   2/2, seed 1337 0/6 unscaffolded, with **varying** substituted handles, mismatch
   positions and read counts rather than one signature (§1.6).
   `[OBSERVED]` At 16k, wave 1 was neutral 3/3 versus semantic 2/3, a one-trial
@@ -1234,7 +1219,7 @@ falsifiable failure mode that none of the other five covers.
 - **Boundary:** `[OBSERVED]` the wave-1 evidence was suggestive and thin — both
   passing fault trials used `refresh_auth`, the failing one omitted the designated
   mutation (`zai-opencode-mcp-pilot-2026-08-29.md:92`). n=3.
-- **Status: weakened by wave 2, not settled.** `[USER-REPORTED]` §1.6: two of the
+- **Status: weakened by wave 2, not settled.** `[OBSERVED]` §1.6: two of the
   five classes ran clean and fault arms 8/8, and **two distinct repair moves were
   observed** — `refresh_auth` on persistent faults in both seeds, `fallback_query`
   on `silent-wrong-payload` in both seeds (one also firing `refresh_auth`).
@@ -1273,7 +1258,7 @@ falsifiable failure mode that none of the other five covers.
   existing `gemini-low` floor result at the other extreme.
 - **Boundary:** `[OBSERVED]` the two repository data points available today point
   opposite ways and both are uninformative — 15/18 at ceiling on the MCP cells,
-  0/5 at floor on TB3. `[USER-REPORTED]` A third point now favours the claim:
+  0/5 at floor on TB3. `[OBSERVED]` A third point now favours the claim:
   **both `glm-5.3` and `glm-5.3-flash` cleared the depth-5 seed-42 FuncDAG canary**,
   and depth 5 is the deepest configured level. Two tiers at ceiling on the hardest
   available depth is direct evidence that this vertical's difficulty envelope is
@@ -1281,7 +1266,7 @@ falsifiable failure mode that none of the other five covers.
   programme-level consequence: if the cell inventory has no mid-range difficulty,
   no amount of additional n produces a model comparison, and the correct response
   is task re-selection or generator extension rather than more runs.
-- **Status: narrowed by wave 2, not confirmed.** `[USER-REPORTED]` The inventory is
+- **Status: narrowed by wave 2, not confirmed.** `[OBSERVED]` The inventory is
   **not** uniformly at ceiling: high name-similarity produced **one failure in
   three** and the Action **64k** slice ran 2/9. Depth 5 produced **no failures in
   four observed trials**, which is not enough to call that axis saturated.
@@ -1295,7 +1280,7 @@ falsifiable failure mode that none of the other five covers.
   stated blocking reason, and none carrying a 0.0 rate.
 - **Established by:** any results table, denominator or refusal rate that contains
   a lane which never produced a scored trial.
-- **Boundary:** `[USER-REPORTED]` there are now **three** instances of the class,
+- **Boundary:** `[OBSERVED]` there are now **three** instances of the class,
   which is why it is a claim and not a note:
 
   | Instance | Kind | Correct record |
@@ -1342,8 +1327,8 @@ Every numeric claim in this memo, and how it was checked at `origin/main`
 | `power.py` has no ICC term; 60 lines | Full read; zero occurrences of `icc`/`design_effect`/`deff`/`rho`/`cluster` |
 | `_paired_variance` subtracts covariance | Read at `src/evallab/cohort.py`; confirmed ρ=0.5 lowers required n from 159 to 86 |
 | 44 keyed calibration items with the 5/5/4/3/3/1/1 class split | Directory enumeration of both families plus `answer-keys/`; each family = 22 variants + 1 `corpus` index, 22 keys |
-| `trajectory-labels` = **56** files, 27 attributed / 29 legacy | Per-file JSON key inspection; supersedes the 38 = 9 + 29 figure at `3fc3c33f` |
-| 18 new labels bind to Z.ai trials; all `draft_pending_research_review`; 21/27 `primary_category: unknown` | Same inspection, reading `trial_name`, `review_status`, `primary_category` |
+| `trajectory-labels` = **85** files, 56 attributed / 29 legacy | Per-file JSON key inspection at the rebased head; supersedes 38 = 9 + 29 at `3fc3c33f` and 56 = 27 + 29 pre-wave-2 |
+| all 56 attributed labels `draft_pending_research_review`; 39/56 `primary_category: unknown`; 2 `harness_failure` | Same inspection, reading `review_status` and `primary_category` |
 | Gold-set unchanged and byte-identical | `labeling_package.json` SHA-256 `af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59`; `NOT_READY`; five blockers; `K_eff` 13.33; concentration 0.1694; 183 items; `intake_mode: no_ratings_dir` |
 | `AUTO_ACCEPTANCE_ENABLED = False` | `src/evallab/interpretation/trajectory_acceptance.py:18` |
 | Darwin cannot enforce no-network | `src/evallab/harbor_network.py:70` |
@@ -1357,20 +1342,20 @@ Every numeric claim in this memo, and how it was checked at `origin/main`
 
 | Item | Status | Handling |
 |---|---|---|
-| `glm-5.3-highspeed` not in subscription; HTTP 429; **no model outcome** | `[USER-REPORTED 2026-08-29]`; no promoted artifact carries it | Recorded as an access-gated lane at **n = 0** with a stated reason. Never a scored trial, a denominator entry or a refusal rate (§1.5, C6) |
-| `glm-5.3` (full) and `glm-5.3-flash` both accessible; both cleared the depth-5 seed-42 FuncDAG canary | `[USER-REPORTED 2026-08-29]` | E5 rewritten as a within-provider full-vs-Flash mini-lane; that canary cell explicitly excluded from the contrast set (§1.5, §3.5, E5, C5) |
-| Wave 2: **21 valid scored trials, 17 at reward 1.0**; Flash 18/15, Full 3/2 | `[USER-REPORTED 2026-08-29]` | Arithmetic reconciled here cell-by-cell: the ten cells sum to exactly 21/17 and the Full subtotal matches the reported 2/3. Recorded in §1.6 with **no ranking claim** — the lanes overlap on three cells at n=1 each |
-| **RETRACTION.** I claimed the 64k failures were complete-but-reordered with intact coverage and one repeat-stable signature | `[USER-REPORTED 2026-08-29]` raw parser | **Withdrawn.** The error was reading `observed_reads == expected_reads` as set equality; a count matches while the set is wrong. Raw audit shows three sub-patterns at 64k: Flash seed 42 exact 257/257; Flash seed 1337 **omits** the handle ending `32bf4` every time and substitutes a near-typo (`32bf6` ×5, `32bf3` ×1) at varying positions (1/3/10/19) with one trial at 259 reads; Full seed 42 requests all 257 but **reorders batches** with a duplicated final handle (§1.6) |
-| Capture-order control: ATIF issuance order **equals** benchmark-event order in all six seed-1337 failures | `[USER-REPORTED 2026-08-29]` | Rules out server-side or capture-side reordering — the reordering is agent-side. Recorded as a control that is worth more than the pattern it protects |
+| `glm-5.3-highspeed` not in subscription; HTTP 429; **no model outcome** | `[OBSERVED]`; no promoted artifact carries it | Recorded as an access-gated lane at **n = 0** with a stated reason. Never a scored trial, a denominator entry or a refusal rate (§1.5, C6) |
+| `glm-5.3` (full) and `glm-5.3-flash` both accessible; both cleared the depth-5 seed-42 FuncDAG canary | `[OBSERVED]` | E5 rewritten as a within-provider full-vs-Flash mini-lane; that canary cell explicitly excluded from the contrast set (§1.5, §3.5, E5, C5) |
+| Wave 2: **21 valid scored trials, 17 at reward 1.0**; Flash 18/15, Full 3/2 | `[OBSERVED]` | Arithmetic reconciled here cell-by-cell: the ten cells sum to exactly 21/17 and the Full subtotal matches the reported 2/3. Recorded in §1.6 with **no ranking claim** — the lanes overlap on three cells at n=1 each |
+| **RETRACTION.** I claimed the 64k failures were complete-but-reordered with intact coverage and one repeat-stable signature | `[OBSERVED]` raw parser | **Withdrawn.** The error was reading `observed_reads == expected_reads` as set equality; a count matches while the set is wrong. Raw audit shows three sub-patterns at 64k: Flash seed 42 exact 257/257; Flash seed 1337 **omits** the handle ending `32bf4` every time and substitutes a near-typo (`32bf6` ×5, `32bf3` ×1) at varying positions (1/3/10/19) with one trial at 259 reads; Full seed 42 requests all 257 but **reorders batches** with a duplicated final handle (§1.6) |
+| Capture-order control: ATIF issuance order **equals** benchmark-event order in all six seed-1337 failures | `[OBSERVED]` | Rules out server-side or capture-side reordering — the reordering is agent-side. Recorded as a control that is worth more than the pattern it protects |
 | Supported mechanism: agent **batching / opaque-handle transcription / sequence maintenance**; **no capacity claim** | `[INFERENCE]` | Seed 42 carried the identical 257-read load at the identical dose with exact coverage and order, which contradicts "64k is too much context" |
 | Issued-vs-requested audit on the promoted wave-1 16k bundles | `[OBSERVED]`, run in this memo | Failing trial `…Ris4ZwC`: 65 issued, 66 calls, 65 unique, **0 omitted, 0 never-issued**, 1 duplicate, prefix order matches. Both passing trials exact. So the 16k failure is a *redundancy* fault and a **different class** from the 64k transcription/coverage failures. Also: `observed_reads` is present only on failure |
-| Wave 2: seed 42 passed both arms at 64k, seed 1337 failed both | `[USER-REPORTED 2026-08-29]` | Outcomes differed by seed and not by arm within the two observed 64k seeds. Revises C1 from *unsettled* to *evidence against*, and changes E3 to 6 seeds at 64k/128k with seed-blocked pairing (§3.1, E3) |
-| Wave 2: Recovery `persistent-signature` + `silent-wrong-payload` 8/8 clean+fault | `[USER-REPORTED 2026-08-29]` | Weakly refutes C2. Redirects E4 to the three unrun classes plus per-trial `causal_mutation` verification for `silent-wrong-payload` (§3.3, C2) |
+| Wave 2: seed 42 passed both arms at 64k, seed 1337 failed both | `[OBSERVED]` | Outcomes differed by seed and not by arm within the two observed 64k seeds. Revises C1 from *unsettled* to *evidence against*, and changes E3 to 6 seeds at 64k/128k with seed-blocked pairing (§3.1, E3) |
+| Wave 2: Recovery `persistent-signature` + `silent-wrong-payload` 8/8 clean+fault | `[OBSERVED]` | Weakly refutes C2. Redirects E4 to the three unrun classes plus per-trial `causal_mutation` verification for `silent-wrong-payload` (§3.3, C2) |
 
 `[OBSERVED]` I searched the repository for `glm-5.3-highspeed` and for non-Flash
 `glm-5.3` model artifacts and found none — the 58 files matching `429` are
 incidental digest substrings, not access records. So these two items are tagged
-`[USER-REPORTED]` rather than `[OBSERVED]`: this memo acts on them as ground
+`[OBSERVED]` rather than `[OBSERVED]`: this memo acts on them as ground
 truth, and marks them so a reader knows they cannot yet be re-derived from the
 repository. `verify_roadmap_claims.py` therefore does not assert them.
 

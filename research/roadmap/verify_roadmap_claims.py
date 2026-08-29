@@ -53,17 +53,19 @@ CODE_CITATIONS = [
 REFUSAL_CODE_COUNT = 19
 GOLDSET_BLOCKERS = 5
 KEYED_CALIBRATION_ITEMS = 44
-LABELS = {"total": 56, "attributed": 27, "legacy": 29}
+LABELS = {"total": 85, "attributed": 56, "legacy": 29}
 
 SPEC = REPO / "research/roadmap/specs/campaign-0-action-memory-dose-ladder.json"
+WAVE2_SUMMARY = REPO / "research/evidence/zai-opencode-mcp-wave2-summary.json"
+HANDLE_AUDIT = REPO / "research/evidence/zai-wave2-action64-handle-audit.json"
 
 # Cross-file equality: the memo and the spec must agree, and the spec must not
 # advertise a provider ceiling below its own design. Independent review found the
 # spec claiming max_trials=72 against a 100-trial design while the prose alternated
 # 108 and 100, so this is asserted rather than trusted.
 CROSS_FILE = {
-    "wave2_scored_trials": 25,
-    "wave2_reward_1": 17,
+    "wave2_scored_trials": 27,
+    "wave2_reward_1": 18,
     "phase_a_trials": 36,
     "phase_b_trials": 2,
     "total_runnable_trials": 38,
@@ -265,9 +267,14 @@ def check_cross_file_counts(fail: list[str]) -> None:
         if got != expected:
             fail.append(f"spec COUNT_RECONCILIATION.{key} = {got}, expected {expected}")
     # the memo must not still carry the superseded totals
-    if "21 scored trials" in memo:
-        fail.append("memo still says '21 scored trials'; wave-2 total is 25")
-    for token in ("25 scored trials", "6,291,672", "9,500,000"):
+    for stale in ("21 scored trials", "25 scored trials"):
+        if stale in memo:
+            fail.append(f"memo still says {stale!r}; the promoted wave-2 total is 27")
+    if "USER-REPORTED" in memo:
+        fail.append(
+            "memo still carries USER-REPORTED tags; wave 2 is promoted and must cite artifacts"
+        )
+    for token in ("27 scored trials", "6,291,672", "9,500,000"):
         if token not in memo:
             fail.append(f"memo is missing the reconciled figure {token!r}")
     # phases must sum
@@ -425,6 +432,68 @@ def check_scaffold_falsification(fail: list[str]) -> None:
             fail.append(f"memo is missing the scaffold figure {token!r}")
 
 
+def check_promoted_wave2(fail: list[str]) -> None:
+    """Re-derive the wave-2 totals and audit facts from the PROMOTED artifacts."""
+    if not WAVE2_SUMMARY.is_file():
+        fail.append(f"promoted wave-2 summary is absent: {WAVE2_SUMMARY}")
+        return
+    summary = json.loads(WAVE2_SUMMARY.read_text(encoding="utf-8"))
+    agg, rows = summary.get("aggregate") or {}, summary.get("rows") or []
+    # internal consistency of the promotion itself
+    if len(rows) != agg.get("trials"):
+        fail.append(f"summary rows {len(rows)} != aggregate trials {agg.get('trials')}")
+    if sum(1 for r in rows if r.get("reward") == 1.0) != agg.get("passes"):
+        fail.append("summary row passes disagree with aggregate passes")
+    if sum(r.get("prompt_tokens", 0) for r in rows) != agg.get("prompt_tokens"):
+        fail.append("summary row prompt tokens disagree with aggregate")
+    # the memo's headline must match the promotion
+    if agg.get("trials") != CROSS_FILE["wave2_scored_trials"]:
+        fail.append(
+            f"promoted trials {agg.get('trials')} != memo {CROSS_FILE['wave2_scored_trials']}"
+        )
+    if agg.get("passes") != CROSS_FILE["wave2_reward_1"]:
+        fail.append(f"promoted passes {agg.get('passes')} != memo {CROSS_FILE['wave2_reward_1']}")
+    # non-scored attempts must stay out of the denominator
+    for attempt in summary.get("non_scored_attempts") or []:
+        if attempt.get("include_in_reward_denominator") is not False:
+            fail.append(
+                f"non-scored attempt {attempt.get('job')} is no longer excluded from the denominator"
+            )
+    # the unscaffolded 64k mean underpins every budget figure
+    unscaffolded = [
+        r for r in rows if r.get("cell") == "64k" and r.get("scaffold") in (None, "none")
+    ]
+    if len(unscaffolded) != 9:
+        fail.append(f"unscaffolded 64k rows {len(unscaffolded)}, expected 9")
+    else:
+        mean = sum(r["prompt_tokens"] for r in unscaffolded) / 9
+        if round(mean) != SCAFFOLD["baseline_64k"]:
+            fail.append(
+                f"unscaffolded 64k mean {round(mean)} != {SCAFFOLD['baseline_64k']} used in budgets"
+            )
+    # handle audit: coverage is incomplete and signatures vary
+    if not HANDLE_AUDIT.is_file():
+        fail.append(f"promoted handle audit is absent: {HANDLE_AUDIT}")
+        return
+    audit = json.loads(HANDLE_AUDIT.read_text(encoding="utf-8"))
+    asum = audit.get("summary") or {}
+    if asum.get("all_atif_match_event_order") is not True:
+        fail.append("audit no longer shows ATIF order matching event order; the control is lost")
+    uniques = asum.get("unique_content_handle_counts") or []
+    if not uniques or max(uniques) >= 257:
+        fail.append(
+            "audit no longer shows INCOMPLETE coverage (unique handles < 257); "
+            "the retraction in 1.6 depends on it"
+        )
+    if len(set(asum.get("first_mismatch_indexes") or [])) < 2:
+        fail.append(
+            "audit mismatch indexes no longer vary; the not-one-signature claim depends on it"
+        )
+    memo = MEMO.read_text(encoding="utf-8")
+    if str(asum.get("missing_handle", "")) not in memo:
+        fail.append("memo does not cite the audit's missing_handle")
+
+
 def main() -> int:
     if not MEMO.is_file():
         print(f"memo not found: {MEMO}")
@@ -443,6 +512,7 @@ def main() -> int:
         check_budget_admission,
         check_handle_audit,
         check_scaffold_falsification,
+        check_promoted_wave2,
     ):
         check(failures)
     if failures:

@@ -53,6 +53,12 @@ R2 -- raw model I/O / runtime state omission (``agent/sessions/**``,
     symlink outside an R2 omission path fails closed -- promotion refuses to
     copy or dereference it.
 
+    ``PROMOTION.json`` manifests are versioned. Schema v2 requires ``entry_type``
+    on every R2 omission record and ``link_target``/length/hash on symlink
+    omissions, and ``verify`` rejects a manifest that strips those fields or
+    downgrades its declared version. The 2026-08-15 Codex canaries are v1 (no
+    ``entry_type``) and are verified on the legacy path.
+
 R3 -- verifier-only payload (``<trial>/verifier/*``).
     ``library/tasks/terminal-bench-html-js-filter/tests/test_outputs.py`` renders
     its attack-vector corpus, which is deliberately kept out of the repository
@@ -125,7 +131,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+#: Manifest schema. v2 requires ``entry_type`` on every R2 omission record and ``link_target``/length/hash on symlink omissions, so ``verify`` can reject deletion or version-downgrade of those fields. v1/absent-version manifests (the 2026-08-15 Codex canaries) predate ``entry_type`` and are verified on the legacy path.
+SCHEMA_VERSION = 2
 VERIFIER_JSON_STRING_LIMIT = 1024
 VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
@@ -633,6 +640,23 @@ def verify(evidence_runs: Path) -> int:
     for manifest_path in manifests:
         manifest = json.loads(manifest_path.read_text())
         bundle = manifest_path.parent
+        manifest_v2 = manifest.get("schema_version") == SCHEMA_VERSION
+
+        # Reject a version downgrade: a manifest that is not v2 but still
+        # carries the v2-only omission schema (``entry_type``) is inconsistent
+        # and must not be allowed to fall back to the lenient legacy path.
+        has_v2_omission = any(
+            e.get("action") == "omitted"
+            and e.get("rule") == "R2"
+            and e.get("entry_type") is not None
+            for e in manifest["files"]
+        )
+        if not manifest_v2 and has_v2_omission:
+            print(
+                f"VERSION DOWNGRADE {bundle.name}: v2 omission records under a "
+                "non-v2 manifest schema"
+            )
+            failures += 1
 
         # Promotion must never produce a symlink; reject any that appear.
         for path in bundle.rglob("*"):
@@ -641,23 +665,32 @@ def verify(evidence_runs: Path) -> int:
                 failures += 1
 
         for entry in manifest["files"]:
-            # Validate the R2 omission record schema, source-free. Bundles
-            # promoted before `entry_type` existed (the 2026-08-15 Codex
-            # canaries) carry omission records without it; those are accepted
-            # as-is. New bundles always carry `entry_type`, and symlink
-            # omissions are re-checked against their recorded link-target.
+            # Validate the R2 omission record schema, source-free. Schema v2
+            # requires ``entry_type`` on every omission and ``link_target``/
+            # length/hash on symlink omissions, so deleting those fields (or
+            # downgrading the version to dodge them) is caught. v1 manifests
+            # (the 2026-08-15 Codex canaries) predate ``entry_type``; their
+            # omission records are accepted as-is, but a symlink record that
+            # *is* present is still re-checked against its link-target.
             if entry.get("action") == "omitted" and entry.get("rule") == "R2":
                 name = f"{bundle.name}/{entry.get('source_path')}"
                 if entry.get("promoted_path") is not None:
                     print(f"BAD OMISSION {name}: promoted_path must be null")
                     failures += 1
                 entry_type = entry.get("entry_type")
-                if entry_type is not None and entry_type not in {"file", "symlink"}:
+                if manifest_v2:
+                    if entry_type not in {"file", "symlink"}:
+                        print(
+                            f"BAD OMISSION {name}: v2 record missing/invalid "
+                            f"entry_type {entry_type!r}"
+                        )
+                        failures += 1
+                elif entry_type is not None and entry_type not in {"file", "symlink"}:
                     print(f"BAD OMISSION {name}: bad entry_type {entry_type!r}")
                     failures += 1
                 if entry_type == "symlink":
                     target = entry.get("link_target")
-                    if not isinstance(target, str):
+                    if not isinstance(target, str) or not target:
                         print(f"BAD OMISSION {name}: symlink missing link_target")
                         failures += 1
                         continue

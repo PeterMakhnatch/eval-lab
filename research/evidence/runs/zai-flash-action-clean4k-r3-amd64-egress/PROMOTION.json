@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "bundle": "zai-flash-action-clean4k-r3-amd64-egress",
   "source_job_runtime_path": "runs/zai-flash-action-clean4k-r3-amd64-egress",
   "source_job_result_sha256": "sha256:dc15e2420ba1e45f960a5bf48d71b4a3115829b79adfe7c72fe83c8a3cd332eb",

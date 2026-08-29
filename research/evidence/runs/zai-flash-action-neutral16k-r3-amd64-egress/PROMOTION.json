@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "bundle": "zai-flash-action-neutral16k-r3-amd64-egress",
   "source_job_runtime_path": "runs/zai-flash-action-neutral16k-r3-amd64-egress",
   "source_job_result_sha256": "sha256:1ac99d19dfaa8ac01365e891b86579f36fb5c9d4ce1bd5b175d807fc1b656546",

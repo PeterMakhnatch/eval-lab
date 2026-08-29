@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "bundle": "zai-flash-recovery-transient5xx-p1-r3-amd64-verifier",
   "source_job_runtime_path": "runs/zai-flash-recovery-transient5xx-p1-r3-amd64-verifier",
   "source_job_result_sha256": "sha256:d0081a60e7898b926d0f663c486caa6dc14c70dbdce7ca945ec89fb4f8b3afdd",

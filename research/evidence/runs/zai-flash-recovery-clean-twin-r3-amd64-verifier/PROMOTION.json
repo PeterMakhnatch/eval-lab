@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "bundle": "zai-flash-recovery-clean-twin-r3-amd64-verifier",
   "source_job_runtime_path": "runs/zai-flash-recovery-clean-twin-r3-amd64-verifier",
   "source_job_result_sha256": "sha256:e47339ff014096e4c3208328ef8f41398bf8063cfe3d0b3cbac1a2d0c1204b8a",

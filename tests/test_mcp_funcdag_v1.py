@@ -215,29 +215,21 @@ def test_coexistence_with_loca_lean():
     assert loca_source is not None
 
 
-def test_ensure_wheelhouse_uses_target_resolver_provenance_not_venv_pip(tmp_path, monkeypatch):
-    """A pip-less uv venv cannot service prepackaging; staging uses target resolver provenance."""
-    venv = tmp_path / "pipless"
-    subprocess.run(["uv", "venv", "--no-project", str(venv)], check=True, capture_output=True)
-    venv_python = venv / "bin" / "python"
-    pip_probe = subprocess.run(
-        [str(venv_python), "-m", "pip", "--version"],
-        capture_output=True,
-        text=True,
-    )
-    assert pip_probe.returncode != 0
-
+def test_ensure_wheelhouse_uses_locked_resolver_not_live_uv_pip(tmp_path, monkeypatch):
+    """Staging runs the locked environment's python -m pip, never a live `uv run --with pip`."""
     mod = _load_ensure_wheelhouse_module()
 
     dest = tmp_path / "wheels"
     target = mod.LINUX_CP312_X86_64
     cmd = mod.stage_command(dest, target)
-    assert cmd[:5] == ["uv", "run", "--with", "pip", "--no-project"]
-    assert cmd[5:9] == ["python", "-m", "pip", "download"]
+    # The resolver is the locked environment's pip executed via sys.executable,
+    # not a live pip resolved by `uv run --with pip`.
+    assert cmd[0] == sys.executable
+    assert cmd[1:4] == ["-m", "pip", "download"]
     assert "--platform" in cmd
     assert cmd[cmd.index("--platform") + 1] == "manylinux_2_17_x86_64"
     assert "--require-hashes" not in cmd
-    assert str(venv_python) not in cmd
+    assert "uv" not in cmd[:4]
 
     from evallab.mcp_substrate import (
         ResolverProvenance,
@@ -304,6 +296,174 @@ def test_stage_command_rejects_non_trusted_target():
     mod = _load_ensure_wheelhouse_module()
     with pytest.raises(SubstrateError, match="no trusted wheel manifest"):
         mod.stage_command(Path("/tmp/wheels"), mod.MACOS_CP312_ARM64)
+
+
+def test_resolver_pip_is_pinned_in_locked_dev_group():
+    """The resolver pip must be pinned exactly in the locked dev dependency group."""
+    import tomllib
+
+    mod = _load_ensure_wheelhouse_module()
+    pyproject_path = Path(__file__).parents[1] / "pyproject.toml"
+    with pyproject_path.open("rb") as fh:
+        data = tomllib.load(fh)
+    dev = data["dependency-groups"]["dev"]
+    assert mod.RESOLVER_PIP_PIN in dev
+    # The lock must carry the exact pinned pip with a committed artifact hash.
+    lock_text = (Path(__file__).parents[1] / "uv.lock").read_text(encoding="utf-8")
+    assert 'name = "pip"' in lock_text
+    assert 'version = "26.1.2"' in lock_text
+    assert "pip-26.1.2" in lock_text
+
+
+def test_ensure_wheelhouse_rejects_non_trusted_target_before_cache(tmp_path):
+    """A crafted cached provenance must not bypass rejection of a non-trusted target."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+    # Plant a provenance claiming the non-trusted target with a wheel present.
+    (dest / mod.PROVENANCE_FILENAME).write_text(
+        json.dumps(
+            {
+                "target": {"python_tag": "cp312", "platform_tag": "macosx_11_0_arm64"},
+                "manifest_digest": "0" * 64,
+                "manifest_source": "https://pypi.org/simple",
+                "wheels": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dest / "fastmcp-3.4.7-py3-none-any.whl").write_bytes(b"wheel")
+    recorded: list[list[str]] = []
+
+    def fake_run(argv, check=False):
+        recorded.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0)
+
+    with pytest.raises(SubstrateError, match="no trusted wheel manifest"):
+        mod.ensure_wheelhouse(dest, target=mod.MACOS_CP312_ARM64, run=fake_run)
+    assert not recorded, "non-trusted target must be rejected before any staging"
+
+
+def test_ensure_wheelhouse_rejects_symlinked_destination(tmp_path):
+    """A symlinked destination is refused before any cache reuse/clear/write."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "dest"
+    link.symlink_to(real, target_is_directory=True)
+    with pytest.raises(SubstrateError, match="symlink"):
+        mod.ensure_wheelhouse(link, target=mod.LINUX_CP312_X86_64)
+
+
+def test_ensure_wheelhouse_rejects_other_owned_destination(tmp_path, monkeypatch):
+    """An existing destination owned by another uid is refused before deletion/download/write."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+    # Simulate an attacker-owned directory without needing root to chown: report a
+    # different effective uid so the ownership check must fail closed.
+    real_euid = mod.os.geteuid()
+    monkeypatch.setattr(mod.os, "geteuid", lambda: real_euid + 1)
+    with pytest.raises(SubstrateError, match="not owned by the current user"):
+        mod.ensure_wheelhouse(dest, target=mod.LINUX_CP312_X86_64)
+
+
+def test_ensure_wheelhouse_rejects_group_or_world_writable_destination(tmp_path):
+    """A real but group/world-writable destination is refused before deletion/download/write."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+    dest.chmod(0o777)
+    with pytest.raises(SubstrateError, match="group/world-writable"):
+        mod.ensure_wheelhouse(dest, target=mod.LINUX_CP312_X86_64)
+
+
+def test_ensure_wheelhouse_creates_absent_destination_owner_only(tmp_path, monkeypatch):
+    """An absent destination is created with owner-only permissions before staging."""
+    from evallab.mcp_substrate import (
+        ResolverProvenance,
+        trusted_wheel_manifest_digest,
+        trusted_wheel_manifest_source,
+    )
+
+    mod = _load_ensure_wheelhouse_module()
+    target = mod.LINUX_CP312_X86_64
+    dest = tmp_path / "wheels"
+
+    provenance = ResolverProvenance(
+        target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
+        wheels=(),
+    )
+    monkeypatch.setattr(mod, "record_prepackaging_provenance", lambda *_: provenance)
+
+    def fake_run(argv, check=False):
+        dest.mkdir(parents=True, exist_ok=True)
+        return subprocess.CompletedProcess(argv, 0)
+
+    mod.ensure_wheelhouse(dest, target=target, run=fake_run)
+    mode = dest.stat().st_mode & 0o777
+    assert mode == 0o700
+
+
+def test_ensure_wheelhouse_rejects_symlinked_provenance(tmp_path):
+    """A symlinked resolver-provenance final component is refused before read/write."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "fastmcp-3.4.7-py3-none-any.whl").write_bytes(b"wheel")
+    target_file = tmp_path / "target.json"
+    target_file.write_text("{}", encoding="utf-8")
+    (dest / mod.PROVENANCE_FILENAME).symlink_to(target_file)
+    with pytest.raises(SubstrateError, match="symlink"):
+        mod.ensure_wheelhouse(dest, target=mod.LINUX_CP312_X86_64)
+
+
+def test_ensure_wheelhouse_rejects_symlinked_wheel_entry(tmp_path, monkeypatch):
+    """A symlinked wheel entry inside an otherwise-valid cache is refused, not followed."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    target = mod.LINUX_CP312_X86_64
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    from evallab.mcp_substrate import (
+        ResolverProvenance,
+        trusted_wheel_manifest_digest,
+        trusted_wheel_manifest_source,
+    )
+
+    provenance = ResolverProvenance(
+        target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
+        wheels=(),
+    )
+    (dest / mod.PROVENANCE_FILENAME).write_text(
+        json.dumps(provenance.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    outside = tmp_path / "outside.whl"
+    outside.write_bytes(b"wheel")
+    (dest / "fastmcp-3.4.7-py3-none-any.whl").symlink_to(outside)
+
+    def fake_run(argv, check=False):
+        return subprocess.CompletedProcess(argv, 0)
+
+    with pytest.raises(SubstrateError, match="symlink"):
+        mod.ensure_wheelhouse(dest, target=target, run=fake_run)
 
 
 def test_ensure_wheelhouse_cache_reuse_fails_closed_when_provenance_does_not_verify(

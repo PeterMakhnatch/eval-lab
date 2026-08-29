@@ -229,20 +229,23 @@ def main():
         raise RuntimeError(f"list_context_chunks returned {listed!r}")
     target_entity = None
     latest_value = None
+    b = chr(92) + "b"
     for chunk_id in listed["chunk_ids"]:
         chunk = session.call_tool("get_context_chunk", {"chunk_id": chunk_id})
         text = json.dumps(chunk, sort_keys=True) if isinstance(chunk, dict) else str(chunk)
         if target_entity is None:
-            match = re.search(r"for\s+(entity_\d+)", text)
+            match = re.search(r"for\\s+(entity_\\d+)", text)
             if match:
                 target_entity = match.group(1)
-        if target_entity and re.search(rf"\b{re.escape(target_entity)}\b", text):
+        if target_entity and re.search(b + re.escape(target_entity) + b, text):
             match_value = re.search(r"'(?P<val>[^']+)'", text)
             if match_value:
                 latest_value = match_value.group("val")
     if not target_entity or not latest_value:
         raise RuntimeError("could not resolve latest bound value from MCP chunks")
-    session.call_tool("execute_mutation", {"entity_id": target_entity, "attribute": "routing_key", "bound_value": latest_value})
+    res = session.call_tool("execute_mutation", {"entity_id": target_entity, "attribute": "routing_key", "bound_value": latest_value})
+    if isinstance(res, dict) and res.get("status") != "executed":
+        raise RuntimeError(f"execute_mutation failed: {res!r}")
 
 if __name__ == "__main__":
     main()
@@ -280,19 +283,22 @@ if status != 200:
 catalog = client.call_tool("list_context_chunks", {})
 entity = None
 value = None
+b = chr(92) + "b"
 for chunk_id in catalog.get("chunk_ids", []):
     visible = client.call_tool("get_context_chunk", {"chunk_id": chunk_id})
     text = json.dumps(visible, sort_keys=True) if isinstance(visible, dict) else str(visible)
     found = re.search(r"for\\s+(entity_\\d+)", text)
     if entity is None and found:
         entity = found.group(1)
-    if entity and entity in text:
+    if entity and re.search(b + re.escape(entity) + b, text):
         candidates = re.findall(r"'([^']+)'", text)
         if candidates:
             value = candidates[-1]
 if not entity or not value:
     raise RuntimeError("unable to derive public MCP mutation")
-client.call_tool("execute_mutation", {"entity_id": entity, "attribute": "routing_key", "bound_value": value})
+res = client.call_tool("execute_mutation", {"entity_id": entity, "attribute": "routing_key", "bound_value": value})
+if isinstance(res, dict) and res.get("status") != "executed":
+    raise RuntimeError(f"execute_mutation failed: {res!r}")
 """
         fair_shell = "#!/bin/sh\nset -eu\npython3 - <<'PY'\n" + client_source + fair_python + "PY\n"
         (workbench / "fair-alternative.sh").write_text(fair_shell, encoding="utf-8")

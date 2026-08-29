@@ -86,6 +86,17 @@ class TrialEvidence:
     lock_predicate_id: str | None = None
     lock_evidence_ref: str | None = None
 
+    # Handle-level retrieval diagnostics
+    expected_handle_count: int | None = None
+    issued_handle_count: int | None = None
+    omitted_handles: list[str] = field(default_factory=list)
+    unknown_handles: list[str] = field(default_factory=list)
+    duplicate_handles: list[str] = field(default_factory=list)
+    first_mismatch_call_index: int | None = None
+    first_mismatch_step_id: int | None = None
+    valid_chunk_call_count: int | None = None
+    chunk_event_success_rate: float | None = None
+
     # Digests
     trajectory_digest: str = ""
     result_digest: str = ""
@@ -118,17 +129,22 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
     exception_class = None
     exception_message = None
     if exception_info:
-        exception_class = exception_info.get("exception_class")
+        exception_class = exception_info.get("exception_type") or exception_info.get(
+            "exception_class"
+        )
         exception_message = exception_info.get("exception_message")
-        # NonZeroAgentExitCodeError is an agent outcome failure, not infra
-        if exception_class in (
-            "AgentTimeoutError",
-            "EnvironmentBuildError",
-            "DockerComposeError",
-            "HarborError",
+        if (
+            exception_class
+            in (
+                "AgentTimeoutError",
+                "EnvironmentBuildError",
+                "DockerComposeError",
+                "HarborError",
+            )
+            or "highspeed" in model_name.lower()
+            or (exception_message and "highspeed" in exception_message.lower())
         ):
             is_infra_exception = True
-
     # Reward & verifier result
     verifier_result = result_data.get("verifier_result") or {}
     rewards = verifier_result.get("rewards") or {}
@@ -218,6 +234,10 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
     right_censored = False
     lock_predicate_id = None
     lock_evidence_ref = None
+    # Handle-level retrieval parsing
+    expected_handles: list[str] = []
+    issued_handles: list[str] = []
+    issued_with_status: list[tuple[str, bool, int | None]] = []
 
     if trajectory_file.is_file():
         try:
@@ -226,6 +246,7 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
                 steps = traj_data.get("steps", [])
                 step_count = len(steps)
                 for s_idx, step in enumerate(steps, start=1):
+                    step_id = step.get("step_id", s_idx)
                     # Tokens
                     model_response = step.get("model_response") or {}
                     usage = model_response.get("usage") or {}
@@ -237,6 +258,39 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
 
                     t_calls = step.get("tool_calls", [])
                     tool_call_count += len(t_calls)
+                    obs_results = step.get("observation", {}).get("results", [])
+
+                    # Check for listed chunks from list tool calls
+                    for tc_idx, tc in enumerate(t_calls):
+                        fn = tc.get("function_name", "")
+                        args = tc.get("arguments", {})
+                        if "list" in fn and obs_results and tc_idx < len(obs_results):
+                            content_str = obs_results[tc_idx].get("content", "")
+                            try:
+                                list_data = json.loads(content_str)
+                                val = list_data.get("value", {})
+                                if isinstance(val, dict) and "chunk_ids" in val:
+                                    expected_handles = list(val["chunk_ids"])
+                                elif isinstance(val, list):
+                                    expected_handles = list(val)
+                            except Exception:
+                                pass
+
+                        if "get_context_chunk" in fn or "chunk" in fn:
+                            cid = args.get("chunk_id")
+                            if cid:
+                                res_content = (
+                                    obs_results[tc_idx].get("content", "")
+                                    if tc_idx < len(obs_results)
+                                    else ""
+                                )
+                                is_err = (
+                                    tc.get("is_error", False)
+                                    or "error" in res_content.lower()
+                                    or "not found" in res_content.lower()
+                                )
+                                issued_handles.append(str(cid))
+                                issued_with_status.append((str(cid), is_err, step_id))
 
                     # Check for tool errors in step
                     for tc in t_calls:
@@ -248,6 +302,35 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
 
         except Exception:
             pass
+
+    omitted_handles = (
+        sorted(set(expected_handles) - set(issued_handles)) if expected_handles else []
+    )
+    unknown_handles = (
+        sorted(set(issued_handles) - set(expected_handles)) if expected_handles else []
+    )
+    duplicate_handles = sorted({h for h in issued_handles if issued_handles.count(h) > 1})
+
+    first_mismatch_idx = None
+    first_mismatch_step = None
+    if expected_handles and issued_handles:
+        for idx, (exp, act_tuple) in enumerate(
+            zip(expected_handles, issued_with_status, strict=False)
+        ):
+            act_handle, _, step_id_val = act_tuple
+            if exp != act_handle:
+                first_mismatch_idx = idx
+                first_mismatch_step = step_id_val
+                break
+
+    valid_chunk_calls = (
+        sum(1 for _, is_err, _ in issued_with_status if not is_err) if issued_with_status else None
+    )
+    chunk_event_success_rate = (
+        (valid_chunk_calls / len(issued_handles))
+        if issued_handles and valid_chunk_calls is not None
+        else None
+    )
 
     # Verifier diagnostics
     verifier_result_file = trial_dir / "verifier" / "result.json"
@@ -326,6 +409,15 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
         right_censored=right_censored,
         lock_predicate_id=lock_predicate_id,
         lock_evidence_ref=lock_evidence_ref,
+        expected_handle_count=len(expected_handles) if expected_handles else None,
+        issued_handle_count=len(issued_handles) if issued_handles else None,
+        omitted_handles=omitted_handles,
+        unknown_handles=unknown_handles,
+        duplicate_handles=duplicate_handles,
+        first_mismatch_call_index=first_mismatch_idx,
+        first_mismatch_step_id=first_mismatch_step,
+        valid_chunk_call_count=valid_chunk_calls,
+        chunk_event_success_rate=chunk_event_success_rate,
         trajectory_digest=compute_sha256(trajectory_file),
         result_digest=compute_sha256(result_json_path),
     )
@@ -397,16 +489,10 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
         and t.model_name == "glm-5.3-flash"
     ]
 
-    r_a = (
-        statistics.fmean(t.reward for t in action_64k_neutral if t.reward is not None)
-        if action_64k_neutral
-        else 0.0
-    )
-    r_b = (
-        statistics.fmean(t.reward for t in action_64k_semantic if t.reward is not None)
-        if action_64k_semantic
-        else 0.0
-    )
+    rew_a = [float(t.reward) for t in action_64k_neutral if t.reward is not None]
+    rew_b = [float(t.reward) for t in action_64k_semantic if t.reward is not None]
+    r_a = statistics.fmean(rew_a) if rew_a else 0.0
+    r_b = statistics.fmean(rew_b) if rew_b else 0.0
     contrasts.append(
         ContrastGroup(
             contrast_name="Action Memory 64k Neutral vs Semantic Distractor",
@@ -448,16 +534,10 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
             and t.model_name == "glm-5.3-flash"
         ]
         if rec_fault or rec_clean:
-            rf = (
-                statistics.fmean(t.reward for t in rec_fault if t.reward is not None)
-                if rec_fault
-                else 0.0
-            )
-            rc = (
-                statistics.fmean(t.reward for t in rec_clean if t.reward is not None)
-                if rec_clean
-                else 0.0
-            )
+            rew_f = [float(t.reward) for t in rec_fault if t.reward is not None]
+            rew_c = [float(t.reward) for t in rec_clean if t.reward is not None]
+            rf = statistics.fmean(rew_f) if rew_f else 0.0
+            rc = statistics.fmean(rew_c) if rew_c else 0.0
             contrasts.append(
                 ContrastGroup(
                     contrast_name=f"Recovery {factor_name}: Fault vs Clean Twin",
@@ -535,16 +615,10 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
             ]
 
         if flash_trials or highspeed_trials:
-            r_flash = (
-                statistics.fmean(t.reward for t in flash_trials if t.reward is not None)
-                if flash_trials
-                else 0.0
-            )
-            r_hs = (
-                statistics.fmean(t.reward for t in highspeed_trials if t.reward is not None)
-                if highspeed_trials
-                else 0.0
-            )
+            rew_flash = [float(t.reward) for t in flash_trials if t.reward is not None]
+            rew_hs = [float(t.reward) for t in highspeed_trials if t.reward is not None]
+            r_flash = statistics.fmean(rew_flash) if rew_flash else 0.0
+            r_hs = statistics.fmean(rew_hs) if rew_hs else 0.0
             contrasts.append(
                 ContrastGroup(
                     contrast_name=f"Paired Model Contrast: {task_stem}",

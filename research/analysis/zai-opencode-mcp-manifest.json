@@ -270,7 +270,7 @@
       "model_name": "glm-5.3-flash",
       "passed": false,
       "result_digest": "sha256:e459793a5d902682b429424f7c8029cde779a0c9672fe51f19b7cdf1eaeb20f8",
-      "reward": 0.0,
+      "reward": null,
       "trajectory_digest": "sha256:eda362728d6736401ebe3ed929c6e87dbbcee7746a655d703718c34c3028b0bf",
       "trial_name": "action-64k-neutral_padding-s1337__VxJbtpZ",
       "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-neutral_padding-s1337__VxJbtpZ",
@@ -282,10 +282,34 @@
       "model_name": "glm-5.3-flash",
       "passed": false,
       "result_digest": "sha256:5b3ef95123bbc4dde2bada5bdd04f0ab36c314c6972d99a9abc0f3dd778e691c",
-      "reward": 0.0,
+      "reward": null,
       "trajectory_digest": "sha256:fbc5c2c93a6ee29d8c618616e0c2ea1584b15d85ebfe84216d49e8b245822c2f",
       "trial_name": "action-64k-semantic_distractor-s__TyoghGd",
       "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
+      "wave": "wave2"
+    },
+    {
+      "benchmark_family": "action_memory",
+      "job_name": "zai-wave2-action64k-s1337-sequential-scaffold-t3",
+      "model_name": "glm-5.3-flash",
+      "passed": true,
+      "result_digest": "sha256:d8e527e48887d5c82ee98d114105e7c9556940eb8b4b5b5ceada4a7a9398e463",
+      "reward": 1.0,
+      "trajectory_digest": "sha256:a67652d070be625a19b22bb7ddd073bf893376d79c16a4b38f8a355415495945",
+      "trial_name": "action-64k-neutral_padding-s1337__u4CZxsA",
+      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-neutral_padding-s1337__u4CZxsA",
+      "wave": "wave2"
+    },
+    {
+      "benchmark_family": "action_memory",
+      "job_name": "zai-wave2-action64k-s1337-sequential-scaffold-t3",
+      "model_name": "glm-5.3-flash",
+      "passed": false,
+      "result_digest": "sha256:2df4d168bdcb1876f10ceda5011f9abdb08bd9ed799ff826dc9ffb51b386c20b",
+      "reward": 0.0,
+      "trajectory_digest": "sha256:741a5e6a4d387fa84de2df71d62cfdda102bfc4695ac9e825d793038e563efa3",
+      "trial_name": "action-64k-semantic_distractor-s__A67eDZ2",
+      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-semantic_distractor-s__A67eDZ2",
       "wave": "wave2"
     },
     {
@@ -546,14 +570,14 @@
       "model_name": "glm-5.3-highspeed",
       "passed": false,
       "result_digest": "sha256:5c56161d718e2aaaea73d7c030b708f76f8495f4668704c00933280e4d338f96",
-      "reward": 0.0,
+      "reward": null,
       "trajectory_digest": "",
       "trial_name": "mcp-funcdag-depth_5-seed42__q22U798",
       "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-highspeed-paired-mini/mcp-funcdag-depth_5-seed42__q22U798",
       "wave": "wave2"
     }
   ],
-  "entry_count": 46,
+  "entry_count": 48,
   "manifest_version": "1.0.0",
   "program": "zai-opencode-mcp-wave1-wave2"
 }

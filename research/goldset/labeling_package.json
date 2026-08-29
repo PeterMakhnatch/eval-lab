@@ -9,29 +9,29 @@
       "repeats_prior_action"
     ]
   },
-  "build_id": "b3ea7249755293c9a3ede8cc8722462c7829a9fe66a322a1fa96fdc2b04a9f59",
+  "build_id": "0b8cc6c6a32734e4fc6d22ed9a28c67b1d4baaea369f9507802f5679a5402c5d",
   "census": {
     "agent_steps_per_cluster": {
-      "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781": 9,
-      "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d": 6,
-      "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df": 4,
-      "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6": 16,
-      "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c": 13,
-      "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd": 16,
-      "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13": 6,
-      "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a": 4,
-      "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175": 6,
-      "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686": 4,
-      "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40": 14,
-      "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2": 5,
-      "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea": 5,
-      "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6": 4,
-      "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20": 13,
-      "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db": 9,
-      "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd": 4,
-      "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c": 31,
-      "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3": 9,
-      "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1": 5
+      "0850293adcdf85268421897da3e524717dc6f57790c17d14afe39879dacab1f4": 4,
+      "2976f330e2b4b4c78e43c8856fd3d70a19669ab49da668497c6fa784cb51eb32": 4,
+      "2e1be9a27cc6b2dc76229730bf13a6bb5199d9ada673348be4951b83edefb8a8": 5,
+      "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150": 16,
+      "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5": 6,
+      "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc": 31,
+      "451eac4ee5a34ad5dff837438727a3ffe8fd6d288a1a6ea2fb2126bf2f8652f5": 4,
+      "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e": 13,
+      "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a": 9,
+      "8ad7bea7dc0b557b91820db52cc7900a5f21af5092f0f32c780fe42ffc83c957": 5,
+      "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b": 6,
+      "b680878b8642b6d10a712cbd120e1624cbfd7353ac82c7802a3cd4ef4e449acc": 5,
+      "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511": 6,
+      "c67a31b874560729f475c5c9d8507a60e3f4b38c35dd7425c2241676e7e61270": 4,
+      "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16": 9,
+      "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458": 16,
+      "f31af8cae0492e2c45aeec4091e456104a7e000ef2dc8df59653c39cfbc3a3f6": 4,
+      "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003": 13,
+      "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e": 14,
+      "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b": 9
     },
     "agent_steps_unique": 183,
     "alias_manifest": {
@@ -46798,7 +46798,7 @@
       "power_argument"
     ]
   },
-  "package_digest": "8faf00e407bd76c8b478c49dd1b1ff3c93c6d9cc6ad4d51f9148edde35ec0131",
+  "package_digest": "36eb181dec79c0a1541d623ae898c3cf3d9f4b439b43b2e6b7eabafde11b1a30",
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
     "authentication": {
@@ -46814,6 +46814,7 @@
     "blockers": [
       "EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0",
       "CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%",
+      "CONTEXT_INCOMPLETE_TOO_HIGH: 149/183 (81.4%) > 20%",
       "QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3",
       "ITEMS_WITH_ZERO_VALID_RATINGS: 183",
       "REGISTRY: REGISTRY_ABSENT"
@@ -46829,6 +46830,12 @@
       "min_effective_clusters": 20.0,
       "raw_clusters": 20,
       "target_cluster_floor_pending_icc_pilot": 30
+    },
+    "context_adequacy": {
+      "incomplete_fraction": 0.8142,
+      "items_incomplete": 149,
+      "items_total": 183,
+      "max_incomplete_fraction": 0.2
     },
     "qualified_rater_pool_size": 0,
     "readiness": "NOT_READY",

@@ -568,7 +568,7 @@ def enumerate_universe(
                     ),
                 )
             )
-            per_cluster.append(digest)
+            per_cluster.append(logical_trial)
 
     alias_manifest = {
         digest: {
@@ -667,6 +667,10 @@ REQUIRED_RATERS_PER_ITEM = 3
 
 # Cluster adequacy, set by Tutor (wK:p4) power verdict 2026-08-28.
 MIN_EFFECTIVE_CLUSTERS = 20.0
+# At most this fraction of items may be context-INCOMPLETE before the package is
+# unfit to label: a rater forced into INSUFFICIENT_CONTEXT on most items measures
+# the builder, not the agent.
+MAX_INCOMPLETE_CONTEXT_FRACTION = 0.20
 MAX_CLUSTER_CONCENTRATION = 0.05
 TARGET_CLUSTER_FLOOR = 30  # K = max(30, 96*rho) pending an ICC pilot
 
@@ -897,6 +901,16 @@ def evaluate_readiness(
         sizes[item.cluster_id] = sizes.get(item.cluster_id, 0) + 1
     adequacy = evaluate_cluster_adequacy(list(sizes.values()))
     blockers.extend(adequacy["blockers"])
+
+    incomplete = sum(
+        1 for item in items if item.context_completeness.get("builder_verdict") != "COMPLETE"
+    )
+    incomplete_fraction = (incomplete / len(items)) if items else 0.0
+    if incomplete_fraction > MAX_INCOMPLETE_CONTEXT_FRACTION:
+        blockers.append(
+            f"CONTEXT_INCOMPLETE_TOO_HIGH: {incomplete}/{len(items)} "
+            f"({incomplete_fraction:.1%}) > {MAX_INCOMPLETE_CONTEXT_FRACTION:.0%}"
+        )
     qualified = set(qualified_rater_ids)
     item_ids = {i.item_id for i in items}
 
@@ -964,6 +978,12 @@ def evaluate_readiness(
     return {
         "readiness": "READY" if not blockers else "NOT_READY",
         "cluster_adequacy": adequacy,
+        "context_adequacy": {
+            "items_incomplete": incomplete,
+            "items_total": len(items),
+            "incomplete_fraction": round(incomplete_fraction, 4),
+            "max_incomplete_fraction": MAX_INCOMPLETE_CONTEXT_FRACTION,
+        },
         "required_unique_raters_per_item": REQUIRED_RATERS_PER_ITEM,
         "qualified_rater_pool_size": len(qualified),
         "valid_rating_records": sum(len(v) for v in by_item.values()),
@@ -1216,10 +1236,23 @@ def _serialize(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
+BUILD_ID_EXCLUDED_PACKAGE_KEYS = ("build_id", "package_digest")
+BUILD_ID_EXCLUDED_TRUTH_KEYS = ("build_id",)
+
+
 def compute_build_id(package: Mapping[str, Any], truth: Mapping[str, Any]) -> str:
-    """Generation ID over BOTH artifacts, excluding the build_id fields."""
-    stripped_pkg = {k: v for k, v in package.items() if k != "build_id"}
-    stripped_truth = {k: v for k, v in truth.items() if k != "build_id"}
+    """Closed generation ID, recomputable from the WRITTEN pair.
+
+    Formula, exactly:
+        build_id = sha256(
+            serialize(package minus {build_id, package_digest})
+            + serialize(truth   minus {build_id})
+        )
+    package_digest is excluded because it is stamped AFTER build_id; including it
+    made the public value unrecomputable from the artifacts on disk.
+    """
+    stripped_pkg = {k: v for k, v in package.items() if k not in BUILD_ID_EXCLUDED_PACKAGE_KEYS}
+    stripped_truth = {k: v for k, v in truth.items() if k not in BUILD_ID_EXCLUDED_TRUTH_KEYS}
     return hashlib.sha256(
         (_serialize(stripped_pkg) + _serialize(stripped_truth)).encode("utf-8")
     ).hexdigest()

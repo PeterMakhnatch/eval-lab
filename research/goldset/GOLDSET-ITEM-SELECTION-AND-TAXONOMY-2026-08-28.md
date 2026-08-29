@@ -7,15 +7,15 @@ type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-5-after-security-review
-readiness: NOT_READY (raters AND cluster adequacy)
+status: revision-6-after-exact-head-review
+readiness: NOT_READY (6 blockers)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: 5e7fef50980e852abfc7570b3da9b863b2b3e50e1958b98eec84c223792467c6
-revision: 5
+package_sha256: 77317e371b7203344f1539cf17dce19aa8b531098b34a0f305067c62699bff6f
+revision: 6
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -59,19 +59,25 @@ Two further corrections to revision 1's own claims, found while fixing B1:
   Revision 1 claimed it was absent and that stratification needed a `traj_features`
   join. Wrong; it is in the trajectory.
 
-## 1. Readiness — NOT_READY, fail-closed
+## 1. Readiness — NOT_READY, fail-closed, SIX blockers
 
 ```
-readiness  NOT_READY
-blocker    QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
-blocker    ITEMS_WITH_ZERO_VALID_RATINGS: 183
+readiness NOT_READY
+EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
+CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
+CONTEXT_INCOMPLETE_TOO_HIGH: 149/183 (81.4%) > 20%
+QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
+ITEMS_WITH_ZERO_VALID_RATINGS: 183
+REGISTRY: REGISTRY_ABSENT
 ```
 
-`evaluate_readiness` fails closed on seven conditions: pool below three, invalid
-rating records, ratings for unknown items, items with zero **valid** ratings, items
-below three **unique** raters, and any rater outside the qualified pool. Label
-presence and enum membership are validated — three rater IDs with null labels do
-**not** clear readiness (B4). Verified by test.
+**Recruiting raters clears only two of these.** The cluster, context and registry
+blockers are independent of rater supply — see §7 for the required order.
+
+`evaluate_readiness` fails closed on every condition and cannot return `READY`
+while any holds. It validates label presence and enum membership, not merely the
+presence of a rater key ID, and it rejects duplicate or conflicting submissions
+from one `(item, rater)` rather than collapsing them into a set.
 
 ## 2. Item universe — measured, deduplicated
 
@@ -147,7 +153,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `sha256 4790e490…`.
+byte-identical package, `sha256 77317e37…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -181,16 +187,52 @@ Conflating them hides package defects inside a taxonomy-ambiguity number. A risi
 rate says the builder does.
 
 **Cross-check, and this is the point of the pair.** Each item carries
-`context_completeness.builder_verdict` — `COMPLETE` or `DEGRADED` — declared by the
+`context_completeness.builder_verdict` — `COMPLETE` or `INCOMPLETE` — declared by the
 builder, not the rater. Current distribution:
 
 ```
-COMPLETE 158    DEGRADED 25
+COMPLETE 34    INCOMPLETE 149
 ```
+
+**Current distribution is 34 COMPLETE /
+149 INCOMPLETE — 81.4% incomplete.**
+Revision 5 reported 158/25, which was false: the verdict examined only the item's
+own truncation and ignored prior-step truncation entirely.
+
+**This is now a readiness gate.** `MAX_INCOMPLETE_CONTEXT_FRACTION = 20%`;
+at 81.4% the package emits
+`CONTEXT_INCOMPLETE_TOO_HIGH` and refuses. A rater forced into
+`INSUFFICIENT_CONTEXT` on four items in five is measuring the builder, not the
+agent.
 
 If raters mark `INSUFFICIENT_CONTEXT` on items the builder called `COMPLETE`, **the
 builder missed a defect it believed it had detected.** That disagreement is a
 measurement of the package, obtainable only because the two signals are separate.
+
+### 2.5 Delivery guard — raters receive ONLY the exported bundle
+
+The default tree co-locates `labeling_package.json` and
+`machine_truth_WITHHELD.json`. **That directory must never be handed to a rater.**
+
+Raters receive exactly one artifact, produced by:
+
+```bash
+python3 research/goldset/build_labeling_package.py \
+  --runs-root runs \
+  --out research/goldset/labeling_package.json \
+  --machine-truth-out research/goldset/machine_truth_WITHHELD.json \
+  --export-rater-bundle <clean-empty-dir>
+```
+
+`export_rater_bundle` refuses if the target directory holds anything matching
+`*machine_truth*`, `*WITHHELD*`, `*truth*` or `*attention*`, and re-asserts after
+writing. The bundle omits `attention_check_field`, omits every truth row, and
+strips prose revealing that a withheld truth exists.
+
+**Open follow-ups, recorded not fixed:** the build lock leaves an empty
+`.goldset-build.lock` artifact, and `builder_verdict` may bias raters toward
+`INSUFFICIENT_CONTEXT` on items it marks `INCOMPLETE` — a blinding question for
+Tutor, since the cross-check value and the priming risk trade off directly.
 
 ## 3. Cluster adequacy — Tutor's power verdict: HOLD LABELING
 
@@ -338,10 +380,10 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 92 checks
+python3 research/goldset/test_labeling_package.py   # 92 standalone checks + 12 pytest
 ```
 
-Expect `package_sha256 5e7fef50980e852abfc7570b3da9b863b2b3e50e1958b98eec84c223792467c6`
+Expect `package_sha256 77317e371b7203344f1539cf17dce19aa8b531098b34a0f305067c62699bff6f`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

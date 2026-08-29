@@ -46,7 +46,7 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
 
 EXPECTED_ITEMS = 183
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "5e7fef50980e852abfc7570b3da9b863b2b3e50e1958b98eec84c223792467c6"
+EXPECTED_DIGEST = "77317e371b7203344f1539cf17dce19aa8b531098b34a0f305067c62699bff6f"
 
 
 def _synthetic_runs(root: Path) -> Path:

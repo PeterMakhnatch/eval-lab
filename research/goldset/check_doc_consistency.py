@@ -51,6 +51,10 @@ GOVERNED_CENSUS_FIELDS = (
     "n_blockers",
 )
 
+VACUOUS_DELTA_RE = re.compile(
+    r"from\s+(?P<before>[0-9]+(?:\.[0-9]+)?)\s*%?\s+to\s+(?P<after>[0-9]+(?:\.[0-9]+)?)\s*%?",
+    re.IGNORECASE,
+)
 CENSUS_BLOCK_RE = re.compile(r"<!--census-->\s*```(?:text)?\n(?P<body>.*?)```", re.DOTALL)
 
 
@@ -204,6 +208,16 @@ def check(doc: str, facts: dict[str, Any]) -> list[str]:
     if "item_set_digest" in doc and doc.count(HIST) == 0:
         violations.append("doc names retired field item_set_digest without a marker")
 
+    # A regenerated historical comparison can silently become vacuous: rewriting
+    # both numbers to the live value yields "moved X to X - real but insufficient".
+    # That is exactly what --fix produced in 3.2, so the checker owns it now.
+    for match in VACUOUS_DELTA_RE.finditer(doc):
+        before, after = match.group("before"), match.group("after")
+        if before == after:
+            violations.append(
+                f"vacuous delta claim: 'from {before} to {after}' asserts a change "
+                f"to the same value; state the real prior value or delete the claim"
+            )
     return sorted(set(violations))
 
 
@@ -237,6 +251,16 @@ def self_test() -> int:
                 f"distinct_content_digests: {live_digests + 1}",
             ),
             True,
+        ),
+        (
+            "vacuous delta: a change asserted from a value to the same value",
+            good + "Dedupe moved K_eff from 13.33 to 13.33 - real but insufficient.\n",
+            True,
+        ),
+        (
+            "a GENUINE delta is not flagged",
+            good + "Dedupe moved K_eff from 12.10 to 13.33.\n",
+            False,
         ),
         ("well-formed frontmatter and census", good, False),
     ]

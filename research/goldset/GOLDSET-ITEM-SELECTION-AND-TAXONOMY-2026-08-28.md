@@ -337,10 +337,6 @@ split reaches only **19.97**, so 20 raw clusters cannot clear the floor at any
 concentration. Largest cluster carries 31 of 183 items
 (16.9%) against a 5% target.
 
-Deduplicating 16 semantic clones moved $K_{\text{eff}}$ from 13.33 to
-13.33 and concentration from 16.9 % to 16.9% — real but
-nowhere near sufficient.
-
 **Labelling is on HOLD. A data campaign is required before raters are recruited.**
 Recruiting three raters now would spend human time on a package that cannot yield a
 usable interval.
@@ -512,16 +508,39 @@ repeats_prior_action, supersedes
 was previously attached after signing, which let a proxy inject or alter correction
 intent on a rater's behalf.
 
-A correction must name a live record with the **same `item_id` and the same
-`rater_key_id`**. Without that, `supersedes` was a deletion primitive: it could
-point at another rater's record, and the effective view would drop the victim.
+**Correction intent is read solely from the signed record.** `append_rating_record`
+has no `supersedes` parameter. While one existed, every authorization check was
+gated on it, so a caller who prepared a record carrying a signed `supersedes` and
+appended with the default `None` skipped the cross-item, cross-rater and
+already-superseded checks entirely — and the effective view, which reads the
+*stored* field, dropped the victim anyway. Two sources of authority for one
+decision was the defect; the duplicate is gone rather than reconciled.
 
-### 5b.3 Intake is an append-only ledger
+A correction must name a **live** record with the same `item_id`, the same
+`rater_key_id` and the same `rating_contract_digest`, and its chain must not cycle.
+Without that, `supersedes` was a deletion primitive.
+
+### 5b.3 Intake is an authenticated append-only ledger
 
 Records are content-addressed, written `O_CREAT|O_EXCL` at mode `0444`, carry
 `record_id` / `created_at` / `previous_entry_hash`, and are appended under lock to
 an fsync'd hash chain with a head manifest. Load verifies the chain, the head, and
-every record's inclusion and content hash.
+every record's inclusion and content hash. A missing head manifest beside existing
+records **fails closed**; entry `seq` is checked as a real integer, not coerced.
+
+**Append authenticates.** A record is validated — signature, contract digest, item
+context digest, and rater qualification against the trusted registry and keystore —
+*before* acceptance. Without that, an unauthenticated spoof suppressed honest work:
+append performed no signature check, so a record signed with any secret at all was
+written, resolution dropped the victim, and the spoof was rejected only downstream.
+The valid rating was already gone.
+
+**Resolution validates first.** `effective_ratings` requires the verifier context
+and drops invalid records *before* applying supersession, so an invalid or
+unqualified correction can never remove anything. The order is the control: the
+reverse order is what made the spoof effective. The verifier context is required
+rather than optional for the same reason the `supersedes` parameter was removed —
+an optional guard is a guard someone omits.
 
 Rating identity is append-only-unique per `(item, rater)`. A second submission is
 admissible **only** as an explicit correction naming a live record; corrections
@@ -530,19 +549,20 @@ constraint: `previous_entry_hash` sits *inside* the record, so the same rating a
 new chain position gets a different `record_id` and `O_EXCL` never collides.
 
 Production intake **detects** a ledger by its manifest and reads
-`effective_ratings(load_ledger(...))`. `readiness.intake_mode` reports which path
-ran, so it is observable rather than assumed. This matters: pointing the older glob
-loader at a ledger root read `head.json` as a malformed record and ignored
-`records/`, while pointing it at `records/` ingested superseded records alongside
-their corrections and manufactured conflicts.
+`effective_ratings(load_ledger(...), ...)` with the full verifier context.
+`readiness.intake_mode` reports which path ran, so it is observable rather than
+assumed. This matters: pointing the older glob loader at a ledger root read
+`head.json` as a malformed record and ignored `records/`, while pointing it at
+`records/` ingested superseded records alongside their corrections and manufactured
+conflicts.
 
-### 5b.4 Rollback — what the ledger does NOT defend against
+### 5b.4 Rollback needs an external anchor, and the anchor is REQUIRED
 
-**The ledger is locally tamper-evident. It is not rollback-proof.**
+**The ledger alone is locally tamper-evident. It is not rollback-proof.**
 
 Detected locally: overwritten record, deleted record, tampered record, orphan
-record file, head/chain mismatch, replay, supersede of an unknown record,
-double-supersede.
+record file, head/chain mismatch, missing head manifest, malformed head or entry
+schema, replay, supersede of an unknown record, double-supersede.
 
 **Not** detected locally: an operator who truncates `ledger.jsonl` **and** rewrites
 `head.json` consistently. The result is a shorter, internally valid ledger, and no
@@ -550,13 +570,20 @@ amount of local hashing can distinguish it from a ledger that was always short.
 
 An earlier revision of this document claimed truncation defense. That claim was
 overstated: the evidence behind it truncated the log without also rewriting the
-manifest. `verify_against_anchor(ledger, head, count)` closes the gap **only** when
-an externally published head — a signed release note or a VCS commit outside the
-operator's control — is anchored and compared. A test asserts the rewritten
-rollback passes local verification and is caught *only* by the anchor.
+manifest.
 
-If the campaign needs rollback resistance, the anchor must be published on every
-append batch. Until then the honest claim is the narrow one.
+So the anchor is no longer optional. **A nonempty ledger intake requires a
+coordinator-signed external head anchor** (`goldset-ledger-anchor/v1`,
+`--ledger-anchor` + `--anchor-secret-env`), and it is always verified. A missing,
+unsigned, wrongly-signed or tampered anchor is a **readiness blocker**, and the
+intake yields no ratings.
+
+The check compares the entry at the **exact anchored position**, not merely counts.
+A count-only check passes a fork that truncates and then re-appends: the length is
+plausible and the local chain is consistent. Comparing position `entry_count`
+against the anchored head is what reveals it. Tests cover truncation,
+fork-with-extra-entry, wrong trust key, tampered count, unsigned anchor, and the
+missing-anchor readiness blocker.
 
 ## 6. Reproduce
 
@@ -568,7 +595,7 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 194 standalone checks + 24 pytest
+python3 research/goldset/test_labeling_package.py   # 208 standalone checks + 24 pytest
 ```
 
 Expect `labeling_package_file_sha256 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b`
@@ -628,18 +655,31 @@ never-exported keystore** (`goldset-rater-keystore/v1`). Absent, unsigned, or
 tampered roster yields an empty pool plus an explicit problem. A roster containing
 secret material is rejected outright.
 
-Every submission binds **three digests** — `package_digest`, `item_set_digest`, <!--hist-->
-`item_context_digest` — and is HMAC-signed. Altering the task instruction or any
-prior observation invalidates the record. Duplicate or conflicting submissions from
-one `(item, rater)` **fail**; they never collapse into a set.
+Every submission binds the **one canonical `rating_contract_digest`** plus its own
+`item_context_digest`, and is HMAC-signed over the field list in 5b.2. An earlier
+revision bound three digests including an `item_set_digest`; that function is gone,
+because `package_digest` is stamped after readiness (binding to it was circular)
+and the item-set digest duplicated what the contract digest already covers.
+Altering the task instruction or any prior observation invalidates the record.
+Duplicate or conflicting submissions from one `(item, rater)` **fail**; they never
+collapse into a set. A correction is admissible only under 5b.2.
 
 No substitute is permitted: not LLM judges, not the Analyst, not synthetic labels.
 
-### 7.4 Internal, pending Tutor — honestly null
+### 7.4 Internal — design FIXED, observations null until labels exist
 
-`agreement_statistic`, `acceptance_threshold`, `required_interval_width`,
-`adjudication_rule`, `rater_qualification_criteria` all remain `null`. No published
-floor was imported, because none is quotable.
+The agreement **design** is decided and is not an open question (§5): the
+statistic is **Gwet's AC1** over a declared universe of $q = 12$ categories, with a
+**required CI half-width of 0.05** from a cluster bootstrap, and the
+`acceptance_threshold` recorded **explicitly null** by Tutor's decision rather than
+imported from a floor nobody publishes.
+
+What remains null is the **observed** statistic and the **observed** interval.
+Those are measurements, not choices: they cannot exist until labels do. Reporting
+them as pending is not a missing decision.
+
+An earlier revision of this section listed the design itself as "pending Tutor",
+which contradicted §5 recording those parameters as decided.
 
 ### 7.5 Order
 
@@ -647,7 +687,9 @@ floor was imported, because none is quotable.
    $\le$ 5 % concentration, $K = \max(30,\; 96\rho)$ after an ICC pilot**
 2. Verify the export is self-contained (§7.2) before anything ships
 3. Re-cut; confirm the cluster **and** context gates clear
-4. Tutor sets the agreement statistic and threshold
+4. Execute the prechosen agreement design (§7.4): compute AC1 and its bootstrap
+   interval against the required 0.05 half-width. The design is already fixed;
+   this step measures against it and does not reopen the choice.
 5. Publish the signed roster and provision the keystore
 6. Recruit and qualify three raters
 7. Label

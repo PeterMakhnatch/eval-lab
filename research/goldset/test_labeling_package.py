@@ -7,12 +7,15 @@ Each test names the blocker it guards. Run:
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
+import shutil
 import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -55,6 +58,7 @@ from build_labeling_package import (  # noqa: E402
     logical_trial_digest,
     prepare_rating,
     read_source_once,
+    sign_ledger_anchor,
     sign_rating,
     sign_registry,
     validate_rating,
@@ -153,6 +157,13 @@ def check(name: str, condition: bool, detail: str = "") -> None:
     else:
         print(f"  FAIL  {name} {detail}")
         FAILURES.append(name)
+
+
+def _headless(src: Path, dst: Path) -> Path:
+    """Copy a ledger and remove ONLY head.json: records exist, manifest gone."""
+    shutil.copytree(src, dst)
+    (dst / "head.json").unlink()
+    return dst
 
 
 def main() -> int:
@@ -1278,17 +1289,42 @@ def main() -> int:
             ),
         )
 
-    print("SEC-LEDGER - real append-only intake")
+    print("SEC-LEDGER - real append-only intake, AUTHENTICATED at append")
     with tempfile.TemporaryDirectory() as tmp:
         ledger = Path(tmp) / "ledger"
-        base = {
-            "schema_version": RATING_SCHEMA_VERSION,
-            "item_id": "i1",
-            "rater_key_id": "r1",
-            **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+        LC = "c" * 64
+        LCTX = {"i1": "d" * 64, "i2": "d" * 64}
+        LKR = {"r1": "s1", "r2": "s2"}
+        LQ = ["r1", "r2"]
+        VC: dict[str, Any] = {
+            "rating_contract_digest": LC,
+            "context_digests": LCTX,
+            "keyring": LKR,
+            "qualified_rater_ids": LQ,
         }
-        first = append_rating_record(ledger, dict(base), created_at="T0")
-        append_rating_record(ledger, {**base, "rater_key_id": "r2"}, created_at="T1")
+
+        def _lrec(
+            item: str = "i1",
+            rater: str = "r1",
+            supersedes: str | None = None,
+            secret: str | None = None,
+            **over: object,
+        ) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": LC,
+                "item_id": item,
+                "item_context_digest": LCTX[item],
+                "rater_key_id": rater,
+                "supersedes": supersedes,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+                **over,
+            }
+            body["signature"] = sign_rating(body, secret or LKR[rater])
+            return body
+
+        first = append_rating_record(ledger, _lrec(), created_at="T0", **VC)
+        append_rating_record(ledger, _lrec(rater="r2"), created_at="T1", **VC)
         check("chain loads and verifies", len(load_ledger(ledger)) == 2)
         check("record carries record_id", bool(first["record_id"]))
         check("record carries created_at", first["created_at"] == "T0")
@@ -1303,17 +1339,26 @@ def main() -> int:
             (oct((ledger / "records" / f"{first['record_id']}.json").stat().st_mode)[-3:] == "444"),
         )
         check(
+            "an UNSIGNED record is refused at append",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger, {"item_id": "i1", "rater_key_id": "r1"}, created_at="TU", **VC
+                ),
+            ),
+        )
+        check(
             "replayed identical rating is refused",
             _raises(
                 LedgerError,
-                lambda: append_rating_record(ledger, dict(base), created_at="T0"),
+                lambda: append_rating_record(ledger, _lrec(), created_at="T0", **VC),
             ),
         )
         check(
             "replay at a new timestamp is refused",
             _raises(
                 LedgerError,
-                lambda: append_rating_record(ledger, dict(base), created_at="T9"),
+                lambda: append_rating_record(ledger, _lrec(), created_at="T9", **VC),
             ),
         )
         check(
@@ -1321,22 +1366,17 @@ def main() -> int:
             _raises(
                 LedgerError,
                 lambda: append_rating_record(
-                    ledger, dict(base), created_at="T2", supersedes="f" * 64
+                    ledger, _lrec(supersedes="f" * 64), created_at="T2", **VC
                 ),
             ),
         )
-        # supersedes is a SIGNED field, so a correction must carry it in the
-        # record itself - a caller cannot assert correction intent on the rater's
-        # behalf.
+        # Correction intent is read SOLELY from the signed record; there is no
+        # supersedes parameter to disagree with it.
         correction = append_rating_record(
             ledger,
-            {
-                **base,
-                "step_contribution": "HARMFUL",
-                "supersedes": first["record_id"],
-            },
+            _lrec(supersedes=first["record_id"], step_contribution="HARMFUL"),
             created_at="T3",
-            supersedes=first["record_id"],
+            **VC,
         )
         check("correction APPENDS", len(load_ledger(ledger)) == 3)
         check(
@@ -1347,9 +1387,9 @@ def main() -> int:
             "effective view resolves to the correction",
             any(
                 r["record_id"] == correction["record_id"]
-                for r in effective_ratings(load_ledger(ledger))
+                for r in effective_ratings(load_ledger(ledger), **VC)
             )
-            and len(effective_ratings(load_ledger(ledger))) == 2,
+            and len(effective_ratings(load_ledger(ledger), **VC)) == 2,
         )
         check(
             "double-supersede is refused",
@@ -1357,10 +1397,40 @@ def main() -> int:
                 LedgerError,
                 lambda: append_rating_record(
                     ledger,
-                    dict(base),
+                    _lrec(supersedes=first["record_id"], step_contribution="NEUTRAL"),
                     created_at="T4",
-                    supersedes=first["record_id"],
+                    **VC,
                 ),
+            ),
+        )
+        _ap = inspect.signature(append_rating_record).parameters
+        _ef = inspect.signature(effective_ratings).parameters
+        check(
+            "append_rating_record has NO supersedes parameter",
+            "supersedes" not in _ap,
+        )
+        check(
+            "the verifier context is REQUIRED on append, never defaulted",
+            all(
+                _ap[f].default is inspect.Parameter.empty
+                for f in (
+                    "rating_contract_digest",
+                    "context_digests",
+                    "keyring",
+                    "qualified_rater_ids",
+                )
+            ),
+        )
+        check(
+            "the verifier context is REQUIRED on effective_ratings, never defaulted",
+            all(
+                f in _ef and _ef[f].default is inspect.Parameter.empty
+                for f in (
+                    "rating_contract_digest",
+                    "context_digests",
+                    "keyring",
+                    "qualified_rater_ids",
+                )
             ),
         )
         target = ledger / "records" / f"{correction['record_id']}.json"
@@ -1408,7 +1478,15 @@ def main() -> int:
                     rater_secret=secret,
                     distribution_secret=DIST2,
                 )
-                append_rating_record(ledger2, prepared, created_at=f"T-{iid[:6]}-{key_id}")
+                append_rating_record(
+                    ledger2,
+                    prepared,
+                    created_at=f"T-{iid[:6]}-{key_id}",
+                    rating_contract_digest=server_contract,
+                    context_digests={i["item_id"]: i["item_context_digest"] for i in eb["items"]},
+                    keyring=KEYS,
+                    qualified_rater_ids=list(KEYS),
+                )
         reg3 = {
             "schema_version": REGISTRY_SCHEMA_VERSION,
             "authority_key_id": "a",
@@ -1420,6 +1498,28 @@ def main() -> int:
             json.dumps({"schema_version": KEYSTORE_SCHEMA_VERSION, "keys": KEYS}),
             encoding="utf-8",
         )
+        # A nonempty ledger intake REQUIRES a coordinator-signed external anchor.
+        # The coordinator publishes it after the append batch.
+        ANCHOR_SECRET = "anchor-trust"
+        a_head, a_count = ledger_head(ledger2)
+        (T / "anchor.json").write_text(
+            json.dumps(sign_ledger_anchor(a_head, a_count, ANCHOR_SECRET)),
+            encoding="utf-8",
+        )
+        unanchored, _ = build_package(
+            e2e_runs,
+            core_n=None,
+            boost_per_stratum=0,
+            ratings_dir=ledger2,
+            registry_path=T / "reg.json",
+            authority_secret="AUTH",
+            keystore_path=T / "ks.json",
+        )
+        check(
+            "an UNANCHORED nonempty ledger blocks readiness and yields no ratings",
+            any(b.startswith("LEDGER_ANCHOR_MISSING") for b in unanchored["readiness"]["blockers"])
+            and unanchored["readiness"]["rating_intake"]["records_accepted"] == 0,
+        )
         rebuilt, _ = build_package(
             e2e_runs,
             core_n=None,
@@ -1428,6 +1528,8 @@ def main() -> int:
             registry_path=T / "reg.json",
             authority_secret="AUTH",
             keystore_path=T / "ks.json",
+            anchor_path=T / "anchor.json",
+            anchor_secret=ANCHOR_SECRET,
         )
         ri2 = rebuilt["readiness"]["rating_intake"]
         check("intake detects the append-only ledger", ri2["intake_mode"] == "append_only_ledger")
@@ -1440,49 +1542,81 @@ def main() -> int:
         counts2 = rebuilt["readiness"]["context_diagnostic_2x2"]["counts"]
         check("diagnostic total equals accepted", sum(counts2.values()) == ri2["records_accepted"])
 
-    print("SEC-SUPERSEDE - correction authorization")
+    print("SEC-SUPERSEDE - correction authorization from the SIGNED record only")
     with tempfile.TemporaryDirectory() as tmp:
         ledger3 = Path(tmp) / "l"
+        SC = "c" * 64
+        SCTX = {"i1": "d" * 64, "i2": "e" * 64}
+        SKR = {"victim": "kv", "attacker": "ka"}
+        SVC: dict[str, Any] = {
+            "rating_contract_digest": SC,
+            "context_digests": SCTX,
+            "keyring": SKR,
+            "qualified_rater_ids": list(SKR),
+        }
 
-        def _rec(item: str, rater: str, sup: str | None = None, **over: object) -> dict:
+        def _rec(
+            item: str,
+            rater: str,
+            sup: str | None = None,
+            secret: str | None = None,
+            **over: object,
+        ) -> dict:
             r = {
                 "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": SC,
                 "item_id": item,
+                "item_context_digest": SCTX[item],
                 "rater_key_id": rater,
                 "supersedes": sup,
                 **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
                 **over,
             }
-            r["signature"] = sign_rating(r, "k")
+            r["signature"] = sign_rating(r, secret or SKR.get(rater, "kx"))
             return r
 
-        victim = append_rating_record(ledger3, _rec("i1", "victim"), created_at="T0")
-        append_rating_record(ledger3, _rec("i2", "victim"), created_at="T1")
+        victim = append_rating_record(ledger3, _rec("i1", "victim"), created_at="T0", **SVC)
+        append_rating_record(ledger3, _rec("i2", "victim"), created_at="T1", **SVC)
         vid = victim["record_id"]
+        # THE SEAM ATTACK: the signed record names the victim and the caller adds
+        # nothing. While authorization was gated on a separate parameter, this
+        # path skipped every check and the effective view dropped the victim.
         check(
-            "cross-RATER supersede is refused",
+            "prepared-record cross-RATER supersede, DEFAULT append, is refused",
             _raises(
                 LedgerError,
                 lambda: append_rating_record(
-                    ledger3, _rec("i1", "attacker", vid), created_at="TX", supersedes=vid
+                    ledger3, _rec("i1", "attacker", vid), created_at="TX", **SVC
                 ),
             ),
         )
         check(
-            "cross-ITEM supersede is refused",
+            "prepared-record cross-ITEM supersede, DEFAULT append, is refused",
             _raises(
                 LedgerError,
                 lambda: append_rating_record(
-                    ledger3, _rec("i2", "victim", vid), created_at="TY", supersedes=vid
+                    ledger3, _rec("i2", "victim", vid), created_at="TY", **SVC
                 ),
             ),
         )
         check(
-            "unsigned correction intent is refused",
+            "BOGUS-SIGNATURE correction cannot suppress a valid rating (DoS)",
             _raises(
                 LedgerError,
                 lambda: append_rating_record(
-                    ledger3, _rec("i1", "victim", None), created_at="TZ", supersedes=vid
+                    ledger3,
+                    _rec("i1", "victim", vid, secret="WRONG-SECRET"),
+                    created_at="TD",
+                    **SVC,
+                ),
+            ),
+        )
+        check(
+            "UNQUALIFIED rater's correction is refused at append",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger3, _rec("i1", "rogue", vid, secret="kx"), created_at="TR", **SVC
                 ),
             ),
         )
@@ -1491,59 +1625,141 @@ def main() -> int:
             ledger3,
             _rec("i1", "victim", vid, step_contribution="HARMFUL"),
             created_at="T3",
-            supersedes=vid,
+            **SVC,
         )
         check(
             "own correction is accepted and the victim record is retained",
             (ledger3 / "records" / f"{vid}.json").is_file()
-            and len(effective_ratings(load_ledger(ledger3))) == 2,
+            and len(effective_ratings(load_ledger(ledger3), **SVC)) == 2,
+        )
+        # The load path is the second line of defence: even if a correction was
+        # admissible when appended, it must not remove anything once it no longer
+        # validates - here the rater loses qualification.
+        check(
+            "a correction by a NOW-UNQUALIFIED rater removes nothing on load",
+            effective_ratings(
+                load_ledger(ledger3),
+                rating_contract_digest=SC,
+                context_digests=SCTX,
+                keyring=SKR,
+                qualified_rater_ids=["attacker"],
+            )
+            == [],
         )
 
-    print("SEC-ANCHOR - rollback is only detectable against an external anchor")
+    print("SEC-ANCHOR - rollback and forks are caught only by a signed anchor")
     with tempfile.TemporaryDirectory() as tmp:
         ledger4 = Path(tmp) / "l"
+        ASEC = "anchor-trust"
+        AC = "c" * 64
+        ACTX = {"i1": "d" * 64}
+        AKR = {f"r{n}": f"s{n}" for n in range(4)}
+        AVC: dict[str, Any] = {
+            "rating_contract_digest": AC,
+            "context_digests": ACTX,
+            "keyring": AKR,
+            "qualified_rater_ids": list(AKR),
+        }
 
         def _r4(rater: str) -> dict:
             r = {
                 "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": AC,
                 "item_id": "i1",
+                "item_context_digest": ACTX["i1"],
                 "rater_key_id": rater,
                 "supersedes": None,
                 **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
             }
-            r["signature"] = sign_rating(r, "k")
+            r["signature"] = sign_rating(r, AKR[rater])
             return r
 
         for n in range(3):
-            append_rating_record(ledger4, _r4(f"r{n}"), created_at=f"T{n}")
-        anchor_head, anchor_count = ledger_head(ledger4)
-        lines = (ledger4 / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
-        first_entry = json.loads(lines[0])
-        (ledger4 / "ledger.jsonl").write_text(lines[0] + "\n", encoding="utf-8")
-        (ledger4 / "head.json").write_text(
-            json.dumps(
-                {
-                    "schema": LEDGER_SCHEMA,
-                    "head_hash": first_entry["entry_hash"],
-                    "count": 1,
-                }
-            ),
-            encoding="utf-8",
-        )
-        for stale in (ledger4 / "records").glob("*.json"):
-            if stale.stem != first_entry["record_id"]:
-                os.chmod(stale, 0o644)
-                stale.unlink()
+            append_rating_record(ledger4, _r4(f"r{n}"), created_at=f"T{n}", **AVC)
+        good_head, good_count = ledger_head(ledger4)
+        anchor = sign_ledger_anchor(good_head, good_count, ASEC)
+        verify_against_anchor(ledger4, anchor, anchor_secret=ASEC)
+        check("a matching signed anchor verifies", True)
         check(
-            "a consistently-rewritten rollback passes LOCAL verification",
-            len(load_ledger(ledger4)) == 1,
-        )
-        check(
-            "the external anchor DETECTS the rollback",
+            "an anchor signed with the WRONG key is refused",
             _raises(
                 LedgerError,
-                lambda: verify_against_anchor(ledger4, anchor_head, anchor_count),
+                lambda: verify_against_anchor(ledger4, anchor, anchor_secret="not-the-key"),
             ),
+        )
+        check(
+            "a TAMPERED anchor count is refused",
+            _raises(
+                LedgerError,
+                lambda: verify_against_anchor(
+                    ledger4, {**anchor, "entry_count": 99}, anchor_secret=ASEC
+                ),
+            ),
+        )
+        check(
+            "an UNSIGNED anchor is refused",
+            _raises(
+                LedgerError,
+                lambda: verify_against_anchor(
+                    ledger4,
+                    {k: v for k, v in anchor.items() if k != "signature"},
+                    anchor_secret=ASEC,
+                ),
+            ),
+        )
+
+        def _rollback(dst: Path) -> None:
+            shutil.copytree(ledger4, dst)
+            lines = (dst / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
+            entry0 = json.loads(lines[0])
+            (dst / "ledger.jsonl").write_text(lines[0] + "\n", encoding="utf-8")
+            (dst / "head.json").write_text(
+                json.dumps(
+                    {
+                        "schema": LEDGER_SCHEMA,
+                        "head_hash": entry0["entry_hash"],
+                        "count": 1,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            for stale in (dst / "records").glob("*.json"):
+                if stale.stem != entry0["record_id"]:
+                    os.chmod(stale, 0o644)
+                    stale.unlink()
+
+        truncated = Path(tmp) / "truncated"
+        _rollback(truncated)
+        check(
+            "a consistently-rewritten rollback passes LOCAL verification",
+            len(load_ledger(truncated)) == 1,
+        )
+        check(
+            "the signed anchor DETECTS the truncation",
+            _raises(
+                LedgerError,
+                lambda: verify_against_anchor(truncated, anchor, anchor_secret=ASEC),
+            ),
+        )
+        # A fork that re-extends has a PLAUSIBLE count, so a count-only check
+        # passes it. Only comparing the entry at the anchored position catches it.
+        forked = Path(tmp) / "forked"
+        _rollback(forked)
+        append_rating_record(forked, _r4("r3"), created_at="LATER", **AVC)
+        check(
+            "a fork re-extended to the anchored length passes LOCAL verification",
+            len(load_ledger(forked)) == 2,
+        )
+        check(
+            "the signed anchor DETECTS a fork with extra entries",
+            _raises(
+                LedgerError,
+                lambda: verify_against_anchor(forked, anchor, anchor_secret=ASEC),
+            ),
+        )
+        check(
+            "a ledger with records but NO head manifest fails closed",
+            _raises(LedgerError, lambda: ledger_head(_headless(ledger4, Path(tmp) / "headless"))),
         )
 
     print("SEC-CLONE - item-level logical dedup with lineage")

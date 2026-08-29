@@ -178,8 +178,9 @@ them, and §3.2's expansion must lean on distractor count rather than depth.
 ### 1.6 Wave-2 outcomes — where failure actually concentrates
 
 `[USER-REPORTED 2026-08-29]` Not yet promoted, so tagged distinctly from
-`[OBSERVED]`. **21 valid scored trials, 17 at reward 1.0.** Internal arithmetic
-cross-checked below; the totals reconcile exactly.
+`[OBSERVED]`. **25 valid scored trials, 17 at reward 1.0** after the seed-1337
+repeats. Internal arithmetic cross-checked below; the totals reconcile exactly.
+The four added trials are all failures, so the reward count is unchanged.
 
 | Lane | Cell | n | reward 1.0 |
 |---|---|---:|---:|
@@ -187,18 +188,16 @@ cross-checked below; the totals reconcile exactly.
 | Flash | FuncDAG high name-similarity | 3 | 2 |
 | Flash | Action 64k seed 42, neutral | 1 | 1 |
 | Flash | Action 64k seed 42, semantic | 1 | 1 |
-| Flash | Action 64k seed 1337, neutral | 1 | 0 |
-| Flash | Action 64k seed 1337, semantic | 1 | 0 |
+| Flash | Action 64k seed 1337, neutral (original + 2 repeats) | 3 | 0 |
+| Flash | Action 64k seed 1337, semantic (original + 2 repeats) | 3 | 0 |
 | Flash | Recovery persistent-signature + silent-wrong-payload, clean+fault | 8 | 8 |
 | Full | FuncDAG depth 5 | 1 | 1 |
 | Full | Recovery persistent | 1 | 1 |
 | Full | Action 64k semantic seed 42 | 1 | 0 |
-| **Total** | | **21** | **17** |
+| **Total** | | **25** | **17** |
 
-Flash subtotal 18/15; Full subtotal 3/2, matching the reported 2/3 mini-lane.
-Combined with wave 1 that is 32/39 scored trials. `[INFERENCE]` Flash's wave-2
-subtotal being 18/15 — numerically identical to the wave-1 pilot — is a
-coincidence of cell selection, not a stability result.
+Flash subtotal 22/15; Full subtotal 3/2, matching the reported 2/3 mini-lane.
+Combined with wave 1 that is 32/43 scored trials.
 
 **No ranking claim is made or supported.** Full and Flash overlap on three cells
 at n=1 per cell. Full failed the one Action 64k semantic seed-42 cell that Flash
@@ -207,18 +206,47 @@ these baselines MDE is undefined below n=40.
 
 #### The finding: failure is concentrated in Action Memory at 64k, and the seed dominates the arm
 
-`[USER-REPORTED]` Across both lanes the 64k slice is 5 trials with 2 passes,
+`[USER-REPORTED]` Across both lanes the 64k slice is **9 trials with 2 passes**,
 while FuncDAG depth-5 is 4/4 and Recovery is 9/9. Within 64k:
 
-- **seed 42** — Flash passed *both* neutral and semantic.
-- **seed 1337** — Flash failed *both* neutral and semantic.
+| Seed | neutral | semantic | arm effect |
+|---|---|---|---|
+| 42 | 1/1 (Flash) | 1/1 Flash, **0/1 Full** | — |
+| 1337 | **0/3** | **0/3** | **exactly zero on n=6** |
 
-`[INFERENCE]` The arm made no difference at either seed; the **seed** did. That is
-the opposite of the pattern the 16k pilot pair suggested, and it is the single most
-important design consequence in this update: at 64k, **seed-to-seed variance
-dominates the neutral-versus-semantic contrast**. Any dose-ladder analysis that
-averages over seeds will report a semantic effect that is really a seed effect, and
-any 2-seed design at 64k is underdetermined. This revises claim C1 directly.
+**The exact boundary of this observation.** `[USER-REPORTED]` At 64k the arm
+difference is **0 within the two seeds observed**: seed 42 passed 2/2, seed 1337
+failed 0/6 unscaffolded with **repeat-stable** reordered-read signatures. "Repeat
+stable within the observed runs" is the right strength — six matching outcomes are
+not a demonstration that the failure is deterministic, and nothing here rules out
+variation on an unobserved run.
+
+**This does not refute a semantic effect across doses**, and reading it that way
+would be a mistake. `[OBSERVED]` Wave 1 at 16k went the other way: neutral 3/3
+versus semantic 2/3. That is a one-trial difference and establishes nothing alone,
+but it is *consistent* with a semantic effect at 16k while 64k shows none. The two
+doses point differently, and neither has enough seeds to separate an arm effect
+from a seed effect.
+
+`[INFERENCE]` **The seed/order framing is an inference, not identified causality.**
+Changing the seed changes generated task content, entity IDs *and* read order
+together, so "ordering" is confounded with content and identifier assignment. The
+observation supports only the weaker statement: *at 64k, outcomes varied by seed and
+not by arm, within two seeds*. Isolating order would need a design holding content
+and IDs fixed while permuting required read order — which the generator does not
+expose as a separate factor.
+
+`[INFERENCE]` Two design implications, offered as **recommendations, not
+established optima**:
+
+1. **Block the arm contrast within seed.** This one is near-unconditional: pooling
+   across seeds that differ this much is a confound regardless of cause.
+2. **Consider more seeds with fewer reps at high dose.** Rationale: the seed-1337
+   repeats returned matching signatures, so further within-seed reps there appeared
+   to add little. Suggestive, not settled — repeat-stability on six trials does not
+   show within-seed variance is zero, and if it is merely small then reps still buy
+   something. Adopt provisionally; revisit once the scaffold arm and more seeds
+   report.
 
 #### The mechanism: both 64k failures are sequencing faults, not coverage faults
 
@@ -226,13 +254,15 @@ any 2-seed design at 64k is underdetermined. This revises claim C1 directly.
 
 | Lane / cell | Signature | Reading |
 |---|---|---|
-| Flash, seed 1337 (both arms) | **complete but reordered**, 257 reads | Count correct, order wrong — the agent retrieved everything and sequenced it wrongly |
+| Flash, seed 1337, all 6 trials, both arms | **complete but reordered**, 257 reads | Count correct, order wrong — retrieved everything, sequenced wrongly; repeat-stable across the six |
 | Full, semantic seed 42 | **258 observed / 257 expected** | One extra read — a duplicate, the same signature as the 16k pilot failure at 66/65 |
 
-`[INFERENCE]` This is the strongest mechanistic thread in the evidence base. Across
-16k and 64k, and across both lanes, **every Action Memory failure so far is a
-retrieval-sequencing fault — ordering or duplication — and none is a failure to
-retrieve the content.** The verifier reason at 16k was already
+`[INFERENCE]` This is the strongest mechanistic thread in the evidence base.
+Across 16k and 64k, both lanes, and six repeat-stable trials at one seed, **every
+Action Memory failure observed so far is a retrieval-sequencing fault — ordering or
+duplication — and none is a failure to retrieve the content.** At its actual
+strength: a consistent pattern across a small number of failures drawn from three
+cells. The most useful hypothesis available, not an established mechanism. The verifier reason at 16k was already
 `incomplete_or_reordered_context_retrieval`
 (`research/evidence/zai-opencode-mcp-pilot-2026-08-29.md:84`). That is why a
 sequential-retrieval scaffold is the right thing to be testing, and it converts a
@@ -246,6 +276,36 @@ feature work**, and it needs no new schema: `tool_call_count`,
 (`src/evallab/evidence/atif.py:102-114`). Duplication is `tool_call_count >
 unique_tools_count`; reordering needs the observation index compared against the
 expected sequence, which the verifier already computes.
+
+#### Sequential-retrieval scaffold: execution-cost evidence, no effectiveness claim
+
+`[USER-REPORTED 2026-08-29]` Both default-timeout scaffold trials ended in
+**`AgentTimeoutError` while still issuing one-by-one reads**. A
+`timeout-multiplier=3` rerun is in flight.
+
+**These are infrastructure/harness outcomes, not scored reward failures.** They
+must not enter a reward numerator, denominator or refusal rate — the same rule
+§1.5 states for the Highspeed 429, and the same rule the pilot already applied to
+its own pre-scoling setup failures. Recorded as harness outcomes at n = 0 scored.
+
+`[INFERENCE]` What they *do* establish is **feasibility and execution cost**, which
+is real evidence and worth having:
+
+- A one-read-at-a-time strategy over a 257-read requirement **does not fit the
+  default agent time budget**. The trials were not stuck; they were still making
+  progress when the budget expired.
+- So the scaffold trades a suspected accuracy gain for a large, measured latency
+  cost. `[INFERENCE]` If the multiplier-3 rerun succeeds, the honest framing is
+  *"sequential retrieval can pass 64k at roughly triple the time budget"* — an
+  accuracy/cost trade, not a free fix. If it fails, the mechanism hypothesis in
+  §1.6 survives but the intervention does not.
+- **Timeout budget therefore becomes a declared campaign parameter**, not a default
+  to inherit. Any E3 arm using sequential retrieval must state its multiplier, and
+  a comparison between scaffolded and unscaffolded arms at *different* budgets is
+  confounded by budget.
+
+**No scaffold-effectiveness claim is made here, in either direction.** The rerun is
+pending, and every 64k statement elsewhere in this memo is unscaffolded.
 
 #### Recovery: two new fault classes passed clean and fault arms
 
@@ -464,18 +524,30 @@ certified in #262 and #275.
 `[OBSERVED]` The pilot ran exactly one dose pair (16k neutral vs semantic) at one
 seed. Observed 3/3 vs 2/3 — **a difference of one trial**.
 
-**Design change forced by wave 2.** `[USER-REPORTED]` §1.6: at 64k the seed
-decided the outcome and the arm did not. `[INFERENCE]` Three seeds cannot separate
-a seed effect from an arm effect when the seed effect is this large — with 3 seeds
-a single unlucky seed moves the arm mean by a third. The 64k and 128k levels
-therefore need **more seeds, not more repetitions**: variance is between seeds, so
-repetitions inside a seed buy little. Recommended revision: keep 3 reps but raise
-the high-dose levels to **6 seeds**, and treat the arm contrast at 64k as
-*seed-blocked* — paired within seed, never pooled across seeds.
+**Design change forced by wave 2, and the repeats sharpen it.**
+`[USER-REPORTED]` §1.6: at 64k the seed decided the outcome and the arm did not —
+seed 1337 is 0/6 across both arms with an identical signature every time, seed 42
+is 2/2.
 
-Expansion (= E3): the full 4×2×3 grid, 3 reps, 72 trials, **plus 3 additional
-seeds at 64k and 128k** (2 doses × 2 arms × 3 new seeds × 3 reps = 36 further
-trials, 108 total). The design point that
+`[INFERENCE]` The repeats were **repeat-stable**, which suggests — without
+establishing — that further within-seed reps at a failing high-dose seed add
+little. On that reading the high-dose budget is better spent on breadth than depth.
+Offered as a design **recommendation**, not an established optimum:
+
+| Level | Original plan | Revised |
+|---|---|---|
+| 4k, 16k | 3 seeds × 3 reps | unchanged — outcomes are mixed here, so reps still sample real variance |
+| 64k, 128k | 3 seeds × 3 reps | **8 seeds × 2 reps** (recommended) — the observed variance was between seeds; within-seed variance at 64k was *unobserved-but-stable* across six trials, which is weaker than zero |
+
+Revised expansion (= E3): 4k and 16k at 3 seeds × 2 arms × 3 reps = 36 trials;
+64k and 128k at 8 seeds × 2 arms × 2 reps = 64 trials. **100 trials**, and the
+high-dose half now resolves 8 seeds instead of 3. The arm contrast is **blocked
+within seed** and never pooled.
+
+`[INFERENCE]` If high-dose outcomes really are largely seed-determined, the more
+informative quantity is **the fraction of seeds that fail** rather than a success
+rate pooled over trials. Eight seeds would let that be estimated at all; three
+cannot. Contingent on the pattern holding. The design point that
 matters is that `neutral_padding` and `semantic_distractor` are matched on dose
 and seed with arm as the *declared single delta*, so the contrast isolates
 semantic interference from context length. `[INFERENCE]` Without the neutral arm
@@ -955,13 +1027,21 @@ falsifiable failure mode that none of the other five covers.
 - **Boundary:** E3 only (72 trials, one lane, enforced isolation). Says nothing
   about other lanes or other memory tasks. **Not** established by the pilot's
   single 16k pair — that is a one-trial difference.
-- **Status: now evidence AGAINST, and this is the biggest revision in the memo.**
-  `[USER-REPORTED]` §1.6: at 64k, Flash passed **both** arms on seed 42 and failed
-  **both** arms on seed 1337. The arm made no difference at either seed; the seed
-  did. `[INFERENCE]` So the live hypothesis is no longer "semantic distractors
-  degrade beyond length" but **"seed-to-seed variance dominates the arm contrast at
-  high dose"**. C1 as originally stated is close to refuted at 64k on 5 trials, and
-  E3 must be re-designed to separate the two — see the seed-count change in §3.1.
+- **Status: unsettled, and the two doses disagree.** Not refuted.
+  `[USER-REPORTED]` At 64k the arm difference is **0 within two seeds** — seed 42
+  2/2, seed 1337 0/6 unscaffolded with repeat-stable reordered signatures.
+  `[OBSERVED]` At 16k, wave 1 was neutral 3/3 versus semantic 2/3, a one-trial
+  difference pointing the other way. `[INFERENCE]` An arm effect absent at 64k
+  within two seeds does not refute an all-dose semantic effect; it bounds where one
+  has been looked for. Neither dose has enough seeds to separate arm from seed.
+- **What would settle it:** matched seeds diverging *by arm* at some dose. **32k is
+  unrun and is the interesting gap** — 16k hints at an arm effect, 64k shows none,
+  so the boundary if any lies between them. That is a better next spend than a
+  larger dose.
+- **Companion hypothesis (C1′), stated as a hypothesis:** *at high dose, retrieval
+  failures track the seed rather than the arm.* Consistent with 6/6 at seed 1337 and
+  2/2 at seed 42; **not** identified as an ordering effect, because seed changes
+  content, IDs and order together (§1.6).
 
 ### C2 — The Recovery vertical measures one learned repair move, not general recovery
 
@@ -1034,10 +1114,19 @@ falsifiable failure mode that none of the other five covers.
   stated blocking reason, and none carrying a 0.0 rate.
 - **Established by:** any results table, denominator or refusal rate that contains
   a lane which never produced a scored trial.
-- **Boundary:** `[USER-REPORTED]` the concrete instance is
-  `glm-5.3-highspeed` — not in the subscription, HTTP 429, **no model outcome**. It
-  must be recorded as an excluded access-gated lane, exactly as the DeepSeek screen
-  is recorded at n = 0 rather than at 0.0.
+- **Boundary:** `[USER-REPORTED]` there are now **three** instances of the class,
+  which is why it is a claim and not a note:
+
+  | Instance | Kind | Correct record |
+  |---|---|---|
+  | `glm-5.3-highspeed` HTTP 429 | access gating | excluded lane, n = 0, stated reason |
+  | Sequential-scaffold `AgentTimeoutError` ×2 | harness budget | harness outcome, n = 0 scored |
+  | Pilot pre-scoring setup failures | environment | excluded from outcome counts (`zai-opencode-mcp-pilot-2026-08-29.md:159-163`) |
+
+  `[INFERENCE]` All three share one property: **the model never produced a scored
+  attempt**, so any rate computed over them is undefined rather than low. The
+  timeout case is the most seductive of the three, because the agent *was* working
+  and produced a trajectory — it simply never reached a verdict.
 - **Why it is worth stating as a falsifiable claim rather than a note:**
   `[OBSERVED]` the repository already made and corrected this class of error once —
   the pilot's pre-scoring setup failures were *excluded* from model outcome counts

@@ -73,7 +73,7 @@
     "n_attempts": 3,
     "n_concurrent": 1,
     "max_retries": 0,
-    "total_trials": 108,
+    "total_trials": 100,
     "declared_single_delta": "arm, at matched dose_bytes and seed",
     "dose_zero_anchor": "action-memory clean baseline 4k, seed 42",
     "seed": [
@@ -86,11 +86,14 @@
         65536,
         131072
       ],
-      "additional_seeds": 3,
-      "total_seeds_at_high_dose": 6,
-      "additional_trials": 36,
-      "total_trials": 108,
-      "rationale": "USER-REPORTED wave 2: at 64k the SEED decided the outcome and the neutral/semantic arm did not - seed 42 passed both arms, seed 1337 failed both. Variance is between seeds, so repetitions inside a seed buy little and three seeds cannot separate a seed effect from an arm effect this large."
+      "seeds_at_high_dose": 8,
+      "reps_at_high_dose": 2,
+      "low_dose_seeds": 3,
+      "low_dose_reps": 3,
+      "total_trials": 100,
+      "rationale": "USER-REPORTED wave-2 repeats: seed 1337 at 64k is 0/3 neutral and 0/3 semantic with repeat-stable complete-257-read-but-reordered signatures across all six trials, while seed 42 is 2/2. Repeat-stability suggests, without establishing, that further within-seed reps at a failing high-dose seed add little. Observed variance was between seeds; within-seed variance was unobserved-but-stable, which is weaker than zero. Adopt provisionally and revisit once the scaffold arm and more seeds report.",
+      "estimand_change": "IF high-dose outcomes are largely seed-determined, the informative quantity is the fraction of SEEDS that fail rather than a success rate pooled over trials. Contingent on the pattern holding; 3 seeds cannot estimate it at all.",
+      "status": "RECOMMENDATION, not an established optimum"
     }
   },
   "estimands": {
@@ -212,21 +215,32 @@
   "wave2_context": {
     "status": "USER-REPORTED 2026-08-29, not yet promoted",
     "totals": {
-      "scored_trials": 21,
+      "scored_trials": 25,
       "reward_1": 17,
-      "flash": "18/15",
+      "flash": "22/15",
       "full": "3/2"
     },
     "already_run_at_64k": {
       "seed42": {
-        "neutral": "pass",
-        "semantic": "pass (Flash), fail (Full)"
+        "neutral": "1/1 pass",
+        "semantic": "1/1 pass (Flash); 0/1 fail (Full)"
       },
       "seed1337": {
-        "neutral": "fail",
-        "semantic": "fail"
+        "neutral": "0/3",
+        "semantic": "0/3",
+        "signature": "complete 257-read but reordered on all 6"
       }
     },
-    "no_ranking_claim": "Lanes overlap on three cells at n=1 each; MDE is undefined below n=40 at these baselines."
+    "no_ranking_claim": "Lanes overlap on three cells at n=1 each; MDE is undefined below n=40 at these baselines.",
+    "characterisation": "At 64k the arm difference is 0 within the two seeds observed. This does NOT refute an all-dose semantic effect: wave-1 16k was neutral 3/3 vs semantic 2/3, pointing the other way on a one-trial difference. Seed changes generated content, entity IDs AND read order together, so a seed/order interaction is an inference, not isolated causality.",
+    "pending": "Sequential-retrieval scaffold still running; unscaffolded results only.",
+    "unrun_gap": "32k is unrun and is the interesting dose: 16k hints at an arm effect, 64k shows none."
+  },
+  "sequential_scaffold": {
+    "status": "USER-REPORTED: both default-timeout trials ended in AgentTimeoutError while still issuing one-by-one reads; timeout-multiplier=3 rerun in flight",
+    "classification": "infrastructure/harness outcome, NOT a scored reward failure - excluded from any numerator, denominator or refusal rate",
+    "what_it_establishes": "feasibility and execution cost: a one-read-at-a-time strategy over a 257-read requirement does not fit the default agent time budget",
+    "design_consequence": "timeout multiplier becomes a DECLARED campaign parameter; comparing scaffolded and unscaffolded arms at different budgets is confounded by budget",
+    "effectiveness_claim": "NONE, in either direction, pending the rerun"
   }
 }

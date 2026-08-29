@@ -535,7 +535,7 @@ def _oracle_solve_py(dag_spec: DAGSpec) -> str:
     result_path = Path("/app/result.json")
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(
-        json.dumps({"target_value": target_val}, indent=2) + "\n", encoding="utf-8"
+        json.dumps({"target_value": target_val}, indent=2) + "\\n", encoding="utf-8"
     )
     print(f"Oracle solved with target_value: {target_val}")
 

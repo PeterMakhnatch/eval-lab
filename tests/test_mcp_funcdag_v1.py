@@ -126,6 +126,10 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     assert "session = McpHttpSession(" in oracle_py
     assert 'MCP_HOST = "mcp-service"' in oracle_py
     assert 'result_path = Path("/app/result.json")' in oracle_py
+    # The generated oracle must be valid, executable Python: a template
+    # escaping defect here (e.g. a mis-escaped newline) silently scores the
+    # Docker oracle 0.0 in the Linux certification gate.
+    compile(oracle_py, "solve.py", "exec")
     assert not (sidecar / "runtime.py").exists()
     compose = (task_dir / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
     assert "mcp-service:" in compose
@@ -139,6 +143,7 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     assert "[[verifier.collect]]" not in task_toml
     verifier_eval = (task_dir / "tests" / "verifier_eval.py").read_text(encoding="utf-8")
     assert 'res_file = Path("/app/result.json")' in verifier_eval
+    compile(verifier_eval, "verifier_eval.py", "exec")
     instruction = (task_dir / "instruction.md").read_text(encoding="utf-8")
     assert "Dependency Graph Nodes:" in instruction
     assert "transformation" in instruction

@@ -167,24 +167,13 @@ def materialize(
             name="list_context_chunks",
             description="List all available context log chunk IDs.",
             parameters=(),
-            execution_body=(
-                "scenario = json.loads(Path('/app/scenario.json').read_text())\n"
-                "res = {'chunk_ids': [c['chunk_id'] for c in scenario.get('chunks', [])]}\n"
-                "log_tool_event('list_context_chunks', args, res)\n"
-                "return res"
-            ),
+            metadata={"op_kind": "list_context_chunks"},
         ),
         MCPToolDefinition(
             name="get_context_chunk",
             description="Retrieve content and metadata for a specific chunk ID.",
             parameters=(MCPToolParameter(name="chunk_id", type_name="str", description="The ID of the chunk to read"),),
-            execution_body=(
-                "scenario = json.loads(Path('/app/scenario.json').read_text())\n"
-                "chunk = next((c for c in scenario.get('chunks', []) if c['chunk_id'] == chunk_id), None)\n"
-                "res = chunk or {'error': 'not_found'}\n"
-                "log_tool_event('get_context_chunk', args, res)\n"
-                "return res"
-            ),
+            metadata={"op_kind": "get_context_chunk"},
         ),
         MCPToolDefinition(
             name="execute_mutation",
@@ -194,26 +183,20 @@ def materialize(
                 MCPToolParameter(name="attribute", type_name="str", description="Target attribute key"),
                 MCPToolParameter(name="bound_value", type_name="str", description="Latest state value to bind"),
             ),
-            execution_body=(
-                "out = Path('/app/output')\n"
-                "out.mkdir(parents=True, exist_ok=True)\n"
-                "final_state = {'status': 'executed', 'target_entity': entity_id, 'target_attribute': attribute, 'bound_value': bound_value}\n"
-                "(out / 'final-state.json').write_text(json.dumps(final_state, indent=2, sort_keys=True))\n"
-                "log_tool_event('execute_mutation', args, final_state)\n"
-                "return final_state"
-            ),
+            metadata={"op_kind": "execute_mutation"},
         ),
     )
 
     runtime_assets = (
+        RuntimeAsset("ops.py", source=ROOT / "ops.py"),
         RuntimeAsset("scenario.json", content=scenario_json_str.encode("utf-8")),
-        RuntimeAsset("runtime.py", source=ROOT / "runtime.py"),
     )
 
     pkg = materialize_mcp_sidecar_package(
         target_dir=mcp_sidecar_dir,
         tools=tools,
         server_name="action-memory-mcp",
+        op_registry_module="ops",
         wheelhouse_source=wheelhouse_source,
         resolver_provenance=resolver_provenance,
         plan_only=plan_only,
@@ -231,57 +214,24 @@ def materialize(
             encoding="utf-8",
         )
 
-        solution_solve_py = f'''#!/usr/bin/env python3
-import http.client
-import json
-import re
-import sys
-import time
-
-def wait_ready():
-    for _ in range(50):
-        try:
-            conn = http.client.HTTPConnection("mcp-service", 8080, timeout=1)
-            conn.request("GET", "/health")
-            if conn.getresponse().status == 200:
-                conn.close()
-                return
-            conn.close()
-        except Exception:
-            pass
-        time.sleep(0.1)
-
-def rpc_call(method, params):
-    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-    body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": method, "params": params}})
-    conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
-    res = json.loads(conn.getresponse().read().decode("utf-8"))
-    conn.close()
-    return res.get("result", {{}})
+        solution_solve_py = f"""#!/usr/bin/env python3
+from client import McpHttpSession
 
 def main():
-    wait_ready()
-    rpc_call("initialize", {{"protocolVersion": "2024-11-05"}})
-    chunks_res = rpc_call("tools/call", {{"name": "list_context_chunks", "arguments": {{}}}})
-    chunk_ids = json.loads(chunks_res["content"][0]["text"])["chunk_ids"]
-    target_entity = "{spec.target_entity}"
-    target_attr = "{spec.target_attribute}"
-    latest_val = None
-    for cid in chunk_ids:
-        c_res = rpc_call("tools/call", {{"name": "get_context_chunk", "arguments": {{"chunk_id": cid}}}})
-        text = c_res["content"][0]["text"]
-        if target_entity in text:
-            m = re.search(r"'(?P<val>[^']+)'", text)
-            if m:
-                latest_val = m.group("val")
-    rpc_call("tools/call", {{
-        "name": "execute_mutation",
-        "arguments": {{"entity_id": target_entity, "attribute": target_attr, "bound_value": latest_val}}
+    session = McpHttpSession()
+    status, raw = session.initialize()
+    if status != 200:
+        raise RuntimeError(raw)
+    session.call_tool("execute_mutation", {{
+        "entity_id": "{spec.target_entity}",
+        "attribute": "{spec.target_attribute}",
+        "bound_value": "{spec.latest_value}",
     }})
 
 if __name__ == "__main__":
     main()
-'''
+"""
+        shutil.copy2(ROOT / "client.py", solution / "client.py")
         (solution / "solve.py").write_text(solution_solve_py, encoding="utf-8")
         (solution / "solve.sh").write_text(
             "#!/bin/sh\nset -eu\npython3 /solution/solve.py\n",
@@ -302,7 +252,7 @@ if __name__ == "__main__":
         (verifier_dir / "test.sh").chmod(0o755)
 
         (workbench / "fair-alternative.sh").write_text(
-            f"#!/bin/sh\nset -eu\npython3 -c 'import http.client, json; conn = http.client.HTTPConnection(\"mcp-service\", 8080, timeout=10); body = json.dumps({{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"tools/call\", \"params\": {{\"name\": \"execute_mutation\", \"arguments\": {{\"entity_id\": \"{spec.target_entity}\", \"attribute\": \"{spec.target_attribute}\", \"bound_value\": \"{spec.latest_value}\"}}}}}}); conn.request(\"POST\", \"/mcp\", body, {{\"Content-Type\": \"application/json\"}}); conn.getresponse()'\n",
+            "#!/bin/sh\nset -eu\n# Independent wrapper uses the mounted reference client workflow.\nexec python3 /solution/solve.py\n",
             encoding="utf-8",
         )
         (workbench / "fair-alternative.sh").chmod(0o755)

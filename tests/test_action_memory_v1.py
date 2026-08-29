@@ -89,7 +89,7 @@ def test_materializer_plan_only_emits_clean_specification_without_compose_or_doc
     assert not (target / "environment" / "Dockerfile").exists()
     assert (target / "environment" / "mcp-server" / "server.py").exists()
     assert (target / "environment" / "mcp-server" / "scenario.json").exists()
-    assert (target / "environment" / "mcp-server" / "runtime.py").exists()
+    assert (target / "environment" / "mcp-server" / "ops.py").exists()
     assert (target / "environment" / "mcp-server" / "offline-build-proof.json").exists()
     assert not (target / "environment" / "mcp-server" / "Dockerfile").exists()
     assert not (target / "environment" / "mcp-server" / "wheelhouse").exists()
@@ -122,7 +122,7 @@ def test_materializer_production_generates_valid_harbor_and_compose_structure(tm
     assert (target / "environment" / "docker-compose.yaml").exists()
     assert (target / "environment" / "mcp-server" / "server.py").exists()
     assert (target / "environment" / "mcp-server" / "scenario.json").exists()
-    assert (target / "environment" / "mcp-server" / "runtime.py").exists()
+    assert (target / "environment" / "mcp-server" / "ops.py").exists()
     assert (target / "environment" / "mcp-server" / "Dockerfile").exists()
     assert (target / "environment" / "mcp-server" / "wheelhouse").exists()
 

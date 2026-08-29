@@ -845,6 +845,11 @@ before retrying.
     else:
         _write_executable(adv / "blind-retry.sh", _blind_retry_script())
     _write_executable(adv / "wrong-repair.sh", _wrong_repair_script())
+
+    # Neutral fixed-policy probe materialized byte-identically into both arms
+    fixed_policy_dir = target_dir / "controls" / "fixed-policy"
+    fixed_policy_dir.mkdir(parents=True, exist_ok=True)
+    _write_executable(fixed_policy_dir / "blind-retry.sh", _blind_retry_script())
     return target_dir
 
 

@@ -138,7 +138,7 @@ jobs:
               | tee "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/plan.json"
             cid=$(jq -r '.candidate.candidate_id' "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/plan.json")
 
-            # 2. Check (Workbench fixed controls)
+            # 2. Check (Workbench fixed controls with true adversarial mutants)
             uv run python -m evallab.task_workbench check "$task_p" \
               --repo-root . \
               --source-uri "$source_uri" \
@@ -186,7 +186,44 @@ jobs:
             evidence = discover_control_evidence(Path("${task_p}"), Path.cwd())
             assert evidence.oracle.reward == 1.0
             assert evidence.nop.reward == 0.0
-          PY
+            PY
+
+            # 5. Real Harbor fixed-policy execution against staged task copy
+            staged_fixed="/tmp/harbor_staged_fixed_${arm}_${FAULT_MODE}_p${PERSISTENCE}"
+            rm -rf "$staged_fixed"
+            cp -r "$task_p" "$staged_fixed"
+
+            # Verify byte-identical fixed-policy probe across arms
+            uv run python - <<PY
+            import hashlib
+            from pathlib import Path
+            f_probe = Path("${fault_task}") / "controls/fixed-policy/blind-retry.sh"
+            c_probe = Path("${clean_task}") / "controls/fixed-policy/blind-retry.sh"
+            assert f_probe.is_file() and c_probe.is_file()
+            assert hashlib.sha256(f_probe.read_bytes()).hexdigest() == hashlib.sha256(c_probe.read_bytes()).hexdigest()
+            PY
+
+            cp "$task_p/controls/fixed-policy/blind-retry.sh" "$staged_fixed/solution/solve.sh"
+            chmod +x "$staged_fixed/solution/solve.sh"
+
+            harbor run --path "$staged_fixed" \
+              --agent oracle \
+              --env docker \
+              --job-name "mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-fixed-policy-${GITHUB_RUN_ID}" \
+              --jobs-dir "$jobs" \
+              --n-concurrent 1 \
+              --n-attempts 1 \
+              --yes
+
+            expected_fixed=$([ "$arm" = "fault" ] && echo "0.0" || echo "1.0")
+            uv run python - <<PY
+            import os
+            from pathlib import Path
+            from evallab.registry import discover_control_evidence
+            evidence = discover_control_evidence(Path("${staged_fixed}"), Path.cwd())
+            expected = float("${expected_fixed}")
+            assert evidence.oracle.reward == expected, f"Fixed policy reward {evidence.oracle.reward} != {expected}"
+            PY
           done
       - name: Upload review packet and retained evidence
         if: always()

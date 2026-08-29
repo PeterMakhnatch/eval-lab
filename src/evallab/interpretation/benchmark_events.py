@@ -10,11 +10,11 @@ Enforces:
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from evallab.benchmark_program_contracts import (
     CellFactorsA,
@@ -47,6 +47,78 @@ class BenchmarkContractDriftError(BenchmarkIngestionError):
 
 class BenchmarkMissingArtifactError(BenchmarkIngestionError):
     """Raised when required evidence artifacts (events, final state, contract) are missing."""
+
+
+_ERROR_STATUSES = frozenset(
+    {"error", "failed", "failure", "not_found", "missing", "unavailable", "denied", "rejected"}
+)
+
+
+def _error_value(val: Any) -> bool:
+    """True when a value is a non-empty error indicator."""
+    if val is None:
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val != 0
+    if isinstance(val, str):
+        return val.strip().lower() not in {
+            "",
+            "ok",
+            "success",
+            "none",
+            "null",
+            "false",
+            "0",
+            "true",
+        }
+    if isinstance(val, dict):
+        return bool(val)
+    return bool(val)
+
+
+def is_application_error(payload: Any) -> bool:
+    """Canonical application-level error predicate for tool result payloads.
+
+    Counts an application/domain failure encoded in a tool result *without relabeling
+    a transport-level success*. Recognized signals, checked in order:
+
+    - ``is_error`` True
+    - ``status`` in {error, failed, failure, not_found, missing, unavailable, denied, rejected}
+    - a non-empty ``error`` key at the top level
+    - a nested ``result``/``value``/``output``/``data`` container carrying an ``error``
+      key, an error status, ``is_error`` True, or a nested ``value.error``
+
+    Example (wave2 Action ``get_context_chunk`` miss): a successful transport call whose
+    result is ``{"status": "ok", "value": {"error": "not_found"}}`` is an application error.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("is_error") is True:
+        return True
+    status = payload.get("status")
+    if isinstance(status, str) and status.strip().lower() in _ERROR_STATUSES:
+        return True
+    if _error_value(payload.get("error")):
+        return True
+    for container_key in ("result", "value", "output", "data"):
+        container = payload.get(container_key)
+        if not isinstance(container, dict):
+            continue
+        if _error_value(container.get("error")):
+            return True
+        cstatus = container.get("status")
+        if isinstance(cstatus, str) and cstatus.strip().lower() in _ERROR_STATUSES:
+            return True
+        if container.get("is_error") is True:
+            return True
+        nested = container.get("value")
+        if isinstance(nested, dict) and _error_value(nested.get("error")):
+            return True
+    return False
+
+
 
 
 @dataclass(frozen=True)
@@ -165,6 +237,439 @@ class TrialBundle:
             call_digest = call.request_event.digest if call else "unknown"
             return f"cas:call:{self.trial_id}:{tool_call_id}:{call_digest[:16]}"
         return f"cas:trial:{self.trial_id}"
+
+
+@dataclass(frozen=True)
+class C0ScreeningProjection:
+    """Mechanical-only trajectory screening that never authorizes causal claims.
+
+    The machine-readable grade is always ``causal_grade="C0"`` (matching the
+    feature-registry convention). C0 evidence is mechanical/screening facts with
+    confounds intact; it may never be promoted to a causal, matched (C1), or
+    intervention (C2) claim. ``refuse_causal_promotion`` returns enumerated
+    refusal codes for any such attempt.
+    """
+
+    schema_version: Literal["c0-screening/v2"]
+    trial_id: str
+    task_name: str
+    causal_grade: Literal["C0"]
+    claim_scope: Literal["mechanical_screening_only"]
+    causal_claim_allowed: Literal[False]
+    synthetic_recipe_eligible: Literal[False]
+    projection_status: Literal["SCREENING_ONLY", "REFUSED"]
+    projection_refusals: tuple[str, ...]
+    mechanical_source: Literal["benchmark_events", "atif_trajectory", "none"]
+
+    # Evidence coverage
+    benchmark_contract_present: bool
+    benchmark_events_present: bool
+    final_state_present: bool
+    trajectory_present: bool
+    verifier_present: bool
+
+    # Deterministic SHA-256 digests of raw evidence bytes.
+    source_sha256: str | None
+    trajectory_sha256: str | None
+    verifier_sha256: str | None
+    benchmark_events_sha256: str | None
+    final_state_sha256: str | None
+
+    # Explicit opportunity denominators (NULL-preserving; never 0.0 when absent).
+    opportunity_denominator: str | None
+    opportunity_count: int | None
+    event_count: int | None
+    tool_call_count: int | None
+    tool_error_count: int | None
+    tool_error_rate_screening: float | None
+
+    # Quality / refusal disposition.
+    quality_disposition: Literal[
+        "SCREENING_ONLY",
+        "SCORED_PASS",
+        "SCORED_FAIL",
+        "HARNESS_EXCEPTION",
+        "EVIDENCE_UNAVAILABLE",
+        "REFUSED",
+    ]
+    verifier_passed: bool | None
+    verifier_reward: float | None
+    harness_exception_class: str | None
+    malformed_nested_artifacts: tuple[str, ...]
+    projection_digest: str
+
+
+_NESTED_CONTRACT_CANDIDATES = (
+    "benchmark_contract.json",
+    "benchmark-contract.json",
+    "contract.json",
+    "artifacts/app/output/benchmark_contract.json",
+    "artifacts/app/output/benchmark-contract.json",
+    "artifacts/app/output/contract.json",
+)
+_NESTED_EVENTS_CANDIDATES = (
+    "benchmark-events.jsonl",
+    "benchmark_events.jsonl",
+    "events.jsonl",
+    "artifacts/app/output/benchmark-events.jsonl",
+    "artifacts/app/output/benchmark_events.jsonl",
+    "artifacts/app/output/events.jsonl",
+)
+_NESTED_FINAL_STATE_CANDIDATES = (
+    "final-state.json",
+    "final_state.json",
+    "artifacts/app/output/final-state.json",
+    "artifacts/app/output/final_state.json",
+)
+_TRAJECTORY_CANDIDATES = ("agent/trajectory.json", "trajectory.json", "agent/trajectory.jsonl")
+_VERIFIER_RESULT_CANDIDATES = ("verifier/result.json", "verifier_result.json")
+_VERIFIER_REWARD_CANDIDATES = ("verifier/reward.txt", "verifier_reward.txt")
+_SOURCE_RESULT_CANDIDATES = ("artifacts/app/output/result.json", "result.json")
+_HARNESS_RESULT_CANDIDATES = ("result.json",)
+
+
+def _first_regular_file(root: Path, candidates: Sequence[str]) -> Path | None:
+    for relative in candidates:
+        candidate = root / relative
+        if candidate.is_file() and not candidate.is_symlink():
+            return candidate
+    return None
+
+
+def _sha256_of(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    try:
+        return sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _read_json_safely(path: Path | None) -> Any:
+    if path is None:
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _trial_task_name(trial_dir: Path) -> str | None:
+    hdata = _read_json_safely(_first_regular_file(trial_dir, _HARNESS_RESULT_CANDIDATES))
+    if isinstance(hdata, dict):
+        task_name = hdata.get("task_name")
+        if isinstance(task_name, str) and task_name:
+            return task_name
+    return None
+
+
+def project_c0_screening(
+    trial_dir: Path | str,
+    *,
+    trial_id: str,
+    task_name: str,
+    atif_tool_call_count: int | None = None,
+    atif_tool_error_count: int | None = None,
+    atif_tool_error_rate: float | None = None,
+) -> C0ScreeningProjection:
+    """Project available mechanical facts while refusing every causal interpretation.
+
+    Deterministic: identical trial directories yield identical projections (SHA-256
+    digests, denominators, refusal codes, and disposition). Nested artifacts under
+    ``artifacts/app/output/`` are discovered; malformed nested artifacts are preserved
+    on disk and recorded as ``MALFORMED_NESTED_ARTIFACT`` without crashing.
+    """
+    path = Path(trial_dir)
+    if not path.is_dir():
+        raise BenchmarkMissingArtifactError(f"Trial directory does not exist: {path}")
+
+    contract_path = _first_regular_file(path, _NESTED_CONTRACT_CANDIDATES)
+    events_path = _first_regular_file(path, _NESTED_EVENTS_CANDIDATES)
+    final_state_path = _first_regular_file(path, _NESTED_FINAL_STATE_CANDIDATES)
+    trajectory_path = _first_regular_file(path, _TRAJECTORY_CANDIDATES)
+    verifier_result_path = _first_regular_file(path, _VERIFIER_RESULT_CANDIDATES)
+    verifier_reward_path = _first_regular_file(path, _VERIFIER_REWARD_CANDIDATES)
+    source_result_path = _first_regular_file(path, _SOURCE_RESULT_CANDIDATES)
+    harness_result_path = _first_regular_file(path, _HARNESS_RESULT_CANDIDATES)
+
+    refusals: list[str] = []
+    if contract_path is None:
+        refusals.append("MISSING_BENCHMARK_CONTRACT")
+    if final_state_path is None:
+        refusals.append("MISSING_FINAL_STATE")
+    if trajectory_path is None:
+        refusals.append("MISSING_TRAJECTORY")
+    if verifier_result_path is None and verifier_reward_path is None:
+        refusals.append("MISSING_VERIFIER")
+
+    # Malformed nested artifact: preserve the file on disk, record it, never crash.
+    malformed_nested: list[str] = []
+    if source_result_path is not None:
+        try:
+            json.loads(source_result_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            malformed_nested.append(str(source_result_path.relative_to(path)))
+            refusals.append("MALFORMED_NESTED_ARTIFACT")
+
+    mechanical_source: Literal["benchmark_events", "atif_trajectory", "none"] = "none"
+    event_count: int | None = None
+    tool_call_count: int | None = None
+    tool_error_count: int | None = None
+    tool_error_rate: float | None = None
+    events_digest: str | None = None
+
+    if events_path is not None:
+        events_digest = _sha256_of(events_path)
+        try:
+            events = parse_benchmark_events(events_path)
+            calls = correlate_tool_calls(events)
+        except BenchmarkIngestionError:
+            refusals.append("BENCHMARK_EVENT_SCHEMA_INVALID")
+        else:
+            mechanical_source = "benchmark_events"
+            event_count = len(events)
+            tool_call_count = len(calls)
+            tool_error_count = sum(call.is_error for call in calls)
+            tool_error_rate = (
+                round(tool_error_count / tool_call_count, 4) if tool_call_count > 0 else None
+            )
+    else:
+        refusals.append("MISSING_BENCHMARK_EVENTS")
+
+    if mechanical_source == "none" and atif_tool_call_count is not None:
+        mechanical_source = "atif_trajectory"
+        tool_call_count = atif_tool_call_count
+        tool_error_count = atif_tool_error_count
+        tool_error_rate = atif_tool_error_rate
+
+    # Explicit opportunity denominator: the number of tool-call opportunities
+    # (NULL-preserving). Rates are never fabricated with a 0 denominator.
+    opportunity_denominator: str | None = (
+        "tool_call_count" if tool_call_count is not None else None
+    )
+    opportunity_count = tool_call_count
+
+    # Harness exception from the top-level harness result.
+    harness_exception_class: str | None = None
+    hdata = _read_json_safely(harness_result_path)
+    if isinstance(hdata, dict):
+        ei = hdata.get("exception_info")
+        if isinstance(ei, dict):
+            harness_exception_class = str(
+                ei.get("exception_type")
+                or ei.get("class")
+                or ei.get("exception_class")
+                or ei.get("type")
+                or "Exception"
+            )
+            if harness_exception_class:
+                refusals.append("HARNESS_EXCEPTION")
+
+    # Verifier disposition (pass/fail/reward).
+    verifier_passed: bool | None = None
+    verifier_reward: float | None = None
+    vdata = _read_json_safely(verifier_result_path)
+    if isinstance(vdata, dict):
+        if "passed" in vdata and isinstance(vdata["passed"], bool):
+            verifier_passed = vdata["passed"]
+        rw = vdata.get("reward")
+        if isinstance(rw, (int, float)) and not isinstance(rw, bool):
+            verifier_reward = float(rw)
+        if verifier_reward is not None and verifier_passed is None:
+            verifier_passed = (
+                True if verifier_reward >= 1.0 else False if verifier_reward <= 0.0 else None
+            )
+    elif verifier_reward_path is not None:
+        try:
+            verifier_reward = float(verifier_reward_path.read_text(encoding="utf-8").strip())
+            verifier_passed = verifier_reward >= 1.0
+        except (OSError, ValueError):
+            pass
+
+    if mechanical_source == "none":
+        quality_disposition: Literal[
+            "SCREENING_ONLY",
+            "SCORED_PASS",
+            "SCORED_FAIL",
+            "HARNESS_EXCEPTION",
+            "EVIDENCE_UNAVAILABLE",
+            "REFUSED",
+        ] = "REFUSED"
+    elif harness_exception_class:
+        quality_disposition = "HARNESS_EXCEPTION"
+    elif verifier_passed is True:
+        quality_disposition = "SCORED_PASS"
+    elif verifier_passed is False:
+        quality_disposition = "SCORED_FAIL"
+    else:
+        quality_disposition = "SCREENING_ONLY"
+
+    status: Literal["SCREENING_ONLY", "REFUSED"] = (
+        "SCREENING_ONLY" if mechanical_source != "none" else "REFUSED"
+    )
+    base = C0ScreeningProjection(
+        schema_version="c0-screening/v2",
+        trial_id=trial_id,
+        task_name=task_name,
+        causal_grade="C0",
+        claim_scope="mechanical_screening_only",
+        causal_claim_allowed=False,
+        synthetic_recipe_eligible=False,
+        projection_status=status,
+        projection_refusals=tuple(sorted(set(refusals))),
+        mechanical_source=mechanical_source,
+        benchmark_contract_present=contract_path is not None,
+        benchmark_events_present=events_path is not None,
+        final_state_present=final_state_path is not None,
+        trajectory_present=trajectory_path is not None,
+        verifier_present=verifier_result_path is not None or verifier_reward_path is not None,
+        source_sha256=_sha256_of(source_result_path),
+        trajectory_sha256=_sha256_of(trajectory_path),
+        verifier_sha256=_sha256_of(verifier_result_path or verifier_reward_path),
+        benchmark_events_sha256=events_digest,
+        final_state_sha256=_sha256_of(final_state_path),
+        opportunity_denominator=opportunity_denominator,
+        opportunity_count=opportunity_count,
+        event_count=event_count,
+        tool_call_count=tool_call_count,
+        tool_error_count=tool_error_count,
+        tool_error_rate_screening=tool_error_rate,
+        quality_disposition=quality_disposition,
+        verifier_passed=verifier_passed,
+        verifier_reward=verifier_reward,
+        harness_exception_class=harness_exception_class,
+        malformed_nested_artifacts=tuple(sorted(malformed_nested)),
+        projection_digest="",
+    )
+    return replace(base, projection_digest=_compute_projection_digest(base))
+
+
+_C0_PROMOTION_REFUSALS: dict[str, tuple[str, str]] = {
+    "causal": (
+        "C0_MECHANICAL_ONLY",
+        "C0 evidence is mechanical/screening facts with confounds intact; causal claims are prohibited.",
+    ),
+    "matched": (
+        "C0_NO_MATCHED_CONTROL",
+        "C0 has no matched/twin confound control; a matched (C1) causal claim is prohibited.",
+    ),
+    "intervention": (
+        "C0_NO_INTERVENTION_IDENTITY",
+        "C0 has no intervention identity/effect/manipulation denominator; an intervention (C2) claim is prohibited.",
+    ),
+}
+
+
+@dataclass(frozen=True)
+class C0PromotionRefusal:
+    """Structured, auditable refusal when C0 evidence is used as a higher-grade claim."""
+
+    allowed: Literal[False]
+    trial_id: str
+    projection_digest: str
+    requested_grade: str
+    refusal_codes: tuple[str, ...]
+    reason: str
+
+
+def refuse_causal_promotion(
+    projection: C0ScreeningProjection,
+    requested_grade: str = "causal",
+) -> C0PromotionRefusal:
+    """Refuse every attempt to promote C0 evidence to a causal/matched/intervention claim.
+
+    C0 is never causal; there is no allowed promotion path. The returned refusal
+    carries an enumerated ``refusal_codes`` tuple and a human ``reason``.
+    """
+    target = requested_grade.strip().lower()
+    code, reason = _C0_PROMOTION_REFUSALS.get(target, _C0_PROMOTION_REFUSALS["causal"])
+    return C0PromotionRefusal(
+        allowed=False,
+        trial_id=projection.trial_id,
+        projection_digest=projection.projection_digest,
+        requested_grade=requested_grade,
+        refusal_codes=(code,),
+        reason=reason,
+    )
+
+
+def _projection_body(proj: C0ScreeningProjection) -> dict[str, Any]:
+    """Canonical projection body: every field except the projection digest and raw evidence digests."""
+    data = asdict(proj)
+    return {
+        k: v
+        for k, v in data.items()
+        if k != "projection_digest" and not k.endswith("_sha256")
+    }
+
+
+def _compute_projection_digest(proj: C0ScreeningProjection) -> str:
+    """SHA-256 over the canonical JSON serialization of the projection body."""
+    canonical = json.dumps(
+        _projection_body(proj), sort_keys=True, default=str, separators=(",", ":")
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def validate_projection_digest(proj: C0ScreeningProjection) -> bool:
+    """Recompute and verify the projection digest for auditability."""
+    return _compute_projection_digest(proj) == proj.projection_digest
+
+
+def discover_promoted_trial_dirs(
+    runs_root: Path | str,
+    *,
+    promoted_only: bool = True,
+) -> list[Path]:
+    """Deterministically discover trial directories under a runs root.
+
+    Mirrors the two-level ``<job>/<trial>`` layout of the durable corpus. When
+    ``promoted_only`` is True, only jobs carrying a ``PROMOTION.json`` are included.
+    Returns a sorted list (deterministic order).
+    """
+    root = Path(runs_root)
+    if not root.is_dir():
+        return []
+    found: set[Path] = set()
+    for job_dir in root.iterdir():
+        if not job_dir.is_dir() or job_dir.name.startswith("."):
+            continue
+        if promoted_only and not (job_dir / "PROMOTION.json").is_file():
+            continue
+        for trial_dir in job_dir.iterdir():
+            if trial_dir.is_dir() and not trial_dir.name.startswith("."):
+                found.add(trial_dir)
+    return sorted(found, key=lambda p: str(p))
+
+
+def project_promoted_trials_c0(
+    runs_root: Path | str,
+    *,
+    promoted_only: bool = True,
+    baseline_provider: Callable[[Path], tuple[int, int, float | None] | None] | None = None,
+) -> list[C0ScreeningProjection]:
+    """Deterministic C0 projection over every discovered trial directory.
+
+    ``baseline_provider`` is an optional callable ``(trial_dir) -> (tool_call_count,
+    error_count, error_rate) | None`` supplying ATIF mechanical fallback facts when
+    no benchmark events are present. The default ``None`` skips the ATIF fallback.
+    """
+    projections: list[C0ScreeningProjection] = []
+    for trial_dir in discover_promoted_trial_dirs(runs_root, promoted_only=promoted_only):
+        counts = baseline_provider(trial_dir) if baseline_provider is not None else None
+        atif_calls = atif_errs = atif_rate = None
+        if counts is not None:
+            atif_calls, atif_errs, atif_rate = counts
+        projection = project_c0_screening(
+            trial_dir,
+            trial_id=trial_dir.name,
+            task_name=_trial_task_name(trial_dir) or trial_dir.name,
+            atif_tool_call_count=atif_calls,
+            atif_tool_error_count=atif_errs,
+            atif_tool_error_rate=atif_rate,
+        )
+        projections.append(projection)
+    return projections
 
 
 def _canonical_family(family: str) -> SyntheticFamilyType | None:
@@ -428,8 +933,17 @@ def parse_benchmark_events(
                 f"Event at line {idx} must be a JSON object, got {type(rec)}"
             )
 
-        if "event_index" not in rec:
-            raise BenchmarkEventSchemaError(f"Event at line {idx} missing required 'event_index'")
+        event_index_key = (
+            "event_index"
+            if "event_index" in rec
+            else "event_ordinal"
+            if "event_ordinal" in rec
+            else None
+        )
+        if event_index_key is None:
+            raise BenchmarkEventSchemaError(
+                f"Event at line {idx} missing required 'event_index' or 'event_ordinal'"
+            )
         if "event_type" not in rec:
             raise BenchmarkEventSchemaError(f"Event at line {idx} missing required 'event_type'")
 
@@ -437,9 +951,11 @@ def parse_benchmark_events(
             payload = dict(rec["payload"])
         else:
             payload = {
-                k: v for k, v in rec.items() if k not in ("event_index", "event_type", "timestamp")
+                k: v
+                for k, v in rec.items()
+                if k not in ("event_index", "event_ordinal", "event_type", "timestamp")
             }
-        event_index = rec["event_index"]
+        event_index = rec[event_index_key]
         if not isinstance(event_index, int):
             raise BenchmarkEventSchemaError(f"Event index must be an integer, got {event_index!r}")
 
@@ -604,7 +1120,7 @@ def correlate_tool_calls(
                 if event_type == "tool_call_success":
                     entry["result_event"] = event
                     entry["result_payload"] = payload.get("result")
-                    entry["is_error"] = False
+                    entry["is_error"] = is_application_error(payload.get("result") or payload)
             else:
                 # Standalone execution record
                 exec_id = f"exec_{event.event_index}"
@@ -625,7 +1141,7 @@ def correlate_tool_calls(
                     "is_fault_injected": False,
                     "fault_class": None,
                     "result_payload": payload.get("result"),
-                    "is_error": False,
+                    "is_error": is_application_error(payload.get("result") or payload),
                 }
                 ordered_call_ids.append(exec_id)
 
@@ -682,10 +1198,8 @@ def correlate_tool_calls(
             if entry is not None:
                 entry["result_event"] = event
                 entry["result_payload"] = payload.get("result") or payload.get("output") or payload
-                entry["is_error"] = bool(
-                    payload.get("is_error")
-                    or payload.get("error")
-                    or (isinstance(payload.get("result"), dict) and "error" in payload["result"])
+                entry["is_error"] = is_application_error(
+                    payload.get("result") or payload.get("output") or payload
                 )
             else:
                 res_id = f"res_{event.event_index}"
@@ -700,12 +1214,8 @@ def correlate_tool_calls(
                     "is_fault_injected": False,
                     "fault_class": None,
                     "result_payload": payload.get("result") or payload.get("output") or payload,
-                    "is_error": bool(
-                        payload.get("is_error")
-                        or payload.get("error")
-                        or (
-                            isinstance(payload.get("result"), dict) and "error" in payload["result"]
-                        )
+                    "is_error": is_application_error(
+                        payload.get("result") or payload.get("output") or payload
                     ),
                 }
                 ordered_call_ids.append(res_id)
@@ -743,21 +1253,15 @@ def load_trial_bundle(
 
     tid = trial_id or path.name
 
-    contract_path = path / "benchmark_contract.json"
-    if not contract_path.is_file():
-        contract_path = path / "benchmark-contract.json"
-    if not contract_path.is_file():
-        contract_path = path / "contract.json"
-
-    events_path = path / "benchmark-events.jsonl"
-    if not events_path.is_file():
-        events_path = path / "benchmark_events.jsonl"
-    if not events_path.is_file():
-        events_path = path / "events.jsonl"
-
-    final_state_path = path / "final-state.json"
-    if not final_state_path.is_file():
-        final_state_path = path / "final_state.json"
+    contract_path = _first_regular_file(path, _NESTED_CONTRACT_CANDIDATES)
+    events_path = _first_regular_file(path, _NESTED_EVENTS_CANDIDATES)
+    final_state_path = _first_regular_file(path, _NESTED_FINAL_STATE_CANDIDATES)
+    if contract_path is None:
+        raise BenchmarkMissingArtifactError(f"Benchmark contract file not found in: {path}")
+    if events_path is None:
+        raise BenchmarkMissingArtifactError(f"Benchmark events file not found in: {path}")
+    if final_state_path is None:
+        raise BenchmarkMissingArtifactError(f"Final state file not found in: {path}")
 
     contract = parse_benchmark_contract(contract_path)
     events = parse_benchmark_events(events_path)

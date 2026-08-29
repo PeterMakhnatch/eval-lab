@@ -2920,7 +2920,10 @@ def _traj_align_command(
 def _traj_benchmark_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+    from evallab.interpretation.benchmark_events import (
+        ingest_benchmark_trial,
+        project_c0_screening,
+    )
     from evallab.interpretation.benchmark_projection import (
         agent_readable_projection_provenance,
         build_projection_dimensions,
@@ -2929,6 +2932,7 @@ def _traj_benchmark_command(
     from evallab.interpretation.producers.action_memory import extract_action_memory_features
     from evallab.interpretation.producers.mcp_funcdag import extract_mcp_funcdag_features
     from evallab.interpretation.producers.mcp_recovery import extract_mcp_recovery_features
+    from evallab.interpretation.traj_baseline import compute_trace_baseline
     from evallab.traj import outline_trajectory, resolve_trial_target
 
     explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
@@ -2945,8 +2949,45 @@ def _traj_benchmark_command(
         trial_dir, traj_path, result_path = resolve_trial_target(
             args.trial, repo_root=root, explicit_runs_root=explicit_root
         )
+        outline = outline_trajectory(
+            args.trial,
+            repo_root=root,
+            explicit_runs_root=explicit_root,
+        )
+        baseline = compute_trace_baseline(outline)
+        c0 = project_c0_screening(
+            trial_dir,
+            trial_id=baseline.trial_id,
+            task_name=baseline.task_name,
+            atif_tool_call_count=baseline.tool_call_count,
+            atif_tool_error_count=baseline.error_count,
+            atif_tool_error_rate=baseline.tool_error_rate_screening,
+        )
+        if not c0.benchmark_contract_present:
+            data = asdict(c0)
+            if getattr(args, "json", False):
+                print(json.dumps(data, indent=2, default=str))
+            else:
+                print("C0 MECHANICAL SCREENING:")
+                print(f"  Trial ID:       {c0.trial_id}")
+                print(f"  Task:           {c0.task_name}")
+                print(f"  Status:         {c0.projection_status}")
+                print(f"  Source:         {c0.mechanical_source}")
+                print("  Causal Claims:  PROHIBITED")
+                print("  Recipe Eligible: false")
+                print(
+                    "  Refusals:       "
+                    + (", ".join(c0.projection_refusals) or "none")
+                )
+                print(f"  tool_call_count (denominator): {c0.tool_call_count}")
+                print(f"  tool_error_count: {c0.tool_error_count}")
+                print(
+                    "  tool_error_rate_screening: "
+                    f"{c0.tool_error_rate_screening}"
+                )
+                print(f"  projection_digest: {c0.projection_digest}")
+            return 0
         bundle = ingest_benchmark_trial(trial_dir)
-        outline = outline_trajectory(args.trial, repo_root=root, explicit_runs_root=explicit_root)
         step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
         report = (
             load_compliance_report(_resolve(root, args.compliance_report))
@@ -2989,6 +3030,8 @@ def _traj_benchmark_command(
             )
             print(f"  Construct:      {data.get('construct')}")
             print(f"  Causal Grade:   {data.get('causal_grade')}")
+            if data.get("causal_grade") == "C0":
+                print("  Causal Claims:  PROHIBITED")
             print(f"  Truth Digest:   {data.get('verifier_truth_digest')}")
             print("\n  Metrics:")
             for k, v in data.items():
@@ -3008,6 +3051,93 @@ def _traj_benchmark_command(
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+
+def _traj_c0_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Read-only deterministic C0 mechanical status over promoted trajectories."""
+    from evallab.interpretation.benchmark_events import (
+        project_promoted_trials_c0,
+        refuse_causal_promotion,
+    )
+    from evallab.interpretation.traj_baseline import compute_trace_baseline
+    from evallab.traj import outline_trajectory
+
+    runs_roots = [_resolve(root, r) for r in args.runs_dir] if args.runs_dir else []
+    if not runs_roots:
+        runs_roots = [_resolve(root, Path("research/evidence/runs"))]
+    def _atif_counts(
+        trial_dir: Path, runs_root: Path
+    ) -> tuple[int, int, float | None] | None:
+        try:
+            outline = outline_trajectory(
+                trial_dir, repo_root=root, explicit_runs_root=runs_root
+            )
+            baseline = compute_trace_baseline(outline)
+            return (
+                baseline.tool_call_count,
+                baseline.error_count,
+                baseline.tool_error_rate_screening,
+            )
+        except Exception:
+            return None
+
+    projections = []
+    for rr in runs_roots:
+        rr_path = Path(rr)
+        projections.extend(
+            project_promoted_trials_c0(
+                rr,
+                promoted_only=args.promoted_only,
+                baseline_provider=lambda td, rr_path=rr_path: _atif_counts(td, rr_path),
+            )
+        )
+
+    # Deterministic ordering across all roots.
+    projections.sort(key=lambda p: (p.trial_id, p.task_name))
+
+    summary: dict[str, int] = {}
+    for p in projections:
+        summary[p.quality_disposition] = summary.get(p.quality_disposition, 0) + 1
+    summary["TOTAL"] = len(projections)
+    grades = sorted({p.causal_grade for p in projections})
+    promoted = [p for p in projections if p.causal_claim_allowed]
+
+    if getattr(args, "json", False):
+        payload = {
+            "projections": [asdict(p) for p in projections],
+            "summary": summary,
+            "causal_grades": grades,
+            "causal_claim_allowed_any": bool(promoted),
+            "promotion_refusal": (
+                asdict(refuse_causal_promotion(projections[0], "intervention"))
+                if projections
+                else None
+            ),
+        }
+        print(json.dumps(payload, indent=2, default=str))
+    else:
+        print("C0 MECHANICAL STATUS (promoted trajectories):")
+        print("| trial | task | grade | status | source | denominator | disposition | refusals |")
+        print("|---|---|---|---|---|---|---|---|")
+        for p in projections:
+            refs = ", ".join(p.projection_refusals) if p.projection_refusals else "-"
+            denom = f"{p.opportunity_count} ({p.opportunity_denominator})" if p.opportunity_count is not None else "-"
+            print(
+                f"| {p.trial_id} | {p.task_name} | {p.causal_grade} | "
+                f"{p.projection_status} | {p.mechanical_source} | {denom} | "
+                f"{p.quality_disposition} | {refs} |"
+            )
+        print("")
+        print(f"Total projected: {len(projections)}")
+        print(f"Disposition: {', '.join(f'{k}={v}' for k, v in sorted(summary.items()))}")
+        print(f"causal_grades: {', '.join(grades)}")
+        if promoted:
+            print("ERROR: a C0 projection reported causal_claim_allowed=True; never allowed.")
+            return 1
+        print("C0 facts are never promoted above C0; causal/matched/intervention claims refused.")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -4446,6 +4576,19 @@ def parser() -> argparse.ArgumentParser:
         help="Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
     )
     traj_bm.set_defaults(func=_traj_benchmark_command)
+
+    traj_c0 = traj_commands.add_parser(
+        "c0-status", help="Read-only deterministic C0 mechanical status over promoted trajectories"
+    )
+    traj_c0.add_argument("--runs-dir", action="append", type=Path, help="Runs root(s) to scan")
+    traj_c0.add_argument(
+        "--promoted-only",
+        action="store_true",
+        default=True,
+        help="Only project trials under jobs with a PROMOTION.json (default: True)",
+    )
+    traj_c0.add_argument("--json", action="store_true", help="Emit deterministic JSON status")
+    traj_c0.set_defaults(func=_traj_c0_status_command)
     return root
 
 

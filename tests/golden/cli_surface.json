@@ -5859,6 +5859,67 @@
       }
     ]
   },
+  "traj c0-status": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit deterministic JSON status",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": true,
+        "dest": "promoted_only",
+        "flags": [
+          "--promoted-only"
+        ],
+        "help": "Only project trials under jobs with a PROMOTION.json (default: True)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Runs root(s) to scan",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
   "traj card": {
     "options": [
       {

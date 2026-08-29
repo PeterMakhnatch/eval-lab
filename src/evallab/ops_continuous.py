@@ -19,7 +19,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import yaml
 from pydantic import ValidationError, field_validator, model_validator
@@ -66,6 +66,10 @@ PINNED_INIT_IMAGE = (
 )
 ALLOWED_KEY_MODES = frozenset({0o400, 0o440})
 TERMINAL_LEASE_STATUSES = frozenset({"settled", "terminal", "complete", "cancelled", "failed"})
+TERMINAL_QUEUE_STATES = TERMINAL_LEASE_STATUSES
+JOURNAL_DIRNAME = "journal"
+JOURNAL_CURRENT = "current.json"
+JOURNAL_PENDING = "pending.json"
 MACOS_STATE_REL = Path("Library/Application Support/EvalLab")
 MACOS_LOG_REL = Path("Library/Logs/EvalLab")
 LAUNCHD_STATE_TOKEN = "__EVAL_LAB_STATE_DIR__"
@@ -102,6 +106,30 @@ NONCE_GRAMMAR = re.compile(r"^[A-Za-z0-9._-]{16,128}$")
 SAFETY_PAYLOAD_KEYS = frozenset({"ok", "reason", "mode", "detail", "running", "authorized"})
 AUTH_FIELDS = frozenset({"spec_id", "actor", "authorized_at", "quota_override"})
 BUDGET_FIELDS = AUTH_FIELDS | frozenset({"scope", "expires_at", "ceiling_usd"})
+
+
+class WorkloadOwner(Protocol):
+    """Campaign/queue owner. Operator never synthesizes worker settlement."""
+
+    def request_cancel(self, lease_ids: list[str]) -> Mapping[str, Any]:
+        """Issue cancellation through the campaign/queue owner."""
+
+    def observe_lease(self, lease_id: str) -> Mapping[str, Any] | None:
+        """Poll queue/worker/catalog. None means missing/unknown."""
+
+
+class ClosedWorkloadOwner:
+    def request_cancel(self, lease_ids: list[str]) -> Mapping[str, Any]:
+        return {
+            "requested": True,
+            "executed": False,
+            "owner": "campaign-queue",
+            "lease_ids": list(lease_ids),
+        }
+
+    def observe_lease(self, lease_id: str) -> Mapping[str, Any] | None:
+        del lease_id
+        return None
 
 
 class SloFreshnessPolicy(ContractModel):
@@ -884,6 +912,7 @@ class OperatorContext:
     recovery_fenced_ids: list[str]
     recovery_settlement_digests: list[str]
     log_dir: Path
+    owner: WorkloadOwner
 
 
 def load_loop_policy(path: Path | None) -> ContinuousLoopPolicy | None:
@@ -921,6 +950,10 @@ def _read_text(path: Path) -> str:
 
 
 def _load_json_mapping(path: Path) -> dict[str, Any] | None:
+    if path.name == "kill.json":
+        snapshot = load_operator_snapshot(path.parent)
+        if snapshot is not None and isinstance(snapshot.get("kill"), dict):
+            return snapshot["kill"]
     if not path.is_file():
         return None
     try:
@@ -950,6 +983,11 @@ def _append_event(state_dir: Path, event: Mapping[str, Any]) -> None:
 
 
 def read_mode(state_dir: Path) -> str:
+    snapshot = load_operator_snapshot(state_dir)
+    if snapshot is not None:
+        value = snapshot.get("mode")
+        if isinstance(value, str) and value in MODES:
+            return value
     value = _read_text(state_dir / "mode")
     return value if value in MODES else DEFAULT_MODE
 
@@ -960,12 +998,70 @@ def write_mode(state_dir: Path, mode: str) -> None:
     _write_text(state_dir / "mode", mode)
 
 
-def _atomic_write_json(path: Path, payload: Any) -> None:
+def _fsync_write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, STATE_FILE_MODE)
+    try:
+        os.write(fd, data)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.chmod(path, STATE_FILE_MODE)
+
+
+def load_operator_snapshot(state_dir: Path) -> dict[str, Any] | None:
+    path = state_dir / JOURNAL_DIRNAME / JOURNAL_CURRENT
+    if not path.is_file():
+        return None
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def _materialize_snapshot_views(state_dir: Path, snapshot: Mapping[str, Any]) -> None:
+    mode = snapshot.get("mode")
+    if isinstance(mode, str) and mode in MODES:
+        write_mode(state_dir, mode)
+    if "inflight" in snapshot:
+        _atomic_write_json(state_dir / "inflight.json", snapshot.get("inflight") or [])
+    if "leases" in snapshot:
+        _atomic_write_json(state_dir / "leases.json", snapshot.get("leases") or [])
+    if snapshot.get("kill") is not None:
+        _atomic_write_json(state_dir / "kill.json", snapshot["kill"])
+    if snapshot.get("drain") is not None:
+        _atomic_write_json(state_dir / "drain.json", snapshot["drain"])
+
+
+def commit_operator_snapshot(state_dir: Path, snapshot: Mapping[str, Any]) -> None:
+    journal = state_dir / JOURNAL_DIRNAME
+    journal.mkdir(parents=True, exist_ok=True)
+    os.chmod(journal, STATE_DIR_MODE)
+    payload = json.dumps(dict(snapshot), indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    pending = journal / JOURNAL_PENDING
+    current = journal / JOURNAL_CURRENT
+    _fsync_write(pending, payload)
+    os.replace(pending, current)
+    dirfd = os.open(journal, os.O_RDONLY)
+    try:
+        os.fsync(dirfd)
+    finally:
+        os.close(dirfd)
+    _materialize_snapshot_views(state_dir, snapshot)
+
+
+def recover_journal_views(state_dir: Path) -> None:
+    snapshot = load_operator_snapshot(state_dir)
+    if snapshot is not None:
+        _materialize_snapshot_views(state_dir, snapshot)
+
+
+def _atomic_write_json(path: Path, payload: Any) -> None:
+    encoded = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.chmod(tmp, STATE_FILE_MODE)
-    tmp.replace(path)
+    _fsync_write(tmp, encoded)
+    os.replace(tmp, path)
 
 
 def apply_mode_transition(state_dir: Path, target: str, *, command: str) -> str | None:
@@ -1030,6 +1126,7 @@ def context_from_env(
     environ: Mapping[str, str],
     secret_store: Callable[[str], bytes | None] | None = None,
     secrets_root: Path | None = None,
+    owner: WorkloadOwner | None = None,
 ) -> OperatorContext:
     secret_probe = state_dir / "secret_present"
     standing_path = (
@@ -1118,6 +1215,7 @@ def context_from_env(
         recovery_fenced_ids=list(recovery_extra.get("fenced_ids") or []),
         recovery_settlement_digests=list(recovery_extra.get("settlement_digests") or []),
         log_dir=log_dir,
+        owner=owner if owner is not None else ClosedWorkloadOwner(),
     )
 
 
@@ -1239,6 +1337,14 @@ def _fenced_mode(state_dir: Path) -> str | None:
 
 
 def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
+    snapshot = load_operator_snapshot(state_dir)
+    if snapshot is not None and "inflight" in snapshot:
+        loaded = snapshot.get("inflight")
+        if not isinstance(loaded, list):
+            return None, "malformed_inflight"
+        if any(not isinstance(item, str) or not item.strip() for item in loaded):
+            return None, "malformed_inflight"
+        return loaded, None
     path = state_dir / "inflight.json"
     if not path.is_file():
         return [], None
@@ -1254,6 +1360,17 @@ def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
 
 
 def _load_leases(state_dir: Path) -> tuple[list[dict[str, Any]] | None, str | None]:
+    snapshot = load_operator_snapshot(state_dir)
+    if snapshot is not None and "leases" in snapshot:
+        loaded = snapshot.get("leases")
+        if not isinstance(loaded, list):
+            return None, "malformed_leases"
+        leases: list[dict[str, Any]] = []
+        for item in loaded:
+            if not isinstance(item, dict):
+                return None, "malformed_leases"
+            leases.append(item)
+        return leases, None
     path = state_dir / "leases.json"
     if not path.is_file():
         return [], None
@@ -1333,49 +1450,45 @@ def fenced_leases_unsettled(state_dir: Path) -> str | None:
     return None
 
 
-def _reconcile_inflight_leases(state_dir: Path, inflight: list[Any]) -> list[dict[str, Any]] | None:
-    leases, error = _load_leases(state_dir)
-    if error is not None or leases is None:
-        return None
-    by_id: dict[str, dict[str, Any]] = {}
-    for item in leases:
-        ident = item.get("id")
-        if isinstance(ident, str) and ident.strip():
-            by_id[ident] = dict(item)
-    for raw in inflight:
-        if not isinstance(raw, str) or not raw.strip():
-            return None
-        rec = by_id.get(raw, {"id": raw})
-        rec["id"] = raw
-        rec["status"] = "terminal"
-        rec["terminated"] = True
-        rec["settled"] = True
-        rec["evidence"] = rec.get("evidence") or {"settled_by": "drain", "lease_id": raw}
-        by_id[raw] = rec
-    for rec in list(by_id.values()):
-        status = rec.get("status")
-        if not isinstance(status, str) or status not in TERMINAL_LEASE_STATUSES:
-            rec["status"] = "terminal"
-            rec["terminated"] = True
-            rec["settled"] = True
-        if not _lease_evidence(rec):
-            rec["evidence"] = {"settled_by": "drain", "lease_id": rec.get("id")}
-    return list(by_id.values())
+def observation_is_terminal(obs: Mapping[str, Any] | None) -> bool:
+    if not isinstance(obs, dict):
+        return False
+    if obs.get("alive") is not False:
+        return False
+    queue_state = obs.get("queue_state") or obs.get("status")
+    if not isinstance(queue_state, str) or queue_state not in TERMINAL_QUEUE_STATES:
+        return False
+    digest = obs.get("settlement_digest")
+    if not isinstance(digest, str) or len(digest) != SHA256_HEX:
+        return False
+    if not _lease_evidence(obs) and not _lease_evidence({"evidence": obs.get("evidence")}):
+        return False
+    return True
 
 
-def _commit_drain_settlement(
-    state_dir: Path,
-    *,
-    leases: list[dict[str, Any]],
-    kill_record: Mapping[str, Any] | None,
-) -> None:
-    _atomic_write_json(state_dir / "leases.json", leases)
-    _atomic_write_json(state_dir / "inflight.json", [])
-    if kill_record is not None:
-        record = dict(kill_record)
-        record["executed"] = True
-        record["inflight"] = []
-        _atomic_write_json(state_dir / "kill.json", record)
+def observe_fenced_leases(
+    owner: WorkloadOwner,
+    lease_ids: list[str],
+) -> tuple[list[dict[str, Any]] | None, str | None, list[str]]:
+    observed: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    for lease_id in lease_ids:
+        obs = owner.observe_lease(lease_id)
+        if obs is None:
+            blockers.append(f"missing:{lease_id}")
+            continue
+        record = dict(obs)
+        record["id"] = lease_id
+        if record.get("alive") is True:
+            blockers.append(f"live:{lease_id}")
+            continue
+        if not observation_is_terminal(record):
+            blockers.append(f"unknown:{lease_id}")
+            continue
+        observed.append(record)
+    if blockers:
+        return None, blockers[0], blockers
+    return observed, None, []
 
 
 def _recovery_settled(state_dir: Path) -> str | None:
@@ -1601,70 +1714,121 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     with spent_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps({"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
     os.chmod(spent_path, STATE_FILE_MODE)
-    illegal = apply_mode_transition(ctx.state_dir, DEFAULT_MODE, command="recover")
-    if illegal:
-        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover refused")
+    snapshot = load_operator_snapshot(ctx.state_dir) or {}
+    commit_operator_snapshot(
+        ctx.state_dir,
+        {
+            "mode": DEFAULT_MODE,
+            "inflight": snapshot.get("inflight") or [],
+            "leases": snapshot.get("leases") or [],
+            "kill": snapshot.get("kill"),
+            "drain": snapshot.get("drain"),
+            "recovered": True,
+        },
+    )
     return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by one-time recovery")
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
     current = read_mode(ctx.state_dir)
+    inflight, inflight_error = _load_inflight(ctx.state_dir)
+    kill_record = _load_json_mapping(ctx.state_dir / "kill.json")
+    snapshot = load_operator_snapshot(ctx.state_dir) or {}
+    if kill_record is None and isinstance(snapshot.get("kill"), dict):
+        kill_record = snapshot["kill"]
+    fenced: list[str] = []
+    if isinstance(kill_record, dict) and isinstance(kill_record.get("fenced"), list):
+        fenced = [item for item in kill_record["fenced"] if isinstance(item, str) and item.strip()]
+    elif inflight:
+        fenced = list(inflight)
     if current != "KILLED":
-        illegal = apply_mode_transition(ctx.state_dir, "DRAINING", command="drain")
-        if illegal:
-            return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="drain refused")
+        pending: dict[str, Any] = {
+            "mode": "DRAINING",
+            "leases": (load_operator_snapshot(ctx.state_dir) or {}).get("leases", _load_leases(ctx.state_dir)[0] or []),
+            "kill": kill_record,
+            "drain": {"complete": False, "observed": False},
+        }
+        if inflight is not None:
+            pending["inflight"] = inflight
+        commit_operator_snapshot(ctx.state_dir, pending)
     started_raw = _read_text(ctx.state_dir / "drain_started")
     if not started_raw:
         _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
-    inflight, inflight_error = _load_inflight(ctx.state_dir)
     if inflight_error is not None or inflight is None:
-        drain = {"inflight": [], "complete": False, "malformed": inflight_error}
-        _atomic_write_json(ctx.state_dir / "drain.json", drain)
+        drain = {"inflight": inflight if inflight is not None else [], "complete": False, "malformed": inflight_error}
+        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="in-flight leases remain until observed settlement", extra=drain)
+    observed, blocker, blockers = observe_fenced_leases(ctx.owner, fenced)
+    if observed is None:
+        drain = {
+            "inflight": inflight,
+            "complete": False,
+            "observed": False,
+            "blocker": blocker,
+            "blockers": blockers,
+        }
         return _verdict(
             ctx,
             ok=False,
             reason=REASON_DRAIN_INCOMPLETE,
-            detail="in-flight leases remain until settlement",
+            detail="drain polls trusted queue/worker/catalog evidence; live/unknown/missing leases refuse",
             extra=drain,
         )
-    leases = _reconcile_inflight_leases(ctx.state_dir, inflight)
-    if leases is None:
-        drain = {"inflight": inflight, "complete": False, "malformed": "malformed_leases"}
-        _atomic_write_json(ctx.state_dir / "drain.json", drain)
-        return _verdict(
-            ctx,
-            ok=False,
-            reason=REASON_DRAIN_INCOMPLETE,
-            detail="in-flight leases remain until settlement",
-            extra=drain,
-        )
-    kill_record = _load_json_mapping(ctx.state_dir / "kill.json")
-    _commit_drain_settlement(ctx.state_dir, leases=leases, kill_record=kill_record)
-    drain = {"inflight": [], "complete": True, "terminated": [item.get("id") for item in leases]}
-    _atomic_write_json(ctx.state_dir / "drain.json", drain)
-    if read_mode(ctx.state_dir) == "KILLED":
-        return _verdict(ctx, ok=True, reason=None, detail="drain settled; KILLED latch held until recovery", extra=drain)
-    illegal = apply_mode_transition(ctx.state_dir, DEFAULT_MODE, command="drain")
-    if illegal:
-        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="drain complete but mode latched", extra=drain)
-    return _verdict(ctx, ok=True, reason=None, detail="drain complete; mode DISABLED", extra=drain)
+    next_kill = None
+    if kill_record is not None:
+        next_kill = dict(kill_record)
+        next_kill["executed"] = True
+        next_kill["inflight"] = []
+        next_kill["observed"] = True
+    next_mode = "KILLED" if current == "KILLED" or next_kill is not None else DEFAULT_MODE
+    if current == "KILLED":
+        next_mode = "KILLED"
+    drain = {
+        "inflight": [],
+        "complete": True,
+        "observed": True,
+        "terminated": [item.get("id") for item in observed],
+    }
+    commit_operator_snapshot(
+        ctx.state_dir,
+        {
+            "mode": next_mode,
+            "inflight": [],
+            "leases": observed,
+            "kill": next_kill,
+            "drain": drain,
+        },
+    )
+    if next_mode == "KILLED":
+        return _verdict(ctx, ok=True, reason=None, detail="observed drain settlement; KILLED latch held until recovery", extra=drain)
+    return _verdict(ctx, ok=True, reason=None, detail="observed drain complete; mode DISABLED", extra=drain)
 
 
 def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
     inflight, inflight_error = _load_inflight(ctx.state_dir)
+    fenced = inflight if inflight is not None else []
+    ack = dict(ctx.owner.request_cancel([item for item in fenced if isinstance(item, str)]))
     record = {
         "disposition": KILL_DISPOSITION,
         "at": ctx.now.isoformat(),
         "executed": False,
         "signalled": False,
-        "fenced": inflight if inflight is not None else [],
+        "cancellation_requested": bool(ack.get("requested")),
+        "owner": ack.get("owner", "campaign-queue"),
+        "owner_ack": ack,
+        "fenced": fenced,
         "malformed_inflight": inflight_error,
-        "note": "emergency kill recorded; leases fenced until drain settlement; no process signalled",
+        "note": "emergency kill requested through campaign/queue owner; executed remains false until observed drain",
     }
-    _atomic_write_json(ctx.state_dir / "kill.json", record)
-    illegal = apply_mode_transition(ctx.state_dir, "KILLED", command="kill")
-    if illegal:
-        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="kill refused", extra=record)
+    leases, _lease_error = _load_leases(ctx.state_dir)
+    snapshot: dict[str, Any] = {
+        "mode": "KILLED",
+        "leases": leases or [],
+        "kill": record,
+        "drain": {"complete": False},
+    }
+    if inflight is not None:
+        snapshot["inflight"] = fenced
+    commit_operator_snapshot(ctx.state_dir, snapshot)
     return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
 
 
@@ -1727,11 +1891,13 @@ def main(
     clock: Callable[[], datetime] | None = None,
     secret_store: Callable[[str], bytes | None] | None = None,
     secrets_root: Path | None = None,
+    owner: WorkloadOwner | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     env = os.environ if environ is None else environ
     state_dir = args.state_dir or Path(env.get("EVAL_LAB_OPERATOR_STATE", "operator-state"))
     _secure_state_dir(state_dir)
+    recover_journal_views(state_dir)
     if not (state_dir / "mode").exists():
         write_mode(state_dir, DEFAULT_MODE)
     now = clock() if clock is not None else datetime.now(UTC)
@@ -1745,6 +1911,7 @@ def main(
         environ=env,
         secret_store=resolved_store,
         secrets_root=secrets_root,
+        owner=owner if owner is not None else ClosedWorkloadOwner(),
     )
     mode = read_mode(state_dir)
     if mode == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:

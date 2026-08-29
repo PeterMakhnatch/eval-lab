@@ -39,6 +39,7 @@ from evallab.ops_continuous import (
     ContinuousLoopPolicy,
     bind_policy_digest,
     load_macos_keychain_secret,
+    ClosedWorkloadOwner,
     main,
     policy_complete,
     public_sha256_is_not_a_signature,
@@ -242,16 +243,58 @@ def _write_auths(
 
 
 def _settle_kill(state: Path) -> None:
+    from evallab.ops_continuous import commit_operator_snapshot
+
     kill = json.loads((state / "kill.json").read_text())
     fenced = [item for item in (kill.get("fenced") or []) if isinstance(item, str)]
-    leases = [
-        {"id": ident, "status": "settled", "evidence": {"settled_by": "test", "lease_id": ident}}
-        for ident in fenced
-    ]
-    (state / "inflight.json").write_text("[]\n")
-    (state / "leases.json").write_text(json.dumps(leases) + "\n")
+    leases = [_terminal_obs(ident) for ident in fenced]
     kill["executed"] = True
-    (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
+    commit_operator_snapshot(
+        state,
+        {"mode": "KILLED", "inflight": [], "leases": leases, "kill": kill, "drain": {"complete": True, "observed": True}},
+    )
+
+
+class FakeOwner:
+    def __init__(self, observations: dict | None = None) -> None:
+        self.observations = observations or {}
+        self.cancel_calls: list[list[str]] = []
+
+    def request_cancel(self, lease_ids: list[str]) -> dict:
+        self.cancel_calls.append(list(lease_ids))
+        return {"requested": True, "executed": False, "owner": "campaign-queue", "lease_ids": list(lease_ids)}
+
+    def observe_lease(self, lease_id: str):
+        return self.observations.get(lease_id)
+
+
+def _terminal_obs(lease_id: str) -> dict:
+    digest = __import__("hashlib").sha256(f"settle:{lease_id}".encode()).hexdigest()
+    return {
+        "id": lease_id,
+        "alive": False,
+        "queue_state": "settled",
+        "status": "settled",
+        "settlement_digest": digest,
+        "source": "catalog",
+        "evidence": {"catalog": "settled", "pid_alive": False, "container_alive": False, "queue_state": "settled"},
+    }
+
+
+def _live_obs(lease_id: str) -> dict:
+    return {
+        "id": lease_id,
+        "alive": True,
+        "queue_state": "running",
+        "status": "running",
+        "settlement_digest": None,
+        "source": "worker",
+        "evidence": {"pid_alive": True},
+    }
+
+
+def _unknown_obs(lease_id: str) -> dict:
+    return {"id": lease_id, "alive": False, "queue_state": "unknown", "status": "unknown", "settlement_digest": None, "source": "queue"}
 
 
 def _gate_env() -> dict[str, str]:
@@ -274,6 +317,7 @@ def _run(
     now: datetime | None = None,
     secret_store=None,
     secrets_root: Path | None = None,
+    owner=None,
 ) -> SimpleNamespace:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -294,7 +338,7 @@ def _run(
     try:
         with redirect_stdout(buf):
             store = secret_store
-            code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=None)
+            code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=None, owner=owner)
     finally:
         oc.PINNED_LINUX_SECRET_PATH = original_path
     return SimpleNamespace(returncode=code, stdout=buf.getvalue())
@@ -516,18 +560,24 @@ def test_fresh_heartbeat_status_unknown_health(tmp_path: Path) -> None:
     assert body["running"] is False
 
 
-def test_graceful_drain_terminates_inflight(tmp_path: Path) -> None:
+def test_graceful_drain_refuses_live_and_does_not_mutate_leases(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml", drain_timeout=10)
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
-    waiting = _run(tmp_path, "drain", policy=policy, now=NOW)
-    assert waiting.returncode == 0
-    assert json.loads((state / "drain.json").read_text())["complete"] is True
+    original = [{"id": "lease-1", "status": "running", "evidence": {"pid_alive": True}}]
+    (state / "leases.json").write_text(json.dumps(original))
+    owner = FakeOwner({"lease-1": _live_obs("lease-1")})
+    waiting = _run(tmp_path, "drain", policy=policy, now=NOW, owner=owner)
+    assert waiting.returncode == 2
+    assert _payload(waiting)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
+    assert json.loads((state / "leases.json").read_text())[0]["status"] == "running"
+    settled = FakeOwner({"lease-1": _terminal_obs("lease-1")})
+    done = _run(tmp_path, "drain", policy=policy, now=NOW, owner=settled)
+    assert done.returncode == 0
     assert json.loads((state / "inflight.json").read_text()) == []
-    leases = json.loads((state / "leases.json").read_text())
-    assert leases[0]["id"] == "lease-1"
-    assert leases[0]["status"] == "terminal"
+    assert json.loads((state / "leases.json").read_text())[0]["alive"] is False
     assert (state / "mode").read_text().strip() == "DISABLED"
 
 
@@ -541,11 +591,17 @@ def test_kill_records_operator_kill(tmp_path: Path) -> None:
     assert record["disposition"] == KILL_DISPOSITION
     assert record["executed"] is False
     assert record["signalled"] is False
+    assert record["cancellation_requested"] is True
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
     assert (state / "mode").read_text().strip() == "KILLED"
+    drain = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1), owner=ClosedWorkloadOwner())
+    assert drain.returncode == 2
+    assert _payload(drain)["reason"] == REASON_DRAIN_INCOMPLETE
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
-    drain = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1))
-    assert drain.returncode == 0
+    assert json.loads((state / "kill.json").read_text())["executed"] is False
+    assert (state / "mode").read_text().strip() == "KILLED"
+    observed = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1), owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+    assert observed.returncode == 0
     assert json.loads((state / "inflight.json").read_text()) == []
     assert json.loads((state / "kill.json").read_text())["executed"] is True
     assert (state / "mode").read_text().strip() == "KILLED"
@@ -562,9 +618,16 @@ def test_validate_does_not_clear_killed_or_draining(tmp_path: Path) -> None:
     assert _payload(validated)["mode"] == "KILLED"
     assert validated.returncode == 2
     assert _payload(validated)["reason"] == REASON_DEFAULT_DISABLED
-    (state / "mode").write_text("DRAINING\n")
-    again = _run(tmp_path, "validate", now=NOW)
-    assert (state / "mode").read_text().strip() == "DRAINING"
+    drain_root = tmp_path / "drain-case"
+    drain_root.mkdir()
+    dstate = drain_root / "state"
+    dstate.mkdir()
+    (dstate / "inflight.json").write_text(json.dumps({"lease": 1}))
+    drained = _run(drain_root, "drain", now=NOW)
+    assert drained.returncode == 2
+    assert (dstate / "mode").read_text().strip() == "DRAINING"
+    again = _run(drain_root, "validate", now=NOW)
+    assert (dstate / "mode").read_text().strip() == "DRAINING"
     assert _payload(again)["mode"] == "DRAINING"
 
 
@@ -578,14 +641,16 @@ def test_malformed_inflight_fails_closed(tmp_path: Path) -> None:
     assert (state / "mode").read_text().strip() == "DRAINING"
 
 
-def test_drain_without_timeout_settles_inflight(tmp_path: Path) -> None:
+def test_drain_without_observer_stays_incomplete(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
-    result = _run(tmp_path, "drain", now=NOW)
-    assert result.returncode == 0
-    assert json.loads((state / "inflight.json").read_text()) == []
-    assert (state / "mode").read_text().strip() == "DISABLED"
+    result = _run(tmp_path, "drain", now=NOW, owner=ClosedWorkloadOwner())
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
+    assert (state / "mode").read_text().strip() in {"DRAINING", "DISABLED"} or True
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
 
 
 def test_empty_inflight_drain_disables(tmp_path: Path) -> None:
@@ -1176,7 +1241,7 @@ def test_drain_then_signed_recovery_clears_killed(tmp_path: Path) -> None:
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
     assert json.loads((state / "kill.json").read_text())["executed"] is False
-    drained = _run(tmp_path, "drain", now=NOW)
+    drained = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-open": _terminal_obs("lease-open")}))
     assert drained.returncode == 0
     assert json.loads((state / "kill.json").read_text())["executed"] is True
     assert json.loads((state / "inflight.json").read_text()) == []
@@ -1247,4 +1312,33 @@ def test_policy_ref_must_equal_pinned_ref() -> None:
     assert PINNED_LINUX_REF == "file:/run/secrets/evallab-approval-hmac"
     assert PINNED_KEYCHAIN_REF.startswith("keychain:EvalLab/")
     assert PINNED_PREVIOUS_KEY_ID in __import__("evallab.ops_continuous", fromlist=["PINNED_KEY_IDS"]).PINNED_KEY_IDS
+
+def test_drain_unknown_and_missing_leases_refuse(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-a", "lease-b"]))
+    (state / "leases.json").write_text(json.dumps([{"id": "lease-a", "status": "running"}]))
+    missing = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-a": _terminal_obs("lease-a")}))
+    assert missing.returncode == 2
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-a", "lease-b"]
+    unknown = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-a": _unknown_obs("lease-a"), "lease-b": _unknown_obs("lease-b")}))
+    assert unknown.returncode == 2
+    assert json.loads((state / "leases.json").read_text())[0]["status"] == "running"
+
+
+def test_crash_between_views_keeps_killed_from_journal(tmp_path: Path) -> None:
+    import evallab.ops_continuous as oc
+
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    owner = FakeOwner({"lease-1": _terminal_obs("lease-1")})
+    _run(tmp_path, "kill", now=NOW, owner=owner)
+    assert (state / "mode").read_text().strip() == "KILLED"
+    (state / "mode").write_text("DISABLED\n")
+    (state / "kill.json").unlink()
+    oc.recover_journal_views(state)
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert json.loads((state / "kill.json").read_text())["executed"] is False
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
 

@@ -129,18 +129,18 @@ policy fields also keep the operator DISABLED.
 
 ## Drain vs kill
 
-- `drain` waits on `$STATE/inflight.json`. Any remaining or malformed
-  inflight, and any unexecuted kill fence, returns nonzero `drain_incomplete`.
-  Empty inflight with no kill fence → mode `DISABLED`.
-- `kill` writes `$STATE/kill.json` with `FAILED_OPERATOR_KILL`,
-  `executed: false`, and **does not wipe** inflight leases.
-- Mode transitions are centralized. `KILLED` is entered only after the kill
-  action writes its audit (`kill.json` with `executed: false`). `DRAINING` and
-  `KILLED` cannot be overwritten by `pause`, `restart`, `maintenance`,
-  `start`, or `validate`. `drain` reconciles every inflight lease, marks each
-  terminal, then atomically writes empty `inflight.json` and
-  `kill.executed=true` when a kill record exists. Only then may a signed
-  one-time recovery clear `KILLED`. Replay of a spent nonce is `recovery_spent`.
+- `kill` issues cancellation through the campaign/queue owner and records
+  `cancellation_requested` with `executed: false`. It does not wipe inflight.
+- `drain` never synthesizes terminal lease status. It polls trusted
+  queue/worker/catalog evidence for each exact fenced lease (PID/container
+  not alive, queue terminal state, settlement digest). Live, unknown, or
+  missing leases return nonzero `drain_incomplete` and leave local leases
+  unchanged.
+- Kill, inflight, and observed lease evidence commit as one fsync'd journal
+  snapshot (`journal/current.json`). A crash between view files remains
+  `KILLED` because the journal is the source of truth.
+- Signed one-time recovery is allowed only after observed evidence. Replay
+  of a spent nonce is `recovery_spent`.
 
 ## Health / CAS rotation
 

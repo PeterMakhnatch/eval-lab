@@ -20,14 +20,14 @@
       "silent_wrong_payload"
     ],
     "persistence_levels": [1, 2],
-    "calibration_seeds": [42, 101, 2024]
+    "calibration_seeds": [42, 101, 2024],
+    "matched_arms": ["fault", "clean_twin"]
   },
   "runtime": {
     "protocol": "streamable-http",
     "mcp_spec_version": "2024-11-05",
     "substrate": "evallab.mcp_substrate",
     "sidecar_service": "mcp-service",
-    "evidence_path": "/app/output/benchmark-events.jsonl",
-    "final_state_path": "/app/output/final-state.json"
+    "sealed_envelope_path": "/app/output/sealed-evidence.json"
   }
 }

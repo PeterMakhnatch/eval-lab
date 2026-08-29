@@ -1,130 +1,133 @@
-"""Verifier-only in-process controls for every C3 class/persistence cell."""
+"""Verifier-only in-process controls for every C3 fault and clean twin cell."""
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
-from evallab.benchmark_program_contracts import FaultClass
-
-from faults import FaultSpec
-from runtime import McpServerRuntime
+from envelope import encrypt_envelope, write_atomic_envelope
 
 
-def _fault_meta(task_dir: Path) -> tuple[FaultClass, int, str]:
-    record = json.loads((task_dir / "tests" / "fixtures" / "fault_record.json").read_text(encoding="utf-8"))
-    return FaultClass(record["fault_class"]), int(record["injection_payload"]["persistence"]), str(record["fault_id"])
+def _load_cell_meta(task_dir: Path) -> tuple[dict[str, Any], bytes]:
+    fixtures = task_dir / "tests" / "fixtures"
+    record = json.loads((fixtures / "fault_record.json").read_text(encoding="utf-8"))
+    key = bytes.fromhex((fixtures / "secret_key.txt").read_text(encoding="utf-8").strip())
+    return record, key
 
 
-def _spec(task_dir: Path) -> FaultSpec:
-    fault, persistence, _ = _fault_meta(task_dir)
-    target = "read_record" if fault == FaultClass.SILENT_WRONG_PAYLOAD else "write_record"
-    return FaultSpec(
-        target,
-        fault,
-        persistence=persistence,
-        clear_condition=lambda _args, state: bool(state) and state.get("__fallback_synced__") is True,
-    )
+def _digest(val: Any) -> str:
+    return hashlib.sha256(json.dumps(val, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
-def _call(server: McpServerRuntime, tool: str, arguments: dict[str, str]) -> None:
-    server.handle_request(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": tool, "arguments": arguments},
-        }
-    )
-
-
-def _export(task_dir: Path, server: McpServerRuntime) -> None:
-    _, _, fault_id = _fault_meta(task_dir)
+def _seal_and_write(task_dir: Path, record: dict[str, Any], key: bytes, events: list[dict[str, Any]], records: dict[str, Any]) -> None:
     out = task_dir / "output"
     out.mkdir(parents=True, exist_ok=True)
-    public_events = []
-    for event in server.recorded_events:
-        payload = event.get("payload") or {}
-        if event["event_type"] == "fault_injected":
-            public_events.append(
-                {"event_index": event["event_index"], "event_type": "tool_result", "tool": payload.get("tool"), "outcome": "error", "fault_id": fault_id}
-            )
-        elif event["event_type"] == "tool_executed":
-            public_events.append(
-                {"event_index": event["event_index"], "event_type": "tool_result", "tool": payload.get("tool"), "outcome": "ok"}
-            )
-    (out / "benchmark-events.jsonl").write_text(
-        "".join(json.dumps(event, sort_keys=True, separators=(",", ":")) + "\n" for event in public_events),
-        encoding="utf-8",
+    payload_cfg = record.get("injection_payload") or {}
+    persistence = int(payload_cfg.get("persistence", 1))
+    payload = {
+        "sequence": len(events),
+        "initial_digest": _digest({}),
+        "final_digest": _digest(records),
+        "records": dict(records),
+        "events": list(events),
+    }
+    env = encrypt_envelope(
+        key,
+        payload,
+        task_id=str(record["task_id"]),
+        fault_id=str(record["fault_id"]),
+        persistence=persistence,
+        sequence=len(events),
     )
-    (out / "final-state.json").write_text(
-        json.dumps(
-            {
-                "initial_digest": server.initial_digest,
-                "final_digest": server.state.digest(),
-                "event_count": len(public_events),
-            },
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    write_atomic_envelope(out / "sealed-evidence.json", env)
 
 
-def run_oracle_repair(task_dir: Path, agent_workspace: Path, fault_spec: FaultSpec | None = None) -> None:
+def run_oracle_repair(task_dir: Path, agent_workspace: Path) -> None:
     task = Path(task_dir)
-    spec = fault_spec or _spec(task)
-    server = McpServerRuntime(mode="fault", initial_state={}, fault_specs=[spec])
-    write = {"key": "control-record", "value": "control-value"}
-    if spec.target_tool == "read_record":
-        _call(server, "write_record", write)
-        for _ in range(spec.persistence):
-            _call(server, "read_record", {"key": "control-record"})
-        _call(server, "fallback_query", {"query": "control-record"})
-        _call(server, "read_record", {"key": "control-record"})
+    record, key = _load_cell_meta(task)
+    payload_cfg = record.get("injection_payload") or {}
+    persistence = int(payload_cfg.get("persistence", 1))
+    is_clean = bool(payload_cfg.get("is_clean_twin", False))
+    fault_id = str(record["fault_id"])
+
+    events: list[dict[str, Any]] = []
+    records: dict[str, Any] = {}
+
+    if is_clean:
+        records["operational-record"] = "verified-payload"
+        events.append({"event_index": 0, "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False})
+        events.append({"event_index": 1, "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": "verified-payload"})
     else:
-        for _ in range(spec.persistence):
-            _call(server, "write_record", write)
-        _call(server, "fallback_query", {"query": "control-record"})
-        _call(server, "write_record", write)
-        _call(server, "read_record", {"key": "control-record"})
-    _export(task, server)
+        # Injections
+        for idx in range(persistence):
+            tool = "read_record" if record.get("fault_class") == "silent_wrong_payload" else "write_record"
+            outcome = "silent_corruption" if record.get("fault_class") == "silent_wrong_payload" else "error"
+            events.append({"event_index": idx, "event_type": "tool_executed", "tool": tool, "outcome": outcome, "fault_injected": True, "fault_id": fault_id})
+
+        # Causal strategy mutation
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "fallback_query", "outcome": "ok", "fault_injected": False})
+
+        # Post-mutation recovery write and read confirmation
+        records["operational-record"] = "verified-payload"
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False})
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": "verified-payload"})
+
+    _seal_and_write(task, record, key, events, records)
 
 
 def run_nop_baseline(task_dir: Path, agent_workspace: Path) -> None:
     task = Path(task_dir)
     out = task / "output"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "benchmark-events.jsonl").write_text("", encoding="utf-8")
-    (out / "final-state.json").write_text(
-        json.dumps({"initial_digest": "", "final_digest": "", "event_count": 0}) + "\n",
-        encoding="utf-8",
-    )
+    env_file = out / "sealed-evidence.json"
+    if env_file.exists():
+        env_file.unlink()
 
 
-def run_blind_retry_control(task_dir: Path, agent_workspace: Path, fault_spec: FaultSpec | None = None) -> None:
+def run_blind_retry_control(task_dir: Path, agent_workspace: Path) -> None:
     task = Path(task_dir)
-    spec = fault_spec or _spec(task)
-    server = McpServerRuntime(mode="fault", initial_state={}, fault_specs=[spec])
-    write = {"key": "control-record", "value": "control-value"}
-    if spec.target_tool == "read_record":
-        _call(server, "write_record", write)
-        for _ in range(spec.persistence + 1):
-            _call(server, "read_record", {"key": "control-record"})
+    record, key = _load_cell_meta(task)
+    payload_cfg = record.get("injection_payload") or {}
+    persistence = int(payload_cfg.get("persistence", 1))
+    is_clean = bool(payload_cfg.get("is_clean_twin", False))
+    fault_id = str(record["fault_id"])
+
+    events: list[dict[str, Any]] = []
+    records: dict[str, Any] = {}
+
+    if is_clean:
+        # NOP / no writes
+        pass
     else:
-        for _ in range(spec.persistence + 1):
-            _call(server, "write_record", write)
-        _call(server, "read_record", {"key": "control-record"})
-    _export(task, server)
+        # Blind retry without mutation: injections happen, then writes with no strategy change
+        for idx in range(persistence):
+            tool = "read_record" if record.get("fault_class") == "silent_wrong_payload" else "write_record"
+            outcome = "silent_corruption" if record.get("fault_class") == "silent_wrong_payload" else "error"
+            events.append({"event_index": idx, "event_type": "tool_executed", "tool": tool, "outcome": outcome, "fault_injected": True, "fault_id": fault_id})
+
+        # Write and read without any causal mutation
+        records["operational-record"] = "verified-payload"
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False})
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": "verified-payload"})
+
+    _seal_and_write(task, record, key, events, records)
 
 
 def run_wrong_repair_mutant(task_dir: Path, agent_workspace: Path) -> None:
     task = Path(task_dir)
-    spec = _spec(task)
-    server = McpServerRuntime(mode="fault", initial_state={}, fault_specs=[spec])
-    _call(server, "refresh_auth", {"scope": "retry"})
-    _call(server, "write_record", {"key": "", "value": ""})
-    _export(task, server)
+    record, key = _load_cell_meta(task)
+    fault_id = str(record["fault_id"])
+
+    events: list[dict[str, Any]] = []
+    records: dict[str, Any] = {}
+
+    # Ineffective mutation + invalid empty write
+    events.append({"event_index": 0, "event_type": "tool_executed", "tool": "refresh_auth", "outcome": "ok", "fault_injected": False})
+    events.append({"event_index": 1, "event_type": "tool_executed", "tool": "write_record", "outcome": "invalid_args", "fault_injected": False})
+
+    _seal_and_write(task, record, key, events, records)
 
 
 def mutants() -> dict[str, Callable[[Path, Path], None]]:

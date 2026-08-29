@@ -33,6 +33,7 @@ def assert_reward(task: Path, expected: float, control: str) -> None:
 
 
 def main() -> None:
+    # 1. Corpus guard: ensure no generated tasks or vendors are tracked in git
     tracked = subprocess.check_output(
         ["git", "ls-files", "library/benchmarks/mcp-recovery-v1/tasks", "derived/harbor-tasks/mcp-recovery"],
         text=True,
@@ -40,27 +41,39 @@ def main() -> None:
     if tracked:
         raise AssertionError(f"Generated task corpus is tracked in git: {tracked[:3]}")
 
-    canary = output_path(seed=42)
-    materialize(canary, seed=42)
-    first = snapshot(canary)
-    materialize(canary, seed=42)
-    if snapshot(canary) != first:
-        raise AssertionError("Task materialization was non-deterministic")
+    # 2. Deterministic regeneration check for both arms
+    for is_clean in (False, True):
+        canary = output_path(seed=42, is_clean_twin=is_clean)
+        materialize(canary, seed=42, is_clean_twin=is_clean)
+        first = snapshot(canary)
+        materialize(canary, seed=42, is_clean_twin=is_clean)
+        if snapshot(canary) != first:
+            raise AssertionError(f"Task materialization was non-deterministic (is_clean={is_clean})")
 
+    # 3. Control evaluation across all 10 fault cells and 10 clean twin cells
     count = 0
-    for fault in CAMPAIGN0_FAULTS:
-        for persistence in CAMPAIGN0_PERSISTENCE:
-            task = output_path(seed=42, fault_mode=fault, persistence=persistence)
-            materialize(task, seed=42, fault_mode=fault, persistence=persistence)
-            run_nop_baseline(task, task / "agent_workspace")
-            assert_reward(task, 0.0, "nop")
-            run_oracle_repair(task, task / "agent_workspace")
-            assert_reward(task, 1.0, "oracle")
-            for name, mutant in mutants().items():
-                mutant(task, task / "agent_workspace")
-                assert_reward(task, 0.0, name)
-            count += 1
-    print(f"MCP Recovery v1 CI contract PASSED: {count} cells, oracle=1.0, NOP/mutants=0.0")
+    for is_clean in (False, True):
+        for fault in CAMPAIGN0_FAULTS:
+            for persistence in CAMPAIGN0_PERSISTENCE:
+                task = output_path(seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean)
+                materialize(task, seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean)
+
+                # NOP baseline -> 0.0
+                run_nop_baseline(task, task / "agent_workspace")
+                assert_reward(task, 0.0, "nop")
+
+                # Oracle -> 1.0
+                run_oracle_repair(task, task / "agent_workspace")
+                assert_reward(task, 1.0, "oracle")
+
+                # Mutants -> 0.0
+                for name, mutant in mutants().items():
+                    mutant(task, task / "agent_workspace")
+                    assert_reward(task, 0.0, name)
+
+                count += 1
+
+    print(f"MCP Recovery v1 CI contract PASSED: {count} cells (10 fault + 10 clean twins), oracle=1.0, NOP/mutants=0.0")
 
 
 if __name__ == "__main__":

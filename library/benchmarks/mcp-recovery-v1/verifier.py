@@ -1,118 +1,158 @@
-"""Verifier-only scoring for opaque MCP recovery evidence."""
+"""Verifier-only scoring for sealed MCP recovery evidence envelopes."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any
 
-# This accepted set is verifier-only. The public task asks agents to diagnose
-# and change strategy; it never publishes a fault-to-repair lookup table.
+from envelope import decrypt_envelope
+
 MUTATION_TOOLS = frozenset({"refresh_auth", "fallback_query"})
 
 
-def _evidence_paths(task_dir: Path) -> tuple[Path, Path]:
+def _evidence_path(task_dir: Path) -> Path:
     candidates = [
-        (Path("/app/output/benchmark-events.jsonl"), Path("/app/output/final-state.json")),
-        (task_dir / "output" / "benchmark-events.jsonl", task_dir / "output" / "final-state.json"),
-        (task_dir / "evidence" / "benchmark-events.jsonl", task_dir / "evidence" / "final-state.json"),
+        Path("/app/output/sealed-evidence.json"),
+        task_dir / "output" / "sealed-evidence.json",
+        task_dir / "evidence" / "sealed-evidence.json",
     ]
-    for events, final_state in candidates:
-        if events.is_file() or final_state.is_file():
-            return events, final_state
+    for p in candidates:
+        if p.is_file():
+            return p
     return candidates[1]
 
 
-def score_recovery_events(
-    events: list[dict[str, Any]],
-    certificate: dict[str, Any],
-    expected_fault_id: str,
-    expected_persistence: int,
-) -> dict[str, Any]:
-    monotonic = all(event.get("event_index") == index for index, event in enumerate(events))
-    injections = [event for event in events if event.get("fault_id") == expected_fault_id]
-    first_injection = min((int(event["event_index"]) for event in injections), default=len(events))
-    strategy_mutation = any(
-        event.get("tool") in MUTATION_TOOLS and int(event.get("event_index", -1)) > first_injection
-        for event in events
-    )
-    writes = [event for event in events if event.get("tool") == "write_record" and event.get("outcome") == "ok"]
-    reads = [event for event in events if event.get("tool") == "read_record" and event.get("outcome") == "ok"]
-    state_changed = certificate.get("initial_digest") != certificate.get("final_digest")
-    exact_injection_count = len(injections) == expected_persistence
-    auto_clear = bool(state_changed and exact_injection_count and not strategy_mutation)
-    success = bool(
-        monotonic
-        and exact_injection_count
-        and strategy_mutation
-        and writes
-        and reads
-        and state_changed
-    )
-    return {
-        "reward": 1.0 if success else 0.0,
-        "success": success,
-        "detection_passed": bool(injections),
-        "adaptation_passed": strategy_mutation,
-        "state_changed": state_changed,
-        "auto_clear": auto_clear,
-        "fault_count": len(injections),
-        "required_fault_count": expected_persistence,
-        "monotonic": monotonic,
-    }
-
-
-def verify_recovery_evidence(
-    evidence_path: Path | str,
-    final_state_path: Path | str,
+def score_recovery_envelope(
+    key: bytes,
+    raw_envelope: dict[str, Any],
     *,
-    expected_fault_id: str,
+    task_id: str,
+    fault_id: str,
     expected_persistence: int,
+    is_clean_twin: bool = False,
 ) -> dict[str, Any]:
-    events_path = Path(evidence_path)
-    certificate_path = Path(final_state_path)
-    if not events_path.is_file() or not certificate_path.is_file():
+    try:
+        payload = decrypt_envelope(
+            key,
+            raw_envelope,
+            task_id=task_id,
+            fault_id=fault_id,
+            persistence=expected_persistence,
+        )
+    except Exception as exc:
         return {
             "reward": 0.0,
             "success": False,
-            "detection_passed": False,
-            "adaptation_passed": False,
-            "state_changed": False,
+            "reason": f"envelope decryption failed: {exc}",
             "auto_clear": False,
-            "fault_count": 0,
-            "required_fault_count": expected_persistence,
             "monotonic": False,
+            "fault_count": 0,
         }
-    events = [
-        json.loads(line)
-        for line in events_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
-    return score_recovery_events(events, certificate, expected_fault_id, expected_persistence)
+
+    events = payload.get("events", [])
+    monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
+    injections = [ev for ev in events if ev.get("fault_injected") is True and ev.get("fault_id") == fault_id]
+    exact_injections = len(injections) == expected_persistence
+
+    writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
+    reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
+    state_changed = payload.get("initial_digest") != payload.get("final_digest") and bool(payload.get("records"))
+
+    if is_clean_twin:
+        success = bool(monotonic and exact_injections and writes and reads and state_changed)
+        return {
+            "reward": 1.0 if success else 0.0,
+            "success": success,
+            "zero_faults": exact_injections,
+            "write_ok": bool(writes),
+            "read_ok": bool(reads),
+            "state_changed": state_changed,
+            "auto_clear": False,
+            "monotonic": monotonic,
+            "fault_count": len(injections),
+        }
+
+    first_fault_idx = min((int(ev["event_index"]) for ev in injections), default=len(events))
+    first_recovery_write_idx = min(
+        (int(ev["event_index"]) for ev in writes if int(ev.get("event_index", 0)) > first_fault_idx),
+        default=len(events),
+    )
+    causal_mutation = any(
+        ev.get("tool") in MUTATION_TOOLS and first_fault_idx < int(ev.get("event_index", -1)) < first_recovery_write_idx
+        for ev in events
+    )
+    auto_clear = bool(state_changed and exact_injections and not causal_mutation)
+    success = bool(monotonic and exact_injections and causal_mutation and writes and reads and state_changed)
+
+    return {
+        "reward": 1.0 if success else 0.0,
+        "success": success,
+        "causal_mutation": causal_mutation,
+        "exact_injections": exact_injections,
+        "write_ok": bool(writes),
+        "read_ok": bool(reads),
+        "state_changed": state_changed,
+        "auto_clear": auto_clear,
+        "monotonic": monotonic,
+        "fault_count": len(injections),
+        "required_fault_count": expected_persistence,
+    }
 
 
 def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = None) -> dict[str, Any]:
     task_path = Path(task_dir)
-    record_path = task_path / "tests" / "fixtures" / "fault_record.json"
-    if not record_path.is_file():
-        raise ValueError("verifier-only fault record is missing")
+    fixtures = task_path / "tests" / "fixtures"
+    record_path = fixtures / "fault_record.json"
+    key_path = fixtures / "secret_key.txt"
+
+    if not record_path.is_file() or not key_path.is_file():
+        raise ValueError(f"verifier fixtures missing in {fixtures}")
+
     record = json.loads(record_path.read_text(encoding="utf-8"))
-    payload = record.get("injection_payload") or {}
-    expected_persistence = int(payload["persistence"])
-    events_path, certificate_path = _evidence_paths(task_path)
-    result = verify_recovery_evidence(
-        events_path,
-        certificate_path,
-        expected_fault_id=str(record["fault_id"]),
-        expected_persistence=expected_persistence,
-    )
+    key = bytes.fromhex(key_path.read_text(encoding="utf-8").strip())
+    payload_cfg = record.get("injection_payload") or {}
+    expected_persistence = int(payload_cfg.get("persistence", 1))
+    is_clean_twin = bool(payload_cfg.get("is_clean_twin", False))
+
+    envelope_file = _evidence_path(task_path)
+    if not envelope_file.is_file():
+        result = {
+            "reward": 0.0,
+            "success": False,
+            "reason": f"missing sealed evidence envelope: {envelope_file}",
+            "auto_clear": False,
+        }
+    else:
+        try:
+            raw_env = json.loads(envelope_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            result = {
+                "reward": 0.0,
+                "success": False,
+                "reason": f"envelope JSON parse error: {exc}",
+                "auto_clear": False,
+            }
+        else:
+            result = score_recovery_envelope(
+                key,
+                raw_env,
+                task_id=str(record["task_id"]),
+                fault_id=str(record["fault_id"]),
+                expected_persistence=expected_persistence,
+                is_clean_twin=is_clean_twin,
+            )
+
     if reward_dir:
-        reward_path = Path(reward_dir)
-        reward_path.mkdir(parents=True, exist_ok=True)
-        (reward_path / "reward.txt").write_text(f"{result['reward']:.1f}\n", encoding="utf-8")
-        (reward_path / "reward.json").write_text(
-            json.dumps({"reward": result["reward"], "passed": float(result["success"])}, sort_keys=True)
-            + "\n",
+        r_path = Path(reward_dir)
+        r_path.mkdir(parents=True, exist_ok=True)
+        (r_path / "reward.txt").write_text(f"{result['reward']:.1f}\n", encoding="utf-8")
+        (r_path / "reward.json").write_text(
+            json.dumps({"reward": result["reward"], "passed": float(result["success"])}, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        (r_path / "checks.json").write_text(
+            json.dumps(result, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
     return result

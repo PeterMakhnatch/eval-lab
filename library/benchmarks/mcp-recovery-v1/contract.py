@@ -49,6 +49,7 @@ def resolve_fault_class(fault: FaultClass | str) -> FaultClass:
 
 
 def campaign0_cells(seed: int = 42) -> list[CellFactorsC]:
+    """Return all 10 Campaign 0 fault cell factor instances."""
     return [
         CellFactorsC(fault_class=fault, fault_injection_count=persistence, seed=seed)
         for fault in CAMPAIGN0_FAULTS
@@ -62,24 +63,28 @@ def get_benchmark_contract() -> dict[str, Any]:
     return {
         "family": FAMILY,
         "version": manifest.get("version", "v1.0.0"),
-        "construct": manifest.get("benchmark", {}).get("construct", ""),
+        "construct": manifest.get("benchmark", {}).get("construct", "certified_mcp_fault_recovery"),
         "synthetic_family": SyntheticFamilyType.FAMILY_C_FAULT_RECOVERY.value,
         "cell_factors": {
             "fault_classes": [item.value for item in CAMPAIGN0_FAULTS],
             "persistence_levels": list(CAMPAIGN0_PERSISTENCE),
             "seeds": manifest.get("benchmark", {}).get("calibration_seeds", [42]),
+            "matched_arms": ["fault", "clean_twin"],
         },
         "verifier_truth_digest": digest,
         "evidence_contract": {
-            "events_path": "/app/output/benchmark-events.jsonl",
-            "final_state_path": "/app/output/final-state.json",
+            "sealed_envelope_path": "/app/output/sealed-evidence.json",
+            "encryption": "AES-256-GCM",
+            "aad_binding": ["schema_version", "task_id", "fault_id", "persistence", "sequence"],
         },
         "cell_count": len(CAMPAIGN0_FAULTS) * len(CAMPAIGN0_PERSISTENCE),
+        "total_task_count": len(CAMPAIGN0_FAULTS) * len(CAMPAIGN0_PERSISTENCE) * 2,  # 10 fault + 10 clean twin
         "identity_digest": compute_sha256(
             {
                 "family": FAMILY,
                 "fault_classes": [item.value for item in CAMPAIGN0_FAULTS],
                 "persistence": list(CAMPAIGN0_PERSISTENCE),
+                "matched_arms": ["fault", "clean_twin"],
             }
         ),
     }

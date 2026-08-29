@@ -466,19 +466,27 @@ this had not been done.
 - **Input:** every promoted bundle carrying
   `artifacts/app/output/benchmark-events.jsonl`, plus the wave-2 64k trials once
   promoted.
-- **Method:** reconstruct three objects per trial and compare them — the **issued**
-  handle set from the `list` response, the **requested** handle sequence from
-  tool-call arguments, and the **event order** from `event_ordinal`. **Never use
-  `observed_reads`.**
+- **Method, updated by PR #303 (§7.0):** read the landed fidelity columns —
+  `handle_set_match`, `unknown_handle_count`, `duplicate_handle_count`,
+  `handle_order_match`, `handle_coverage_rate` — from `v_action_memory_baseline`.
+  Then **independently reconstruct from raw events on the six known failures to
+  validate the producer**, comparing issued set, requested sequence and
+  `event_ordinal`. **Never use `observed_reads`.** The validation step is not
+  ceremony: I reached a wrong conclusion by trusting a derived count, and a
+  producer bug would launder that same error into every downstream query.
 - **Report per trial:** omitted handles, never-issued (typo) handles with their edit
   distance to the nearest issued handle, duplicates, first mismatch position, and
   whether requested order matches issued order.
 - **Already partially executed** in §1.6 against the three wave-1 semantic 16k
   trials — which is what established that 16k and 64k are different classes.
-- **Stop/go:** if the wave-2 64k trials show a consistent near-typo edit distance
-  and position distribution, transcription leads and E0b is designed around it. If
-  typos are absent once re-derived independently, this parser and the reported one
-  disagree, and that must be resolved before any design work proceeds.
+- **Producer acceptance, from the promoted wave-2 bundles:** `handle_set_match =
+  false` on all six seed-1337 failures; `unknown_handle_count = 1` (2 on the
+  259-read trial); `handle_coverage_rate = 256/257`; and for Full's seed-42 semantic
+  trial `handle_order_match = false` with complete coverage. If the producer does
+  not reproduce these, it is wrong and the features cannot be trusted yet.
+- **Stop/go:** if the fidelity columns reproduce the audit, transcription leads and
+  E0b is designed around it, with `unknown_handle_count` as the primary outcome. If
+  they disagree with the raw reconstruction, resolve that before any design work.
 
 ### E0b — Indexed/range/batch handle-representation pilot (after E0a, C1-coordinated)
 
@@ -1054,6 +1062,61 @@ against adversarial structure (credential symlinks) and it held.
 
 ## 7. Weak-area backlog, ranked by evidence impact
 
+### 7.0 What the C1 lane already landed (PR #303, `f7351bf8`)
+
+`[OBSERVED]` Verified read-only at that head. Two of this memo's requests are
+satisfied, and the second is implemented more precisely than I asked for.
+
+**Denominator contracts — W3, satisfied.** Both token metrics carry the full
+contract in the registry (`src/evallab/interpretation/feature_registry.py:989-1028`):
+
+| Feature | Formula | Denominator sibling | Policy | Null condition | Declared inputs |
+|---|---|---|---|---|---|
+| `prompt_tokens_per_step` | `prompt_tokens / step_count` | `step_count` | `required` | NULL when `step_count == 0` | `(prompt_tokens, step_count)` |
+| `prompt_cache_hit_rate` | `cached_tokens / prompt_tokens` | `prompt_tokens` | `required` | NULL when `prompt_tokens == 0` or NULL | `(cached_tokens, prompt_tokens)` |
+
+`[INFERENCE]` `denominator_policy="required"` plus `null_on_zero_denominator=True`
+is exactly what §5.2 flagged: four of the nineteen `RefusalCode` values are
+declaration contracts, and an undeclared denominator refuses T1.2 regardless of n.
+These two features can no longer trip that.
+
+**Handle fidelity — the §1.6 instrumentation request, satisfied and better.**
+`[OBSERVED]` Seven features at `:1135-1264`, backed by
+`src/evallab/interpretation/producers/action_memory.py` and surfaced in
+`sql/traj_benchmark_views.sql`:
+
+| Feature | Formula / rule | Failure class it isolates |
+|---|---|---|
+| `expected_handle_count` | expected handles declared in contract | — (denominator) |
+| `valid_handle_count` | requested handles matching the expected universe | — |
+| `unknown_handle_count` | requested handles **not in** the declared universe | **the `…c32bf6` near-typo substitution** |
+| `duplicate_handle_count` | `total_handle_requests − distinct_valid_handles` | **the 16k redundancy failure** |
+| `handle_set_match` | `expected_handle_universe <= set(observed_handles)` | **the omitted `…c32bf4`** |
+| `handle_order_match` | `observed_handles == expected_handle_sequence` | **Full's 39 prefix reorderings** |
+| `handle_coverage_rate` | `valid_handle_count / expected_handle_count`, denominator declared | incomplete coverage, including the scaffold's 232/257 |
+
+`[INFERENCE]` **This is the single most useful thing that could have happened to this
+roadmap.** §1.6 argued that counts cannot detect omission-plus-substitution and that
+set reconstruction was required. These features encode exactly that distinction —
+`unknown_handle_count` is described in the registry as capturing
+"hallucination/corruption", which is the near-typo case named precisely. All four
+failure classes I had to separate by hand are now **separable in the schema**, at
+`causal_grade` C1 for the fidelity ones and C0 for duplication.
+
+**Consequence for E0a.** `[INFERENCE]` The offline audit stops being a bespoke script
+and becomes a **query over `v_action_memory_baseline` and `v_benchmark_contrasts`**.
+That lowers its cost further and makes its output reproducible by anyone rather than
+by a script I wrote. E0a keeps its rank — first, no runs — but its method changes
+from "reconstruct sets from raw events" to "read the fidelity columns, and reconstruct
+from raw events only to *validate the producer* on the six known failures".
+
+`[INFERENCE]` That validation step is worth keeping precisely because I got this
+wrong by trusting a derived count. The producer should reproduce, on the promoted
+wave-2 bundles: `handle_set_match = false`, `unknown_handle_count = 1` (2 for the
+259-read trial), `handle_coverage_rate = 256/257`, and `handle_order_match = false`
+with 39 mismatches for Full's seed-42 semantic trial. If it does not reproduce those,
+the producer is wrong and the features would launder the same error I made.
+
 ### Ownership boundary
 
 `[OBSERVED]` This memo is **report-only** — its entire diff is three files under
@@ -1061,16 +1124,15 @@ against adversarial structure (credential symlinks) and it held.
 producer, view or workflow. Several recommendations below nevertheless land in lanes
 owned elsewhere, so they are tagged rather than actioned here:
 
-| Territory | Owner | Items below that touch it |
+| Territory | Owner | Status of the items below |
 |---|---|---|
-| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303) | W3 (denominator declarations), and the read-sequence instrumentation idea in §1.6 |
+| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303, head `f7351bf8`, exact-head green, 0 findings) | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
 | C2 promotion | **wH:p9, solely** | none — this memo makes no promotion change |
 | Intervention recipes, C0 / quality infrastructure | not this lane | none — the sequential-retrieval scaffold is discussed as evidence only (§1.6), never modified |
 
-`[INFERENCE]` W3 and the read-sequence instrumentation are therefore **requests to
-the C1 lane, not work items for this one**, and should be raised against PR #303
-rather than implemented from here. The read-sequence idea in particular needs no new
-schema, which makes it a small ask on an owned surface rather than a new plane.
+`[OBSERVED]` **Both requests landed in #303 before this memo was finished**, so they
+move out of the backlog entirely (§7.0). Nothing in §7 asks the C1 lane for anything
+further.
 
 ### Build these
 
@@ -1078,7 +1140,7 @@ schema, which makes it a small ask on an owned surface rather than a new plane.
 |---|---|---|
 | W1 | **Design-effect / ICC term in sizing** | §4.3: the current module can only shrink required n. Every clustered campaign, including gold-set, is undersized without it. This is the only new machinery this memo endorses. |
 | W2 | **Format-rejection vs value-rejection split in FuncDAG reporting** | §3.2: the pilot's only FuncDAG failure was artifact hygiene, not reasoning. Without the split, the difficulty curve measures output formatting. |
-| W3 | **Denominator declarations in campaign manifests** — *C1-owned, raise against PR #303* | §5.2: four of 19 refusal codes are declaration contracts. Undeclared denominators refuse T1.2 regardless of n. |
+| ~~W3~~ | **Denominator declarations — LANDED in #303** (§7.0) | Removed from the backlog. `denominator_policy="required"` with `null_on_zero_denominator` on both token metrics. |
 | W4 | **Credential proxy** (§6.2) | Converts a scanned-clean run into an actual boundary; gates untrusted-task expansion. |
 | W5 | **Refresh `STATUS.md` / `PROGRAM.json`** | `[OBSERVED]` tutor reply `:219`: the program ledger is ~10 days behind campaign state. The ledger is the entry point; a stale entry point mis-routes every subsequent decision. |
 

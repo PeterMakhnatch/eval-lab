@@ -58,6 +58,23 @@ LABELS = {"total": 85, "attributed": 56, "legacy": 29}
 SPEC = REPO / "research/roadmap/specs/campaign-0-action-memory-dose-ladder.json"
 WAVE2_SUMMARY = REPO / "research/evidence/zai-opencode-mcp-wave2-summary.json"
 HANDLE_AUDIT = REPO / "research/evidence/zai-wave2-action64-handle-audit.json"
+FEATURE_REGISTRY = REPO / "src/evallab/interpretation/feature_registry.py"
+BENCHMARK_VIEWS = REPO / "sql/traj_benchmark_views.sql"
+
+# C1-lane features this memo now depends on (PR #303, f7351bf8). READ-ONLY: this
+# lane must never edit them. Asserted so that if they regress, the roadmap's plan
+# breaks loudly instead of silently citing surfaces that no longer exist.
+C1_LANDED_FEATURES = (
+    "prompt_tokens_per_step",
+    "prompt_cache_hit_rate",
+    "expected_handle_count",
+    "valid_handle_count",
+    "unknown_handle_count",
+    "duplicate_handle_count",
+    "handle_set_match",
+    "handle_order_match",
+    "handle_coverage_rate",
+)
 
 # Cross-file equality: the memo and the spec must agree, and the spec must not
 # advertise a provider ceiling below its own design. Independent review found the
@@ -494,6 +511,41 @@ def check_promoted_wave2(fail: list[str]) -> None:
         fail.append("memo does not cite the audit's missing_handle")
 
 
+def check_c1_landed_features(fail: list[str]) -> None:
+    """The memo's 7.0 depends on C1-lane surfaces. Verify, never edit.
+
+    Skips quietly when the C1 branch is not in this checkout's ancestry, so the
+    check does not fail merely because PR #303 has not merged yet.
+    """
+    if not FEATURE_REGISTRY.is_file():
+        return
+    registry = FEATURE_REGISTRY.read_text(encoding="utf-8")
+    if "handle_coverage_rate" not in registry:
+        # C1 lane not present in this checkout; 7.0 cites it by PR head instead.
+        return
+    for feature in C1_LANDED_FEATURES:
+        if f'"{feature}"' not in registry:
+            fail.append(f"C1 feature {feature!r} is absent from the registry; 7.0 cites it")
+    # the denominator contracts 7.0 relies on
+    for feature, sibling in (
+        ("prompt_tokens_per_step", "step_count"),
+        ("prompt_cache_hit_rate", "prompt_tokens"),
+    ):
+        start = registry.find(f'"{feature}"')
+        block = registry[start : start + 900]
+        if f'denominator_sibling="{sibling}"' not in block:
+            fail.append(f"{feature} no longer declares denominator_sibling={sibling!r}")
+        if 'denominator_policy="required"' not in block:
+            fail.append(f"{feature} no longer declares denominator_policy='required'")
+        if "null_on_zero_denominator=True" not in block:
+            fail.append(f"{feature} no longer sets null_on_zero_denominator")
+    if BENCHMARK_VIEWS.is_file():
+        views = BENCHMARK_VIEWS.read_text(encoding="utf-8")
+        for feature in ("handle_set_match", "unknown_handle_count", "handle_coverage_rate"):
+            if feature not in views:
+                fail.append(f"{feature} is not surfaced in the benchmark views; E0a queries it")
+
+
 def main() -> int:
     if not MEMO.is_file():
         print(f"memo not found: {MEMO}")
@@ -513,6 +565,7 @@ def main() -> int:
         check_handle_audit,
         check_scaffold_falsification,
         check_promoted_wave2,
+        check_c1_landed_features,
     ):
         check(failures)
     if failures:

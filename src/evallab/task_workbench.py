@@ -3153,7 +3153,7 @@ def _validate_build_context_contents(
                 else frozenset()
             )
             context_relative = path.relative_to(root).as_posix()
-            if path.suffix == ".whl":
+            if context_relative.startswith("wheelhouse/") and path.suffix == ".whl":
                 if build_proofs and context in build_proofs:
                     _verify_wheel_in_build_proof(path, root, build_proofs[context], diagnostics)
                     continue

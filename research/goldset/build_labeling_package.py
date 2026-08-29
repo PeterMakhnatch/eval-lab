@@ -613,7 +613,15 @@ def enumerate_universe(
 
     # Stamp the context digest now that rater_context exists.
     items = [
-        replace(i, item_context_digest=compute_item_context_digest(i.rater_context)) for i in items
+        replace(
+            i,
+            item_context_digest=compute_item_context_digest(
+                i.rater_context,
+                cluster_id=i.cluster_id,
+                step_index=i.step_index,
+            ),
+        )
+        for i in items
     ]
 
     # Semantic clones were previously distinct ITEMS: 183 items carried only 167
@@ -623,7 +631,8 @@ def enumerate_universe(
     lineage: dict[str, list[str]] = {}
     clone_items_dropped = 0
     for item in items:
-        key = item.logical_step_digest
+        # Identity is the FULL context digest, not the step's own content.
+        key = item.item_context_digest
         entry = json.dumps(
             {
                 "source_sha256": item.source_sha256,
@@ -640,7 +649,7 @@ def enumerate_universe(
         lineage[key] = [entry]
 
     items = [
-        replace(i, logical_lineage=tuple(lineage[i.logical_step_digest])) for i in deduped.values()
+        replace(i, logical_lineage=tuple(lineage[i.item_context_digest])) for i in deduped.values()
     ]
     keep_ids = {i.item_id for i in items}
     truths = [tr for tr in truths if tr.item_id in keep_ids]
@@ -889,16 +898,73 @@ def load_rater_registry(
     return qualified, keyring, problems
 
 
-def compute_item_context_digest(rater_context: Mapping[str, Any]) -> str:
-    """Digest over EVERY rater-visible field: instruction, all prior steps, item.
+def compute_item_context_digest(
+    rater_context: Mapping[str, Any],
+    *,
+    cluster_id: str = "",
+    step_index: int = -1,
+) -> str:
+    """Digest over trial identity, step ordinal, and EVERY rater-visible field.
 
-    Binding only the current step's logical digest left the task instruction and
-    all prior observations unbound - they could be altered while every signature
-    and readiness check still passed, so labels would silently become answers to a
-    different question. This digest closes that.
+    Two reasons identity is inside the digest:
+
+    1. Binding only the current step's logical content left the task instruction
+       and all prior observations unbound - alterable while every signature and
+       readiness check still passed, so labels would silently answer a different
+       question.
+    2. Using step content alone as an IDENTITY wrongly merged distinct contexts.
+       Measured: 5 digests collapsed 16 steps, worst case 6 steps across 6 DIFFERENT
+       trials sharing one terminal message, plus consecutive indices 17/18 inside a
+       single trial. Distinct trial or step ordinal must never merge; only genuine
+       byte-identical copies of the SAME logical item may alias.
     """
+    payload = {
+        "cluster_id": cluster_id,
+        "step_index": step_index,
+        "rater_context": rater_context,
+    }
     return hashlib.sha256(
-        json.dumps(rater_context, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+RATING_CONTRACT_SCHEMA = "goldset-rating-contract/v1"
+
+
+def compute_rating_contract_digest(
+    items: Sequence[LabelItem],
+    *,
+    codebook_version: str,
+    rating_schema_version: str,
+    package_schema_version: str,
+) -> str:
+    """IMMUTABLE contract a rater signs. Computed BEFORE any intake.
+
+    Why this exists: ratings previously had to bind `package_digest`, but that
+    digest covers the whole serialized package INCLUDING readiness and rating
+    summaries - so it changes as ratings arrive. Requiring a rating to sign it was
+    circular: the value only exists after the ratings are counted.
+
+    This digest covers exactly what a rater is shown and judged against, in order,
+    plus the codebook and schema versions. Nothing downstream of intake can alter
+    it, so it is stable for the whole labelling campaign. Artifact digests
+    (`package_digest`, `build_id`) stay SEPARATE and are free to include readiness
+    and rating summaries.
+    """
+    payload = {
+        "contract_schema": RATING_CONTRACT_SCHEMA,
+        "codebook_version": codebook_version,
+        "rating_schema_version": rating_schema_version,
+        "package_schema_version": package_schema_version,
+        # Order matters: the ordered sequence of what raters see is part of the
+        # contract, not merely the set.
+        "ordered_items": [
+            {"item_id": i.item_id, "item_context_digest": i.item_context_digest}
+            for i in sorted(items, key=lambda x: x.item_id)
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     ).hexdigest()
 
 
@@ -922,8 +988,7 @@ def compute_item_set_digest(items: Sequence[LabelItem], codebook_version: str) -
 
 RATING_SIGNED_FIELDS = (
     "schema_version",
-    "package_digest",
-    "item_set_digest",
+    "rating_contract_digest",
     "item_id",
     "item_context_digest",
     "rater_key_id",
@@ -970,8 +1035,20 @@ def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
         except (OSError, json.JSONDecodeError):
             records.append({"_invalid_file": str(path.name)})
             continue
-        for record in payload if isinstance(payload, list) else [payload]:
-            record = dict(record)
+        entries = payload if isinstance(payload, list) else [payload]
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                # A scalar or list entry previously crashed dict(record) with a
+                # TypeError. Fail closed with a diagnostic instead.
+                records.append(
+                    {
+                        "_invalid_entry": (
+                            f"{path.name}[{index}]: expected object, got {type(entry).__name__}"
+                        )
+                    }
+                )
+                continue
+            record = dict(entry)
             record["_source_file"] = path.name
             records.append(record)
     return records
@@ -980,8 +1057,7 @@ def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
 def validate_rating(
     record: dict[str, Any],
     *,
-    package_digest: str | None = None,
-    item_set_digest: str | None = None,
+    rating_contract_digest: str | None = None,
     context_digests: Mapping[str, str] | None = None,
     keyring: Mapping[str, str] | None = None,
 ) -> list[str]:
@@ -994,6 +1070,8 @@ def validate_rating(
     errors: list[str] = []
     if record.get("_invalid_file"):
         return [f"UNPARSEABLE_FILE:{record['_invalid_file']}"]
+    if record.get("_invalid_entry"):
+        return [f"MALFORMED_ENTRY:{record['_invalid_entry']}"]
     if record.get("schema_version") != RATING_SCHEMA_VERSION:
         errors.append("BAD_SCHEMA_VERSION")
     item_id = str(record.get("item_id") or "").strip()
@@ -1004,15 +1082,11 @@ def validate_rating(
 
     # Replay defence: a rating signed against a different item set is rejected
     # even when the individual item_id and logical digest still exist (P1).
-    if package_digest is None:
-        errors.append("PACKAGE_DIGEST_NOT_ENFORCED")
-    elif record.get("package_digest") != package_digest:
-        errors.append("PACKAGE_DIGEST_MISMATCH")
-
-    if item_set_digest is None:
-        errors.append("ITEM_SET_DIGEST_NOT_ENFORCED")
-    elif record.get("item_set_digest") != item_set_digest:
-        errors.append("ITEM_SET_DIGEST_MISMATCH")
+    # Replay defence, non-circular: the contract digest is fixed before intake.
+    if rating_contract_digest is None:
+        errors.append("RATING_CONTRACT_DIGEST_NOT_ENFORCED")
+    elif record.get("rating_contract_digest") != rating_contract_digest:
+        errors.append("RATING_CONTRACT_DIGEST_MISMATCH")
 
     # Tamper defence: the rater signs the CONTEXT THEY SAW, so altering the task
     # instruction or any prior observation invalidates the record.
@@ -1046,8 +1120,7 @@ def evaluate_readiness(
     records: Sequence[dict[str, Any]],
     qualified_rater_ids: Sequence[str],
     *,
-    package_digest: str | None = None,
-    item_set_digest: str | None = None,
+    rating_contract_digest: str | None = None,
     keyring: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Fail-closed. Validates labels, not merely the presence of rater IDs (B4).
@@ -1084,8 +1157,7 @@ def evaluate_readiness(
     for record in records:
         errors = validate_rating(
             record,
-            package_digest=package_digest,
-            item_set_digest=item_set_digest,
+            rating_contract_digest=rating_contract_digest,
             context_digests=context_digests,
             keyring=keyring,
         )
@@ -1151,17 +1223,20 @@ def evaluate_readiness(
         "authentication": {
             "rater_id_is_self_asserting": False,
             "requires": [
-                "item_set_digest",
-                "item_digest",
+                "rating_contract_digest",
+                "item_context_digest",
                 "rater_key_id",
                 "signature",
             ],
             "append_only_unique_key": "(item_id, rater_key_id)",
-            "item_set_digest": item_set_digest,
+            "rating_contract_digest": rating_contract_digest,
+            "rating_contract_schema": RATING_CONTRACT_SCHEMA,
             "replay_defence": (
-                "Ratings bind item_set_digest. A rating signed against a different "
-                "item set is rejected even when item_id and logical digest survive "
-                "the recut."
+                "Ratings bind rating_contract_digest, computed BEFORE intake over "
+                "the ordered rater-visible contexts plus codebook and schema "
+                "versions. It is immutable for the campaign, so the binding is not "
+                "circular. package_digest and build_id are SEPARATE artifact "
+                "digests and may include readiness and rating summaries."
             ),
         },
         "blockers": blockers,
@@ -1192,12 +1267,17 @@ def build_package(
         i for i in selected if i.context_completeness.get("builder_verdict") == "COMPLETE"
     ]
     excluded_incomplete = len(selected) - len(deliverable)
-    item_set_digest = compute_item_set_digest(deliverable, TAXONOMY_VERSION)
+    rating_contract_digest = compute_rating_contract_digest(
+        deliverable,
+        codebook_version=TAXONOMY_VERSION,
+        rating_schema_version=RATING_SCHEMA_VERSION,
+        package_schema_version=SCHEMA_VERSION,
+    )
     readiness = evaluate_readiness(
         deliverable,
         records,
         qualified_rater_ids=qualified,
-        item_set_digest=item_set_digest,
+        rating_contract_digest=rating_contract_digest,
         keyring=keyring or None,
     )
     readiness["context_diagnostic_2x2"] = context_diagnostic_2x2(deliverable, records)
@@ -1431,8 +1511,10 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
         taxonomy["missing_data_semantics"] = semantics
     return {
         "schema_version": "goldset-rater-bundle/v1",
-        "package_digest": package["package_digest"],
-        "item_set_digest": package["readiness"]["authentication"]["item_set_digest"],
+        # INFORMATIONAL ONLY - not signed. The signed binding is
+        # rating_contract_digest, which is immutable for the campaign.
+        "package_digest_informational_only": package["package_digest"],
+        "rating_contract_digest": package["readiness"]["authentication"]["rating_contract_digest"],
         "taxonomy_version": package["taxonomy_version"],
         "codebook_version": package["taxonomy_version"],
         "rating_schema_version": package["rating_schema_version"],
@@ -1447,8 +1529,8 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
             ),
             "submission_binding": (
                 "Each submission MUST carry, copied from this bundle: "
-                "package_digest, item_set_digest, and the item's "
-                "item_context_digest; plus your rater_key_id and an HMAC "
+                "rating_contract_digest and the item's item_context_digest; "
+                "plus your rater_key_id and an HMAC "
                 "signature over the canonical payload. A rater_id alone is not "
                 "accepted, and altering any part of the context you were shown "
                 "invalidates the record."
@@ -1617,7 +1699,11 @@ def load_paired_artifacts(package_path: Path, truth_path: Path) -> tuple[dict, d
             f"!= {recomputed_build_id!r}"
         )
     for item in package.get("items", []):
-        expected = compute_item_context_digest(item["rater_context"])
+        expected = compute_item_context_digest(
+            item["rater_context"],
+            cluster_id=item["cluster_id"],
+            step_index=item["step_index"],
+        )
         if item.get("item_context_digest") != expected:
             raise PairMismatchError(f"ITEM_CONTEXT_DIGEST_RECOMPUTE_MISMATCH: {item['item_id']}")
     if package.get("build_id") != truth.get("build_id"):

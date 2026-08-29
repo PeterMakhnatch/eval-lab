@@ -7,17 +7,17 @@ type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-9-merge-corrections
+status: revision-10-security-round-4
 readiness: NOT_READY (5 blockers)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-labeling_package_file_sha256: 804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550
-package_digest_in_band: 739f56aef2fe8189d61122fa584158a6bfb34965ff13b4a6eefb36deb240dd29
-build_id: 4a41c64347c370676e620d9769e0ac2f46b3f7cde8fddf2fde49b66b7e07e5a2
-revision: 9
+labeling_package_file_sha256: f2f972efb7a4be5221b279d955415c341a9c6a91923e1c7fcee4dfeae4a5e69c
+package_digest_in_band: 1be3a1808039f830e2e8a15bce7fa926a61e4ba5d621d3dc711737ab792e6671
+build_id: daa1bb7c889e6b285ad7460dcb1a621b5d30a1bbf50a1ce24efab1e3a3caed13
+revision: 10
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -61,39 +61,49 @@ Two further corrections to revision 1's own claims, found while fixing B1:
   Revision 1 claimed it was absent and that stratification needed a `traj_features`
   join. Wrong; it is in the trajectory.
 
-## 0.1 Three digests, named apart
+## 0.1 Four digests, named apart
 
-An earlier review recomputed a file SHA and compared it to a value labelled
-`package_sha256`, which I had used for the **file bytes** while an **in-band** field
-was separately called `package_digest`. Two different quantities, confusingly
-similar names. Named explicitly from here:
+Two families, and conflating them caused two separate review blockers.
 
-| Name | Covers | Value at this revision |
+**Contract digest — what a rater signs. Immutable, computed BEFORE intake.**
+
+| Name | Covers | Value |
 |---|---|---|
-| `labeling_package_file_sha256` | sha256 of `labeling_package.json` **bytes on disk** | `804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550` |
-| `package_digest` (in-band) | sha256 of the serialized package **minus its own `package_digest` key** | `739f56aef2fe8189d61122fa584158a6bfb34965ff13b4a6eefb36deb240dd29` |
-| `build_id` | sha256 of `serialize(package − {build_id, package_digest}) + serialize(truth − {build_id})` | `4a41c64347c370676e620d9769e0ac2f46b3f7cde8fddf2fde49b66b7e07e5a2` |
+| `rating_contract_digest` | ordered rater-visible item contexts + codebook + rating-schema + package-schema versions | `76a65a392da9cfc83dc97492ad115d656b09d08d907e7bcf1c160bd28d242cbf` |
+| `item_context_digest` | per item: trial identity + step ordinal + instruction + every prior and current field | per item |
 
-Recompute:
+**Artifact digests — identify a build. May include readiness and rating summaries.**
+
+| Name | Covers | Value |
+|---|---|---|
+| `labeling_package_file_sha256` | sha256 of the file **bytes on disk** | `f2f972efb7a4be5221b279d955415c341a9c6a91923e1c7fcee4dfeae4a5e69c` |
+| `package_digest` (in-band) | serialized package minus its own key | `1be3a1808039f830e2e8a15bce7fa926a61e4ba5d621d3dc711737ab792e6671` |
+| `build_id` | ser(pkg − {build_id, package_digest}) + ser(truth − {build_id}) | `daa1bb7c889e6b285ad7460dcb1a621b5d30a1bbf50a1ce24efab1e3a3caed13` |
+
+**Why the split is load-bearing.** Ratings previously had to bind `package_digest`,
+which covers readiness and rating summaries — so it **changes as ratings arrive**.
+Requiring a rating to sign it was circular: the value only existed after the
+ratings were counted. `rating_contract_digest` covers exactly what a rater is shown
+and judged against, in order, and nothing downstream of intake can alter it.
+
+The file SHA is deliberately not stored in-band, because a file cannot contain its
+own hash. `package_digest`, `build_id` and every `item_context_digest` are
+**recomputed, never trusted**, by `load_paired_artifacts`.
 
 ```bash
-sha256sum research/goldset/labeling_package.json          # file SHA
-python3 research/goldset/test_labeling_package.py         # verifies all three
-uv run pytest tests/test_goldset_labeling_package.py      # recomputes from disk
+sha256sum research/goldset/labeling_package.json      # file SHA
+python3 research/goldset/test_labeling_package.py     # verifies all four
+uv run pytest tests/test_goldset_labeling_package.py  # independent reimplementation
 ```
-
-`package_digest` and `build_id` are **recomputed, never trusted**, by
-`load_paired_artifacts`. The file SHA is not stored in-band, because a file cannot
-contain its own hash.
 
 ## 1. Readiness — NOT_READY, fail-closed, 5 blockers
 
 ```
 readiness NOT_READY
-EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.84 < 20.0
-CLUSTER_CONCENTRATION_TOO_HIGH: 13.8% > 5%
+EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
+CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
 QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
-ITEMS_WITH_ZERO_VALID_RATINGS: 167
+ITEMS_WITH_ZERO_VALID_RATINGS: 183
 REGISTRY: REGISTRY_ABSENT
 ```
 
@@ -135,7 +145,14 @@ later check could detect. Items are therefore keyed on
 (source_sha256, step_index)
 ```
 
-with `item_id = sha256(source_sha256#step_index)[:16]`. Identity is **content-
+**Item identity is the full `item_context_digest`**, not step content. Deduping on
+step content alone wrongly merged **16 distinct contexts** — worst case 6 steps
+across 6 *different* trials sharing one terminal message, plus consecutive indices
+17/18 inside a single trial. Trial identity and step ordinal are inside the digest,
+so distinct contexts never merge; only genuine byte-identical copies of the same
+logical item alias.
+
+With `item_id = sha256(source_sha256#step_index)[:16]`. Provenance is **content-
 addressed**: relpaths are recorded as `source_aliases` and in the top-level alias
 manifest, never as identity. Any edit to a source trajectory changes its digest and
 therefore invalidates its items, rather than silently changing their content.
@@ -179,7 +196,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `labeling_package_file_sha256 804672ab…`.
+byte-identical package, `labeling_package_file_sha256 f2f972ef…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -310,10 +327,10 @@ readiness blockers. It fails closed and is asserted by test, including that a
 balanced 40-cluster design clears it. Current output:
 
 ```
-blocker EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.84 < 20.0
-blocker CLUSTER_CONCENTRATION_TOO_HIGH: 13.8% > 5%
+blocker EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
+blocker CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
 blocker QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
-blocker ITEMS_WITH_ZERO_VALID_RATINGS: 167
+blocker ITEMS_WITH_ZERO_VALID_RATINGS: 183
 blocker REGISTRY: REGISTRY_ABSENT
 ```
 
@@ -432,10 +449,10 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 116 standalone checks + 16 pytest
+python3 research/goldset/test_labeling_package.py   # 123 standalone checks + 22 pytest
 ```
 
-Expect `labeling_package_file_sha256 804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550`
+Expect `labeling_package_file_sha256 f2f972efb7a4be5221b279d955415c341a9c6a91923e1c7fcee4dfeae4a5e69c`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

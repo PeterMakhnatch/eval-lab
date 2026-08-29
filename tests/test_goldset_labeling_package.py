@@ -115,32 +115,64 @@ def test_incomplete_items_are_never_deliverable(package: dict) -> None:
             assert item["context_completeness"]["builder_verdict"] == "COMPLETE"
 
 
-def test_items_deduped_by_logical_digest(package: dict) -> None:
-    """Semantic clones merged into one item, raw lineage preserved."""
+def test_item_identity_is_the_full_context_digest(package: dict) -> None:
+    """Identity is context, not step content.
+
+    Deduping on step content alone wrongly merged 16 distinct contexts - worst
+    case 6 steps across 6 DIFFERENT trials sharing one terminal message, plus
+    consecutive indices 17/18 inside a single trial. Distinct trial or step
+    ordinal must never merge.
+    """
+    contexts = [item["item_context_digest"] for item in package["items"]]
+    assert len(contexts) == len(set(contexts))
+    # Two items MAY share a step digest: same message, different trial/context.
     logicals = [item["logical_step_digest"] for item in package["items"]]
-    assert len(logicals) == len(set(logicals))
-    assert package["census"]["clone_items_dropped"] > 0
-    assert any(len(item["logical_lineage"]) > 1 for item in package["items"])
+    assert len(set(logicals)) < len(logicals)
+
+
+def test_rating_contract_digest_is_non_circular(package: dict) -> None:
+    """The signed contract is fixed BEFORE intake; artifact digests are separate.
+
+    Ratings previously had to bind package_digest, which covers readiness and
+    rating summaries and therefore changes as ratings arrive - a circular
+    requirement.
+    """
+    auth = package["readiness"]["authentication"]
+    contract = auth["rating_contract_digest"]
+    assert contract
+    assert contract != package["package_digest"]
+    assert contract != package["build_id"]
+    assert "rating_contract_digest" in auth["requires"]
+    assert "item_context_digest" in auth["requires"]
 
 
 def test_item_context_digest_covers_the_whole_rater_view(package: dict) -> None:
     """Altering the instruction or a prior step must change the bound digest."""
 
-    def context_digest(context: object) -> str:
-        """Independent reimplementation: verifies the FORMULA, not the module."""
+    def context_digest(item: dict, context: object) -> str:
+        """Independent reimplementation: verifies the FORMULA, not the module.
+
+        Payload is {cluster_id, step_index, rater_context}: trial identity and
+        step ordinal are inside the digest so distinct contexts never collide.
+        """
+        payload = {
+            "cluster_id": item["cluster_id"],
+            "step_index": item["step_index"],
+            "rater_context": context,
+        }
         return hashlib.sha256(
-            json.dumps(context, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
         ).hexdigest()
 
     item = package["items"][0]
-    assert context_digest(item["rater_context"]) == item["item_context_digest"]
+    assert context_digest(item, item["rater_context"]) == item["item_context_digest"]
     tampered_instruction = {
         **item["rater_context"],
         "instruction": {"presumed_task_statement": {"message": "A DIFFERENT TASK"}},
     }
-    assert context_digest(tampered_instruction) != item["item_context_digest"]
+    assert context_digest(item, tampered_instruction) != item["item_context_digest"]
     tampered_prior = {**item["rater_context"], "prior_steps": []}
-    assert context_digest(tampered_prior) != item["item_context_digest"]
+    assert context_digest(item, tampered_prior) != item["item_context_digest"]
 
 
 def test_nothing_is_truncated_at_current_corpus_size(package: dict) -> None:

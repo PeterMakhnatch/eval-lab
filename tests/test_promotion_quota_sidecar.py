@@ -335,8 +335,12 @@ def test_every_promoted_codex_bundle_carries_its_quota_history() -> None:
         manifest = json.loads((bundle / "PROMOTION.json").read_text())
         sidecars = [e for e in manifest["files"] if e.get("rule") == "R4"]
         omitted = [e for e in manifest["files"] if e.get("action") == "omitted"]
+        session_omissions = [
+            e for e in omitted if "sessions" in Path(e["source_path"]).parts
+        ]
 
-        assert manifest["totals"]["quota_sidecars"] == len(sidecars) == len(omitted) == 3
+        assert manifest["totals"]["quota_sidecars"] == len(sidecars) == 3
+        assert len(session_omissions) == 3
         for entry in sidecars:
             path = bundle / entry["promoted_path"]
             assert path.is_file()

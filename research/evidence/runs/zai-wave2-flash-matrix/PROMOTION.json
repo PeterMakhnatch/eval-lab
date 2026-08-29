@@ -6,17 +6,17 @@
   "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
-    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
     "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
     "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 296,
-    "promoted_files": 194,
-    "omitted_files": 102,
+    "promoted_files": 176,
+    "omitted_files": 120,
     "quota_sidecars": 0,
-    "promoted_bytes": 1802312,
+    "promoted_bytes": 1712200,
     "source_bytes": 64450160
   },
   "files": [
@@ -146,13 +146,12 @@
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__xTVP9AZ/trial.log",
-      "promoted_path": "action-64k-neutral_padding-s1337__xTVP9AZ/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3009,
-      "source_sha256": "sha256:eb864d5349e3efbc30dcc700d3c993e5f100c3f04321f0f2b5b94a8797ed69ea",
-      "promoted_bytes": 3009,
-      "promoted_sha256": "sha256:eb864d5349e3efbc30dcc700d3c993e5f100c3f04321f0f2b5b94a8797ed69ea"
+      "source_sha256": "sha256:eb864d5349e3efbc30dcc700d3c993e5f100c3f04321f0f2b5b94a8797ed69ea"
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__xTVP9AZ/verifier/result.json",
@@ -310,13 +309,12 @@
     },
     {
       "source_path": "action-64k-neutral_padding-s42__5Udx2Ac/trial.log",
-      "promoted_path": "action-64k-neutral_padding-s42__5Udx2Ac/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3007,
-      "source_sha256": "sha256:5af9ee2cde73211eafe39d2f6a318c423b15e56c81508a16e8556876524f4e2c",
-      "promoted_bytes": 3007,
-      "promoted_sha256": "sha256:5af9ee2cde73211eafe39d2f6a318c423b15e56c81508a16e8556876524f4e2c"
+      "source_sha256": "sha256:5af9ee2cde73211eafe39d2f6a318c423b15e56c81508a16e8556876524f4e2c"
     },
     {
       "source_path": "action-64k-neutral_padding-s42__5Udx2Ac/verifier/result.json",
@@ -474,13 +472,12 @@
     },
     {
       "source_path": "action-64k-semantic_distractor-s__CrxsJ57/trial.log",
-      "promoted_path": "action-64k-semantic_distractor-s__CrxsJ57/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3009,
-      "source_sha256": "sha256:88a944badaf4ec103e221e027bd9d8992125e09bad6d74399e9b186f20b12ba1",
-      "promoted_bytes": 3009,
-      "promoted_sha256": "sha256:88a944badaf4ec103e221e027bd9d8992125e09bad6d74399e9b186f20b12ba1"
+      "source_sha256": "sha256:88a944badaf4ec103e221e027bd9d8992125e09bad6d74399e9b186f20b12ba1"
     },
     {
       "source_path": "action-64k-semantic_distractor-s__CrxsJ57/verifier/result.json",
@@ -638,13 +635,12 @@
     },
     {
       "source_path": "action-64k-semantic_distractor-s__Qoz3nbU/trial.log",
-      "promoted_path": "action-64k-semantic_distractor-s__Qoz3nbU/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3009,
-      "source_sha256": "sha256:77019b654564b4f5560c265d238940f3e5e2cb3e63f507e11fcb1f832ba3ff82",
-      "promoted_bytes": 3009,
-      "promoted_sha256": "sha256:77019b654564b4f5560c265d238940f3e5e2cb3e63f507e11fcb1f832ba3ff82"
+      "source_sha256": "sha256:77019b654564b4f5560c265d238940f3e5e2cb3e63f507e11fcb1f832ba3ff82"
     },
     {
       "source_path": "action-64k-semantic_distractor-s__Qoz3nbU/verifier/result.json",
@@ -688,13 +684,12 @@
     },
     {
       "source_path": "job.log",
-      "promoted_path": "job.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 45056,
-      "source_sha256": "sha256:1ab9083ca11e15ec6fb2a411e557125d168b8aec9d8ac241cc243e6bdea44d94",
-      "promoted_bytes": 45056,
-      "promoted_sha256": "sha256:1ab9083ca11e15ec6fb2a411e557125d168b8aec9d8ac241cc243e6bdea44d94"
+      "source_sha256": "sha256:1ab9083ca11e15ec6fb2a411e557125d168b8aec9d8ac241cc243e6bdea44d94"
     },
     {
       "source_path": "lock.json",
@@ -832,13 +827,12 @@
     },
     {
       "source_path": "mcp-funcdag-depth_5-seed101__mJU4JQC/trial.log",
-      "promoted_path": "mcp-funcdag-depth_5-seed101__mJU4JQC/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3377,
-      "source_sha256": "sha256:c17047434ee154e984c481a8cb689ae2a12e89404c17b1cd7a8fdfbc0b9dfa14",
-      "promoted_bytes": 3377,
-      "promoted_sha256": "sha256:c17047434ee154e984c481a8cb689ae2a12e89404c17b1cd7a8fdfbc0b9dfa14"
+      "source_sha256": "sha256:c17047434ee154e984c481a8cb689ae2a12e89404c17b1cd7a8fdfbc0b9dfa14"
     },
     {
       "source_path": "mcp-funcdag-depth_5-seed101__mJU4JQC/verifier/reward.txt",
@@ -986,13 +980,12 @@
     },
     {
       "source_path": "mcp-funcdag-depth_5-seed2024__gXLQWSh/trial.log",
-      "promoted_path": "mcp-funcdag-depth_5-seed2024__gXLQWSh/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3377,
-      "source_sha256": "sha256:756ee3bc1804b13520842a3f713f2200be78babd870d770b52738fb3867b6335",
-      "promoted_bytes": 3377,
-      "promoted_sha256": "sha256:756ee3bc1804b13520842a3f713f2200be78babd870d770b52738fb3867b6335"
+      "source_sha256": "sha256:756ee3bc1804b13520842a3f713f2200be78babd870d770b52738fb3867b6335"
     },
     {
       "source_path": "mcp-funcdag-depth_5-seed2024__gXLQWSh/verifier/reward.txt",
@@ -1140,13 +1133,12 @@
     },
     {
       "source_path": "mcp-funcdag-name_similarity_high__DvpHJGh/trial.log",
-      "promoted_path": "mcp-funcdag-name_similarity_high__DvpHJGh/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2953,
-      "source_sha256": "sha256:2b4eaab50c3f2a2b0900cec222b2df8b3dec3b75bb541af9e828f33f577ab5fb",
-      "promoted_bytes": 2953,
-      "promoted_sha256": "sha256:2b4eaab50c3f2a2b0900cec222b2df8b3dec3b75bb541af9e828f33f577ab5fb"
+      "source_sha256": "sha256:2b4eaab50c3f2a2b0900cec222b2df8b3dec3b75bb541af9e828f33f577ab5fb"
     },
     {
       "source_path": "mcp-funcdag-name_similarity_high__DvpHJGh/verifier/reward.txt",
@@ -1294,13 +1286,12 @@
     },
     {
       "source_path": "mcp-funcdag-name_similarity_high__TkhqHSN/trial.log",
-      "promoted_path": "mcp-funcdag-name_similarity_high__TkhqHSN/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2954,
-      "source_sha256": "sha256:fc681a26319949bf37d499551de5eaf806c4b49c95ca108ed4aeaa40422ba31e",
-      "promoted_bytes": 2954,
-      "promoted_sha256": "sha256:fc681a26319949bf37d499551de5eaf806c4b49c95ca108ed4aeaa40422ba31e"
+      "source_sha256": "sha256:fc681a26319949bf37d499551de5eaf806c4b49c95ca108ed4aeaa40422ba31e"
     },
     {
       "source_path": "mcp-funcdag-name_similarity_high__TkhqHSN/verifier/reward.txt",
@@ -1448,13 +1439,12 @@
     },
     {
       "source_path": "mcp-funcdag-name_similarity_high__sbQkE2R/trial.log",
-      "promoted_path": "mcp-funcdag-name_similarity_high__sbQkE2R/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2953,
-      "source_sha256": "sha256:3bc19eba0807538940bef632cba41548ef7679c84c10ee15ffac6a35cf942321",
-      "promoted_bytes": 2953,
-      "promoted_sha256": "sha256:3bc19eba0807538940bef632cba41548ef7679c84c10ee15ffac6a35cf942321"
+      "source_sha256": "sha256:3bc19eba0807538940bef632cba41548ef7679c84c10ee15ffac6a35cf942321"
     },
     {
       "source_path": "mcp-funcdag-name_similarity_high__sbQkE2R/verifier/reward.txt",
@@ -1602,13 +1592,12 @@
     },
     {
       "source_path": "recovery-persistent-signature-er__Lm9ohzb/trial.log",
-      "promoted_path": "recovery-persistent-signature-er__Lm9ohzb/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:b9146658bef16f9d949a1ec6504854de44f4b33805ac57675cb768392ac2e680",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:b9146658bef16f9d949a1ec6504854de44f4b33805ac57675cb768392ac2e680"
+      "source_sha256": "sha256:b9146658bef16f9d949a1ec6504854de44f4b33805ac57675cb768392ac2e680"
     },
     {
       "source_path": "recovery-persistent-signature-er__Lm9ohzb/verifier/checks.json",
@@ -1776,13 +1765,12 @@
     },
     {
       "source_path": "recovery-persistent-signature-er__QHaoyPA/trial.log",
-      "promoted_path": "recovery-persistent-signature-er__QHaoyPA/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:5c011fddc574b8e4f5be1c4c15926bb7b34b5722ae3bd3b8be192f6a6d7a3e77",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:5c011fddc574b8e4f5be1c4c15926bb7b34b5722ae3bd3b8be192f6a6d7a3e77"
+      "source_sha256": "sha256:5c011fddc574b8e4f5be1c4c15926bb7b34b5722ae3bd3b8be192f6a6d7a3e77"
     },
     {
       "source_path": "recovery-persistent-signature-er__QHaoyPA/verifier/checks.json",
@@ -1950,13 +1938,12 @@
     },
     {
       "source_path": "recovery-persistent-signature-er__YXTpcLZ/trial.log",
-      "promoted_path": "recovery-persistent-signature-er__YXTpcLZ/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:aa0c7eb8876897c6c7b8e9617cc64fcc068ae628d87784e2903e741133f12ea0",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:aa0c7eb8876897c6c7b8e9617cc64fcc068ae628d87784e2903e741133f12ea0"
+      "source_sha256": "sha256:aa0c7eb8876897c6c7b8e9617cc64fcc068ae628d87784e2903e741133f12ea0"
     },
     {
       "source_path": "recovery-persistent-signature-er__YXTpcLZ/verifier/checks.json",
@@ -2124,13 +2111,12 @@
     },
     {
       "source_path": "recovery-persistent-signature-er__mp4YbvW/trial.log",
-      "promoted_path": "recovery-persistent-signature-er__mp4YbvW/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:846f12e1e26b9b886dbc1d3ceaa4d446db5233df8d54ff68689ead83abb48102",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:846f12e1e26b9b886dbc1d3ceaa4d446db5233df8d54ff68689ead83abb48102"
+      "source_sha256": "sha256:846f12e1e26b9b886dbc1d3ceaa4d446db5233df8d54ff68689ead83abb48102"
     },
     {
       "source_path": "recovery-persistent-signature-er__mp4YbvW/verifier/checks.json",
@@ -2298,13 +2284,12 @@
     },
     {
       "source_path": "recovery-silent-wrong-payload-s1__UBdmtRU/trial.log",
-      "promoted_path": "recovery-silent-wrong-payload-s1__UBdmtRU/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:0f18ec17aef1e74fcf07d95edf1fb23fccc34d1a88100726a4e49f4eae229090",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:0f18ec17aef1e74fcf07d95edf1fb23fccc34d1a88100726a4e49f4eae229090"
+      "source_sha256": "sha256:0f18ec17aef1e74fcf07d95edf1fb23fccc34d1a88100726a4e49f4eae229090"
     },
     {
       "source_path": "recovery-silent-wrong-payload-s1__UBdmtRU/verifier/checks.json",
@@ -2472,13 +2457,12 @@
     },
     {
       "source_path": "recovery-silent-wrong-payload-s1__fZmgR5y/trial.log",
-      "promoted_path": "recovery-silent-wrong-payload-s1__fZmgR5y/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:f08cdf3fb616601071d3bad4824ddb98f3cd72d2ace2c17fd18386e61686bfe2",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:f08cdf3fb616601071d3bad4824ddb98f3cd72d2ace2c17fd18386e61686bfe2"
+      "source_sha256": "sha256:f08cdf3fb616601071d3bad4824ddb98f3cd72d2ace2c17fd18386e61686bfe2"
     },
     {
       "source_path": "recovery-silent-wrong-payload-s1__fZmgR5y/verifier/checks.json",
@@ -2646,13 +2630,12 @@
     },
     {
       "source_path": "recovery-silent-wrong-payload-s4__PmKJB8T/trial.log",
-      "promoted_path": "recovery-silent-wrong-payload-s4__PmKJB8T/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:7d477a496d02374943b71082b3b0d31f678685f3ee269bab5612302cd66df160",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:7d477a496d02374943b71082b3b0d31f678685f3ee269bab5612302cd66df160"
+      "source_sha256": "sha256:7d477a496d02374943b71082b3b0d31f678685f3ee269bab5612302cd66df160"
     },
     {
       "source_path": "recovery-silent-wrong-payload-s4__PmKJB8T/verifier/checks.json",
@@ -2820,13 +2803,12 @@
     },
     {
       "source_path": "recovery-silent-wrong-payload-s4__cVZm97U/trial.log",
-      "promoted_path": "recovery-silent-wrong-payload-s4__cVZm97U/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2176,
-      "source_sha256": "sha256:a7ab50dd9bfc5b8d01354441a9510ee0069a8f61870ef15d844dcae1ee412ba8",
-      "promoted_bytes": 2176,
-      "promoted_sha256": "sha256:a7ab50dd9bfc5b8d01354441a9510ee0069a8f61870ef15d844dcae1ee412ba8"
+      "source_sha256": "sha256:a7ab50dd9bfc5b8d01354441a9510ee0069a8f61870ef15d844dcae1ee412ba8"
     },
     {
       "source_path": "recovery-silent-wrong-payload-s4__cVZm97U/verifier/checks.json",

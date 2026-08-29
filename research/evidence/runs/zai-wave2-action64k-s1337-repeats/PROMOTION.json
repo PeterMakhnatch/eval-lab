@@ -6,17 +6,17 @@
   "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
-    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
     "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
     "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 72,
-    "promoted_files": 48,
-    "omitted_files": 24,
+    "promoted_files": 43,
+    "omitted_files": 29,
     "quota_sidecars": 0,
-    "promoted_bytes": 1470556,
+    "promoted_bytes": 1446396,
     "source_bytes": 24725593
   },
   "files": [
@@ -146,13 +146,12 @@
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__JvdEs9Y/trial.log",
-      "promoted_path": "action-64k-neutral_padding-s1337__JvdEs9Y/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3020,
-      "source_sha256": "sha256:0135003d9e9fd0706081eb21be98134f08ee34f33864b1198e85c47e4f4d57d7",
-      "promoted_bytes": 3020,
-      "promoted_sha256": "sha256:0135003d9e9fd0706081eb21be98134f08ee34f33864b1198e85c47e4f4d57d7"
+      "source_sha256": "sha256:0135003d9e9fd0706081eb21be98134f08ee34f33864b1198e85c47e4f4d57d7"
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__JvdEs9Y/verifier/result.json",
@@ -310,13 +309,12 @@
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__wCHLZ4M/trial.log",
-      "promoted_path": "action-64k-neutral_padding-s1337__wCHLZ4M/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3020,
-      "source_sha256": "sha256:8f880e4c5474702cb251bed552e4cd5cd7b5fed640e41889ae8cde66a9595b38",
-      "promoted_bytes": 3020,
-      "promoted_sha256": "sha256:8f880e4c5474702cb251bed552e4cd5cd7b5fed640e41889ae8cde66a9595b38"
+      "source_sha256": "sha256:8f880e4c5474702cb251bed552e4cd5cd7b5fed640e41889ae8cde66a9595b38"
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__wCHLZ4M/verifier/result.json",
@@ -474,13 +472,12 @@
     },
     {
       "source_path": "action-64k-semantic_distractor-s__FLiG7jy/trial.log",
-      "promoted_path": "action-64k-semantic_distractor-s__FLiG7jy/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3020,
-      "source_sha256": "sha256:cbd10b28e9d6cbe266deea8bd88f11be4df313ef3a383ddb75c63362bcdfc743",
-      "promoted_bytes": 3020,
-      "promoted_sha256": "sha256:cbd10b28e9d6cbe266deea8bd88f11be4df313ef3a383ddb75c63362bcdfc743"
+      "source_sha256": "sha256:cbd10b28e9d6cbe266deea8bd88f11be4df313ef3a383ddb75c63362bcdfc743"
     },
     {
       "source_path": "action-64k-semantic_distractor-s__FLiG7jy/verifier/result.json",
@@ -638,13 +635,12 @@
     },
     {
       "source_path": "action-64k-semantic_distractor-s__Pgukjp8/trial.log",
-      "promoted_path": "action-64k-semantic_distractor-s__Pgukjp8/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3020,
-      "source_sha256": "sha256:5bd607f5b06f1232c62de0478f417ab1ca723f4c13988d623637ff22f0c2fc40",
-      "promoted_bytes": 3020,
-      "promoted_sha256": "sha256:5bd607f5b06f1232c62de0478f417ab1ca723f4c13988d623637ff22f0c2fc40"
+      "source_sha256": "sha256:5bd607f5b06f1232c62de0478f417ab1ca723f4c13988d623637ff22f0c2fc40"
     },
     {
       "source_path": "action-64k-semantic_distractor-s__Pgukjp8/verifier/result.json",
@@ -688,13 +684,12 @@
     },
     {
       "source_path": "job.log",
-      "promoted_path": "job.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 12080,
-      "source_sha256": "sha256:2fa73101224210b45412830400141662b8f1210c68d48a4be168cbb42d3a3c02",
-      "promoted_bytes": 12080,
-      "promoted_sha256": "sha256:2fa73101224210b45412830400141662b8f1210c68d48a4be168cbb42d3a3c02"
+      "source_sha256": "sha256:2fa73101224210b45412830400141662b8f1210c68d48a4be168cbb42d3a3c02"
     },
     {
       "source_path": "lock.json",

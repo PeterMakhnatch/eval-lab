@@ -6,17 +6,17 @@
   "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
-    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
     "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
     "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 38,
-    "promoted_files": 26,
-    "omitted_files": 12,
+    "promoted_files": 23,
+    "omitted_files": 15,
     "quota_sidecars": 0,
-    "promoted_bytes": 932583,
+    "promoted_bytes": 918483,
     "source_bytes": 19253434
   },
   "files": [
@@ -146,13 +146,12 @@
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__u4CZxsA/trial.log",
-      "promoted_path": "action-64k-neutral_padding-s1337__u4CZxsA/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3525,
-      "source_sha256": "sha256:95aa758106ff75d1ed5e043751d871dd82b39e7b1ea73c3a00a4fa4e4d19362b",
-      "promoted_bytes": 3525,
-      "promoted_sha256": "sha256:95aa758106ff75d1ed5e043751d871dd82b39e7b1ea73c3a00a4fa4e4d19362b"
+      "source_sha256": "sha256:95aa758106ff75d1ed5e043751d871dd82b39e7b1ea73c3a00a4fa4e4d19362b"
     },
     {
       "source_path": "action-64k-neutral_padding-s1337__u4CZxsA/verifier/result.json",
@@ -310,13 +309,12 @@
     },
     {
       "source_path": "action-64k-semantic_distractor-s__A67eDZ2/trial.log",
-      "promoted_path": "action-64k-semantic_distractor-s__A67eDZ2/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3525,
-      "source_sha256": "sha256:bcf808ea5adda594752e97296a255ef8627305c3ef7d378c5627882df6a1b2a0",
-      "promoted_bytes": 3525,
-      "promoted_sha256": "sha256:bcf808ea5adda594752e97296a255ef8627305c3ef7d378c5627882df6a1b2a0"
+      "source_sha256": "sha256:bcf808ea5adda594752e97296a255ef8627305c3ef7d378c5627882df6a1b2a0"
     },
     {
       "source_path": "action-64k-semantic_distractor-s__A67eDZ2/verifier/result.json",
@@ -360,13 +358,12 @@
     },
     {
       "source_path": "job.log",
-      "promoted_path": "job.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 7050,
-      "source_sha256": "sha256:15e1d9378651bf01201d649c0fba5024db07f03caf6913b1016def84f8c0bf1c",
-      "promoted_bytes": 7050,
-      "promoted_sha256": "sha256:15e1d9378651bf01201d649c0fba5024db07f03caf6913b1016def84f8c0bf1c"
+      "source_sha256": "sha256:15e1d9378651bf01201d649c0fba5024db07f03caf6913b1016def84f8c0bf1c"
     },
     {
       "source_path": "lock.json",

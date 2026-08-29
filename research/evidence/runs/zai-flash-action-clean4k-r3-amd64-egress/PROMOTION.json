@@ -6,17 +6,17 @@
   "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
-    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
     "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
     "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 58,
-    "promoted_files": 37,
-    "omitted_files": 21,
+    "promoted_files": 33,
+    "omitted_files": 25,
     "quota_sidecars": 0,
-    "promoted_bytes": 101735,
+    "promoted_bytes": 84353,
     "source_bytes": 8186452
   },
   "files": [
@@ -156,13 +156,12 @@
     },
     {
       "source_path": "action__HwG9cN6/trial.log",
-      "promoted_path": "action__HwG9cN6/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2897,
-      "source_sha256": "sha256:4fa79c79cf5c54c00b3197f24cd3df63422ce036d3637b0b11ec7e9a91e8e827",
-      "promoted_bytes": 2897,
-      "promoted_sha256": "sha256:4fa79c79cf5c54c00b3197f24cd3df63422ce036d3637b0b11ec7e9a91e8e827"
+      "source_sha256": "sha256:4fa79c79cf5c54c00b3197f24cd3df63422ce036d3637b0b11ec7e9a91e8e827"
     },
     {
       "source_path": "action__HwG9cN6/verifier/result.json",
@@ -330,13 +329,12 @@
     },
     {
       "source_path": "action__tYjL6JB/trial.log",
-      "promoted_path": "action__tYjL6JB/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2897,
-      "source_sha256": "sha256:9ee0c80275327ab3755143fa36c6a7ee6f67d3a2b3f6f839a77b82010d5d94e2",
-      "promoted_bytes": 2897,
-      "promoted_sha256": "sha256:9ee0c80275327ab3755143fa36c6a7ee6f67d3a2b3f6f839a77b82010d5d94e2"
+      "source_sha256": "sha256:9ee0c80275327ab3755143fa36c6a7ee6f67d3a2b3f6f839a77b82010d5d94e2"
     },
     {
       "source_path": "action__tYjL6JB/verifier/result.json",
@@ -504,13 +502,12 @@
     },
     {
       "source_path": "action__xRAzqKA/trial.log",
-      "promoted_path": "action__xRAzqKA/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2897,
-      "source_sha256": "sha256:586efc3696f0a32d0670e72b562e7266a59f068f4d9a8001449b139db42a62ff",
-      "promoted_bytes": 2897,
-      "promoted_sha256": "sha256:586efc3696f0a32d0670e72b562e7266a59f068f4d9a8001449b139db42a62ff"
+      "source_sha256": "sha256:586efc3696f0a32d0670e72b562e7266a59f068f4d9a8001449b139db42a62ff"
     },
     {
       "source_path": "action__xRAzqKA/verifier/result.json",
@@ -554,13 +551,12 @@
     },
     {
       "source_path": "job.log",
-      "promoted_path": "job.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 8691,
-      "source_sha256": "sha256:9913236edb1f52f7d72d66e33f2800f00baaa44b4fa249421a584121063f0ad8",
-      "promoted_bytes": 8691,
-      "promoted_sha256": "sha256:9913236edb1f52f7d72d66e33f2800f00baaa44b4fa249421a584121063f0ad8"
+      "source_sha256": "sha256:9913236edb1f52f7d72d66e33f2800f00baaa44b4fa249421a584121063f0ad8"
     },
     {
       "source_path": "lock.json",

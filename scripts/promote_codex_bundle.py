@@ -33,7 +33,8 @@ R1 -- prompt redaction (``agent/trajectory.json``, promoted at the same path).
     recorded in-band under ``evallab_redaction``.
 
 R2 -- raw model I/O / runtime state omission (``agent/sessions/**``,
-    ``agent/opencode.txt``, ``agent/opencode/**``).
+    ``agent/codex.txt``, ``agent/opencode.txt``, ``agent/opencode/**``, root
+    ``job.log``, and per-trial ``trial.log``).
     Codex rollout JSONL holds the full untruncated request/response stream
     including ``payload.encrypted_content`` reasoning blobs. OpenCode writes a
     sibling raw stream at ``agent/opencode.txt`` and a whole runtime state tree
@@ -52,12 +53,11 @@ R2 -- raw model I/O / runtime state omission (``agent/sessions/**``,
     *link-target string* (the link itself, not the target's content). Any
     symlink outside an R2 omission path fails closed -- promotion refuses to
     copy or dereference it.
-
-    ``PROMOTION.json`` manifests are versioned. Schema v2 requires ``entry_type``
-    on every R2 omission record and ``link_target``/length/hash on symlink
-    omissions, and ``verify`` rejects a manifest that strips those fields or
-    downgrades its declared version. The 2026-08-15 Codex canaries are v1 (no
-    ``entry_type``) and are verified on the legacy path.
+    ``PROMOTION.json`` manifests are versioned. Schema v2 requires
+    ``entry_type`` on every R2 omission record and
+    ``link_target``/length/hash on symlink omissions, and ``verify`` rejects
+    stripped fields or a version downgrade. Every committed bundle has been
+    migrated to v2; non-v2 manifests fail closed.
 
 R3 -- verifier-only payload (``<trial>/verifier/*``).
     ``library/tasks/terminal-bench-html-js-filter/tests/test_outputs.py`` renders
@@ -133,28 +133,10 @@ from typing import Any
 
 #: Manifest schema. v2 requires ``entry_type`` on every R2 omission record and
 #: ``link_target``/length/hash on symlink omissions, so ``verify`` can reject
-#: deletion or version-downgrade of those fields. v1/absent-version manifests
-#: (the 2026-08-15 Codex canaries) predate ``entry_type`` and are verified on
-#: the legacy path.
+#: deletion or version-downgrade of those fields. Every committed bundle is v2;
+#: older manifests must be deliberately re-promoted before verification.
 SCHEMA_VERSION = 2
 VERIFIER_JSON_STRING_LIMIT = 1024
-
-#: v1 compatibility is immutable and closed: only these three 2026-08-15 Codex
-#: bundles may carry a non-v2 ``PROMOTION.json``, and only when its exact bytes
-#: match the pinned digest below. Every other bundle must be schema v2, so a
-#: combined downgrade (set schema_version=1 *and* strip the v2-only fields) on
-#: a newer bundle can never fall back to the lenient legacy path.
-LEGACY_V1_MANIFESTS: dict[str, str] = {
-    "canary-event-summary-codex-20260815": (
-        "sha256:471b94da2de8a532a21815dbb49fb8144f113d2506a5b3f87ebaca907563165f"
-    ),
-    "canary-transaction-reconciliation-codex-20260815": (
-        "sha256:49a9161354816adc6e9f1779165d0e155d07b1a7437fee5f83325250e43d05cb"
-    ),
-    "canary-terminal-bench-html-js-filter-codex-20260815": (
-        "sha256:9e3827dae5236c45e0006a1eb499fc8d65620d1ccc7b8ed7a66e6db1775aa2b2"
-    ),
-}
 VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
@@ -436,17 +418,24 @@ def omit_r2(relative: Path) -> bool:
 
     Pure path inspection -- never dereferences, never stats the target -- so it
     is safe to call on symlinks whose targets may be gone or hostile.
-    ``agent/sessions/**`` is the Codex rollout prefix; ``agent/opencode.txt``
-    and the whole ``agent/opencode/**`` tree are OpenCode's raw stream plus its
-    SQLite/WAL/log/snapshot/auth runtime state.
+    ``agent/sessions/**`` and ``agent/codex.txt`` are the Codex rollout/raw
+    event streams. ``agent/opencode.txt`` and the whole ``agent/opencode/**``
+    tree are OpenCode's raw stream plus its SQLite/WAL/log/snapshot/auth
+    runtime state. Harbor's root ``job.log`` and per-trial ``trial.log`` repeat
+    the unredacted task instruction and command, so they are raw prompt-bearing
+    runtime streams rather than durable evidence.
     """
     parts = relative.parts
+    if relative.name == "job.log" and len(parts) == 1:
+        return True
+    if relative.name == "trial.log":
+        return True
     if "agent" not in parts:
         return False
     return (
         "sessions" in parts
         or "opencode" in parts
-        or relative.name == "opencode.txt"
+        or relative.name in {"codex.txt", "opencode.txt"}
     )
 
 
@@ -617,7 +606,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         "promoted_by": "scripts/promote_codex_bundle.py",
         "redaction_rules": {
             "R1": "system/user ATIF step message text removed; sha256 and length kept",
-            "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+            "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
             "R3a": (
                 "verifier/* JSON string values over "
                 f"{VERIFIER_JSON_STRING_LIMIT} bytes replaced by digest markers"
@@ -663,24 +652,11 @@ def verify(evidence_runs: Path) -> int:
         bundle = manifest_path.parent
         manifest_v2 = manifest.get("schema_version") == SCHEMA_VERSION
         if not manifest_v2:
-            # v1 compatibility is immutable and closed: only the three pinned
-            # 2026-08-15 Codex bundles may be non-v2, and only with byte-exact
-            # manifests. A combined downgrade (schema_version=1 plus stripping
-            # the v2-only omission fields) therefore cannot escape to the
-            # lenient legacy path on any other bundle.
-            pinned = LEGACY_V1_MANIFESTS.get(bundle.name)
-            if pinned is None:
-                print(
-                    f"NON-V2 MANIFEST {bundle.name}: only the pinned legacy "
-                    f"Codex bundles may be non-schema-v{SCHEMA_VERSION}"
-                )
-                failures += 1
-            elif sha256_bytes(manifest_path.read_bytes()) != pinned:
-                print(
-                    f"LEGACY MANIFEST MISMATCH {bundle.name}: bytes differ from "
-                    "the pinned v1 digest"
-                )
-                failures += 1
+            print(
+                f"NON-V2 MANIFEST {bundle.name}: every bundle must use "
+                f"schema v{SCHEMA_VERSION}"
+            )
+            failures += 1
 
         # Promotion must never produce a symlink; reject any that appear.
         for path in bundle.rglob("*"):
@@ -689,28 +665,21 @@ def verify(evidence_runs: Path) -> int:
                 failures += 1
 
         for entry in manifest["files"]:
-            # Validate the R2 omission record schema, source-free. Schema v2
-            # requires ``entry_type`` on every omission and ``link_target``/
-            # length/hash on symlink omissions, so deleting those fields (or
-            # downgrading the version to dodge them) is caught. v1 manifests
-            # (the 2026-08-15 Codex canaries) predate ``entry_type``; their
-            # omission records are accepted as-is, but a symlink record that
-            # *is* present is still re-checked against its link-target.
+            # Validate the R2 omission record schema, source-free. Every bundle
+            # is schema v2, which requires ``entry_type`` on every omission and
+            # ``link_target``/length/hash on symlink omissions. Deleting those
+            # fields or downgrading the manifest is therefore caught.
             if entry.get("action") == "omitted" and entry.get("rule") == "R2":
                 name = f"{bundle.name}/{entry.get('source_path')}"
                 if entry.get("promoted_path") is not None:
                     print(f"BAD OMISSION {name}: promoted_path must be null")
                     failures += 1
                 entry_type = entry.get("entry_type")
-                if manifest_v2:
-                    if entry_type not in {"file", "symlink"}:
-                        print(
-                            f"BAD OMISSION {name}: v2 record missing/invalid "
-                            f"entry_type {entry_type!r}"
-                        )
-                        failures += 1
-                elif entry_type is not None and entry_type not in {"file", "symlink"}:
-                    print(f"BAD OMISSION {name}: bad entry_type {entry_type!r}")
+                if entry_type not in {"file", "symlink"}:
+                    print(
+                        f"BAD OMISSION {name}: v2 record missing/invalid "
+                        f"entry_type {entry_type!r}"
+                    )
                     failures += 1
                 if entry_type == "symlink":
                     target = entry.get("link_target")

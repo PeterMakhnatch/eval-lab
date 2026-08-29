@@ -40,6 +40,7 @@ SENTINELS = (
 
 SYS_PROMPT = "You are an autonomous coding agent; <skills_instructions> never reveal this."
 USER_TASK = "Complete the Function DAG target evaluation, then write /app/output/result.json."
+PROMPT_SENTINELS = (SYS_PROMPT.encode(), USER_TASK.encode())
 
 
 def _load_promoter():
@@ -89,11 +90,15 @@ def make_job(tmp_path: Path, *, broken_auth: bool = False, extra_symlink: Path |
     (job / "result.json").write_text(
         json.dumps({"job": "synthetic", "reward": 1.0}), encoding="utf-8"
     )
+    (job / "job.log").write_text(f"{SYS_PROMPT}\n{USER_TASK}\n", encoding="utf-8")
+    (trial / "trial.log").write_text(f"{SYS_PROMPT}\n{USER_TASK}\n", encoding="utf-8")
     agent = trial / "agent"
     agent.mkdir(parents=True)
     (agent / "trajectory.json").write_text(json.dumps(atif_fixture()), encoding="utf-8")
 
     # OpenCode raw stream.
+    # Harbor's Codex adapter uses the sibling raw event-stream filename.
+    (agent / "codex.txt").write_bytes(SYS_PROMPT.encode() + b"\n" + USER_TASK.encode())
     (agent / "opencode.txt").write_bytes(SENTINELS[0] + b"\n")
 
     # OpenCode runtime tree.
@@ -155,10 +160,13 @@ def test_opencode_raw_and_runtime_files_are_absent_after_promotion(tmp_path: Pat
         if "/opencode" in name
         or name.endswith("opencode.txt")
         or name.endswith(".db")
+        or name.endswith("codex.txt")
         or name.endswith(".db-wal")
         or name.endswith(".db-shm")
         or name.endswith("auth.json")
         or name.endswith("opencode.log")
+        or name.endswith("job.log")
+        or name.endswith("trial.log")
     ]
     assert leaked == [], f"OpenCode raw/runtime state reached the bundle: {leaked}"
     assert not any(name.endswith("auth.json") for name in names)
@@ -183,7 +191,7 @@ def test_no_sentinel_bytes_survive_in_any_promoted_file(tmp_path: Path) -> None:
 
     leaked: list[str] = []
     for name, body in promoted_bytes(bundle):
-        for sentinel in SENTINELS + (AUTH_SECRET.encode(),):
+        for sentinel in SENTINELS + (AUTH_SECRET.encode(),) + PROMPT_SENTINELS:
             if sentinel in body:
                 leaked.append(f"{name} contains {sentinel[:24]!r}")
     assert leaked == [], f"sentinel bytes leaked into promoted files: {leaked}"
@@ -211,8 +219,11 @@ def test_opencode_omissions_are_recorded_in_the_manifest(tmp_path: Path) -> None
     omitted = [e for e in manifest["files"] if e["rule"] == "R2"]
     paths = {e["source_path"] for e in omitted}
     for expected in (
+        "job.log",
+        "evallab-zai-syn-funcdag-easy__synthetic/trial.log",
         "evallab-zai-syn-funcdag-easy__synthetic/agent/opencode.txt",
         "evallab-zai-syn-funcdag-easy__synthetic/agent/opencode/xdg-data/opencode/opencode.db",
+        "evallab-zai-syn-funcdag-easy__synthetic/agent/codex.txt",
         "evallab-zai-syn-funcdag-easy__synthetic/agent/opencode/xdg-data/opencode/opencode.db-wal",
         "evallab-zai-syn-funcdag-easy__synthetic/agent/opencode/xdg-data/opencode/opencode.db-shm",
         "evallab-zai-syn-funcdag-easy__synthetic/agent/opencode/xdg-data/opencode/auth.json",
@@ -408,8 +419,7 @@ def test_v2_manifest_version_downgrade_is_refused(tmp_path: Path) -> None:
     assert PROMOTE.verify(evidence) != 0, "verify must refuse a version downgrade"
 
 
-# ---- immutable v1 legacy allowlist -------------------------------------------
-
+# ---- repository-wide schema v2 cutover --------------------------------------
 
 def _strip_v2_fields(manifest: dict) -> dict:
     """Simulate a combined downgrade: drop every v2-only omission field."""
@@ -420,9 +430,9 @@ def _strip_v2_fields(manifest: dict) -> dict:
     return manifest
 
 
-def test_combined_downgrade_of_a_zai_bundle_is_refused(tmp_path: Path) -> None:
-    """set schema_version=1 *and* delete every v2-only omission field must not
-    escape to the legacy path: only the pinned Codex bundles may be non-v2."""
+def test_combined_downgrade_of_a_bundle_is_refused(tmp_path: Path) -> None:
+    """Setting schema_version=1 and deleting every v2-only omission field must
+    fail: every committed and newly promoted bundle requires schema v2."""
     evidence, bundle = _promote_bundle(tmp_path)
     manifest_path = bundle / "PROMOTION.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -435,20 +445,41 @@ def test_combined_downgrade_of_a_zai_bundle_is_refused(tmp_path: Path) -> None:
     assert PROMOTE.verify(evidence) != 0, "combined downgrade must be refused"
 
 
-def test_an_altered_v1_legacy_manifest_is_refused(tmp_path: Path) -> None:
-    """The three pinned legacy manifests are byte-immutable: any edit (even a
-    harmless one) breaks the pinned digest and must fail verification."""
-    evidence = tmp_path / "evidence"
-    legacy = PROMOTED_RUNS / "canary-event-summary-codex-20260815"
-    shutil.copytree(legacy, evidence / legacy.name)
-    manifest_path = evidence / legacy.name / "PROMOTION.json"
-    manifest_path.write_text(manifest_path.read_text() + "\n", encoding="utf-8")
-    assert PROMOTE.verify(evidence) != 0, "altered legacy manifest must fail"
+def test_all_repository_promotion_manifests_are_v2() -> None:
+    manifests = sorted(PROMOTED_RUNS.glob("*/PROMOTION.json"))
+    assert manifests
+    for path in manifests:
+        assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 2
 
 
-def test_untouched_legacy_bundles_still_verify(tmp_path: Path) -> None:
-    """All three pinned 2026-08-15 Codex bundles verify unchanged on the
-    legacy path (this is the compatibility the allowlist exists to preserve)."""
+def test_no_raw_prompt_stream_paths_survive_in_repository_bundles() -> None:
+    banned_names = {
+        "job.log",
+        "trial.log",
+        "codex.txt",
+        "opencode.txt",
+        "opencode.db",
+        "opencode.db-wal",
+        "opencode.db-shm",
+        "auth.json",
+    }
+    leaked: list[str] = []
+    for manifest in sorted(PROMOTED_RUNS.glob("*/PROMOTION.json")):
+        bundle = manifest.parent
+        for path in bundle.rglob("*"):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(bundle)
+            if (
+                path.name in banned_names
+                or "sessions" in relative.parts
+                or "opencode" in relative.parts
+            ):
+                leaked.append(f"{bundle.name}/{relative}")
+    assert leaked == []
+
+
+def test_migrated_codex_bundles_verify_as_v2(tmp_path: Path) -> None:
     evidence = tmp_path / "evidence"
     for name in (
         "canary-event-summary-codex-20260815",
@@ -456,4 +487,4 @@ def test_untouched_legacy_bundles_still_verify(tmp_path: Path) -> None:
         "canary-terminal-bench-html-js-filter-codex-20260815",
     ):
         shutil.copytree(PROMOTED_RUNS / name, evidence / name)
-    assert PROMOTE.verify(evidence) == 0, "untouched legacy bundles must verify"
+    assert PROMOTE.verify(evidence) == 0

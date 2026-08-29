@@ -133,7 +133,7 @@ Promoted bundles:
 - `zai-wave2-action64k-s1337-sequential-scaffold`
 - `zai-wave2-action64k-s1337-sequential-scaffold-t3`
 
-Promotion verification covers 700 files across 16 total durable bundles with zero failures. Raw, hex, standard-base64 and URL-safe-base64 scans for the filtered Z.ai credential and Recovery evidence key found zero matches in regular run files. The pinned adapter removed its auth link after normal and raised runs; a broken link left by cancelling the inaccessible Highspeed job was removed manually and that job was not promoted.
+Promotion verification covers 619 files across 16 total durable bundles with zero failures. All 16 bundles were re-promoted as schema v2 after the security review: root `job.log`, per-trial `trial.log`, `agent/codex.txt`, `agent/opencode.txt`, and OpenCode runtime/session trees are digest-recorded R2 omissions, so prompt text redacted from ATIF is not republished through a raw log. Raw, hex, standard-base64 and URL-safe-base64 scans for the filtered Z.ai credential and Recovery evidence key found zero matches in retained regular evidence files. The pinned adapter removed its auth link after normal and raised runs; a broken link left by cancelling the inaccessible Highspeed job was removed manually and that job was not promoted.
 
 The temporary auth file, Recovery key, materialized tasks, trusted wheelhouse and run configs were deleted after settlement. Darwin public-network and linux/amd64-emulation limitations remain the same as wave 1.
 

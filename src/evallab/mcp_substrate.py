@@ -28,6 +28,7 @@ import logging
 import os
 import re
 import shutil
+import stat
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -69,12 +70,17 @@ _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 FASTMCP_VERSION_CONSTRAINTS: tuple[str, ...] = ("fastmcp==3.4.7",)
 RESERVED_RUNTIME_ASSET_PATHS = frozenset(
     {
+        ".dockerignore",
         "Dockerfile",
+        "Dockerfile.dockerignore",
         "offline-build-proof.json",
         "requirements.txt",
         "server.py",
         "wheelhouse",
     }
+)
+RESERVED_RUNTIME_ASSET_PATHS_FOLD = frozenset(
+    name.casefold() for name in RESERVED_RUNTIME_ASSET_PATHS
 )
 _RUNTIME_ASSET_DEST_RE = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._/-]*$")
 _OP_REGISTRY_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
@@ -247,12 +253,55 @@ def _runtime_asset_has_control_chars(value: str) -> bool:
     return any(ord(char) < 32 or ord(char) == 127 for char in value)
 
 
+def validate_runtime_asset_destination(destination: str) -> str:
+    """Normalize a destination path and reject traversal, reserved, and injectable names."""
+    if not isinstance(destination, str) or _runtime_asset_has_control_chars(destination):
+        raise SubstrateError(
+            f"Runtime asset destination contains control characters: {destination!r}"
+        )
+    try:
+        destination = validate_safe_relative_path(destination)
+    except ValueError as exc:
+        raise SubstrateError(str(exc)) from exc
+    if not _RUNTIME_ASSET_DEST_RE.fullmatch(destination):
+        raise SubstrateError(
+            f"Runtime asset destination is not a confined POSIX path: {destination!r}"
+        )
+    folded = destination.casefold()
+    first_component = folded.split("/", 1)[0]
+    if folded in RESERVED_RUNTIME_ASSET_PATHS_FOLD or first_component in RESERVED_RUNTIME_ASSET_PATHS_FOLD:
+        raise SubstrateError(f"Runtime asset destination is reserved: {destination!r}")
+    return destination
+
+
+def _dockerfile_copy_token(value: str, *, name: str) -> str:
+    if not isinstance(value, str) or _runtime_asset_has_control_chars(value):
+        raise SubstrateError(f"Invalid Dockerfile {name}: {value!r}")
+    if not re.fullmatch(r"/?[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*", value):
+        raise SubstrateError(f"Invalid Dockerfile {name}: {value!r}")
+    return value
+
+
 def _read_runtime_asset_source(source: Path) -> bytes:
-    if source.is_symlink():
-        raise SubstrateError(f"Runtime asset source is a symlink: {source.as_posix()}")
-    if not source.is_file():
-        raise SubstrateError(f"Runtime asset source is not a regular file: {source.as_posix()}")
-    return source.read_bytes()
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(source, flags)
+    except OSError as exc:
+        raise SubstrateError(
+            f"Runtime asset source is not a regular non-symlink file: {source.as_posix()}"
+        ) from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise SubstrateError(
+                f"Runtime asset source is not a regular file: {source.as_posix()}"
+            )
+        with os.fdopen(fd, "rb") as handle:
+            fd = -1
+            return handle.read()
+    finally:
+        if fd >= 0:
+            os.close(fd)
 
 
 def validate_runtime_assets(
@@ -265,28 +314,13 @@ def validate_runtime_assets(
     Results are sorted by destination for deterministic COPY/proof order.
     """
     prepared: dict[str, tuple[RuntimeAsset, bytes]] = {}
+    seen_fold: set[str] = set()
     for asset in runtime_assets:
-        destination = asset.destination
-        if not isinstance(destination, str) or _runtime_asset_has_control_chars(destination):
-            raise SubstrateError(
-                f"Runtime asset destination contains control characters: {destination!r}"
-            )
-        try:
-            destination = validate_safe_relative_path(destination)
-        except ValueError as exc:
-            raise SubstrateError(str(exc)) from exc
-        if not _RUNTIME_ASSET_DEST_RE.fullmatch(destination):
-            raise SubstrateError(
-                f"Runtime asset destination is not a confined POSIX path: {destination!r}"
-            )
-        first_component = destination.split("/", 1)[0]
-        if (
-            destination in RESERVED_RUNTIME_ASSET_PATHS
-            or first_component in RESERVED_RUNTIME_ASSET_PATHS
-        ):
-            raise SubstrateError(f"Runtime asset destination is reserved: {destination!r}")
-        if destination in prepared:
+        destination = validate_runtime_asset_destination(asset.destination)
+        folded = destination.casefold()
+        if folded in seen_fold:
             raise SubstrateError(f"Duplicate runtime asset destination: {destination!r}")
+        seen_fold.add(folded)
         source = asset.source if isinstance(asset.source, Path) else Path(asset.source)
         content = _read_runtime_asset_source(source)
         prepared[destination] = (
@@ -324,6 +358,33 @@ def _atomic_write_bytes(destination: Path, data: bytes) -> None:
     except Exception:
         tmp_path.unlink(missing_ok=True)
         raise
+
+
+def _reject_symlink_leaf(path: Path, *, label: str) -> None:
+    if path.is_symlink():
+        raise SubstrateError(f"{label} is a symlink: {path.as_posix()}")
+
+
+def _reject_planted_dockerignore(target_dir: Path) -> None:
+    for name in (".dockerignore", "Dockerfile.dockerignore"):
+        planted = target_dir / name
+        if planted.exists() or planted.is_symlink():
+            raise SubstrateError(f"Target contains reserved dockerignore file: {name}")
+
+
+def _remove_stale_plan_only_build_artifacts(target_dir: Path) -> None:
+    dockerfile = target_dir / "Dockerfile"
+    _reject_symlink_leaf(dockerfile, label="plan_only Dockerfile")
+    if dockerfile.exists():
+        dockerfile.unlink()
+    wheelhouse = target_dir / "wheelhouse"
+    if wheelhouse.is_symlink():
+        raise SubstrateError("plan_only wheelhouse is a symlink")
+    if wheelhouse.exists():
+        if wheelhouse.is_dir():
+            shutil.rmtree(wheelhouse)
+        else:
+            wheelhouse.unlink()
 
 
 def _runtime_asset_proof_records(
@@ -557,9 +618,23 @@ def render_mcp_sidecar_dockerfile(
     runtime_assets: Sequence[RuntimeAsset] = (),
 ) -> str:
     """Render canonical offline sidecar Dockerfile using strict hash-locked pip installation."""
+    wheelhouse_dir = _dockerfile_copy_token(wheelhouse_dir, name="wheelhouse_dir")
+    app_dir = _dockerfile_copy_token(app_dir, name="app_dir")
+    server_script_name = _dockerfile_copy_token(server_script_name, name="server_script_name")
+    if server_script_name != "server.py":
+        raise SubstrateError(f"server_script_name must be server.py, got {server_script_name!r}")
+    destinations: list[str] = []
+    seen_fold: set[str] = set()
+    for asset in runtime_assets:
+        destination = validate_runtime_asset_destination(asset.destination)
+        folded = destination.casefold()
+        if folded in seen_fold:
+            raise SubstrateError(f"Duplicate runtime asset destination: {destination!r}")
+        seen_fold.add(folded)
+        destinations.append(destination)
     asset_copy = "".join(
-        f"COPY {asset.destination} {app_dir}/{asset.destination}\n"
-        for asset in sorted(runtime_assets, key=lambda item: item.destination)
+        f"COPY {destination} {app_dir}/{destination}\n"
+        for destination in sorted(destinations)
     )
     return f"""FROM {base_image}
 
@@ -617,6 +692,7 @@ def materialize_mcp_sidecar_package(
     _require_op_registry_asset(op_registry_module, prepared_assets)
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
     target_dir.mkdir(parents=True, exist_ok=True)
+    _reject_planted_dockerignore(target_dir)
     confined_assets = tuple(
         (
             _assert_confined_nonsymlink_destination(target_dir, asset.destination),
@@ -634,7 +710,9 @@ def materialize_mcp_sidecar_package(
         op_registry_module=op_registry_module,
         fault_record=fault_record,
     )
-    (target_dir / "server.py").write_text(server_code, encoding="utf-8")
+    server_path = target_dir / "server.py"
+    _reject_symlink_leaf(server_path, label="server.py")
+    server_path.write_text(server_code, encoding="utf-8")
 
     sorted_assets = tuple(asset for _destination, asset, _content in confined_assets)
     for destination, _asset, content in confined_assets:
@@ -647,6 +725,7 @@ def materialize_mcp_sidecar_package(
 
     if plan_only:
         # Plan-only mode: Dockerfile and wheelhouse omitted
+        _remove_stale_plan_only_build_artifacts(target_dir)
         proof_data = {
             "mode": "plan_only",
             "substrate_version": MCP_SUBSTRATE_VERSION,
@@ -655,9 +734,9 @@ def materialize_mcp_sidecar_package(
         }
         if asset_proof:
             proof_data["runtime_assets"] = asset_proof
-        (target_dir / "offline-build-proof.json").write_text(
-            canonical_json(proof_data) + "\n", encoding="utf-8"
-        )
+        proof_path = target_dir / "offline-build-proof.json"
+        _reject_symlink_leaf(proof_path, label="offline-build-proof.json")
+        proof_path.write_text(canonical_json(proof_data) + "\n", encoding="utf-8")
     else:
         if wheelhouse_source is None:
             raise SubstrateError(
@@ -675,13 +754,17 @@ def materialize_mcp_sidecar_package(
         )
         wheel_inventory = verify_provenance_wheelhouse(dest_wheelhouse, resolver_provenance)
         requirements_lock = render_provenance_lock(resolver_provenance)
-        (target_dir / "requirements.txt").write_text(requirements_lock, encoding="utf-8")
+        requirements_path = target_dir / "requirements.txt"
+        _reject_symlink_leaf(requirements_path, label="requirements.txt")
+        requirements_path.write_text(requirements_lock, encoding="utf-8")
 
         # 3. Dockerfile
         dockerfile_content = render_mcp_sidecar_dockerfile(
             base_image=base_image, runtime_assets=sorted_assets
         )
-        (target_dir / "Dockerfile").write_text(dockerfile_content, encoding="utf-8")
+        dockerfile_path = target_dir / "Dockerfile"
+        _reject_symlink_leaf(dockerfile_path, label="Dockerfile")
+        dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
 
         proof_data = {
             "mode": "complete_offline_package",
@@ -694,12 +777,14 @@ def materialize_mcp_sidecar_package(
         }
         if asset_proof:
             proof_data["runtime_assets"] = asset_proof
-        (target_dir / "offline-build-proof.json").write_text(
-            canonical_json(proof_data) + "\n", encoding="utf-8"
-        )
+        proof_path = target_dir / "offline-build-proof.json"
+        _reject_symlink_leaf(proof_path, label="offline-build-proof.json")
+        proof_path.write_text(canonical_json(proof_data) + "\n", encoding="utf-8")
 
     if plan_only:
-        (target_dir / "requirements.txt").write_text(
+        requirements_path = target_dir / "requirements.txt"
+        _reject_symlink_leaf(requirements_path, label="requirements.txt")
+        requirements_path.write_text(
             "# plan-only; resolve a target wheelhouse before build\n", encoding="utf-8"
         )
 

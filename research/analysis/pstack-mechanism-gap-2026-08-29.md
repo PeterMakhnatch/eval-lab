@@ -101,10 +101,10 @@ Context-pack pressure, from a generated analyst pack header
 
 | # | Pstack mechanism | Current state | Disposition | Grounding evidence |
 |---|---|---|---|---|
-| 1 | `principle-sequence-verifiable-units` — **delivery altitude** (commit/PR shaping) | Absent. `CHECKS.md` defines green, not reviewable shape. | **ADOPT** | #280 at +56151 lines in one PR; #282 at 45 files and `DIRTY`; all PRs `reviewDecision: null` |
+| 1 | `principle-sequence-verifiable-units` — **delivery altitude** (commit/PR shaping) | Absent. `CHECKS.md` defines green, not reviewable shape. | **ADAPT** — upstream's failing-test-first shape is **rejected**; every commit must be green because `CHECKS.md` makes green a property of the exact head. Per-unit verification scoped to a single serial writer; concurrent delegates skip validation and the integration owner validates at a barrier. | #280 at +56151 lines in one PR; #282 at 45 files and `DIRTY`; all PRs `reviewDecision: null` |
 | 2 | `show-me-your-work` — TSV decision trail | Absent as a format. Ad-hoc equivalents exist and do not land. | **ADAPT** (format only; drop helper script, slash command, cross-model review requirement, transcript globbing) | 8 single-commit `docs/*` ledger branches, unmerged, 54–72 behind |
 | 3 | `principle-build-the-lever` | Practised, never contracted. | **ADOPT** | `verify_roadmap_claims.py` in #300; citation-verification ledger in #269. Both ad hoc. |
-| 4 | `principle-guard-the-context-window` | Absent. | **ADAPT** (state as scoping defect, not a token ceiling) | Context pack shed 103,119 of ~116,224 tokens against a 12,000 budget |
+| 4 | `principle-guard-the-context-window` | Absent. | **ADAPT** — stated as a scoping defect, not a token ceiling. Delegation permitted only where already authorized and with non-overlapping write scopes per delegate. | Context pack shed 103,119 of ~116,224 tokens against a 12,000 budget |
 | 5 | `principle-separate-before-serializing-shared-state` | Instruction exists (`WORKFLOW.md:20`); structural ownership partial via `lane/*`. Pstack is explicit that "instructions and conventions are not concurrency control." | **DEFER to Custodian** — enforcement, not authoring | 161 branches, 64 worktrees, 11 duplicate stems |
 | 6 | `principle-migrate-callers-then-delete-legacy-apis` — branch/worktree generations | Adopted for code only. | **DEFER to Custodian** | 43 dead branches at median 279 behind, all carrying unmerged commits; `role/*` is 54 of 161 |
 | 7 | `principle-make-operations-idempotent` | Already adopted, with per-step metadata. | **REJECT as redundant** | `AGENTS.md:32`; nightly registry `idempotent` flag; 3 named idempotence tests |
@@ -131,6 +131,22 @@ it cheaply. Four separate files would be the catalogue growth that
 
 Deliberately excluded from the skill: the TSV helper script, `/slash` surfaces, the
 mandatory cross-model review subagent, and transcript globbing.
+
+### Corrections applied after review of PR #304
+
+Four blocking defects in the first draft of the skill, all confirmed against
+repository contracts:
+
+| Defect | Why it was wrong | Correction |
+|---|---|---|
+| Trail path `.audit/<slug>.tsv` | Undeclared top-level entry. `git check-ignore` confirms `.audit/` is **not** ignored, and `AGENTS.md:45` freezes the root. | Ephemeral trails now at `runs/decision-trails/<slug>.tsv` — `runs/` is ignored at `.gitignore:19` and already declared at `agents/STRUCTURE.md:119`. Durable output goes to `research/analysis/`. No root change needed. |
+| Per-unit verification stated unconditionally | Contradicted the parallel-worker policy. Concurrent delegates that validate mid-flight block on each other's in-progress edits and produce failures owned by nobody. | Scoped explicitly to a single serial writer. Concurrent fan-out inverts it: delegates skip validation, a named integration owner validates at a defined barrier or after integration. |
+| Failing-test-first commit ordering, with "each commit stands alone" | Self-contradictory, and it breaks `agents/CHECKS.md`: green is a property of the exact head, and any commit can become a head under bisect, revert, or partial merge. A red commit cannot stand alone. | Every commit must be green. Prior failure is demonstrated by a same-commit regression test, or by a green test pinning the old behaviour through a fixture or parametrised case. Upstream's canonical shape is rejected and the rejection is recorded in the skill's Provenance. |
+| "Route bulk to subagents" stated unconditionally | Implied delegation is always available, and said nothing about write collisions. | Permitted only where delegation is already authorized, and only with non-overlapping write scopes per delegate. Delegation is not a route to unapproved authorization. |
+
+The first and third defects are the substantive ones: both were places where an
+upstream idiom was imported without checking it against a contract this repository
+already enforces.
 
 Not touched: `docs/INDEX.md` and `docs/repo-map.md` (owned by PR #301); any branch,
 worktree, or evidence directory.

@@ -1,21 +1,21 @@
 <!-- REVISION 2. An independent review found five blockers in revision 1, all
 valid, all fixed at root. Two numbers I reported to Main and Tutor were WRONG:
-the universe is 183 items in 20 clusters, not 237 in 23. See §0. -->
+the universe is 167 items in 20 clusters after clone dedup. See §0. -->
 
 ---
 type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-7-after-late-security-review
+status: revision-8-after-security-review-3
 readiness: NOT_READY (6 blockers)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: 1196a6c80bd54ad78ee05592dac8c711af0c3f850a282354ad8dd9d8a0c272d8
-revision: 7
+package_sha256: 6bb6a7b05785a26e11b4f5f27ff155cab7736bdbb9662bdfa2d140f95bd4ef44
+revision: 8
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -59,15 +59,14 @@ Two further corrections to revision 1's own claims, found while fixing B1:
   Revision 1 claimed it was absent and that stratification needed a `traj_features`
   join. Wrong; it is in the trajectory.
 
-## 1. Readiness — NOT_READY, fail-closed, SIX blockers
+## 1. Readiness — NOT_READY, fail-closed, 5 blockers
 
 ```
 readiness NOT_READY
-EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
-CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
-CONTEXT_INCOMPLETE_TOO_HIGH: 149/183 (81.4%) > 20%
+EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.84 < 20.0
+CLUSTER_CONCENTRATION_TOO_HIGH: 13.8% > 5%
 QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
-ITEMS_WITH_ZERO_VALID_RATINGS: 183
+ITEMS_WITH_ZERO_VALID_RATINGS: 167
 REGISTRY: REGISTRY_ABSENT
 ```
 
@@ -153,7 +152,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `sha256 1196a6c8…`.
+byte-identical package, `sha256 6bb6a7b0…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -253,15 +252,19 @@ Tutor, since the cross-check value and the priming risk trade off directly.
 | Quantity | Value | Target |
 |---|---|---|
 | Raw clusters | 20 | — |
-| **Kish $K_{\text{eff}}$** | **13.33** | $\ge$ 20 |
-| Max cluster concentration | **16.9%** | $\le$ 5% |
+| **Kish $K_{\text{eff}}$** | **13.84** | $\ge$ 20 |
+| Max cluster concentration | **13.8%** | $\le$ 5% |
 
-$$K_{\text{eff}} = \frac{\left(\sum n_i\right)^2}{\sum n_i^2} = \frac{183^2}{2513} = 13.33$$
+$$K_{\text{eff}} = \frac{\left(\sum n_i\right)^2}{\sum n_i^2} = \frac{167^2}{2015} = 13.84$$
 
-Tutor's verdict, independently reproduced here: $K_{\text{eff}} = 13.33 < 20$, and
-even a perfectly balanced 20-cluster split reaches only 19.97 — so **20 raw clusters
-cannot clear the floor at any concentration.** One cluster carries 31 of 183 items
-(16.9 %) against a 5 % target.
+Independently reproduced from Tutor's verdict. Even a perfectly balanced 20-cluster
+split reaches only **19.97**, so 20 raw clusters cannot clear the floor at any
+concentration. Largest cluster carries 23 of 167 items
+(13.8%) against a 5% target.
+
+Deduplicating 16 semantic clones moved $K_{\text{eff}}$ from 13.33 to
+13.84 and concentration from 16.9 % to 13.8% — real but
+nowhere near sufficient.
 
 **Labelling is on HOLD. A data campaign is required before raters are recruited.**
 Recruiting three raters now would spend human time on a package that cannot yield a
@@ -280,8 +283,8 @@ readiness blockers. It fails closed and is asserted by test, including that a
 balanced 40-cluster design clears it. Current output:
 
 ```
-blocker EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
-blocker CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
+blocker EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.84 < 20.0
+blocker CLUSTER_CONCENTRATION_TOO_HIGH: 13.8% > 5%
 ```
 
 An agreement interval must still come from a **cluster bootstrap resampling
@@ -392,60 +395,88 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 100 standalone checks + 12 pytest
+python3 research/goldset/test_labeling_package.py   # 116 standalone checks + 16 pytest
 ```
 
-Expect `package_sha256 1196a6c80bd54ad78ee05592dac8c711af0c3f850a282354ad8dd9d8a0c272d8`
+Expect `package_sha256 6bb6a7b05785a26e11b4f5f27ff155cab7736bdbb9662bdfa2d140f95bd4ef44`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 
 ## 7. Blockers — labeling must NOT start
 
-**Five blockers. Recruiting raters clears only two of them.**
+**5 blockers. Each is first-class; none is a prerequisite of another.**
 
 ```
-EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
-CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
+EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.84 < 20.0
+CLUSTER_CONCENTRATION_TOO_HIGH: 13.8% > 5%
 QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
-ITEMS_WITH_ZERO_VALID_RATINGS: 183
+ITEMS_WITH_ZERO_VALID_RATINGS: 167
 REGISTRY: REGISTRY_ABSENT
 ```
 
 ### 7.1 Design blockers — a data campaign, not recruitment
 
-$K_{\text{eff}} = 13.33$ against a floor of 20, concentration 16.9 % against a 5 %
-target. **Even a perfectly balanced 20-cluster split reaches only 19.97**, so the
-present corpus cannot clear the floor at any concentration.
+| Quantity | Value | Target |
+|---|---|---|
+| Kish $K_{\text{eff}}$ | **13.84** | $\ge$ 20 |
+| Max cluster concentration | **13.8%** | $\le$ 5% |
 
-**No amount of rater recruitment fixes this.** Labelling must not begin before new
-data exists. Campaign target: **~35–50 new distinct logical trajectory digests,
-$\le$ 5 % concentration, $K = \max(30,\; 96\rho)$ after an ICC pilot.**
+Even a perfectly balanced 20-cluster split reaches only **19.97**, so 20 raw
+clusters cannot clear the floor at any concentration. **No amount of rater
+recruitment fixes this.**
 
-### 7.2 Rater blockers — external, and second in order
+### 7.2 Context self-containment — was a blocker, now CLEARED, and how
 
-Three qualified independent rater key IDs per item, supplied through a **signed
-registry** (`goldset-rater-registry/v1`) verified against an authority secret. An
-absent, unsigned, or tampered registry yields an **empty pool plus an explicit
-problem**, never a silent pass. Duplicate or conflicting submissions from one
-`(item, rater)` **fail** rather than collapsing into a set.
+Revision 7 reported `CONTEXT_INCOMPLETE_TOO_HIGH: 149/183 (81.4%)`. That was real:
+`MAX_TEXT_CHARS`/`MAX_OBS_CHARS` were **4000**, truncating prior tool arguments and
+observations, so four items in five shipped with context the builder itself knew
+was incomplete.
+
+**Adding clusters would not have fixed it** — truncation is an export defect, not a
+sampling one. The corpus is only **756 KB** in total, so truncating it was
+gratuitous. Limits raised to 262 144 chars; measured maximum payload is 42 387.
+
+Result: **{'COMPLETE': 167} — nothing truncated, verified by test in both
+suites.** The gate remains in force at
+`MAX_INCOMPLETE_CONTEXT_FRACTION = 20%` and
+**any future item that truncates is excluded from delivery entirely** — a rater is
+never asked to flag context we already know is missing.
+
+**Standing requirement for the campaign:** new collection and export must produce
+self-contained contexts. If a future corpus is large enough to truncate, the
+correct response is to raise the limit or exclude the item, never to ship it and
+rely on `INSUFFICIENT_CONTEXT`.
+
+### 7.3 Rater blockers — external
+
+Three qualified independent rater key IDs per item, from a **signed roster**
+(`goldset-rater-registry/v1`, `key_id` + `qualified` only) plus a **separate
+never-exported keystore** (`goldset-rater-keystore/v1`). Absent, unsigned, or
+tampered roster yields an empty pool plus an explicit problem. A roster containing
+secret material is rejected outright.
+
+Every submission binds **three digests** — `package_digest`, `item_set_digest`,
+`item_context_digest` — and is HMAC-signed. Altering the task instruction or any
+prior observation invalidates the record. Duplicate or conflicting submissions from
+one `(item, rater)` **fail**; they never collapse into a set.
 
 No substitute is permitted: not LLM judges, not the Analyst, not synthetic labels.
 
-### 7.3 Internal, pending Tutor — honestly null
+### 7.4 Internal, pending Tutor — honestly null
 
 `agreement_statistic`, `acceptance_threshold`, `required_interval_width`,
-`adjudication_rule`, `rater_qualification_criteria` all remain `null`. **No
-published floor was imported**, because none is quotable: 20 of 31 asserted arXiv
-IDs were fabricated placeholders, and the $\kappa$ / $\alpha$ figures are attached to
-papers whose bodies were never read.
+`adjudication_rule`, `rater_qualification_criteria` all remain `null`. No published
+floor was imported, because none is quotable.
 
-### 7.4 Correct order
+### 7.5 Order
 
-1. Run the data campaign (§7.1)
-2. Re-cut the package; confirm the cluster gate clears
-3. Tutor sets the agreement statistic and threshold
-4. Publish the signed rater registry
-5. Recruit and qualify three raters
-6. Label
+1. Run the data campaign (§7.1) — **~35–50 new distinct logical digests,
+   $\le$ 5 % concentration, $K = \max(30,\; 96\rho)$ after an ICC pilot**
+2. Verify the export is self-contained (§7.2) before anything ships
+3. Re-cut; confirm the cluster **and** context gates clear
+4. Tutor sets the agreement statistic and threshold
+5. Publish the signed roster and provision the keystore
+6. Recruit and qualify three raters
+7. Label
 
-Steps 1–2 are **prerequisites** for 5–6, not parallel to them.
+Steps 1–3 are **prerequisites** for 6–7, not parallel to them.

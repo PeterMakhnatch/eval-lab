@@ -31,10 +31,12 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
     SourceRejectedError,
     build_package,
     compute_build_id,
+    compute_item_context_digest,
     effective_clusters,
     evaluate_cluster_adequacy,
     evaluate_readiness,
     export_rater_bundle,
+    label_item_from_dict,
     load_paired_artifacts,
     load_rater_registry,
     logical_trial_digest,
@@ -45,9 +47,9 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
     write_paired_outputs,
 )
 
-EXPECTED_ITEMS = 183
+EXPECTED_ITEMS = 167  # 183 raw agent steps minus 16 semantic clones
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "1196a6c80bd54ad78ee05592dac8c711af0c3f850a282354ad8dd9d8a0c272d8"
+EXPECTED_DIGEST = "6bb6a7b05785a26e11b4f5f27ff155cab7736bdbb9662bdfa2d140f95bd4ef44"
 
 
 def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
@@ -180,8 +182,8 @@ def main() -> int:
         f"got {package['census']['duplicate_paths_dropped']}",
     )
     check(
-        "unique agent steps is 183 not 237",
-        package["census"]["agent_steps_unique"] == 183,
+        "unique agent steps is 167 after clone dedup",
+        package["census"]["agent_steps_unique"] == EXPECTED_ITEMS,
         f"got {package['census']['agent_steps_unique']}",
     )
     check(
@@ -216,6 +218,8 @@ def main() -> int:
             selection_arm="prevalence_core",
             cluster_id=f"{n:064d}",
             logical_step_digest=f"{n:064x}",
+            item_context_digest=f"{n:064x}",
+            logical_lineage=(),
             context_completeness={"builder_verdict": "COMPLETE"},
             rater_context={},
         )
@@ -226,9 +230,10 @@ def main() -> int:
     def _signed(item_id: str, key_id: str, **over: object) -> dict:
         rec = {
             "schema_version": RATING_SCHEMA_VERSION,
+            "package_digest": "pkg",
             "item_set_digest": "iset",
             "item_id": item_id,
-            "item_digest": None,
+            "item_context_digest": None,
             "rater_key_id": key_id,
             **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
             **over,
@@ -241,17 +246,19 @@ def main() -> int:
             fake,
             recs,
             list(b4_keyring),
+            package_digest="pkg",
             item_set_digest="iset",
             keyring=b4_keyring,
         )["readiness"]
 
-    good = _signed("item000", "r1", item_digest=f"{0:064x}")
+    good = _signed("item000", "r1", item_context_digest=f"{0:064x}")
     check(
         "valid record passes validation",
         validate_rating(
             good,
+            package_digest="pkg",
             item_set_digest="iset",
-            item_digests={"item000": f"{0:064x}"},
+            context_digests={"item000": f"{0:064x}"},
             keyring=b4_keyring,
         )
         == [],
@@ -271,7 +278,7 @@ def main() -> int:
         ),
     )
     three = [
-        _signed(i.item_id, f"r{n}", item_digest=i.logical_step_digest)
+        _signed(i.item_id, f"r{n}", item_context_digest=i.item_context_digest)
         for i in fake
         for n in range(1, 4)
     ]
@@ -283,7 +290,7 @@ def main() -> int:
         "same rater three times does NOT clear readiness",
         _readiness(
             [
-                _signed(i.item_id, "r1", item_digest=i.logical_step_digest)
+                _signed(i.item_id, "r1", item_context_digest=i.item_context_digest)
                 for i in fake
                 for _ in range(3)
             ]
@@ -293,7 +300,12 @@ def main() -> int:
     check(
         "unqualified rater does NOT clear readiness",
         evaluate_readiness(
-            fake, three, ["r1", "r2", "rX"], item_set_digest="iset", keyring=b4_keyring
+            fake,
+            three,
+            ["r1", "r2", "rX"],
+            package_digest="pkg",
+            item_set_digest="iset",
+            keyring=b4_keyring,
         )["readiness"]
         == "NOT_READY",
     )
@@ -304,7 +316,7 @@ def main() -> int:
                 _signed(
                     i.item_id,
                     f"r{n}",
-                    item_digest=i.logical_step_digest,
+                    item_context_digest=i.item_context_digest,
                     abstention=None,
                 )
                 for i in fake
@@ -321,6 +333,7 @@ def main() -> int:
                 fake,
                 three + three,
                 list(b4_keyring),
+                package_digest="pkg",
                 item_set_digest="iset",
                 keyring=b4_keyring,
             )["blockers"]
@@ -337,12 +350,13 @@ def main() -> int:
                     _signed(
                         i.item_id,
                         "r1",
-                        item_digest=i.logical_step_digest,
+                        item_context_digest=i.item_context_digest,
                         step_contribution="HARMFUL",
                     )
                     for i in fake
                 ],
                 list(b4_keyring),
+                package_digest="pkg",
                 item_set_digest="iset",
                 keyring=b4_keyring,
             )["blockers"]
@@ -398,7 +412,7 @@ def main() -> int:
 
     print("committed package is pinned")
     check(
-        f"item count is {EXPECTED_ITEMS}",
+        f"item count is {EXPECTED_ITEMS} (clones deduped)",
         len(items) == EXPECTED_ITEMS,
         f"got {len(items)}",
     )
@@ -460,8 +474,8 @@ def main() -> int:
     )
     adequacy = package["readiness"]["cluster_adequacy"]
     check(
-        "package reports K_eff = 13.33",
-        abs(adequacy["effective_clusters_kish"] - 13.33) < 0.01,
+        "package reports K_eff = 13.84",
+        abs(adequacy["effective_clusters_kish"] - 13.84) < 0.01,
         f"got {adequacy['effective_clusters_kish']}",
     )
     check(
@@ -497,8 +511,8 @@ def main() -> int:
             bundle["package_digest"] == package["package_digest"],
         )
         check(
-            "every bundle item binds an item_digest",
-            all("item_digest" in i for i in bundle["items"]),
+            "every bundle item binds an item_context_digest",
+            all("item_context_digest" in i for i in bundle["items"]),
         )
         check(
             "bundle exposes no machine-truth prose",
@@ -562,9 +576,10 @@ def main() -> int:
     keyring = {"key-1": "s3cret", "key-2": "s3cret2", "key-3": "s3cret3"}
     base = {
         "schema_version": RATING_SCHEMA_VERSION,
+        "package_digest": "pkg",
         "item_set_digest": "iset",
         "item_id": "item000",
-        "item_digest": f"{0:064x}",
+        "item_context_digest": f"{0:064x}",
         "rater_key_id": "key-1",
         **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
     }
@@ -572,36 +587,52 @@ def main() -> int:
     digests = {"item000": f"{0:064x}"}
     check(
         "correctly signed record validates",
-        validate_rating(signed, item_set_digest="iset", item_digests=digests, keyring=keyring)
+        validate_rating(
+            signed,
+            package_digest="pkg",
+            item_set_digest="iset",
+            context_digests=digests,
+            keyring=keyring,
+        )
         == [],
     )
     check(
         "self-asserted record with no signature is rejected",
         "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
-        in validate_rating(base, item_set_digest="iset", item_digests=digests, keyring=keyring),
+        in validate_rating(
+            base,
+            package_digest="pkg",
+            item_set_digest="iset",
+            context_digests=digests,
+            keyring=keyring,
+        ),
     )
     check(
         "unregistered key is rejected",
         "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
         in validate_rating(
             {**signed, "rater_key_id": "rogue"},
+            package_digest="pkg",
             item_set_digest="iset",
-            item_digests=digests,
+            context_digests=digests,
             keyring=keyring,
         ),
     )
     check(
         "item_set_digest mismatch is rejected (replay defence)",
         "ITEM_SET_DIGEST_MISMATCH"
-        in validate_rating(signed, item_set_digest="OTHER", item_digests=digests, keyring=keyring),
+        in validate_rating(
+            signed, item_set_digest="OTHER", context_digests=digests, keyring=keyring
+        ),
     )
     check(
-        "item_digest mismatch is rejected",
-        "ITEM_DIGEST_MISMATCH"
+        "item_context_digest mismatch is rejected",
+        "ITEM_CONTEXT_DIGEST_MISMATCH"
         in validate_rating(
-            {**signed, "item_digest": "f" * 64},
+            {**signed, "item_context_digest": "f" * 64},
+            package_digest="pkg",
             item_set_digest="iset",
-            item_digests=digests,
+            context_digests=digests,
             keyring=keyring,
         ),
     )
@@ -610,8 +641,9 @@ def main() -> int:
         "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
         in validate_rating(
             {**signed, "step_contribution": "HARMFUL"},
+            package_digest="pkg",
             item_set_digest="iset",
-            item_digests=digests,
+            context_digests=digests,
             keyring=keyring,
         ),
     )
@@ -766,6 +798,155 @@ def main() -> int:
     check(
         "package records the registry blocker",
         any("REGISTRY" in b for b in package["readiness"]["blockers"]),
+    )
+
+    print("E2E - signed 3-rater fixture against the REAL package")
+    real_isd = package["readiness"]["authentication"]["item_set_digest"]
+    real_pd = package["package_digest"]
+    e2e_keys = {f"rater-{n}": f"secret-{n}" for n in (1, 2, 3)}
+    real_items = [label_item_from_dict(item) for item in package["items"][:6]]
+
+    def _e2e(item: LabelItem, key_id: str, **over: object) -> dict:
+        rec = {
+            "schema_version": RATING_SCHEMA_VERSION,
+            "package_digest": real_pd,
+            "item_set_digest": real_isd,
+            "item_id": item.item_id,
+            "item_context_digest": item.item_context_digest,
+            "rater_key_id": key_id,
+            **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            **over,
+        }
+        rec["signature"] = sign_rating(rec, e2e_keys[key_id])
+        return rec
+
+    full = [_e2e(i, f"rater-{n}") for i in real_items for n in (1, 2, 3)]
+    e2e_result = evaluate_readiness(
+        real_items,
+        full,
+        list(e2e_keys),
+        package_digest=real_pd,
+        item_set_digest=real_isd,
+        keyring=e2e_keys,
+    )
+    rater_blockers = [
+        b for b in e2e_result["blockers"] if "RATER" in b or "RATING" in b or "SUBMISSION" in b
+    ]
+    check("3 signed raters clear every RATER-side blocker", rater_blockers == [])
+    check(
+        "real context digests validate end to end",
+        all(
+            validate_rating(
+                r,
+                package_digest=real_pd,
+                item_set_digest=real_isd,
+                context_digests={i.item_id: i.item_context_digest for i in real_items},
+                keyring=e2e_keys,
+            )
+            == []
+            for r in full
+        ),
+    )
+
+    print("ATTACK - tampering must invalidate")
+    ctx_map = {i.item_id: i.item_context_digest for i in real_items}
+
+    def _attack(record: dict) -> list[str]:
+        return validate_rating(
+            record,
+            package_digest=real_pd,
+            item_set_digest=real_isd,
+            context_digests=ctx_map,
+            keyring=e2e_keys,
+        )
+
+    check(
+        "altered item_context_digest is rejected",
+        "ITEM_CONTEXT_DIGEST_MISMATCH" in _attack({**full[0], "item_context_digest": "f" * 64}),
+    )
+    check(
+        "altered label is rejected (signature covers labels)",
+        "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
+        in _attack({**full[0], "step_contribution": "HARMFUL"}),
+    )
+    check(
+        "replayed item_set_digest from another cut is rejected",
+        "ITEM_SET_DIGEST_MISMATCH" in _attack({**full[0], "item_set_digest": "0" * 64}),
+    )
+    check(
+        "replayed package_digest is rejected",
+        "PACKAGE_DIGEST_MISMATCH" in _attack({**full[0], "package_digest": "0" * 64}),
+    )
+    check(
+        "absent keyring FAILS CLOSED, never skips",
+        "SIGNATURE_UNVERIFIABLE_NO_KEYRING"
+        in validate_rating(
+            full[0],
+            package_digest=real_pd,
+            item_set_digest=real_isd,
+            context_digests=ctx_map,
+            keyring=None,
+        ),
+    )
+    check(
+        "unenforced digests are themselves errors",
+        {
+            "PACKAGE_DIGEST_NOT_ENFORCED",
+            "ITEM_SET_DIGEST_NOT_ENFORCED",
+            "ITEM_CONTEXT_DIGEST_NOT_ENFORCED",
+        }
+        <= set(validate_rating(full[0], keyring=e2e_keys)),
+    )
+    check(
+        "tampering the INSTRUCTION changes the context digest",
+        compute_item_context_digest(
+            {
+                **package["items"][0]["rater_context"],
+                "instruction": {"presumed_task_statement": {"message": "OTHER TASK"}},
+            }
+        )
+        != package["items"][0]["item_context_digest"],
+    )
+    check(
+        "tampering a PRIOR OBSERVATION changes the context digest",
+        compute_item_context_digest({**package["items"][0]["rater_context"], "prior_steps": []})
+        != package["items"][0]["item_context_digest"],
+    )
+
+    print("SEC-CLONE - item-level logical dedup with lineage")
+    logicals = [i["logical_step_digest"] for i in items]
+    check("no two ITEMS share a logical step digest", len(logicals) == len(set(logicals)))
+    check(
+        "clone drops are recorded",
+        package["census"]["clone_items_dropped"] > 0,
+    )
+    check(
+        "merged items preserve raw lineage",
+        any(len(i["logical_lineage"]) > 1 for i in items),
+    )
+
+    print("SEC-DELIVERY - incomplete items are never shipped")
+    check(
+        "no INCOMPLETE item is deliverable",
+        all(
+            i["context_completeness"]["builder_verdict"] == "COMPLETE"
+            for i in items
+            if i["item_id"] in set(package["deliverable_item_ids"])
+        ),
+    )
+    check(
+        "excluded_incomplete is reported",
+        "excluded_incomplete" in package,
+    )
+    check(
+        "nothing is truncated at current corpus size",
+        not any(
+            s["message_truncated"]
+            or any(c["arguments_truncated"] for c in s["tool_calls"])
+            or any(o["content_truncated"] for o in s["observation"])
+            for i in items
+            for s in [*i["rater_context"]["prior_steps"], i["rater_context"]["item_step"]]
+        ),
     )
 
     print()

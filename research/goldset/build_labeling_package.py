@@ -54,7 +54,7 @@ import random
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -62,8 +62,8 @@ SCHEMA_VERSION = "goldset-labeling-package/v2"
 TAXONOMY_VERSION = "analyst-step-taxonomy/v2"
 RATING_SCHEMA_VERSION = "goldset-rating-record/v1"
 
-MAX_TEXT_CHARS = 4000
-MAX_OBS_CHARS = 4000
+MAX_TEXT_CHARS = 262144  # corpus is ~756 KB; truncating it was gratuitous
+MAX_OBS_CHARS = 262144
 
 CANNOT_JUDGE = "CANNOT_JUDGE"
 INSUFFICIENT_CONTEXT = "INSUFFICIENT_CONTEXT"
@@ -327,6 +327,7 @@ class LabelItem:
     source_sha256: str
     step_index: int
     source_aliases: tuple[str, ...]
+    logical_lineage: tuple[str, ...]
     model_name: str | None
     agent_name: str | None
     stratum: str
@@ -334,8 +335,34 @@ class LabelItem:
     selection_arm: SelectionArm
     cluster_id: str
     logical_step_digest: str
+    item_context_digest: str
     context_completeness: dict[str, Any]
     rater_context: dict[str, Any]
+
+
+def label_item_from_dict(payload: Mapping[str, Any]) -> LabelItem:
+    """Typed reconstruction from a serialized item. Lists become tuples."""
+    return LabelItem(
+        item_id=str(payload["item_id"]),
+        source_sha256=str(payload["source_sha256"]),
+        step_index=int(payload["step_index"]),
+        source_aliases=tuple(payload["source_aliases"]),
+        logical_lineage=tuple(payload["logical_lineage"]),
+        model_name=payload.get("model_name"),
+        agent_name=payload.get("agent_name"),
+        stratum=str(payload["stratum"]),
+        sampling_weight=float(payload["sampling_weight"]),
+        selection_arm=(
+            "rare_cell_boost"
+            if payload["selection_arm"] == "rare_cell_boost"
+            else "prevalence_core"
+        ),
+        cluster_id=str(payload["cluster_id"]),
+        logical_step_digest=str(payload["logical_step_digest"]),
+        item_context_digest=str(payload["item_context_digest"]),
+        context_completeness=dict(payload["context_completeness"]),
+        rater_context=dict(payload["rater_context"]),
+    )
 
 
 @dataclass(frozen=True)
@@ -544,6 +571,7 @@ def enumerate_universe(
                     source_sha256=digest,
                     step_index=index,
                     source_aliases=aliases,
+                    logical_lineage=(),
                     model_name=agent_meta.get("model_name"),
                     agent_name=agent_meta.get("name"),
                     stratum=_stratum_of(step, index, len(steps)),
@@ -551,6 +579,7 @@ def enumerate_universe(
                     selection_arm="prevalence_core",
                     cluster_id=logical_trial,  # logical, not raw-byte (sec fix 2)
                     logical_step_digest=logical_step_digest(step),
+                    item_context_digest="",  # stamped below once context is built
                     context_completeness=_completeness(steps, index),
                     rater_context={
                         "instruction": _extract_instruction(steps, index),
@@ -582,6 +611,41 @@ def enumerate_universe(
         for digest, group in sorted(by_sha.items())
     }
 
+    # Stamp the context digest now that rater_context exists.
+    items = [
+        replace(i, item_context_digest=compute_item_context_digest(i.rater_context)) for i in items
+    ]
+
+    # Semantic clones were previously distinct ITEMS: 183 items carried only 167
+    # distinct logical step digests. Deduplicate on the logical digest and keep
+    # every raw lineage alias on the survivor.
+    deduped: dict[str, LabelItem] = {}
+    lineage: dict[str, list[str]] = {}
+    clone_items_dropped = 0
+    for item in items:
+        key = item.logical_step_digest
+        entry = json.dumps(
+            {
+                "source_sha256": item.source_sha256,
+                "step_index": item.step_index,
+                "source_aliases": list(item.source_aliases),
+            },
+            sort_keys=True,
+        )
+        if key in deduped:
+            clone_items_dropped += 1
+            lineage[key].append(entry)
+            continue
+        deduped[key] = item
+        lineage[key] = [entry]
+
+    items = [
+        replace(i, logical_lineage=tuple(lineage[i.logical_step_digest])) for i in deduped.values()
+    ]
+    keep_ids = {i.item_id for i in items}
+    truths = [tr for tr in truths if tr.item_id in keep_ids]
+    per_cluster = [i.cluster_id for i in items]
+
     empty_msg = sum(1 for i in items if i.rater_context["item_step"]["message_is_empty"])
     census = {
         "trajectory_files_seen": len(paths),
@@ -589,6 +653,7 @@ def enumerate_universe(
         "rejection_reasons": sorted(rejected),
         "distinct_content_digests": len(by_sha),
         "duplicate_paths_dropped": duplicate_paths_dropped,
+        "clone_items_dropped": clone_items_dropped,
         "agent_steps_unique": len(items),
         "clusters_with_agent_steps": len(set(per_cluster)),
         "items_with_empty_message": empty_msg,
@@ -650,6 +715,7 @@ def _rearm(item: LabelItem, weight: float, arm: SelectionArm) -> LabelItem:
         source_sha256=item.source_sha256,
         step_index=item.step_index,
         source_aliases=item.source_aliases,
+        logical_lineage=item.logical_lineage,
         model_name=item.model_name,
         agent_name=item.agent_name,
         stratum=item.stratum,
@@ -657,6 +723,7 @@ def _rearm(item: LabelItem, weight: float, arm: SelectionArm) -> LabelItem:
         selection_arm=arm,
         cluster_id=item.cluster_id,
         logical_step_digest=item.logical_step_digest,
+        item_context_digest=item.item_context_digest,
         context_completeness=item.context_completeness,
         rater_context=item.rater_context,
     )
@@ -822,7 +889,20 @@ def load_rater_registry(
     return qualified, keyring, problems
 
 
-def compute_item_set_digest(items: Sequence[LabelItem]) -> str:
+def compute_item_context_digest(rater_context: Mapping[str, Any]) -> str:
+    """Digest over EVERY rater-visible field: instruction, all prior steps, item.
+
+    Binding only the current step's logical digest left the task instruction and
+    all prior observations unbound - they could be altered while every signature
+    and readiness check still passed, so labels would silently become answers to a
+    different question. This digest closes that.
+    """
+    return hashlib.sha256(
+        json.dumps(rater_context, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def compute_item_set_digest(items: Sequence[LabelItem], codebook_version: str) -> str:
     """Stable anchor ratings bind to. Changes on ANY recut that alters items.
 
     package_digest cannot serve: it is stamped at write time, after readiness, so
@@ -831,7 +911,10 @@ def compute_item_set_digest(items: Sequence[LabelItem]) -> str:
     """
     return hashlib.sha256(
         json.dumps(
-            sorted((i.item_id, i.logical_step_digest) for i in items),
+            {
+                "codebook_version": codebook_version,
+                "items": sorted((i.item_id, i.item_context_digest) for i in items),
+            },
             sort_keys=True,
         ).encode("utf-8")
     ).hexdigest()
@@ -839,9 +922,10 @@ def compute_item_set_digest(items: Sequence[LabelItem]) -> str:
 
 RATING_SIGNED_FIELDS = (
     "schema_version",
+    "package_digest",
     "item_set_digest",
     "item_id",
-    "item_digest",
+    "item_context_digest",
     "rater_key_id",
     *HUMAN_JUDGED_FIELDS,
 )
@@ -896,8 +980,9 @@ def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
 def validate_rating(
     record: dict[str, Any],
     *,
+    package_digest: str | None = None,
     item_set_digest: str | None = None,
-    item_digests: Mapping[str, str] | None = None,
+    context_digests: Mapping[str, str] | None = None,
     keyring: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Validate one RatingRecord.
@@ -919,16 +1004,26 @@ def validate_rating(
 
     # Replay defence: a rating signed against a different item set is rejected
     # even when the individual item_id and logical digest still exist (P1).
+    if package_digest is None:
+        errors.append("PACKAGE_DIGEST_NOT_ENFORCED")
+    elif record.get("package_digest") != package_digest:
+        errors.append("PACKAGE_DIGEST_MISMATCH")
+
     if item_set_digest is None:
         errors.append("ITEM_SET_DIGEST_NOT_ENFORCED")
     elif record.get("item_set_digest") != item_set_digest:
         errors.append("ITEM_SET_DIGEST_MISMATCH")
-    if item_digests is not None and item_id:
-        expected = item_digests.get(item_id)
+
+    # Tamper defence: the rater signs the CONTEXT THEY SAW, so altering the task
+    # instruction or any prior observation invalidates the record.
+    if context_digests is None:
+        errors.append("ITEM_CONTEXT_DIGEST_NOT_ENFORCED")
+    elif item_id:
+        expected = context_digests.get(item_id)
         if expected is None:
             errors.append("UNKNOWN_ITEM")
-        elif record.get("item_digest") != expected:
-            errors.append("ITEM_DIGEST_MISMATCH")
+        elif record.get("item_context_digest") != expected:
+            errors.append("ITEM_CONTEXT_DIGEST_MISMATCH")
 
     for field_name in HUMAN_JUDGED_FIELDS:
         value = record.get(field_name)
@@ -937,7 +1032,11 @@ def validate_rating(
         elif value not in ALLOWED_VALUES[field_name]:
             errors.append(f"OUT_OF_ENUM:{field_name}={value!r}")
 
-    if keyring is not None and not verify_rating_signature(record, keyring):
+    # Fail closed: an absent keyring means the signature CANNOT be verified. That
+    # is a rejection, never a skip.
+    if not keyring:
+        errors.append("SIGNATURE_UNVERIFIABLE_NO_KEYRING")
+    elif not verify_rating_signature(record, keyring):
         errors.append("SIGNATURE_INVALID_OR_UNREGISTERED_KEY")
     return errors
 
@@ -947,6 +1046,7 @@ def evaluate_readiness(
     records: Sequence[dict[str, Any]],
     qualified_rater_ids: Sequence[str],
     *,
+    package_digest: str | None = None,
     item_set_digest: str | None = None,
     keyring: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -980,12 +1080,13 @@ def evaluate_readiness(
     conflicting_submissions = 0
     by_item: dict[str, set[str]] = {}
     seen: dict[tuple[str, str], str] = {}
-    item_digests = {i.item_id: i.logical_step_digest for i in items}
+    context_digests = {i.item_id: i.item_context_digest for i in items}
     for record in records:
         errors = validate_rating(
             record,
+            package_digest=package_digest,
             item_set_digest=item_set_digest,
-            item_digests=item_digests,
+            context_digests=context_digests,
             keyring=keyring,
         )
         if errors:
@@ -1081,10 +1182,19 @@ def build_package(
     selected = select_items(universe, core_n=core_n, boost_per_stratum=boost_per_stratum)
     keep = {i.item_id for i in selected}
     records = load_rating_records(ratings_dir)
-    qualified, keyring, registry_problems = load_rater_registry(registry_path, authority_secret)
-    item_set_digest = compute_item_set_digest(selected)
+    qualified, keyring, registry_problems = load_rater_registry(
+        registry_path, authority_secret, keystore_path
+    )
+    # Never ship an item whose context we KNOW is incomplete and ask the rater to
+    # flag it. Incomplete items are excluded from delivery and from readiness; they
+    # remain recorded in the package for transparency.
+    deliverable = [
+        i for i in selected if i.context_completeness.get("builder_verdict") == "COMPLETE"
+    ]
+    excluded_incomplete = len(selected) - len(deliverable)
+    item_set_digest = compute_item_set_digest(deliverable, TAXONOMY_VERSION)
     readiness = evaluate_readiness(
-        selected,
+        deliverable,
         records,
         qualified_rater_ids=qualified,
         item_set_digest=item_set_digest,
@@ -1177,6 +1287,9 @@ def build_package(
             ),
         },
         "n_selected": len(selected),
+        "n_deliverable": len(deliverable),
+        "excluded_incomplete": excluded_incomplete,
+        "deliverable_item_ids": sorted(i.item_id for i in deliverable),
         "items": [asdict(i) for i in selected],
         "readiness": readiness,
     }
@@ -1216,12 +1329,18 @@ class BundleContaminationError(RuntimeError):
 
 
 def _assert_bundle_clean(bundle_dir: Path) -> None:
-    offenders = sorted(
-        str(path.name) for pattern in FORBIDDEN_BUNDLE_PATTERNS for path in bundle_dir.glob(pattern)
-    )
+    """Recursive scan. A forbidden file one level down is just as readable."""
+    offenders: set[str] = set()
+    for pattern in FORBIDDEN_BUNDLE_PATTERNS:
+        for path in bundle_dir.rglob(pattern):
+            offenders.add(str(path.relative_to(bundle_dir)))
+    # A symlink can point at a truth file outside the bundle entirely.
+    for path in bundle_dir.rglob("*"):
+        if path.is_symlink():
+            offenders.add(f"SYMLINK:{path.relative_to(bundle_dir)}")
     if offenders:
         raise BundleContaminationError(
-            f"forbidden artifacts present in rater bundle {bundle_dir}: {offenders}"
+            f"forbidden artifacts present in rater bundle {bundle_dir}: {sorted(offenders)}"
         )
 
 
@@ -1249,7 +1368,9 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": "goldset-rater-bundle/v1",
         "package_digest": package["package_digest"],
+        "item_set_digest": package["readiness"]["authentication"]["item_set_digest"],
         "taxonomy_version": package["taxonomy_version"],
+        "codebook_version": package["taxonomy_version"],
         "rating_schema_version": package["rating_schema_version"],
         "taxonomy": taxonomy,
         "instructions_to_rater": {
@@ -1261,15 +1382,18 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
                 "or truncated in this bundle. Neither is penalised."
             ),
             "submission_binding": (
-                "Each submission must carry package_digest, the item's item_digest, "
-                "your rater_key_id, and a signature over the canonical payload. A "
-                "rater_id alone is not accepted."
+                "Each submission MUST carry, copied from this bundle: "
+                "package_digest, item_set_digest, and the item's "
+                "item_context_digest; plus your rater_key_id and an HMAC "
+                "signature over the canonical payload. A rater_id alone is not "
+                "accepted, and altering any part of the context you were shown "
+                "invalidates the record."
             ),
         },
         "items": [
             {
                 "item_id": item["item_id"],
-                "item_digest": item["logical_step_digest"],
+                "item_context_digest": item["item_context_digest"],
                 "context_completeness": {
                     "builder_verdict": item["context_completeness"]["builder_verdict"],
                     "degraded_reasons": item["context_completeness"]["degraded_reasons"],
@@ -1277,6 +1401,7 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
                 "rater_context": item["rater_context"],
             }
             for item in package["items"]
+            if item["item_id"] in set(package["deliverable_item_ids"])
         ],
     }
 
@@ -1411,6 +1536,26 @@ def load_paired_artifacts(package_path: Path, truth_path: Path) -> tuple[dict, d
     """Consumer-side loader. REFUSES a mismatched pair (security fix 5)."""
     package = json.loads(package_path.read_text(encoding="utf-8"))
     truth = json.loads(truth_path.read_text(encoding="utf-8"))
+
+    # Recompute from actual canonical content: a stored ID proves nothing.
+    recomputed_pkg_digest = hashlib.sha256(
+        _serialize({k: v for k, v in package.items() if k != "package_digest"}).encode("utf-8")
+    ).hexdigest()
+    if package.get("package_digest") != recomputed_pkg_digest:
+        raise PairMismatchError(
+            f"PACKAGE_DIGEST_RECOMPUTE_MISMATCH: stored "
+            f"{package.get('package_digest')!r} != {recomputed_pkg_digest!r}"
+        )
+    recomputed_build_id = compute_build_id(package, truth)
+    if package.get("build_id") != recomputed_build_id:
+        raise PairMismatchError(
+            f"BUILD_ID_RECOMPUTE_MISMATCH: stored {package.get('build_id')!r} "
+            f"!= {recomputed_build_id!r}"
+        )
+    for item in package.get("items", []):
+        expected = compute_item_context_digest(item["rater_context"])
+        if item.get("item_context_digest") != expected:
+            raise PairMismatchError(f"ITEM_CONTEXT_DIGEST_RECOMPUTE_MISMATCH: {item['item_id']}")
     if package.get("build_id") != truth.get("build_id"):
         raise PairMismatchError(
             f"BUILD_ID_MISMATCH: package={package.get('build_id')!r} "

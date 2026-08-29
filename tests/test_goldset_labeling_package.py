@@ -93,13 +93,66 @@ def test_package_digest_is_recomputable(package: dict) -> None:
 
 
 def test_completeness_gate_is_enforced(package: dict) -> None:
-    """81.4% INCOMPLETE must produce a readiness blocker, not a silent pass."""
+    """Gate must fire above threshold and stay silent at or below it.
+
+    The corpus is ~756 KB, so nothing truncates and the healthy state is ZERO
+    incomplete items. Asserting `items_incomplete > 0` would require the corpus
+    to be broken; the gate LOGIC is what matters, in both directions.
+    """
     adequacy = package["readiness"]["context_adequacy"]
-    assert adequacy["items_incomplete"] > 0
-    if adequacy["incomplete_fraction"] > adequacy["max_incomplete_fraction"]:
-        assert any(
-            "CONTEXT_INCOMPLETE_TOO_HIGH" in blocker for blocker in package["readiness"]["blockers"]
-        )
+    fired = any(
+        "CONTEXT_INCOMPLETE_TOO_HIGH" in blocker for blocker in package["readiness"]["blockers"]
+    )
+    above = adequacy["incomplete_fraction"] > adequacy["max_incomplete_fraction"]
+    assert fired == above, (adequacy, package["readiness"]["blockers"])
+
+
+def test_incomplete_items_are_never_deliverable(package: dict) -> None:
+    """No item with a known-incomplete context may reach a rater."""
+    deliverable = set(package["deliverable_item_ids"])
+    for item in package["items"]:
+        if item["item_id"] in deliverable:
+            assert item["context_completeness"]["builder_verdict"] == "COMPLETE"
+
+
+def test_items_deduped_by_logical_digest(package: dict) -> None:
+    """Semantic clones merged into one item, raw lineage preserved."""
+    logicals = [item["logical_step_digest"] for item in package["items"]]
+    assert len(logicals) == len(set(logicals))
+    assert package["census"]["clone_items_dropped"] > 0
+    assert any(len(item["logical_lineage"]) > 1 for item in package["items"])
+
+
+def test_item_context_digest_covers_the_whole_rater_view(package: dict) -> None:
+    """Altering the instruction or a prior step must change the bound digest."""
+
+    def context_digest(context: object) -> str:
+        """Independent reimplementation: verifies the FORMULA, not the module."""
+        return hashlib.sha256(
+            json.dumps(context, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+
+    item = package["items"][0]
+    assert context_digest(item["rater_context"]) == item["item_context_digest"]
+    tampered_instruction = {
+        **item["rater_context"],
+        "instruction": {"presumed_task_statement": {"message": "A DIFFERENT TASK"}},
+    }
+    assert context_digest(tampered_instruction) != item["item_context_digest"]
+    tampered_prior = {**item["rater_context"], "prior_steps": []}
+    assert context_digest(tampered_prior) != item["item_context_digest"]
+
+
+def test_nothing_is_truncated_at_current_corpus_size(package: dict) -> None:
+    for item in package["items"]:
+        views = [
+            *item["rater_context"]["prior_steps"],
+            item["rater_context"]["item_step"],
+        ]
+        for view in views:
+            assert not view["message_truncated"]
+            assert not any(c["arguments_truncated"] for c in view["tool_calls"])
+            assert not any(o["content_truncated"] for o in view["observation"])
 
 
 def test_cluster_adequacy_gate_is_enforced(package: dict) -> None:

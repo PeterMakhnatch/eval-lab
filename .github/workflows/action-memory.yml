@@ -44,7 +44,7 @@ jobs:
       - name: Materialize canary and prove deterministic regeneration
         run: |
           mkdir -p derived/harbor-tasks/action-memory
-          task_dir="$(uv run python -c 'from pathlib import Path; import sys; sys.path.insert(0, "library/benchmarks/action-memory-v1"); from materializer import materialize; from evallab.mcp_substrate import DEFAULT_TARGET_PLATFORM_TAG, DEFAULT_TARGET_PYTHON_TAG, WheelhouseTarget, record_prepackaging_provenance; wh=Path("/tmp/fastmcp3_linux_wheelhouse"); target=WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG); prov=record_prepackaging_provenance(wh, target); print(materialize(cell_id="clean-baseline-4k", seed=42, wheelhouse_source=wh, resolver_provenance=prov, plan_only=False)["output_path"])')"
+          task_dir="$(uv run --no-sync python -c 'from pathlib import Path; import sys; sys.path.insert(0, "library/benchmarks/action-memory-v1"); from materializer import materialize; from evallab.mcp_substrate import DEFAULT_TARGET_PLATFORM_TAG, DEFAULT_TARGET_PYTHON_TAG, WheelhouseTarget, record_prepackaging_provenance; wh=Path("/tmp/fastmcp3_linux_wheelhouse"); target=WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG); prov=record_prepackaging_provenance(wh, target); print(materialize(cell_id="clean-baseline-4k", seed=42, wheelhouse_source=wh, resolver_provenance=prov, plan_only=False)["output_path"])')"
           echo "TASK_PATH=$task_dir" >> "$GITHUB_ENV"
       - name: Freeze workbench plan
         id: plan

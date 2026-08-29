@@ -16,8 +16,8 @@ These controls validate the task/harness boundary; they do not evaluate a model.
 ## Codex canary bundles, 2026-08-15
 
 Three redacted agent bundles, one per `policy/canary-suite.yaml` member, are the
-lab's only committed real-agent evidence. Selection rule: exactly the three jobs
-`STATUS.md` names as the scored 2026-08-15 set, one job per canary task, at
+lab's earliest committed real-agent evidence. Selection rule: exactly the three
+jobs `STATUS.md` names as the scored 2026-08-15 set, one job per canary task, at
 `k=3` with `exception_info` `null` on every trial. The 2026-08-14 waves are
 excluded because `PROGRAM.json` `EXP-S01-canary-codex-k3` places them outside the
 capability denominator, and the `-r2` re-runs are excluded because they carry
@@ -25,13 +25,13 @@ capability denominator, and the `-r2` re-runs are excluded because they carry
 
 | bundle | trials | reward | job `result.json` SHA-256 | promoted |
 | --- | --- | --- | --- | --- |
-| `canary-event-summary-codex-20260815` | 3 | 3/3 `1.0` | `d471db9c534aa7d5a12661b7832555778099d0d25604feb92ef837da3695863d` | 133,138 B |
-| `canary-transaction-reconciliation-codex-20260815` | 3 | 3/3 `1.0` | `cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198` | 123,894 B |
-| `canary-terminal-bench-html-js-filter-codex-20260815` | 3 | 0/3 `1.0` | `1b860cfe0e674675171a43727ffe776329f73f09c16a55982bbd9c025bf87b2c` | 415,778 B |
+| `canary-event-summary-codex-20260815` | 3 | 3/3 `1.0` | `d471db9c534aa7d5a12661b7832555778099d0d25604feb92ef837da3695863d` | 89,417 B |
+| `canary-transaction-reconciliation-codex-20260815` | 3 | 3/3 `1.0` | `cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198` | 80,793 B |
+| `canary-terminal-bench-html-js-filter-codex-20260815` | 3 | 0/3 `1.0` | `1b860cfe0e674675171a43727ffe776329f73f09c16a55982bbd9c025bf87b2c` | 325,642 B |
 
 Those three digests are the ones already recorded in
 `research/experiments/baselines/codex-canary-20260815.md`, so the promoted
-bundles verify against the pre-existing digest record. Total added: 672,810 B
+bundles verify against the pre-existing digest record. Total retained: 495,852 B
 from 1,967,393 B of source.
 
 All nine trajectories validate as ATIF through the shipped CLI, which is the

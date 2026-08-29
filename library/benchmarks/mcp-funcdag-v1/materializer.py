@@ -112,16 +112,6 @@ def _write_compose(environment: Path, sidecar_rel: str = "./mcp-server") -> dict
     return compose
 
 
-def _patch_fastmcp_http_transport(server_py: Path, port: int) -> None:
-    """Harbor agents speak streamable-HTTP; substrate currently emits SSE."""
-    text = server_py.read_text(encoding="utf-8")
-    text = text.replace(
-        f'mcp.run(transport="sse", host="0.0.0.0", port={port})',
-        f'mcp.run(transport="http", host="0.0.0.0", port={port})',
-    )
-    server_py.write_text(text, encoding="utf-8")
-
-
 
 def _write_workbench_build_proof(environment: Path, sidecar_dir: Path) -> None:
     """Emit the workbench v2 offline_build_proof covering sidecar wheels."""
@@ -320,7 +310,6 @@ Save the final calculated integer result to `/app/output/result.json` in format:
             'CMD ["python", "/app/server.py"]\n',
             encoding="utf-8",
         )
-    _patch_fastmcp_http_transport(sidecar_dir / "server.py", DEFAULT_MCP_PORT)
     if not plan_only:
         _write_workbench_build_proof(environment, sidecar_dir)
     _write_compose(environment)

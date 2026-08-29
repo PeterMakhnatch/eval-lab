@@ -109,7 +109,7 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     sidecar = task_dir / "environment" / "mcp-server"
     server_py = (sidecar / "server.py").read_text(encoding="utf-8")
     assert "from fastmcp import FastMCP" in server_py
-    assert 'transport="http"' in server_py
+    assert 'transport="streamable-http"' in server_py
     assert not (sidecar / "runtime.py").exists()
     compose = (task_dir / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
     assert "mcp-service:" in compose

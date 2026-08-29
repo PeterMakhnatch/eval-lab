@@ -663,6 +663,25 @@ def check_final_claim_corrections(failures: list[str]) -> None:
     ):
         if phrase not in memo:
             failures.append(f"E2 divergence semantics missing: {phrase!r}")
+    # The E2 control bullet must not re-contradict the factor table above it.
+    for banned in (
+        "everything else is held",
+        "held constant",
+        "This is the\n  experimental variable",
+        "the sole experimental variable",
+    ):
+        if banned in memo:
+            failures.append(
+                f"E2 claims a held-constant design ({banned!r}); the factor table shows four move together"
+            )
+    for required in (
+        "admission gate for the lane, not a sole experimental variable",
+        "recorded, not held",
+        "not attributable",
+    ):
+        if required not in memo:
+            failures.append(f"E2 admission-gate framing missing: {required!r}")
+
     factors = (spec.get("e2_lane_certification") or {}).get("factors_that_move_together") or {}
     if len(factors) < 4:
         failures.append(f"spec names {len(factors)} E2 factors; four move together")

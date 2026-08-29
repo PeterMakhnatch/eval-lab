@@ -519,8 +519,10 @@ ever able to test.
 - **Cells:** the identical six from §1.1, seed 42, `--n-attempts 3`.
 - **Lane:** `zai-coding-plan/glm-5.3-flash`, OpenCode pinned `1.18.25`, Harbor
   `0.21`, ATIF v1.7.
-- **Control:** `network_isolation_enforced` must read `True`. This is the
-  experimental variable; everything else is held.
+- **Admission gate:** `network_isolation_enforced` must read `True`. This is the
+  **admission gate for the lane, not a sole experimental variable** — the four
+  factors tabulated above change together with it. They are **recorded, not held**,
+  so a divergence is **not attributable** to any one of them.
 - **Primary estimand:** per-cell agreement with §1.1, plus the pooled
   18-trial rate. **Not** a capability estimate.
 - **Refusal criteria:** if `network_isolation_enforced` is `False`, abort and

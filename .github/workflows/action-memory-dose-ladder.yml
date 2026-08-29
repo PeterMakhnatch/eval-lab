@@ -46,25 +46,8 @@ jobs:
       - name: Resolve and record Linux target wheelhouse provenance
         run: |
           set -euo pipefail
-          mkdir -p /tmp/fastmcp3_wheelhouse
-          python3 -m pip download --only-binary=:all: --implementation cp --python-version 3.12 --abi cp312 --platform manylinux_2_17_x86_64 --dest /tmp/fastmcp3_wheelhouse fastmcp==3.4.7
-          uv run python - <<'PY'
-          import json
-          from pathlib import Path
-          from evallab.mcp_substrate import (
-              DEFAULT_TARGET_PLATFORM_TAG,
-              DEFAULT_TARGET_PYTHON_TAG,
-              WheelhouseTarget,
-              record_prepackaging_provenance,
-          )
-          provenance = record_prepackaging_provenance(
-              Path("/tmp/fastmcp3_wheelhouse"),
-              WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG),
-          )
-          Path("/tmp/fastmcp3-resolver-provenance.json").write_text(
-              json.dumps(provenance.to_dict(), sort_keys=True) + "\n", encoding="utf-8"
-          )
-          PY
+          FASTMCP_WHEELHOUSE=/tmp/fastmcp3_wheelhouse uv run python scripts/mcp_funcdag/ensure_wheelhouse.py
+          cp /tmp/fastmcp3_wheelhouse/resolver-provenance.json /tmp/fastmcp3-resolver-provenance.json
           echo "ACTION_MEMORY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse" >> "$GITHUB_ENV"
           echo "ACTION_MEMORY_RESOLVER_PROVENANCE=/tmp/fastmcp3-resolver-provenance.json" >> "$GITHUB_ENV"
       - name: Focused dose-ladder tests

@@ -465,6 +465,7 @@ def test_null_preservation_on_zero_denominators(tmp_path: Path):
         "family": "mcp-recovery-v1",
         "task_name": "no_faults_test",
         "agent_name": "clean_agent",
+        "cell_factors": {"persistence_levels": [1]},
         "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     }
     (trial_dir / "benchmark_contract.json").write_text(json.dumps(contract), encoding="utf-8")
@@ -968,6 +969,94 @@ def test_projection_dimensions_fail_closed_and_are_idempotent(action_memory_tria
     )
 
 
+def test_recovery_persistence_dose_must_match_native_cell(mcp_recovery_trial_dir: Path):
+    """Persistence-dose metadata is admitted only when it equals the native recovery cell level."""
+    bundle = load_trial_bundle(mcp_recovery_trial_dir)
+    report = _quality_pass_report(bundle)
+    base_metadata = {
+        "harness_version": "harbor-v1",
+        "scaffold_version": "scaffold-v1",
+        "repeat_group_id": "repeat-a",
+        "dose_axis": "persistence_level",
+        "dose_unit": "count",
+        "alphabet_id": "atif-actions",
+        "alphabet_version": "v1",
+    }
+
+    valid = build_projection_dimensions(bundle, report, metadata={**base_metadata, "dose_value": 1})
+    assert valid.analysis_ready is True
+
+    mismatched = build_projection_dimensions(
+        bundle, report, metadata={**base_metadata, "dose_value": 2}
+    )
+    assert mismatched.analysis_ready is False
+    assert "PERSISTENCE_DOSE_MISMATCH" in mismatched.refusals
+
+
+@pytest.mark.parametrize(
+    "invalid_level",
+    [1.5, float("nan"), float("inf"), True, 0, -1],
+    ids=["fractional", "nan", "infinite", "bool", "zero", "negative"],
+)
+def test_recovery_rejects_non_integral_or_invalid_native_persistence(
+    mcp_recovery_trial_dir: Path, invalid_level
+):
+    """Malformed native persistence is rejected before any feature row can be stored."""
+    contract_path = mcp_recovery_trial_dir / "benchmark_contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["cell_factors"]["persistence_levels"] = [invalid_level]
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    bundle = load_trial_bundle(mcp_recovery_trial_dir)
+    report = _quality_pass_report(bundle)
+    dimensions = build_projection_dimensions(
+        bundle,
+        report,
+        metadata={
+            "harness_version": "harbor-v1",
+            "scaffold_version": "scaffold-v1",
+            "repeat_group_id": "repeat-a",
+            "dose_axis": "persistence_level",
+            "dose_value": 1,
+            "dose_unit": "count",
+            "alphabet_id": "atif-actions",
+            "alphabet_version": "v1",
+        },
+    )
+    assert dimensions.analysis_ready is False
+    assert "MISSING_NATIVE_PERSISTENCE_LEVEL" in dimensions.refusals
+    with pytest.raises(ValueError, match="finite positive integer"):
+        extract_mcp_recovery_features(bundle)
+
+
+@pytest.mark.parametrize(
+    "invalid_dose",
+    [1.5, float("nan"), float("inf"), True, 0, -1],
+    ids=["fractional", "nan", "infinite", "bool", "zero", "negative"],
+)
+def test_recovery_persistence_axis_rejects_invalid_dose_value(
+    mcp_recovery_trial_dir: Path, invalid_dose
+):
+    """Persistence-axis dose values must be finite positive integers equal to native persistence."""
+    bundle = load_trial_bundle(mcp_recovery_trial_dir)
+    dimensions = build_projection_dimensions(
+        bundle,
+        _quality_pass_report(bundle),
+        metadata={
+            "harness_version": "harbor-v1",
+            "scaffold_version": "scaffold-v1",
+            "repeat_group_id": "repeat-a",
+            "dose_axis": "persistence_level",
+            "dose_value": invalid_dose,
+            "dose_unit": "count",
+            "alphabet_id": "atif-actions",
+            "alphabet_version": "v1",
+        },
+    )
+    assert dimensions.analysis_ready is False
+    assert "PERSISTENCE_DOSE_MISMATCH" in dimensions.refusals
+
+
 def test_card_uses_same_projection_dimensions_as_provenance(
     action_memory_trial_dir: Path, tmp_path: Path
 ):
@@ -1001,7 +1090,6 @@ def test_benchmark_contrasts_do_not_cross_model_dimensions():
     """Matched contrasts must never join clean/treatment trials from different model strata."""
     con = duckdb.connect()
     con.execute(Path("sql/traj_benchmark_views.sql").read_text(encoding="utf-8"))
-
     statement = """
         INSERT INTO action_memory_features (
             trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
@@ -1016,7 +1104,7 @@ def test_benchmark_contrasts_do_not_cross_model_dimensions():
             ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
             'C1', true, 1, 1, 1, 1, true, false, 'cas:trial', 'sha256:truth',
             ?, 'agent-a', 'task-name', 'harness-v1', 'scaffold-v1', ?, 'context_bytes',
-            ?, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
+            4096, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
             ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''
         )
     """
@@ -1033,14 +1121,57 @@ def test_benchmark_contrasts_do_not_cross_model_dimensions():
                 arm,
                 model,
                 f"repeat-{model}",
-                4096,
                 f"sha256:source-{trial}",
                 f"sha256:projection-{trial}",
                 f"sha256:dimension-{trial}",
             ],
         )
-
     rows = con.execute(
         "SELECT model_name, count(*) FROM v_benchmark_contrasts GROUP BY model_name ORDER BY model_name"
     ).fetchall()
     assert rows == [("model-a", 1), ("model-b", 1)]
+
+
+def test_recovery_contrasts_require_same_native_persistence_level():
+    """A clean p1 recovery trial can match fault p1, never fault p2."""
+    con = duckdb.connect()
+    con.execute(Path("sql/traj_benchmark_views.sql").read_text(encoding="utf-8"))
+    statement = """
+        INSERT INTO mcp_recovery_features (
+            trial_id, family, task_id, seed, persistence_level, mode, task_success,
+            total_tool_calls, model_call_count, injected_fault_count, fault_detected_count,
+            post_fault_retries, blind_retries, certified_recovered_faults, citation,
+            verifier_truth_digest, model_name, agent_name, task_name, harness_version,
+            scaffold_version, repeat_group_id, dose_axis, dose_value, dose_unit,
+            alphabet_id, alphabet_version, quality_status, report_digest, source_digest,
+            producer_version, projection_identity, dimension_digest, projection_status,
+            analysis_ready, projection_refusals
+        ) VALUES (
+            ?, 'mcp-recovery-v1', 'recovery-task', 7, ?, ?, true, 1, 1, 1, 1, 1,
+            0, 1, 'cas:trial', 'sha256:truth', 'model-a', 'agent-a', 'task-name',
+            'harness-v1', 'scaffold-v1', 'repeat-a', 'persistence_level', 1, 'count',
+            'atif', 'v1', 'QUALITY_PASS', 'sha256:report', ?, 'producer-v1', ?, ?,
+            'PROJECTED', true, ''
+        )
+    """
+    for trial, persistence_level, mode in (
+        ("clean-p1", 1, "clean"),
+        ("fault-p1", 1, "fault"),
+        ("fault-p2", 2, "fault"),
+    ):
+        con.execute(
+            statement,
+            [
+                trial,
+                persistence_level,
+                mode,
+                f"sha256:source-{trial}",
+                f"sha256:projection-{trial}",
+                f"sha256:dimension-{trial}",
+            ],
+        )
+    rows = con.execute(
+        "SELECT control_trial_id, treatment_trial_id FROM v_benchmark_contrasts "
+        "WHERE family = 'mcp-recovery-v1'"
+    ).fetchall()
+    assert rows == [("clean-p1", "fault-p1")]

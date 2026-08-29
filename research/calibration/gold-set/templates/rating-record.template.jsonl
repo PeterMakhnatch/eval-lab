@@ -1,0 +1,2 @@
+# AUTHORIZATION BOUNDARY: Label population is BLOCKED pending real qualified human raters plus Peter's explicit approval. This template carries zero labels. Machine or model output is not a rater. Do not populate class_id without authorization.
+{"blinded": true, "class_id": null, "confidence": null, "corpus_digest": "<CORPUS_DIGEST>", "evidence_step_ids": [], "item_id": "<ITEM_ID>", "missing_reason": null, "rated_at": null, "rater_id": "<RATER_ID>", "record_schema_version": "gold-rating-record-v1", "rubric_digest": "<RUBRIC_DIGEST>"}

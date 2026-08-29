@@ -2822,6 +2822,153 @@ def _claims_pack_command(
     return 0
 
 
+
+def _parse_iso_datetime(value: str | None):
+    from datetime import UTC, datetime
+
+    if value is None:
+        return datetime.now(UTC)
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _load_json_or_jsonl(path: Path) -> list[dict[str, Any]]:
+    kept: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        candidate = line.strip()
+        if not candidate or candidate.startswith("#"):
+            continue
+        kept.append(candidate)
+    body = "\n".join(kept).strip()
+    if not body:
+        return []
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        return [payload]
+    rows: list[dict[str, Any]] = []
+    for line in kept:
+        row = json.loads(line)
+        if not isinstance(row, dict):
+            raise ValueError(f"{path} JSONL rows must be objects")
+        rows.append(row)
+    return rows
+
+
+def _gold_freeze_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.interpretation.gold_calibration import GoldItemRef, freeze_corpus
+
+    items_path = _resolve(root, args.items)
+    payload = json.loads(items_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError("gold freeze --items must be a JSON array of GoldItemRef objects")
+    items = [GoldItemRef.model_validate(row) for row in payload]
+    lock = freeze_corpus(
+        items,
+        rubric_digest=args.rubric_digest,
+        corpus_id=args.corpus_id,
+        corpus_version=args.corpus_version,
+        frozen_at=_parse_iso_datetime(args.frozen_at),
+    )
+    output = _resolve(root, args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(lock.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    print(f"gold corpus lock: {output}")
+    print(f"corpus_digest: {lock.corpus_digest}")
+    return 0
+
+
+def _gold_template_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.interpretation.gold_calibration import (
+        render_rater_qualification_template,
+        render_rating_record_template,
+    )
+
+    rendered = (
+        render_rating_record_template()
+        if args.kind == "rating"
+        else render_rater_qualification_template()
+    )
+    if args.output is None:
+        print(rendered, end="")
+        return 0
+    output = _resolve(root, args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(rendered, encoding="utf-8")
+    print(f"wrote empty {args.kind} template: {output}")
+    return 0
+
+
+def _gold_readiness_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.interpretation.gold_calibration import (
+        GoldCorpusLock,
+        PrecisionPlan,
+        RaterQualification,
+        RatingRecord,
+        evaluate_gold_set_readiness,
+    )
+
+    lock = GoldCorpusLock.model_validate(
+        json.loads(_resolve(root, args.lock).read_text(encoding="utf-8"))
+    )
+    ratings = [
+        RatingRecord.model_validate(row)
+        for row in _load_json_or_jsonl(_resolve(root, args.ratings))
+    ]
+    qualifications = [
+        RaterQualification.model_validate(row)
+        for row in _load_json_or_jsonl(_resolve(root, args.qualifications))
+    ]
+    plan = PrecisionPlan.model_validate(
+        json.loads(_resolve(root, args.plan).read_text(encoding="utf-8"))
+    )
+    report = evaluate_gold_set_readiness(lock, ratings, qualifications, plan)
+    print(report.model_dump_json(indent=2))
+    return 0 if report.status == "READY" else 1
+
+
+def _gold_feasibility_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.interpretation.gold_calibration import (
+        PrecisionPlan,
+        assess_feasibility,
+        required_n_eff_ceiling,
+    )
+
+    plan = assess_feasibility(
+        PrecisionPlan.model_validate(
+            json.loads(_resolve(root, args.plan).read_text(encoding="utf-8"))
+        )
+    )
+    ceiling = None
+    if plan.measured_within_trial_icc is not None and plan.n_clusters_available is not None:
+        ceiling = required_n_eff_ceiling(
+            plan.n_clusters_available, plan.measured_within_trial_icc
+        )
+    payload = plan.model_dump(mode="json")
+    payload["n_eff_ceiling"] = ceiling
+    payload["ceiling_rule"] = "n_eff <= K/ICC"
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="evallab",
@@ -4041,6 +4188,105 @@ def parser() -> argparse.ArgumentParser:
         help="Override the shared Parquet root",
     )
     verdict.set_defaults(func=_verdict_command)
+
+    gold = commands.add_parser(
+        "gold",
+        help="Freeze, template, and gate a three-rater gold calibration corpus",
+    )
+    gold_commands = gold.add_subparsers(dest="gold_command", required=True)
+
+    gold_freeze = gold_commands.add_parser(
+        "freeze",
+        help="Write a GoldCorpusLock from gold item references",
+    )
+    gold_freeze.add_argument(
+        "--items",
+        type=Path,
+        required=True,
+        help="JSON array of GoldItemRef objects",
+    )
+    gold_freeze.add_argument(
+        "--rubric-digest",
+        required=True,
+        help="SHA256 rubric digest (sha256:<hex>)",
+    )
+    gold_freeze.add_argument("--corpus-id", required=True, help="Corpus identifier")
+    gold_freeze.add_argument("--corpus-version", required=True, help="Corpus version")
+    gold_freeze.add_argument(
+        "--frozen-at",
+        default=None,
+        help="ISO-8601 freeze timestamp (default: now, UTC)",
+    )
+    gold_freeze.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        required=True,
+        help="Path to write the GoldCorpusLock JSON",
+    )
+    gold_freeze.set_defaults(func=_gold_freeze_command)
+
+    gold_template = gold_commands.add_parser(
+        "template",
+        help="Emit an empty keys-only rating template with zero labels",
+    )
+    gold_template.add_argument(
+        "--kind",
+        choices=["rating", "qualification"],
+        default="rating",
+        help="Template kind (default: rating)",
+    )
+    gold_template.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional path to write the empty template",
+    )
+    gold_template.set_defaults(func=_gold_template_command)
+
+    gold_readiness = gold_commands.add_parser(
+        "readiness",
+        help="Evaluate gold-set readiness and exit non-zero when NOT_READY",
+    )
+    gold_readiness.add_argument(
+        "--lock",
+        type=Path,
+        required=True,
+        help="GoldCorpusLock JSON path",
+    )
+    gold_readiness.add_argument(
+        "--ratings",
+        type=Path,
+        required=True,
+        help="Ratings JSON array or JSONL (comment lines starting with # skipped)",
+    )
+    gold_readiness.add_argument(
+        "--qualifications",
+        type=Path,
+        required=True,
+        help="RaterQualification JSON array or JSONL",
+    )
+    gold_readiness.add_argument(
+        "--plan",
+        type=Path,
+        required=True,
+        help="PrecisionPlan JSON path",
+    )
+    gold_readiness.set_defaults(func=_gold_readiness_command)
+
+    gold_feasibility = gold_commands.add_parser(
+        "feasibility",
+        help="Print the n_eff <= K/ICC ceiling and feasibility verdict",
+    )
+    gold_feasibility.add_argument(
+        "--plan",
+        type=Path,
+        required=True,
+        help="PrecisionPlan JSON path",
+    )
+    gold_feasibility.set_defaults(func=_gold_feasibility_command)
+
     traj = commands.add_parser(
         "traj", help="Analyze, feature-extract, outline, and label trajectories"
     )

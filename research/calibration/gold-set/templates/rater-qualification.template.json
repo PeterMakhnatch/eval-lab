@@ -1,0 +1,12 @@
+# AUTHORIZATION BOUNDARY: Label population is BLOCKED pending real qualified human raters plus Peter's explicit approval. This template carries zero labels. Machine or model output is not a rater. Do not populate class_id without authorization.
+{
+  "declared_conflicts": [],
+  "independence_group": "<INDEPENDENCE_GROUP>",
+  "is_machine": false,
+  "qualification_status": "provisional",
+  "qualified_at": null,
+  "quiz_digest": "<QUIZ_DIGEST>",
+  "quiz_items_attempted": 0,
+  "quiz_items_correct": 0,
+  "rater_id": "<RATER_ID>"
+}

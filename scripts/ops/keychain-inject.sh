@@ -1,63 +1,44 @@
 #!/bin/bash
-# Prove a keychain reference exists. Never prints a secret value or a caller
-# EVAL_LAB_SECRET_REF. Closed grammar only; logs fixed probe type and presence.
+# Never prints EVAL_LAB_SECRET_REF or secret values. Logs only probe= and present=.
+set +x
 set -uo pipefail
 
-present_injected=0
-if [ "${EVAL_LAB_SECRET_PRESENT:-}" = "1" ] || [ "${EVAL_LAB_SECRET_PRESENT:-}" = "true" ]; then
-    present_injected=1
-fi
+python3 - <<'PY'
+import os
+import re
+import subprocess
+import sys
 
-ref="${EVAL_LAB_SECRET_REF:-}"
-if [ -n "$ref" ]; then
-    # Validate closed grammar without echoing the value.
-    case "$ref" in
-        keychain:[A-Za-z0-9._-][A-Za-z0-9._-]*/[A-Za-z0-9._-][A-Za-z0-9._-]*)
-            ;;
-        *)
-            echo "probe=absent"
-            echo "present=no"
-            echo "reason=missing_secret"
-            exit 2
-            ;;
-    esac
-fi
-
-if [ "$present_injected" = "1" ]; then
-    echo "probe=injected"
-    echo "present=yes"
-    exit 0
-fi
-
-if [ "$(uname -s)" = "Darwin" ] && [ -x /usr/bin/security ]; then
-    service="${HARBOR_CLAUDE_KEYCHAIN_SERVICE:-harbor-practice-claude-oauth}"
-    account="${HARBOR_CLAUDE_KEYCHAIN_ACCOUNT:-$USER}"
-    case "$service" in
-        [A-Za-z0-9._-][A-Za-z0-9._-]*) ;;
-        *)
-            echo "probe=absent"
-            echo "present=no"
-            echo "reason=missing_secret"
-            exit 2
-            ;;
-    esac
-    case "$account" in
-        [A-Za-z0-9._-][A-Za-z0-9._-]*) ;;
-        *)
-            echo "probe=absent"
-            echo "present=no"
-            echo "reason=missing_secret"
-            exit 2
-            ;;
-    esac
-    if /usr/bin/security find-generic-password -s "$service" -a "$account" >/dev/null 2>&1; then
-        echo "probe=keychain-existence-only"
-        echo "present=yes"
-        exit 0
-    fi
-fi
-
-echo "probe=absent"
-echo "present=no"
-echo "reason=missing_secret"
-exit 2
+GRAMMAR = re.compile(r"^keychain:[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,64}$")
+ref = os.environ.get("EVAL_LAB_SECRET_REF", "")
+present = os.environ.get("EVAL_LAB_SECRET_PRESENT", "") in {"1", "true"}
+if ref and GRAMMAR.fullmatch(ref) is None:
+    print("probe=absent")
+    print("present=no")
+    print("reason=missing_secret")
+    raise SystemExit(2)
+if present:
+    print("probe=injected")
+    print("present=yes")
+    raise SystemExit(0)
+if sys.platform == "darwin" and os.access("/usr/bin/security", os.X_OK):
+    service = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_SERVICE", "harbor-practice-claude-oauth")
+    account = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_ACCOUNT") or os.environ.get("USER", "")
+    label = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+    if label.fullmatch(service) and label.fullmatch(account):
+        completed = subprocess.run(
+            ["/usr/bin/security", "find-generic-password", "-s", service, "-a", account],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if completed.returncode == 0:
+            print("probe=keychain-existence-only")
+            print("present=yes")
+            raise SystemExit(0)
+print("probe=absent")
+print("present=no")
+print("reason=missing_secret")
+raise SystemExit(2)
+PY

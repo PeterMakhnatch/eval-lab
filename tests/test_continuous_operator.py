@@ -29,9 +29,11 @@ from evallab.ops_continuous import (
     REASON_MISSING_STANDING_APPROVAL,
     REASON_SAME_IDENTITY,
     REASON_STALE_HEARTBEAT,
-    authorization_digest,
+    ContinuousLoopPolicy,
+    bind_policy_digest,
     main,
     policy_complete,
+    public_sha256_is_not_a_signature,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +57,8 @@ NOW = datetime(2026, 8, 28, tzinfo=UTC)
 ENABLE = "enable-key"
 APPROVAL = "approval-key"
 BUDGET = "budget-key"
+MAC_KEY = b"eval-lab-operator-mac-key-32bytes!"
+EXPIRES = NOW + timedelta(days=1)
 
 
 def _auth(*, actor: str, spec_id: str, at: datetime = NOW) -> dict:
@@ -66,50 +70,76 @@ def _auth(*, actor: str, spec_id: str, at: datetime = NOW) -> dict:
     }
 
 
+def _budget(*, actor: str = BUDGET) -> dict:
+    return {
+        **_auth(actor=actor, spec_id="01CONTINUOUSBUDGET0000000001"),
+        "scope": ["continuous-loop"],
+        "expires_at": EXPIRES.isoformat(),
+        "ceiling_usd": 20,
+    }
+
+
+def _budget_payload(*, actor: str = BUDGET) -> dict:
+    body = _budget(actor=actor)
+    return {
+        "actor": body["actor"],
+        "ceiling_usd": body["ceiling_usd"],
+        "expires_at": EXPIRES.isoformat(),
+        "scope": list(body["scope"]),
+        "spec_id": body["spec_id"],
+    }
+
+
 def _complete_policy_body(*, stale_after: float = 60.0, drain_timeout: float = 5.0) -> dict:
     approval = PaidRunAuthorization(
         spec_id="01CONTINUOUSAPPROVAL00000001",
         actor=APPROVAL,
         authorized_at=NOW,
     )
-    return {
-        "continuous_loop_policy": {
-            "policy_schema_version": "1",
-            "approval_signature_ref": APPROVAL,
-            "approval_digest": authorization_digest(approval),
-            "slo_freshness": {
-                "max_queue_admission_lag_seconds": 30,
-                "max_dispatch_latency_seconds": 30,
-                "max_oldest_postrun_lag_seconds": 30,
-                "max_oldest_catalog_settle_lag_seconds": 30,
-                "max_oldest_quality_lag_seconds": 30,
-                "max_oldest_projection_lag_seconds": 30,
-                "max_oldest_analysis_lag_seconds": 30,
-                "status_snapshot_max_age_seconds": 30,
-            },
-            "operational_limits": {
-                "scheduler_heartbeat_interval_seconds": 15,
-                "scheduler_stale_after_seconds": stale_after,
-                "worker_heartbeat_interval_seconds": 15,
-                "lease_ttl_seconds": 60,
-                "fencing_grace_seconds": 15,
-                "max_concurrent_workers": 1,
-                "postrun_hook_timeout_seconds": 30,
-                "maintenance_drain_timeout_seconds": drain_timeout,
-                "maintenance_disk_threshold_bytes": 1_000_000,
-            },
-            "quality_and_quarantine": {
-                "quarantine_rolling_window_size": 10,
-                "min_window_attempts_for_calculation": 3,
-                "max_quarantine_fraction": 0.2,
-                "max_warn_fraction": 0.4,
-                "catalog_ingestion_warn_after_seconds": 30,
-                "catalog_ingestion_pause_after_seconds": 60,
-                "max_consecutive_quiet_failures": 3,
-                "auto_acceptance_enabled": False,
-            },
-        }
+    unsigned = {
+        "policy_schema_version": "1",
+        "approval_signature_ref": APPROVAL,
+        "approval_digest": "0" * 64,
+        "slo_freshness": {
+            "max_queue_admission_lag_seconds": 30,
+            "max_dispatch_latency_seconds": 30,
+            "max_oldest_postrun_lag_seconds": 30,
+            "max_oldest_catalog_settle_lag_seconds": 30,
+            "max_oldest_quality_lag_seconds": 30,
+            "max_oldest_projection_lag_seconds": 30,
+            "max_oldest_analysis_lag_seconds": 30,
+            "status_snapshot_max_age_seconds": 30,
+        },
+        "operational_limits": {
+            "scheduler_heartbeat_interval_seconds": 15,
+            "scheduler_stale_after_seconds": stale_after,
+            "worker_heartbeat_interval_seconds": 15,
+            "lease_ttl_seconds": 60,
+            "fencing_grace_seconds": 15,
+            "max_concurrent_workers": 1,
+            "postrun_hook_timeout_seconds": 30,
+            "maintenance_drain_timeout_seconds": drain_timeout,
+            "maintenance_disk_threshold_bytes": 1_000_000,
+        },
+        "quality_and_quarantine": {
+            "quarantine_rolling_window_size": 10,
+            "min_window_attempts_for_calculation": 3,
+            "max_quarantine_fraction": 0.2,
+            "max_warn_fraction": 0.4,
+            "catalog_ingestion_warn_after_seconds": 30,
+            "catalog_ingestion_pause_after_seconds": 60,
+            "max_consecutive_quiet_failures": 3,
+            "auto_acceptance_enabled": False,
+        },
     }
+    dumped = ContinuousLoopPolicy.model_validate(unsigned).model_dump(mode="json")
+    dumped["approval_digest"] = bind_policy_digest(
+        policy=dumped,
+        approval=approval,
+        budget=_budget_payload(),
+        mac_key=MAC_KEY,
+    )
+    return {"continuous_loop_policy": dumped}
 
 
 def _policy(path: Path, *, stale_after: float = 60.0, drain_timeout: float = 5.0) -> Path:
@@ -122,9 +152,8 @@ def _write_auths(state: Path, *, approval_actor: str = APPROVAL, budget_actor: s
     (state / "approval.json").write_text(
         json.dumps(_auth(actor=approval_actor, spec_id="01CONTINUOUSAPPROVAL00000001"))
     )
-    (state / "budget.json").write_text(
-        json.dumps(_auth(actor=budget_actor, spec_id="01CONTINUOUSBUDGET0000000001"))
-    )
+    (state / "budget.json").write_text(json.dumps(_budget(actor=budget_actor)))
+    (state / "approval.mac").write_bytes(MAC_KEY)
     shutil.copy2(STANDING, state / "standing-approvals.yaml")
 
 
@@ -310,9 +339,8 @@ def test_oracle_dry_run_records_plan_without_harbor(tmp_path: Path) -> None:
 
 
 def test_verdict_does_not_overwrite_safety_fields(tmp_path: Path) -> None:
-    result = _run(tmp_path, "dry-run", agent="oracle")
-    body = _payload(result)
-    colliding = {**body, "running": True, "authorized": True, "ok": False}
+    _run(tmp_path, "dry-run", agent="oracle")
+    colliding = {"running": True, "authorized": True, "ok": False, "note": "x"}
     from evallab.ops_continuous import _verdict, context_from_env
 
     ctx = context_from_env(
@@ -327,7 +355,8 @@ def test_verdict_does_not_overwrite_safety_fields(tmp_path: Path) -> None:
     assert verdict.payload["running"] is False
     assert verdict.payload["authorized"] is False
     assert verdict.payload["ok"] is True
-    assert "running" in verdict.payload["details"]
+    assert "running" not in verdict.payload["details"]
+    assert verdict.payload["details"]["note"] == "x"
 
 
 def test_production_now_flag_rejected(tmp_path: Path) -> None:
@@ -471,7 +500,7 @@ def test_full_gates_still_non_running(tmp_path: Path) -> None:
 
 
 def test_keychain_inject_never_echoes_secret_ref() -> None:
-    injected = "keychain:lab/operator; echo pwned"
+    injected = "keychain:lab/operator"
     completed = subprocess.run(
         [str(KEYCHAIN)],
         cwd=ROOT,
@@ -484,6 +513,7 @@ def test_keychain_inject_never_echoes_secret_ref() -> None:
     assert injected not in completed.stdout
     assert "probe=injected" in completed.stdout
     assert "present=yes" in completed.stdout
+    assert "EVAL_LAB_SECRET_REF" not in completed.stdout
 
 
 def test_launchd_plist_disabled() -> None:
@@ -492,10 +522,13 @@ def test_launchd_plist_disabled() -> None:
     assert loaded["RunAtLoad"] is False
     assert "KeepAlive" not in loaded
     assert loaded["Label"] == "com.petermakhnatch.evallab.continuous-operator"
-    assert loaded["ProgramArguments"][0] == "/opt/evallab/.venv/bin/python"
+    assert loaded["ProgramArguments"][0] == "/usr/local/libexec/evallab/.venv/bin/python"
     assert "/usr/bin/env" not in loaded["ProgramArguments"]
+    assert "/opt/" not in loaded["ProgramArguments"][0]
     assert loaded["LimitLoadToSessionType"] == "Aqua"
-    assert loaded["StandardOutPath"].startswith("~/Library/Logs/evallab/")
+    assert loaded["StandardOutPath"] == "/dev/null"
+    assert loaded["StandardErrorPath"] == "/dev/null"
+    assert "~/" not in loaded["StandardOutPath"]
     assert "/Users/Shared" not in loaded["StandardOutPath"]
     assert "UserName" not in loaded or loaded.get("UserName") != "root"
 
@@ -514,7 +547,10 @@ def test_systemd_units_not_wanted() -> None:
     assert "PrivateTmp=yes" in service
     assert "RestrictAddressFamilies=AF_UNIX" in service
     assert "CapabilityBoundingSet=" in service
-    assert "ExecStart=/opt/evallab/.venv/bin/python" in service
+    assert "ExecStart=/usr/local/libexec/evallab/.venv/bin/python" in service
+    assert "--state-dir /var/lib/evallab-operator" in service
+    assert "StateDirectory=evallab-operator" in service
+    assert "ReadWritePaths=/var/lib/evallab-operator" in service
     assert "/usr/bin/env" not in service
     assert "StateDirectoryMode=0700" in service
 
@@ -524,7 +560,9 @@ def test_compose_restart_no() -> None:
     dockerfile = DOCKERFILE.read_text()
     assert 'restart: "no"' in compose
     assert "profiles:" in compose
-    assert "command:" not in compose
+    assert 'command: ["validate", "--state-dir", "/var/lib/evallab-operator"]' in compose
+    assert "/var/lib/evallab-operator:mode=0700" in compose
+    assert "read_only: true" in compose
     assert "uv sync --locked" in dockerfile
     assert dockerfile.count("validate") == 1
 
@@ -548,6 +586,83 @@ def test_script_is_executable_and_subprocess_validate(tmp_path: Path) -> None:
     )
     assert completed.returncode == 2
     assert REASON_DEFAULT_DISABLED in completed.stdout
+
+
+def test_unkeyed_sha256_digest_is_rejected(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policy.yaml"
+    body = _complete_policy_body()
+    loop = body["continuous_loop_policy"]
+    forged = public_sha256_is_not_a_signature(
+        {
+            "actor": APPROVAL,
+            "authorized_at": NOW.isoformat(),
+            "spec_id": "01CONTINUOUSAPPROVAL00000001",
+        }
+    )
+    loop["approval_digest"] = forged
+    policy_path.write_text(yaml.safe_dump(body))
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy_path, env=_gate_env(), now=NOW)
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_future_heartbeat_is_stale(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml", stale_after=300)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "heartbeat").write_text((NOW + timedelta(hours=1)).isoformat() + "\n")
+    result = _run(tmp_path, "status", policy=policy, now=NOW)
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_STALE_HEARTBEAT
+
+
+def test_killed_latch_survives_pause_restart_maintenance(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    _run(tmp_path, "kill", now=NOW)
+    assert (state / "mode").read_text().strip() == "KILLED"
+    for command in ("pause", "restart", "maintenance", "upgrade", "rollback"):
+        result = _run(tmp_path, command, now=NOW)
+        assert result.returncode == 2
+        assert (state / "mode").read_text().strip() == "KILLED"
+        assert _payload(result)["mode"] == "KILLED"
+
+
+def test_recover_requires_distinct_recovery_token(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    env = _gate_env()
+    refused = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
+    assert refused.returncode == 2
+    assert (state / "mode").read_text().strip() == "KILLED"
+    env = {**env, "EVAL_LAB_RECOVERY_TOKEN": env["EVAL_LAB_ENABLE_TOKEN"]}
+    same = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
+    assert same.returncode == 2
+    assert (state / "mode").read_text().strip() == "KILLED"
+    env = {**_gate_env(), "EVAL_LAB_RECOVERY_TOKEN": "recovery-token-distinct"}
+    recovered = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
+    assert recovered.returncode == 0
+    assert (state / "mode").read_text().strip() == "DISABLED"
+
+
+def test_keychain_stdout_omits_ref_when_absent() -> None:
+    injected = "keychain:not-a-valid"
+    completed = subprocess.run(
+        [str(KEYCHAIN)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "EVAL_LAB_SECRET_REF": injected},
+    )
+    assert completed.returncode == 2
+    assert injected not in completed.stdout
+    assert "EVAL_LAB_SECRET_REF" not in completed.stdout
+    assert "secret_ref=" not in completed.stdout
 
 
 def test_committed_templates_have_no_secret_literals() -> None:

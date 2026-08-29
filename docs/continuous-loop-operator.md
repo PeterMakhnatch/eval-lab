@@ -51,6 +51,7 @@ scripts/ops/continuous-operator upgrade --state-dir /tmp/op-state
 scripts/ops/continuous-operator rollback --state-dir /tmp/op-state
 scripts/ops/continuous-operator maintenance --state-dir /tmp/op-state
 scripts/ops/continuous-operator kill --state-dir /tmp/op-state
+scripts/ops/continuous-operator recover --state-dir /tmp/op-state
 scripts/ops/continuous-operator rotate-logs --state-dir /tmp/op-state
 scripts/ops/continuous-operator rotate-cas --state-dir /tmp/op-state
 scripts/ops/keychain-inject.sh
@@ -69,14 +70,21 @@ plus `load_policy` of `standing-approvals.yaml`. Env presence flags
 (`EVAL_LAB_STANDING_APPROVAL`, `EVAL_LAB_BUDGET_PRESENT`) are self-assertion
 and are refused. Enable identity, approval `actor`, and budget `actor` must
 be pairwise distinct. Parallel signed-manifest extra fields are rejected.
+`approval_digest` is an HMAC-SHA256 over the exact policy body plus budget
+payload (`scope`, `expires_at`, `ceiling_usd`) and approval actor/spec/time,
+keyed by `$STATE/approval.mac` or `EVAL_LAB_APPROVAL_MAC_KEY` (path to a
+>=32-byte secret). Unkeyed SHA-256 of public fields is not a signature.
 Never put token material in git or argv logs. There is no production `--now`
-or `EVAL_LAB_OPERATOR_NOW` clock override.
+or `EVAL_LAB_OPERATOR_NOW` clock override. A heartbeat timestamp in the
+future is `stale_heartbeat`.
 
 | Input | How |
 |---|---|
 | Enable token | `EVAL_LAB_ENABLE_TOKEN` + `EVAL_LAB_ENABLE_IDENTITY` |
-| Standing approval | `$STATE/approval.json` as `PaidRunAuthorization`; loop policy digest must match |
-| Budget | `$STATE/budget.json` as `PaidRunAuthorization` plus `load_policy` standing YAML |
+| Standing approval | `$STATE/approval.json` as `PaidRunAuthorization`; HMAC digest must match |
+| Budget | `$STATE/budget.json` with scope `continuous-loop`, future `expires_at`, ceiling, plus `load_policy` standing YAML |
+| MAC key | `$STATE/approval.mac` or `EVAL_LAB_APPROVAL_MAC_KEY` |
+| Recovery | `EVAL_LAB_RECOVERY_TOKEN` distinct from enable token; only `recover` clears `KILLED` |
 | Secret reference | `EVAL_LAB_SECRET_REF` closed grammar `keychain:<service>/<account>` (never logged) |
 | Secret presence probe | `EVAL_LAB_SECRET_PRESENT=1` or `$STATE/secret_present` (existence only) |
 | Policy | `--policy` full typed nested fields; nulls keep DISABLED |
@@ -91,13 +99,15 @@ policy fields also keep the operator DISABLED.
 ## Units (remain disabled)
 
 - launchd: `Disabled=true`, `RunAtLoad=false`, no `KeepAlive`, user-session
-  `Aqua`, logs under `~/Library/Logs/evallab/`, absolute interpreter path.
-  Do not `launchctl bootstrap`.
+  `Aqua`, interpreter `/usr/local/libexec/evallab/.venv/bin/python`, logs
+  `/dev/null` (launchd does not expand `~`). Do not `launchctl bootstrap`.
 - systemd: `[Install]` has no `WantedBy=`. `User=evallab`, `NoNewPrivileges`,
   `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, empty
-  `CapabilityBoundingSet`, `RestrictAddressFamilies=AF_UNIX`, mode `0700`
-  state. Do not `systemctl enable`.
-- compose: `restart: "no"` and `profiles: ["manual"]`; image `uv sync --locked`
+  `CapabilityBoundingSet`, `RestrictAddressFamilies=AF_UNIX`.
+  `StateDirectory=evallab-operator` matches `--state-dir /var/lib/evallab-operator`.
+  Do not `systemctl enable`.
+- compose: `restart: "no"` and `profiles: ["manual"]`; `read_only: true` with
+  writable tmpfs at `/var/lib/evallab-operator`; image `uv sync --locked`
   then non-root `USER`. Do not `docker compose up`.
 - Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 
@@ -108,11 +118,14 @@ policy fields also keep the operator DISABLED.
   Empty inflight with no kill fence → mode `DISABLED`.
 - `kill` writes `$STATE/kill.json` with `FAILED_OPERATOR_KILL`,
   `executed: false`, and **does not wipe** inflight leases.
+- `KILLED` is a latch: `pause`, `maintenance`, `restart`, `upgrade`, and
+  `rollback` refuse and leave the latch set. Only `recover` with a distinct
+  `EVAL_LAB_RECOVERY_TOKEN` (and passing gates) clears it.
 
 ## Health / CAS rotation
 
-`status`, `validate`, `quota`, and `start` fail closed on a missing or stale
-heartbeat once a typed policy is present (`stale_heartbeat`). `rotate-logs` /
+`status`, `validate`, `quota`, and `start` fail closed on a missing, future,
+or stale heartbeat once a typed policy is present (`stale_heartbeat`). `rotate-logs` /
 `rotate-cas` record intent under the state dir and do not delete
 `research/evidence` or live CAS. `start` never launches a process.
 

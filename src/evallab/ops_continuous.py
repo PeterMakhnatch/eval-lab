@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -59,6 +60,7 @@ CLOSED_REASONS = frozenset(
 SECRET_REF_GRAMMAR = re.compile(r"^keychain:[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,64}$")
 SAFETY_PAYLOAD_KEYS = frozenset({"ok", "reason", "mode", "detail", "running", "authorized"})
 AUTH_FIELDS = frozenset({"spec_id", "actor", "authorized_at", "quota_override"})
+BUDGET_FIELDS = AUTH_FIELDS | frozenset({"scope", "expires_at", "ceiling_usd"})
 
 
 class SloFreshnessPolicy(ContractModel):
@@ -177,21 +179,66 @@ class ContinuousLoopPolicy(ContractModel):
         return value.lower()
 
 
-def authorization_digest(auth: PaidRunAuthorization) -> str:
-    payload = {
-        "actor": auth.actor,
-        "authorized_at": auth.authorized_at.astimezone(UTC).isoformat(),
-        "spec_id": auth.spec_id,
+def canonical_binding_payload(
+    *,
+    policy: Mapping[str, Any],
+    approval: PaidRunAuthorization,
+    budget: Mapping[str, Any],
+) -> bytes:
+    body = {key: policy[key] for key in policy if key != "approval_digest"}
+    envelope = {
+        "approval": {
+            "actor": approval.actor,
+            "authorized_at": approval.authorized_at.astimezone(UTC).isoformat(),
+            "spec_id": approval.spec_id,
+        },
+        "budget": dict(budget),
+        "policy": body,
     }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(envelope, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+
+
+def bind_policy_digest(
+    *,
+    policy: Mapping[str, Any],
+    approval: PaidRunAuthorization,
+    budget: Mapping[str, Any],
+    mac_key: bytes,
+) -> str:
+    if not mac_key:
+        raise ValueError("mac key required")
+    return hmac.new(
+        mac_key,
+        canonical_binding_payload(policy=policy, approval=approval, budget=budget),
+        hashlib.sha256,
     ).hexdigest()
 
 
-def parse_paid_authorization(raw: Mapping[str, Any] | None, *, now: datetime) -> PaidRunAuthorization | None:
+def public_sha256_is_not_a_signature(payload: Mapping[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(dict(payload), sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()
+
+
+def load_mac_key(path: Path | None) -> bytes:
+    if path is None or not path.is_file():
+        return b""
+    try:
+        data = path.read_bytes().strip()
+    except OSError:
+        return b""
+    return data if len(data) >= 32 else b""
+
+
+def parse_paid_authorization(
+    raw: Mapping[str, Any] | None,
+    *,
+    now: datetime,
+    allowed_fields: frozenset[str] = AUTH_FIELDS,
+) -> PaidRunAuthorization | None:
     if not isinstance(raw, dict):
         return None
-    if set(raw) - AUTH_FIELDS:
+    if set(raw) - allowed_fields:
         return None
     try:
         spec_id = raw["spec_id"]
@@ -261,15 +308,9 @@ class OperatorContext:
     drain_timeout_seconds: float | None
     env_self_asserted_approval: bool
     env_self_asserted_budget: bool
-
-
-def _utc_now(raw: str | None) -> datetime:
-    if raw:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=UTC)
-        return parsed.astimezone(UTC)
-    return datetime.now(UTC)
+    mac_key: bytes
+    budget_payload: dict[str, Any]
+    recovery_token: str
 
 
 def load_loop_policy(path: Path | None) -> ContinuousLoopPolicy | None:
@@ -346,6 +387,21 @@ def write_mode(state_dir: Path, mode: str) -> None:
     _write_text(state_dir / "mode", mode)
 
 
+def _latched_kill(state_dir: Path) -> bool:
+    return read_mode(state_dir) == "KILLED"
+
+
+def _refuse_if_killed(ctx: OperatorContext, action: str) -> OperatorVerdict | None:
+    if not _latched_kill(ctx.state_dir):
+        return None
+    return _verdict(
+        ctx,
+        ok=False,
+        reason=REASON_DEFAULT_DISABLED,
+        detail=f"{action} refused; emergency KILLED latch held",
+    )
+
+
 def context_from_env(
     *,
     state_dir: Path,
@@ -376,7 +432,39 @@ def context_from_env(
     env_self_asserted_approval = bool(environ.get("EVAL_LAB_STANDING_APPROVAL"))
     env_self_asserted_budget = environ.get("EVAL_LAB_BUDGET_PRESENT", "") in {"1", "true", "yes"}
     approval = parse_paid_authorization(_load_json_mapping(approval_path), now=now)
-    budget = parse_paid_authorization(_load_json_mapping(budget_path), now=now)
+    budget_raw = _load_json_mapping(budget_path)
+    budget = parse_paid_authorization(budget_raw, now=now, allowed_fields=BUDGET_FIELDS)
+    budget_payload: dict[str, Any] = {}
+    if isinstance(budget_raw, dict) and budget is not None:
+        expires_raw = budget_raw.get("expires_at")
+        scope = budget_raw.get("scope")
+        expired = True
+        expires_iso = ""
+        if isinstance(expires_raw, str):
+            try:
+                expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+            except ValueError:
+                expires = None
+            else:
+                expires = expires.replace(tzinfo=UTC) if expires.tzinfo is None else expires.astimezone(UTC)
+                expired = expires <= now
+                expires_iso = expires.isoformat()
+        if not expired and isinstance(scope, list) and REQUIRED_SCOPE in scope:
+            budget_payload = {
+                "actor": budget.actor,
+                "ceiling_usd": budget_raw.get("ceiling_usd"),
+                "expires_at": expires_iso,
+                "scope": list(scope),
+                "spec_id": budget.spec_id,
+            }
+        else:
+            budget = None
+    mac_path = (
+        Path(environ["EVAL_LAB_APPROVAL_MAC_KEY"])
+        if environ.get("EVAL_LAB_APPROVAL_MAC_KEY")
+        else state_dir / "approval.mac"
+    )
+    mac_key = load_mac_key(mac_path)
     secret_ref = environ.get("EVAL_LAB_SECRET_REF", "")
     secret_present = secret_probe.is_file() or environ.get("EVAL_LAB_SECRET_PRESENT", "") in {
         "1",
@@ -400,6 +488,9 @@ def context_from_env(
         drain_timeout_seconds=drain_timeout_seconds,
         env_self_asserted_approval=env_self_asserted_approval,
         env_self_asserted_budget=env_self_asserted_budget,
+        mac_key=mac_key,
+        budget_payload=budget_payload,
+        recovery_token=environ.get("EVAL_LAB_RECOVERY_TOKEN", ""),
     )
 
 
@@ -421,7 +512,9 @@ def _verdict(
         "authorized": False,
     }
     if extra:
-        payload["details"] = dict(extra)
+        payload["details"] = {
+            key: value for key, value in extra.items() if key not in SAFETY_PAYLOAD_KEYS
+        }
     _append_event(
         ctx.state_dir,
         {
@@ -450,7 +543,10 @@ def _heartbeat_stale(ctx: OperatorContext) -> bool:
         return True
     if stamped.tzinfo is None:
         stamped = stamped.replace(tzinfo=UTC)
-    age = ctx.now - stamped.astimezone(UTC)
+    stamped = stamped.astimezone(UTC)
+    if stamped > ctx.now:
+        return True
+    age = ctx.now - stamped
     return age > timedelta(seconds=float(stale_after))
 
 
@@ -485,7 +581,15 @@ def admission_reason(ctx: OperatorContext) -> str | None:
         return REASON_DEFAULT_DISABLED
     if ctx.policy.approval_signature_ref != ctx.approval.actor:
         return REASON_MISSING_STANDING_APPROVAL
-    if ctx.policy.approval_digest != authorization_digest(ctx.approval):
+    if not ctx.mac_key or not ctx.budget_payload:
+        return REASON_MISSING_STANDING_APPROVAL
+    expected = bind_policy_digest(
+        policy=ctx.policy.model_dump(mode="json"),
+        approval=ctx.approval,
+        budget=ctx.budget_payload,
+        mac_key=ctx.mac_key,
+    )
+    if not hmac.compare_digest(ctx.policy.approval_digest, expected):
         return REASON_MISSING_STANDING_APPROVAL
     if _heartbeat_stale(ctx):
         return REASON_STALE_HEARTBEAT
@@ -585,29 +689,56 @@ def cmd_quota(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_pause(ctx: OperatorContext) -> OperatorVerdict:
+    blocked = _refuse_if_killed(ctx, "pause")
+    if blocked:
+        return blocked
     write_mode(ctx.state_dir, "PAUSED")
     return _verdict(ctx, ok=True, reason=None, detail="recorded pause; no process signalled")
 
 
 def cmd_maintenance(ctx: OperatorContext) -> OperatorVerdict:
+    blocked = _refuse_if_killed(ctx, "maintenance")
+    if blocked:
+        return blocked
     write_mode(ctx.state_dir, "MAINTENANCE")
     return _verdict(ctx, ok=True, reason=None, detail="recorded maintenance; no process signalled")
 
 
 def cmd_restart(ctx: OperatorContext) -> OperatorVerdict:
+    blocked = _refuse_if_killed(ctx, "restart")
+    if blocked:
+        return blocked
     _write_text(ctx.state_dir / "restart.json", json.dumps({"intended": "restart", "executed": False}))
     write_mode(ctx.state_dir, DEFAULT_MODE)
     return _verdict(ctx, ok=True, reason=None, detail="recorded restart intent; unit stays disabled")
 
 
 def cmd_upgrade(ctx: OperatorContext) -> OperatorVerdict:
+    blocked = _refuse_if_killed(ctx, "upgrade")
+    if blocked:
+        return blocked
     _write_text(ctx.state_dir / "upgrade.json", json.dumps({"intended": "upgrade", "executed": False}))
     return _verdict(ctx, ok=True, reason=None, detail="recorded upgrade intent; no image pull")
 
 
 def cmd_rollback(ctx: OperatorContext) -> OperatorVerdict:
+    blocked = _refuse_if_killed(ctx, "rollback")
+    if blocked:
+        return blocked
     _write_text(ctx.state_dir / "rollback.json", json.dumps({"intended": "rollback", "executed": False}))
     return _verdict(ctx, ok=True, reason=None, detail="recorded rollback intent; no unit swapped")
+
+
+def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
+    if not _latched_kill(ctx.state_dir):
+        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover requires KILLED latch")
+    reason = admission_reason(ctx)
+    if reason:
+        return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
+    if not ctx.recovery_token or ctx.recovery_token in {ctx.enable_token, ctx.enable_identity}:
+        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery token must be distinct")
+    write_mode(ctx.state_dir, DEFAULT_MODE)
+    return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by authorized recovery")
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
@@ -677,6 +808,7 @@ COMMANDS = {
     "rollback": cmd_rollback,
     "maintenance": cmd_maintenance,
     "kill": cmd_kill,
+    "recover": cmd_recover,
     "rotate-logs": lambda ctx: cmd_rotate(ctx, "logs"),
     "rotate-cas": lambda ctx: cmd_rotate(ctx, "cas"),
 }

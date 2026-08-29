@@ -12,20 +12,22 @@
 	<string>Aqua</string>
 	<key>ProcessType</key>
 	<string>Background</string>
+	<key>WorkingDirectory</key>
+	<string>/usr/local/libexec/evallab</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/opt/evallab/.venv/bin/python</string>
+		<string>/usr/local/libexec/evallab/.venv/bin/python</string>
 		<string>-m</string>
 		<string>evallab.ops_continuous</string>
 		<string>validate</string>
 		<string>--state-dir</string>
-		<string>/opt/evallab/operator-state</string>
+		<string>operator-state</string>
 	</array>
 	<key>Umask</key>
 	<integer>63</integer>
 	<key>StandardOutPath</key>
-	<string>~/Library/Logs/evallab/continuous-operator.log</string>
+	<string>/dev/null</string>
 	<key>StandardErrorPath</key>
-	<string>~/Library/Logs/evallab/continuous-operator.error.log</string>
+	<string>/dev/null</string>
 </dict>
 </plist>

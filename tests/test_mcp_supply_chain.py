@@ -178,7 +178,28 @@ def test_verify_provenance_refuses_wrong_manifest_binding(tmp_path: Path):
         verify_provenance_wheelhouse(staged, bad)
 
 
-def test_event_schema_version_and_error_outcomes_in_generated_server():
+def test_verify_provenance_rejects_forged_records_with_valid_manifest_digest(tmp_path: Path):
+    """P1 regression: provenance with correct manifest digest/source but substituted
+    wheel records must be rejected — a forged resolver-provenance must not pass."""
+    wheelhouse = _real_wheelhouse_or_skip()
+    prov = record_prepackaging_provenance(wheelhouse, TARGET)
+    staged = tmp_path / "staged"
+    from evallab.mcp_substrate import stage_platform_wheelhouse
+
+    stage_platform_wheelhouse(wheelhouse, staged, TARGET)
+    # Forge: keep the true manifest digest/source but swap one wheel's records
+    forged_wheels = list(prov.wheels)
+    swapped = dict(forged_wheels[0])
+    swapped["sha256"] = "f" * 64
+    swapped["name"] = "evil"
+    swapped["version"] = "9.9.9"
+    forged_wheels[0] = swapped
+    forged = type(prov)(prov.target, prov.manifest_digest, prov.manifest_source, tuple(forged_wheels))
+    with pytest.raises(SubstrateError, match="do not exactly match checked-in trusted manifest"):
+        verify_provenance_wheelhouse(staged, forged)
+
+
+
     code = generate_fastmcp_server_script([_simple_tool()])
     assert f'EVENT_SCHEMA_VERSION = "{MCP_TOOL_EVENT_SCHEMA_VERSION}"' in code
     assert "tool_call_error" in code

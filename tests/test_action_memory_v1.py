@@ -6,7 +6,6 @@ import shutil
 import sys
 import threading
 import time
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -99,21 +98,21 @@ def test_materializer_production_generates_valid_harbor_and_compose_structure(tm
     mat_mod = load("action_memory_mat_prod", "materializer")
     target = tmp_path / "action_mem_task_prod_pkg"
 
-    # Create synthetic test wheelhouse with fastmcp wheel
-    fake_wh = tmp_path / "fake_wh"
-    fake_wh.mkdir()
-    wh1 = fake_wh / "fastmcp-3.4.7-py3-none-any.whl"
-    with zipfile.ZipFile(wh1, "w") as zf:
-        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    # The production trust root requires the exact reviewed 66-wheel wheelhouse;
+    # a synthetic single-wheel house is rejected (TOFU refusal). Use the real
+    # trusted wheelhouse when available.
+    real_wh = Path("/tmp/fastmcp3_wheelhouse")
+    if not real_wh.is_dir():
+        pytest.skip("FastMCP 3.4.7 trusted wheelhouse not populated on this host")
 
     wheel_target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
-    provenance = record_prepackaging_provenance(fake_wh, wheel_target)
+    provenance = record_prepackaging_provenance(real_wh, wheel_target)
 
     mat_mod.materialize(
         output_dir=target,
         cell_id="clean_baseline_4k",
         seed=42,
-        wheelhouse_source=fake_wh,
+        wheelhouse_source=real_wh,
         resolver_provenance=provenance,
         plan_only=False,
     )

@@ -30,7 +30,7 @@ jobs:
       - name: Download CPython 3.12 manylinux FastMCP wheelhouse
         run: |
           mkdir -p /tmp/fastmcp3_linux_wheelhouse
-          python3 -m pip download --index-url https://pypi.org/simple --only-binary=:all: --dest /tmp/fastmcp3_linux_wheelhouse --platform manylinux_2_17_x86_64 --python-version 312 fastmcp==3.4.7
+          python3 -m pip download --index-url https://pypi.org/simple --only-binary=:all: --dest /tmp/fastmcp3_linux_wheelhouse --platform manylinux_2_17_x86_64 --implementation cp --python-version 3.12 --abi cp312 fastmcp==3.4.7
       - name: Stage selected lock via substrate APIs
         run: >
           uv run --no-sync python -c

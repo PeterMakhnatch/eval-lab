@@ -1534,7 +1534,30 @@ def verify_provenance_wheelhouse(
         raise SubstrateError(
             "resolver provenance manifest_source does not match checked-in trusted wheel manifest"
         )
+    # Trust root: the provenance wheel records themselves MUST exactly equal the
+    # checked-in reviewed manifest (filenames/versions/sizes/SHA-256), not merely
+    # carry the correct manifest digest. Otherwise a forged resolver-provenance
+    # could retain the true digest/source while substituting malicious wheel
+    # records and bytes.
+    manifest_entries = _manifest_by_filename()
     expected = {item["filename"]: item for item in provenance.wheels}
+    manifest_expected = {
+        fn: {k: rec[k] for k in ("name", "version", "size_bytes", "sha256")}
+        for fn, rec in manifest_entries.items()
+    }
+    prov_expected = {
+        fn: {
+            "name": rec["name"].lower().replace("_", "-"),
+            "version": rec["version"],
+            "size_bytes": rec["size_bytes"],
+            "sha256": rec["sha256"],
+        }
+        for fn, rec in expected.items()
+    }
+    if manifest_expected != prov_expected:
+        raise SubstrateError(
+            "resolver provenance wheel records do not exactly match checked-in trusted manifest"
+        )
     found = {wheel.name: wheel for wheel in wheelhouse.glob("*.whl")}
     if set(found) != set(expected):
         raise SubstrateError(

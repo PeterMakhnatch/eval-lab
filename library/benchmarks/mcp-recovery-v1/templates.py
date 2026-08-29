@@ -1,136 +1,130 @@
-"""In-process oracle, NOP, and mutant controls for the recovery CI contract."""
+"""Verifier-only in-process controls for every C3 class/persistence cell."""
 from __future__ import annotations
 
 import json
 from collections.abc import Callable
 from pathlib import Path
 
-from faults import FaultClass, FaultSpec
+from evallab.benchmark_program_contracts import FaultClass
+
+from faults import FaultSpec
 from runtime import McpServerRuntime
-from verifier import MUTATION_BY_FAULT
 
 
-def _export(task_dir: Path, server: McpServerRuntime, completed: bool = True) -> None:
-    out = task_dir / "output"
-    out.mkdir(parents=True, exist_ok=True)
-    if completed:
-        server.state.set("canary_key", "verified_value")
-        server.state.set("session_status", "completed")
-    (out / "benchmark-events.jsonl").write_text(
-        "".join(
-            json.dumps(
-                {
-                    "event_index": event["event_index"],
-                    "event_type": event["event_type"],
-                    "payload": event["payload"],
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            + "\n"
-            for event in server.recorded_events
-        ),
-        encoding="utf-8",
-    )
-    (out / "final-state.json").write_text(
-        json.dumps({"records": dict(server.state.records), "digest": server.state.digest()}, sort_keys=True)
-        + "\n",
-        encoding="utf-8",
+def _fault_meta(task_dir: Path) -> tuple[FaultClass, int, str]:
+    record = json.loads((task_dir / "tests" / "fixtures" / "fault_record.json").read_text(encoding="utf-8"))
+    return FaultClass(record["fault_class"]), int(record["injection_payload"]["persistence"]), str(record["fault_id"])
+
+
+def _spec(task_dir: Path) -> FaultSpec:
+    fault, persistence, _ = _fault_meta(task_dir)
+    target = "read_record" if fault == FaultClass.SILENT_WRONG_PAYLOAD else "write_record"
+    return FaultSpec(
+        target,
+        fault,
+        persistence=persistence,
+        clear_condition=lambda _args, state: bool(state) and state.get("__fallback_synced__") is True,
     )
 
 
-def _call(server: McpServerRuntime, name: str, arguments: dict) -> None:
+def _call(server: McpServerRuntime, tool: str, arguments: dict[str, str]) -> None:
     server.handle_request(
         {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
-            "params": {"name": name, "arguments": arguments},
+            "params": {"name": tool, "arguments": arguments},
         }
     )
 
 
-def _spec_or_default(fault_spec: FaultSpec | None) -> FaultSpec:
-    if fault_spec is not None:
-        return fault_spec
-    return FaultSpec(
-        "write_record",
-        FaultClass.PERSISTENT_SIGNATURE_ERROR,
-        persistence=1,
-        clear_condition=lambda _args, state: state.get("__auth__") == "admin_write",
+def _export(task_dir: Path, server: McpServerRuntime) -> None:
+    _, _, fault_id = _fault_meta(task_dir)
+    out = task_dir / "output"
+    out.mkdir(parents=True, exist_ok=True)
+    public_events = []
+    for event in server.recorded_events:
+        payload = event.get("payload") or {}
+        if event["event_type"] == "fault_injected":
+            public_events.append(
+                {"event_index": event["event_index"], "event_type": "tool_result", "tool": payload.get("tool"), "outcome": "error", "fault_id": fault_id}
+            )
+        elif event["event_type"] == "tool_executed":
+            public_events.append(
+                {"event_index": event["event_index"], "event_type": "tool_result", "tool": payload.get("tool"), "outcome": "ok"}
+            )
+    (out / "benchmark-events.jsonl").write_text(
+        "".join(json.dumps(event, sort_keys=True, separators=(",", ":")) + "\n" for event in public_events),
+        encoding="utf-8",
+    )
+    (out / "final-state.json").write_text(
+        json.dumps(
+            {
+                "initial_digest": server.initial_digest,
+                "final_digest": server.state.digest(),
+                "event_count": len(public_events),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
 
 def run_oracle_repair(task_dir: Path, agent_workspace: Path, fault_spec: FaultSpec | None = None) -> None:
-    spec = _spec_or_default(fault_spec)
-    evidence = Path(task_dir) / "output" / "benchmark-events.jsonl"
-    evidence.parent.mkdir(parents=True, exist_ok=True)
-    if evidence.exists():
-        evidence.unlink()
-    server = McpServerRuntime(
-        mode="fault",
-        initial_state={"session_status": "initial"},
-        fault_specs=[spec],
-        evidence_file=evidence,
-    )
-    write_args = {"key": "canary_key", "value": "verified_value"}
-    target = spec.target_tool
-    for _ in range(spec.persistence):
-        if target == "read_record":
-            _call(server, "read_record", {"key": "canary_key"})
-        else:
-            _call(server, "write_record", write_args)
-    mutation = MUTATION_BY_FAULT[spec.fault_class.value]
-    if mutation == "refresh_auth":
-        _call(server, "refresh_auth", {"scope": "admin_write"})
-    elif mutation == "fallback_query":
-        _call(server, "fallback_query", {"query": "canary_key"})
-    elif mutation == "read_record":
-        _call(server, "read_record", {"key": "canary_key"})
-    _call(server, "write_record", write_args)
-    _call(server, "read_record", {"key": "canary_key"})
-    _export(Path(task_dir), server, completed=True)
+    task = Path(task_dir)
+    spec = fault_spec or _spec(task)
+    server = McpServerRuntime(mode="fault", initial_state={}, fault_specs=[spec])
+    write = {"key": "control-record", "value": "control-value"}
+    if spec.target_tool == "read_record":
+        _call(server, "write_record", write)
+        for _ in range(spec.persistence):
+            _call(server, "read_record", {"key": "control-record"})
+        _call(server, "fallback_query", {"query": "control-record"})
+        _call(server, "read_record", {"key": "control-record"})
+    else:
+        for _ in range(spec.persistence):
+            _call(server, "write_record", write)
+        _call(server, "fallback_query", {"query": "control-record"})
+        _call(server, "write_record", write)
+        _call(server, "read_record", {"key": "control-record"})
+    _export(task, server)
 
 
 def run_nop_baseline(task_dir: Path, agent_workspace: Path) -> None:
-    out = Path(task_dir) / "output"
+    task = Path(task_dir)
+    out = task / "output"
     out.mkdir(parents=True, exist_ok=True)
     (out / "benchmark-events.jsonl").write_text("", encoding="utf-8")
-    (out / "final-state.json").write_text(json.dumps({"records": {}, "digest": ""}), encoding="utf-8")
+    (out / "final-state.json").write_text(
+        json.dumps({"initial_digest": "", "final_digest": "", "event_count": 0}) + "\n",
+        encoding="utf-8",
+    )
 
 
 def run_blind_retry_control(task_dir: Path, agent_workspace: Path, fault_spec: FaultSpec | None = None) -> None:
-    spec = fault_spec or FaultSpec("write_record", FaultClass.PERSISTENT_SIGNATURE_ERROR, persistence=2)
-    evidence = Path(task_dir) / "output" / "benchmark-events.jsonl"
-    evidence.parent.mkdir(parents=True, exist_ok=True)
-    if evidence.exists():
-        evidence.unlink()
-    server = McpServerRuntime(
-        mode="fault",
-        initial_state={"session_status": "initial"},
-        fault_specs=[spec],
-        evidence_file=evidence,
-    )
-    write_args = {"key": "canary_key", "value": "verified_value"}
-    for _ in range(spec.persistence + 1):
-        _call(server, spec.target_tool, write_args if spec.target_tool == "write_record" else {"key": "canary_key"})
-    _export(Path(task_dir), server, completed=False)
+    task = Path(task_dir)
+    spec = fault_spec or _spec(task)
+    server = McpServerRuntime(mode="fault", initial_state={}, fault_specs=[spec])
+    write = {"key": "control-record", "value": "control-value"}
+    if spec.target_tool == "read_record":
+        _call(server, "write_record", write)
+        for _ in range(spec.persistence + 1):
+            _call(server, "read_record", {"key": "control-record"})
+    else:
+        for _ in range(spec.persistence + 1):
+            _call(server, "write_record", write)
+        _call(server, "read_record", {"key": "control-record"})
+    _export(task, server)
 
 
 def run_wrong_repair_mutant(task_dir: Path, agent_workspace: Path) -> None:
-    evidence = Path(task_dir) / "output" / "benchmark-events.jsonl"
-    evidence.parent.mkdir(parents=True, exist_ok=True)
-    if evidence.exists():
-        evidence.unlink()
-    server = McpServerRuntime(
-        mode="fault",
-        initial_state={"session_status": "initial"},
-        fault_specs=[FaultSpec("write_record", FaultClass.PERSISTENT_SIGNATURE_ERROR, persistence=1)],
-        evidence_file=evidence,
-    )
-    _call(server, "write_record", {"key": "wrong_key", "value": "corrupted_val"})
-    server.state.set("session_status", "corrupted")
-    _export(Path(task_dir), server, completed=False)
+    task = Path(task_dir)
+    spec = _spec(task)
+    server = McpServerRuntime(mode="fault", initial_state={}, fault_specs=[spec])
+    _call(server, "refresh_auth", {"scope": "retry"})
+    _call(server, "write_record", {"key": "", "value": ""})
+    _export(task, server)
 
 
 def mutants() -> dict[str, Callable[[Path, Path], None]]:

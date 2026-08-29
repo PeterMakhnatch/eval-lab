@@ -2347,6 +2347,15 @@ def main() -> int:
             [victim, step2, _grec("r0", sup=bid, step_contribution="NEUTRAL")],
         )
         resolved = effective_ratings(load_ledger(chain), **GVC)
+        # This assertion was MISSING: the chain was built and resolved, then
+        # nothing checked the result - a dead test that reported success while
+        # verifying nothing. Without it, a guard that rejected multi-hop chains
+        # would pass every attack case above and go unnoticed.
+        check(
+            "a legitimate MULTI-HOP chain resolves to the last link",
+            len(resolved) == 1 and resolved[0]["step_contribution"] == "NEUTRAL",
+        )
+
     print("SEC-INTAKE-DOS - every read/parse failure is a fail-closed diagnostic, never a crash")
     with tempfile.TemporaryDirectory() as tmp:
         DC = "c" * 64

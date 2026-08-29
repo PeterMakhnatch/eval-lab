@@ -6,18 +6,18 @@
   "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
-    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded",
+    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
     "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
     "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
-    "source_files": 58,
+    "source_files": 61,
     "promoted_files": 40,
-    "omitted_files": 18,
+    "omitted_files": 21,
     "quota_sidecars": 0,
     "promoted_bytes": 81901,
-    "source_bytes": 9716463
+    "source_bytes": 9716592
   },
   "files": [
     {
@@ -51,10 +51,21 @@
       "promoted_sha256": "sha256:cf4486c89c0eb6a117ed1e563cdea5fb1edee9072972d56e4b1dfb69fb7c3979"
     },
     {
+      "source_path": "recovery__HYxt7du/agent/opencode/xdg-data/opencode/auth.json",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "symlink",
+      "link_target": "/run/secrets/evallab_zai_opencode_auth.json",
+      "source_bytes": 43,
+      "source_sha256": "sha256:34aa4bb3bb8b1163bdc8356fd700cb84427e304cc2adcc1e403f3bce3e8bf42d"
+    },
+    {
       "source_path": "recovery__HYxt7du/agent/opencode/xdg-data/opencode/log/opencode.log",
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 27638,
       "source_sha256": "sha256:c43607b03ae9871d8654b6b1e705e17c4192030b8a6735ec71c2346a3b42101f"
     },
@@ -63,6 +74,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 4096,
       "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
     },
@@ -71,6 +83,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 32768,
       "source_sha256": "sha256:76ff73e7807c67dca3e218c16b52465e7f23530b0bcaa887b668e5fe2b4bd739"
     },
@@ -79,6 +92,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2813992,
       "source_sha256": "sha256:66f4fecebf2b3b7d3f8402dbb4fa52469f315d5e15488bf664fca79b1b7c38eb"
     },
@@ -87,6 +101,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 0,
       "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
@@ -95,6 +110,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 12361,
       "source_sha256": "sha256:72314724ae563936a322fc476bfbd55c9d99035a3331d1da2229ff95f18a8e27"
     },
@@ -219,10 +235,21 @@
       "promoted_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
+      "source_path": "recovery__ari74b9/agent/opencode/xdg-data/opencode/auth.json",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "symlink",
+      "link_target": "/run/secrets/evallab_zai_opencode_auth.json",
+      "source_bytes": 43,
+      "source_sha256": "sha256:34aa4bb3bb8b1163bdc8356fd700cb84427e304cc2adcc1e403f3bce3e8bf42d"
+    },
+    {
       "source_path": "recovery__ari74b9/agent/opencode/xdg-data/opencode/log/opencode.log",
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 27457,
       "source_sha256": "sha256:bbf90b1c00d649e5bffb777b7ab59184bf5c62a92760d8cd0c8103a29f41a2d0"
     },
@@ -231,6 +258,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 4096,
       "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
     },
@@ -239,6 +267,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 32768,
       "source_sha256": "sha256:b5378c9e682ae2639ff1cb8db60f492327ededbe266b0032b5a9886c62bb5c59"
     },
@@ -247,6 +276,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2640952,
       "source_sha256": "sha256:c2c9f703ee58818a5203cf33070e30391a39bc8b55c23a5441903e86abdac530"
     },
@@ -255,6 +285,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 0,
       "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
@@ -263,6 +294,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 9907,
       "source_sha256": "sha256:8534a56dcda4cf4a70c6b6ddf7680ea83290ac347ccfb5014162633531e4b86d"
     },
@@ -387,10 +419,21 @@
       "promoted_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
+      "source_path": "recovery__ozALVY2/agent/opencode/xdg-data/opencode/auth.json",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "symlink",
+      "link_target": "/run/secrets/evallab_zai_opencode_auth.json",
+      "source_bytes": 43,
+      "source_sha256": "sha256:34aa4bb3bb8b1163bdc8356fd700cb84427e304cc2adcc1e403f3bce3e8bf42d"
+    },
+    {
       "source_path": "recovery__ozALVY2/agent/opencode/xdg-data/opencode/log/opencode.log",
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 41389,
       "source_sha256": "sha256:ee90c717e4b1abde49659e4d50804347fd9bbdc41dc710f24056a71025698fd4"
     },
@@ -399,6 +442,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 4096,
       "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
     },
@@ -407,6 +451,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 32768,
       "source_sha256": "sha256:6cd9ee894202285bbc4cfecf4111ab1112a2ae3ce8932eb5118738a8c0d22e73"
     },
@@ -415,6 +460,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 3922272,
       "source_sha256": "sha256:de8abbd56c3cfb9f2f9f4ea65c22f16c0aced8a987211aa5497e96bd5bf95a40"
     },
@@ -423,6 +469,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 0,
       "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
@@ -431,6 +478,7 @@
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 28281,
       "source_sha256": "sha256:e693e318bc7efe7663a4b42062f841a51a0ab249b72a906173c8847a2b61c031"
     },

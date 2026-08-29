@@ -44,6 +44,15 @@ R2 -- raw model I/O / runtime state omission (``agent/sessions/**``,
     All of these are omitted entirely; the SHA-256 of each omitted file is
     recorded so provenance survives.
 
+    Symlinks are enumerated explicitly and never dereferenced. OpenCode's XDG
+    ``auth.json`` is a live symlink to a host credential store, and it must not
+    be read: a live link would disclose the target's bytes into the digest, and
+    a broken link cannot be read at all. Every symlink under an R2 omission path
+    is recorded with ``entry_type: "symlink"`` and the SHA-256/length of its
+    *link-target string* (the link itself, not the target's content). Any
+    symlink outside an R2 omission path fails closed -- promotion refuses to
+    copy or dereference it.
+
 R3 -- verifier-only payload (``<trial>/verifier/*``).
     ``library/tasks/terminal-bench-html-js-filter/tests/test_outputs.py`` renders
     its attack-vector corpus, which is deliberately kept out of the repository
@@ -394,25 +403,65 @@ def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
     return json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
 
 
-def classify(relative: Path) -> str:
+def omit_r2(relative: Path) -> bool:
+    """Whether a path is raw model I/O or runtime state that R2 omits.
+
+    Pure path inspection -- never dereferences, never stats the target -- so it
+    is safe to call on symlinks whose targets may be gone or hostile.
+    ``agent/sessions/**`` is the Codex rollout prefix; ``agent/opencode.txt``
+    and the whole ``agent/opencode/**`` tree are OpenCode's raw stream plus its
+    SQLite/WAL/log/snapshot/auth runtime state.
+    """
     parts = relative.parts
-    if "agent" in parts:
-        # R2: raw model I/O and runtime state are omitted. `agent/sessions/**`
-        # is the Codex rollout prefix; `agent/opencode.txt` and the whole
-        # `agent/opencode/**` tree are OpenCode's raw stream plus its SQLite/
-        # WAL/log/snapshot/auth runtime state. None of these are evidence and
-        # all must stay out of the bundle; each omission is digest-recorded.
-        if (
-            "sessions" in parts
-            or "opencode" in parts
-            or relative.name == "opencode.txt"
-        ):
-            return "omit-R2"
-        if relative.name == "trajectory.json":
-            return "redact-R1"
+    if "agent" not in parts:
+        return False
+    return (
+        "sessions" in parts
+        or "opencode" in parts
+        or relative.name == "opencode.txt"
+    )
+
+
+def classify(relative: Path) -> str:
+    if omit_r2(relative):
+        return "omit-R2"
+    parts = relative.parts
+    if relative.name == "trajectory.json" and "agent" in parts:
+        return "redact-R1"
     if "verifier" in parts:
         return "maybe-redact-R3"
     return "verbatim"
+
+
+def omission_record(
+    relative: Path, *, entry_type: str, raw: bytes | None = None, link_target: str | None = None
+) -> dict[str, Any]:
+    """An R2 omission entry.
+
+    A ``file`` records the SHA-256/length of the source bytes. A ``symlink``
+    records the SHA-256/length of its *link-target string* only -- the link
+    itself, never the target's content, which would disclose the target and
+    cannot be read for a broken link anyway. This is the schema ``verify``
+    re-checks source-free.
+    """
+    record: dict[str, Any] = {
+        "source_path": str(relative),
+        "promoted_path": None,
+        "action": "omitted",
+        "rule": "R2",
+        "entry_type": entry_type,
+    }
+    if entry_type == "symlink":
+        assert link_target is not None
+        target_bytes = link_target.encode("utf-8")
+        record["link_target"] = link_target
+        record["source_bytes"] = len(target_bytes)
+        record["source_sha256"] = sha256_bytes(target_bytes)
+    else:
+        assert raw is not None
+        record["source_bytes"] = len(raw)
+        record["source_sha256"] = sha256_bytes(raw)
+    return record
 
 
 def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
@@ -428,21 +477,35 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
 
     entries: list[dict[str, Any]] = []
     promoted_bytes = 0
-    for source in sorted(p for p in job_dir.rglob("*") if p.is_file()):
+    for source in sorted(job_dir.rglob("*")):
+        # Symlinks are enumerated explicitly and handled by path alone. Their
+        # content is never read: a live link would dereference the target
+        # (disclosing its bytes into the digest), and a broken link cannot be
+        # read at all. Only the link-target *string* is recorded.
+        if source.is_symlink():
+            relative = source.relative_to(job_dir)
+            if not omit_r2(relative):
+                raise SystemExit(
+                    "refusing to promote a symlink outside an R2 omission path: "
+                    f"{relative} (promotion never dereferences symlinks)"
+                )
+            try:
+                link_target = str(source.readlink())
+            except OSError as exc:  # pragma: no cover - filesystem failure
+                raise SystemExit(f"cannot read link target for {relative}: {exc}") from exc
+            entries.append(
+                omission_record(relative, entry_type="symlink", link_target=link_target)
+            )
+            continue
+        if not source.is_file():
+            continue
         relative = source.relative_to(job_dir)
         raw = source.read_bytes()
         parent_digest = sha256_bytes(raw)
         action = classify(relative)
 
         if action == "omit-R2":
-            omission = {
-                "source_path": str(relative),
-                "promoted_path": None,
-                "action": "omitted",
-                "rule": "R2",
-                "source_bytes": len(raw),
-                "source_sha256": parent_digest,
-            }
+            omission = omission_record(relative, entry_type="file", raw=raw)
             entries.append(omission)
             # R4: the rollout goes, but the provider's own quota reading inside
             # it survives as a whitelisted sidecar carrying this same parent
@@ -526,7 +589,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         "promoted_by": "scripts/promote_codex_bundle.py",
         "redaction_rules": {
             "R1": "system/user ATIF step message text removed; sha256 and length kept",
-            "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded",
+            "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
             "R3a": (
                 "verifier/* JSON string values over "
                 f"{VERIFIER_JSON_STRING_LIMIT} bytes replaced by digest markers"
@@ -570,7 +633,41 @@ def verify(evidence_runs: Path) -> int:
     for manifest_path in manifests:
         manifest = json.loads(manifest_path.read_text())
         bundle = manifest_path.parent
+
+        # Promotion must never produce a symlink; reject any that appear.
+        for path in bundle.rglob("*"):
+            if path.is_symlink():
+                print(f"UNALLOWED SYMLINK {bundle.name}/{path.relative_to(bundle)}")
+                failures += 1
+
         for entry in manifest["files"]:
+            # Validate the R2 omission record schema, source-free. Bundles
+            # promoted before `entry_type` existed (the 2026-08-15 Codex
+            # canaries) carry omission records without it; those are accepted
+            # as-is. New bundles always carry `entry_type`, and symlink
+            # omissions are re-checked against their recorded link-target.
+            if entry.get("action") == "omitted" and entry.get("rule") == "R2":
+                name = f"{bundle.name}/{entry.get('source_path')}"
+                if entry.get("promoted_path") is not None:
+                    print(f"BAD OMISSION {name}: promoted_path must be null")
+                    failures += 1
+                entry_type = entry.get("entry_type")
+                if entry_type is not None and entry_type not in {"file", "symlink"}:
+                    print(f"BAD OMISSION {name}: bad entry_type {entry_type!r}")
+                    failures += 1
+                if entry_type == "symlink":
+                    target = entry.get("link_target")
+                    if not isinstance(target, str):
+                        print(f"BAD OMISSION {name}: symlink missing link_target")
+                        failures += 1
+                        continue
+                    target_bytes = target.encode("utf-8")
+                    if entry.get("source_sha256") != sha256_bytes(target_bytes):
+                        print(f"BAD OMISSION {name}: link_target sha256 mismatch")
+                        failures += 1
+                    if entry.get("source_bytes") != len(target_bytes):
+                        print(f"BAD OMISSION {name}: link_target length mismatch")
+                        failures += 1
             promoted = entry.get("promoted_path")
             if not promoted:
                 continue

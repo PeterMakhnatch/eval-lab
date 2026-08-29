@@ -15,6 +15,8 @@ import hashlib
 import json
 import os
 import platform
+import tarfile
+import tempfile
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -29,7 +31,12 @@ from evallab.benchmark_program_contracts import (
     CampaignMeasurementLedger,
 )
 from evallab.credentials import available_credentials, missing_credential_for
-from evallab.evidence_store import archive_evidence, evidence_tree_digest, load_archive
+from evallab.evidence_store import (
+    archive_evidence,
+    evidence_tree_digest,
+    load_archive,
+    restore_evidence,
+)
 from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, DispatchCapacity
 from evallab.queue import (
     MAX_TRANSIENT_RETRIES,
@@ -47,6 +54,7 @@ _SCHEMA_DEFINITION = "campaign-definition/v1"
 _SCHEMA_MANIFEST = "campaign-manifest/v1"
 _SCHEMA_EVENT = "campaign-event/v1"
 _SCHEMA_STATUS = "campaign-status/v1"
+CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
 _TRANSIENT_PREFIX = "transient_harness:"
 _SPEC_DIGEST_EXCLUDES = {
     "submitted_at",
@@ -110,6 +118,16 @@ def _repo_relative(value: str) -> str:
     if value.startswith("/") or ".." in value.split("/"):
         raise ValueError("campaign paths must stay relative to the repository")
     return value
+
+
+def _resolved_repo_subpath(repo_root: Path, relative_path: str, *, label: str) -> Path:
+    resolved_root = repo_root.resolve()
+    resolved = (resolved_root / _repo_relative(relative_path)).resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise CampaignDriftError(f"{label} resolves outside the repository") from exc
+    return resolved
 
 
 def experiment_spec_digest(spec: ExperimentSpec) -> str:
@@ -613,7 +631,7 @@ class CampaignStore:
         _fsync_directory(self.root)
         return self.manifest_path
 
-    def events(self, manifest: CampaignManifest) -> list[CampaignEvent]:
+    def _events_unlocked(self, manifest: CampaignManifest) -> list[CampaignEvent]:
         if not self.journal_path.exists():
             return []
         raw = self.journal_path.read_bytes()
@@ -640,6 +658,24 @@ class CampaignStore:
             events.append(event)
         return events
 
+    def events(self, manifest: CampaignManifest) -> list[CampaignEvent]:
+        if not self.journal_lock_path.exists():
+            if self.journal_path.exists():
+                raise CampaignAmbiguityError("campaign journal lock is missing")
+            return []
+        try:
+            lock = self.journal_lock_path.open("rb")
+        except FileNotFoundError:
+            if self.journal_path.exists():
+                raise CampaignAmbiguityError("campaign journal lock is missing") from None
+            return []
+        with lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_SH)
+            try:
+                return self._events_unlocked(manifest)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
     def append(
         self,
         manifest: CampaignManifest,
@@ -655,7 +691,7 @@ class CampaignStore:
         with self.journal_lock_path.open("a+b") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             try:
-                current = self.events(manifest)
+                current = self._events_unlocked(manifest)
                 provisional = CampaignEvent.model_construct(
                     sequence=len(current) + 1,
                     event_id=new_ulid(),
@@ -757,6 +793,15 @@ class CampaignOrchestrator:
         clock: Clock | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
+        canonical_state_root = _resolved_repo_subpath(
+            self.repo_root,
+            CAMPAIGN_STATE_ROOT.as_posix(),
+            label="campaign state root",
+        )
+        if state_root.resolve() != canonical_state_root:
+            raise CampaignAmbiguityError(
+                f"campaign state root must be {CAMPAIGN_STATE_ROOT.as_posix()}"
+            )
         self.manifest = manifest
         self.store = CampaignStore(state_root, manifest.campaign_id)
         requested = (
@@ -958,11 +1003,18 @@ class CampaignOrchestrator:
             return "trial_wall_clock_ceiling_exceeded"
         return None
 
+    def _evidence_store_root(self) -> Path:
+        return _resolved_repo_subpath(
+            self.repo_root,
+            self.manifest.evidence_store,
+            label="campaign evidence store",
+        )
+
     def _archive_attempt(
         self, manifest: CampaignManifest, attempt: CampaignAttempt, job_dir: Path
     ) -> Mapping[str, Any]:
         self.sanitizer.assert_tree_safe(job_dir)
-        store_root = (self.repo_root / manifest.evidence_store).resolve()
+        store_root = self._evidence_store_root()
         record_path = store_root / "records/campaign-job" / f"{attempt.attempt_id}.json"
         expected_digest = evidence_tree_digest(job_dir)
         if record_path.is_file():
@@ -1005,7 +1057,7 @@ class CampaignOrchestrator:
         self.sanitizer.assert_tree_safe(job_dir)
         expected_content = evidence_tree_digest(job_dir)
         expected_uri = f"cas://sha256/{expected_content.removeprefix('sha256:')}"
-        store_root = (self.repo_root / self.manifest.evidence_store).resolve()
+        store_root = self._evidence_store_root()
         record_path = store_root / "records/campaign-job" / f"{attempt.attempt_id}.json"
         expected_record_path = record_path.relative_to(self.repo_root).as_posix()
         try:
@@ -1018,6 +1070,11 @@ class CampaignOrchestrator:
             raise CampaignDriftError("campaign CAS archive digest mismatch")
         if details.get("archive_digest") != actual_archive_digest:
             raise CampaignDriftError("campaign archive event does not match job evidence")
+        try:
+            with tempfile.TemporaryDirectory(prefix="evallab-campaign-cas-verify-") as temporary:
+                restore_evidence(store_root, expected_uri, Path(temporary))
+        except (OSError, ValueError, tarfile.TarError) as exc:
+            raise CampaignDriftError("campaign CAS content digest mismatch") from exc
         if (
             details.get("content_digest") != expected_content
             or details.get("uri") != expected_uri
@@ -1409,7 +1466,11 @@ class CampaignOrchestrator:
     def status(self, *, dry_run: bool = False) -> CampaignStatus:
         self.store.assert_manifest(self.manifest)
         events = self.store.events(self.manifest)
-        queue_events = load_events(self.executor.queue.events_path)
+        queue_events = (
+            load_events(self.executor.queue.events_path)
+            if self.executor.queue.events_path.is_file()
+            else []
+        )
         attempts: list[CampaignAttemptStatus] = []
         any_failed = False
         any_running = False
@@ -1625,9 +1686,13 @@ def plan_campaign(
     definition_path: Path,
     *,
     repo_root: Path,
-    state_root: Path,
 ) -> tuple[CampaignManifest, Path]:
     definition = CampaignDefinition.model_validate_json(definition_path.read_text(encoding="utf-8"))
     manifest = build_campaign_manifest(definition)
+    state_root = _resolved_repo_subpath(
+        repo_root,
+        CAMPAIGN_STATE_ROOT.as_posix(),
+        label="campaign state root",
+    )
     store = CampaignStore(state_root, manifest.campaign_id)
     return manifest, store.freeze(manifest)

@@ -502,7 +502,13 @@ def _approve_command(
                 "note: --despite-quota was recorded, but the reading "
                 "reports no exhaustion, so it overrode nothing."
             )
-    print("next: uv run evallab tick")
+    if authorized.campaign_ledger is not None:
+        from evallab.campaigns import CAMPAIGN_STATE_ROOT
+
+        manifest_path = CAMPAIGN_STATE_ROOT / authorized.campaign_ledger.ledger_id / "manifest.json"
+        print(f"next: uv run evallab campaign resume {manifest_path.as_posix()}")
+    else:
+        print("next: uv run evallab tick")
     return 0
 
 
@@ -544,7 +550,6 @@ def _campaign_plan_command(
     manifest, path = plan_campaign(
         _resolve(root, args.definition),
         repo_root=root,
-        state_root=_resolve(root, args.state_root),
     )
     if args.json:
         print(
@@ -570,12 +575,12 @@ def _campaign_plan_command(
 
 
 def _campaign_orchestrator(args: argparse.Namespace, root: Path) -> Any:
-    from evallab.campaigns import CampaignOrchestrator
+    from evallab.campaigns import CAMPAIGN_STATE_ROOT, CampaignOrchestrator
 
     return CampaignOrchestrator.from_path(
         _resolve(root, args.manifest),
         repo_root=root,
-        state_root=_resolve(root, args.state_root),
+        state_root=root / CAMPAIGN_STATE_ROOT,
         requested_parallel=getattr(args, "parallel", None),
     )
 
@@ -3234,12 +3239,6 @@ def parser() -> argparse.ArgumentParser:
         help="Validate a campaign definition and freeze its immutable manifest",
     )
     campaign_plan.add_argument("definition", type=Path)
-    campaign_plan.add_argument(
-        "--state-root",
-        type=Path,
-        default=Path("runs/campaigns"),
-        help="Repository-relative campaign state root",
-    )
     campaign_plan.add_argument("--json", action="store_true")
     campaign_plan.set_defaults(func=_campaign_plan_command)
 
@@ -3248,12 +3247,6 @@ def parser() -> argparse.ArgumentParser:
         help="Report queue, budget, archive, and circuit state without mutation",
     )
     campaign_status.add_argument("manifest", type=Path)
-    campaign_status.add_argument(
-        "--state-root",
-        type=Path,
-        default=Path("runs/campaigns"),
-        help="Repository-relative campaign state root",
-    )
     campaign_status.add_argument("--json", action="store_true")
     campaign_status.set_defaults(func=_campaign_status_command)
 
@@ -3267,12 +3260,6 @@ def parser() -> argparse.ArgumentParser:
     )
     for campaign_execute in (campaign_run, campaign_resume):
         campaign_execute.add_argument("manifest", type=Path)
-        campaign_execute.add_argument(
-            "--state-root",
-            type=Path,
-            default=Path("runs/campaigns"),
-            help="Repository-relative campaign state root",
-        )
         campaign_execute.add_argument(
             "--parallel",
             type=int,

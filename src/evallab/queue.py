@@ -1428,7 +1428,19 @@ class Executor:
             return 0
         credentials = self._credential_probe()
         approved_specs = self.queue.list_specs("approved")
-        if spec_ids is not None:
+        if spec_ids is None:
+            campaign_specs_present = any(
+                spec.campaign_ledger is not None for _path, spec in approved_specs
+            )
+            approved_specs = [
+                (path, spec)
+                for path, spec in approved_specs
+                if spec.campaign_ledger is None
+            ]
+            if campaign_specs_present and not approved_specs:
+                self.last_tick_reason = "campaign_specs_require_campaign_resume"
+                return 0
+        else:
             allowed = frozenset(spec_ids)
             approved_specs = [
                 (path, spec) for path, spec in approved_specs if spec.spec_id in allowed

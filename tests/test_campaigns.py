@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import threading
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -272,6 +274,7 @@ def test_campaign_refuses_reserved_budget_above_ceiling() -> None:
 
 def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     root = _repo(tmp_path)
     manifest = build_campaign_manifest(_definition(billable=True))
@@ -303,7 +306,26 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
         f"uv run evallab approve {manifest.attempts[0].spec_id} --actor <you>"
     )
 
-    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+    assert (
+        cli.run_cli(
+            [
+                "approve",
+                manifest.attempts[0].spec_id,
+                "--actor",
+                "Peter Makhnatch",
+            ],
+            workspace=root,
+        )
+        == 0
+    )
+    approval_output = capsys.readouterr().out
+    assert (
+        f"next: uv run evallab campaign resume runs/campaigns/{manifest.campaign_id}/manifest.json"
+    ) in approval_output
+    assert "\nnext: uv run evallab tick\n" not in approval_output
+    assert executor.tick() == 0
+    assert executor.last_tick_reason == "campaign_specs_require_campaign_resume"
+    assert calls == []
     completed = first.resume()
     assert completed.state == "completed"
     assert calls == [manifest.attempts[0].job_name]
@@ -336,10 +358,54 @@ def test_partial_journal_record_refuses_resume(tmp_path: Path) -> None:
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     orchestrator.store.root.mkdir(parents=True)
+    orchestrator.store.journal_lock_path.touch()
     orchestrator.store.journal_path.write_text('{"partial":', encoding="utf-8")
 
     with pytest.raises(CampaignAmbiguityError, match="partial record"):
         orchestrator.resume()
+
+
+def test_campaign_journal_readers_take_a_shared_lock(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=False))
+    executor = _executor(root, lambda request: _write_job(request))
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.store.freeze(manifest)
+    orchestrator.store.append(
+        manifest,
+        event="probe",
+        sanitizer=orchestrator.sanitizer,
+        occurred_at=NOW,
+    )
+    finished = threading.Event()
+    result: list[Any] = []
+
+    def read_events() -> None:
+        result.extend(orchestrator.store.events(manifest))
+        finished.set()
+
+    with orchestrator.store.journal_lock_path.open("rb") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        reader = threading.Thread(target=read_events)
+        reader.start()
+        assert not finished.wait(0.05)
+        fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    reader.join(timeout=1)
+
+    assert finished.is_set()
+    assert [event.event for event in result] == ["probe"]
+
+
+def test_status_does_not_create_missing_queue_event_lock(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    (root / "queue").mkdir()
+    manifest = build_campaign_manifest(_definition(billable=False))
+    executor = _executor(root, lambda request: _write_job(request))
+
+    status = _orchestrator(root, manifest, executor).status()
+
+    assert status.state == "planned"
+    assert not (root / "queue/.events.lock").exists()
 
 
 def test_run_reloads_started_state_after_acquiring_lease(
@@ -648,6 +714,26 @@ def test_campaign_rejects_unbounded_executor_capacity(tmp_path: Path) -> None:
             state_root=root / "runs/campaigns",
             requested_parallel=0,
         )
+    with pytest.raises(CampaignAmbiguityError, match="state root must be"):
+        CampaignOrchestrator(
+            repo_root=root,
+            manifest=manifest,
+            state_root=root / "alternate-campaign-state",
+        )
+
+
+def test_campaign_rejects_evidence_store_symlink_escape(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=False))
+    outside = tmp_path / "outside-evidence"
+    outside.mkdir()
+    store_path = root / manifest.evidence_store
+    store_path.parent.mkdir(parents=True)
+    store_path.symlink_to(outside, target_is_directory=True)
+    executor = _executor(root, lambda request: _write_job(request))
+
+    with pytest.raises(CampaignDriftError, match="evidence store resolves outside"):
+        _orchestrator(root, manifest, executor)._evidence_store_root()
 
 
 def test_billable_campaign_parallelism_is_serialized_before_policy_dispatch(
@@ -809,6 +895,66 @@ def test_resume_rejects_rewritten_cas_blob_and_record_digest(tmp_path: Path) -> 
 
     with pytest.raises(CampaignDriftError, match="archive event does not match"):
         _orchestrator(root, manifest, executor).resume()
+
+
+def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) -> None:
+    from evallab.evidence_store import archive_evidence
+
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True))
+    executor = _executor(
+        root,
+        lambda request: _write_job(
+            request,
+            cost=0.25,
+            input_tokens=40,
+            output_tokens=20,
+        ),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+    completed = orchestrator.resume()
+    uri = completed.attempts[0].cas_uri
+    assert uri is not None
+    digest = uri.removeprefix("cas://sha256/")
+    store_root = root / manifest.evidence_store
+    blob = store_root / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz"
+    wrong_job = tmp_path / "wrong-job"
+    wrong_job.mkdir()
+    (wrong_job / "result.json").write_text('{"wrong":true}\n', encoding="utf-8")
+    wrong_archive = archive_evidence(
+        wrong_job,
+        tmp_path / "wrong-store",
+        record_id="wrong",
+        kind="campaign-job",
+    )
+    wrong_blob = (
+        tmp_path
+        / "wrong-store/blobs/sha256"
+        / wrong_archive.content_digest.removeprefix("sha256:")[:2]
+        / f"{wrong_archive.content_digest.removeprefix('sha256:')}.tar.gz"
+    )
+    blob.write_bytes(wrong_blob.read_bytes())
+    archive_digest = "sha256:" + hashlib.sha256(blob.read_bytes()).hexdigest()
+    record_path = store_root / "records/campaign-job" / f"{manifest.attempts[0].attempt_id}.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["archive_digest"] = archive_digest
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    details = {
+        "uri": uri,
+        "content_digest": f"sha256:{digest}",
+        "archive_digest": archive_digest,
+        "record_path": record_path.relative_to(root).as_posix(),
+    }
+    job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
+
+    with pytest.raises(CampaignDriftError, match="CAS content digest mismatch"):
+        orchestrator._verify_archive_details(manifest.attempts[0], job_dir, details)
 
 
 def test_remaining_token_reservation_opens_circuit_before_next_dispatch(

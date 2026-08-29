@@ -440,7 +440,7 @@ def test_mcp_substrate_digest_sensitivity_to_metadata_and_body():
         compute_mcp_substrate_digest(
             doc, [tool1], target=WheelhouseTarget("cp313", DEFAULT_TARGET_PLATFORM_TAG)
         )
-    with pytest.raises(SubstrateError, match="pinned python@sha256"):
+    with pytest.raises(SubstrateError, match="python:3.12.11-slim@sha256"):
         compute_mcp_substrate_digest(doc, [tool1], base_image="python:3.13-slim")
 
 
@@ -482,11 +482,11 @@ def test_default_base_runtime_is_pinned_cpython312_slim():
 
 
 def test_target_base_runtime_rejects_mismatch_and_unpinned_images():
-    with pytest.raises(SubstrateError, match="pinned python@sha256"):
+    with pytest.raises(SubstrateError, match="python:3.12.11-slim@sha256"):
         validate_target_base_runtime(
             DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, "python:3.13-slim"
         )
-    with pytest.raises(SubstrateError, match="pinned python@sha256"):
+    with pytest.raises(SubstrateError, match="python:3.12.11-slim@sha256"):
         validate_target_base_runtime(
             DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, "python:latest"
         )
@@ -494,13 +494,13 @@ def test_target_base_runtime_rejects_mismatch_and_unpinned_images():
         validate_target_base_runtime(
             DEFAULT_TARGET_PYTHON_TAG,
             DEFAULT_TARGET_PLATFORM_TAG,
-            "python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "python:3.12.11-slim@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         )
     with pytest.raises(SubstrateError, match="index digest is not the pinned"):
         validate_target_base_runtime(
             DEFAULT_TARGET_PYTHON_TAG,
             DEFAULT_TARGET_PLATFORM_TAG,
-            "python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "python:3.12.11-slim@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             base_image_index_digest="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         )
     with pytest.raises(SubstrateError, match="amd64 manifest digest is not the pinned"):
@@ -530,13 +530,15 @@ def test_plan_only_proof_binds_target_and_base_manifest(tmp_path: Path):
     assert proof["base_image_amd64_manifest_digest"] == PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST
     assert proof["target_python"] == DEFAULT_TARGET_PYTHON_TAG
     assert proof["target_platform"] == DEFAULT_TARGET_PLATFORM_TAG
+    mismatch_dir = tmp_path / "plan_mismatch"
     with pytest.raises(SubstrateError, match="platform tag"):
         materialize_mcp_sidecar_package(
-            target_dir=tmp_path / "plan_mismatch",
+            target_dir=mismatch_dir,
             tools=[tool],
             plan_only=True,
             target=WheelhouseTarget("cp312", "macosx_11_0_arm64"),
         )
+    assert not mismatch_dir.exists()
 
 
 def test_digest_binds_base_runtime_identity():

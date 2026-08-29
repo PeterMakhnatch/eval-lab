@@ -548,13 +548,30 @@ append and the superseded record stays on disk. Replay needed this separate
 constraint: `previous_entry_hash` sits *inside* the record, so the same rating at a
 new chain position gets a different `record_id` and `O_EXCL` never collides.
 
-Production intake **detects** a ledger by its manifest and reads
-`effective_ratings(load_ledger(...), ...)` with the full verifier context.
-`readiness.intake_mode` reports which path ran, so it is observable rather than
-assumed. This matters: pointing the older glob loader at a ledger root read
-`head.json` as a malformed record and ignored `records/`, while pointing it at
-`records/` ingested superseded records alongside their corrections and manufactured
-conflicts.
+**Intake is LEDGER-ONLY. The choice by sniffing is gone.** Production intake
+used to pick between the ledger and a loose-JSON glob by looking for `head.json`
+/ `ledger.jsonl` markers. The choice itself was the bug: deleting those two
+markers downgraded a ledger to the glob path, ingested a flat directory of
+record files with **no anchor and no problem reported**, and bypassed the
+mandatory signed anchor entirely. Any marker-sniffing heuristic is bypassable by
+removing the markers, so the choice was removed rather than the heuristic
+improved. `ratings_dir` now means "here is a complete, anchored ledger";
+anything less is refused, and a flat directory of individually valid records is
+refused too (`LEDGER_INCOMPLETE`). There is no loose-JSON intake to fall back
+to. `readiness.intake_mode` reports `ledger` or `no_ratings_dir`, so the mode is
+observable rather than assumed.
+
+**Every read/parse failure is a fail-closed diagnostic, never an exception.** A
+hostile or corrupt ledger must refuse the package, not crash the build — a
+single malformed, deleted or unreadable file would otherwise be a denial of
+service. `_read_ledger_json` funnels every read failure (absent, unreadable,
+non-UTF-8, malformed JSON, wrong shape) into one exception type, and
+`load_intake` converts it into a readiness blocker with zero records accepted. A
+record that is structurally corrupt but parseable — a container where
+`rater_key_id` belongs, for instance — fails the whole intake closed rather
+than being silently dropped beside accepted records. Failures are converted by
+an explicit `INTAKE_FAILURE_TYPES` tuple, never a bare `except Exception`, so a
+genuine defect in our own code still surfaces as a crash.
 
 ### 5b.4 Rollback needs an external anchor, and the anchor is REQUIRED
 
@@ -595,7 +612,7 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 227 standalone checks + 24 pytest
+python3 research/goldset/test_labeling_package.py   # 251 standalone checks + 24 pytest
 ```
 
 Expect `labeling_package_file_sha256 af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59`

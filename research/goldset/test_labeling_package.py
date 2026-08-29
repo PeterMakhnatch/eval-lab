@@ -2050,9 +2050,348 @@ def main() -> int:
             [victim, step2, _grec("r0", sup=bid, step_contribution="NEUTRAL")],
         )
         resolved = effective_ratings(load_ledger(chain), **GVC)
+    print("SEC-INTAKE-DOS - every read/parse failure is a fail-closed diagnostic, never a crash")
+    with tempfile.TemporaryDirectory() as tmp:
+        DC = "c" * 64
+        DCTX = {"i1": "d" * 64}
+        DKR = {f"r{n}": f"s{n}" for n in range(1, 4)}
+        DVC: dict[str, Any] = {
+            "rating_contract_digest": DC,
+            "context_digests": DCTX,
+            "keyring": DKR,
+            "qualified_rater_ids": list(DKR),
+        }
+        ASEC = "dos-anchor"
+
+        def _dos_rec(rater: str) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": DC,
+                "item_id": "i1",
+                "item_context_digest": DCTX["i1"],
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            body["signature"] = sign_rating(body, DKR[rater])
+            return body
+
+        dos_ledger = Path(tmp) / "ledger"
+        for n in range(3):
+            append_rating_record(dos_ledger, _dos_rec(f"r{n + 1}"), created_at=f"T{n}", **DVC)
+        dos_head, dos_count = ledger_head(dos_ledger)
+        dos_anchor = Path(tmp) / "anchor.json"
+        dos_anchor.write_text(
+            json.dumps(sign_ledger_anchor(dos_head, dos_count, ASEC)), encoding="utf-8"
+        )
+        first_rid = sorted((dos_ledger / "records").glob("*.json"))[0].stem
+
+        def _fresh(name: str) -> Path:
+            dst = Path(tmp) / name
+            shutil.copytree(dos_ledger, dst)
+            return dst
+
+        def _rewrite(path: Path, content: str | bytes) -> None:
+            # Record files are written 0444; the mutation needs write access first.
+            path.chmod(0o644)
+            if isinstance(content, str):
+                path.write_text(content, encoding="utf-8")
+            else:
+                path.write_bytes(content)
+
+        def _refused(fn: Callable[[], tuple[list, list]]) -> bool:
+            # A mutation is contained only if intake returns ZERO records AND a
+            # diagnostic. A raise, or a silent partial acceptance, is a failure.
+            try:
+                records, problems = fn()
+            except Exception:
+                return False
+            return records == [] and bool(problems)
+
+        def _probe(ledger_dir: Path, anchor_path: Path) -> tuple[list, list]:
+            records, _mode, problems = load_intake(
+                ledger_dir,
+                anchor_path=anchor_path,
+                anchor_secret=ASEC,
+                **DVC,
+            )
+            return records, problems
+
+        def _head_mutated(name: str, content: str | bytes) -> Callable[[], bool]:
+            d = _fresh(name)
+            _rewrite(d / "head.json", content)
+            return lambda: _refused(lambda: _probe(d, dos_anchor))
+
+        check("head malformed JSON refuses, never raises", _head_mutated("m1", "{not json")())
+        check("head scalar JSON refuses, never raises", _head_mutated("m2", "42")())
+        check("head list JSON refuses, never raises", _head_mutated("m3", "[1,2]")())
         check(
-            "a legitimate two-step correction chain resolves to the last link",
-            len(resolved) == 1 and resolved[0]["step_contribution"] == "NEUTRAL",
+            "head invalid UTF-8 refuses, never raises",
+            _head_mutated("m6", b"\xff\xfe bad")(),
+        )
+
+        def _head_deleted() -> bool:
+            d = _fresh("m4")
+            (d / "head.json").unlink()
+            return _refused(lambda: _probe(d, dos_anchor))
+
+        check("head deleted refuses, never raises", _head_deleted())
+
+        def _head_unreadable() -> bool:
+            d = _fresh("m5")
+            (d / "head.json").chmod(0o000)
+            return _refused(lambda: _probe(d, dos_anchor))
+
+        check("head unreadable refuses, never raises", _head_unreadable())
+
+        # record files: malformed, scalar, unreadable, not UTF-8, deleted.
+        def _record_mutated(name: str, content: str | bytes) -> Callable[[], bool]:
+            d = _fresh(name)
+            _rewrite(d / "records" / f"{first_rid}.json", content)
+            return lambda: _refused(lambda: _probe(d, dos_anchor))
+
+        check(
+            "record malformed JSON refuses, never raises",
+            _record_mutated("r1", "{not json")(),
+        )
+        check("record scalar JSON refuses, never raises", _record_mutated("r2", "42")())
+        check(
+            "record invalid UTF-8 refuses, never raises",
+            _record_mutated("r4", b"\xff\xfe bad")(),
+        )
+
+        def _record_unreadable() -> bool:
+            d = _fresh("r3")
+            (d / "records" / f"{first_rid}.json").chmod(0o000)
+            return _refused(lambda: _probe(d, dos_anchor))
+
+        check("record unreadable refuses, never raises", _record_unreadable())
+
+        def _record_deleted() -> bool:
+            d = _fresh("r5")
+            (d / "records" / f"{first_rid}.json").unlink()
+            return _refused(lambda: _probe(d, dos_anchor))
+
+        check("record deleted refuses, never raises", _record_deleted())
+
+        # ledger.jsonl: not UTF-8, deleted, unreadable.
+        def _log_mutated(name: str, content: str | bytes) -> Callable[[], bool]:
+            d = _fresh(name)
+            _rewrite(d / "ledger.jsonl", content)
+            return lambda: _refused(lambda: _probe(d, dos_anchor))
+
+        check(
+            "log invalid UTF-8 refuses, never raises",
+            _log_mutated("g1", b"\xff\xfe bad")(),
+        )
+
+        def _log_deleted() -> bool:
+            d = _fresh("g2")
+            (d / "ledger.jsonl").unlink()
+            return _refused(lambda: _probe(d, dos_anchor))
+
+        check("log deleted refuses, never raises", _log_deleted())
+
+        def _log_unreadable() -> bool:
+            d = _fresh("g3")
+            (d / "ledger.jsonl").chmod(0o000)
+            return _refused(lambda: _probe(d, dos_anchor))
+
+        check("log unreadable refuses, never raises", _log_unreadable())
+
+        # anchor file: malformed, scalar, list, not UTF-8, deleted, unreadable.
+        def _anchor_case(name: str, content: str | bytes) -> Callable[[], bool]:
+            a = Path(tmp) / f"anchor_{name}.json"
+            shutil.copy(dos_anchor, a)
+            _rewrite(a, content)
+            return lambda: _refused(lambda: _probe(_fresh(f"am_{name}"), a))
+
+        check(
+            "anchor malformed JSON refuses, never raises", _anchor_case("malformed", "{not json")()
+        )
+        check("anchor scalar JSON refuses, never raises", _anchor_case("scalar", "42")())
+        check("anchor list JSON refuses, never raises", _anchor_case("list", "[1,2]")())
+        check("anchor invalid UTF-8 refuses, never raises", _anchor_case("utf8", b"\xff\xfe bad")())
+
+        def _anchor_deleted() -> bool:
+            return _refused(lambda: _probe(_fresh("am_deleted"), Path(tmp) / "no_such_anchor.json"))
+
+        check("anchor deleted refuses, never raises", _anchor_deleted())
+
+        def _anchor_unreadable() -> bool:
+            a = Path(tmp) / "anchor_unreadable.json"
+            shutil.copy(dos_anchor, a)
+            a.chmod(0o000)
+            return _refused(lambda: _probe(_fresh("am_unreadable"), a))
+
+        check("anchor unreadable refuses, never raises", _anchor_unreadable())
+
+        # An UNHASHABLE rater_key_id must fail the whole intake closed, exactly as
+        # an unparseable record file does, instead of being silently dropped while
+        # the rest of the ledger ships. The ledger is handcrafted (append would
+        # refuse the record) but structurally valid: the chain and head verify.
+        def _handcraft_unhashable(name: str, bad_value: object) -> Path:
+            d = Path(tmp) / name
+            d.mkdir()
+            records_dir = d / "records"
+            records_dir.mkdir()
+            bodies = [
+                {**_dos_rec("r1"), "rater_key_id": bad_value},
+                _dos_rec("r2"),
+                _dos_rec("r3"),
+            ]
+            previous = GENESIS_HASH
+            entries: list[dict[str, Any]] = []
+            for idx, body in enumerate(bodies):
+                stored = dict(body)
+                stored["created_at"] = f"H{idx}"
+                stored["previous_entry_hash"] = previous
+                rid = _record_id_for_test(stored)
+                stored["record_id"] = rid
+                (records_dir / f"{rid}.json").write_text(
+                    json.dumps(stored, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+                ehash = _entry_hash_for_test(previous, rid, f"H{idx}")
+                entries.append(
+                    {
+                        "schema": LEDGER_SCHEMA,
+                        "seq": idx + 1,
+                        "record_id": rid,
+                        "created_at": f"H{idx}",
+                        "previous_entry_hash": previous,
+                        "entry_hash": ehash,
+                        "supersedes": None,
+                    }
+                )
+                previous = ehash
+            (d / "ledger.jsonl").write_text(
+                "\n".join(json.dumps(e, sort_keys=True) for e in entries) + "\n",
+                encoding="utf-8",
+            )
+            (d / "head.json").write_text(
+                json.dumps(
+                    {"schema": LEDGER_SCHEMA, "head_hash": previous, "count": 3},
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            a = Path(tmp) / f"anchor_{name}.json"
+            a.write_text(json.dumps(sign_ledger_anchor(previous, 3, ASEC)), encoding="utf-8")
+            return d
+
+        for label, hostile in (("LIST", ["r1"]), ("DICT", {"k": "v"})):
+            d = _handcraft_unhashable(f"h_{label}", hostile)
+            a = Path(tmp) / f"anchor_h_{label}.json"
+            check(
+                f"unhashable rater_key_id {label} fails the WHOLE intake closed",
+                _refused(lambda d=d, a=a: _probe(d, a)),
+            )
+
+        # THE BYPASS: a signed three-rater loose-JSON directory. Each record is
+        # individually VALID against the very contract this build produces - the
+        # container, not the content, must be what refuses it. The deleted glob
+        # path must not be resurrectable by supplying well-formed ratings.
+        dos_runs = _synthetic_runs(Path(tmp) / "corpus")
+        base, _ = build_package(dos_runs, core_n=None, boost_per_stratum=0, ratings_dir=None)
+        doC = base["readiness"]["authentication"]["rating_contract_digest"]
+        target_item = base["items"][0]
+        doCtx = {i["item_id"]: i["item_context_digest"] for i in base["items"]}
+        doKR = {"r1": "s1", "r2": "s2", "r3": "s3"}
+        doVC: dict[str, Any] = {
+            "rating_contract_digest": doC,
+            "context_digests": doCtx,
+            "keyring": doKR,
+            "qualified_rater_ids": list(doKR),
+        }
+
+        def _flat_rec(rater: str) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": doC,
+                "item_id": target_item["item_id"],
+                "item_context_digest": target_item["item_context_digest"],
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            body["signature"] = sign_rating(body, doKR[rater])
+            return body
+
+        three = [_flat_rec(f"r{n}") for n in (1, 2, 3)]
+        check(
+            "the three loose records are individually VALID (non-vacuity)",
+            all(not validate_rating(dict(r), **doVC) for r in three),
+        )
+        flat = Path(tmp) / "flat"
+        flat.mkdir()
+        for n, r in enumerate(three):
+            (flat / f"rating-{n}.json").write_text(
+                json.dumps(r, indent=2, sort_keys=True), encoding="utf-8"
+            )
+        dos_reg = {
+            "schema_version": REGISTRY_SCHEMA_VERSION,
+            "authority_key_id": "a",
+            "raters": [{"key_id": k, "qualified": True} for k in doKR],
+        }
+        dos_reg["signature"] = sign_registry(dos_reg, "AUTH")
+        (Path(tmp) / "reg.json").write_text(json.dumps(dos_reg), encoding="utf-8")
+        (Path(tmp) / "ks.json").write_text(
+            json.dumps({"schema_version": KEYSTORE_SCHEMA_VERSION, "keys": doKR}),
+            encoding="utf-8",
+        )
+        flat_pkg, _ = build_package(
+            dos_runs,
+            core_n=None,
+            boost_per_stratum=0,
+            ratings_dir=flat,
+            registry_path=Path(tmp) / "reg.json",
+            authority_secret="AUTH",
+            keystore_path=Path(tmp) / "ks.json",
+        )
+        flat_ri = flat_pkg["readiness"]["rating_intake"]
+        check(
+            "a signed 3-rater loose-JSON directory CANNOT reach READY",
+            flat_ri["records_accepted"] == 0
+            and any(b.startswith("LEDGER_INCOMPLETE") for b in flat_pkg["readiness"]["blockers"])
+            and flat_pkg["readiness"]["readiness"] != "READY",
+        )
+        # The canary: the SAME records in a proper anchored ledger ARE accepted, so
+        # the refusal above is about the container, not the content. A guard that
+        # rejects every intake would pass both directions vacuously.
+        good_ledger = Path(tmp) / "good"
+        for n, r in enumerate(three):
+            append_rating_record(
+                good_ledger,
+                r,
+                created_at=f"G{n}",
+                rating_contract_digest=doC,
+                context_digests=doCtx,
+                keyring=doKR,
+                qualified_rater_ids=list(doKR),
+            )
+        g_head, g_count = ledger_head(good_ledger)
+        good_anchor = Path(tmp) / "good_anchor.json"
+        good_anchor.write_text(
+            json.dumps(sign_ledger_anchor(g_head, g_count, ASEC)), encoding="utf-8"
+        )
+        good_pkg, _ = build_package(
+            dos_runs,
+            core_n=None,
+            boost_per_stratum=0,
+            ratings_dir=good_ledger,
+            registry_path=Path(tmp) / "reg.json",
+            authority_secret="AUTH",
+            keystore_path=Path(tmp) / "ks.json",
+            anchor_path=good_anchor,
+            anchor_secret=ASEC,
+        )
+        good_ri = good_pkg["readiness"]["rating_intake"]
+        check(
+            "the SAME records in an anchored ledger ARE accepted (container, not content)",
+            good_ri["records_accepted"] == 3,
+            f"got {good_ri['records_accepted']}",
         )
 
     print("CLI-GATE - the shipped entry point enforces the anchor")

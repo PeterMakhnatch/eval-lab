@@ -2006,6 +2006,19 @@ def effective_ratings(
     The verifier context is required rather than optional for the same reason the
     supersedes parameter was removed: an optional guard is a guard someone omits.
     """
+    # A hostile record can carry a container where a rater key id belongs. Such
+    # a record is not merely an invalid rating - it is structurally corrupt, and
+    # it is precisely the shape that can make a keyring lookup raise TypeError
+    # (an unhashable rater id used as a dict key). Failing the WHOLE intake
+    # closed - exactly as an unparseable record file does - beats dropping the
+    # record silently and shipping the rest, because the ledger then accepted
+    # and silently discarded hostile content.
+    for record in records:
+        if not isinstance(record.get("rater_key_id"), str):
+            raise LedgerError(
+                "LEDGER_RECORD_KEY_ID_NOT_A_STRING: got "
+                f"{type(record.get('rater_key_id')).__name__}"
+            )
     valid = [
         dict(record)
         for record in records

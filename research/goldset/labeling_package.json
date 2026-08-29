@@ -9,7 +9,7 @@
       "repeats_prior_action"
     ]
   },
-  "build_id": "daa1bb7c889e6b285ad7460dcb1a621b5d30a1bbf50a1ce24efab1e3a3caed13",
+  "build_id": "26bdea4aac453399f3d97283eee7136f297457b2139854349e1e9a26b75a8b52",
   "census": {
     "agent_steps_per_cluster": {
       "06adc723e66a2e5cd2b337439bb309cabf352c8b9f0cc108375e3f20bfc9e21f": 9,
@@ -47399,7 +47399,7 @@
       "power_argument"
     ]
   },
-  "package_digest": "1be3a1808039f830e2e8a15bce7fa926a61e4ba5d621d3dc711737ab792e6671",
+  "package_digest": "a8cce820fd40cef71a527112a2d3be3ee78b0f1b3b8a1b17c87ae2e7d99c97b0",
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
     "authentication": {
@@ -47452,6 +47452,13 @@
       "interpretation": "COMPLETE x INSUFFICIENT_CONTEXT means the builder missed a defect it believed it had detected. INCOMPLETE x sufficient means the builder was over-strict. Valid ONLY because builder_verdict is withheld from the rater bundle."
     },
     "qualified_rater_pool_size": 0,
+    "rating_intake": {
+      "note": "Only ACCEPTED records reach any diagnostic - validated, signature-verified against a qualified key, and bound to the rating contract. Rejected records are counted here and nowhere else, so a forged or unsigned submission cannot enter a diagnostic without first passing validation.",
+      "records_accepted": 0,
+      "records_rejected": 0,
+      "records_seen": 0,
+      "rejection_reasons": {}
+    },
     "readiness": "NOT_READY",
     "registry": {
       "problems": [

@@ -49,7 +49,7 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
 
 EXPECTED_ITEMS = 183  # distinct contexts; only byte-identical paths alias
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "f2f972efb7a4be5221b279d955415c341a9c6a91923e1c7fcee4dfeae4a5e69c"
+EXPECTED_DIGEST = "3d5653ba58ba1ef20d9ac572231362b95e3999637e028c4a39b0bc2f2487ed25"
 
 
 def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
@@ -910,6 +910,69 @@ def main() -> int:
         "tampering a PRIOR OBSERVATION changes the context digest",
         compute_item_context_digest({**package["items"][0]["rater_context"], "prior_steps": []})
         != package["items"][0]["item_context_digest"],
+    )
+
+    print("SEC-DIAG - forged records must NEVER reach the diagnostic")
+    diag_items = real_items[:3]
+    diag_good = [_e2e(i, f"rater-{n}") for i in diag_items for n in (1, 2, 3)]
+    diag_forged = [
+        # bad signature, claiming INSUFFICIENT_CONTEXT to poison the 2x2
+        {
+            **diag_good[0],
+            "signature": "0" * 64,
+            "step_contribution": INSUFFICIENT_CONTEXT,
+        },
+        # unqualified key
+        {
+            **_e2e(diag_items[0], "rater-1"),
+            "rater_key_id": "rogue",
+            "step_contribution": INSUFFICIENT_CONTEXT,
+        },
+        # replayed contract digest from another cut
+        {
+            **_e2e(diag_items[0], "rater-1"),
+            "rating_contract_digest": "0" * 64,
+            "step_contribution": INSUFFICIENT_CONTEXT,
+        },
+        # malformed entry as produced by the loader for a scalar JSON value
+        {"_invalid_entry": "forged.json[0]: expected object, got int"},
+    ]
+    diag_res = evaluate_readiness(
+        diag_items,
+        diag_good + diag_forged,
+        list(e2e_keys),
+        rating_contract_digest=real_contract,
+        keyring=e2e_keys,
+    )
+    intake = diag_res["rating_intake"]
+    counts = diag_res["context_diagnostic_2x2"]["counts"]
+    check(
+        "every forged record is rejected",
+        intake["records_rejected"] == len(diag_forged),
+        f"got {intake['records_rejected']} of {len(diag_forged)}",
+    )
+    check(
+        "diagnostic total equals ACCEPTED count, not seen count",
+        sum(counts.values()) == intake["records_accepted"]
+        and intake["records_accepted"] == len(diag_good),
+    )
+    check(
+        "forged INSUFFICIENT_CONTEXT does NOT reach the 2x2",
+        counts["COMPLETE|INSUFFICIENT_CONTEXT"] == 0,
+    )
+    check(
+        "rejection reasons are reported by category",
+        {
+            "SIGNATURE_INVALID_OR_UNREGISTERED_KEY",
+            "RATING_CONTRACT_DIGEST_MISMATCH",
+            "MALFORMED_ENTRY",
+        }
+        <= set(intake["rejection_reasons"]),
+        f"got {sorted(intake['rejection_reasons'])}",
+    )
+    check(
+        "records_seen accounts for every submission",
+        intake["records_seen"] == len(diag_good) + len(diag_forged),
     )
 
     print("SEC-CLONE - item-level logical dedup with lineage")

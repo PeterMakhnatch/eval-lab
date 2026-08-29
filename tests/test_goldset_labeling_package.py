@@ -242,6 +242,22 @@ def test_build_lock_is_not_committed() -> None:
     assert not (GOLDSET / ".goldset-build.lock").exists()
 
 
+def test_diagnostic_consumes_only_accepted_records(package: dict) -> None:
+    """A forged or unsigned record must never reach the diagnostic.
+
+    The 2x2 previously consumed the RAW loaded records, before signature and
+    qualification validation, so an unsigned submission claiming
+    INSUFFICIENT_CONTEXT would have poisoned it.
+    """
+    readiness = package["readiness"]
+    intake = readiness["rating_intake"]
+    counts = readiness["context_diagnostic_2x2"]["counts"]
+    assert intake["records_accepted"] + intake["records_rejected"] == intake["records_seen"]
+    # The diagnostic may only account for accepted records.
+    assert sum(counts.values()) == intake["records_accepted"]
+    assert "rejection_reasons" in intake
+
+
 def test_context_diagnostic_2x2_is_reported(package: dict) -> None:
     """The 2x2 requires builder verdict and rater judgement to be independent."""
     diag = package["readiness"]["context_diagnostic_2x2"]

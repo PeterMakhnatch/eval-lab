@@ -742,6 +742,50 @@ def _rearm(item: LabelItem, weight: float, arm: SelectionArm) -> LabelItem:
 # Ratings: separate typed sidecars. Items never mutate (B4).
 # ---------------------------------------------------------------------------
 
+
+def context_diagnostic_2x2(
+    items: Sequence[LabelItem], records: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Post-hoc builder verdict x rater sufficiency cross-tabulation.
+
+    Only computable because the two signals are INDEPENDENT: the builder verdict
+    is withheld from the bundle, so a rater choosing INSUFFICIENT_CONTEXT did so
+    without being told what the builder concluded.
+
+    The off-diagonal cells are the informative ones:
+      COMPLETE   x INSUFFICIENT_CONTEXT -> the builder MISSED a defect
+      INCOMPLETE x sufficient           -> the builder was over-strict
+    """
+    verdict_of = {i.item_id: i.context_completeness.get("builder_verdict") for i in items}
+    cells = {
+        ("COMPLETE", "sufficient"): 0,
+        ("COMPLETE", "INSUFFICIENT_CONTEXT"): 0,
+        ("INCOMPLETE", "sufficient"): 0,
+        ("INCOMPLETE", "INSUFFICIENT_CONTEXT"): 0,
+    }
+    for record in records:
+        builder = verdict_of.get(str(record.get("item_id")))
+        if builder not in ("COMPLETE", "INCOMPLETE"):
+            continue
+        rater = (
+            INSUFFICIENT_CONTEXT
+            if any(record.get(field) == INSUFFICIENT_CONTEXT for field in HUMAN_JUDGED_FIELDS)
+            else "sufficient"
+        )
+        cells[(builder, rater)] += 1
+    return {
+        "counts": {f"{b}|{r}": n for (b, r), n in sorted(cells.items())},
+        "builder_missed_a_defect": cells[("COMPLETE", INSUFFICIENT_CONTEXT)],
+        "builder_over_strict": cells[("INCOMPLETE", "sufficient")],
+        "interpretation": (
+            "COMPLETE x INSUFFICIENT_CONTEXT means the builder missed a defect it "
+            "believed it had detected. INCOMPLETE x sufficient means the builder "
+            "was over-strict. Valid ONLY because builder_verdict is withheld from "
+            "the rater bundle."
+        ),
+    }
+
+
 REQUIRED_RATERS_PER_ITEM = 3
 
 # Cluster adequacy, set by Tutor (wK:p4) power verdict 2026-08-28.
@@ -1153,6 +1197,8 @@ def evaluate_readiness(
     conflicting_submissions = 0
     by_item: dict[str, set[str]] = {}
     seen: dict[tuple[str, str], str] = {}
+    accepted: list[dict[str, Any]] = []
+    rejection_reasons: dict[str, int] = {}
     context_digests = {i.item_id: i.item_context_digest for i in items}
     for record in records:
         errors = validate_rating(
@@ -1163,21 +1209,28 @@ def evaluate_readiness(
         )
         if errors:
             invalid += 1
+            for reason in errors:
+                key = reason.split(":", 1)[0]
+                rejection_reasons[key] = rejection_reasons.get(key, 0) + 1
             continue
         if record["item_id"] not in item_ids:
             unknown_item += 1
+            rejection_reasons["UNKNOWN_ITEM_ID"] = rejection_reasons.get("UNKNOWN_ITEM_ID", 0) + 1
             continue
         key = (record["item_id"], record["rater_key_id"])
         fingerprint = rating_signing_payload(record)
         if key in seen:
             # Append-only: one submission per (item, rater). A byte-identical
             # resubmission is a duplicate; a differing one is a conflict.
+            label = "DUPLICATE_SUBMISSION" if seen[key] == fingerprint else "CONFLICTING_SUBMISSION"
             if seen[key] == fingerprint:
                 duplicate_submissions += 1
             else:
                 conflicting_submissions += 1
+            rejection_reasons[label] = rejection_reasons.get(label, 0) + 1
             continue
         seen[key] = fingerprint
+        accepted.append(dict(record))
         by_item.setdefault(record["item_id"], set()).add(record["rater_key_id"])
 
     if len(qualified) < REQUIRED_RATERS_PER_ITEM:
@@ -1211,6 +1264,20 @@ def evaluate_readiness(
     return {
         "readiness": "READY" if not blockers else "NOT_READY",
         "cluster_adequacy": adequacy,
+        "rating_intake": {
+            "records_seen": len(records),
+            "records_accepted": len(accepted),
+            "records_rejected": len(records) - len(accepted),
+            "rejection_reasons": dict(sorted(rejection_reasons.items())),
+            "note": (
+                "Only ACCEPTED records reach any diagnostic - validated, "
+                "signature-verified against a qualified key, and bound to the "
+                "rating contract. Rejected records are counted here and nowhere "
+                "else, so a forged or unsigned submission cannot enter a "
+                "diagnostic without first passing validation."
+            ),
+        },
+        "context_diagnostic_2x2": context_diagnostic_2x2(items, accepted),
         "context_adequacy": {
             "items_incomplete": incomplete,
             "items_total": len(items),
@@ -1280,7 +1347,6 @@ def build_package(
         rating_contract_digest=rating_contract_digest,
         keyring=keyring or None,
     )
-    readiness["context_diagnostic_2x2"] = context_diagnostic_2x2(deliverable, records)
     readiness["registry"] = {
         "source": str(registry_path) if registry_path else None,
         "qualified_key_ids": len(qualified),
@@ -1443,49 +1509,6 @@ def _assert_bundle_clean(bundle_dir: Path) -> None:
         raise BundleContaminationError(
             f"forbidden artifacts present in rater bundle {bundle_dir}: {sorted(offenders)}"
         )
-
-
-def context_diagnostic_2x2(
-    items: Sequence[LabelItem], records: Sequence[Mapping[str, Any]]
-) -> dict[str, Any]:
-    """Post-hoc builder verdict x rater sufficiency cross-tabulation.
-
-    Only computable because the two signals are INDEPENDENT: the builder verdict
-    is withheld from the bundle, so a rater choosing INSUFFICIENT_CONTEXT did so
-    without being told what the builder concluded.
-
-    The off-diagonal cells are the informative ones:
-      COMPLETE   x INSUFFICIENT_CONTEXT -> the builder MISSED a defect
-      INCOMPLETE x sufficient           -> the builder was over-strict
-    """
-    verdict_of = {i.item_id: i.context_completeness.get("builder_verdict") for i in items}
-    cells = {
-        ("COMPLETE", "sufficient"): 0,
-        ("COMPLETE", "INSUFFICIENT_CONTEXT"): 0,
-        ("INCOMPLETE", "sufficient"): 0,
-        ("INCOMPLETE", "INSUFFICIENT_CONTEXT"): 0,
-    }
-    for record in records:
-        builder = verdict_of.get(str(record.get("item_id")))
-        if builder not in ("COMPLETE", "INCOMPLETE"):
-            continue
-        rater = (
-            INSUFFICIENT_CONTEXT
-            if any(record.get(field) == INSUFFICIENT_CONTEXT for field in HUMAN_JUDGED_FIELDS)
-            else "sufficient"
-        )
-        cells[(builder, rater)] += 1
-    return {
-        "counts": {f"{b}|{r}": n for (b, r), n in sorted(cells.items())},
-        "builder_missed_a_defect": cells[("COMPLETE", INSUFFICIENT_CONTEXT)],
-        "builder_over_strict": cells[("INCOMPLETE", "sufficient")],
-        "interpretation": (
-            "COMPLETE x INSUFFICIENT_CONTEXT means the builder missed a defect it "
-            "believed it had detected. INCOMPLETE x sufficient means the builder "
-            "was over-strict. Valid ONLY because builder_verdict is withheld from "
-            "the rater bundle."
-        ),
-    }
 
 
 def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:

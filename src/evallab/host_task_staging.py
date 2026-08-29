@@ -15,10 +15,13 @@ Z.ai/OpenCode pilot performed by hand and nothing more:
    ``main`` service only, preserving the internal-only MCP sidecar.
 
 Every staging writes a typed ``run_manifest.json`` with adapter digest and
-version, requested/effective networks, platform reason, source digest, and
-staged digest. The helper refuses symlinked sources, path escapes
-(destination inside source or vice versa), pre-existing destinations, unknown
-compose shapes, and platform changes that were not explicitly requested.
+version, requested/effective networks, platform reason, and source/staged
+payload digests (``task_payload_digest``: the registry package-digest
+algorithm with ``run_manifest.json`` excluded, so both values stay
+recomputable from the completed directories). The helper refuses symlinked
+sources, path escapes (destination inside source or vice versa),
+pre-existing destinations, unknown compose shapes, pre-pinned platform
+declarations, and platform changes that were not explicitly requested.
 
 TRUSTED-TASK-ONLY LANE: attaching public egress to ``main`` and running the
 Z.ai credential mount means the agent container can reach the network and
@@ -101,8 +104,8 @@ class HostTaskRunManifest:
     schema_version: str
     adapter_version: str
     adapter_digest: str
-    source_package_digest: str
-    staged_package_digest: str
+    source_payload_digest: str
+    staged_payload_digest: str
     requested_agent_network: str
     effective_agent_network: str
     requested_verifier_network: str
@@ -202,17 +205,21 @@ def _pin_compose_services(
     platform: str,
     rel_path: str,
 ) -> list[PlatformPin]:
-    """Pin every compose service to ``platform``; refuse conflicting pins."""
+    """Pin every compose service to ``platform``; refuse pre-pinned inputs.
+
+    Refusal covers a pin equal to the requested platform too: the minimality
+    proof cannot distinguish a staging-added pin from a canonical one, so a
+    pre-pinned package must not be restaged through this helper.
+    """
     pins: list[PlatformPin] = []
     for name, cfg in data["services"].items():
         existing = cfg.get("platform")
-        if existing is not None and existing != platform:
+        if existing is not None:
             raise ValueError(
-                f"compose service {name!r} in {rel_path} is already pinned to "
-                f"{existing!r}; refusing to change it to {platform!r}"
+                f"compose service {name!r} in {rel_path} already declares "
+                f"platform {existing!r}; refusing to restage a pre-pinned package"
             )
-        if existing != platform:
-            cfg["platform"] = platform
+        cfg["platform"] = platform
         pins.append(PlatformPin(target=f"service:{name}", platform=platform))
     return pins
 
@@ -257,7 +264,12 @@ def _pin_dockerfile(
     platform: str,
     rel_path: str,
 ) -> tuple[str, list[PlatformPin]]:
-    """Insert ``--platform`` on every ``FROM`` line; refuse conflicting pins."""
+    """Insert ``--platform`` on every ``FROM`` line; refuse pre-pinned files.
+
+    Any existing ``--platform`` flag — even one equal to the requested
+    platform — is refused so a pre-pinned canonical package is never
+    silently restaged.
+    """
     lines: list[str] = []
     pins: list[PlatformPin] = []
     for line in text.splitlines(keepends=True):
@@ -267,17 +279,14 @@ def _pin_dockerfile(
             lines.append(line)
             continue
         existing = match.group("platform")
-        if existing is not None and existing != platform:
+        if existing is not None:
             raise ValueError(
-                f"{rel_path} FROM line already pins platform {existing!r}; "
-                f"refusing to change it to {platform!r}"
+                f"{rel_path} FROM line already declares platform {existing!r}; "
+                "refusing to restage a pre-pinned package"
             )
-        if existing is None:
-            pinned = re.sub(r"^FROM\s+", f"FROM --platform={platform} ", stripped)
-            lines.append(pinned + ("\n" if line.endswith("\n") else ""))
-            pins.append(PlatformPin(target=f"dockerfile:{rel_path}", platform=platform))
-        else:
-            lines.append(line)
+        pinned = re.sub(r"^FROM\s+", f"FROM --platform={platform} ", stripped)
+        lines.append(pinned + ("\n" if line.endswith("\n") else ""))
+        pins.append(PlatformPin(target=f"dockerfile:{rel_path}", platform=platform))
     return "".join(lines), pins
 
 
@@ -300,18 +309,26 @@ def _verify_dockerfile_change(before: str, after: str, rel_path: str) -> None:
 
 
 def _assert_source_and_destination(source: Path, destination: Path) -> tuple[Path, Path]:
-    """Refuse symlinked sources, path escapes, and pre-existing destinations."""
-    source = source.resolve()
+    """Refuse symlinked sources, path escapes, and pre-existing destinations.
+
+    The unresolved source argument itself is checked for being a symlink
+    BEFORE ``resolve()`` — resolving first would silently accept a symlinked
+    source root. Returns fully resolved paths; creates nothing.
+    """
+    raw_source = Path(source).absolute()
+    if raw_source.is_symlink():
+        raise ValueError(f"source task directory is a symlink: {raw_source}")
+    source = raw_source.resolve()
     destination = Path(destination).absolute()
-    # A dangling symlink at the destination itself is refused; symlinked
-    # *parents* are fine (macOS TMPDIR lives behind /var -> /private/var) —
-    # containment below is checked on fully resolved paths.
+    # A symlink at the destination itself is refused; symlinked *parents* are
+    # fine (macOS TMPDIR lives behind /var -> /private/var) — containment
+    # below is checked on fully resolved paths.
     if destination.is_symlink():
         raise ValueError(f"destination path is a symlink: {destination}")
     destination = destination.resolve()
     if not source.is_dir():
         raise ValueError(f"source task directory not found: {source}")
-    if source.is_symlink() or any(p.is_symlink() for p in source.rglob("*")):
+    if any(p.is_symlink() for p in source.rglob("*")):
         raise ValueError("task package staging rejects symlinks")
     if not (source / "task.toml").is_file():
         raise ValueError(f"task.toml missing in {source}")
@@ -330,6 +347,38 @@ def _assert_source_and_destination(source: Path, destination: Path) -> tuple[Pat
     return source, destination
 
 
+def task_payload_digest(task_dir: Path) -> str:
+    """Registry-style package digest that excludes ``run_manifest.json``.
+
+    Byte-identical algorithm to ``registry.task_directory_digest`` (sorted
+    relative paths plus file digests, same ignore rules) except that a
+    top-level ``run_manifest.json`` is skipped. Canonical packages carry no
+    manifest, so their payload digest equals their registry package digest;
+    a staged tree's payload digest stays recomputable from the completed
+    directory because the manifest itself is excluded.
+    """
+    from evallab.registry import _should_ignore_file
+
+    task_dir = task_dir.resolve()
+    if not task_dir.is_dir():
+        raise ValueError(f"task directory not found: {task_dir}")
+    aggregate = hashlib.sha256()
+    files = sorted(
+        candidate
+        for candidate in task_dir.rglob("*")
+        if candidate.is_file()
+        and not _should_ignore_file(candidate)
+        and candidate.relative_to(task_dir).as_posix() != _MANIFEST_FILENAME
+    )
+    if not files:
+        raise ValueError(f"task directory is empty: {task_dir}")
+    for candidate in files:
+        relative = candidate.relative_to(task_dir).as_posix()
+        file_digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        aggregate.update(f"{file_digest}  ./{relative}\n".encode())
+    return f"sha256:{aggregate.hexdigest()}"
+
+
 def stage_task_for_host(
     source: Path,
     destination: Path,
@@ -342,13 +391,18 @@ def stage_task_for_host(
 ) -> HostTaskRunManifest:
     """Stage a host-adapted execution copy of ``source`` at ``destination``.
 
-    Fail-closed wrapper: when staging raises after the copy was created, the
-    partial destination is removed (unless it pre-existed the call, in which
-    case it is left untouched) and the original error propagates. See
-    ``_stage_task_for_host`` for the adaptation contract and the
-    trusted-task-only security boundary.
+    Ownership is atomic: after validation the wrapper creates the
+    destination with ``mkdir(exist_ok=False)``. If another process wins that
+    race the call refuses and never touches the winning directory; any later
+    failure removes only the directory this call created, and the original
+    error propagates. See ``_stage_task_for_host`` for the adaptation
+    contract and the trusted-task-only security boundary.
     """
-    preexisting = destination.exists() or destination.is_symlink()
+    source, destination = _assert_source_and_destination(source, destination)
+    try:
+        destination.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise ValueError(f"destination already exists: {destination}") from exc
     try:
         return _stage_task_for_host(
             source,
@@ -360,8 +414,7 @@ def stage_task_for_host(
             platform_reason=platform_reason,
         )
     except BaseException:
-        if not preexisting:
-            shutil.rmtree(destination, ignore_errors=True)
+        shutil.rmtree(destination, ignore_errors=True)
         raise
 
 
@@ -375,7 +428,7 @@ def _stage_task_for_host(
     platform: str = TRUSTED_WHEELHOUSE_PLATFORM,
     platform_reason: str | None = None,
 ) -> HostTaskRunManifest:
-    """Stage a host-adapted execution copy of ``source`` at ``destination``.
+    """Stage into an owned, existing, empty ``destination`` directory.
 
     See the module docstring for the full adaptation contract and the
     trusted-task-only security boundary. All mutations are explicit
@@ -383,14 +436,13 @@ def _stage_task_for_host(
     minimal against the source bytes, and recorded in the typed manifest
     written to ``<destination>/run_manifest.json``.
     """
-    from evallab.registry import compute_task_digests
-
-    source, destination = _assert_source_and_destination(source, destination)
-    source_digest = compute_task_digests(source).package
+    source_digest = task_payload_digest(source)
 
     modified: list[str] = []
 
-    shutil.copytree(source, destination, symlinks=False)
+    # symlinks=True copies links as links so a source TOCTOU symlink is
+    # never dereferenced; the post-copy rejection below removes it instead.
+    shutil.copytree(source, destination, dirs_exist_ok=True, symlinks=True)
     if any(p.is_symlink() for p in destination.rglob("*")):
         raise ValueError("staged task copy contains a symlink")
 
@@ -503,8 +555,8 @@ def _stage_task_for_host(
             f"effective network is {effective_agent!r}, not public"
         )
 
-    staged_digest = compute_task_digests(destination).package
-    source_digest_after = compute_task_digests(source).package
+    staged_digest = task_payload_digest(destination)
+    source_digest_after = task_payload_digest(source)
     if source_digest_after != source_digest:
         raise ValueError("source task package mutated during staging")
 
@@ -512,8 +564,8 @@ def _stage_task_for_host(
         schema_version="1.0",
         adapter_version=ADAPTER_VERSION,
         adapter_digest=adapter_digest(),
-        source_package_digest=source_digest,
-        staged_package_digest=staged_digest,
+        source_payload_digest=source_digest,
+        staged_payload_digest=staged_digest,
         requested_agent_network=requested_agent,
         effective_agent_network=effective_agent,
         requested_verifier_network=requested_verifier,

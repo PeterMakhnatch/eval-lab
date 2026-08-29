@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -74,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         platform=args.platform,
         platform_reason=args.platform_reason,
     )
-    print(json.dumps(manifest.__dict__, indent=2, sort_keys=True, default=str))
+    print(json.dumps(asdict(manifest), indent=2, sort_keys=True))
     return 0
 
 

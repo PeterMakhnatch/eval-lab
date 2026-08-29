@@ -78,12 +78,17 @@ def validate_model_name(model_name: str | None) -> str:
             "ZaiOpenCodeAgent requires a provider/model selector, got "
             f"{model_name!r}"
         )
-    provider, _, _ = model_name.partition("/")
+    provider, _, model = model_name.partition("/")
     if f"{provider}/" != REQUIRED_MODEL_PREFIX:
         raise ValueError(
             "ZaiOpenCodeAgent only accepts models under "
             f"{REQUIRED_MODEL_PREFIX!r} (the Z.ai Coding Plan credential "
             f"lane); got {model_name!r}"
+        )
+    if not model:
+        raise ValueError(
+            "ZaiOpenCodeAgent requires a non-empty model under "
+            f"{REQUIRED_MODEL_PREFIX!r}; got {model_name!r}"
         )
     return model_name
 

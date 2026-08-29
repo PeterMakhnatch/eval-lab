@@ -166,6 +166,12 @@ def test_adapter_model_guard_rejects_other_providers(
         adapter_module.validate_model_name(model_name)
 
 
+def test_adapter_model_guard_rejects_bare_provider_prefix(adapter_module) -> None:
+    """``zai-coding-plan/`` with no model suffix must fail closed."""
+    with pytest.raises(ValueError, match="non-empty model"):
+        adapter_module.validate_model_name("zai-coding-plan/")
+
+
 def test_adapter_model_guard_rejects_wrong_provider_at_construction(
     adapter_module,
 ) -> None:
@@ -469,7 +475,7 @@ def test_stage_action_memory_shape() -> None:
 
         # digests and manifest wiring: the staged copy differs from the
         # canonical source (adapted bytes), and both digests are recorded.
-        assert manifest.staged_package_digest != manifest.source_package_digest
+        assert manifest.staged_payload_digest != manifest.source_payload_digest
         assert manifest.adapter_version
         assert manifest.adapter_digest.startswith("sha256:")
         written = json.loads(
@@ -695,10 +701,193 @@ def test_stage_refuses_conflicting_compose_platform_pin() -> None:
         data = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
         data["services"]["main"]["platform"] = "linux/arm64"
         compose_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        with pytest.raises(ValueError, match="already pinned"):
+        with pytest.raises(ValueError, match="already declares platform"):
             _stage(
                 source, root / "staged", host_policy=_darwin_policy(), pin_platform=True
             )
+
+
+def test_stage_refuses_equal_pre_pinned_compose_service_with_request() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        compose_path = source / "environment" / "docker-compose.yaml"
+        data = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+        # A pin EQUAL to the requested platform must also be refused: the
+        # minimality proof cannot distinguish it from a staging-added pin.
+        data["services"]["main"]["platform"] = "linux/amd64"
+        compose_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        with pytest.raises(ValueError, match="already declares platform"):
+            _stage(
+                source, root / "staged", host_policy=_darwin_policy(), pin_platform=True
+            )
+        assert not (root / "staged").exists()
+
+
+def test_stage_refuses_equal_pre_pinned_dockerfile_with_request() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        dockerfile = source / "tests" / "Dockerfile"
+        dockerfile.write_text(
+            f"FROM --platform=linux/amd64 {PINNED_BASE}\nWORKDIR /app\n", encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match="already declares platform"):
+            _stage(
+                source, root / "staged", host_policy=_darwin_policy(), pin_platform=True
+            )
+        assert not (root / "staged").exists()
+
+
+def test_stage_refuses_symlinked_source_root() -> None:
+    """A symlink passed as the SOURCE argument itself must be refused."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_action_memory_like(root)
+        link = root / "source-link"
+        link.symlink_to(root / "action-memory-like", target_is_directory=True)
+        with pytest.raises(ValueError, match="source task directory is a symlink"):
+            _stage(link, root / "staged", host_policy=_darwin_policy())
+        assert not (root / "staged").exists()
+
+
+def test_stage_refuses_destination_won_by_race(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Losing the destination mkdir race refuses and never deletes the winner."""
+    import tempfile
+
+    import evallab.host_task_staging as staging
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        raced = root / "staged"
+        raced.mkdir()
+        (raced / "not-yours.txt").write_text("another process owns this\n", encoding="utf-8")
+
+        def _race_window(src, dest):  # type: ignore[no-untyped-def]
+            # Simulate the destination appearing AFTER validation passed.
+            return src, dest
+
+        monkeypatch.setattr(staging, "_assert_source_and_destination", _race_window)
+        with pytest.raises(ValueError, match="destination already exists"):
+            _stage(source, raced, host_policy=_darwin_policy())
+        # The winning directory is untouched.
+        assert (raced / "not-yours.txt").read_text(encoding="utf-8") == (
+            "another process owns this\n"
+        )
+
+
+def test_stage_cleans_partial_destination_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failure after the copy removes only the destination this call created."""
+    import tempfile
+
+    import evallab.host_task_staging as staging
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        destination = root / "staged"
+
+        def _boom(path):  # type: ignore[no-untyped-def]
+            raise RuntimeError("compose exploded")
+
+        monkeypatch.setattr(staging, "_load_compose", _boom)
+        with pytest.raises(RuntimeError, match="compose exploded"):
+            _stage(source, destination, host_policy=_darwin_policy())
+        assert not destination.exists()
+
+
+def test_stage_rejects_toctou_symlink_appearing_after_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A source symlink created after validation is copied as a link and refused."""
+    import tempfile
+
+    import evallab.host_task_staging as staging
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        destination = root / "staged"
+
+        real_assert = staging._assert_source_and_destination
+
+        def _validated_then_plant_symlink(src, dest):  # type: ignore[no-untyped-def]
+            resolved_src, resolved_dest = real_assert(src, dest)
+            # TOCTOU: plant a symlink in the source after validation.
+            (resolved_src / "environment" / "planted-link").symlink_to("/etc/passwd")
+            return resolved_src, resolved_dest
+
+        monkeypatch.setattr(
+            staging, "_assert_source_and_destination", _validated_then_plant_symlink
+        )
+        with pytest.raises(ValueError, match="staged task copy contains a symlink"):
+            _stage(source, destination, host_policy=_darwin_policy())
+        assert not destination.exists()
+        # The planted link was never dereferenced: no /etc/passwd bytes copied.
+
+
+def test_stage_payload_digests_recomputable_from_completed_tree() -> None:
+    import tempfile
+
+    from evallab.host_task_staging import stage_task_for_host, task_payload_digest
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        destination = root / "staged"
+        manifest = stage_task_for_host(
+            source,
+            destination,
+            host_policy=_darwin_policy(),
+            pin_platform=True,
+            attach_agent_egress=True,
+        )
+        # The manifest file exists in the completed staged tree...
+        assert (destination / "run_manifest.json").is_file()
+        # ...yet the recorded digests recompute exactly from both trees.
+        assert manifest.source_payload_digest == task_payload_digest(source)
+        assert manifest.staged_payload_digest == task_payload_digest(destination)
+        assert manifest.staged_payload_digest != manifest.source_payload_digest
+
+
+def test_cli_prints_typed_platform_pins() -> None:
+    """CLI JSON must carry platform_pins as objects, never stringified records."""
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = _make_action_memory_like(root)
+        destination = root / "staged"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "stage_host_task.py"),
+                str(source),
+                str(destination),
+                "--pin-platform",
+                "--attach-agent-egress",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=REPO_ROOT,
+        )
+        payload = json.loads(result.stdout)
+        assert payload["source_payload_digest"].startswith("sha256:")
+        assert payload["staged_payload_digest"].startswith("sha256:")
+        assert payload["platform_pins"], "expected platform pins in CLI output"
+        for pin in payload["platform_pins"]:
+            assert isinstance(pin, dict)
+            assert isinstance(pin["target"], str)
+            assert pin["platform"] == "linux/amd64"
 
 
 def test_stage_refuses_egress_when_single_container_network_not_public() -> None:

@@ -1915,7 +1915,7 @@ def _validate_offline_build_proofs(
                     "reviewed_by": "eval-lab-substrate",
                     "pinned_dependencies": pinned_deps,
                     "pinned_dependencies_count": len(pinned_deps),
-                    "runtime_asset_paths": frozenset(declared_asset_paths),
+                    "runtime_asset_paths": tuple(sorted(declared_asset_paths)),
                     "proof_digest": _sha256_file(proof_path),
                 }
                 continue

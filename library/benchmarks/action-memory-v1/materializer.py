@@ -293,6 +293,7 @@ if __name__ == "__main__":
         shutil.copy2(ROOT / "verifier.py", verifier_dir / "verify.py")
 
         test_sh_content = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py --task-dir /tests --evidence-dir /app/output --reward-dir /logs/verifier\n"
+        (tests / "Dockerfile").write_text(f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /tests\nCOPY . /tests\n", encoding="utf-8")
         (tests / "test.sh").write_text(test_sh_content, encoding="utf-8")
         (tests / "test.sh").chmod(0o755)
 
@@ -301,7 +302,7 @@ if __name__ == "__main__":
         (verifier_dir / "test.sh").chmod(0o755)
 
         (workbench / "fair-alternative.sh").write_text(
-            f"#!/bin/sh\nset -eu\npython3 /solution/solve.py\n",
+            f"#!/bin/sh\nset -eu\npython3 -c 'import http.client, json; conn = http.client.HTTPConnection(\"mcp-service\", 8080, timeout=10); body = json.dumps({{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"tools/call\", \"params\": {{\"name\": \"execute_mutation\", \"arguments\": {{\"entity_id\": \"{spec.target_entity}\", \"attribute\": \"{spec.target_attribute}\", \"bound_value\": \"{spec.latest_value}\"}}}}}}); conn.request(\"POST\", \"/mcp\", body, {{\"Content-Type\": \"application/json\"}}); conn.getresponse()'\n",
             encoding="utf-8",
         )
         (workbench / "fair-alternative.sh").chmod(0o755)
@@ -330,31 +331,40 @@ if __name__ == "__main__":
         )
         (adversarial / "empty-output.sh").chmod(0o755)
 
-        task_toml_content = f"""version = "1.0"
+        task_toml_content = f"""schema_version = "1.0"
+
+artifacts = ["/app/output/benchmark-events.jsonl", "/app/output/final-state.json"]
 
 [task]
-id = "action-memory-{safe_cell}-seed{seed}"
-version = "1.0.0"
-title = "Action Memory State Inversion ({safe_cell})"
-description = "Two-session entity state update and memory retention task."
-category = "memory"
-tags = ["synthetic", "memory", "state-inversion", "mcp-sidecar", "{arm}"]
+name = "action-memory/{safe_cell}"
+version = "1.0"
+authors = [{{ name = "Eval Lab" }}]
+keywords = ["action-memory", "mcp-sidecar", "state-inversion"]
+
+[metadata]
+category = "synthetic"
+difficulty = "easy"
+tags = ["action-memory", "mcp-sidecar", "state-inversion"]
+
+[agent]
+timeout_sec = 600.0
 
 [environment]
-os = "linux"
-arch = "x86_64"
-cpus = 2
-memory_mb = 4096
-timeout_sec = 600
+network_mode = "no-network"
+build_timeout_sec = 120.0
+cpus = 1
+memory_mb = 2048
+storage_mb = 1024
 
 [[environment.mcp_servers]]
 name = "action-memory-mcp"
-url = "http://mcp-service:8080/mcp"
 transport = "streamable-http"
+url = "http://mcp-service:8080/mcp"
 
 [verifier]
-timeout_sec = 60
+timeout_sec = 60.0
 environment_mode = "separate"
+network_mode = "no-network"
 """
         (output_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 

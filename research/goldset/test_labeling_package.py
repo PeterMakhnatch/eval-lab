@@ -11,6 +11,7 @@ import inspect
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
@@ -1760,6 +1761,103 @@ def main() -> int:
         check(
             "a ledger with records but NO head manifest fails closed",
             _raises(LedgerError, lambda: ledger_head(_headless(ledger4, Path(tmp) / "headless"))),
+        )
+
+    print("CLI-GATE - the shipped entry point enforces the anchor")
+    with tempfile.TemporaryDirectory() as tmp:
+        T = Path(tmp)
+        cli_runs = _synthetic_runs(T / "corpus")
+        CSEC = "cli-anchor"
+        cpkg, ctruth = build_package(cli_runs, core_n=None, boost_per_stratum=0, ratings_dir=None)
+        write_paired_outputs(cpkg, ctruth, T / "p.json", T / "t.json")
+        cex = export_rater_bundle(cpkg, T / "b", distribution_secret="D")
+        ceb = json.loads(cex.read_text(encoding="utf-8"))
+        CKEYS = {"r1": "s1", "r2": "s2", "r3": "s3"}
+        cled = T / "ledger"
+        clabels = {f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS}
+        for ck, csec in CKEYS.items():
+            cprep = prepare_rating(
+                ceb,
+                item_id=ceb["items"][0]["item_id"],
+                labels=clabels,
+                rater_key_id=ck,
+                rater_secret=csec,
+                distribution_secret="D",
+            )
+            append_rating_record(
+                cled,
+                cprep,
+                created_at=f"T{ck}",
+                rating_contract_digest=ceb["rating_contract_digest"],
+                context_digests={i["item_id"]: i["item_context_digest"] for i in ceb["items"]},
+                keyring=CKEYS,
+                qualified_rater_ids=list(CKEYS),
+            )
+        ch, cc = ledger_head(cled)
+        (T / "anchor.json").write_text(
+            json.dumps(sign_ledger_anchor(ch, cc, CSEC)), encoding="utf-8"
+        )
+        (T / "bad.json").write_text(
+            json.dumps(sign_ledger_anchor(ch, cc, "WRONG")), encoding="utf-8"
+        )
+        creg = {
+            "schema_version": REGISTRY_SCHEMA_VERSION,
+            "authority_key_id": "a",
+            "raters": [{"key_id": k, "qualified": True} for k in CKEYS],
+        }
+        creg["signature"] = sign_registry(creg, "AUTH")
+        (T / "reg.json").write_text(json.dumps(creg), encoding="utf-8")
+        (T / "ks.json").write_text(
+            json.dumps({"schema_version": KEYSTORE_SCHEMA_VERSION, "keys": CKEYS}),
+            encoding="utf-8",
+        )
+
+        def _cli(out: str, anchor: str | None) -> dict:
+            argv = [
+                sys.executable,
+                str(Path(__file__).with_name("build_labeling_package.py")),
+                "--runs-root",
+                str(cli_runs),
+                "--out",
+                str(T / out),
+                "--machine-truth-out",
+                str(T / f"m-{out}"),
+                "--ratings-dir",
+                str(cled),
+                "--rater-registry",
+                str(T / "reg.json"),
+                "--rater-keystore",
+                str(T / "ks.json"),
+            ]
+            if anchor:
+                argv += ["--ledger-anchor", str(T / anchor)]
+            env = {
+                **os.environ,
+                "GOLDSET_ANCHOR_SECRET": CSEC,
+                "GOLDSET_REGISTRY_AUTHORITY_SECRET": "AUTH",
+            }
+            subprocess.run(argv, check=True, capture_output=True, env=env)
+            return json.loads((T / out).read_text(encoding="utf-8"))
+
+        no_anchor = _cli("cli1.json", None)
+        check(
+            "CLI: a nonempty ledger with NO anchor blocks and accepts nothing",
+            any(b.startswith("LEDGER_ANCHOR_MISSING") for b in no_anchor["readiness"]["blockers"])
+            and no_anchor["readiness"]["rating_intake"]["records_accepted"] == 0,
+        )
+        wrong = _cli("cli2.json", "bad.json")
+        check(
+            "CLI: a wrongly-signed anchor blocks and accepts nothing",
+            any("ANCHOR_SIGNATURE_INVALID" in b for b in wrong["readiness"]["blockers"])
+            and wrong["readiness"]["rating_intake"]["records_accepted"] == 0,
+        )
+        good = _cli("cli3.json", "anchor.json")
+        gi = good["readiness"]["rating_intake"]
+        check(
+            "CLI: a valid anchor plus signed roster ACCEPTS the genuine ratings",
+            not [b for b in good["readiness"]["blockers"] if "ANCHOR" in b]
+            and gi["records_accepted"] == len(CKEYS)
+            and gi["records_rejected"] == 0,
         )
 
     print("SEC-CLONE - item-level logical dedup with lineage")

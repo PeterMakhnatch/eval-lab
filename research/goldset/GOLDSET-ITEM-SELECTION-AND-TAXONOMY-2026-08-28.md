@@ -595,7 +595,7 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 208 standalone checks + 24 pytest
+python3 research/goldset/test_labeling_package.py   # 211 standalone checks + 24 pytest
 ```
 
 Expect `labeling_package_file_sha256 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b`

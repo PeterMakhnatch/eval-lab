@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -51,7 +52,15 @@ DEFAULT_OUT_DIR = Path("derived/harbor-tasks/mcp-recovery")
 SIDECAR_DIRNAME = "mcp-server"
 WHEELHOUSE_ENV = "MCP_RECOVERY_WHEELHOUSE"
 RESOLVER_PROVENANCE_ENV = "MCP_RECOVERY_RESOLVER_PROVENANCE"
+EVIDENCE_KEY_ENV = "MCP_RECOVERY_EVIDENCE_KEY_FILE"
 SIDECAR_TARGET = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+
+
+def _derive_task_id(seed: int, fault_mode: FaultClass | str, persistence: int, is_clean_twin: bool) -> str:
+    fault = resolve_fault_class(fault_mode)
+    arm = "clean" if is_clean_twin else "fault"
+    raw_hash = compute_sha256(f"mcp-recovery-opaque:{seed}:{fault.value}:{persistence}:{arm}")
+    return f"mcp-rec-{raw_hash[:16]}"
 
 
 def output_path(
@@ -61,11 +70,10 @@ def output_path(
     is_clean_twin: bool = False,
 ) -> Path:
     fault = resolve_fault_class(fault_mode)
-    slug = slugify_fault(fault)
     arm = "clean" if is_clean_twin else "fault"
     digest = source_digest(f"seed:{seed}:fault:{fault.value}:persistence:{persistence}:arm:{arm}")[:16]
-    suffix = "-clean-twin" if is_clean_twin else ""
-    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{slug}-p{persistence}{suffix}"
+    task_id = _derive_task_id(seed, fault_mode, persistence, is_clean_twin)
+    return DEFAULT_OUT_DIR / digest / task_id
 
 
 def _wheelhouse_inputs() -> tuple[Path, ResolverProvenance] | None:
@@ -85,11 +93,41 @@ def _wheelhouse_inputs() -> tuple[Path, ResolverProvenance] | None:
     return wheelhouse, provenance
 
 
+def _read_evidence_key(key_input: bytes | Path | str | None, task_id: str, seed: int) -> bytes:
+    if isinstance(key_input, bytes):
+        if len(key_input) != 32:
+            raise ValueError("Evidence key must be exactly 32 bytes")
+        return key_input
+    if isinstance(key_input, (str, Path)):
+        key_path = Path(key_input)
+        if key_path.is_symlink():
+            raise ValueError(f"Evidence key file must not be a symlink: {key_path}")
+        if not key_path.is_file():
+            raise ValueError(f"Evidence key file not found: {key_path}")
+        raw = key_path.read_bytes()
+        if len(raw) == 32:
+            return raw
+        try:
+            parsed = bytes.fromhex(raw.decode("utf-8").strip())
+            if len(parsed) == 32:
+                return parsed
+        except Exception:
+            pass
+        raise ValueError("Evidence key file must contain 32 raw bytes or 64 hex characters")
+
+    env_key_file = os.environ.get(EVIDENCE_KEY_ENV, "").strip()
+    if env_key_file:
+        return _read_evidence_key(Path(env_key_file), task_id, seed)
+
+    # In test mode without explicit key file, derive a cryptographically strong deterministic key
+    return hashlib.sha256(f"mcp-recovery-test-key:{task_id}:{seed}".encode("utf-8")).digest()
+
+
 def _recovery_tools() -> list[MCPToolDefinition]:
     return [
         MCPToolDefinition(
             name="write_record",
-            description="Write a record into the recovery store",
+            description="Write a record into the operational store",
             parameters=(
                 MCPToolParameter(name="key", type_name="str", description="Record key"),
                 MCPToolParameter(name="value", type_name="str", description="Record value"),
@@ -98,20 +136,20 @@ def _recovery_tools() -> list[MCPToolDefinition]:
         ),
         MCPToolDefinition(
             name="read_record",
-            description="Read a record from the recovery store",
+            description="Read a record from the operational store",
             parameters=(MCPToolParameter(name="key", type_name="str", description="Record key"),),
             execution_body="return recovery_read_record(key)",
         ),
         MCPToolDefinition(
             name="refresh_auth",
-            description="Refresh authorization scope",
-            parameters=(MCPToolParameter(name="scope", type_name="str", description="Requested scope"),),
+            description="Re-authenticate and refresh credentials for current session",
+            parameters=(MCPToolParameter(name="scope", type_name="str", description="Session scope"),),
             execution_body="return recovery_refresh_auth(scope)",
         ),
         MCPToolDefinition(
             name="fallback_query",
-            description="Query the replica fallback",
-            parameters=(MCPToolParameter(name="query", type_name="str", description="Replica query"),),
+            description="Query the operational store replica sync channel",
+            parameters=(MCPToolParameter(name="query", type_name="str", description="Sync query"),),
             execution_body="return recovery_fallback_query(query)",
         ),
     ]
@@ -128,8 +166,17 @@ TASK_ID = "{task_id}"
 FAULT_ID = "{fault_id}"
 PERSISTENCE = {effective_persistence}
 IS_CLEAN_TWIN = {str(is_clean_twin)}
+
 KEY_FILE = Path(__file__).resolve().parent / "secret_key.txt"
-SECRET_KEY = bytes.fromhex(KEY_FILE.read_text(encoding="utf-8").strip()) if KEY_FILE.is_file() else (b"\\x00" * 32)
+if not KEY_FILE.is_file():
+    raise RuntimeError("Critical: secret_key.txt not provisioned in sidecar runtime")
+try:
+    SECRET_KEY = bytes.fromhex(KEY_FILE.read_text(encoding="utf-8").strip())
+    if len(SECRET_KEY) != 32:
+        raise ValueError("verifier key length is invalid")
+except Exception as exc:
+    raise RuntimeError(f"Critical: invalid sidecar evidence key: {{exc}}") from exc
+
 OUT_DIR = Path(os.environ.get("MCP_RECOVERY_OUTPUT", "/app/output"))
 ENVELOPE_FILE = OUT_DIR / "sealed-evidence.json"
 STATE_FILE = Path(os.environ.get("MCP_RECOVERY_PRIVATE_STATE", "/app/.recovery-runtime-state.json"))
@@ -193,7 +240,7 @@ def recovery_fallback_query(query: str) -> dict[str, Any]:
     _save_db(state)
     event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "fallback_query", "outcome": "ok", "fault_injected": False}}
     _record_and_seal(event, state)
-    return {{"status": "success", "source": "replica", "query": query}}
+    return {{"status": "synchronized", "query": query}}
 
 
 def recovery_read_record(key: str) -> Any:
@@ -201,11 +248,11 @@ def recovery_read_record(key: str) -> Any:
     if not IS_CLEAN_TWIN and "{fault_class.value}" == "silent_wrong_payload" and state["hits"] < PERSISTENCE:
         state["hits"] += 1
         _save_db(state)
-        event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "read_record", "outcome": "silent_corruption", "fault_injected": True, "fault_id": FAULT_ID}}
+        event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "read_record", "outcome": "silent_corruption", "fault_injected": True, "fault_id": FAULT_ID, "read_key": key}}
         _record_and_seal(event, state)
-        return {{"key": key, "value": "stale-corrupted-value", "exists": True}}
+        return {{"key": key, "value": "corrupted_stale_cache_record", "exists": True}}
     value = state.get("records", {{}}).get(key)
-    event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": value}}
+    event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": key, "read_value": value}}
     _record_and_seal(event, state)
     return {{"key": key, "value": value, "exists": key in state.get("records", {{}})}}
 
@@ -215,29 +262,30 @@ def recovery_write_record(key: str, value: str) -> Any:
     if not key or not value:
         event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "invalid_args", "fault_injected": False}}
         _record_and_seal(event, state)
-        return ToolResult(content="record key and value must be non-empty", is_error=True)
+        return ToolResult(content="invalid parameters: key and value cannot be empty", is_error=True)
 
     if not IS_CLEAN_TWIN and "{fault_class.value}" != "silent_wrong_payload" and state["hits"] < PERSISTENCE:
         state["hits"] += 1
         _save_db(state)
-        event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "error", "fault_injected": True, "fault_id": FAULT_ID}}
+        event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "error", "fault_injected": True, "fault_id": FAULT_ID, "written_key": key}}
         _record_and_seal(event, state)
+        # Realistic symptom messages without mentioning specific recovery tool names
         messages = {{
-            "persistent_signature_error": "operation rejected: access token lacks write scope",
-            "persistent_schema_mismatch": "operation rejected: target schema requires replica fallback",
-            "transient_network_timeout": "operation timed out: upstream gateway unreachable",
-            "transient_http_5xx": "operation failed: 502 bad gateway upstream error",
+            "persistent_signature_error": "403 Forbidden: authentication signature invalid or credentials expired",
+            "persistent_schema_mismatch": "404 Not Found: primary storage node unreachable, cluster out of sync",
+            "transient_network_timeout": "408 Request Timeout: upstream storage connection timed out",
+            "transient_http_5xx": "502 Bad Gateway: downstream service returned invalid payload",
         }}
         return ToolResult(content=messages["{fault_class.value}"], is_error=True)
 
     if not IS_CLEAN_TWIN and "{fault_class.value}" in ("persistent_signature_error", "persistent_schema_mismatch") and not state["strategy_used"]:
-        event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "unresolved_error", "fault_injected": False}}
+        event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "unresolved_error", "fault_injected": False, "written_key": key}}
         _record_and_seal(event, state)
-        return ToolResult(content="operation rejected: strategy mutation required", is_error=True)
+        return ToolResult(content="operation failed: underlying channel error unmitigated", is_error=True)
 
     state.setdefault("records", {{}})[key] = value
     _save_db(state)
-    event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False}}
+    event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": key, "written_value": value}}
     _record_and_seal(event, state)
     return {{"status": "success", "key": key, "value": value}}
 '''
@@ -296,12 +344,12 @@ key, value = "operational-record", "verified-payload"
 for _ in range(16):
     _status, kind, _raw = session.call_tool("write_record", {{"key": key, "value": value}})
     if kind != "ok":
-        session.call_tool("{strategy}", {{"scope": "admin_write"}} if "{strategy}" == "refresh_auth" else {{"query": key}})
+        session.call_tool("{strategy}", {{"scope": "default"}} if "{strategy}" == "refresh_auth" else {{"query": key}})
         continue
     _status, _kind, read_raw = session.call_tool("read_record", {{"key": key}})
-    if value in read_raw and "stale-corrupted-value" not in read_raw:
+    if value in read_raw and "corrupted_stale_cache_record" not in read_raw:
         break
-    session.call_tool("{strategy}", {{"scope": "admin_write"}} if "{strategy}" == "refresh_auth" else {{"query": key}})
+    session.call_tool("{strategy}", {{"scope": "default"}} if "{strategy}" == "refresh_auth" else {{"query": key}})
 PY
 '''
     )
@@ -364,78 +412,131 @@ def main() -> None:
 
     if ENVELOPE_FILE.is_file() and record_file.is_file() and key_file.is_file():
         record = json.loads(record_file.read_text(encoding="utf-8"))
-        key = bytes.fromhex(key_file.read_text(encoding="utf-8").strip())
-        task_id = str(record["task_id"])
-        fault_id = str(record["fault_id"])
-        payload_cfg = record.get("injection_payload") or {}
-        expected_persistence = int(payload_cfg.get("persistence", 1))
-        is_clean_twin = bool(payload_cfg.get("is_clean_twin", False))
-
         try:
-            raw_envelope = json.loads(ENVELOPE_FILE.read_text(encoding="utf-8"))
-            payload = decrypt_envelope(
-                key,
-                raw_envelope,
-                task_id=task_id,
-                fault_id=fault_id,
-                persistence=expected_persistence,
-            )
+            key = bytes.fromhex(key_file.read_text(encoding="utf-8").strip())
+            if len(key) != 32:
+                raise ValueError("Key must be 32 bytes")
         except Exception as exc:
-            reason = f"envelope decryption failed: {exc}"
-            payload = None
+            reason = f"invalid verifier key: {exc}"
+            key = None
 
-        if payload is not None:
-            events = payload.get("events", [])
-            monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
-            injections = [ev for ev in events if ev.get("fault_injected") is True and ev.get("fault_id") == fault_id]
-            exact_injections = len(injections) == expected_persistence
+        if key is not None:
+            task_id = str(record["task_id"])
+            fault_id = str(record["fault_id"])
+            payload_cfg = record.get("injection_payload") or {}
+            expected_persistence = int(payload_cfg.get("persistence", 1))
+            is_clean_twin = bool(payload_cfg.get("is_clean_twin", False))
 
-            writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
-            reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
-
-            state_changed = payload.get("initial_digest") != payload.get("final_digest") and bool(payload.get("records"))
-
-            if is_clean_twin:
-                passed = bool(monotonic and exact_injections and writes and reads and state_changed)
-                reason = "ok" if passed else "clean twin invariant failure"
-                checks = {
-                    "monotonic": monotonic,
-                    "zero_faults": exact_injections,
-                    "write_ok": bool(writes),
-                    "read_ok": bool(reads),
-                    "state_changed": state_changed,
-                }
-            else:
-                first_fault_idx = min((int(ev["event_index"]) for ev in injections), default=len(events))
-                first_recovery_write_idx = min(
-                    (int(ev["event_index"]) for ev in writes if int(ev.get("event_index", 0)) > first_fault_idx),
-                    default=len(events),
+            try:
+                raw_envelope = json.loads(ENVELOPE_FILE.read_text(encoding="utf-8"))
+                payload = decrypt_envelope(
+                    key,
+                    raw_envelope,
+                    task_id=task_id,
+                    fault_id=fault_id,
+                    persistence=expected_persistence,
                 )
-                causal_mutation = any(
-                    ev.get("tool") in MUTATION_TOOLS and first_fault_idx < int(ev.get("event_index", -1)) < first_recovery_write_idx
-                    for ev in events
-                )
-                auto_clear = bool(state_changed and exact_injections and not causal_mutation)
-                passed = bool(monotonic and exact_injections and causal_mutation and writes and reads and state_changed)
-                reason = "ok" if passed else "causal recovery verification failed"
-                checks = {
-                    "monotonic": monotonic,
-                    "exact_injections": exact_injections,
-                    "causal_mutation": causal_mutation,
-                    "write_ok": bool(writes),
-                    "read_ok": bool(reads),
-                    "state_changed": state_changed,
-                    "auto_clear": auto_clear,
-                }
+            except Exception as exc:
+                reason = f"envelope decryption failed: {exc}"
+                payload = None
+
+            if payload is not None:
+                events = payload.get("events", [])
+                monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
+                injections = [ev for ev in events if ev.get("fault_injected") is True and ev.get("fault_id") == fault_id]
+                exact_injections = len(injections) == expected_persistence
+                state_changed = payload.get("initial_digest") != payload.get("final_digest") and bool(payload.get("records"))
+
+                if is_clean_twin:
+                    writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
+                    reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
+                    confirmed = any(
+                        w.get("written_value") and r.get("read_value") == w.get("written_value") and int(r.get("event_index", 0)) > int(w.get("event_index", 0))
+                        for w in writes for r in reads
+                    ) if writes and reads else False
+                    passed = bool(monotonic and exact_injections and writes and reads and confirmed and state_changed)
+                    reason = "ok" if passed else "clean twin invariant failure"
+                    checks = {
+                        "monotonic": monotonic,
+                        "zero_faults": exact_injections,
+                        "write_ok": bool(writes),
+                        "read_ok": bool(reads),
+                        "confirmed": confirmed,
+                        "state_changed": state_changed,
+                    }
+                else:
+                    if not injections:
+                        passed = False
+                        reason = "no fault injections observed"
+                    else:
+                        first_fault_idx = min(int(ev["event_index"]) for ev in injections)
+
+                        post_fault_target_successes = [
+                            int(ev["event_index"])
+                            for ev in events
+                            if ev.get("tool") in ("write_record", "read_record")
+                            and ev.get("outcome") == "ok"
+                            and int(ev.get("event_index", 0)) > first_fault_idx
+                        ]
+
+                        if not post_fault_target_successes:
+                            passed = False
+                            reason = "no post-fault target operation succeeded"
+                        else:
+                            first_post_fault_success = min(post_fault_target_successes)
+
+                            mutations_before_success = [
+                                int(ev["event_index"])
+                                for ev in events
+                                if ev.get("tool") in MUTATION_TOOLS
+                                and first_fault_idx < int(ev.get("event_index", -1)) < first_post_fault_success
+                            ]
+                            causal_mutation = bool(mutations_before_success)
+
+                            post_mutation_writes = [
+                                ev for ev in events
+                                if ev.get("tool") == "write_record"
+                                and ev.get("outcome") == "ok"
+                                and int(ev.get("event_index", 0)) >= first_post_fault_success
+                            ]
+
+                            confirmed_read = False
+                            for write_ev in post_mutation_writes:
+                                w_idx = int(write_ev.get("event_index", 0))
+                                written_val = write_ev.get("written_value") or payload.get("records", {}).get(write_ev.get("written_key", ""))
+                                matching_reads = [
+                                    ev for ev in events
+                                    if ev.get("tool") == "read_record"
+                                    and ev.get("outcome") == "ok"
+                                    and int(ev.get("event_index", 0)) > w_idx
+                                    and (ev.get("read_value") == written_val or (written_val and written_val in str(ev.get("read_value"))))
+                                ]
+                                if matching_reads:
+                                    confirmed_read = True
+                                    break
+
+                            auto_clear = bool(state_changed and exact_injections and not causal_mutation)
+                            passed = bool(monotonic and exact_injections and causal_mutation and post_mutation_writes and confirmed_read and state_changed)
+                            reason = "ok" if passed else "causal recovery verification failed"
+
+                    checks = {
+                        "monotonic": monotonic,
+                        "exact_injections": exact_injections,
+                        "causal_mutation": causal_mutation if injections and post_fault_target_successes else False,
+                        "write_ok": bool(post_mutation_writes) if injections and post_fault_target_successes else False,
+                        "read_confirmed": confirmed_read if injections and post_fault_target_successes else False,
+                        "state_changed": state_changed,
+                        "auto_clear": auto_clear,
+                    }
 
     reward = 1.0 if passed else 0.0
-    (LOG_DIR / "reward.txt").write_text(f"{reward:.1f}\n", encoding="utf-8")
+    (LOG_DIR / "reward.txt").write_text(f"{reward:.1f}\\n", encoding="utf-8")
     (LOG_DIR / "reward.json").write_text(
-        json.dumps({"reward": reward, "passed": float(passed)}, sort_keys=True) + "\n",
+        json.dumps({"reward": reward, "passed": float(passed)}, sort_keys=True) + "\\n",
         encoding="utf-8",
     )
     (LOG_DIR / "checks.json").write_text(
-        json.dumps({"passed": passed, "reason": reason, "checks": checks, "auto_clear": auto_clear}, sort_keys=True) + "\n",
+        json.dumps({"passed": passed, "reason": reason, "checks": checks, "auto_clear": auto_clear}, sort_keys=True) + "\\n",
         encoding="utf-8",
     )
 
@@ -443,6 +544,7 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 '''
+
 
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -493,13 +595,13 @@ def _write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
-def _fault_record(cell: CellFactorsC, task_id: str, twin_task_id: str, is_clean_twin: bool) -> FaultInjectionRecord:
+def _fault_record(cell: CellFactorsC, task_id: str, twin_task_id: str, is_clean_twin: bool, secret_key: bytes) -> FaultInjectionRecord:
     effective_persistence = 0 if is_clean_twin else cell.fault_injection_count
     oracle_digest = compute_sha256({"family": FAMILY, "task_id": task_id, "is_clean_twin": is_clean_twin})
+    # Keyed HMAC fault_id to prevent enumerable prediction from public taxonomy formulas
+    fault_id = hmac.new(secret_key, f"{task_id}:{cell.fault_class.value}:{effective_persistence}:{is_clean_twin}".encode("utf-8"), hashlib.sha256).hexdigest()
     return FaultInjectionRecord(
-        fault_id=compute_sha256(
-            {"task_id": task_id, "fault": cell.fault_class.value, "dose": effective_persistence, "is_clean_twin": is_clean_twin}
-        ),
+        fault_id=fault_id,
         task_id=task_id,
         twin_task_id=twin_task_id,
         target_service=DEFAULT_SIDECAR_SERVICE,
@@ -518,25 +620,19 @@ def materialize_task(
     fault_mode: FaultClass | str = FaultClass.PERSISTENT_SIGNATURE_ERROR,
     persistence: int = 1,
     is_clean_twin: bool = False,
+    evidence_key: bytes | Path | str | None = None,
 ) -> Path:
     fault = resolve_fault_class(fault_mode)
-    slug = slugify_fault(fault)
     cell = CellFactorsC(fault_class=fault, fault_injection_count=persistence, seed=seed)
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    pair_id = f"pair-mcp-recovery-seed{seed}-{slug}-p{persistence}"
-    if is_clean_twin:
-        task_id = f"mcp-recovery-seed{seed}-{slug}-p{persistence}-clean-twin"
-        twin_task_id = f"mcp-recovery-seed{seed}-{slug}-p{persistence}"
-    else:
-        task_id = f"mcp-recovery-seed{seed}-{slug}-p{persistence}"
-        twin_task_id = f"mcp-recovery-seed{seed}-{slug}-p{persistence}-clean-twin"
+    task_id = _derive_task_id(seed, fault, persistence, is_clean_twin)
+    twin_task_id = _derive_task_id(seed, fault, persistence, not is_clean_twin)
 
-    record = _fault_record(cell, task_id, twin_task_id, is_clean_twin)
-    # Per-pair 32-byte secret key (hex-encoded string in files)
-    secret_key_bytes = hashlib.sha256(f"mcp-recovery-key:{pair_id}".encode("utf-8")).digest()
+    secret_key_bytes = _read_evidence_key(evidence_key, task_id, seed)
     secret_key_hex = secret_key_bytes.hex() + "\n"
+    record = _fault_record(cell, task_id, twin_task_id, is_clean_twin, secret_key_bytes)
 
     task_toml = f'''schema_version = "1.4"
 artifacts = [
@@ -557,9 +653,6 @@ email = "benchmarks@eval-lab.local"
 difficulty = "medium"
 category = "tool-use"
 tags = ["mcp", "error-recovery", "state-certificate"]
-base_task_pair_id = "{pair_id}"
-is_clean_twin = {str(is_clean_twin).lower()}
-contrast_dimensions = ["fault_injection"]
 
 [agent]
 timeout_sec = 120.0
@@ -714,18 +807,20 @@ def materialize(
     fault_mode: FaultClass | str = FaultClass.PERSISTENT_SIGNATURE_ERROR,
     persistence: int = 1,
     is_clean_twin: bool = False,
+    evidence_key: bytes | Path | str | None = None,
 ) -> Path:
     reject_committed_corpora()
     out = target or output_path(seed, fault_mode, persistence, is_clean_twin)
-    return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence, is_clean_twin=is_clean_twin)
+    return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence, is_clean_twin=is_clean_twin, evidence_key=evidence_key)
 
 
-def materialize_all_campaign0(seed: int = 42) -> list[Path]:
+def materialize_all_campaign0(seed: int = 42, evidence_key_generator: Any = None) -> list[Path]:
     """Materialize all 10 fault cells and 10 matched clean twin cells (20 tasks)."""
     reject_committed_corpora()
     paths: list[Path] = []
     for fault in CAMPAIGN0_FAULTS:
         for persistence in CAMPAIGN0_PERSISTENCE:
+            pair_key = evidence_key_generator(fault, persistence) if evidence_key_generator else None
             paths.append(
                 materialize_task(
                     output_path(seed=seed, fault_mode=fault, persistence=persistence, is_clean_twin=False),
@@ -733,6 +828,7 @@ def materialize_all_campaign0(seed: int = 42) -> list[Path]:
                     fault_mode=fault,
                     persistence=persistence,
                     is_clean_twin=False,
+                    evidence_key=pair_key,
                 )
             )
             paths.append(
@@ -742,6 +838,7 @@ def materialize_all_campaign0(seed: int = 42) -> list[Path]:
                     fault_mode=fault,
                     persistence=persistence,
                     is_clean_twin=True,
+                    evidence_key=pair_key,
                 )
             )
     return paths

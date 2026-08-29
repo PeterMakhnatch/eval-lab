@@ -14,7 +14,7 @@ sys.path.insert(0, str(HERE))
 
 from contract import CAMPAIGN0_FAULTS, CAMPAIGN0_PERSISTENCE
 from materializer import materialize, output_path
-from templates import mutants, run_nop_baseline, run_oracle_repair
+from templates import run_blind_retry_control, run_nop_baseline, run_oracle_repair, run_wrong_repair_mutant
 from verifier import verify_harbor_task
 
 
@@ -66,14 +66,20 @@ def main() -> None:
                 run_oracle_repair(task, task / "agent_workspace")
                 assert_reward(task, 1.0, "oracle")
 
-                # Mutants -> 0.0
-                for name, mutant in mutants().items():
-                    mutant(task, task / "agent_workspace")
-                    assert_reward(task, 0.0, name)
+                # Identical fixed-policy blind retry:
+                # On fault arm, must score 0.0 (auto-clear does not earn C3 recovery).
+                # On clean twin arm, establishes baseline 1.0 under identical policy.
+                expected_blind = 1.0 if is_clean else 0.0
+                run_blind_retry_control(task, task / "agent_workspace")
+                assert_reward(task, expected_blind, "blind_retry")
+
+                # Wrong repair mutant -> 0.0
+                run_wrong_repair_mutant(task, task / "agent_workspace")
+                assert_reward(task, 0.0, "wrong_repair")
 
                 count += 1
 
-    print(f"MCP Recovery v1 CI contract PASSED: {count} cells (10 fault + 10 clean twins), oracle=1.0, NOP/mutants=0.0")
+    print(f"MCP Recovery v1 CI contract PASSED: {count} cells (10 fault + 10 clean twins), paired policy verified")
 
 
 if __name__ == "__main__":

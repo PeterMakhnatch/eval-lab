@@ -57,8 +57,8 @@ def run_oracle_repair(task_dir: Path, agent_workspace: Path) -> None:
 
     if is_clean:
         records["operational-record"] = "verified-payload"
-        events.append({"event_index": 0, "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False})
-        events.append({"event_index": 1, "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": "verified-payload"})
+        events.append({"event_index": 0, "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "operational-record", "written_value": "verified-payload"})
+        events.append({"event_index": 1, "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "operational-record", "read_value": "verified-payload"})
     else:
         # Injections
         for idx in range(persistence):
@@ -66,13 +66,13 @@ def run_oracle_repair(task_dir: Path, agent_workspace: Path) -> None:
             outcome = "silent_corruption" if record.get("fault_class") == "silent_wrong_payload" else "error"
             events.append({"event_index": idx, "event_type": "tool_executed", "tool": tool, "outcome": outcome, "fault_injected": True, "fault_id": fault_id})
 
-        # Causal strategy mutation
+        # Causal strategy mutation strictly before post-fault target success
         events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "fallback_query", "outcome": "ok", "fault_injected": False})
 
-        # Post-mutation recovery write and read confirmation
+        # Post-mutation recovery write and matching read confirmation
         records["operational-record"] = "verified-payload"
-        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False})
-        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": "verified-payload"})
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "operational-record", "written_value": "verified-payload"})
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "operational-record", "read_value": "verified-payload"})
 
     _seal_and_write(task, record, key, events, records)
 
@@ -87,6 +87,7 @@ def run_nop_baseline(task_dir: Path, agent_workspace: Path) -> None:
 
 
 def run_blind_retry_control(task_dir: Path, agent_workspace: Path) -> None:
+    """Fixed-policy blind retry: identical operations executed in both fault and clean twin arms."""
     task = Path(task_dir)
     record, key = _load_cell_meta(task)
     payload_cfg = record.get("injection_payload") or {}
@@ -98,19 +99,21 @@ def run_blind_retry_control(task_dir: Path, agent_workspace: Path) -> None:
     records: dict[str, Any] = {}
 
     if is_clean:
-        # NOP / no writes
-        pass
+        # On clean twin, identical fixed policy succeeds immediately with zero faults (baseline)
+        records["operational-record"] = "verified-payload"
+        events.append({"event_index": 0, "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "operational-record", "written_value": "verified-payload"})
+        events.append({"event_index": 1, "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "operational-record", "read_value": "verified-payload"})
     else:
-        # Blind retry without mutation: injections happen, then writes with no strategy change
+        # On fault cell, blind retry without mutation: injections happen, writes continue with no mutation
         for idx in range(persistence):
             tool = "read_record" if record.get("fault_class") == "silent_wrong_payload" else "write_record"
             outcome = "silent_corruption" if record.get("fault_class") == "silent_wrong_payload" else "error"
             events.append({"event_index": idx, "event_type": "tool_executed", "tool": tool, "outcome": outcome, "fault_injected": True, "fault_id": fault_id})
 
-        # Write and read without any causal mutation
+        # Post-window write and read without any causal mutation -> auto_clear=True, reward=0.0
         records["operational-record"] = "verified-payload"
-        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False})
-        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_value": "verified-payload"})
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "operational-record", "written_value": "verified-payload"})
+        events.append({"event_index": len(events), "event_type": "tool_executed", "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "operational-record", "read_value": "verified-payload"})
 
     _seal_and_write(task, record, key, events, records)
 
@@ -125,7 +128,7 @@ def run_wrong_repair_mutant(task_dir: Path, agent_workspace: Path) -> None:
 
     # Ineffective mutation + invalid empty write
     events.append({"event_index": 0, "event_type": "tool_executed", "tool": "refresh_auth", "outcome": "ok", "fault_injected": False})
-    events.append({"event_index": 1, "event_type": "tool_executed", "tool": "write_record", "outcome": "invalid_args", "fault_injected": False})
+    events.append({"event_index": 1, "event_type": "tool_executed", "tool": "write_record", "outcome": "invalid_args", "fault_injected": False, "written_key": "", "written_value": ""})
 
     _seal_and_write(task, record, key, events, records)
 

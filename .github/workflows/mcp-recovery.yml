@@ -24,12 +24,15 @@ permissions:
 
 jobs:
   certify:
-    name: certify-mcp-recovery-${{ matrix.fault_mode }}-p${{ matrix.persistence }}
+    name: certify-mcp-recovery-${{ matrix.arm }}-${{ matrix.fault_mode }}-p${{ matrix.persistence }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
+        arm:
+          - fault
+          - clean_twin
         fault_mode:
           - transient-http-5xx
           - transient-network-timeout
@@ -71,6 +74,7 @@ jobs:
       - name: Materialize task cell
         id: materialize
         env:
+          ARM: ${{ matrix.arm }}
           FAULT_MODE: ${{ matrix.fault_mode }}
           PERSISTENCE: ${{ matrix.persistence }}
         run: |
@@ -81,45 +85,50 @@ jobs:
           from pathlib import Path
           sys.path.insert(0, str(Path("library/benchmarks/mcp-recovery-v1").resolve()))
           from materializer import materialize_task, output_path
+          arm = os.environ["ARM"]
           fault_mode = os.environ["FAULT_MODE"]
           persistence = int(os.environ["PERSISTENCE"])
+          is_clean = (arm == "clean_twin")
           path = materialize_task(
-              output_path(seed=42, fault_mode=fault_mode, persistence=persistence),
+              output_path(seed=42, fault_mode=fault_mode, persistence=persistence, is_clean_twin=is_clean),
               seed=42,
               fault_mode=fault_mode,
               persistence=persistence,
+              is_clean_twin=is_clean,
           )
           print(f"task_path={path}")
           PY
       - name: Freeze candidate plan
         id: plan
         env:
+          ARM: ${{ matrix.arm }}
           FAULT_MODE: ${{ matrix.fault_mode }}
           PERSISTENCE: ${{ matrix.persistence }}
           TASK_PATH: ${{ steps.materialize.outputs.task_path }}
         run: |
           set -euo pipefail
-          source_uri="eval-lab/benchmarks/mcp-recovery/${FAULT_MODE}-p${PERSISTENCE}"
+          source_uri="eval-lab/benchmarks/mcp-recovery/${ARM}/${FAULT_MODE}-p${PERSISTENCE}"
           source_ref="local/eval-lab/benchmarks/mcp-recovery@1.0.0"
-          mkdir -p "artifacts/${FAULT_MODE}-p${PERSISTENCE}"
+          mkdir -p "artifacts/${ARM}/${FAULT_MODE}-p${PERSISTENCE}"
           uv run python -m evallab.task_workbench plan "$TASK_PATH" \
             --repo-root . \
             --source-uri "$source_uri" \
             --source-ref "$source_ref" \
             --license MIT \
             --zone 03-synthetic \
-            | tee "artifacts/${FAULT_MODE}-p${PERSISTENCE}/plan.json"
-          candidate_id="$(jq -r '.candidate.candidate_id' "artifacts/${FAULT_MODE}-p${PERSISTENCE}/plan.json")"
+            | tee "artifacts/${ARM}/${FAULT_MODE}-p${PERSISTENCE}/plan.json"
+          candidate_id="$(jq -r '.candidate.candidate_id' "artifacts/${ARM}/${FAULT_MODE}-p${PERSISTENCE}/plan.json")"
           test "$candidate_id" != null
           echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
       - name: Run fixed Harbor controls
         env:
+          ARM: ${{ matrix.arm }}
           FAULT_MODE: ${{ matrix.fault_mode }}
           PERSISTENCE: ${{ matrix.persistence }}
           TASK_PATH: ${{ steps.materialize.outputs.task_path }}
         run: |
           set -euo pipefail
-          source_uri="eval-lab/benchmarks/mcp-recovery/${FAULT_MODE}-p${PERSISTENCE}"
+          source_uri="eval-lab/benchmarks/mcp-recovery/${ARM}/${FAULT_MODE}-p${PERSISTENCE}"
           source_ref="local/eval-lab/benchmarks/mcp-recovery@1.0.0"
           uv run python -m evallab.task_workbench check "$TASK_PATH" \
             --repo-root . \
@@ -128,19 +137,20 @@ jobs:
             --license MIT \
             --zone 03-synthetic \
             --run-controls \
-            | tee "artifacts/${FAULT_MODE}-p${PERSISTENCE}/check.json"
+            | tee "artifacts/${ARM}/${FAULT_MODE}-p${PERSISTENCE}/check.json"
       - name: Write certification packet
         env:
+          ARM: ${{ matrix.arm }}
           FAULT_MODE: ${{ matrix.fault_mode }}
           PERSISTENCE: ${{ matrix.persistence }}
           TASK_PATH: ${{ steps.materialize.outputs.task_path }}
           CANDIDATE_ID: ${{ steps.plan.outputs.candidate_id }}
         run: |
           set -euo pipefail
-          source_uri="eval-lab/benchmarks/mcp-recovery/${FAULT_MODE}-p${PERSISTENCE}"
+          source_uri="eval-lab/benchmarks/mcp-recovery/${ARM}/${FAULT_MODE}-p${PERSISTENCE}"
           source_ref="local/eval-lab/benchmarks/mcp-recovery@1.0.0"
           controls="runs/task-workbench/${CANDIDATE_ID}/controls.json"
-          packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/${FAULT_MODE}-p${PERSISTENCE}"
+          packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/${ARM}/${FAULT_MODE}-p${PERSISTENCE}"
           test -s "$controls"
           uv run python -m evallab.task_workbench packet "$TASK_PATH" \
             --repo-root . \
@@ -150,10 +160,11 @@ jobs:
             --zone 03-synthetic \
             --controls "$controls" \
             --output-root "$packet_root" \
-            | tee "artifacts/${FAULT_MODE}-p${PERSISTENCE}/packet.json"
-          test "$(jq -r '.disposition' "artifacts/${FAULT_MODE}-p${PERSISTENCE}/packet.json")" = "certified_for_review"
+            | tee "artifacts/${ARM}/${FAULT_MODE}-p${PERSISTENCE}/packet.json"
+          test "$(jq -r '.disposition' "artifacts/${ARM}/${FAULT_MODE}-p${PERSISTENCE}/packet.json")" = "certified_for_review"
       - name: Produce durable cell registry controls
         env:
+          ARM: ${{ matrix.arm }}
           FAULT_MODE: ${{ matrix.fault_mode }}
           PERSISTENCE: ${{ matrix.persistence }}
           TASK_PATH: ${{ steps.materialize.outputs.task_path }}
@@ -163,7 +174,7 @@ jobs:
           harbor run --path "$TASK_PATH" \
             --agent oracle \
             --env docker \
-            --job-name "mcp-recovery-${FAULT_MODE}-p${PERSISTENCE}-oracle-${GITHUB_RUN_ID}" \
+            --job-name "mcp-recovery-${ARM}-${FAULT_MODE}-p${PERSISTENCE}-oracle-${GITHUB_RUN_ID}" \
             --jobs-dir "$jobs" \
             --n-concurrent 1 \
             --n-attempts 1 \
@@ -171,7 +182,7 @@ jobs:
           harbor run --path "$TASK_PATH" \
             --agent nop \
             --env docker \
-            --job-name "mcp-recovery-${FAULT_MODE}-p${PERSISTENCE}-nop-${GITHUB_RUN_ID}" \
+            --job-name "mcp-recovery-${ARM}-${FAULT_MODE}-p${PERSISTENCE}-nop-${GITHUB_RUN_ID}" \
             --jobs-dir "$jobs" \
             --n-concurrent 1 \
             --n-attempts 1 \
@@ -188,10 +199,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: mcp-recovery-${{ matrix.fault_mode }}-p${{ matrix.persistence }}-workbench
+          name: mcp-recovery-${{ matrix.arm }}-${{ matrix.fault_mode }}-p${{ matrix.persistence }}-workbench
           path: |
-            artifacts/${{ matrix.fault_mode }}-p${{ matrix.persistence }}/
+            artifacts/${{ matrix.arm }}/${{ matrix.fault_mode }}-p${{ matrix.persistence }}/
             runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/
-            research/registration/candidates/ci/${{ github.run_id }}/${{ matrix.fault_mode }}-p${{ matrix.persistence }}/
+            research/registration/candidates/ci/${{ github.run_id }}/${{ matrix.arm }}/${{ matrix.fault_mode }}-p${{ matrix.persistence }}/
             research/evidence/runs/
           if-no-files-found: error

@@ -54,43 +54,103 @@ def score_recovery_envelope(
     injections = [ev for ev in events if ev.get("fault_injected") is True and ev.get("fault_id") == fault_id]
     exact_injections = len(injections) == expected_persistence
 
-    writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
-    reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
     state_changed = payload.get("initial_digest") != payload.get("final_digest") and bool(payload.get("records"))
 
     if is_clean_twin:
-        success = bool(monotonic and exact_injections and writes and reads and state_changed)
+        writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
+        reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
+        confirmed = any(
+            w.get("written_value") and r.get("read_value") == w.get("written_value") and int(r.get("event_index", 0)) > int(w.get("event_index", 0))
+            for w in writes for r in reads
+        ) if writes and reads else False
+        success = bool(monotonic and exact_injections and writes and reads and confirmed and state_changed)
         return {
             "reward": 1.0 if success else 0.0,
             "success": success,
             "zero_faults": exact_injections,
             "write_ok": bool(writes),
             "read_ok": bool(reads),
+            "confirmed": confirmed,
             "state_changed": state_changed,
             "auto_clear": False,
             "monotonic": monotonic,
             "fault_count": len(injections),
         }
 
-    first_fault_idx = min((int(ev["event_index"]) for ev in injections), default=len(events))
-    first_recovery_write_idx = min(
-        (int(ev["event_index"]) for ev in writes if int(ev.get("event_index", 0)) > first_fault_idx),
-        default=len(events),
-    )
-    causal_mutation = any(
-        ev.get("tool") in MUTATION_TOOLS and first_fault_idx < int(ev.get("event_index", -1)) < first_recovery_write_idx
+    if not injections:
+        return {
+            "reward": 0.0,
+            "success": False,
+            "reason": "no fault injections observed",
+            "auto_clear": False,
+            "fault_count": 0,
+        }
+
+    first_fault_idx = min(int(ev["event_index"]) for ev in injections)
+
+    # First non-injected target tool success (write_record or read_record ok) after first fault
+    post_fault_target_successes = [
+        int(ev["event_index"])
         for ev in events
-    )
+        if ev.get("tool") in ("write_record", "read_record")
+        and ev.get("outcome") == "ok"
+        and int(ev.get("event_index", 0)) > first_fault_idx
+    ]
+
+    if not post_fault_target_successes:
+        return {
+            "reward": 0.0,
+            "success": False,
+            "reason": "no post-fault target operation succeeded",
+            "auto_clear": False,
+            "fault_count": len(injections),
+        }
+
+    first_post_fault_success = min(post_fault_target_successes)
+
+    # Strategy mutation must occur strictly after first fault and strictly before first post-fault target success
+    mutations_before_success = [
+        int(ev["event_index"])
+        for ev in events
+        if ev.get("tool") in MUTATION_TOOLS
+        and first_fault_idx < int(ev.get("event_index", -1)) < first_post_fault_success
+    ]
+    causal_mutation = bool(mutations_before_success)
+
+    # Recovery sequence: mutation -> non-injected successful target write -> later non-injected read confirming exact written value
+    post_mutation_writes = [
+        ev for ev in events
+        if ev.get("tool") == "write_record"
+        and ev.get("outcome") == "ok"
+        and int(ev.get("event_index", 0)) >= first_post_fault_success
+    ]
+
+    confirmed_read = False
+    for write_ev in post_mutation_writes:
+        w_idx = int(write_ev.get("event_index", 0))
+        written_val = write_ev.get("written_value") or payload.get("records", {}).get(write_ev.get("written_key", ""))
+        matching_reads = [
+            ev for ev in events
+            if ev.get("tool") == "read_record"
+            and ev.get("outcome") == "ok"
+            and int(ev.get("event_index", 0)) > w_idx
+            and (ev.get("read_value") == written_val or (written_val and written_val in str(ev.get("read_value"))))
+        ]
+        if matching_reads:
+            confirmed_read = True
+            break
+
+    # A clean success (read or write) occurring before any mutation permanently disqualifies recovery (auto_clear)
     auto_clear = bool(state_changed and exact_injections and not causal_mutation)
-    success = bool(monotonic and exact_injections and causal_mutation and writes and reads and state_changed)
+    success = bool(monotonic and exact_injections and causal_mutation and post_mutation_writes and confirmed_read and state_changed)
 
     return {
         "reward": 1.0 if success else 0.0,
         "success": success,
         "causal_mutation": causal_mutation,
         "exact_injections": exact_injections,
-        "write_ok": bool(writes),
-        "read_ok": bool(reads),
+        "write_ok": bool(post_mutation_writes),
+        "read_confirmed": confirmed_read,
         "state_changed": state_changed,
         "auto_clear": auto_clear,
         "monotonic": monotonic,

@@ -99,6 +99,22 @@ DEEPSEEK_PROXY_SCRIPT = Path("containers/deepseek_secret_proxy.py")
 DEEPSEEK_SECRET_FILE_ENV = "EVALLAB_DEEPSEEK_SECRET_FILE"
 DEEPSEEK_PROXY_SCRIPT_ENV = "EVALLAB_DEEPSEEK_PROXY_SCRIPT"
 DEEPSEEK_UPSTREAM_ENV = "EVALLAB_DEEPSEEK_UPSTREAM"
+DEEPSEEK_PROXY_CAPABILITY_ENV = "EVALLAB_DEEPSEEK_PROXY_CAPABILITY"
+DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
+DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
+DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
+    {
+        DEEPSEEK_PROXY_CAPABILITY_ENV,
+        DEEPSEEK_ALLOWED_MODEL_ENV,
+        "EVALLAB_DEEPSEEK_MAX_REQUESTS",
+        "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
+        "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
+        "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
+        "EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT",
+        "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+        "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+    }
+)
 REDACTED_SECRET_VALUE = "<redacted>"
 REDACTED_SECRET_BYTES = REDACTED_SECRET_VALUE.encode()
 PRIVATE_PERSIST_MODE = 0o600
@@ -260,6 +276,9 @@ def collected_secret_values(
             file_value = ""
         if file_value and file_value != DEEPSEEK_PROXY_TOKEN:
             values.add(file_value)
+    capability = source.get(DEEPSEEK_PROXY_CAPABILITY_ENV)
+    if capability and capability != DEEPSEEK_PROXY_TOKEN:
+        values.add(capability)
     return frozenset(values)
 
 
@@ -277,41 +296,63 @@ def persist_private_bytes(
     data: bytes,
     *,
     secrets: tuple[bytes, ...] = (),
+    mode: int = PRIVATE_PERSIST_MODE,
 ) -> None:
-    """Write *data* only after redaction, then restrict the file to mode 0600."""
+    """Write *data* only after redaction, then restrict the file mode."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
     try:
         temporary.write_bytes(redact_secret_material(data, secrets))
-        temporary.chmod(PRIVATE_PERSIST_MODE)
+        temporary.chmod(mode)
         temporary.replace(path)
-        path.chmod(PRIVATE_PERSIST_MODE)
+        path.chmod(mode)
     except Exception:
         with suppress(OSError):
             temporary.unlink()
         raise
 
 
+_BEARER_HOLDBACK = len(b"authorization: bearer ") + 64
+_MAX_HOLDBACK = 8192
+
+
 class RedactingBinaryWriter:
-    """File-like stdout sink that redacts secrets before each write()."""
+    """File-like stdout sink that redacts secrets across chunk boundaries."""
 
     def __init__(self, path: Path, secrets: tuple[bytes, ...]) -> None:
         self.path = path
         self._secrets = secrets
+        longest = max((len(secret) for secret in secrets if secret), default=1)
+        self._holdback = min(_MAX_HOLDBACK, max(longest, _BEARER_HOLDBACK))
+        self._pending = b""
         path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = path.open("wb")
         os.chmod(path, PRIVATE_PERSIST_MODE)
 
-    def write(self, data: bytes) -> int:
+    def _emit(self, data: bytes) -> int:
         sanitized = redact_secret_material(data, self._secrets)
         written = self._handle.write(sanitized)
         self._handle.flush()
         return written
 
+    def write(self, data: bytes) -> int:
+        self._pending += data
+        if len(self._pending) <= self._holdback:
+            return len(data)
+        emit, self._pending = (
+            self._pending[: -self._holdback],
+            self._pending[-self._holdback :],
+        )
+        self._emit(emit)
+        return len(data)
+
     def flush(self) -> None:
         self._handle.flush()
 
     def close(self) -> None:
+        if self._pending:
+            self._emit(self._pending)
+            self._pending = b""
         self._handle.close()
         with suppress(OSError):
             os.chmod(self.path, PRIVATE_PERSIST_MODE)
@@ -339,7 +380,8 @@ def materialize_deepseek_secret_file(
             if path.is_file() and not path.is_symlink():
                 return path
         raise RuntimeError("DeepSeek provider credential is missing")
-    persist_private_bytes(destination, f"{value}\n".encode(), secrets=())
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    os.chmod(destination, 0o400)
     return destination
 
 
@@ -356,11 +398,18 @@ def subscription_environment(
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
     if include_deepseek_credentials:
-        for key in (DEEPSEEK_SECRET_FILE_ENV, DEEPSEEK_PROXY_SCRIPT_ENV, DEEPSEEK_UPSTREAM_ENV):
+        for key in (
+            DEEPSEEK_SECRET_FILE_ENV,
+            DEEPSEEK_PROXY_SCRIPT_ENV,
+            DEEPSEEK_UPSTREAM_ENV,
+            *DEEPSEEK_PROXY_BUDGET_KEYS,
+        ):
             if source.get(key):
                 sanitized[key] = source[key]
-        sanitized["DEEPSEEK_API_KEY"] = DEEPSEEK_PROXY_TOKEN
-        sanitized["MSWEA_API_KEY"] = DEEPSEEK_PROXY_TOKEN
+        capability = source.get(DEEPSEEK_PROXY_CAPABILITY_ENV) or DEEPSEEK_PROXY_TOKEN
+        sanitized[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
+        sanitized["DEEPSEEK_API_KEY"] = capability
+        sanitized["MSWEA_API_KEY"] = capability
         sanitized["DEEPSEEK_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL

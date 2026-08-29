@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import re
+import secrets
 import shutil
 import signal
 import subprocess
@@ -22,8 +23,11 @@ from pydantic import ValidationError
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     CONTROL_AGENTS,
+    DEEPSEEK_ALLOWED_MODEL,
+    DEEPSEEK_ALLOWED_MODEL_ENV,
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
     DEEPSEEK_MODEL_SELECTOR,
+    DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_HOST,
     DEEPSEEK_PROXY_SCRIPT,
     DEEPSEEK_PROXY_SCRIPT_ENV,
@@ -323,6 +327,16 @@ def _active_trial_directories(job_dir: Path) -> tuple[Path, ...]:
     )
 
 
+
+def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None:
+    if secret_file is not None:
+        with suppress(OSError):
+            secret_file.unlink()
+    if directory is not None:
+        with suppress(OSError):
+            shutil.rmtree(directory)
+
+
 def run_harbor_process(
     command: list[str],
     *,
@@ -340,20 +354,62 @@ def run_harbor_process(
     deepseek_lane = deepseek_adapter in command
     runtime_environment = subscription_environment(include_deepseek_credentials=deepseek_lane)
     secret_values = collected_secret_values()
+    owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
     if deepseek_lane:
+        capability = secrets.token_urlsafe(32)
+        runtime_environment[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
+        runtime_environment["DEEPSEEK_API_KEY"] = capability
+        runtime_environment["MSWEA_API_KEY"] = capability
+        runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
+            DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
+        )
+        runtime_environment.setdefault(
+            "EVALLAB_DEEPSEEK_MAX_REQUESTS",
+            os.environ.get("EVALLAB_DEEPSEEK_MAX_REQUESTS", "8"),
+        )
+        runtime_environment.setdefault(
+            "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
+            os.environ.get("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS", "32768"),
+        )
+        runtime_environment.setdefault(
+            "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
+            os.environ.get("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS", "4096"),
+        )
+        runtime_environment.setdefault(
+            "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
+            os.environ.get("EVALLAB_DEEPSEEK_MAX_COST_MICROS", "500000"),
+        )
+        runtime_environment.setdefault(
+            "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+            os.environ.get("EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION", "280000"),
+        )
+        runtime_environment.setdefault(
+            "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+            os.environ.get("EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION", "420000"),
+        )
+        runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
+            time.time() + float(timeout_seconds) + 60.0
+        )
         existing_secret = runtime_environment.get(DEEPSEEK_SECRET_FILE_ENV) or os.environ.get(
             DEEPSEEK_SECRET_FILE_ENV
         )
+        log_root = log_path.resolve()
+        if existing_secret and Path(existing_secret).is_file():
+            existing_path = Path(existing_secret).resolve()
+            if log_root.parent in existing_path.parents or (job_dir is not None and job_dir.resolve() in existing_path.parents):
+                existing_secret = None
         if existing_secret and Path(existing_secret).is_file():
             runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = existing_secret
         else:
-            handle, name = tempfile.mkstemp(
-                prefix="evallab-deepseek-secret.",
-                dir=os.environ.get("TMPDIR") or None,
+            owned_secret_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-deepseek-secret.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
             )
-            os.close(handle)
-            owned_secret_path = Path(name)
+            os.chmod(owned_secret_dir, 0o700)
+            owned_secret_path = owned_secret_dir / "key"
             materialize_deepseek_secret_file(owned_secret_path)
             runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
         runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
@@ -395,9 +451,7 @@ def run_harbor_process(
         os.close(write_fd)
         os.close(read_fd)
         writer.close()
-        if owned_secret_path is not None:
-            with suppress(OSError):
-                owned_secret_path.unlink()
+        _unlink_secret_dir(owned_secret_dir, owned_secret_path)
         raise
     os.close(write_fd)
     pump.start()
@@ -436,9 +490,7 @@ def run_harbor_process(
         if timed_out_trial is not None or now - started >= timeout_seconds:
             _terminate_process_group(process)
             pump.join(timeout=5)
-            if owned_secret_path is not None:
-                with suppress(OSError):
-                    owned_secret_path.unlink()
+            _unlink_secret_dir(owned_secret_dir, owned_secret_path)
             return HarborProcessResult(
                 returncode=(process.returncode if process.returncode is not None else -1),
                 timed_out=True,
@@ -450,9 +502,7 @@ def run_harbor_process(
         except subprocess.TimeoutExpired:
             continue
     pump.join(timeout=5)
-    if owned_secret_path is not None:
-        with suppress(OSError):
-            owned_secret_path.unlink()
+    _unlink_secret_dir(owned_secret_dir, owned_secret_path)
     return HarborProcessResult(
         returncode=returncode,
         timed_out=False,

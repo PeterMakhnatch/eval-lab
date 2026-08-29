@@ -125,21 +125,33 @@ with_canonical_deepseek_credential() {
             printf 'refusing model execution: provider key missing\n' >&2
             exit 1
         fi
-        secret_file="$(mktemp "${TMPDIR:-/tmp}/evallab-deepseek-secret.XXXXXX")"
+        secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/evallab-deepseek-secret.XXXXXX")"
+        chmod 700 "$secret_dir"
+        secret_file="$secret_dir/key"
         umask 077
         printf '%s\n' "$DEEPSEEK_API_KEY" > "$secret_file"
-        chmod 600 "$secret_file"
+        chmod 400 "$secret_file"
+        capability="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
         export EVALLAB_DEEPSEEK_SECRET_FILE="$secret_file"
         export EVALLAB_DEEPSEEK_PROXY_SCRIPT="$repo_root/containers/deepseek_secret_proxy.py"
+        export EVALLAB_DEEPSEEK_PROXY_CAPABILITY="$capability"
+        export EVALLAB_DEEPSEEK_ALLOWED_MODEL="${EVALLAB_DEEPSEEK_ALLOWED_MODEL:-deepseek-v4-flash}"
+        export EVALLAB_DEEPSEEK_MAX_REQUESTS="${EVALLAB_DEEPSEEK_MAX_REQUESTS:-8}"
+        export EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="${EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS:-32768}"
+        export EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="${EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS:-4096}"
+        export EVALLAB_DEEPSEEK_MAX_COST_MICROS="${EVALLAB_DEEPSEEK_MAX_COST_MICROS:-500000}"
+        export EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION="${EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION:-280000}"
+        export EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION="${EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION:-420000}"
+        export EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT="$(python3 -c 'import time; print(time.time()+86400)')"
         unset DEEPSEEK_API_KEY MSWEA_API_KEY
-        export DEEPSEEK_API_KEY="evallab-proxy-placeholder"
-        export MSWEA_API_KEY="evallab-proxy-placeholder"
+        export DEEPSEEK_API_KEY="$capability"
+        export MSWEA_API_KEY="$capability"
         export DEEPSEEK_BASE_URL="http://deepseek-secret-proxy:8080"
         export OPENAI_BASE_URL="http://deepseek-secret-proxy:8080"
         export OPENAI_API_BASE="http://deepseek-secret-proxy:8080"
         "$@"
         status=$?
-        rm -f "$secret_file"
+        rm -rf "$secret_dir"
         exit "$status"
     )
 }

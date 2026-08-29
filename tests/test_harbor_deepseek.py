@@ -7,6 +7,7 @@ import json
 import stat
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
@@ -106,6 +107,26 @@ def wrapper_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
         yield importlib.import_module("evallab.harbor_deepseek")
     finally:
         sys.modules.pop("evallab.harbor_deepseek", None)
+
+
+
+def _trial_proxy_env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> str:
+    capability = overrides.pop("capability", DEEPSEEK_PROXY_TOKEN)
+    values = {
+        "EVALLAB_DEEPSEEK_PROXY_CAPABILITY": capability,
+        "EVALLAB_DEEPSEEK_ALLOWED_MODEL": "deepseek-v4-flash",
+        "EVALLAB_DEEPSEEK_MAX_REQUESTS": "8",
+        "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS": "32768",
+        "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS": "4096",
+        "EVALLAB_DEEPSEEK_MAX_COST_MICROS": "500000",
+        "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION": "1000000",
+        "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION": "1000000",
+        "EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT": str(time.time() + 60),
+    }
+    values.update(overrides)
+    for key, value in values.items():
+        monkeypatch.setenv(key, value)
+    return capability
 
 
 def _load_proxy_module() -> ModuleType:
@@ -258,7 +279,10 @@ class _FakeDeepSeek(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
         type(self).seen.append((self.path, self.headers.get("Authorization", ""), body))
-        payload = b'{"choices":[{"message":{"content":"ok"}}]}'
+        payload = (
+            b'{"choices":[{"message":{"content":"ok"}}],'
+            b'"usage":{"prompt_tokens":3,"completion_tokens":1}}'
+        )
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
@@ -285,6 +309,7 @@ def test_proxy_authenticates_upstream_without_exposing_key_to_agent(
     monkeypatch.setenv("EVALLAB_DEEPSEEK_SECRET_PATH", str(secret_file))
     monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", upstream_url)
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    capability = _trial_proxy_env(monkeypatch)
 
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
@@ -295,7 +320,7 @@ def test_proxy_authenticates_upstream_without_exposing_key_to_agent(
             f"http://127.0.0.1:{proxy.server_address[1]}/v1/chat/completions",
             data=b'{"model":"deepseek-v4-flash","messages":[]}',
             headers={
-                "Authorization": f"Bearer {DEEPSEEK_PROXY_TOKEN}",
+                "Authorization": f"Bearer {capability}",
                 "Content-Type": "application/json",
             },
             method="POST",
@@ -462,10 +487,123 @@ def test_run_harbor_process_does_not_leave_provider_key_under_executor(
     assert result.returncode == 0
     data = log_path.read_text()
     assert SECRET_SENTINEL not in data
-    assert "evallab-proxy-placeholder" in data
     leftover = list((tmp_path / "tmp").glob("evallab-deepseek-secret.*"))
     assert leftover == []
     assert not (log_path.parent / f"{log_path.stem}.deepseek.key").exists()
+    assert not list(log_path.parent.glob("**/*.deepseek.key"))
     for path in log_path.parent.rglob("*"):
         if path.is_file():
             assert SECRET_SENTINEL not in path.read_text(errors="ignore")
+
+
+def test_redacting_writer_every_split_of_key_and_header(tmp_path: Path) -> None:
+    secret = SECRET_SENTINEL.encode()
+    payloads = (
+        b"pre " + secret + b" post",
+        b"Authorization: Bearer " + secret + b"\n",
+        b"authorization: bearer " + secret,
+        ("x" * 8192).encode() + secret + b"tail",
+        secret[:3] + b"e" + secret[3:],
+    )
+    for payload in payloads:
+        for index in range(len(payload) + 1):
+            path = tmp_path / f"split-{index}-{len(payload)}.log"
+            writer = RedactingBinaryWriter(path, (secret,))
+            writer.write(payload[:index])
+            writer.flush()
+            writer.write(payload[index:])
+            writer.close()
+            data = path.read_bytes()
+            assert secret not in data
+
+
+def test_proxy_rejects_attacks_without_upstream_spend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret_file = tmp_path / "key"
+    secret_file.write_text(SECRET_SENTINEL + "\n")
+    secret_file.chmod(0o400)
+    _FakeDeepSeek.seen = []
+    upstream, upstream_url = _serve(_FakeDeepSeek)
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_SECRET_PATH", str(secret_file))
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", upstream_url)
+    capability = _trial_proxy_env(
+        monkeypatch,
+        EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
+        EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
+        EVALLAB_DEEPSEEK_MAX_COST_MICROS="16",
+    )
+    proxy_module = _load_proxy_module()
+    proxy = proxy_module.serve(host="127.0.0.1", port=0)
+    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{proxy.server_address[1]}"
+
+    def post(path: str, body: bytes, headers: dict[str, str] | None = None) -> int:
+        merged = {
+            "Authorization": f"Bearer {capability}",
+            "Content-Type": "application/json",
+        }
+        if headers:
+            merged.update(headers)
+        request = urllib.request.Request(
+            f"{base}{path}",
+            data=body,
+            headers=merged,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return int(response.status)
+        except urllib.error.HTTPError as exc:
+            return int(exc.code)
+
+    try:
+        health = urllib.request.urlopen(f"{base}/healthz", timeout=5).read()
+        assert health == b"ok\n"
+        assert post("/v1/models", b"{}") == 404
+        assert post("/chat/completions", b'{"model":"deepseek-v4-flash"}') == 404
+        assert post("/v1/chat/completions", b'{"model":"deepseek-chat","max_tokens":1}') == 403
+        assert (
+            post(
+                "/v1/chat/completions",
+                b'{"model":"deepseek-v4-flash","max_tokens":999999,"messages":[{"role":"user","content":"x"}]}',
+            )
+            == 429
+        )
+        assert post("/v1/chat/completions", b"{}", headers={"Authorization": "Bearer wrong-token-value"}) == 401
+        _trial_proxy_env(
+            monkeypatch,
+            EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT=str(time.time() - 1),
+            EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
+            EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
+            EVALLAB_DEEPSEEK_MAX_COST_MICROS="16",
+        )
+        assert (
+            post(
+                "/v1/chat/completions",
+                b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"x"}]}',
+            )
+            == 401
+        )
+        _trial_proxy_env(
+            monkeypatch,
+            capability=capability,
+            EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
+            EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
+            EVALLAB_DEEPSEEK_MAX_COST_MICROS="16",
+            EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT=str(time.time() + 60),
+        )
+        ok_body = b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+        first = post("/v1/chat/completions", ok_body, headers={"X-Evallab-Proxy-Nonce": "n1"})
+        replay = post("/v1/chat/completions", ok_body, headers={"X-Evallab-Proxy-Nonce": "n1"})
+        second = post("/v1/chat/completions", ok_body)
+        assert first == 200
+        assert replay == 409
+        assert second == 429
+        assert len(_FakeDeepSeek.seen) == 1
+        assert _FakeDeepSeek.seen[0][1] == f"Bearer {SECRET_SENTINEL}"
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+

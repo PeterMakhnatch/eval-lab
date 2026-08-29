@@ -10,6 +10,7 @@ that alone mounts the file-backed secret.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-im
 
 from evallab.execution_contracts import (
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
+    DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_TOKEN,
     DEEPSEEK_PROXY_URL,
     REDACTED_SECRET_VALUE,
@@ -89,7 +91,8 @@ def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, s
         if name not in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
         and name not in {"DEEPSEEK_BASE_URL", "OPENAI_BASE_URL", "OPENAI_API_BASE"}
     }
-    env["DEEPSEEK_API_KEY"] = DEEPSEEK_PROXY_TOKEN
+    token = os.environ.get(DEEPSEEK_PROXY_CAPABILITY_ENV) or DEEPSEEK_PROXY_TOKEN
+    env["DEEPSEEK_API_KEY"] = token
     env["DEEPSEEK_BASE_URL"] = DEEPSEEK_PROXY_URL
     env["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
     env["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL
@@ -104,9 +107,10 @@ class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
         connection = super().model_connection
         if connection.provider != "deepseek":
             raise ValueError("SecretSafeDeepSeekMiniSweAgent requires a deepseek/* model")
+        token = os.environ.get(DEEPSEEK_PROXY_CAPABILITY_ENV) or DEEPSEEK_PROXY_TOKEN
         return replace(
             connection,
-            api_key=DEEPSEEK_PROXY_TOKEN,
+            api_key=token,
             base_url=DEEPSEEK_PROXY_URL,
             configured_base_url=DEEPSEEK_PROXY_URL,
             env=_scrubbed_connection_env(connection),
@@ -121,15 +125,17 @@ class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
         timeout_sec: int | None = None,
     ) -> Any:
         runtime_env = dict(env or {})
-        host_secrets = collected_secret_values()
+        capability = os.environ.get(DEEPSEEK_PROXY_CAPABILITY_ENV) or DEEPSEEK_PROXY_TOKEN
+        allowed_tokens = {DEEPSEEK_PROXY_TOKEN, capability}
+        host_secrets = collected_secret_values() - allowed_tokens
         for name in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
             value = runtime_env.get(name)
-            if value and value != DEEPSEEK_PROXY_TOKEN:
+            if value and value not in allowed_tokens:
                 raise ValueError(
                     "DeepSeek provider credential cannot enter the task exec environment"
                 )
         if any(
-            value and value in host_secrets and value != DEEPSEEK_PROXY_TOKEN
+            value and value in host_secrets
             for value in runtime_env.values()
         ):
             raise ValueError(

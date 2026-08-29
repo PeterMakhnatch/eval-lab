@@ -1,0 +1,123 @@
+{
+    "id": "125b05b4-f615-4b8f-bf57-a9d55296dbc0",
+    "task_name": "local-lab/mcp-rec-8e76b61449e022d5",
+    "trial_name": "recovery__HYxt7du",
+    "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode/zai-flash-recovery-transient5xx-p1-r3-amd64-verifier/recovery__HYxt7du",
+    "task_id": {
+        "path": "/tmp/evallab-zai-tasks/recovery"
+    },
+    "source": null,
+    "task_checksum": "19491fc7834aeb84ea59f6a959d4ef3d79a4f41c593a334b16b015bd20fa553b",
+    "config": {
+        "task": {
+            "path": "/tmp/evallab-zai-tasks/recovery",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "recovery__HYxt7du",
+        "trials_dir": "runs/zai-opencode/zai-flash-recovery-transient5xx-p1-r3-amd64-verifier",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "zai_opencode_adapter:ZaiOpenCode",
+            "import_path": null,
+            "model_name": "zai-coding-plan/glm-5.3-flash",
+            "n_concurrent": 1,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": [
+                {
+                    "type": "bind",
+                    "source": "/tmp/evallab-zai-opencode-auth.json",
+                    "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                    "read_only": true
+                }
+            ],
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "98a88b93-6cdd-4d63-bcb5-7db1f1b24147",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_info": {
+            "name": "glm-5.3-flash",
+            "provider": "zai-coding-plan"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 40394,
+        "n_cache_tokens": 31680,
+        "n_output_tokens": 397,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "passed": 0.0,
+            "reward": 0.0
+        }
+    },
+    "verifier_environment_mode": "separate",
+    "exception_info": null,
+    "started_at": "2026-08-29T18:22:23.671587Z",
+    "finished_at": "2026-08-29T18:24:02.485392Z",
+    "environment_setup": {
+        "started_at": "2026-08-29T18:22:23.687903Z",
+        "finished_at": "2026-08-29T18:22:26.095899Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-29T18:22:26.095978Z",
+        "finished_at": "2026-08-29T18:23:07.585335Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-29T18:23:07.585867Z",
+        "finished_at": "2026-08-29T18:23:53.580303Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-29T18:23:57.199267Z",
+        "finished_at": "2026-08-29T18:24:02.485344Z"
+    },
+    "step_results": null
+}

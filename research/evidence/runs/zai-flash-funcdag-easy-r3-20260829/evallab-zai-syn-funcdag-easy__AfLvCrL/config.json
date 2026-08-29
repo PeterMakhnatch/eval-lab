@@ -1,0 +1,24 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-syn-funcdag-easy"
+    },
+    "trial_name": "evallab-zai-syn-funcdag-easy__AfLvCrL",
+    "trials_dir": "runs/zai-opencode/zai-flash-funcdag-easy-r3-20260829",
+    "agent": {
+        "name": "zai_opencode_adapter:ZaiOpenCode",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 1
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "job_id": "a924613e-a799-4971-b9c3-45352bba666d"
+}

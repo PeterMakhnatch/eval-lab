@@ -1,0 +1,24 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-tasks/recovery-clean"
+    },
+    "trial_name": "recovery-clean__Hj7RGKk",
+    "trials_dir": "runs/zai-opencode/zai-flash-recovery-clean-twin-r3-amd64-verifier",
+    "agent": {
+        "name": "zai_opencode_adapter:ZaiOpenCode",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 1
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "job_id": "c0be8c1d-0576-4515-b7ba-b7d01f8aa665"
+}

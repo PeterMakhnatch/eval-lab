@@ -742,16 +742,14 @@ def test_runtime_asset_rejects_symlink_destination(tmp_path: Path):
     real = tmp_path / "real.py"
     real.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
     pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    (pkg / "ops.py").symlink_to(real)
-    with pytest.raises(SubstrateError, match="symlink"):
+    pkg.symlink_to(real)
+    with pytest.raises(SubstrateError, match="already exists|symlink"):
         materialize_mcp_sidecar_package(
             target_dir=pkg,
             tools=[_runtime_asset_tool()],
             plan_only=True,
             runtime_assets=(RuntimeAsset("ops.py", real),),
         )
-    assert not (pkg / "server.py").exists()
 
 
 def test_runtime_asset_rejects_duplicate_destinations(tmp_path: Path):
@@ -871,28 +869,33 @@ def test_runtime_asset_rejects_prefix_conflicts(tmp_path: Path):
         )
 
 
-def test_plan_only_removes_stale_dockerfile(tmp_path: Path):
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    (pkg / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
-    (pkg / "wheelhouse").mkdir()
-    (pkg / "wheelhouse" / "stale.whl").write_bytes(b"nope")
-    materialize_mcp_sidecar_package(
-        target_dir=pkg,
-        tools=[_runtime_asset_tool()],
-        plan_only=True,
-    )
-    assert not (pkg / "Dockerfile").exists()
-    assert not (pkg / "wheelhouse").exists()
-
-
-def test_materialize_rejects_planted_dockerignore(tmp_path: Path):
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    (pkg / ".dockerignore").write_text("*\n", encoding="utf-8")
-    with pytest.raises(SubstrateError, match="dockerignore"):
+def test_materialize_refuses_existing_target_path(tmp_path: Path):
+    # Existing directory
+    pkg_dir = tmp_path / "pkg_dir"
+    pkg_dir.mkdir()
+    with pytest.raises(SubstrateError, match="already exists"):
         materialize_mcp_sidecar_package(
-            target_dir=pkg,
+            target_dir=pkg_dir,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )
+
+    # Existing file
+    pkg_file = tmp_path / "pkg_file"
+    pkg_file.write_text("dummy", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="already exists"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg_file,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )
+
+    # Existing symlink
+    pkg_link = tmp_path / "pkg_link"
+    pkg_link.symlink_to(pkg_dir)
+    with pytest.raises(SubstrateError, match="already exists|symlink"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg_link,
             tools=[_runtime_asset_tool()],
             plan_only=True,
         )
@@ -924,3 +927,19 @@ def test_atomic_staging_cleans_up_on_failure_and_leaves_target_absent(tmp_path: 
     staging_dirs = [p for p in tmp_path.iterdir() if p.name.startswith(".unborn_pkg.")]
     assert len(staging_dirs) == 0
 
+
+def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
+    import zipfile
+    source_wh = tmp_path / "src_wh"
+    source_wh.mkdir()
+    wh1 = source_wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    dest_wh = tmp_path / "dest_wh"
+    target = WheelhouseTarget("cp312", "manylinux_2_17_x86_64")
+    lock, inventory = stage_platform_wheelhouse(source_wh, dest_wh, target)
+    assert (dest_wh / "fastmcp-3.4.7-py3-none-any.whl").is_file()
+    staged_bytes = (dest_wh / "fastmcp-3.4.7-py3-none-any.whl").read_bytes()
+    staged_hash = compute_sha256(staged_bytes)
+    assert inventory[0]["sha256"] == staged_hash
+    assert f"fastmcp==3.4.7 --hash=sha256:{staged_hash}" in lock

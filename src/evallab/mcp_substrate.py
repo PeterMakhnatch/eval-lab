@@ -798,25 +798,10 @@ def materialize_mcp_sidecar_package(
         if resolver_provenance.target != selected_target:
             raise SubstrateError("resolver provenance target does not match requested target")
 
-    # 2. Confine target directory and refuse if it exists as symlink or contains reserved files / planted symlinks
+    # 2. Target path MUST be absent up front; refuse existing file, directory, or symlink
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
-    if target_dir.is_symlink():
-        raise SubstrateError(f"target_dir is a symlink: {target_dir.as_posix()!r}")
-    if target_dir.exists():
-        if target_dir.is_symlink() or not target_dir.is_dir():
-            raise SubstrateError(f"target_dir must be a non-symlink directory: {target_dir.as_posix()!r}")
-        for name in (".dockerignore", "Dockerfile.dockerignore", "compose.yaml", "docker-compose.yaml"):
-            planted = target_dir / name
-            if planted.exists() or planted.is_symlink():
-                raise SubstrateError(f"Target contains reserved build-control file: {name}")
-        for name in ("server.py", "requirements.txt", "Dockerfile", "offline-build-proof.json", "wheelhouse"):
-            entry = target_dir / name
-            if entry.is_symlink():
-                raise SubstrateError(f"target contains symlink entry: {name}")
-        for asset, _content in prepared_assets:
-            entry = target_dir / asset.destination
-            if entry.is_symlink():
-                raise SubstrateError(f"target contains symlink destination: {asset.destination}")
+    if target_dir.exists() or target_dir.is_symlink():
+        raise SubstrateError(f"target_dir already exists: {target_dir.as_posix()!r}")
 
     parent = target_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -850,20 +835,8 @@ def materialize_mcp_sidecar_package(
         finally:
             os.close(staging_fd)
 
-        # 4. Atomic publish via renameat under parent directory fd (replaces raced symlink, never follows)
-        if target_dir.exists():
-            hold = Path(tempfile.mkdtemp(prefix=f".{target_dir.name}.hold.", dir=parent))
-            parked = hold / "old_target"
-            os.rename(target_dir.name, parked.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-            try:
-                os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-            except Exception:
-                os.rename(parked.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-                shutil.rmtree(hold, ignore_errors=True)
-                raise
-            shutil.rmtree(hold, ignore_errors=True)
-        else:
-            os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        # 4. Atomic publish via single rename under parent directory fd
+        os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         os.fsync(parent_fd)
         published = True
     finally:
@@ -1138,10 +1111,10 @@ def _wheel_metadata(wheel: Path) -> tuple[str, str]:
     return _wheel_metadata_from_bytes(raw, wheel.name)
 
 
-def render_selected_wheel_lock(
+def _load_selected_wheelhouse_entries(
     wheelhouse_dir: Path, target: WheelhouseTarget
-) -> tuple[str, list[dict[str, Any]]]:
-    """Hash the selected platform wheel bytes and render a precise offline pip lock."""
+) -> tuple[str, list[dict[str, Any]], list[tuple[str, bytes]]]:
+    """Read each selected wheel once via O_NOFOLLOW file descriptors, returning exact bytes, inventory, and lock."""
     try:
         st = os.lstat(wheelhouse_dir)
     except OSError as exc:
@@ -1170,6 +1143,7 @@ def render_selected_wheel_lock(
             raise SubstrateError("wheelhouse has no selected wheels")
         seen: set[str] = set()
         inventory: list[dict[str, Any]] = []
+        loaded_bytes: list[tuple[str, bytes]] = []
         lock_lines = [f"# target-python={target.python_tag} target-platform={target.platform_tag}"]
         for wheel_name in wheels:
             w_fd = os.open(wheel_name, os.O_RDONLY | _NOFOLLOW, dir_fd=src_fd)
@@ -1198,61 +1172,43 @@ def render_selected_wheel_lock(
                     "sha256": digest,
                 }
             )
+            loaded_bytes.append((wheel_name, content))
             lock_lines.append(f"{name}=={version} --hash=sha256:{digest}")
         if "fastmcp" not in seen:
             raise SubstrateError(
                 "wheelhouse is missing required locked package fastmcp for selected target"
             )
-        return "\n".join(lock_lines) + "\n", inventory
+        return "\n".join(lock_lines) + "\n", inventory, loaded_bytes
     finally:
         os.close(src_fd)
+
+
+def render_selected_wheel_lock(
+    wheelhouse_dir: Path, target: WheelhouseTarget
+) -> tuple[str, list[dict[str, Any]]]:
+    """Hash the selected platform wheel bytes and render a precise offline pip lock."""
+    lock, inventory, _ = _load_selected_wheelhouse_entries(wheelhouse_dir, target)
+    return lock, inventory
 
 
 def stage_platform_wheelhouse(
     source: Path, destination: Path, target: WheelhouseTarget
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Copy a selected explicit-target wheelhouse via O_NOFOLLOW file descriptor reads and writes."""
-    lock, inventory = render_selected_wheel_lock(source, target)
-    try:
-        st = os.lstat(source)
-    except OSError as exc:
-        raise SubstrateError(f"Cannot stat source wheelhouse: {source.as_posix()!r}") from exc
-    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
-        raise SubstrateError("source wheelhouse must be a non-symlink directory")
-
+    """Copy a selected explicit-target wheelhouse from exact single-read bytes."""
+    lock, inventory, loaded_bytes = _load_selected_wheelhouse_entries(source, target)
     if destination.is_symlink():
         raise SubstrateError("wheelhouse destination is a symlink")
     destination.mkdir(parents=True, exist_ok=True)
     if destination.is_symlink() or not destination.is_dir():
         raise SubstrateError("wheelhouse destination is not a real directory")
 
-    src_fd = os.open(source, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW)
-    try:
-        for item in inventory:
-            filename = item["filename"]
-            if Path(filename).name != filename:
-                raise SubstrateError(f"wheel filename is not a basename: {filename!r}")
-            w_fd = os.open(filename, os.O_RDONLY | _NOFOLLOW, dir_fd=src_fd)
-            try:
-                w_st = os.fstat(w_fd)
-                if not stat.S_ISREG(w_st.st_mode):
-                    raise SubstrateError(f"wheel {filename!r} is not a regular file")
-                with os.fdopen(w_fd, "rb") as handle:
-                    w_fd = -1
-                    content = handle.read()
-            finally:
-                if w_fd >= 0:
-                    os.close(w_fd)
-
-            dest_file = destination / filename
-            if dest_file.is_symlink():
-                raise SubstrateError(f"wheelhouse entry is a symlink: {filename!r}")
-            _write_confined_bytes(destination, filename, content)
-    finally:
-        os.close(src_fd)
+    for filename, content in loaded_bytes:
+        dest_file = destination / filename
+        if dest_file.is_symlink():
+            raise SubstrateError(f"wheelhouse entry is a symlink: {filename!r}")
+        _write_confined_bytes(destination, filename, content)
 
     return lock, inventory
-
 
 @dataclass(frozen=True)
 class ResolverProvenance:

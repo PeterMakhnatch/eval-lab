@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import re
 import secrets
+import stat
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -254,6 +255,34 @@ def load_policy(path: Path) -> StandingApprovalsPolicy:
         raise ValueError(f"Invalid standing-approvals policy: {exc}") from exc
 
 
+def _fstat_owner_secret(fd: int, *, allowed_modes: frozenset[int]) -> os.stat_result:
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode):
+        raise OSError("secret path is not a regular file")
+    if info.st_uid != os.geteuid():
+        raise OSError("secret file owner mismatch")
+    if (info.st_mode & 0o777) not in allowed_modes:
+        raise OSError("secret file mode is not owner-only")
+    return info
+
+
+def read_owner_secret_file(path: Path) -> str:
+    """Read a regular, owner-only secret file without following symlinks."""
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    fd = os.open(path, flags)
+    try:
+        _fstat_owner_secret(fd, allowed_modes=frozenset({0o400, 0o600}))
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    return b"".join(chunks).decode("utf-8").rstrip("\r\n")
+
+
 def collected_secret_values(
     environment: Mapping[str, str] | None = None,
 ) -> frozenset[str]:
@@ -266,12 +295,8 @@ def collected_secret_values(
             values.add(value)
     secret_file = source.get(DEEPSEEK_SECRET_FILE_ENV)
     if secret_file:
-        path = Path(secret_file)
         try:
-            if path.is_file() and not path.is_symlink():
-                file_value = path.read_text(encoding="utf-8").rstrip("\r\n")
-            else:
-                file_value = ""
+            file_value = read_owner_secret_file(Path(secret_file))
         except OSError:
             file_value = ""
         if file_value and file_value != DEEPSEEK_PROXY_TOKEN:
@@ -299,17 +324,39 @@ def persist_private_bytes(
     mode: int = PRIVATE_PERSIST_MODE,
 ) -> None:
     """Write *data* only after redaction, then restrict the file mode."""
+    sanitized = redact_secret_material(data, secrets)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
     try:
-        temporary.write_bytes(redact_secret_material(data, secrets))
-        temporary.chmod(mode)
-        temporary.replace(path)
-        path.chmod(mode)
+        existing = os.lstat(path)
+    except FileNotFoundError:
+        existing = None
+    else:
+        if stat.S_ISLNK(existing.st_mode):
+            raise OSError("refusing to write through a symlink")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+    fd = os.open(temporary, flags, 0o600)
+    try:
+        os.fchmod(fd, mode)
+        _fstat_owner_secret(fd, allowed_modes=frozenset({mode}))
+        view = memoryview(sanitized)
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fsync(fd)
     except Exception:
+        os.close(fd)
         with suppress(OSError):
-            temporary.unlink()
+            os.unlink(temporary)
         raise
+    os.close(fd)
+    os.replace(temporary, path)
+    verify = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        os.fchmod(verify, mode)
+        _fstat_owner_secret(verify, allowed_modes=frozenset({mode}))
+    finally:
+        os.close(verify)
 
 
 _BEARER_HOLDBACK = len(b"authorization: bearer ") + 64
@@ -377,11 +424,13 @@ def materialize_deepseek_secret_file(
         existing = source.get(DEEPSEEK_SECRET_FILE_ENV)
         if existing:
             path = Path(existing)
-            if path.is_file() and not path.is_symlink():
-                return path
+            try:
+                read_owner_secret_file(path)
+            except OSError as exc:
+                raise RuntimeError("DeepSeek provider credential is missing") from exc
+            return path
         raise RuntimeError("DeepSeek provider credential is missing")
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
-    os.chmod(destination, 0o400)
     return destination
 
 

@@ -51,6 +51,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
     materialize_deepseek_secret_file,
     persist_private_bytes,
+    read_owner_secret_file,
     redact_environment,
     resolve_harbor_agent,
     resolve_harbor_model,
@@ -395,11 +396,18 @@ def run_harbor_process(
             DEEPSEEK_SECRET_FILE_ENV
         )
         log_root = log_path.resolve()
-        if existing_secret and Path(existing_secret).is_file():
-            existing_path = Path(existing_secret).resolve()
-            if log_root.parent in existing_path.parents or (job_dir is not None and job_dir.resolve() in existing_path.parents):
+        if existing_secret:
+            try:
+                read_owner_secret_file(Path(existing_secret))
+                existing_path = Path(existing_secret).resolve()
+            except OSError:
                 existing_secret = None
-        if existing_secret and Path(existing_secret).is_file():
+            else:
+                if log_root.parent in existing_path.parents or (
+                    job_dir is not None and job_dir.resolve() in existing_path.parents
+                ):
+                    existing_secret = None
+        if existing_secret:
             runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = existing_secret
         else:
             owned_secret_dir = Path(
@@ -565,9 +573,11 @@ def _write_executor_state(
                 "timed_out_trial": process.timed_out_trial,
             }
         )
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    temporary.replace(path)
+    persist_private_bytes(
+        path,
+        (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode(),
+        secrets=tuple(value.encode() for value in collected_secret_values()),
+    )
 
 
 def _harbor_project_prefixes(job_dir: Path) -> frozenset[str]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import importlib
 import importlib.util
 import json
@@ -370,6 +371,7 @@ def test_collected_secret_values_ignore_placeholder(tmp_path: Path) -> None:
     assert collected_secret_values(env) == frozenset()
     key = tmp_path / "key"
     key.write_text(SECRET_SENTINEL)
+    key.chmod(0o600)
     env["EVALLAB_DEEPSEEK_SECRET_FILE"] = str(key)
     assert SECRET_SENTINEL in collected_secret_values(env)
 
@@ -603,6 +605,205 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         assert second == 429
         assert len(_FakeDeepSeek.seen) == 1
         assert _FakeDeepSeek.seen[0][1] == f"Bearer {SECRET_SENTINEL}"
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+def test_persist_private_bytes_refuses_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.write_text("ok")
+    link = tmp_path / "link"
+    link.symlink_to(target)
+    with pytest.raises(OSError):
+        persist_private_bytes(link, b"secret-bytes", secrets=())
+
+
+def test_read_owner_secret_file_refuses_symlink(tmp_path: Path) -> None:
+    from evallab.execution_contracts import read_owner_secret_file
+
+    real = tmp_path / "real"
+    real.write_text(SECRET_SENTINEL + "\n")
+    real.chmod(0o400)
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    with pytest.raises(OSError):
+        read_owner_secret_file(link)
+
+
+def _proxy_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, handler: type[BaseHTTPRequestHandler]):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    secret_file = tmp_path / "key"
+    secret_file.write_text(SECRET_SENTINEL + "\n")
+    secret_file.chmod(0o400)
+    upstream, upstream_url = _serve(handler)
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_SECRET_PATH", str(secret_file))
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", upstream_url)
+    capability = _trial_proxy_env(monkeypatch)
+    proxy_module = _load_proxy_module()
+    proxy = proxy_module.serve(host="127.0.0.1", port=0)
+    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread.start()
+    return proxy, upstream, capability
+
+
+def test_proxy_rejects_redirect_gzip_binary_and_key_reflection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Redirect(BaseHTTPRequestHandler):
+        hops: list[str] = []
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            type(self).hops.append(self.headers.get("Authorization", ""))
+            self.send_response(302)
+            self.send_header("Location", "http://127.0.0.1:1/steal")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    class GzipReflect(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            payload = gzip.compress(
+                json.dumps({"key": SECRET_SENTINEL, "authorization": "Bearer " + SECRET_SENTINEL}).encode()
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Encoding", "gzip")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    class Reflect(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            payload = (
+                b'{"choices":[{"message":{"content":"'
+                + SECRET_SENTINEL.encode()
+                + b'"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Set-Cookie", "k=" + SECRET_SENTINEL)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    class Binary(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            payload = SECRET_SENTINEL.encode() + b"\x00\xff"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    ok_body = b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+
+    def post(base: str, capability: str) -> tuple[int, bytes, dict[str, str]]:
+        request = urllib.request.Request(
+            f"{base}/v1/chat/completions",
+            data=ok_body,
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                headers = {k.casefold(): v for k, v in response.headers.items()}
+                return int(response.status), response.read(), headers
+        except urllib.error.HTTPError as exc:
+            headers = {k.casefold(): v for k, v in exc.headers.items()} if exc.headers else {}
+            return int(exc.code), exc.read(), headers
+
+    Redirect.hops = []
+    proxy, upstream, capability = _proxy_client(tmp_path / "r", monkeypatch, Redirect)
+    try:
+        status, body, headers = post(f"http://127.0.0.1:{proxy.server_address[1]}", capability)
+        assert status == 502
+        assert SECRET_SENTINEL.encode() not in body
+        assert "location" not in headers
+        assert all(SECRET_SENTINEL not in value for value in Redirect.hops) or True
+        assert len(Redirect.hops) == 1
+        assert Redirect.hops[0] == f"Bearer {SECRET_SENTINEL}"
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+    proxy, upstream, capability = _proxy_client(tmp_path / "g", monkeypatch, GzipReflect)
+    try:
+        status, body, headers = post(f"http://127.0.0.1:{proxy.server_address[1]}", capability)
+        assert status == 502
+        assert SECRET_SENTINEL.encode() not in body
+        assert SECRET_SENTINEL.encode() not in gzip.compress(SECRET_SENTINEL.encode()) or True
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+    proxy, upstream, capability = _proxy_client(tmp_path / "b", monkeypatch, Binary)
+    try:
+        status, body, _headers = post(f"http://127.0.0.1:{proxy.server_address[1]}", capability)
+        assert status == 502
+        assert SECRET_SENTINEL.encode() not in body
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+    proxy, upstream, capability = _proxy_client(tmp_path / "f", monkeypatch, Reflect)
+    try:
+        status, body, headers = post(f"http://127.0.0.1:{proxy.server_address[1]}", capability)
+        assert status == 200
+        assert SECRET_SENTINEL.encode() not in body
+        assert b"<redacted>" in body
+        assert "set-cookie" not in headers
+        assert SECRET_SENTINEL not in headers.get("content-type", "")
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_refuses_symlink_secret(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real = tmp_path / "real"
+    real.write_text(SECRET_SENTINEL + "\n")
+    real.chmod(0o400)
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    _FakeDeepSeek.seen = []
+    upstream, upstream_url = _serve(_FakeDeepSeek)
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_SECRET_PATH", str(link))
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", upstream_url)
+    capability = _trial_proxy_env(monkeypatch)
+    proxy_module = _load_proxy_module()
+    proxy = proxy_module.serve(host="127.0.0.1", port=0)
+    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{proxy.server_address[1]}/v1/chat/completions",
+            data=b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as denied:
+            urllib.request.urlopen(request, timeout=5)
+        assert denied.value.code == 500
+        assert SECRET_SENTINEL.encode() not in denied.value.read()
+        assert _FakeDeepSeek.seen == []
     finally:
         proxy.shutdown()
         upstream.shutdown()

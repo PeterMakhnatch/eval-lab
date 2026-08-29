@@ -12,9 +12,11 @@ import http.client
 import json
 import os
 import ssl
+import stat
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +27,8 @@ DEFAULT_UPSTREAM = "https://api.deepseek.com"
 ALLOWED_PATH = "/v1/chat/completions"
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
+PINNED_HTTPS_HOST = "api.deepseek.com"
+PINNED_HTTPS_PORT = 443
 HOP_BY_HOP = frozenset(
     {
         "connection",
@@ -50,12 +54,87 @@ def upstream_base() -> str:
 
 def provider_key() -> str:
     path = secret_path()
-    if path.is_symlink() or not path.is_file():
-        raise RuntimeError("DeepSeek secret file is unavailable")
-    value = path.read_text(encoding="utf-8").rstrip("\r\n")
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        raise RuntimeError("DeepSeek secret file is unavailable") from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise RuntimeError("DeepSeek secret file is unavailable")
+        if info.st_uid != os.geteuid():
+            raise RuntimeError("DeepSeek secret file is unavailable")
+        if (info.st_mode & 0o777) not in {0o400, 0o600}:
+            raise RuntimeError("DeepSeek secret file is unavailable")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    value = b"".join(chunks).decode("utf-8").rstrip("\r\n")
     if not value:
         raise RuntimeError("DeepSeek secret file is empty")
     return value
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: http.client.HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        del req, fp, msg
+        raise urllib.error.HTTPError(newurl, code, "redirects disabled", headers, None)
+
+
+def _pinned_upstream_url() -> str:
+    parsed = urllib.parse.urlsplit(upstream_base())
+    if parsed.scheme == "https":
+        if parsed.hostname != PINNED_HTTPS_HOST:
+            raise RuntimeError("upstream host is not pinned")
+        port = parsed.port or PINNED_HTTPS_PORT
+        if port != PINNED_HTTPS_PORT:
+            raise RuntimeError("upstream port is not pinned")
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            raise RuntimeError("upstream path is not pinned")
+        return f"https://{PINNED_HTTPS_HOST}:{PINNED_HTTPS_PORT}{ALLOWED_PATH}"
+    if parsed.scheme == "http":
+        host = parsed.hostname
+        if host not in {"127.0.0.1", "localhost"}:
+            raise RuntimeError("http upstream is not pinned")
+        port = parsed.port
+        if port is None:
+            raise RuntimeError("http upstream port is not pinned")
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            raise RuntimeError("upstream path is not pinned")
+        return f"http://{host}:{port}{ALLOWED_PATH}"
+    raise RuntimeError("upstream scheme is not pinned")
+
+
+def _redact_key(data: bytes, key: str) -> bytes:
+    secret = key.encode("utf-8")
+    if not secret:
+        return data
+    return data.replace(secret, b"<redacted>")
+
+
+def _response_encoding_ok(headers: http.client.HTTPMessage) -> bool:
+    encoding = (headers.get("Content-Encoding") or "identity").strip().casefold()
+    transfer = (headers.get("Transfer-Encoding") or "identity").strip().casefold()
+    if encoding not in {"identity", ""}:
+        return False
+    if transfer not in {"identity", "chunked", ""}:
+        return False
+    content_type = (headers.get("Content-Type") or "").split(";", 1)[0].strip().casefold()
+    return content_type in {"application/json", "text/plain", ""}
 
 
 def _int_env(name: str) -> int:
@@ -154,7 +233,6 @@ class TrialBudget:
             self._cost_micros = max(0, self._cost_micros + extra_cost - released_cost)
 
 
-
 class ProxyServer(ThreadingHTTPServer):
     budget: TrialBudget
 
@@ -192,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, format: str, *args: object) -> None:
-        super().log_message(format, *args)
+        del format, args
 
     def _budget(self) -> TrialBudget:
         server = self.server
@@ -301,26 +379,40 @@ class Handler(BaseHTTPRequestHandler):
                 "authorization",
                 "host",
                 "content-length",
+                "accept-encoding",
+                "te",
                 "x-evallab-proxy-capability",
                 "x-evallab-proxy-nonce",
             }
         }
         headers["Authorization"] = f"Bearer {key}"
         headers["Content-Length"] = str(len(body))
+        headers["Accept-Encoding"] = "identity"
+        headers["TE"] = "identity"
+        try:
+            target = _pinned_upstream_url()
+        except RuntimeError:
+            self._reject(502, b"provider unavailable\n")
+            return
         request = urllib.request.Request(
-            f"{upstream_base()}{ALLOWED_PATH}",
+            target,
             data=body,
             headers=headers,
             method="POST",
         )
-        context = None if upstream_base().startswith("http://") else ssl.create_default_context()
+        context = ssl.create_default_context() if target.startswith("https://") else None
+        handlers: list[urllib.request.BaseHandler] = [_NoRedirect()]
+        if context is not None:
+            handlers.append(urllib.request.HTTPSHandler(context=context))
+        else:
+            handlers.append(urllib.request.HTTPHandler())
+        opener = urllib.request.build_opener(*handlers)
         try:
-            response = urllib.request.urlopen(  # noqa: S310 - explicit upstream
-                request,
-                timeout=120,
-                context=context,
-            )
+            response = opener.open(request, timeout=120)
         except urllib.error.HTTPError as exc:
+            if 300 <= int(exc.code) < 400:
+                self._reject(502, b"redirects disabled\n")
+                return
             response = exc
         except (OSError, urllib.error.URLError, http.client.HTTPException):
             self._reject(502, b"provider unavailable\n")
@@ -328,12 +420,29 @@ class Handler(BaseHTTPRequestHandler):
         with response:
             raw_status = getattr(response, "status", 502)
             status = raw_status if isinstance(raw_status, int) else 502
+            if 300 <= status < 400:
+                self._reject(502, b"redirects disabled\n")
+                return
+            if not _response_encoding_ok(response.headers):  # ty: ignore[invalid-argument-type]
+                self._reject(502, b"unsupported upstream encoding\n")
+                return
             upstream_body = response.read()
+            if b"\x00" in upstream_body:
+                self._reject(502, b"unsupported upstream body\n")
+                return
+            try:
+                decoded = upstream_body.decode("utf-8")
+            except UnicodeDecodeError:
+                self._reject(502, b"unsupported upstream body\n")
+                return
+            del decoded
+            sanitized_body = _redact_key(upstream_body, key)
             used_input, used_output = input_tokens, output_tokens
             try:
-                upstream_payload = json.loads(upstream_body.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                upstream_payload = None
+                upstream_payload = json.loads(sanitized_body.decode("utf-8"))
+            except json.JSONDecodeError:
+                self._reject(502, b"unsupported upstream body\n")
+                return
             if isinstance(upstream_payload, dict):
                 usage = upstream_payload.get("usage") or {}
                 if isinstance(usage, dict):
@@ -349,13 +458,14 @@ class Handler(BaseHTTPRequestHandler):
                 used_cost=used_cost,
             )
             self.send_response(status)
-            for name, value in response.headers.items():
-                if name.casefold() not in HOP_BY_HOP and name.casefold() != "content-length":
-                    self.send_header(name, value)
-            self.send_header("Content-Length", str(len(upstream_body)))
+            content_type = response.headers.get("Content-Type", "application/json")
+            sanitized_type = _redact_key(content_type.encode("utf-8"), key).decode("utf-8")
+            self.send_header("Content-Type", sanitized_type)
+            self.send_header("Content-Encoding", "identity")
+            self.send_header("Content-Length", str(len(sanitized_body)))
             self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(upstream_body)
+            self.wfile.write(sanitized_body)
 
 
 def serve(host: str = "0.0.0.0", port: int | None = None) -> ThreadingHTTPServer:

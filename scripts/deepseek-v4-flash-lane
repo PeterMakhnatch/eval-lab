@@ -128,9 +128,25 @@ with_canonical_deepseek_credential() {
         secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/evallab-deepseek-secret.XXXXXX")"
         chmod 700 "$secret_dir"
         secret_file="$secret_dir/key"
-        umask 077
-        printf '%s\n' "$DEEPSEEK_API_KEY" > "$secret_file"
-        chmod 400 "$secret_file"
+        python3 - "$secret_file" "$DEEPSEEK_API_KEY" <<'SECRETWRITE'
+import os
+import sys
+
+path, value = sys.argv[1], sys.argv[2]
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+fd = os.open(path, flags, 0o600)
+try:
+    os.fchmod(fd, 0o400)
+    payload = (value + chr(10)).encode()
+    view = memoryview(payload)
+    while view:
+        written = os.write(fd, view)
+        view = view[written:]
+    os.fsync(fd)
+finally:
+    os.close(fd)
+SECRETWRITE
+        trap 'rm -rf "$secret_dir"' EXIT
         capability="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
         export EVALLAB_DEEPSEEK_SECRET_FILE="$secret_file"
         export EVALLAB_DEEPSEEK_PROXY_SCRIPT="$repo_root/containers/deepseek_secret_proxy.py"
@@ -151,6 +167,7 @@ with_canonical_deepseek_credential() {
         export OPENAI_API_BASE="http://deepseek-secret-proxy:8080"
         "$@"
         status=$?
+        trap - EXIT
         rm -rf "$secret_dir"
         exit "$status"
     )
@@ -176,8 +193,9 @@ from evallab.harbor_network import adapt_task_toml_for_host, with_agent_network_
 path = Path(sys.argv[1])
 manifest_path = Path(sys.argv[2])
 text, adaptation = adapt_task_toml_for_host(path.read_text())
-if sys.argv[3] != "Darwin":
-    text = with_agent_network_allowlist(text, (DEEPSEEK_PROXY_HOST,))
+if sys.argv[3] != "Linux":
+    raise SystemExit("refusing model execution: proxy-only egress cannot be enforced")
+text = with_agent_network_allowlist(text, (DEEPSEEK_PROXY_HOST,))
 path.write_text(text)
 if adaptation is not None:
     manifest_path.write_text(
@@ -321,7 +339,15 @@ plan_funcdag_easy() {
         --print-config
 }
 
+require_proxy_only_egress() {
+    if [ "$(uname -s)" != "Linux" ]; then
+        printf 'refusing model execution: proxy-only egress cannot be enforced on %s\n' "$(uname -s)" >&2
+        return 1
+    fi
+}
+
 require_fresh_key() {
+    require_proxy_only_egress
     if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -z "${MSWEA_API_KEY:-}" ]; then
         printf 'refusing model execution: DEEPSEEK_API_KEY and MSWEA_API_KEY are unset\n' >&2
         return 1

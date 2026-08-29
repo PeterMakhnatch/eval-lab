@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import random
 import shutil
 import sys
 from dataclasses import asdict
@@ -112,7 +113,6 @@ def _write_compose(environment: Path, sidecar_rel: str = "./mcp-server") -> dict
     return compose
 
 
-
 def materialize_task(
     cell: dict[str, Any],
     output_root: Path | None = None,
@@ -205,17 +205,23 @@ def materialize_task(
         "reference_node_values": dag_spec.reference_node_values,
         "initial_inputs": dag_spec.initial_inputs,
         "node_tool_map": {n.node_id: n.tool_name for n in dag_spec.nodes},
+        "node_expected_calls": dag_spec.node_expected_calls,
     }
-    (tests / "verifier_truth.json").write_text(
+    (tests / "fixtures").mkdir(parents=True, exist_ok=True)
+    (tests / "fixtures" / "verifier_truth.json").write_text(
         json.dumps(verifier_truth, indent=2, sort_keys=True), encoding="utf-8"
     )
 
+    # Shuffled dependency lines: expose DAG structure and binding parameters without leaking tool mapping
+    rng_inst = random.Random(factors.seed)
+    shuffled_nodes = list(dag_spec.nodes)
+    rng_inst.shuffle(shuffled_nodes)
+
     node_lines = []
-    for n in dag_spec.nodes:
-        bindings = ", ".join(f"{param}={src}" for param, src in n.input_bindings.items())
-        node_lines.append(
-            f"- Node `{n.node_id}`: uses tool `{n.tool_name}` with inputs ({bindings})"
-        )
+    for n in shuffled_nodes:
+        params_str = ", ".join(f"{param}=<{src}>" for param, src in n.input_bindings.items())
+        node_lines.append(f"- Step `{n.node_id}`: requires intermediate bindings ({params_str})")
+
     inputs_desc = ", ".join(f"`{k}={v}`" for k, v in dag_spec.initial_inputs.items())
     (target_dir / "instruction.md").write_text(
         f"""# MCP Tool Composition: Function DAG Evaluation
@@ -274,7 +280,7 @@ Save the final calculated integer result to `/app/result.json` in format:
 
     (tests / "Dockerfile").write_text(
         f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /tests\n"
-        "COPY verifier_truth.json /tests/verifier_truth.json\n"
+        "COPY fixtures/verifier_truth.json /tests/fixtures/verifier_truth.json\n"
         "COPY verifier_eval.py /tests/verifier_eval.py\n"
         "COPY test.sh /tests/test.sh\n"
         "RUN chmod +x /tests/test.sh\n"
@@ -345,7 +351,7 @@ url = "http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp"
     (workbench / "fair-alternative.sh").write_text(_oracle_solve_sh_wrap(dag_spec), encoding="utf-8")
     (workbench / "fair-alternative.sh").chmod(0o755)
     (workbench / "please-hack.sh").write_text(
-        "#!/bin/bash\nset -euo pipefail\nmkdir -p /app/output\necho '{\"target_value\": -1}' > /app/output/result.json\n",
+        "#!/bin/bash\nset -euo pipefail\nmkdir -p /app/output\necho '{\"target_value\": -1}' > /app/result.json\n",
         encoding="utf-8",
     )
     (workbench / "please-hack.sh").chmod(0o755)
@@ -354,7 +360,7 @@ url = "http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp"
     )
     (adversarial / "probe-nop.sh").chmod(0o755)
     (adversarial / "probe-corrupt-value.sh").write_text(
-        "#!/bin/bash\nset -euo pipefail\nmkdir -p /app/output\necho '{\"target_value\": 99999999}' > /app/output/result.json\n",
+        "#!/bin/bash\nset -euo pipefail\nmkdir -p /app/output\necho '{\"target_value\": 99999999}' > /app/result.json\n",
         encoding="utf-8",
     )
     (adversarial / "probe-corrupt-value.sh").chmod(0o755)
@@ -374,21 +380,21 @@ from pathlib import Path
 
 
 def _result_value(raw):
-    if isinstance(raw, dict):
-        return raw.get("value", raw)
+    if isinstance(raw, dict) and "value" in raw:
+        return raw["value"]
     return raw
 
 
 def main():
-    truth_file = Path("/tests/verifier_truth.json")
+    truth_file = Path("/tests/fixtures/verifier_truth.json")
     if not truth_file.exists():
-        truth_file = Path("tests/verifier_truth.json")
+        truth_file = Path("tests/fixtures/verifier_truth.json")
     truth = json.loads(truth_file.read_text(encoding="utf-8"))
     exp_val = truth["expected_target_value"]
     topological_order = truth["topological_order"]
     ref_node_values = truth["reference_node_values"]
     node_tool_map = truth["node_tool_map"]
-    required_tools = [node_tool_map[nid] for nid in topological_order]
+    node_expected_calls = truth.get("node_expected_calls", {})
 
     res_file = Path("/app/result.json")
     if not res_file.exists():
@@ -407,35 +413,49 @@ def main():
             if line.strip():
                 events.append(json.loads(line))
 
+    total_events = len(events)
+    conforming_events = [e for e in events if e.get("schema_conforming", True)]
+    schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
-    executed_tools = [e["tool_name"] for e in successful_calls]
+
+    ordinals = [e.get("event_index") for e in events if "event_index" in e]
+    contiguous_ordinals = (ordinals == list(range(len(ordinals)))) if ordinals else True
+
     tool_idx = 0
     dag_conformance = True
-    for req_tool in required_tools:
-        try:
-            pos = executed_tools.index(req_tool, tool_idx)
-            tool_idx = pos + 1
-        except ValueError:
+    valid = 0
+
+    for node_id in topological_order:
+        expected_tool = node_tool_map[node_id]
+        expected_val = ref_node_values[node_id]
+        expected_call_meta = node_expected_calls.get(node_id, {})
+        expected_args = expected_call_meta.get("expected_args")
+
+        found_match = False
+        while tool_idx < len(successful_calls):
+            call = successful_calls[tool_idx]
+            tool_idx += 1
+            call_tool = call.get("tool_name")
+            call_res = _result_value(call.get("result"))
+            call_args = call.get("arguments", {})
+
+            if call_tool == expected_tool and call_res == expected_val:
+                if expected_args is None or call_args == expected_args:
+                    found_match = True
+                    valid += 1
+                    break
+        if not found_match:
             dag_conformance = False
             break
 
-    consumed = set()
-    valid = 0
-    for node_id in topological_order:
-        tname = node_tool_map[node_id]
-        expected = ref_node_values[node_id]
-        matched = False
-        for idx, call in enumerate(successful_calls):
-            if idx in consumed:
-                continue
-            if call.get("tool_name") == tname and _result_value(call.get("result")) == expected:
-                consumed.add(idx)
-                matched = True
-                break
-        if matched:
-            valid += 1
     val_prop = (valid / len(topological_order)) if topological_order else 0.0
-    reward = 1.0 if agent_val == exp_val and dag_conformance and val_prop == 1.0 else 0.0
+    reward = 1.0 if (
+        agent_val == exp_val
+        and dag_conformance
+        and val_prop == 1.0
+        and contiguous_ordinals
+    ) else 0.0
+
     print(
         f"Verification complete: reward={reward}, agent_val={agent_val}, "
         f"exp_val={exp_val}, dag_conf={dag_conformance}, val_prop={val_prop}"
@@ -488,14 +508,13 @@ def _oracle_solve_py(dag_spec: DAGSpec) -> str:
     result_path = Path("/app/result.json")
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(
-        json.dumps({"target_value": target_val}, indent=2) + "\\n", encoding="utf-8"
+        json.dumps({"target_value": target_val}, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Oracle solved with target_value: {target_val}")
 
 solve()
 '''
     return header + body
-
 
 
 def _oracle_solve_sh_wrap(dag_spec: DAGSpec) -> str:
@@ -522,7 +541,7 @@ for host in ("mcp-service", "mcp-server", "127.0.0.1"):
         break
     except Exception:
         pass
-out = Path("/app/output/result.json")
+out = Path("/app/result.json")
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(json.dumps({{"target_value": 0}}) + "\\n")
 PYEOF

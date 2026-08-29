@@ -9,7 +9,13 @@ from typing import Any
 
 def check_oracle_leak_exclusion(task_dir: Path) -> None:
     agent_workspace = task_dir / "agent_workspace"
-    forbidden_tokens = ["expected_target_value", "reference_node_values", "topological_order"]
+    forbidden_tokens = [
+        "expected_target_value",
+        "reference_node_values",
+        "topological_order",
+        "node_expected_calls",
+        "node_tool_map",
+    ]
     if not agent_workspace.exists():
         return
     for root, _, files in os.walk(agent_workspace):
@@ -48,12 +54,16 @@ def verify_execution(
     expected_target_value = verifier_truth["expected_target_value"]
     reference_node_values = verifier_truth["reference_node_values"]
     topological_order = verifier_truth["topological_order"]
-    required_tools = [verifier_truth["node_tool_map"][nid] for nid in topological_order]
+    node_tool_map = verifier_truth["node_tool_map"]
+    node_expected_calls = verifier_truth.get("node_expected_calls", {})
 
     result_file = workspace_dir / "result.json"
     if not result_file.exists():
-        alt = Path("/app/output/result.json")
+        alt = Path("/app/result.json")
         result_file = alt if alt.exists() else result_file
+    if not result_file.exists():
+        alt2 = Path("/app/output/result.json")
+        result_file = alt2 if alt2.exists() else result_file
     if not result_file.exists():
         return {
             "reward": 0.0,
@@ -87,43 +97,56 @@ def verify_execution(
     conforming_events = [e for e in events if e.get("schema_conforming", True)]
     schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
-    executed_tools = [e["tool_name"] for e in successful_calls]
 
+    # Verify contiguous ordinals
+    ordinals = [e.get("event_index") for e in events if "event_index" in e]
+    contiguous_ordinals = (ordinals == list(range(len(ordinals)))) if ordinals else True
+
+    # Exact per-node verification: matching tool, input arguments, and output result in topological order
     tool_idx = 0
     dag_conformance = True
-    for req_tool in required_tools:
-        try:
-            found_pos = executed_tools.index(req_tool, tool_idx)
-            tool_idx = found_pos + 1
-        except ValueError:
+    valid_intermediate_count = 0
+
+    for node_id in topological_order:
+        expected_tool = node_tool_map[node_id]
+        expected_val = reference_node_values[node_id]
+        expected_call_meta = node_expected_calls.get(node_id, {})
+        expected_args = expected_call_meta.get("expected_args")
+
+        found_match = False
+        while tool_idx < len(successful_calls):
+            call = successful_calls[tool_idx]
+            tool_idx += 1
+            call_tool = call.get("tool_name")
+            call_res = _result_value(call.get("result"))
+            call_args = call.get("arguments", {})
+
+            # Match tool name
+            if call_tool == expected_tool:
+                # Match result value
+                if call_res == expected_val:
+                    # Match input arguments if present in truth
+                    if expected_args is None or call_args == expected_args:
+                        found_match = True
+                        valid_intermediate_count += 1
+                        break
+        if not found_match:
             dag_conformance = False
             break
 
-    consumed: set[int] = set()
-    valid_intermediate_count = 0
-    for node_id in topological_order:
-        tool_name = verifier_truth["node_tool_map"][node_id]
-        expected_val = reference_node_values[node_id]
-        matched = False
-        for idx, call in enumerate(successful_calls):
-            if idx in consumed:
-                continue
-            if call.get("tool_name") == tool_name and _result_value(call.get("result")) == expected_val:
-                consumed.add(idx)
-                matched = True
-                break
-        if matched:
-            valid_intermediate_count += 1
     value_propagation_accuracy = (
         valid_intermediate_count / len(topological_order) if topological_order else 0.0
     )
+
     reward = 0.0
     if (
         agent_target_value == expected_target_value
         and dag_conformance
         and value_propagation_accuracy == 1.0
+        and contiguous_ordinals
     ):
         reward = 1.0
+
     return {
         "reward": reward,
         "expected_target_value": expected_target_value,
@@ -131,6 +154,7 @@ def verify_execution(
         "schema_conformance_rate": schema_conformance_rate,
         "dag_conformance": dag_conformance,
         "value_propagation_accuracy": value_propagation_accuracy,
+        "contiguous_ordinals": contiguous_ordinals,
         "total_calls": total_events,
         "successful_calls": len(successful_calls),
     }

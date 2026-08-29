@@ -53,13 +53,14 @@ class BenchmarkContract:
 
 
 # Generate Campaign 0 Calibration Grid with 3 deterministic seeds per factor condition
+# Minimum floor of >=5 required calls per cell
 CAMPAIGN_0_CELLS: list[dict[str, Any]] = []
 
 FACTOR_VARIATIONS = [
-    # Baseline
+    # Baseline (depth=3, width=2 -> 5 nodes)
     {"name": "baseline", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
-    # Depth ladder
-    {"name": "depth_2", "depth": 2, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    # Depth ladder (depth_3 and depth_4, >= 5 nodes)
+    {"name": "depth_3", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     {"name": "depth_4", "depth": 4, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Width ladder
     {"name": "width_3", "depth": 3, "width": 3, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
@@ -94,6 +95,7 @@ def make_benchmark_contract(
         "expected_target_value": dag_spec.expected_target_value,
         "topological_order": dag_spec.topological_order,
         "reference_node_values": dag_spec.reference_node_values,
+        "node_expected_calls": getattr(dag_spec, "node_expected_calls", {}),
     }
     truth_digest = hashlib.sha256(
         json.dumps(truth_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -112,9 +114,8 @@ def make_benchmark_contract(
     )
 
     artifacts = artifact_paths or {
-        "events": "/app/evidence/benchmark-events.jsonl",
-        "final_state": "/app/evidence/final-state.json",
-        "contract": "/app/evidence/benchmark_contract.json",
+        "events": "/app/output/benchmark-events.jsonl",
+        "result": "/app/result.json",
     }
 
     return BenchmarkContract(

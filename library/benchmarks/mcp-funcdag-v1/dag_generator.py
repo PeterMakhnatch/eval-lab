@@ -7,6 +7,8 @@ import random
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
+MINIMUM_CALL_FLOOR = 5
+
 
 @dataclass(frozen=True)
 class ToolParameter:
@@ -51,6 +53,7 @@ class DAGSpec:
     expected_target_value: Any
     topological_order: list[str]
     reference_node_values: dict[str, Any]
+    node_expected_calls: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 OP_REGISTRY: dict[str, Callable[..., Any]] = {
@@ -79,36 +82,33 @@ def generate_dag_spec(
     schema_drift: bool = False,
 ) -> DAGSpec:
     rng = random.Random(seed)
-    
-    # Generate initial input values
+
+    # Initial inputs
     initial_inputs = {
         f"input_{i}": rng.randint(2, 10)
         for i in range(max(2, width))
     }
-    
-    # Available operation kinds
+
     op_keys = list(OP_REGISTRY.keys())
-    
     tools: list[ToolSpec] = []
     nodes: list[DAGNode] = []
     node_values: dict[str, Any] = dict(initial_inputs)
     topological_order: list[str] = []
-    
-    # Generate layers of DAG
+    node_expected_calls: dict[str, dict[str, Any]] = {}
+
     current_layer_nodes = [f"input_{i}" for i in range(max(2, width))]
     node_counter = 0
-    
+
     for d in range(depth):
         next_layer_nodes = []
-        layer_width = width if d < depth - 1 else 1  # converge to 1 target at final layer
+        layer_width = width if d < depth - 1 else 1
         for w in range(layer_width):
             node_id = f"node_{d}_{w}"
             op_name = op_keys[(node_counter + d + w) % len(op_keys)]
             tool_name = f"dag_tool_{op_name}"
             if schema_drift:
                 tool_name = f"dag_tool_{op_name}_v2"
-                
-            # Pick 2 inputs from previous layers
+
             available_inputs = current_layer_nodes
             if len(available_inputs) == 1:
                 p1 = available_inputs[0]
@@ -116,13 +116,11 @@ def generate_dag_spec(
             else:
                 p1 = available_inputs[w % len(available_inputs)]
                 p2 = available_inputs[(w + 1) % len(available_inputs)]
-                
-            # Evaluate operation deterministically
+
             v1 = node_values[p1]
             v2 = node_values[p2]
             op_fn = OP_REGISTRY[op_name]
-            
-            # Param names
+
             if op_name in ("add_integers", "multiply_integers", "subtract_integers"):
                 params = [
                     ToolParameter("x", "integer", "First operand integer value"),
@@ -130,6 +128,7 @@ def generate_dag_spec(
                 ]
                 bindings = {"x": p1, "y": p2}
                 val = op_fn(v1, v2)
+                expected_args = {"x": v1, "y": v2}
             elif op_name == "scale_factor":
                 params = [
                     ToolParameter("base", "integer", "Base integer to scale"),
@@ -137,6 +136,7 @@ def generate_dag_spec(
                 ]
                 bindings = {"base": p1, "factor": p2}
                 val = op_fn(v1, v2)
+                expected_args = {"base": v1, "factor": v2}
             elif op_name == "combine_metrics":
                 params = [
                     ToolParameter("a", "integer", "First primary metric"),
@@ -144,6 +144,7 @@ def generate_dag_spec(
                 ]
                 bindings = {"a": p1, "b": p2}
                 val = op_fn(v1, v2)
+                expected_args = {"a": v1, "b": v2}
             elif op_name == "transform_signal":
                 params = [
                     ToolParameter("val", "integer", "Signal value"),
@@ -151,6 +152,7 @@ def generate_dag_spec(
                 ]
                 bindings = {"val": p1, "offset": p2}
                 val = op_fn(v1, v2)
+                expected_args = {"val": v1, "offset": v2}
             else:
                 params = [
                     ToolParameter("u", "integer", "Upper component"),
@@ -158,11 +160,12 @@ def generate_dag_spec(
                 ]
                 bindings = {"u": p1, "v": p2}
                 val = op_fn(v1, v2)
-                
-            desc = f"Executes {op_name} computation."
+                expected_args = {"u": v1, "v": v2}
+
+            desc = f"Executes {op_name} algebraic computation."
             if schema_token_volume == "verbose":
                 desc += " This tool strictly requires integer inputs and computes deterministic algebraic transitions across the dependency graph. Ensure all prerequisite node dependencies are resolved prior to execution."
-                
+
             tool_spec = ToolSpec(
                 name=tool_name,
                 description=desc,
@@ -173,7 +176,7 @@ def generate_dag_spec(
             )
             if not any(t.name == tool_name for t in tools):
                 tools.append(tool_spec)
-                
+
             node = DAGNode(
                 node_id=node_id,
                 tool_name=tool_name,
@@ -185,38 +188,48 @@ def generate_dag_spec(
             node_values[node_id] = val
             topological_order.append(node_id)
             next_layer_nodes.append(node_id)
+            node_expected_calls[node_id] = {
+                "tool_name": tool_name,
+                "expected_args": expected_args,
+                "expected_result": val,
+            }
             node_counter += 1
-            
+
         current_layer_nodes = next_layer_nodes
-        
+
     target_node_id = topological_order[-1]
     expected_target_value = node_values[target_node_id]
-    
-    # Generate distractors
+
+    if len(nodes) < MINIMUM_CALL_FLOOR:
+        raise ValueError(
+            f"Generated DAG node count {len(nodes)} is below mandatory floor {MINIMUM_CALL_FLOOR}"
+        )
+
+    # Distractor tools with role-neutral names and descriptions
     for i in range(distractor_count):
         if name_similarity == "high":
-            dist_tool_name = f"dag_tool_add_integers_aux_{i+1}" if not schema_drift else f"dag_tool_add_integers_aux_{i+1}_v2"
-            dist_desc = f"Auxiliary computation for node branch {i+1}."
+            dist_tool_name = f"dag_tool_add_integers_branch_{i+1}" if not schema_drift else f"dag_tool_add_integers_branch_{i+1}_v2"
+            dist_desc = f"Computes algebraic step for parallel graph branch {i+1}."
         else:
-            dist_tool_name = f"noise_unrelated_logger_{i+1}"
-            dist_desc = f"Unrelated auxiliary logging utility {i+1}."
-            
+            dist_tool_name = f"dag_tool_evaluate_context_{i+1}" if not schema_drift else f"dag_tool_evaluate_context_{i+1}_v2"
+            dist_desc = f"Evaluates contextual metadata for pipeline stage {i+1}."
+
         if schema_token_volume == "verbose":
-            dist_desc += " Distractor utility service. Unused for target root computation."
-            
+            dist_desc += " Processes pipeline telemetry and evaluates contextual metadata across stage transitions."
+
         dist_spec = ToolSpec(
             name=dist_tool_name,
             description=dist_desc,
             parameters=[
-                ToolParameter("input_payload", "string", "Unused input payload string", required=False),
-                ToolParameter("flag", "boolean", "Optional execution flag", required=False),
+                ToolParameter("input_payload", "string", "Context payload string", required=False),
+                ToolParameter("flag", "boolean", "Execution modifier flag", required=False),
             ],
             output_type="string",
             is_distractor=True,
             op_kind="distractor",
         )
         tools.append(dist_spec)
-        
+
     return DAGSpec(
         seed=seed,
         depth=depth,
@@ -232,4 +245,5 @@ def generate_dag_spec(
         expected_target_value=expected_target_value,
         topological_order=topological_order,
         reference_node_values=node_values,
+        node_expected_calls=node_expected_calls,
     )

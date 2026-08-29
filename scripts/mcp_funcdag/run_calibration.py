@@ -44,7 +44,7 @@ def main():
         name = f"{cell['name']}_s{cell['seed']}"
         task_dir = materializer_mod.materialize_task(cell)
         spec_data = json.loads((task_dir / "environment" / "runtime_tools.json").read_text())
-        truth_path = task_dir / "tests" / "verifier_truth.json"
+        truth_path = task_dir / "tests" / "fixtures" / "verifier_truth.json"
         evidence_dir = task_dir / "evidence"
         workspace_dir = task_dir / "agent_workspace"
 

@@ -105,9 +105,10 @@ def generate_dag_spec(
         for w in range(layer_width):
             node_id = f"node_{d}_{w}"
             op_name = op_keys[(node_counter + d + w) % len(op_keys)]
-            tool_name = f"dag_tool_{op_name}"
+            # Catalog-visible tool names are role-neutral and opaque. Only descriptions expose operation semantics.
+            tool_name = f"compute_unit_{node_counter + 1}"
             if schema_drift:
-                tool_name = f"dag_tool_{op_name}_v2"
+                tool_name = f"compute_unit_{node_counter + 1}_v2"
 
             available_inputs = current_layer_nodes
             if len(available_inputs) == 1:
@@ -162,9 +163,18 @@ def generate_dag_spec(
                 val = op_fn(v1, v2)
                 expected_args = {"u": v1, "v": v2}
 
-            desc = f"Executes {op_name} algebraic computation."
+            public_operation_desc = {
+                "add_integers": "Addition transformation: adds x + y.",
+                "multiply_integers": "Multiplication transformation: multiplies x * y.",
+                "subtract_integers": "Subtraction transformation: subtracts x - y.",
+                "scale_factor": "Affine scaling transformation: base * factor + 3.",
+                "combine_metrics": "Linear metric combination: (a * 2) + b + 5.",
+                "transform_signal": "Signal transformation: (val + offset) * 2.",
+                "merge_checksums": "Checksum merge: (u ^ v) + (u & v) + 7.",
+            }
+            desc = public_operation_desc[op_name]
             if schema_token_volume == "verbose":
-                desc += " This tool strictly requires integer inputs and computes deterministic algebraic transitions across the dependency graph. Ensure all prerequisite node dependencies are resolved prior to execution."
+                desc += " This tool strictly requires integer inputs and computes deterministic algebraic transitions across the dependency graph. Ensure all prerequisite dependencies are resolved prior to execution."
 
             tool_spec = ToolSpec(
                 name=tool_name,
@@ -208,10 +218,10 @@ def generate_dag_spec(
     # Distractor tools with role-neutral names and descriptions
     for i in range(distractor_count):
         if name_similarity == "high":
-            dist_tool_name = f"dag_tool_add_integers_branch_{i+1}" if not schema_drift else f"dag_tool_add_integers_branch_{i+1}_v2"
-            dist_desc = f"Computes algebraic step for parallel graph branch {i+1}."
+            dist_tool_name = f"compute_context_{i+1}" if not schema_drift else f"compute_context_{i+1}_v2"
+            dist_desc = f"Computes algebraic context for parallel graph branch {i+1}."
         else:
-            dist_tool_name = f"dag_tool_evaluate_context_{i+1}" if not schema_drift else f"dag_tool_evaluate_context_{i+1}_v2"
+            dist_tool_name = f"compute_context_{i+1}" if not schema_drift else f"compute_context_{i+1}_v2"
             dist_desc = f"Evaluates contextual metadata for pipeline stage {i+1}."
 
         if schema_token_volume == "verbose":

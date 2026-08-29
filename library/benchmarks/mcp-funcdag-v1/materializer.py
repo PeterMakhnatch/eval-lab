@@ -571,13 +571,22 @@ def _fair_alternative_solve_py(dag_spec: DAGSpec) -> str:
     if frames and isinstance(frames[0].get("result"), dict):
         tool_list = frames[0]["result"].get("tools", [])
 
-    # Map semantic operation descriptions/parameters to available tool names
+    # Map public operation semantics to opaque catalog tool names without hidden node-to-tool mapping.
+    semantic_markers = {
+        "add_integers": "addition transformation",
+        "multiply_integers": "multiplication transformation",
+        "subtract_integers": "subtraction transformation",
+        "scale_factor": "affine scaling transformation",
+        "combine_metrics": "linear metric combination",
+        "transform_signal": "signal transformation",
+        "merge_checksums": "checksum merge",
+    }
     op_to_tool = {}
     for t in tool_list:
         name = t.get("name", "")
-        desc = t.get("description", "")
-        for op in ("add_integers", "multiply_integers", "subtract_integers", "scale_factor", "combine_metrics", "transform_signal", "merge_checksums"):
-            if op in name or op.replace("_", " ") in desc.lower():
+        desc = t.get("description", "").lower()
+        for op, marker in semantic_markers.items():
+            if marker in desc:
                 op_to_tool[op] = name
 
     # Topologically resolve shuffled steps

@@ -1175,3 +1175,101 @@ def test_recovery_contrasts_require_same_native_persistence_level():
         "WHERE family = 'mcp-recovery-v1'"
     ).fetchall()
     assert rows == [("clean-p1", "fault-p1")]
+
+
+def test_feature_registry_registers_manipulation_checks():
+    """prompt_tokens_per_step and prompt_cache_hit_rate must be registered C0/C1 manipulation checks."""
+    ptps = TRAJECTORY_FEATURE_REGISTRY.get("prompt_tokens_per_step")
+    assert ptps is not None
+    assert ptps.category == "benchmark_l1_fact"
+    assert ptps.causal_grade == "C0"
+    assert ptps.data_type == "DOUBLE"
+    assert ptps.denominator_policy == "not_applicable"
+
+    pchr = TRAJECTORY_FEATURE_REGISTRY.get("prompt_cache_hit_rate")
+    assert pchr is not None
+    assert pchr.category == "benchmark_l1_fact"
+    assert pchr.causal_grade == "C1"
+    assert pchr.data_type == "DOUBLE"
+    assert pchr.denominator_policy == "not_applicable"
+
+
+def test_c1_matched_contrasts_reject_mismatched_harness_or_dose_strata():
+    """C1 matched contrasts must reject pairs with mismatched harness_version or mismatched dose_value."""
+    con = duckdb.connect()
+    con.execute(Path("sql/traj_benchmark_views.sql").read_text(encoding="utf-8"))
+    statement = """
+        INSERT INTO action_memory_features (
+            trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
+            causal_grade, task_success, total_tool_calls, model_call_count,
+            raw_binding_opportunities, raw_conflicting_opportunities, binding_matched,
+            stale_value_bound, citation, verifier_truth_digest, model_name, agent_name,
+            task_name, harness_version, scaffold_version, repeat_group_id, dose_axis,
+            dose_value, dose_unit, alphabet_id, alphabet_version, quality_status,
+            report_digest, source_digest, producer_version, projection_identity,
+            dimension_digest, projection_status, analysis_ready, projection_refusals
+        ) VALUES (
+            ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
+            'C1', true, 1, 1, 1, 1, true, false, 'cas:trial', 'sha256:truth',
+            'model-a', 'agent-a', 'task-name', ?, 'scaffold-v1', 'repeat-a', 'context_bytes',
+            ?, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
+            ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''
+        )
+    """
+    # Insert control clean: harness v1, dose 4096
+    con.execute(
+        statement,
+        [
+            "clean-ctrl",
+            "clean",
+            "harness-v1",
+            4096,
+            "sha256:ctrl-src",
+            "sha256:ctrl-proj",
+            "sha256:ctrl-dim",
+        ],
+    )
+    # Insert treatment 1: harness v2 (mismatched harness -> must not pair)
+    con.execute(
+        statement,
+        [
+            "treat-diff-harness",
+            "treatment",
+            "harness-v2",
+            4096,
+            "sha256:t1-src",
+            "sha256:t1-proj",
+            "sha256:t1-dim",
+        ],
+    )
+    # Insert treatment 2: dose 16384 (mismatched dose_value on non-varying arm -> must not pair)
+    con.execute(
+        statement,
+        [
+            "treat-diff-dose",
+            "treatment",
+            "harness-v1",
+            16384,
+            "sha256:t2-src",
+            "sha256:t2-proj",
+            "sha256:t2-dim",
+        ],
+    )
+    # Insert treatment 3: harness v1, dose 4096 (exact match -> must pair)
+    con.execute(
+        statement,
+        [
+            "treat-valid",
+            "treatment",
+            "harness-v1",
+            4096,
+            "sha256:t3-src",
+            "sha256:t3-proj",
+            "sha256:t3-dim",
+        ],
+    )
+
+    rows = con.execute(
+        "SELECT control_trial_id, treatment_trial_id FROM v_benchmark_contrasts WHERE family = 'action-memory-v1'"
+    ).fetchall()
+    assert rows == [("clean-ctrl", "treat-valid")]

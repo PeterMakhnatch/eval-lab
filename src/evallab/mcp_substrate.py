@@ -732,9 +732,8 @@ def _stage_clean_package_directory(
             "substrate_version": MCP_SUBSTRATE_VERSION,
             **runtime_meta,
             "requirements_sha256": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
+            "runtime_assets": asset_proof,
         }
-        if asset_proof:
-            proof_data["runtime_assets"] = asset_proof
         _write_confined_text(
             staging, "offline-build-proof.json", canonical_json(proof_data) + "\n"
         )
@@ -768,9 +767,8 @@ def _stage_clean_package_directory(
             "wheel_count": len(wheel_inventory),
             "wheels": wheel_inventory,
             "dockerfile_sha256": compute_sha256(dockerfile_content),
+            "runtime_assets": asset_proof,
         }
-        if asset_proof:
-            proof_data["runtime_assets"] = asset_proof
         _write_confined_text(
             staging, "offline-build-proof.json", canonical_json(proof_data) + "\n"
         )

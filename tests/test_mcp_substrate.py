@@ -1079,7 +1079,7 @@ def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
     (sidecar_dir / "wheelhouse" / "extra-1.0.0-py3-none-any.whl").write_bytes(b"bad")
     diag3: list[Any] = []
     _validate_offline_build_proofs(tmp_path, diag3, compose_topology=compose_topology)
-    assert any("extra unapproved wheels" in d.message for d in diag3)
+    assert any("actual regular wheel count" in d.message or "extra unapproved wheels" in d.message for d in diag3)
 
 
 def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Path):
@@ -1129,7 +1129,7 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     proof_path.write_text(json.dumps(p1), encoding="utf-8")
     d1 = []
     _validate_offline_build_proofs(tmp_path, d1, compose_topology=compose_topology)
-    assert any("Dockerfile COPY sources do not match proof runtime_assets 1:1" in d.message for d in d1)
+    assert any("Dockerfile asset COPY lines" in d.message for d in d1)
 
     # 2. Invalid wheel filename (traversal) -> invalid proof
     p2 = dict(raw_proof)

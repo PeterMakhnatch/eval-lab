@@ -1,4 +1,10 @@
 ---
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-29
+license_note: Private repository; internal capability-state analysis only.
+feeds:
+  - parked
 type: state-report
 topic: eval-lab-current-state
 author: tutor

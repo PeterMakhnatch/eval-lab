@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "action-semantic16k__Ris4ZwC",
+  "source": "research/evidence/runs/zai-flash-action-semantic16k-r3-amd64-egress/action-semantic16k__Ris4ZwC",
+  "primary_category": "context_management",
+  "summary": "The agent retrieved one context chunk twice, producing 66 reads where the semantic-distractor verifier required exactly 65.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 8,
+      "supports": "ATIF step 8 records the agent action sequence tied to the verifier-diagnosed failure; the second evidence item records the exact verifier finding."
+    },
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The verifier records expected_reads=65, observed_reads=66, and reason=incomplete_or_reordered_context_retrieval."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Provisional deterministic taxonomy triage from verifier evidence; not a human gold label.",
+  "labelled_by": "Main, 2026-08-29, deterministic post-run taxonomy triage for PR #299",
+  "parent_trajectory_sha256": "sha256:5d3c3b2a9b531d679678cd39c400dd03de14a5a6b4166dca6ee2e46ada5b317b"
+}

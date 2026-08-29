@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "recovery__ozALVY2",
+  "source": "research/evidence/runs/zai-flash-recovery-transient5xx-p1-r3-amd64-verifier/recovery__ozALVY2",
+  "primary_category": "unknown",
+  "summary": "GLM-5.3-Flash completed the task and received verifier reward 1.0; the failure taxonomy describes failure mechanisms, so no failure class applies.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 8,
+      "supports": "ATIF step 8 is the agent's final completion message; the second evidence item records verifier reward 1.0."
+    },
+    {
+      "path": "verifier/reward.txt",
+      "step": null,
+      "supports": "reward.txt records reward 1.0 for this completed trial."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Reward-1.0 convention matches existing promoted canary labels: unknown means no failure mechanism applies; not a human gold label.",
+  "labelled_by": "Main, 2026-08-29, deterministic post-run taxonomy triage for PR #299",
+  "parent_trajectory_sha256": "sha256:cf8b20ca9df19d11542459a7e54af0694d14d67432d7d8db550c7681879af76c"
+}

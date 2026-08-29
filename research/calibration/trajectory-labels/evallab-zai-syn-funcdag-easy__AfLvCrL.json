@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "evallab-zai-syn-funcdag-easy__AfLvCrL",
+  "source": "research/evidence/runs/zai-flash-funcdag-easy-r3-20260829/evallab-zai-syn-funcdag-easy__AfLvCrL",
+  "primary_category": "implementation",
+  "summary": "The target value was computed, but the agent wrote a diagnostic scalar before the JSON document; the verifier rejected the artifact as invalid JSON.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 3,
+      "supports": "ATIF step 3 records the agent action sequence tied to the verifier-diagnosed failure; the second evidence item records the exact verifier finding."
+    },
+    {
+      "path": "verifier/test-stdout.txt",
+      "step": null,
+      "supports": "The verifier records: Invalid JSON format: Extra data: line 2 column 1 (char 2)."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Provisional deterministic taxonomy triage from verifier evidence; not a human gold label.",
+  "labelled_by": "Main, 2026-08-29, deterministic post-run taxonomy triage for PR #299",
+  "parent_trajectory_sha256": "sha256:1d9a92b8c41148ed257a4a00cc1d240ae913faaf92b559443bb8f8d18d0849c0"
+}

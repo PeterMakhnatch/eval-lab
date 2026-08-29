@@ -1,0 +1,1 @@
+{"auto_clear": true, "causal_mutation": false, "exact_injections": true, "fault_count": 1, "monotonic": true, "read_confirmed": true, "required_fault_count": 1, "reward": 0.0, "state_changed": true, "success": false, "write_ok": true}

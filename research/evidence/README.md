@@ -64,16 +64,24 @@ mechanism; its module docstring states rules R1, R2 and R3 in full.
   `steps[].message` to be text or content parts, so a nulled message would be
   invalid ATIF. `agent`-source messages, `tool_calls` and `observation` are agent
   output and environment response, not prompts, and are verbatim.
-- **R2** — `agent/sessions/**` Codex rollout JSONL is omitted. It holds the
+- **R2** — `agent/sessions/**` Codex rollout JSONL, `agent/opencode.txt` and the
+  whole `agent/opencode/**` tree are omitted. Codex rollout JSONL holds the
   untruncated request/response stream including `payload.encrypted_content`.
-  Each omitted file's SHA-256 is recorded.
+  OpenCode's `agent/opencode.txt` is the same kind of raw stream, and
+  `agent/opencode/**` is its runtime state — `opencode.db`/`opencode.db-wal`/
+  `opencode.db-shm` SQLite store, `log/opencode.log`, `snapshot/**`, `repos/**`,
+  `locks/**` and the XDG `auth.json` link. None of these are evidence, and the
+  `auth.json` link points at a host credential store, so none may enter a
+  bundle. Each omitted file's SHA-256 is recorded.
 - **R3** — `verifier/*` oversize payloads become digest markers, because pytest
   echoes the whole rendered attack-vector batch on failure. Rewards, statuses,
   test names and timings are verbatim.
 
 `agent/codex.txt`, the raw `codex exec --json` stream, is promoted verbatim: it
 was checked and contains no vendor system prompt, no reasoning text and no
-encrypted payload.
+encrypted payload. OpenCode's sibling raw stream is *not* treated the same way:
+it is omitted under R2 because its runtime tree already carries credential
+state, so there is no safe standalone read of it.
 
 Every bundle carries `PROMOTION.json`, which records for each source file its
 action, its unredacted parent SHA-256, and the SHA-256 of the promoted bytes.
@@ -85,3 +93,23 @@ uv run python scripts/promote_codex_bundle.py --verify
 
 Promoted bundles are immutable per `agents/STRUCTURE.md`; re-promotion requires
 an explicit `--force`.
+
+## Z.ai/OpenCode MCP pilot bundles, 2026-08-29
+
+Six primary bundles from the Z.ai GLM-5.3-Flash MCP pilot wave (18 trials,
+reward 1.0 on 15/18) are promoted under `runs/`. The pilot report is
+[`zai-opencode-mcp-pilot-2026-08-29.md`](zai-opencode-mcp-pilot-2026-08-29.md).
+
+| bundle | trials | reward | promoted |
+| --- | --- | --- | --- |
+| `zai-flash-funcdag-easy-r3-20260829` | 3 | 2/3 `1.0` | 76,512 B |
+| `zai-flash-action-clean4k-r3-amd64-egress` | 3 | 3/3 `1.0` | 101,735 B |
+| `zai-flash-action-neutral16k-r3-amd64-egress` | 3 | 3/3 `1.0` | 323,614 B |
+| `zai-flash-action-semantic16k-r3-amd64-egress` | 3 | 2/3 `1.0` | 331,521 B |
+| `zai-flash-recovery-transient5xx-p1-r3-amd64-verifier` | 3 | 2/3 `1.0` | 81,901 B |
+| `zai-flash-recovery-clean-twin-r3-amd64-verifier` | 3 | 3/3 `1.0` | 59,630 B |
+
+For these OpenCode bundles R2 additionally omits `agent/opencode.txt` and the
+whole `agent/opencode/**` runtime tree (SQLite/WAL/log/snapshot/auth), each
+digest-recorded; no `opencode.txt`, `opencode/**`, auth link, `.db`,
+`.db-wal` or `.db-shm` survives in the bundles.

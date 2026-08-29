@@ -32,10 +32,17 @@ R1 -- prompt redaction (``agent/trajectory.json``, promoted at the same path).
     or content parts, so the text is replaced, never nulled. The redaction is
     recorded in-band under ``evallab_redaction``.
 
-R2 -- raw model I/O omission (``agent/sessions/**``).
+R2 -- raw model I/O / runtime state omission (``agent/sessions/**``,
+    ``agent/opencode.txt``, ``agent/opencode/**``).
     Codex rollout JSONL holds the full untruncated request/response stream
-    including ``payload.encrypted_content`` reasoning blobs. Omitted entirely;
-    the SHA-256 of each omitted file is recorded so provenance survives.
+    including ``payload.encrypted_content`` reasoning blobs. OpenCode writes a
+    sibling raw stream at ``agent/opencode.txt`` and a whole runtime state tree
+    at ``agent/opencode/**`` -- the ``opencode.db``/``opencode.db-wal``/
+    ``opencode.db-shm`` SQLite store, ``log/opencode.log``, ``snapshot/**``,
+    ``repos/**``, ``locks/**`` and the XDG ``auth.json`` link -- which together
+    are the full session transcript and credential/runtime state, not evidence.
+    All of these are omitted entirely; the SHA-256 of each omitted file is
+    recorded so provenance survives.
 
 R3 -- verifier-only payload (``<trial>/verifier/*``).
     ``library/tasks/terminal-bench-html-js-filter/tests/test_outputs.py`` renders
@@ -389,10 +396,20 @@ def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
 
 def classify(relative: Path) -> str:
     parts = relative.parts
-    if "sessions" in parts and "agent" in parts:
-        return "omit-R2"
-    if relative.name == "trajectory.json" and "agent" in parts:
-        return "redact-R1"
+    if "agent" in parts:
+        # R2: raw model I/O and runtime state are omitted. `agent/sessions/**`
+        # is the Codex rollout prefix; `agent/opencode.txt` and the whole
+        # `agent/opencode/**` tree are OpenCode's raw stream plus its SQLite/
+        # WAL/log/snapshot/auth runtime state. None of these are evidence and
+        # all must stay out of the bundle; each omission is digest-recorded.
+        if (
+            "sessions" in parts
+            or "opencode" in parts
+            or relative.name == "opencode.txt"
+        ):
+            return "omit-R2"
+        if relative.name == "trajectory.json":
+            return "redact-R1"
     if "verifier" in parts:
         return "maybe-redact-R3"
     return "verbatim"
@@ -509,7 +526,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         "promoted_by": "scripts/promote_codex_bundle.py",
         "redaction_rules": {
             "R1": "system/user ATIF step message text removed; sha256 and length kept",
-            "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
+            "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded",
             "R3a": (
                 "verifier/* JSON string values over "
                 f"{VERIFIER_JSON_STRING_LIMIT} bytes replaced by digest markers"

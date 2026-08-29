@@ -1,0 +1,508 @@
+{
+  "schema_version": 1,
+  "bundle": "zai-flash-funcdag-easy-r3-20260829",
+  "source_job_runtime_path": "runs/zai-flash-funcdag-easy-r3-20260829",
+  "source_job_result_sha256": "sha256:414107cd05955c5795a8412c6e1e0ef211f7df202d77c1d63bda4e024eda5595",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/opencode.txt and agent/opencode/** raw model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 52,
+    "promoted_files": 34,
+    "omitted_files": 18,
+    "quota_sidecars": 0,
+    "promoted_bytes": 76512,
+    "source_bytes": 7006665
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 746,
+      "source_sha256": "sha256:2fe2ae666d59c90d3c42f5c8f1bca2fee32fb83e422a30b1a5d497a2118dad31",
+      "promoted_bytes": 746,
+      "promoted_sha256": "sha256:2fe2ae666d59c90d3c42f5c8f1bca2fee32fb83e422a30b1a5d497a2118dad31"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 19291,
+      "source_sha256": "sha256:a5f39d6f2ad8be20b608db98d642cf33f021c930b6d2518c3c355e99df9eab4e"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:2f1914153d19d77136446e3611afd9431c58304b60f02e230b025f24c0dc1dd9"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 2022952,
+      "source_sha256": "sha256:1971c3dea184f8396c9d83fb8b193b3b6326d53b3a8f53f8939fb7b8115b19e4"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 16783,
+      "source_sha256": "sha256:6fb486efdcfed14d749de1b34fea070cd0c4f4266b3d937fa87d3f37d2f570cb"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/trajectory.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 10572,
+      "source_sha256": "sha256:300ae6b6248d1d7e519f7ab7b556d88893d47d92a127c8da6eb1719fdfe0981d",
+      "promoted_bytes": 9519,
+      "promoted_sha256": "sha256:1d9a92b8c41148ed257a4a00cc1d240ae913faaf92b559443bb8f8d18d0849c0"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/artifacts/app/output/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/artifacts/app/output/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 213,
+      "source_sha256": "sha256:22ee14dfd8df2499e9ba5845410f1cb6e93285632437956c8cac618be1017331",
+      "promoted_bytes": 213,
+      "promoted_sha256": "sha256:22ee14dfd8df2499e9ba5845410f1cb6e93285632437956c8cac618be1017331"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/artifacts/manifest.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 324,
+      "source_sha256": "sha256:e37c42f70418936194696fd9127ba869f536a8f315d6d4a46ce106bffc7de73d",
+      "promoted_bytes": 324,
+      "promoted_sha256": "sha256:e37c42f70418936194696fd9127ba869f536a8f315d6d4a46ce106bffc7de73d"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/config.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 733,
+      "source_sha256": "sha256:af1c112b40a8085040cdb56d4758fc917560881df36629bf9abff6a7bc310971",
+      "promoted_bytes": 733,
+      "promoted_sha256": "sha256:af1c112b40a8085040cdb56d4758fc917560881df36629bf9abff6a7bc310971"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/lock.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1307,
+      "source_sha256": "sha256:bf4c61594f65fa01e505f8e818bbd3900953a43de7b0c96f3256856a4ad33467",
+      "promoted_bytes": 1307,
+      "promoted_sha256": "sha256:bf4c61594f65fa01e505f8e818bbd3900953a43de7b0c96f3256856a4ad33467"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4193,
+      "source_sha256": "sha256:44b03840b8b3aa77afe82bdac9085fbda165b7f97fae63fe430e22eec102f195",
+      "promoted_bytes": 4193,
+      "promoted_sha256": "sha256:44b03840b8b3aa77afe82bdac9085fbda165b7f97fae63fe430e22eec102f195"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/trial.log",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/trial.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3090,
+      "source_sha256": "sha256:809f77bb3543557b3f5092070280e9e6d85ec11f95553bfce60a12f81974b75c",
+      "promoted_bytes": 3090,
+      "promoted_sha256": "sha256:809f77bb3543557b3f5092070280e9e6d85ec11f95553bfce60a12f81974b75c"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/verifier/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/verifier/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 141,
+      "source_sha256": "sha256:350ab206549e34824fe34a32166b64a6bd12ae98547bf666902cd3267dc3ffe8",
+      "promoted_bytes": 141,
+      "promoted_sha256": "sha256:350ab206549e34824fe34a32166b64a6bd12ae98547bf666902cd3267dc3ffe8"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/verifier/reward.txt",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2,
+      "source_sha256": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "promoted_bytes": 2,
+      "promoted_sha256": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/verifier/test-stdout.txt",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__AfLvCrL/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 65,
+      "source_sha256": "sha256:f7844e8201c1e989465ad6467e2b8ceda05719b66938be2cbc7c7e8efb670f39",
+      "promoted_bytes": 65,
+      "promoted_sha256": "sha256:f7844e8201c1e989465ad6467e2b8ceda05719b66938be2cbc7c7e8efb670f39"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 23512,
+      "source_sha256": "sha256:6a5504a1828fddf256d354dac9b027f957c39b82f176b424c1a9978f83dc2b15"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:182b889e7dd02839f203f669a3d938d90c8f0b1488508eafee2d9badb636e62c"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 2348432,
+      "source_sha256": "sha256:bf0e3bc12e8eccb2a17000b19947b816f82dc4fce6185ccb543f428f8a3d0aa8"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 17025,
+      "source_sha256": "sha256:a869a93fbbc6231cacf29c2b3f9dbeba7866467955d0f7ee53e7e1626924170b"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/trajectory.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 10915,
+      "source_sha256": "sha256:f6ce77f2daa2469eb437e3732883094a6cdf1a7903d14ec4935bc488bcd3c6ae",
+      "promoted_bytes": 9862,
+      "promoted_sha256": "sha256:b214ea139ca569973d4eb63380c924b5c054e32a443112887326ed87e7e9d463"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/artifacts/app/output/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/artifacts/app/output/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 181,
+      "source_sha256": "sha256:2b3f9d1362daf50faf9110274b80e7523affbdf2684c88196e9c4999f4c46c9f",
+      "promoted_bytes": 181,
+      "promoted_sha256": "sha256:2b3f9d1362daf50faf9110274b80e7523affbdf2684c88196e9c4999f4c46c9f"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/artifacts/manifest.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 324,
+      "source_sha256": "sha256:e37c42f70418936194696fd9127ba869f536a8f315d6d4a46ce106bffc7de73d",
+      "promoted_bytes": 324,
+      "promoted_sha256": "sha256:e37c42f70418936194696fd9127ba869f536a8f315d6d4a46ce106bffc7de73d"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/config.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 733,
+      "source_sha256": "sha256:2fe676b207920d391a2e94b19a29ff8e49d9b06ffc191b8ac963ff237f3e5d8e",
+      "promoted_bytes": 733,
+      "promoted_sha256": "sha256:2fe676b207920d391a2e94b19a29ff8e49d9b06ffc191b8ac963ff237f3e5d8e"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/lock.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1307,
+      "source_sha256": "sha256:bf4c61594f65fa01e505f8e818bbd3900953a43de7b0c96f3256856a4ad33467",
+      "promoted_bytes": 1307,
+      "promoted_sha256": "sha256:bf4c61594f65fa01e505f8e818bbd3900953a43de7b0c96f3256856a4ad33467"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4193,
+      "source_sha256": "sha256:a3e7606246e94eab00cbc26bb996b335e788cb676930782a7bc83cc474955f63",
+      "promoted_bytes": 4193,
+      "promoted_sha256": "sha256:a3e7606246e94eab00cbc26bb996b335e788cb676930782a7bc83cc474955f63"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/trial.log",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/trial.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3090,
+      "source_sha256": "sha256:b95de12722d2dfe8e60e2abe854af112ea5aa8a14eb883c7305ae46bd0153148",
+      "promoted_bytes": 3090,
+      "promoted_sha256": "sha256:b95de12722d2dfe8e60e2abe854af112ea5aa8a14eb883c7305ae46bd0153148"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/verifier/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/verifier/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 156,
+      "source_sha256": "sha256:7bba3ba930057bdbfc73a5460110516ba4bad66911edf9a631de876987a2b92c",
+      "promoted_bytes": 156,
+      "promoted_sha256": "sha256:7bba3ba930057bdbfc73a5460110516ba4bad66911edf9a631de876987a2b92c"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/verifier/reward.txt",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2,
+      "source_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "promoted_bytes": 2,
+      "promoted_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/verifier/test-stdout.txt",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__h2hcQHH/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 53,
+      "source_sha256": "sha256:1979cc9a30287304f8d50776c3ab177b92ade357cb875605792e8801114cd5c9",
+      "promoted_bytes": 53,
+      "promoted_sha256": "sha256:1979cc9a30287304f8d50776c3ab177b92ade357cb875605792e8801114cd5c9"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 23526,
+      "source_sha256": "sha256:51173ed886c6d1a783d8c0ba826a4f13645a8cbf169023c413e67e4ed3f11862"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:f3e02c27d91f1ffb9531397bb6640aeb476ff77be7828448fa1e42feec1311e2"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 2327832,
+      "source_sha256": "sha256:ab2ed3544a22d585245d22a1961af1905e31214082d6ccf78d5cca2c1953e398"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 17049,
+      "source_sha256": "sha256:6ae8b67559c8f05485f77a516bc5144a5edec9b5942a1480050d02f6e03b489f"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/trajectory.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 10900,
+      "source_sha256": "sha256:33b781a04205ad717d68e439c5ee7f4632f065cf1d9acbbcf8423167c985ce48",
+      "promoted_bytes": 9847,
+      "promoted_sha256": "sha256:612aa141c2693434ed1646719c1321b85041c75323ee954a6c40556ae91a753b"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/artifacts/app/output/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/artifacts/app/output/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 181,
+      "source_sha256": "sha256:2b3f9d1362daf50faf9110274b80e7523affbdf2684c88196e9c4999f4c46c9f",
+      "promoted_bytes": 181,
+      "promoted_sha256": "sha256:2b3f9d1362daf50faf9110274b80e7523affbdf2684c88196e9c4999f4c46c9f"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/artifacts/manifest.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 324,
+      "source_sha256": "sha256:e37c42f70418936194696fd9127ba869f536a8f315d6d4a46ce106bffc7de73d",
+      "promoted_bytes": 324,
+      "promoted_sha256": "sha256:e37c42f70418936194696fd9127ba869f536a8f315d6d4a46ce106bffc7de73d"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/config.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 733,
+      "source_sha256": "sha256:8b2a3ba612d55b87f48a720927a71e986c615af3e81534babefcdc6c740e4830",
+      "promoted_bytes": 733,
+      "promoted_sha256": "sha256:8b2a3ba612d55b87f48a720927a71e986c615af3e81534babefcdc6c740e4830"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/lock.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1307,
+      "source_sha256": "sha256:bf4c61594f65fa01e505f8e818bbd3900953a43de7b0c96f3256856a4ad33467",
+      "promoted_bytes": 1307,
+      "promoted_sha256": "sha256:bf4c61594f65fa01e505f8e818bbd3900953a43de7b0c96f3256856a4ad33467"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4193,
+      "source_sha256": "sha256:2e84cd114aef19c6ea3881a43337e9539fd1bc068a86ebf88b6ca230d523dc96",
+      "promoted_bytes": 4193,
+      "promoted_sha256": "sha256:2e84cd114aef19c6ea3881a43337e9539fd1bc068a86ebf88b6ca230d523dc96"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/trial.log",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/trial.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3090,
+      "source_sha256": "sha256:17abf2184c086a3dfe598d2872020ec921c66b75d1e573d986fcdc52b4d13e98",
+      "promoted_bytes": 3090,
+      "promoted_sha256": "sha256:17abf2184c086a3dfe598d2872020ec921c66b75d1e573d986fcdc52b4d13e98"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/verifier/result.json",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/verifier/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 156,
+      "source_sha256": "sha256:7bba3ba930057bdbfc73a5460110516ba4bad66911edf9a631de876987a2b92c",
+      "promoted_bytes": 156,
+      "promoted_sha256": "sha256:7bba3ba930057bdbfc73a5460110516ba4bad66911edf9a631de876987a2b92c"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/verifier/reward.txt",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2,
+      "source_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "promoted_bytes": 2,
+      "promoted_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "source_path": "evallab-zai-syn-funcdag-easy__mtesCiD/verifier/test-stdout.txt",
+      "promoted_path": "evallab-zai-syn-funcdag-easy__mtesCiD/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 53,
+      "source_sha256": "sha256:1979cc9a30287304f8d50776c3ab177b92ade357cb875605792e8801114cd5c9",
+      "promoted_bytes": 53,
+      "promoted_sha256": "sha256:1979cc9a30287304f8d50776c3ab177b92ade357cb875605792e8801114cd5c9"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": "job.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 9270,
+      "source_sha256": "sha256:65d3eb7bf9f296f491dd42b698072b381a3745eef9c8fc1f5035c78bd4b8aa99",
+      "promoted_bytes": 9270,
+      "promoted_sha256": "sha256:65d3eb7bf9f296f491dd42b698072b381a3745eef9c8fc1f5035c78bd4b8aa99"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 5727,
+      "source_sha256": "sha256:a687d4d6514df687ea480a7180b21d27584077ab34fd15bacc6ba482a9f4ffc5",
+      "promoted_bytes": 5727,
+      "promoted_sha256": "sha256:a687d4d6514df687ea480a7180b21d27584077ab34fd15bacc6ba482a9f4ffc5"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1395,
+      "source_sha256": "sha256:414107cd05955c5795a8412c6e1e0ef211f7df202d77c1d63bda4e024eda5595",
+      "promoted_bytes": 1395,
+      "promoted_sha256": "sha256:414107cd05955c5795a8412c6e1e0ef211f7df202d77c1d63bda4e024eda5595"
+    }
+  ]
+}

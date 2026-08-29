@@ -1,0 +1,188 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb13d1348ffecHxiiJnUriXI14",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T18:23:20.390000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "I'll write a test record to the MCP service, then read it back to verify.",
+      "reasoning_content": "The user wants me to interact with an MCP endpoint at `http://mcp-service:8080/mcp`. I have MCP tools available: `mcp-service_write_record`, `mcp-service_read_record`, and `mcp-service_fallback_query`. Let me start by writing a record, then reading it back to confirm.\n\nLet me plan:\n1. Use `write_record` with a key and value.\n2. Use `read_record` with the same key to verify the value matches.\n\nThese are dependent calls (read depends on write), so I must do them sequentially.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_d7ecb7b789a04a3195163971",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-test-2026",
+            "value": "operational-recovery-ok"
+          }
+        }
+      ],
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 48,
+        "extra": {
+          "reasoning_tokens": 119
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T18:23:24.764000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "The write returned a 502, so it may not have completed. Let me check whether the record landed anyway, and inspect the fallback sync channel for diagnostics.",
+      "reasoning_content": "The write returned a 502 Bad Gateway with \"downstream service returned invalid payload\". This indicates the operation did not complete. I should diagnose before retrying.\n\nLet me diagnose: maybe check if the record was actually written despite the error (using read_record), and maybe check the fallback query channel. Let me first try reading the record to see if the write actually landed despite the 502.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_3778e6499b33475ab1484e7c",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-test-2026"
+          }
+        },
+        {
+          "tool_call_id": "call_63b1dc3138a543ceb323b737",
+          "function_name": "mcp-service_fallback_query",
+          "arguments": {
+            "query": "SELECT * FROM records WHERE key = 'recovery-test-2026'"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_3778e6499b33475ab1484e7c",
+            "content": "{\"key\":\"recovery-test-2026\",\"value\":null,\"exists\":false}"
+          },
+          {
+            "source_call_id": "call_63b1dc3138a543ceb323b737",
+            "content": "{\"status\":\"synchronized\",\"query\":\"SELECT * FROM records WHERE key = 'recovery-test-2026'\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7860,
+        "completion_tokens": 81,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 81
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T18:23:32.881000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Diagnosis: `read_record` confirms the record does not exist (`exists: false`), so the write truly did not complete — the 502 was a genuine failure, not a delayed success. The fallback replica channel reports `synchronized`, so it's healthy. I'll retry the write with the same key.",
+      "reasoning_content": "Diagnosis:\n- `read_record` confirms the record does NOT exist (`exists: false`). So the write did not complete despite the 502.\n- `fallback_query` reports status \"synchronized\" — the fallback/replica sync channel is healthy and in sync.\n\nSo the primary write path returned a 502 (downstream invalid payload), but the fallback channel is synchronized. Strategy change: retry the write. If write_record still fails, maybe the fallback_query channel can be used to write? No — fallback_query is described as \"Query the operational store replica sync channel\" — it executes a query. I could potentially issue a write via SQL through fallback_query? That may be a strategy change. But first, let me retry the write_record with the same key/value — perhaps the 502 was transient.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_43f06b1ff82c43ea822e1bab",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-test-2026",
+            "value": "operational-recovery-ok"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_43f06b1ff82c43ea822e1bab",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-test-2026\",\"value\":\"operational-recovery-ok\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8070,
+        "completion_tokens": 95,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 167
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-29T18:23:43.649000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "The retry succeeded. Now reading back independently to verify.",
+      "reasoning_content": "The retry succeeded. Now read it back independently to confirm.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_a6f1aaa844f44baaa732b0a6",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-test-2026"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_a6f1aaa844f44baaa732b0a6",
+            "content": "{\"key\":\"recovery-test-2026\",\"value\":\"operational-recovery-ok\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8358,
+        "completion_tokens": 31,
+        "cached_tokens": 8064,
+        "extra": {
+          "reasoning_tokens": 12
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 6,
+      "timestamp": "2026-08-29T18:23:49.828000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Recovery verified successfully:\n\n1. **First write attempt** → `502 Bad Gateway` (downstream invalid payload). Diagnosis via `read_record` confirmed the record was **not** persisted (`exists: false`) — a genuine failure, and the fallback replica channel reported `synchronized`, so no data drift occurred.\n2. **Retry write** → `success` with key `recovery-test-2026`, value `operational-recovery-ok`.\n3. **Independent read-back** → returned `exists: true` with value `operational-recovery-ok`, an exact match with the written value.\n\nThe MCP operational store is healthy and the write/read round-trip is confirmed.",
+      "reasoning_content": "The read-back confirms:\n- key: recovery-test-2026\n- value: \"operational-recovery-ok\" — matches exactly what was written\n- exists: true\n\nVerification complete. Summarize concisely.",
+      "metrics": {
+        "prompt_tokens": 8427,
+        "completion_tokens": 142,
+        "cached_tokens": 8320,
+        "extra": {
+          "reasoning_tokens": 46
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 40394,
+    "total_completion_tokens": 397,
+    "total_cached_tokens": 31680,
+    "total_steps": 6
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

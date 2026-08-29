@@ -1,0 +1,117 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb134a19cffegyv0zXgW9Q25N2",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T18:32:38.070000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "I'll write a record, then read it back to verify. First, the write:",
+      "reasoning_content": "The task asks me to interact with an MCP service at http://mcp-service:8080/mcp. I have MCP tools available: `mcp-service_write_record`, `mcp-service_read_record`, and others. Let me use those tools directly since they're already connected.\n\nThe plan:\n1. Write a record with a key/value of my choice using `mcp-service_write_record`\n2. Read it back independently with `mcp-service_read_record`\n3. Confirm the returned value matches\n\nLet me do the write first, then the read (dependent operations, so sequential).",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_ae6520b24b2f4d43b4d4e940",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-check-2026",
+            "value": "operational-recovery-ok"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_ae6520b24b2f4d43b4d4e940",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-check-2026\",\"value\":\"operational-recovery-ok\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 48,
+        "cached_tokens": 2432,
+        "extra": {
+          "reasoning_tokens": 120
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T18:32:44.416000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write succeeded. Now reading it back independently:",
+      "reasoning_content": "Write succeeded. Now read it back independently.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_db870018a6c1430687d75db8",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-check-2026"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_db870018a6c1430687d75db8",
+            "content": "{\"key\":\"recovery-check-2026\",\"value\":\"operational-recovery-ok\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7873,
+        "completion_tokens": 29,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 9
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T18:32:50.229000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Recovery verified successfully:\n\n- **Write**: `write_record` → `{\"status\":\"success\",\"key\":\"recovery-check-2026\",\"value\":\"operational-recovery-ok\"}`\n- **Read**: `read_record` → `{\"key\":\"recovery-check-2026\",\"value\":\"operational-recovery-ok\",\"exists\":true}`\n\nThe independently read-back value exactly matches what was written (`operational-recovery-ok`), the key round-trips correctly, and `exists: true` confirms the record is durably stored. No anomalies were observed, so no strategy change or retry was needed.",
+      "reasoning_content": "The read returned:\n- key: \"recovery-check-2026\" ✓ matches\n- value: \"operational-recovery-ok\" ✓ matches\n- exists: true ✓\n\nThe operation completed successfully. Task done.",
+      "metrics": {
+        "prompt_tokens": 7937,
+        "completion_tokens": 126,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 45
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 23489,
+    "total_completion_tokens": 203,
+    "total_cached_tokens": 17728,
+    "total_steps": 4
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

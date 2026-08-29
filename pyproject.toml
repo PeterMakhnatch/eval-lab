@@ -27,6 +27,11 @@ harbor-lab = "evallab.cli:legacy_main"
 
 [dependency-groups]
 dev = [
+    # Pinned resolver pip is the immutable wheel-download engine for FastMCP
+    # wheelhouse staging (see scripts/mcp_funcdag/ensure_wheelhouse.py). Its
+    # wheel hash is committed in uv.lock; workflows sync --locked so the exact
+    # executable resolver runs instead of a live `uv run --with pip` resolution.
+    "pip==26.1.2",
     "harbor-atif2otel>=0.1.0",
     "hypothesis>=6.100,<7",
     "lancedb>=0.37,<1",

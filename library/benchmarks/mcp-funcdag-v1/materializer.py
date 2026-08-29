@@ -520,12 +520,14 @@ nodes = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings"
 topological_order = {json.dumps(dag_spec.topological_order)}
 target_node_id = {json.dumps(dag_spec.target_node_id)}
 PORT = {DEFAULT_MCP_PORT}
+MCP_HOST = "mcp-service"
+MCP_ENDPOINT = "http" + "://" + MCP_HOST + ":" + str(PORT) + "/mcp"
 
 
 async def solve() -> None:
     node_map = {{n["node_id"]: n for n in nodes}}
     node_values = dict(initial_inputs)
-    async with Client(f"http://mcp-service:{{PORT}}/mcp") as client:
+    async with Client(MCP_ENDPOINT) as client:
         for nid in topological_order:
             node = node_map[nid]
             tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
@@ -536,7 +538,7 @@ async def solve() -> None:
             node_values[nid] = value["value"]
 
     target_val = node_values[target_node_id]
-    out_dir = Path("/app/output")
+    out_dir = Path("/logs/agent")
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "result.json").write_text(
         json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8"

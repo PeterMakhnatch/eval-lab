@@ -115,7 +115,8 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     oracle_py = (task_dir / "solution" / "solve.py").read_text(encoding="utf-8")
     assert "from fastmcp import Client" in oracle_py
     assert "async with Client(" in oracle_py
-    assert 'http://mcp-service:{PORT}/mcp' in oracle_py
+    assert 'MCP_HOST = "mcp-service"' in oracle_py
+    assert 'Path("/logs/agent")' in oracle_py
     assert not (sidecar / "runtime.py").exists()
     compose = (task_dir / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
     assert "mcp-service:" in compose

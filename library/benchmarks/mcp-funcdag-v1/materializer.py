@@ -467,7 +467,7 @@ def main():
     if not logs_dir.exists():
         logs_dir = Path("tests/rewards")
     logs_dir.mkdir(parents=True, exist_ok=True)
-    (logs_dir / "reward.txt").write_text(f"{reward}\\n", encoding="utf-8")
+    (logs_dir / "reward.txt").write_text(f"{reward}\n", encoding="utf-8")
     sys.exit(0 if reward == 1.0 else 1)
 
 

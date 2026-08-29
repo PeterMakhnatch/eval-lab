@@ -379,6 +379,7 @@ def _write_environment_build_proof(env_dir: Path, sidecar_dir: Path) -> None:
         name = stem_parts[0].replace("_", "-")
         version = stem_parts[1] if len(stem_parts) > 1 else "0"
         pinned.append({"name": name, "version": version, "wheel": wheel.name})
+    sidecar_proof = json.loads((sidecar_dir / "offline-build-proof.json").read_text(encoding="utf-8"))
     proof = {
         "kind": "offline_build_proof",
         "ecosystem": "pip",
@@ -386,6 +387,14 @@ def _write_environment_build_proof(env_dir: Path, sidecar_dir: Path) -> None:
         "lockfile_digest": _file_sha256(lockfile),
         "pinned_dependencies": pinned,
         "reviewed_by": "eval-lab-mcp-recovery-v1",
+        # Workbench's generic proof schema ignores these, but they retain the
+        # exact resolver-selected target/base/wheel bytes for provenance review.
+        "target_python": sidecar_proof["target_python"],
+        "target_platform": sidecar_proof["target_platform"],
+        "base_image": sidecar_proof["base_image"],
+        "base_image_index_digest": sidecar_proof["base_image_index_digest"],
+        "base_image_amd64_manifest_digest": sidecar_proof["base_image_amd64_manifest_digest"],
+        "wheels": sidecar_proof["wheels"],
     }
     (env_dir / "offline-build-proof.json").write_text(
         json.dumps(proof, indent=2, sort_keys=True) + "\n",

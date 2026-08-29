@@ -48,7 +48,6 @@
     "why_the_old_cap_was_wrong": "The previous 5,000,000 ceiling was set from a wave-1 average of ~48,931 tokens/trial across all six pilot cells, which is dominated by cheap low-dose cells. At the measured 64k cost of 412,753 it admits only 5,000,000 / 412,753 = 12.1 trials at that dose, not the 64 high-dose trials the design assumed. Off by roughly 5x."
   },
   "phase_a_measured_doses": {
-    "runnable": true,
     "doses": [
       4096,
       16384,
@@ -75,10 +74,16 @@
     },
     "ceiling_input_tokens": 7000000,
     "admission_rule": "REFUSE the campaign if projected_input_tokens.total exceeds ceiling_input_tokens. 6,291,672 < 7,000,000, so phase A is admitted.",
-    "reps_rationale": "2 rather than 3. At 64k the seed-1337 repeats were repeat-stable, so a third rep at a failing high-dose seed is the least informative trial in the design and the most expensive. This is a recommendation, not an established optimum."
+    "reps_rationale": "2 rather than 3. At 64k the seed-1337 repeats were repeat-stable, so a third rep at a failing high-dose seed is the least informative trial in the design and the most expensive. This is a recommendation, not an established optimum.",
+    "admissibility": "conditionally_runnable",
+    "not_currently_admissible_because": [
+      "host-isolation precondition unmet: network_isolation_enforced is False on the Darwin lane (harbor_network.py:53-70)",
+      "credential-proxy precondition unmet: the pilot's auth secret was readable inside the task container"
+    ],
+    "becomes_runnable_when": "E2 certifies a Linux enforced-isolation host AND a credential proxy holds the secret outside the container",
+    "if_run_before_E2": "inadmissible pilot only - label as such, record under the calibration ledger, and re-run after certification before quoting any finding"
   },
   "phase_b_128k_cost_canary": {
-    "runnable": true,
     "purpose": "Measure the 128k per-trial cost before any 128k cell is admitted. No 128k trial has ever run, so its cost is unknown and cannot be projected.",
     "doses": [
       131072
@@ -94,17 +99,24 @@
     "per_trial_ceiling_input_tokens": 1250000,
     "ceiling_input_tokens": 2500000,
     "admission_rule": "ABORT the trial if a single 128k trial exceeds per_trial_ceiling_input_tokens. On completion, record the measured mean into measured_cost_basis and only then decide whether a full 128k arm is affordable.",
-    "fail_closed": "Until this canary reports, NO 128k cell is admitted anywhere in this campaign. An unmeasured dose is not budgetable."
+    "fail_closed": "Until this canary reports, NO 128k cell is admitted anywhere in this campaign. An unmeasured dose is not budgetable.",
+    "admissibility": "conditionally_runnable",
+    "not_currently_admissible_because": [
+      "host-isolation precondition unmet: network_isolation_enforced is False on the Darwin lane (harbor_network.py:53-70)",
+      "credential-proxy precondition unmet: the pilot's auth secret was readable inside the task container"
+    ],
+    "becomes_runnable_when": "E2 certifies a Linux enforced-isolation host AND a credential proxy holds the secret outside the container",
+    "if_run_before_E2": "inadmissible pilot only - label as such, record under the calibration ledger, and re-run after certification before quoting any finding"
   },
   "broad_ladder_not_runnable": {
-    "runnable": false,
     "shape": "4 doses x 2 arms x 3 seeds x 3 reps = 72 trials",
     "blocking_reasons": [
       "128k per-trial cost is unmeasured, so the total cannot be projected at all",
       "the three measured doses alone project to 9,437,496 input tokens at 3 reps, already 1.9x the previous 5,000,000 cap",
       "no provider ceiling has been set that admits it"
     ],
-    "note": "This is why the memo does not call a 72- or 100-trial ladder the first runnable campaign. Phase A plus phase B is what the ceilings actually admit."
+    "note": "This is why the memo does not call a 72- or 100-trial ladder the first runnable campaign. Phase A plus phase B is what the ceilings actually admit.",
+    "admissibility": "not_runnable"
   },
   "preconditions": [
     {
@@ -344,5 +356,15 @@
     "cost_prediction": "FORECAST: range and batch arms below the 412,753 unscaffolded baseline. If not, that is itself informative.",
     "blocking": "generator exposes neither handle representation nor read order as factors (dose_ladder.py:84-89); needs generator capability + re-certification. Matched/twin keys are C1-lane owned (PR #303).",
     "demoted_variant": "pure order permutation at fixed content/IDs, worth running AFTER this to separate sequence from representation"
+  },
+  "rank": {
+    "E0a": 1,
+    "E1": 2,
+    "E2": 3,
+    "E0b": 4,
+    "E3": 5,
+    "E4": 6,
+    "E5": 7,
+    "note": "This spec is E3, rank 5. It is gated on E2 (rank 3)."
   }
 }

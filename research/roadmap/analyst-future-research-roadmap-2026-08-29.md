@@ -389,75 +389,9 @@ Ranked by information gained per unit of unblocking, not by novelty. Each entry
 carries exact cells, lanes, seeds, repetitions, controls, estimand, refusal
 criteria, and a stop/go rule.
 
-### E1 — Judge calibration on the 44 keyed items (highest value, zero unblocking)
+### Rank 1 — E0a: offline issued-handle vs requested/event audit
 
-**Why first.** It is the only substantive measurement in the repository that
-requires no agent runs, no isolation host, no rater recruitment and no
-$K_{\text{eff}}$ clearance, because its ground truth is *constructed*.
-
-`[OBSERVED]` Corpus verified at `research/calibration/`: two families, each with
-22 graded variants plus a `corpus` index file and 22/22 answer keys.
-
-| Class | `checkout-pool-exhaustion` | `retry-storm-backlog` |
-|---|---:|---:|
-| `correct-*` | 5 | 5 |
-| `subtly-wrong-cause-*` | 5 | 5 |
-| `right-cause-useless-actions-*` | 4 | 4 |
-| `fabricated-evidence-*` | 3 | 3 |
-| `style-only-fluent-*` | 3 | 3 |
-| `copied-evidence-logs` | 1 | 1 |
-| `empty` | 1 | 1 |
-| **Total** | **22** | **22** |
-
-- **Cells:** 44 items = 2 families × 22 variants.
-- **Lane:** one grader model, plus a **deterministic control** that scores by
-  keyword overlap only. The control exists to falsify the whole exercise: if the
-  lexical control matches the model's per-class discrimination, the corpus is
-  measuring surface form and not diagnosis.
-- **Seeds/reps:** grading is a single forward pass per item; 3 repetitions per
-  item at temperature 0 to measure self-consistency, 132 grader calls per arm.
-- **Primary estimand:** per-class accuracy against the constructed key, reported
-  as a 7×7 confusion matrix. **Never a single accuracy number** — the classes are
-  deliberately unequal and pooling them hides the only interesting failure.
-- **The discrimination that matters:** `correct-*` vs `subtly-wrong-cause-*` (is
-  the grader reading the causal claim?) and `correct-*` vs
-  `right-cause-useless-actions-*` (is it reading the actions?).
-- **Refusal criteria:** if self-consistency across the 3 repetitions is below
-  100% on the `empty` and `copied-evidence-logs` items, report the instability and
-  refuse the per-class matrix — those two classes are unambiguous by construction,
-  so disagreement on them indicates a grading-harness defect, not model nuance.
-- **Stop/go:** GO to E2 regardless of outcome; E1 does not gate anything. But if
-  the grader cannot separate `correct` from `style-only-fluent`, **stop treating
-  any model-graded trajectory judgment as evidence** until the grader is fixed.
-  That is a real possible outcome and it would change the interpretation plane's
-  entire roadmap.
-
-### E2 — Linux enforced-isolation re-run of the exact six pilot cells
-
-**Why second.** It converts the pilot from infrastructure evidence into
-admissible measurement, and it is a *strict replication* — same cells, same
-seeds, same repetitions — so it is the cheapest possible test of whether the
-Darwin adaptations changed outcomes.
-
-- **Cells:** the identical six from §1.1, seed 42, `--n-attempts 3`.
-- **Lane:** `zai-coding-plan/glm-5.3-flash`, OpenCode pinned `1.18.25`, Harbor
-  `0.21`, ATIF v1.7.
-- **Control:** `network_isolation_enforced` must read `True`. This is the
-  experimental variable; everything else is held.
-- **Primary estimand:** per-cell agreement with §1.1, plus the pooled
-  18-trial rate. **Not** a capability estimate.
-- **Refusal criteria:** if `network_isolation_enforced` is `False`, abort and
-  report the host as uncertified. Do not run cells on a host that cannot enforce.
-- **Stop/go:** if the enforced-isolation rates differ materially from §1.1
-  (`[INFERENCE]` the sharpest signal would be Action Memory 16k dropping, since
-  that cell has the largest context and the most to gain from egress), then the
-  Darwin pilot's outcomes are contaminated and **every descriptive statement in
-  §1.1 is retired**. If they agree, §1.1 becomes a valid pre-registration of the
-  enforced lane.
-
-### E0a — Offline issued-handle vs requested/event audit (ranked first; needs no runs)
-
-**Why first, ahead of everything.** `[OBSERVED]` It needs no trials, no host, no
+**Rank 1. Why ahead of everything.** `[OBSERVED]` It needs no trials, no host, no
 generator change and no credential — `benchmark-events.jsonl` is already promoted —
 and it is the only thing that separates coverage faults from ordering faults from
 transcription faults. My retracted mechanism claim in §1.6 exists precisely because
@@ -501,7 +435,73 @@ this had not been done.
   E0b is designed around it, with `unknown_handle_count` as the primary outcome. If
   they disagree with the raw reconstruction, resolve that before any design work.
 
-### E0b — Indexed/range/batch handle-representation pilot (after E0a, C1-coordinated)
+### Rank 2 — E1: judge calibration on the 44 keyed items
+
+**Rank 2.** It is the only substantive measurement in the repository that
+requires no agent runs, no isolation host, no rater recruitment and no
+$K_{\text{eff}}$ clearance, because its ground truth is *constructed*.
+
+`[OBSERVED]` Corpus verified at `research/calibration/`: two families, each with
+22 graded variants plus a `corpus` index file and 22/22 answer keys.
+
+| Class | `checkout-pool-exhaustion` | `retry-storm-backlog` |
+|---|---:|---:|
+| `correct-*` | 5 | 5 |
+| `subtly-wrong-cause-*` | 5 | 5 |
+| `right-cause-useless-actions-*` | 4 | 4 |
+| `fabricated-evidence-*` | 3 | 3 |
+| `style-only-fluent-*` | 3 | 3 |
+| `copied-evidence-logs` | 1 | 1 |
+| `empty` | 1 | 1 |
+| **Total** | **22** | **22** |
+
+- **Cells:** 44 items = 2 families × 22 variants.
+- **Lane:** one grader model, plus a **deterministic control** that scores by
+  keyword overlap only. The control exists to falsify the whole exercise: if the
+  lexical control matches the model's per-class discrimination, the corpus is
+  measuring surface form and not diagnosis.
+- **Seeds/reps:** grading is a single forward pass per item; 3 repetitions per
+  item at temperature 0 to measure self-consistency, 132 grader calls per arm.
+- **Primary estimand:** per-class accuracy against the constructed key, reported
+  as a 7×7 confusion matrix. **Never a single accuracy number** — the classes are
+  deliberately unequal and pooling them hides the only interesting failure.
+- **The discrimination that matters:** `correct-*` vs `subtly-wrong-cause-*` (is
+  the grader reading the causal claim?) and `correct-*` vs
+  `right-cause-useless-actions-*` (is it reading the actions?).
+- **Refusal criteria:** if self-consistency across the 3 repetitions is below
+  100% on the `empty` and `copied-evidence-logs` items, report the instability and
+  refuse the per-class matrix — those two classes are unambiguous by construction,
+  so disagreement on them indicates a grading-harness defect, not model nuance.
+- **Stop/go:** GO to E2 regardless of outcome; E1 does not gate anything. But if
+  the grader cannot separate `correct` from `style-only-fluent`, **stop treating
+  any model-graded trajectory judgment as evidence** until the grader is fixed.
+  That is a real possible outcome and it would change the interpretation plane's
+  entire roadmap.
+
+### Rank 3 — E2: Linux enforced-isolation and credential-proxy lane certification
+
+**Rank 3.** It converts the pilot from infrastructure evidence into
+admissible measurement, and it is a *strict replication* — same cells, same
+seeds, same repetitions — so it is the cheapest possible test of whether the
+Darwin adaptations changed outcomes.
+
+- **Cells:** the identical six from §1.1, seed 42, `--n-attempts 3`.
+- **Lane:** `zai-coding-plan/glm-5.3-flash`, OpenCode pinned `1.18.25`, Harbor
+  `0.21`, ATIF v1.7.
+- **Control:** `network_isolation_enforced` must read `True`. This is the
+  experimental variable; everything else is held.
+- **Primary estimand:** per-cell agreement with §1.1, plus the pooled
+  18-trial rate. **Not** a capability estimate.
+- **Refusal criteria:** if `network_isolation_enforced` is `False`, abort and
+  report the host as uncertified. Do not run cells on a host that cannot enforce.
+- **Stop/go:** if the enforced-isolation rates differ materially from §1.1
+  (`[INFERENCE]` the sharpest signal would be Action Memory 16k dropping, since
+  that cell has the largest context and the most to gain from egress), then the
+  Darwin pilot's outcomes are contaminated and **every descriptive statement in
+  §1.1 is retired**. If they agree, §1.1 becomes a valid pre-registration of the
+  enforced lane.
+
+### Rank 4 — E0b: handle-representation pilot on the certified lane
 
 **Why this manipulation, and why it replaced the order-permutation design.**
 `[OBSERVED]` The sequential scaffold falsified turn granularity as the lever:
@@ -542,7 +542,7 @@ opaque identifiers.
   worth running *after* this, to separate sequence from representation. It is no
   longer first because representation is the axis the evidence now points at.
 
-### E3 — Action Memory, cost-bounded and two-phase
+### Rank 5 — E3: Action Memory, cost-bounded and two-phase
 
 **What is runnable, and what is not.** `[OBSERVED]` Independent review found the
 earlier version of this entry advertising a 72-trial provider ceiling against a
@@ -592,12 +592,12 @@ project to **9,437,496**, already 1.9× that cap.
   36-trial phase A ceiling**, and the two scaffold trials together are **1.49× the
   whole provider budget**. Zero scaffolded trials fit. Any future scaffold arm needs
   its own authorization and ceiling, not a slot in this campaign.
-- **Ranked after E0a/E0b:** `[INFERENCE]` a broader ladder inherits the
+- **Ranked after E0a, E1, E2 and E0b:** `[INFERENCE]` a broader ladder inherits the
   content/ID/order confound at every cell. Spend on isolation first.
 
-### E4 — Recovery fault classes × persistence, with clean twins
+### Rank 6 — E4: Recovery fault classes × persistence, with clean twins
 
-**Why fourth.** `[OBSERVED]` Recovery is the only vertical with a certified
+**Rank 6.** `[OBSERVED]` Recovery is the only vertical with a certified
 causal requirement — `causal_mutation` must be true, blind retries fail — and it
 is the only one that populates T1.2's `fault_opportunity_id` unit.
 
@@ -620,7 +620,7 @@ is the only one that populates T1.2's `fault_opportunity_id` unit.
   classes, the vertical is measuring *one* learned repair move rather than
   general recovery, and the fault set needs to vary the required mutation.
 
-### E5 — Paired full-vs-Flash mini-lane on the E3/E4 cells
+### Rank 7 — E5: paired full-vs-Flash mini-lane
 
 **Why this pairing.** `[OBSERVED]` §1.5: `zai-coding-plan/glm-5.3` and
 `glm-5.3-flash` are both accessible on the current subscription. A within-provider
@@ -631,7 +631,7 @@ from the adapter, the auth path or the harness rather than the model — and the
 repository already tracks `harness_version`, `scaffold_version` and
 `toolset_digest` precisely because those confounds are real.
 
-**Why still last of the run entries.** A contrast is only worth running once the
+**Rank 7. Why last of the run entries.** A contrast is only worth running once the
 per-arm designs are known to discriminate. Running it earlier risks the O4 trap
 the tutor report names: `[OBSERVED]` the TB3 5-task screen produced all five
 rewards at 0.0 on `gemini-3.7-flash-low`, so a second arm there would compare two
@@ -665,22 +665,34 @@ floors.
 
 ### Ranking rationale
 
-| Rank | Experiment | Unblocking required | Crosses `clearance_n=20`? | Produces a reportable rate? |
-|---|---|---|---|---|
-| E1 | Judge calibration | none | n/a (not a trial cohort) | yes — constructed keys |
-| E2 | Isolation replication | Linux host | no (18) | no — replication check |
-| **E0a** | **Offline handle audit** | **none — no runs** | n/a | yes — a measurement over existing artifacts |
-| **E0b** | **Handle-representation pilot** (indexed/range/batch) | E0a + generator capability + C1 coordination | no (16) | no — but it directly tests the transcription hypothesis, and should *reduce* cost |
-| E3 | Action Memory phase A + B | Linux host | yes (36 + 2) | calibration ledger only |
-| E4 | Recovery matrix | Linux host | yes (60) | calibration ledger only |
-| E5 | Full-vs-Flash mini-lane | E2 + E3/E4 discrimination | yes | only if MDE permits (§4.2) |
+**The section order above is the rank order.** An earlier draft listed E1 and E2
+before E0a while asserting in prose that E0a outranked them, which is a
+contradiction a reader should not have to resolve.
 
-`[INFERENCE]` **E0a outranks even E1**: it costs nothing, needs no runs, and my
-retracted §1.6 mechanism claim is direct evidence of what happens without it. E1
-then outranks the run entries because it is unblocked today and its failure mode
-invalidates a whole plane. E2 outranks E3/E4 because running a
-larger campaign on an uncertified host produces more inadmissible data, not more
-evidence.
+| Rank | Entry | Blocked on | Admissible output? |
+|---:|---|---|---|
+| 1 | **E0a** offline handle audit | nothing | yes — measurement over merged artifacts |
+| 2 | **E1** keyed judge calibration | nothing | yes — constructed keys |
+| 3 | **E2** Linux + proxy lane certification | host, credential proxy | not itself evidence; it is the gate |
+| 4 | **E0b** handle-representation pilot | E2, generator capability, C1 coordination | yes **once E2 passes** |
+| 5 | **E3** Action Memory phase A + B | E2 | calibration ledger only |
+| 6 | **E4** Recovery matrix | E2 | calibration ledger only |
+| 7 | **E5** full-vs-Flash mini-lane | E2 + E3/E4 discrimination | only if MDE permits (§4.2) |
+
+`[INFERENCE]` Ranks 1 and 2 need nothing and come first for that reason alone. E0a
+precedes E1 because my retracted §1.6 mechanism claim is direct evidence of what
+happens without it. Rank 3 is a gate rather than a result: everything below it
+produces inadmissible data until it passes.
+
+**E0b before E2 — possible, but only as an inadmissible pilot.** `[INFERENCE]` E0b's
+manipulation does not require enforced isolation to be *interesting*: it varies
+handle representation, and a large effect would be informative even on an
+uncertified host. But its output could not support any claim of the form "the agent
+solved this from the provided context alone", because open egress is an alternative
+explanation for improved retrieval. If it is run early it must be labelled a
+**pilot on an uncertified lane**, recorded under the calibration ledger, and
+re-run after E2 before any finding is quoted. That is a deliberate choice available
+to Peter, not a default.
 
 ---
 

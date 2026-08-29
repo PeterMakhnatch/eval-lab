@@ -276,6 +276,44 @@ def check_corpora(fail: list[str]) -> None:
         fail.append(f"trajectory-labels {measured}, memo says {LABELS}")
 
 
+RANK_ORDER = ["E0a", "E1", "E2", "E0b", "E3", "E4", "E5"]
+
+
+def check_rank_presentation(fail: list[str]) -> None:
+    """Section order must BE the rank order, and admissibility must be honest.
+
+    An earlier draft listed E1/E2 before E0a while asserting in prose that E0a
+    outranked them, and the spec carried runnable=true on phases whose host and
+    proxy preconditions are unmet. Both are presentation defects a reader should
+    not have to reconcile, so both are asserted.
+    """
+    memo = MEMO.read_text(encoding="utf-8")
+    headings = re.findall(r"^### Rank (\d+) — (E\d\w*):", memo, re.MULTILINE)
+    found_order = [name for _, name in headings]
+    if found_order != RANK_ORDER:
+        fail.append(f"section order {found_order} != rank order {RANK_ORDER}")
+    ordinals = [int(n) for n, _ in headings]
+    if ordinals != sorted(ordinals) or ordinals != list(range(1, len(ordinals) + 1)):
+        fail.append(f"rank ordinals are not 1..n in order: {ordinals}")
+    if re.search(r"^### E\d\w* — ", memo, re.MULTILINE):
+        fail.append("an experiment heading lacks an explicit ordinal rank")
+
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    if spec.get("rank", {}).get("E0a") != 1:
+        fail.append("spec rank map disagrees with the memo: E0a must be 1")
+    for phase in ("phase_a_measured_doses", "phase_b_128k_cost_canary"):
+        block = spec.get(phase) or {}
+        if "runnable" in block:
+            fail.append(
+                f"{phase} still carries a bare 'runnable' flag; its host and proxy "
+                f"preconditions are unmet, so it must say conditionally_runnable"
+            )
+        if block.get("admissibility") != "conditionally_runnable":
+            fail.append(f"{phase}.admissibility is not 'conditionally_runnable'")
+        if not block.get("not_currently_admissible_because"):
+            fail.append(f"{phase} does not state why it is not currently admissible")
+
+
 def check_cross_file_counts(fail: list[str]) -> None:
     """The memo and the spec must state the same counts, and both must be present."""
     spec = json.loads(SPEC.read_text(encoding="utf-8"))
@@ -348,8 +386,13 @@ def check_budget_admission(fail: list[str]) -> None:
     for dose, expected_cost in DOSE_COST_MEASURED.items():
         if basis.get(dose) != expected_cost:
             fail.append(f"spec dose cost {dose} = {basis.get(dose)}, measured {expected_cost}")
-    if (spec.get("broad_ladder_not_runnable") or {}).get("runnable") is not False:
-        fail.append("the broad ladder is marked runnable; its 128k cost cannot be projected")
+    broad = spec.get("broad_ladder_not_runnable") or {}
+    if "runnable" in broad:
+        fail.append("the broad ladder carries a bare 'runnable' flag; use admissibility")
+    if broad.get("admissibility") != "not_runnable":
+        fail.append(
+            "the broad ladder is not marked not_runnable; its 128k cost cannot be projected"
+        )
 
 
 def _reconstruct_reads(events_path: Path) -> dict:
@@ -611,6 +654,7 @@ def main() -> int:
         check_refusal_enum,
         check_goldset,
         check_corpora,
+        check_rank_presentation,
         check_cross_file_counts,
         check_budget_admission,
         check_handle_audit,

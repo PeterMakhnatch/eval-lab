@@ -133,5 +133,17 @@ def run_wrong_repair_mutant(task_dir: Path, agent_workspace: Path) -> None:
     _seal_and_write(task, record, key, events, records)
 
 
-def mutants() -> dict[str, Callable[[Path, Path], None]]:
+def run_unconfirmed_write_mutant(task_dir: Path, agent_workspace: Path) -> None:
+    task = Path(task_dir)
+    record, key = _load_cell_meta(task)
+    events = [
+        {"event_index": 0, "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "operational-record", "written_value": "verified-payload"}
+    ]
+    records = {"operational-record": "verified-payload"}
+    _seal_and_write(task, record, key, events, records)
+
+
+def mutants(is_clean_twin: bool = False) -> dict[str, Callable[[Path, Path], None]]:
+    if is_clean_twin:
+        return {"unconfirmed_write": run_unconfirmed_write_mutant, "wrong_repair": run_wrong_repair_mutant}
     return {"blind_retry": run_blind_retry_control, "wrong_repair": run_wrong_repair_mutant}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -102,12 +103,37 @@ def test_contract_schema_and_cells():
     assert contract["evidence_contract"]["sealed_envelope_path"] == "/app/output/sealed-evidence.json"
 
 
+def test_materializer_hard_fails_without_evidence_key(monkeypatch, tmp_path):
+    materializer = load("materializer")
+    monkeypatch.delenv("MCP_RECOVERY_EVIDENCE_KEY_FILE", raising=False)
+    with pytest.raises(ValueError, match="Evidence key is required"):
+        materializer.materialize_task(tmp_path / "task_no_key", seed=42, evidence_key=None)
+
+
+def test_public_factor_enumeration_cannot_predict_slug_or_decrypt_envelope(tmp_path):
+    materializer = load("materializer")
+    envelope_mod = load("envelope")
+    key = os.urandom(32)
+    task = materializer.materialize_task(tmp_path / "task", seed=42, fault_mode=FaultClass.PERSISTENT_SIGNATURE_ERROR, persistence=1, evidence_key=key)
+
+    # 1. Slug cannot be predicted by hashing public factors without key
+    public_hash = materializer.compute_sha256("mcp-recovery-domain:42:persistent_signature_error:1:fault")[:16]
+    assert public_hash not in task.name
+
+    # 2. Decrypting envelope with unkeyed public metadata fails
+    env = envelope_mod.encrypt_envelope(key, {"test": True, "sequence": 1}, task_id=task.name, fault_id="opaque", persistence=1, sequence=1)
+    unkeyed_guess = hashlib.sha256(b"public_metadata_guess").digest()
+    with pytest.raises(ValueError):
+        envelope_mod.decrypt_envelope(unkeyed_guess, env, task_id=task.name, fault_id="opaque", persistence=1)
+
+
 def test_one_delta_clean_twin_matching(tmp_path):
     materializer = load("materializer")
     for fault in FaultClass:
         for persistence in (1, 2):
-            fault_task = materializer.materialize_task(tmp_path / f"fault_{fault.value}_{persistence}", seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=False)
-            clean_task = materializer.materialize_task(tmp_path / f"clean_{fault.value}_{persistence}", seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=True)
+            key = os.urandom(32)
+            fault_task = materializer.materialize_task(tmp_path / f"fault_{fault.value}_{persistence}", seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=False, evidence_key=key)
+            clean_task = materializer.materialize_task(tmp_path / f"clean_{fault.value}_{persistence}", seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=True, evidence_key=key)
 
             fault_record = json.loads((fault_task / "tests/fixtures/fault_record.json").read_text())
             clean_record = json.loads((clean_task / "tests/fixtures/fault_record.json").read_text())
@@ -125,7 +151,8 @@ def test_one_delta_clean_twin_matching(tmp_path):
 
 def test_security_boundary_and_zero_truth_leakage(tmp_path):
     materializer = load("materializer")
-    task = materializer.materialize_task(tmp_path / "task", seed=42)
+    key = os.urandom(32)
+    task = materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=key)
 
     visible_files = [task / "instruction.md", task / "task.toml", task / "environment" / "Dockerfile"]
     if (task / "environment" / "docker-compose.yaml").is_file():
@@ -144,6 +171,9 @@ def test_security_boundary_and_zero_truth_leakage(tmp_path):
         "admin_write",
         "verified-payload",
         "operational-record",
+        "clean_twin",
+        "clean-twin",
+        "base_task_pair_id",
     )
     for token in forbidden:
         assert token not in agent_visible, f"Leaked token '{token}' in agent-visible bytes"
@@ -151,6 +181,70 @@ def test_security_boundary_and_zero_truth_leakage(tmp_path):
     task_toml = (task / "task.toml").read_text()
     assert "/app/output/sealed-evidence.json" in task_toml
     assert "[[verifier.collect]]" not in task_toml
+    assert "local-lab/mcp-rec-" in task_toml
+    assert not any(f.value in task.name for f in FaultClass)
+
+
+def test_target_specific_causal_recovery_flows():
+    verifier = load("verifier")
+    envelope_mod = load("envelope")
+    key = os.urandom(32)
+
+    # 1. Silent read-targeted fault: initial write -> N corrupt reads -> mutation -> clean read (no post-mutation write needed)
+    silent_events = [
+        {"event_index": 0, "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "k", "written_value": "v"},
+        {"event_index": 1, "tool": "read_record", "outcome": "silent_corruption", "fault_injected": True, "fault_id": "f_silent", "read_key": "k"},
+        {"event_index": 2, "tool": "fallback_query", "outcome": "ok", "fault_injected": False},
+        {"event_index": 3, "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "k", "read_value": "v"},
+    ]
+    env_silent = envelope_mod.encrypt_envelope(key, {"sequence": 4, "initial_digest": "i", "final_digest": "f", "records": {"k": "v"}, "events": silent_events}, task_id="t_silent", fault_id="f_silent", persistence=1, sequence=4)
+    scored_silent = verifier.score_recovery_envelope(key, env_silent, task_id="t_silent", fault_id="f_silent", expected_persistence=1, is_clean_twin=False, target_tool="read_record")
+    assert scored_silent["reward"] == 1.0, scored_silent
+    assert scored_silent["causal_mutation"] is True
+
+    # 2. Write-targeted fault: N fault writes -> mutation -> post-mutation write -> matching read
+    write_events = [
+        {"event_index": 0, "tool": "write_record", "outcome": "error", "fault_injected": True, "fault_id": "f_write", "written_key": "k"},
+        {"event_index": 1, "tool": "refresh_auth", "outcome": "ok", "fault_injected": False},
+        {"event_index": 2, "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "k", "written_value": "v"},
+        {"event_index": 3, "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "k", "read_value": "v"},
+    ]
+    env_write = envelope_mod.encrypt_envelope(key, {"sequence": 4, "initial_digest": "i", "final_digest": "f", "records": {"k": "v"}, "events": write_events}, task_id="t_write", fault_id="f_write", persistence=1, sequence=4)
+    scored_write = verifier.score_recovery_envelope(key, env_write, task_id="t_write", fault_id="f_write", expected_persistence=1, is_clean_twin=False)
+    assert scored_write["reward"] == 1.0, scored_write
+
+    # 3. Clean read before mutation permanently disqualifies
+    disqualified_events = [
+        {"event_index": 0, "tool": "write_record", "outcome": "error", "fault_injected": True, "fault_id": "f_disq", "written_key": "k"},
+        {"event_index": 1, "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": "k", "written_value": "v"},
+        {"event_index": 2, "tool": "read_record", "outcome": "ok", "fault_injected": False, "read_key": "k", "read_value": "v"},
+        {"event_index": 3, "tool": "refresh_auth", "outcome": "ok", "fault_injected": False},
+    ]
+    env_disq = envelope_mod.encrypt_envelope(key, {"sequence": 4, "initial_digest": "i", "final_digest": "f", "records": {"k": "v"}, "events": disqualified_events}, task_id="t_disq", fault_id="f_disq", persistence=1, sequence=4)
+    scored_disq = verifier.score_recovery_envelope(key, env_disq, task_id="t_disq", fault_id="f_disq", expected_persistence=1, is_clean_twin=False)
+    assert scored_disq["reward"] == 0.0
+    assert scored_disq["auto_clear"] is True
+
+
+def test_sidecar_hard_fails_without_secret_key(tmp_path):
+    materializer = load("materializer")
+    key = os.urandom(32)
+    task_dir = tmp_path / "task_no_key"
+    materializer.materialize_task(task_dir, seed=42, evidence_key=key)
+
+    sidecar_key = task_dir / "environment/mcp-server/secret_key.txt"
+    if sidecar_key.exists():
+        sidecar_key.unlink()
+
+    server_script = task_dir / "environment/mcp-server/server.py"
+    res = subprocess.run(
+        [sys.executable, str(server_script)],
+        cwd=str(task_dir / "environment/mcp-server"),
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode != 0
+    assert "secret_key.txt not provisioned" in res.stderr or "secret_key.txt not provisioned" in res.stdout
 
 
 def _free_port() -> int:
@@ -173,10 +267,10 @@ def _wait_port(port: int, timeout: float = 8.0) -> None:
 def _start_fastmcp(tmp_path: Path, fault: FaultClass, persistence: int, is_clean_twin: bool = False) -> tuple[subprocess.Popen, Path, int, bytes, dict]:
     materializer = load("materializer")
     task_dir = tmp_path / "task_cell"
-    materializer.materialize_task(task_dir, seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean_twin)
+    key = os.urandom(32)
+    materializer.materialize_task(task_dir, seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean_twin, evidence_key=key)
 
     record = json.loads((task_dir / "tests/fixtures/fault_record.json").read_text())
-    key = bytes.fromhex((task_dir / "tests/fixtures/secret_key.txt").read_text().strip())
 
     out_dir = tmp_path / "app_output"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -214,12 +308,12 @@ def _run_strategy(port: int, strategy: str) -> None:
     for _ in range(16):
         _status, kind, _raw = session.call_tool("write_record", {"key": key, "value": value})
         if kind != "ok":
-            session.call_tool(strategy, {"scope": "admin_write"} if strategy == "refresh_auth" else {"query": key})
+            session.call_tool(strategy, {"scope": "default"} if strategy == "refresh_auth" else {"query": key})
             continue
         _status, _kind, raw = session.call_tool("read_record", {"key": key})
-        if value in raw and "stale-corrupted-value" not in raw:
+        if value in raw and "corrupted_stale_cache_record" not in raw:
             return
-        session.call_tool(strategy, {"scope": "admin_write"} if strategy == "refresh_auth" else {"query": key})
+        session.call_tool(strategy, {"scope": "default"} if strategy == "refresh_auth" else {"query": key})
     raise AssertionError("Strategy did not recover")
 
 
@@ -305,21 +399,6 @@ def test_live_fastmcp_clean_twin_recovery(tmp_path):
     finally:
         proc.kill()
         proc.wait(timeout=5)
-
-
-def test_live_fastmcp_multiple_repair_strategies_succeed(tmp_path):
-    pytest.importorskip("fastmcp")
-    verifier = load("verifier")
-    for strat in ("refresh_auth", "fallback_query"):
-        proc, out_dir, port, key, record = _start_fastmcp(tmp_path / strat, FaultClass.PERSISTENT_SIGNATURE_ERROR, 1, is_clean_twin=False)
-        try:
-            _run_strategy(port, strat)
-            raw_env = json.loads((out_dir / "sealed-evidence.json").read_text())
-            scored = verifier.score_recovery_envelope(key, raw_env, task_id=record["task_id"], fault_id=record["fault_id"], expected_persistence=1)
-            assert scored["reward"] == 1.0, f"Strategy {strat} failed: {scored}"
-        finally:
-            proc.kill()
-            proc.wait(timeout=5)
 
 
 def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatch):

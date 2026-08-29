@@ -30,6 +30,7 @@ def score_recovery_envelope(
     fault_id: str,
     expected_persistence: int,
     is_clean_twin: bool = False,
+    target_tool: str = "write_record",
 ) -> dict[str, Any]:
     try:
         payload = decrypt_envelope(
@@ -117,32 +118,51 @@ def score_recovery_envelope(
     ]
     causal_mutation = bool(mutations_before_success)
 
-    # Recovery sequence: mutation -> non-injected successful target write -> later non-injected read confirming exact written value
-    post_mutation_writes = [
-        ev for ev in events
-        if ev.get("tool") == "write_record"
-        and ev.get("outcome") == "ok"
-        and int(ev.get("event_index", 0)) >= first_post_fault_success
-    ]
-
     confirmed_read = False
-    for write_ev in post_mutation_writes:
-        w_idx = int(write_ev.get("event_index", 0))
-        written_val = write_ev.get("written_value") or payload.get("records", {}).get(write_ev.get("written_key", ""))
-        matching_reads = [
-            ev for ev in events
-            if ev.get("tool") == "read_record"
-            and ev.get("outcome") == "ok"
-            and int(ev.get("event_index", 0)) > w_idx
-            and (ev.get("read_value") == written_val or (written_val and written_val in str(ev.get("read_value"))))
-        ]
-        if matching_reads:
-            confirmed_read = True
-            break
+    post_mutation_writes: list[dict[str, Any]] = []
 
-    # A clean success (read or write) occurring before any mutation permanently disqualifies recovery (auto_clear)
+    if target_tool == "read_record":
+        # Silent read-targeted fault: initial write before fault -> corrupt reads -> mutation -> clean read matching initial write
+        initial_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) < first_fault_idx]
+        clean_reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
+        for w in initial_writes:
+            w_val = w.get("written_value") or payload.get("records", {}).get(w.get("written_key", ""))
+            if any(r.get("read_value") == w_val or (w_val and str(w_val) in str(r.get("read_value", ""))) for r in clean_reads):
+                confirmed_read = True
+                break
+        if not confirmed_read:
+            post_mut_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
+            for w in post_mut_writes:
+                w_val = w.get("written_value") or payload.get("records", {}).get(w.get("written_key", ""))
+                w_idx = int(w.get("event_index", 0))
+                if any((r.get("read_value") == w_val or (w_val and str(w_val) in str(r.get("read_value", "")))) and int(r.get("event_index", 0)) > w_idx for r in clean_reads):
+                    confirmed_read = True
+                    break
+        success = bool(monotonic and exact_injections and causal_mutation and confirmed_read and state_changed)
+    else:
+        # Write-targeted faults: fault writes -> mutation -> post-mutation successful write -> matching read confirmation
+        post_mutation_writes = [
+            ev for ev in events
+            if ev.get("tool") == "write_record"
+            and ev.get("outcome") == "ok"
+            and int(ev.get("event_index", 0)) >= first_post_fault_success
+        ]
+        for write_ev in post_mutation_writes:
+            w_idx = int(write_ev.get("event_index", 0))
+            written_val = write_ev.get("written_value") or payload.get("records", {}).get(write_ev.get("written_key", ""))
+            matching_reads = [
+                ev for ev in events
+                if ev.get("tool") == "read_record"
+                and ev.get("outcome") == "ok"
+                and int(ev.get("event_index", 0)) > w_idx
+                and (ev.get("read_value") == written_val or (written_val and str(written_val) in str(ev.get("read_value"))))
+            ]
+            if matching_reads:
+                confirmed_read = True
+                break
+        success = bool(monotonic and exact_injections and causal_mutation and post_mutation_writes and confirmed_read and state_changed)
+
     auto_clear = bool(state_changed and exact_injections and not causal_mutation)
-    success = bool(monotonic and exact_injections and causal_mutation and post_mutation_writes and confirmed_read and state_changed)
 
     return {
         "reward": 1.0 if success else 0.0,
@@ -200,6 +220,7 @@ def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = Non
                 fault_id=str(record["fault_id"]),
                 expected_persistence=expected_persistence,
                 is_clean_twin=is_clean_twin,
+                target_tool=str(record.get("target_tool", "write_record")),
             )
 
     if reward_dir:

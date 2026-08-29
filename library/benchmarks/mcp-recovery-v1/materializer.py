@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import shutil
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -56,10 +57,47 @@ EVIDENCE_KEY_ENV = "MCP_RECOVERY_EVIDENCE_KEY_FILE"
 SIDECAR_TARGET = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
 
 
-def _derive_task_id(seed: int, fault_mode: FaultClass | str, persistence: int, is_clean_twin: bool) -> str:
+def _read_evidence_key(key_input: bytes | Path | str | None) -> bytes:
+    """Read an unpredictable 32-byte evidence key.
+
+    Requires an explicit 32-byte key or a trusted 0400/0600 key file.
+    Deterministic/public-metadata fallback derivation is strictly prohibited.
+    """
+    if isinstance(key_input, bytes):
+        if len(key_input) != 32:
+            raise ValueError(f"Evidence key must be exactly 32 bytes, got {len(key_input)}")
+        return key_input
+
+    key_path_input = key_input if isinstance(key_input, (str, Path)) else os.environ.get(EVIDENCE_KEY_ENV, "").strip()
+    if not key_path_input:
+        raise ValueError(
+            "Evidence key is required for materialization; pass explicit 32-byte key or set "
+            f"{EVIDENCE_KEY_ENV} to a secure 0400 key file."
+        )
+
+    key_path = Path(key_path_input)
+    if key_path.is_symlink():
+        raise ValueError(f"Evidence key file must not be a symlink: {key_path}")
+    if not key_path.is_file():
+        raise ValueError(f"Evidence key file not found: {key_path}")
+
+    raw = key_path.read_bytes()
+    if len(raw) == 32:
+        return raw
+    try:
+        parsed = bytes.fromhex(raw.decode("utf-8").strip())
+        if len(parsed) == 32:
+            return parsed
+    except Exception:
+        pass
+    raise ValueError("Evidence key file must contain 32 raw bytes or 64 hex characters")
+
+
+def _derive_task_id(secret_key: bytes, seed: int, fault_mode: FaultClass | str, persistence: int, is_clean_twin: bool) -> str:
     fault = resolve_fault_class(fault_mode)
     arm = "clean" if is_clean_twin else "fault"
-    raw_hash = compute_sha256(f"mcp-recovery-opaque:{seed}:{fault.value}:{persistence}:{arm}")
+    payload = f"mcp-recovery-domain:{seed}:{fault.value}:{persistence}:{arm}".encode("utf-8")
+    raw_hash = hmac.new(secret_key, payload, hashlib.sha256).hexdigest()
     return f"mcp-rec-{raw_hash[:16]}"
 
 
@@ -68,11 +106,13 @@ def output_path(
     fault_mode: FaultClass | str = FaultClass.PERSISTENT_SIGNATURE_ERROR,
     persistence: int = 1,
     is_clean_twin: bool = False,
+    evidence_key: bytes | Path | str | None = None,
 ) -> Path:
+    key_bytes = _read_evidence_key(evidence_key)
     fault = resolve_fault_class(fault_mode)
     arm = "clean" if is_clean_twin else "fault"
     digest = source_digest(f"seed:{seed}:fault:{fault.value}:persistence:{persistence}:arm:{arm}")[:16]
-    task_id = _derive_task_id(seed, fault_mode, persistence, is_clean_twin)
+    task_id = _derive_task_id(key_bytes, seed, fault_mode, persistence, is_clean_twin)
     return DEFAULT_OUT_DIR / digest / task_id
 
 
@@ -91,36 +131,6 @@ def _wheelhouse_inputs() -> tuple[Path, ResolverProvenance] | None:
     if provenance.target != SIDECAR_TARGET:
         raise ValueError("resolver provenance target does not match the pinned sidecar runtime")
     return wheelhouse, provenance
-
-
-def _read_evidence_key(key_input: bytes | Path | str | None, task_id: str, seed: int) -> bytes:
-    if isinstance(key_input, bytes):
-        if len(key_input) != 32:
-            raise ValueError("Evidence key must be exactly 32 bytes")
-        return key_input
-    if isinstance(key_input, (str, Path)):
-        key_path = Path(key_input)
-        if key_path.is_symlink():
-            raise ValueError(f"Evidence key file must not be a symlink: {key_path}")
-        if not key_path.is_file():
-            raise ValueError(f"Evidence key file not found: {key_path}")
-        raw = key_path.read_bytes()
-        if len(raw) == 32:
-            return raw
-        try:
-            parsed = bytes.fromhex(raw.decode("utf-8").strip())
-            if len(parsed) == 32:
-                return parsed
-        except Exception:
-            pass
-        raise ValueError("Evidence key file must contain 32 raw bytes or 64 hex characters")
-
-    env_key_file = os.environ.get(EVIDENCE_KEY_ENV, "").strip()
-    if env_key_file:
-        return _read_evidence_key(Path(env_key_file), task_id, seed)
-
-    # In test mode without explicit key file, derive a cryptographically strong deterministic key
-    return hashlib.sha256(f"mcp-recovery-test-key:{task_id}:{seed}".encode("utf-8")).digest()
 
 
 def _recovery_tools() -> list[MCPToolDefinition]:
@@ -173,7 +183,7 @@ if not KEY_FILE.is_file():
 try:
     SECRET_KEY = bytes.fromhex(KEY_FILE.read_text(encoding="utf-8").strip())
     if len(SECRET_KEY) != 32:
-        raise ValueError("verifier key length is invalid")
+        raise ValueError("Key must be 32 bytes")
 except Exception as exc:
     raise RuntimeError(f"Critical: invalid sidecar evidence key: {{exc}}") from exc
 
@@ -269,7 +279,6 @@ def recovery_write_record(key: str, value: str) -> Any:
         _save_db(state)
         event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "error", "fault_injected": True, "fault_id": FAULT_ID, "written_key": key}}
         _record_and_seal(event, state)
-        # Realistic symptom messages without mentioning specific recovery tool names
         messages = {{
             "persistent_signature_error": "403 Forbidden: authentication signature invalid or credentials expired",
             "persistent_schema_mismatch": "404 Not Found: primary storage node unreachable, cluster out of sync",
@@ -355,6 +364,26 @@ PY
     )
 
 
+def _unconfirmed_write_script() -> str:
+    return (
+        "#!/bin/sh\nset -eu\npython - <<'PY'\n"
+        + _embed_client()
+        + '''
+import time
+
+session = McpHttpSession()
+for _ in range(30):
+    if session.initialize()[0] == 200:
+        break
+    time.sleep(0.2)
+
+session.call_tool("write_record", {"key": "operational-record", "value": "verified-payload"})
+# Deliberately omits read confirmation
+PY
+'''
+    )
+
+
 def _blind_retry_script() -> str:
     return (
         "#!/bin/sh\nset -eu\npython - <<'PY'\n"
@@ -415,7 +444,7 @@ def main() -> None:
         try:
             key = bytes.fromhex(key_file.read_text(encoding="utf-8").strip())
             if len(key) != 32:
-                raise ValueError("Key must be 32 bytes")
+                raise ValueError("verifier key length is invalid")
         except Exception as exc:
             reason = f"invalid verifier key: {exc}"
             key = None
@@ -423,6 +452,7 @@ def main() -> None:
         if key is not None:
             task_id = str(record["task_id"])
             fault_id = str(record["fault_id"])
+            target_tool = str(record.get("target_tool", "write_record"))
             payload_cfg = record.get("injection_payload") or {}
             expected_persistence = int(payload_cfg.get("persistence", 1))
             is_clean_twin = bool(payload_cfg.get("is_clean_twin", False))
@@ -493,37 +523,44 @@ def main() -> None:
                             ]
                             causal_mutation = bool(mutations_before_success)
 
-                            post_mutation_writes = [
-                                ev for ev in events
-                                if ev.get("tool") == "write_record"
-                                and ev.get("outcome") == "ok"
-                                and int(ev.get("event_index", 0)) >= first_post_fault_success
-                            ]
-
+                            # Confirmation check based on target tool kind
                             confirmed_read = False
-                            for write_ev in post_mutation_writes:
-                                w_idx = int(write_ev.get("event_index", 0))
-                                written_val = write_ev.get("written_value") or payload.get("records", {}).get(write_ev.get("written_key", ""))
-                                matching_reads = [
-                                    ev for ev in events
-                                    if ev.get("tool") == "read_record"
-                                    and ev.get("outcome") == "ok"
-                                    and int(ev.get("event_index", 0)) > w_idx
-                                    and (ev.get("read_value") == written_val or (written_val and written_val in str(ev.get("read_value"))))
-                                ]
-                                if matching_reads:
-                                    confirmed_read = True
-                                    break
+                            if target_tool == "read_record":
+                                # Silent fault: initial write -> corrupt reads -> mutation -> clean read matching initial write
+                                initial_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) < first_fault_idx]
+                                clean_reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
+                                for w in initial_writes:
+                                    w_val = w.get("written_value")
+                                    if any(r.get("read_value") == w_val for r in clean_reads):
+                                        confirmed_read = True
+                                        break
+                                if not confirmed_read:
+                                    post_mut_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
+                                    for w in post_mut_writes:
+                                        w_val = w.get("written_value")
+                                        w_idx = int(w.get("event_index", 0))
+                                        if any(r.get("read_value") == w_val and int(r.get("event_index", 0)) > w_idx for r in clean_reads):
+                                            confirmed_read = True
+                                            break
+                            else:
+                                # Write faults: mutation -> post-mutation write -> matching read
+                                post_mut_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
+                                for w in post_mut_writes:
+                                    w_idx = int(w.get("event_index", 0))
+                                    w_val = w.get("written_value")
+                                    matching = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) > w_idx and ev.get("read_value") == w_val]
+                                    if matching:
+                                        confirmed_read = True
+                                        break
 
                             auto_clear = bool(state_changed and exact_injections and not causal_mutation)
-                            passed = bool(monotonic and exact_injections and causal_mutation and post_mutation_writes and confirmed_read and state_changed)
+                            passed = bool(monotonic and exact_injections and causal_mutation and confirmed_read and state_changed)
                             reason = "ok" if passed else "causal recovery verification failed"
 
                     checks = {
                         "monotonic": monotonic,
                         "exact_injections": exact_injections,
                         "causal_mutation": causal_mutation if injections and post_fault_target_successes else False,
-                        "write_ok": bool(post_mutation_writes) if injections and post_fault_target_successes else False,
                         "read_confirmed": confirmed_read if injections and post_fault_target_successes else False,
                         "state_changed": state_changed,
                         "auto_clear": auto_clear,
@@ -622,15 +659,15 @@ def materialize_task(
     is_clean_twin: bool = False,
     evidence_key: bytes | Path | str | None = None,
 ) -> Path:
+    secret_key_bytes = _read_evidence_key(evidence_key)
     fault = resolve_fault_class(fault_mode)
     cell = CellFactorsC(fault_class=fault, fault_injection_count=persistence, seed=seed)
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    task_id = _derive_task_id(seed, fault, persistence, is_clean_twin)
-    twin_task_id = _derive_task_id(seed, fault, persistence, not is_clean_twin)
+    task_id = _derive_task_id(secret_key_bytes, seed, fault, persistence, is_clean_twin)
+    twin_task_id = _derive_task_id(secret_key_bytes, seed, fault, persistence, not is_clean_twin)
 
-    secret_key_bytes = _read_evidence_key(evidence_key, task_id, seed)
     secret_key_hex = secret_key_bytes.hex() + "\n"
     record = _fault_record(cell, task_id, twin_task_id, is_clean_twin, secret_key_bytes)
 
@@ -796,7 +833,10 @@ before retrying.
     _write_executable(wb / "fair-alternative.sh", fair)
     _write_executable(wb / "please-hack.sh", "#!/bin/sh\nset -eu\necho please-hack\n")
     _write_executable(adv / "nop.sh", "#!/bin/sh\nset -eu\n# nop\n")
-    _write_executable(adv / "blind-retry.sh", _blind_retry_script())
+    if is_clean_twin:
+        _write_executable(adv / "unconfirmed-write.sh", _unconfirmed_write_script())
+    else:
+        _write_executable(adv / "blind-retry.sh", _blind_retry_script())
     _write_executable(adv / "wrong-repair.sh", _wrong_repair_script())
     return target_dir
 
@@ -810,7 +850,7 @@ def materialize(
     evidence_key: bytes | Path | str | None = None,
 ) -> Path:
     reject_committed_corpora()
-    out = target or output_path(seed, fault_mode, persistence, is_clean_twin)
+    out = target or output_path(seed, fault_mode, persistence, is_clean_twin, evidence_key=evidence_key)
     return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence, is_clean_twin=is_clean_twin, evidence_key=evidence_key)
 
 
@@ -820,10 +860,10 @@ def materialize_all_campaign0(seed: int = 42, evidence_key_generator: Any = None
     paths: list[Path] = []
     for fault in CAMPAIGN0_FAULTS:
         for persistence in CAMPAIGN0_PERSISTENCE:
-            pair_key = evidence_key_generator(fault, persistence) if evidence_key_generator else None
+            pair_key = evidence_key_generator(fault, persistence) if evidence_key_generator else os.urandom(32)
             paths.append(
                 materialize_task(
-                    output_path(seed=seed, fault_mode=fault, persistence=persistence, is_clean_twin=False),
+                    output_path(seed=seed, fault_mode=fault, persistence=persistence, is_clean_twin=False, evidence_key=pair_key),
                     seed=seed,
                     fault_mode=fault,
                     persistence=persistence,
@@ -833,7 +873,7 @@ def materialize_all_campaign0(seed: int = 42, evidence_key_generator: Any = None
             )
             paths.append(
                 materialize_task(
-                    output_path(seed=seed, fault_mode=fault, persistence=persistence, is_clean_twin=True),
+                    output_path(seed=seed, fault_mode=fault, persistence=persistence, is_clean_twin=True, evidence_key=pair_key),
                     seed=seed,
                     fault_mode=fault,
                     persistence=persistence,

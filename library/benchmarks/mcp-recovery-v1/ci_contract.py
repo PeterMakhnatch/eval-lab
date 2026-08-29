@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import secrets
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -14,7 +17,7 @@ sys.path.insert(0, str(HERE))
 
 from contract import CAMPAIGN0_FAULTS, CAMPAIGN0_PERSISTENCE
 from materializer import materialize, output_path
-from templates import run_blind_retry_control, run_nop_baseline, run_oracle_repair, run_wrong_repair_mutant
+from templates import mutants, run_blind_retry_control, run_nop_baseline, run_oracle_repair, run_wrong_repair_mutant
 from verifier import verify_harbor_task
 
 
@@ -41,43 +44,54 @@ def main() -> None:
     if tracked:
         raise AssertionError(f"Generated task corpus is tracked in git: {tracked[:3]}")
 
-    # 2. Deterministic regeneration check for both arms
-    for is_clean in (False, True):
-        canary = output_path(seed=42, is_clean_twin=is_clean)
-        materialize(canary, seed=42, is_clean_twin=is_clean)
-        first = snapshot(canary)
-        materialize(canary, seed=42, is_clean_twin=is_clean)
-        if snapshot(canary) != first:
-            raise AssertionError(f"Task materialization was non-deterministic (is_clean={is_clean})")
+    # 2. Deterministic regeneration check using explicit 0400 key
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as kf:
+        kf.write(secrets.token_bytes(32))
+        key_file_path = Path(kf.name)
+    os.chmod(key_file_path, 0o400)
 
-    # 3. Control evaluation across all 10 fault cells and 10 clean twin cells
-    count = 0
-    for is_clean in (False, True):
+    try:
+        for is_clean in (False, True):
+            canary = output_path(seed=42, is_clean_twin=is_clean, evidence_key=key_file_path)
+            materialize(canary, seed=42, is_clean_twin=is_clean, evidence_key=key_file_path)
+            first = snapshot(canary)
+            materialize(canary, seed=42, is_clean_twin=is_clean, evidence_key=key_file_path)
+            if snapshot(canary) != first:
+                raise AssertionError(f"Task materialization was non-deterministic (is_clean={is_clean})")
+
+        # 3. Control evaluation across all 10 fault cells and 10 clean twin cells
+        count = 0
         for fault in CAMPAIGN0_FAULTS:
             for persistence in CAMPAIGN0_PERSISTENCE:
-                task = output_path(seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean)
-                materialize(task, seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean)
+                pair_key = secrets.token_bytes(32)
+                for is_clean in (False, True):
+                    task = output_path(seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean, evidence_key=pair_key)
+                    materialize(task, seed=42, fault_mode=fault, persistence=persistence, is_clean_twin=is_clean, evidence_key=pair_key)
 
-                # NOP baseline -> 0.0
-                run_nop_baseline(task, task / "agent_workspace")
-                assert_reward(task, 0.0, "nop")
+                    # NOP baseline -> 0.0
+                    run_nop_baseline(task, task / "agent_workspace")
+                    assert_reward(task, 0.0, "nop")
 
-                # Oracle -> 1.0
-                run_oracle_repair(task, task / "agent_workspace")
-                assert_reward(task, 1.0, "oracle")
+                    # Oracle -> 1.0
+                    run_oracle_repair(task, task / "agent_workspace")
+                    assert_reward(task, 1.0, "oracle")
 
-                # Identical fixed-policy blind retry:
-                # On fault arm, must score 0.0 (auto-clear does not earn C3 recovery).
-                # On clean twin arm, establishes baseline 1.0 under identical policy.
-                expected_blind = 1.0 if is_clean else 0.0
-                run_blind_retry_control(task, task / "agent_workspace")
-                assert_reward(task, expected_blind, "blind_retry")
+                    # Identical fixed-policy blind retry:
+                    # On fault arm, must score 0.0 (auto-clear does not earn C3 recovery).
+                    # On clean twin arm, establishes baseline 1.0 under identical policy.
+                    expected_blind = 1.0 if is_clean else 0.0
+                    run_blind_retry_control(task, task / "agent_workspace")
+                    assert_reward(task, expected_blind, "blind_retry")
 
-                # Wrong repair mutant -> 0.0
-                run_wrong_repair_mutant(task, task / "agent_workspace")
-                assert_reward(task, 0.0, "wrong_repair")
+                    # All arm-specific adversarial mutants -> 0.0
+                    for name, mutant in mutants(is_clean_twin=is_clean).items():
+                        mutant(task, task / "agent_workspace")
+                        assert_reward(task, 0.0, name)
 
-                count += 1
+                    count += 1
+    finally:
+        if key_file_path.exists():
+            key_file_path.unlink()
 
     print(f"MCP Recovery v1 CI contract PASSED: {count} cells (10 fault + 10 clean twins), paired policy verified")
 

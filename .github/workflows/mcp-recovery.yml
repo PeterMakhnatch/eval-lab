@@ -71,6 +71,17 @@ jobs:
           PY
           echo "MCP_RECOVERY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse" >> "$GITHUB_ENV"
           echo "MCP_RECOVERY_RESOLVER_PROVENANCE=/tmp/fastmcp3-resolver-provenance.json" >> "$GITHUB_ENV"
+      - name: Generate unlogged 0400 evidence key
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import os, secrets
+          key_path = "/tmp/mcp-recovery-evidence-key.bin"
+          with open(key_path, "wb") as f:
+              f.write(secrets.token_bytes(32))
+          os.chmod(key_path, 0o400)
+          PY
+          echo "MCP_RECOVERY_EVIDENCE_KEY_FILE=/tmp/mcp-recovery-evidence-key.bin" >> "$GITHUB_ENV"
       - name: Materialize task cell
         id: materialize
         env:

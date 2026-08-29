@@ -36,6 +36,7 @@ from evallab.mcp_substrate import (
     render_mcp_compose_document,
     render_mcp_sidecar_dockerfile,
     render_selected_wheel_lock,
+    stage_platform_wheelhouse,
     validate_mcp_compose_document,
     validate_target_base_runtime,
 )
@@ -895,3 +896,31 @@ def test_materialize_rejects_planted_dockerignore(tmp_path: Path):
             tools=[_runtime_asset_tool()],
             plan_only=True,
         )
+
+
+def test_planted_wheelhouse_symlinks_rejected(tmp_path: Path):
+    real_wh = tmp_path / "real_wh"
+    real_wh.mkdir()
+    wh_link = tmp_path / "wh_link"
+    wh_link.symlink_to(real_wh)
+    with pytest.raises(SubstrateError, match="symlink"):
+        stage_platform_wheelhouse(
+            wh_link, tmp_path / "dest_wh", WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+        )
+
+
+def test_atomic_staging_cleans_up_on_failure_and_leaves_target_absent(tmp_path: Path):
+    pkg = tmp_path / "unborn_pkg"
+    bad_asset = tmp_path / "bad.bin"
+    bad_asset.symlink_to(tmp_path / "nonexistent")
+    with pytest.raises(SubstrateError):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("bad.bin", bad_asset),),
+        )
+    assert not pkg.exists()
+    staging_dirs = [p for p in tmp_path.iterdir() if p.name.startswith(".unborn_pkg.")]
+    assert len(staging_dirs) == 0
+

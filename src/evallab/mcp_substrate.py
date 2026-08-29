@@ -17,7 +17,7 @@ Provides:
   - Task-local named volume (`main-RO` / `sidecar-RW`).
 - Deterministic Fault Interceptor middleware operating over FaultInjectionRecord contracts.
 - Invariant ground-truth separation (purges solutions/oracles from agent containers).
-- Substrate version & comprehensive digest computation (including execution_body and metadata).
+- Substrate version & comprehensive digest computation (including execution_body, metadata, and runtime assets).
 """
 
 from __future__ import annotations
@@ -30,6 +30,8 @@ import os
 import re
 import shutil
 import stat
+import tempfile
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -71,6 +73,10 @@ FASTMCP_VERSION_CONSTRAINTS: tuple[str, ...] = ("fastmcp==3.4.7",)
 RESERVED_RUNTIME_ASSET_PATHS = frozenset(
     {
         ".dockerignore",
+        "compose.yaml",
+        "compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.yml",
         "Dockerfile",
         "Dockerfile.dockerignore",
         "offline-build-proof.json",
@@ -84,6 +90,7 @@ RESERVED_RUNTIME_ASSET_PATHS_FOLD = frozenset(
 )
 _RUNTIME_ASSET_DEST_RE = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._/-]*$")
 _OP_REGISTRY_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
 
 class SubstrateError(Exception):
@@ -164,16 +171,9 @@ def parse_requirements_hashes(requirements_text: str) -> dict[str, set[str]]:
 def verify_wheelhouse_inventory(
     wheelhouse_dir: Path, requirements_text: str
 ) -> list[dict[str, Any]]:
-    """Mechanically verify that wheelhouse contains an exact matching wheel for every locked requirement.
-
-    Rejects:
-    - Non-directory or empty wheelhouse
-    - Missing required package wheel
-    - Tampered wheel bytes whose sha256 is not in the declared requirement lock
-    - Extra unapproved wheels not in the lockfile
-    """
-    if not wheelhouse_dir.is_dir():
-        raise SubstrateError(f"Wheelhouse directory does not exist: {wheelhouse_dir.as_posix()!r}")
+    """Mechanically verify that wheelhouse contains an exact matching wheel for every locked requirement."""
+    if not wheelhouse_dir.is_dir() or wheelhouse_dir.is_symlink():
+        raise SubstrateError(f"Wheelhouse directory does not exist or is symlink: {wheelhouse_dir.as_posix()!r}")
 
     locked = parse_requirements_hashes(requirements_text)
     wheels = list(wheelhouse_dir.glob("*.whl"))
@@ -186,7 +186,7 @@ def verify_wheelhouse_inventory(
     inventory: list[dict[str, Any]] = []
 
     for w_file in sorted(wheels, key=lambda p: p.name):
-        w_bytes = w_file.read_bytes()
+        w_bytes = _read_runtime_asset_source(w_file)
         w_hash = hashlib.sha256(w_bytes).hexdigest()
         pkg_name = w_file.name.split("-")[0].lower().replace("_", "-")
 
@@ -259,6 +259,7 @@ def validate_runtime_asset_destination(destination: str) -> str:
         raise SubstrateError(
             f"Runtime asset destination contains control characters: {destination!r}"
         )
+    destination = unicodedata.normalize("NFC", destination)
     try:
         destination = validate_safe_relative_path(destination)
     except ValueError as exc:
@@ -269,7 +270,12 @@ def validate_runtime_asset_destination(destination: str) -> str:
         )
     folded = destination.casefold()
     first_component = folded.split("/", 1)[0]
-    if folded in RESERVED_RUNTIME_ASSET_PATHS_FOLD or first_component in RESERVED_RUNTIME_ASSET_PATHS_FOLD:
+    if (
+        folded in RESERVED_RUNTIME_ASSET_PATHS_FOLD
+        or first_component in RESERVED_RUNTIME_ASSET_PATHS_FOLD
+        or folded.startswith("dockerfile.")
+        or first_component.startswith("dockerfile.")
+    ):
         raise SubstrateError(f"Runtime asset destination is reserved: {destination!r}")
     return destination
 
@@ -283,18 +289,27 @@ def _dockerfile_copy_token(value: str, *, name: str) -> str:
 
 
 def _read_runtime_asset_source(source: Path) -> bytes:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        st = os.lstat(source)
+    except OSError as exc:
+        raise SubstrateError(f"Cannot stat runtime asset source: {source.as_posix()!r}") from exc
+    if stat.S_ISLNK(st.st_mode):
+        raise SubstrateError(f"Runtime asset source is a symlink: {source.as_posix()!r}")
+    if not stat.S_ISREG(st.st_mode):
+        raise SubstrateError(f"Runtime asset source is not a regular file: {source.as_posix()!r}")
+
+    flags = os.O_RDONLY | _NOFOLLOW
     try:
         fd = os.open(source, flags)
     except OSError as exc:
         raise SubstrateError(
-            f"Runtime asset source is not a regular non-symlink file: {source.as_posix()}"
+            f"Runtime asset source open failed (symlink/unreadable): {source.as_posix()!r}"
         ) from exc
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
             raise SubstrateError(
-                f"Runtime asset source is not a regular file: {source.as_posix()}"
+                f"Runtime asset source is not a regular file: {source.as_posix()!r}"
             )
         with os.fdopen(fd, "rb") as handle:
             fd = -1
@@ -304,15 +319,28 @@ def _read_runtime_asset_source(source: Path) -> bytes:
             os.close(fd)
 
 
+def _reject_runtime_asset_prefix_conflicts(destinations: Sequence[str]) -> None:
+    """Reject file destinations that collide with an ancestor/descendant prefix or reserved root."""
+    folded = sorted({destination.casefold() for destination in destinations})
+    for index, left in enumerate(folded):
+        prefix = f"{left}/"
+        for right in folded[index + 1 :]:
+            if right.startswith(prefix):
+                raise SubstrateError(
+                    f"Runtime asset destination {right!r} conflicts with prefix {left!r}"
+                )
+    for dest in folded:
+        first_comp = dest.split("/", 1)[0]
+        if first_comp in RESERVED_RUNTIME_ASSET_PATHS_FOLD:
+            raise SubstrateError(
+                f"Runtime asset destination {dest!r} conflicts with reserved root {first_comp!r}"
+            )
+
+
 def validate_runtime_assets(
     runtime_assets: Sequence[RuntimeAsset],
 ) -> tuple[tuple[RuntimeAsset, bytes], ...]:
-    """Fail-closed validation of explicit runtime assets.
-
-    Destinations are relative, normalized, confined, non-reserved, unique, and
-    free of traversal/control characters. Sources are regular non-symlink files.
-    Results are sorted by destination for deterministic COPY/proof order.
-    """
+    """Fail-closed validation of explicit runtime assets."""
     prepared: dict[str, tuple[RuntimeAsset, bytes]] = {}
     seen_fold: set[str] = set()
     for asset in runtime_assets:
@@ -330,34 +358,6 @@ def validate_runtime_assets(
     destinations = tuple(prepared)
     _reject_runtime_asset_prefix_conflicts(destinations)
     return tuple(prepared[key] for key in sorted(prepared))
-
-
-def _reject_runtime_asset_prefix_conflicts(destinations: Sequence[str]) -> None:
-    """Reject file destinations that collide with a nested path prefix."""
-    folded = sorted({destination.casefold() for destination in destinations})
-    for index, left in enumerate(folded):
-        prefix = f"{left}/"
-        for right in folded[index + 1 :]:
-            if right.startswith(prefix):
-                raise SubstrateError(
-                    f"Runtime asset destination {right!r} conflicts with prefix {left!r}"
-                )
-
-
-def _assert_confined_nonsymlink_destination(root: Path, destination: str) -> Path:
-    cursor = root
-    for part in Path(destination).parts:
-        cursor = cursor / part
-        if cursor.is_symlink():
-            raise SubstrateError(f"Runtime asset destination is a symlink: {destination!r}")
-    try:
-        resolved = safe_resolve_subpath(root, destination)
-    except ValueError as exc:
-        raise SubstrateError(str(exc)) from exc
-    return resolved
-
-
-_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
 
 def _confined_relative_parts(relative: str) -> tuple[str, ...]:
@@ -408,33 +408,6 @@ def _write_confined_bytes(root: Path, relative: str, data: bytes) -> None:
 
 def _write_confined_text(root: Path, relative: str, text: str) -> None:
     _write_confined_bytes(root, relative, text.encode("utf-8"))
-
-
-def _reject_symlink_leaf(path: Path, *, label: str) -> None:
-    if path.is_symlink():
-        raise SubstrateError(f"{label} is a symlink: {path.as_posix()}")
-
-
-def _reject_planted_dockerignore(target_dir: Path) -> None:
-    for name in (".dockerignore", "Dockerfile.dockerignore"):
-        planted = target_dir / name
-        if planted.exists() or planted.is_symlink():
-            raise SubstrateError(f"Target contains reserved dockerignore file: {name}")
-
-
-def _remove_stale_plan_only_build_artifacts(target_dir: Path) -> None:
-    dockerfile = target_dir / "Dockerfile"
-    _reject_symlink_leaf(dockerfile, label="plan_only Dockerfile")
-    if dockerfile.exists():
-        dockerfile.unlink()
-    wheelhouse = target_dir / "wheelhouse"
-    if wheelhouse.is_symlink():
-        raise SubstrateError("plan_only wheelhouse is a symlink")
-    if wheelhouse.exists():
-        if wheelhouse.is_dir():
-            shutil.rmtree(wheelhouse)
-        else:
-            wheelhouse.unlink()
 
 
 def _runtime_asset_proof_records(
@@ -706,6 +679,89 @@ CMD ["python", "{app_dir}/{server_script_name}"]
 """
 
 
+def _stage_clean_package_directory(
+    staging: Path,
+    tools: Sequence[MCPToolDefinition],
+    server_name: str,
+    port: int,
+    base_image: str,
+    wheelhouse_source: Path | None,
+    op_registry_module: str | None,
+    fault_record: FaultInjectionRecord | None,
+    plan_only: bool,
+    selected_target: WheelhouseTarget,
+    resolver_provenance: ResolverProvenance | None,
+    runtime_meta: dict[str, str],
+    prepared_assets: Sequence[tuple[RuntimeAsset, bytes]],
+) -> tuple[dict[str, Any], tuple[RuntimeAsset, ...]]:
+    """Stage all package artifacts into a clean, empty sibling directory."""
+    server_code = generate_fastmcp_server_script(
+        tools=tools,
+        server_name=server_name,
+        port=port,
+        op_registry_module=op_registry_module,
+        fault_record=fault_record,
+    )
+    _write_confined_text(staging, "server.py", server_code)
+
+    sorted_assets = tuple(asset for asset, _content in prepared_assets)
+    for asset, content in prepared_assets:
+        _write_confined_bytes(staging, asset.destination, content)
+
+    asset_proof = _runtime_asset_proof_records(prepared_assets)
+
+    if plan_only:
+        proof_data = {
+            "mode": "plan_only",
+            "substrate_version": MCP_SUBSTRATE_VERSION,
+            **runtime_meta,
+            "requirements_sha256": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
+        }
+        if asset_proof:
+            proof_data["runtime_assets"] = asset_proof
+        _write_confined_text(
+            staging, "offline-build-proof.json", canonical_json(proof_data) + "\n"
+        )
+        _write_confined_text(
+            staging,
+            "requirements.txt",
+            "# plan-only; resolve a target wheelhouse before build\n",
+        )
+    else:
+        assert wheelhouse_source is not None
+        assert resolver_provenance is not None
+        dest_wheelhouse = staging / "wheelhouse"
+        dest_wheelhouse.mkdir(parents=True, exist_ok=True)
+        _, selected_inventory = stage_platform_wheelhouse(
+            wheelhouse_source, dest_wheelhouse, selected_target
+        )
+        wheel_inventory = verify_provenance_wheelhouse(dest_wheelhouse, resolver_provenance)
+        requirements_lock = render_provenance_lock(resolver_provenance)
+        _write_confined_text(staging, "requirements.txt", requirements_lock)
+
+        dockerfile_content = render_mcp_sidecar_dockerfile(
+            base_image=base_image, runtime_assets=sorted_assets
+        )
+        _write_confined_text(staging, "Dockerfile", dockerfile_content)
+
+        proof_data = {
+            "mode": "complete_offline_package",
+            "substrate_version": MCP_SUBSTRATE_VERSION,
+            **runtime_meta,
+            "requirements_sha256": compute_sha256(requirements_lock),
+            "wheel_count": len(wheel_inventory),
+            "wheels": wheel_inventory,
+            "dockerfile_sha256": compute_sha256(dockerfile_content),
+        }
+        if asset_proof:
+            proof_data["runtime_assets"] = asset_proof
+        _write_confined_text(
+            staging, "offline-build-proof.json", canonical_json(proof_data) + "\n"
+        )
+
+    return proof_data, sorted_assets
+
+
 def materialize_mcp_sidecar_package(
     target_dir: Path,
     tools: Sequence[MCPToolDefinition],
@@ -721,21 +777,8 @@ def materialize_mcp_sidecar_package(
     resolver_provenance: ResolverProvenance | None = None,
     runtime_assets: Sequence[RuntimeAsset] = (),
 ) -> dict[str, Any]:
-    """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package.
-
-    Parameters:
-        target_dir: Target directory where sidecar files will be emitted.
-        tools: Sequence of discrete MCP tool definitions.
-        server_name: FastMCP server identifier.
-        port: Service port.
-        base_image: Immutable pinned base image reference.
-        wheelhouse_source: Directory of pre-downloaded wheels matching canonical_json(FASTMCP_VERSION_CONSTRAINTS). Mandatory unless plan_only=True.
-        op_registry_module: Optional module path for DAG/operation registry delegation.
-        fault_record: Optional FaultInjectionRecord for deterministic fault injection.
-        plan_only: When True, skips Dockerfile/wheelhouse copying and emits only plan specification.
-        internal_network_name: Name of the task-local internal Docker bridge.
-        runtime_assets: Explicit runtime files copied into the sidecar; destinations are COPY'd canonically.
-    """
+    """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package."""
+    # 1. Preflight all configuration and arguments before touching filesystem
     selected_target = target or WheelhouseTarget(
         python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
     )
@@ -744,103 +787,89 @@ def materialize_mcp_sidecar_package(
     )
     prepared_assets = validate_runtime_assets(runtime_assets)
     _require_op_registry_asset(op_registry_module, prepared_assets)
-    target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    _reject_planted_dockerignore(target_dir)
-    confined_assets = tuple(
-        (
-            _assert_confined_nonsymlink_destination(target_dir, asset.destination),
-            asset,
-            content,
-        )
-        for asset, content in prepared_assets
-    )
 
-    # 1. server.py
-    server_code = generate_fastmcp_server_script(
-        tools=tools,
-        server_name=server_name,
-        port=port,
-        op_registry_module=op_registry_module,
-        fault_record=fault_record,
-    )
-    _assert_confined_nonsymlink_destination(target_dir, "server.py")
-    _write_confined_text(target_dir, "server.py", server_code)
-
-    sorted_assets = tuple(asset for _destination, asset, _content in confined_assets)
-    for _destination, asset, content in confined_assets:
-        _write_confined_bytes(target_dir, asset.destination, content)
-
-    # 2. requirements.txt is emitted only after selected wheels are staged.
-
-    wheel_inventory: list[dict[str, Any]] = []
-    asset_proof = _runtime_asset_proof_records(prepared_assets)
-
-    if plan_only:
-        # Plan-only mode: Dockerfile and wheelhouse omitted
-        _remove_stale_plan_only_build_artifacts(target_dir)
-        proof_data = {
-            "mode": "plan_only",
-            "substrate_version": MCP_SUBSTRATE_VERSION,
-            **runtime_meta,
-            "requirements_sha256": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
-        }
-        if asset_proof:
-            proof_data["runtime_assets"] = asset_proof
-        _assert_confined_nonsymlink_destination(target_dir, "offline-build-proof.json")
-        _write_confined_text(
-            target_dir, "offline-build-proof.json", canonical_json(proof_data) + "\n"
-        )
-    else:
+    if not plan_only:
         if wheelhouse_source is None:
             raise SubstrateError(
                 "wheelhouse_source is mandatory for production sidecar materialization; pass plan_only=True to emit plan without container build artifacts"
             )
-
-        # Stage selected wheel bytes and derive the exact target lock from their METADATA and SHA-256.
-        dest_wheelhouse = _assert_confined_nonsymlink_destination(target_dir, "wheelhouse")
         if resolver_provenance is None:
             raise SubstrateError("resolver_provenance is mandatory for production materialization")
         if resolver_provenance.target != selected_target:
             raise SubstrateError("resolver provenance target does not match requested target")
-        _, selected_inventory = stage_platform_wheelhouse(
-            wheelhouse_source, dest_wheelhouse, selected_target
-        )
-        wheel_inventory = verify_provenance_wheelhouse(dest_wheelhouse, resolver_provenance)
-        requirements_lock = render_provenance_lock(resolver_provenance)
-        _assert_confined_nonsymlink_destination(target_dir, "requirements.txt")
-        _write_confined_text(target_dir, "requirements.txt", requirements_lock)
 
-        # 3. Dockerfile
-        dockerfile_content = render_mcp_sidecar_dockerfile(
-            base_image=base_image, runtime_assets=sorted_assets
-        )
-        _assert_confined_nonsymlink_destination(target_dir, "Dockerfile")
-        _write_confined_text(target_dir, "Dockerfile", dockerfile_content)
+    # 2. Confine target directory and refuse if it exists as symlink or contains reserved files / planted symlinks
+    target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
+    if target_dir.is_symlink():
+        raise SubstrateError(f"target_dir is a symlink: {target_dir.as_posix()!r}")
+    if target_dir.exists():
+        if target_dir.is_symlink() or not target_dir.is_dir():
+            raise SubstrateError(f"target_dir must be a non-symlink directory: {target_dir.as_posix()!r}")
+        for name in (".dockerignore", "Dockerfile.dockerignore", "compose.yaml", "docker-compose.yaml"):
+            planted = target_dir / name
+            if planted.exists() or planted.is_symlink():
+                raise SubstrateError(f"Target contains reserved build-control file: {name}")
+        for name in ("server.py", "requirements.txt", "Dockerfile", "offline-build-proof.json", "wheelhouse"):
+            entry = target_dir / name
+            if entry.is_symlink():
+                raise SubstrateError(f"target contains symlink entry: {name}")
+        for asset, _content in prepared_assets:
+            entry = target_dir / asset.destination
+            if entry.is_symlink():
+                raise SubstrateError(f"target contains symlink destination: {asset.destination}")
 
-        proof_data = {
-            "mode": "complete_offline_package",
-            "substrate_version": MCP_SUBSTRATE_VERSION,
-            **runtime_meta,
-            "requirements_sha256": compute_sha256(requirements_lock),
-            "wheel_count": len(wheel_inventory),
-            "wheels": wheel_inventory,
-            "dockerfile_sha256": compute_sha256(dockerfile_content),
-        }
-        if asset_proof:
-            proof_data["runtime_assets"] = asset_proof
-        _assert_confined_nonsymlink_destination(target_dir, "offline-build-proof.json")
-        _write_confined_text(
-            target_dir, "offline-build-proof.json", canonical_json(proof_data) + "\n"
+    parent = target_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW)
+
+    # 3. Create unguessable private staging directory in sibling location with mode 0700
+    staging = Path(tempfile.mkdtemp(prefix=f".{target_dir.name}.", dir=parent))
+    os.chmod(staging, 0o700)
+    published = False
+    try:
+        proof_data, _sorted_assets = _stage_clean_package_directory(
+            staging=staging,
+            tools=tools,
+            server_name=server_name,
+            port=port,
+            base_image=base_image,
+            wheelhouse_source=wheelhouse_source,
+            op_registry_module=op_registry_module,
+            fault_record=fault_record,
+            plan_only=plan_only,
+            selected_target=selected_target,
+            resolver_provenance=resolver_provenance,
+            runtime_meta=runtime_meta,
+            prepared_assets=prepared_assets,
         )
 
-    if plan_only:
-        _assert_confined_nonsymlink_destination(target_dir, "requirements.txt")
-        _write_confined_text(
-            target_dir,
-            "requirements.txt",
-            "# plan-only; resolve a target wheelhouse before build\n",
-        )
+        # Fsync staging directory before publishing
+        staging_fd = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW)
+        try:
+            os.fsync(staging_fd)
+        finally:
+            os.close(staging_fd)
+
+        # 4. Atomic publish via renameat under parent directory fd (replaces raced symlink, never follows)
+        if target_dir.exists():
+            hold = Path(tempfile.mkdtemp(prefix=f".{target_dir.name}.hold.", dir=parent))
+            parked = hold / "old_target"
+            os.rename(target_dir.name, parked.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            try:
+                os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            except Exception:
+                os.rename(parked.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+                shutil.rmtree(hold, ignore_errors=True)
+                raise
+            shutil.rmtree(hold, ignore_errors=True)
+        else:
+            os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        os.fsync(parent_fd)
+        published = True
+    finally:
+        os.close(parent_fd)
+        if not published:
+            shutil.rmtree(staging, ignore_errors=True)
 
     # Compose and Collect fragments
     compose_doc = render_mcp_compose_document(
@@ -1081,98 +1110,147 @@ class WheelhouseTarget:
     platform_tag: str
 
 
-def _wheel_metadata(wheel: Path) -> tuple[str, str]:
-    """Return normalized distribution name/version from a wheel's METADATA bytes."""
+def _wheel_metadata_from_bytes(raw_bytes: bytes, wheel_name: str) -> tuple[str, str]:
+    """Return normalized distribution name/version from raw wheel bytes."""
+    import io
     import zipfile
     from email.parser import BytesParser
 
-    with zipfile.ZipFile(wheel) as archive:
+    with zipfile.ZipFile(io.BytesIO(raw_bytes)) as archive:
         metadata_names = [
             name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
         ]
         if len(metadata_names) != 1:
             raise SubstrateError(
-                f"wheel {wheel.name!r} must contain exactly one dist-info/METADATA"
+                f"wheel {wheel_name!r} must contain exactly one dist-info/METADATA"
             )
         metadata = BytesParser().parsebytes(archive.read(metadata_names[0]))
     name = metadata.get("Name")
     version = metadata.get("Version")
     if not name or not version:
-        raise SubstrateError(f"wheel {wheel.name!r} METADATA must declare Name and Version")
+        raise SubstrateError(f"wheel {wheel_name!r} METADATA must declare Name and Version")
     return name.lower().replace("_", "-"), version
+
+
+def _wheel_metadata(wheel: Path) -> tuple[str, str]:
+    """Return normalized distribution name/version from a wheel file."""
+    raw = _read_runtime_asset_source(wheel)
+    return _wheel_metadata_from_bytes(raw, wheel.name)
 
 
 def render_selected_wheel_lock(
     wheelhouse_dir: Path, target: WheelhouseTarget
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Hash the selected platform wheel bytes and render a precise offline pip lock.
+    """Hash the selected platform wheel bytes and render a precise offline pip lock."""
+    try:
+        st = os.lstat(wheelhouse_dir)
+    except OSError as exc:
+        raise SubstrateError(f"Cannot stat wheelhouse: {wheelhouse_dir.as_posix()!r}") from exc
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise SubstrateError(f"wheelhouse directory is missing or symlink: {wheelhouse_dir}")
 
-    The wheelhouse is the source of truth: no universal PyPI artifact hash list is used.
-    """
-    if not wheelhouse_dir.is_dir():
-        raise SubstrateError(f"wheelhouse directory is missing: {wheelhouse_dir}")
-    all_wheels = sorted(wheelhouse_dir.glob("*.whl"))
-    wheels = [
-        wheel
-        for wheel in all_wheels
-        if "-none-any.whl" in wheel.name
-        or (
-            target.python_tag in wheel.name
-            and (
-                target.platform_tag in wheel.name
-                or (target.platform_tag.startswith("macosx") and "universal2" in wheel.name)
+    src_fd = os.open(wheelhouse_dir, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW)
+    try:
+        entries = sorted(os.listdir(src_fd))
+        all_wheels = [name for name in entries if name.endswith(".whl")]
+        wheels = [
+            name
+            for name in all_wheels
+            if "-none-any.whl" in name
+            or (
+                target.python_tag in name
+                and (
+                    target.platform_tag in name
+                    or (target.platform_tag.startswith("macosx") and "universal2" in name)
+                )
             )
-        )
-        or ("abi3" in wheel.name and target.platform_tag in wheel.name)
-    ]
-    if not wheels:
-        raise SubstrateError("wheelhouse has no selected wheels")
-    seen: set[str] = set()
-    inventory: list[dict[str, Any]] = []
-    lock_lines = [f"# target-python={target.python_tag} target-platform={target.platform_tag}"]
-    for wheel in wheels:
-        name, version = _wheel_metadata(wheel)
-        if name in seen:
-            raise SubstrateError(f"wheelhouse contains duplicate distribution {name!r}")
-        seen.add(name)
-        raw = wheel.read_bytes()
-        digest = hashlib.sha256(raw).hexdigest()
-        inventory.append(
-            {
-                "filename": wheel.name,
-                "name": name,
-                "version": version,
-                "size_bytes": len(raw),
-                "sha256": digest,
-            }
-        )
-        lock_lines.append(f"{name}=={version} --hash=sha256:{digest}")
-    if "fastmcp" not in seen:
-        raise SubstrateError(
-            "wheelhouse is missing required locked package fastmcp for selected target"
-        )
-    return "\n".join(lock_lines) + "\n", inventory
+            or ("abi3" in name and target.platform_tag in name)
+        ]
+        if not wheels:
+            raise SubstrateError("wheelhouse has no selected wheels")
+        seen: set[str] = set()
+        inventory: list[dict[str, Any]] = []
+        lock_lines = [f"# target-python={target.python_tag} target-platform={target.platform_tag}"]
+        for wheel_name in wheels:
+            w_fd = os.open(wheel_name, os.O_RDONLY | _NOFOLLOW, dir_fd=src_fd)
+            try:
+                w_st = os.fstat(w_fd)
+                if not stat.S_ISREG(w_st.st_mode):
+                    raise SubstrateError(f"wheel {wheel_name!r} is not a regular file")
+                with os.fdopen(w_fd, "rb") as handle:
+                    w_fd = -1
+                    content = handle.read()
+            finally:
+                if w_fd >= 0:
+                    os.close(w_fd)
+
+            name, version = _wheel_metadata_from_bytes(content, wheel_name)
+            if name in seen:
+                raise SubstrateError(f"wheelhouse contains duplicate distribution {name!r}")
+            seen.add(name)
+            digest = hashlib.sha256(content).hexdigest()
+            inventory.append(
+                {
+                    "filename": wheel_name,
+                    "name": name,
+                    "version": version,
+                    "size_bytes": len(content),
+                    "sha256": digest,
+                }
+            )
+            lock_lines.append(f"{name}=={version} --hash=sha256:{digest}")
+        if "fastmcp" not in seen:
+            raise SubstrateError(
+                "wheelhouse is missing required locked package fastmcp for selected target"
+            )
+        return "\n".join(lock_lines) + "\n", inventory
+    finally:
+        os.close(src_fd)
 
 
 def stage_platform_wheelhouse(
     source: Path, destination: Path, target: WheelhouseTarget
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Copy a selected explicit-target wheelhouse and derive its byte-exact requirements lock."""
+    """Copy a selected explicit-target wheelhouse via O_NOFOLLOW file descriptor reads and writes."""
     lock, inventory = render_selected_wheel_lock(source, target)
+    try:
+        st = os.lstat(source)
+    except OSError as exc:
+        raise SubstrateError(f"Cannot stat source wheelhouse: {source.as_posix()!r}") from exc
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise SubstrateError("source wheelhouse must be a non-symlink directory")
+
     if destination.is_symlink():
         raise SubstrateError("wheelhouse destination is a symlink")
     destination.mkdir(parents=True, exist_ok=True)
     if destination.is_symlink() or not destination.is_dir():
         raise SubstrateError("wheelhouse destination is not a real directory")
-    for item in inventory:
-        filename = item["filename"]
-        if Path(filename).name != filename:
-            raise SubstrateError(f"wheel filename is not a basename: {filename!r}")
-        content = _read_runtime_asset_source(source / filename)
-        dest_file = destination / filename
-        if dest_file.is_symlink():
-            raise SubstrateError(f"wheelhouse entry is a symlink: {filename!r}")
-        _write_confined_bytes(destination, filename, content)
+
+    src_fd = os.open(source, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW)
+    try:
+        for item in inventory:
+            filename = item["filename"]
+            if Path(filename).name != filename:
+                raise SubstrateError(f"wheel filename is not a basename: {filename!r}")
+            w_fd = os.open(filename, os.O_RDONLY | _NOFOLLOW, dir_fd=src_fd)
+            try:
+                w_st = os.fstat(w_fd)
+                if not stat.S_ISREG(w_st.st_mode):
+                    raise SubstrateError(f"wheel {filename!r} is not a regular file")
+                with os.fdopen(w_fd, "rb") as handle:
+                    w_fd = -1
+                    content = handle.read()
+            finally:
+                if w_fd >= 0:
+                    os.close(w_fd)
+
+            dest_file = destination / filename
+            if dest_file.is_symlink():
+                raise SubstrateError(f"wheelhouse entry is a symlink: {filename!r}")
+            _write_confined_bytes(destination, filename, content)
+    finally:
+        os.close(src_fd)
+
     return lock, inventory
 
 
@@ -1222,8 +1300,8 @@ def verify_provenance_wheelhouse(
     wheelhouse: Path, provenance: ResolverProvenance
 ) -> list[dict[str, Any]]:
     """Verify selected staged bytes exactly match the trusted resolver provenance manifest."""
-    if not wheelhouse.is_dir():
-        raise SubstrateError("wheelhouse directory is missing")
+    if not wheelhouse.is_dir() or wheelhouse.is_symlink():
+        raise SubstrateError("wheelhouse directory is missing or symlink")
     expected = {item["filename"]: item for item in provenance.wheels}
     found = {wheel.name: wheel for wheel in wheelhouse.glob("*.whl")}
     if set(found) != set(expected):
@@ -1234,7 +1312,8 @@ def verify_provenance_wheelhouse(
     for filename, record in sorted(expected.items()):
         wheel = found[filename]
         name, version = _wheel_metadata(wheel)
-        actual = hashlib.sha256(wheel.read_bytes()).hexdigest()
+        content = _read_runtime_asset_source(wheel)
+        actual = hashlib.sha256(content).hexdigest()
         if (
             name != record["name"].lower().replace("_", "-")
             or version != record["version"]
@@ -1246,7 +1325,7 @@ def verify_provenance_wheelhouse(
                 "filename": filename,
                 "name": name,
                 "version": version,
-                "size_bytes": wheel.stat().st_size,
+                "size_bytes": len(content),
                 "sha256": actual,
             }
         )

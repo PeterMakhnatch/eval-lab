@@ -4,7 +4,7 @@ topic: zai-opencode-mcp-wave1-wave2-analysis
 author: research-engineer
 date: 2026-08-29
 status: complete
-epistemic: observed outcomes across Flash, Full, and Highspeed on MCP synthetic benchmarks; strictly scoped to tested configurations; no general ranking or unsupported dose slopes
+epistemic: observed outcomes across Flash and Full GLM-5.3 on MCP synthetic benchmarks; Highspeed is subscription access evidence only; strictly scoped to tested configurations; no general ranking or unsupported dose slopes
 collection: trajectory-analysis
 reviewed: 2026-08-29
 snapshot_digest: sha256:dbaa75f35816e2374ffa1c0f3b9af43ceb0975b07daa59815bdba333d096a478
@@ -20,14 +20,14 @@ This report consolidates empirical findings from the expanded Z.ai Coding Plan e
 2. **Action Memory (Context Dilation & Distraction Resistance: 4k, 16k, 64k)**
 3. **Recovery (Error Detection & Autonomous Adaptation: transient 5xx, persistent signature, silent wrong)**
 
-The evaluated corpus comprises **47 total attempts** (45 scored trials + 2 infrastructure exclusions):
+The promoted corpus comprises **47 total attempts** (45 scored trials + 2 default-timeout scaffold `AgentTimeoutError` infrastructure exclusions). If reporting all observed execution initiations, there were **48 total executions** (47 promoted attempts + 1 observed unpromoted Highspeed HTTP 429 subscription access failure before cancellation; the other two planned mini cells were cancelled and unexecuted, never forming a reward denominator):
 
 - **Combined Program Scored Total:** 33/45 passed (73.3%) across Wave 1 (15/18) and Wave 2 (18/27).
 - **Wave 2 Scored Total:** 18/27 passed (66.7% across 27 scored trials):
   - **GLM-5.3-Flash (Wave 2):** 16/24 passed (16/24, 66.7%).
   - **GLM-5.3 Full (Wave 2):** 2/3 passed (2/3, 66.7% — FuncDAG depth 5 canary 1/1, Recovery persistent signature 1/1, Action 64k semantic 0/1).
-- **GLM-5.3-Highspeed:** 0/0 scored trials (all 3 mini-battery attempts were excluded from scored denominators due to upstream subscription HTTP 429 access restrictions).
-- **Infrastructure Exclusions (Non-Scored):** 2 trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).
+- **GLM-5.3-Highspeed:** 0 scored trials (1 observed unpromoted HTTP 429 subscription access failure before job cancellation; the remaining two planned mini cells were cancelled/unexecuted and are not scored denominators).
+- **Infrastructure Exclusions (Promoted):** 2 trials (both default-timeout sequential scaffold `AgentTimeoutError` runs in `zai-wave2-action64k-s1337-sequential-scaffold`; Highspeed is separate and outside the promoted corpus).
 
 | Benchmark Family | Wave | Model | Tasks / Cells | Completed Trials | Reward 1.0 | Pass Rate |
 |---|---|---|---|---:|---:|---:|
@@ -70,8 +70,8 @@ The evaluated corpus comprises **47 total attempts** (45 scored trials + 2 infra
   2. **Omitted Handle Invariant:** In all 6 trials, the agent omitted the valid listed chunk `ctx_2110473c018845ab0cc32bf4` (`...32bf4`).
   3. **Near-Typo Hallucination:** In 5 of 6 trials (`xTVP9AZ`, `Qoz3nbU`, `wCHLZ4M`, `FLiG7jy`, `Pgukjp8`), the agent transcribed a 1-character hallucinated typo handle `ctx_2110473c018845ab0cc32bf6` (`...32bf6`). In 1 trial (`JvdEs9Y`), the agent transcribed `ctx_2110473c018845ab0cc32bf3` (`...32bf3`).
   4. **Duplicate & Mismatch Dynamics:** In `Pgukjp8`, the agent issued 259 total calls including a duplicate typo call (`...32bf6` called twice) plus a duplicate final handle (`ctx_f4e8c2abe047ae311b1b587b`). Three trials deviated from listed order early (call index 2 or 10), whereas three trials preserved exact prefix order until encountering the omitted handle at call index 83.
-  5. **Event-Level Success:** 256/257 calls (99.6%) succeeded on the FastMCP server; the single unlisted typo handle returned a 404 error.
-- **64k Semantic Distractor (Wave 2, Full GLM-5.3, seed 42):** Scored 0.0 under context pressure.
+  5. **Event-Level Success & Content Validation:** Across all six failure trials, transport-level status was `tool_call_success` on all 257 calls (259 in the duplicate trial), with the FastMCP server returning valid content on 256 unique handles and an application-level `{status: ok, value: {error: not_found}}` payload on the single unlisted typo handle (the 259-call trial had two application-level `not_found` responses for the repeated typo plus one valid duplicate handle).
+- **64k Semantic Distractor (Wave 2, Full GLM-5.3, seed 42):** Scored 0.0 (`action-64k-semantic_distractor-s__ZppWXWx`). Trajectory and benchmark-event audit shows it issued 258 calls for 257 expected, retrieving all 257 unique valid handles plus a duplicate final handle and reordered batches (first mismatch at call index 1 with 39 order mismatches in shared prefix), resulting in `incomplete_or_reordered_context_retrieval`.
 
 ### 2.3 Recovery Fault Detection & Autonomous Adaptation
 

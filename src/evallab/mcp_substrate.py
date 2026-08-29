@@ -814,28 +814,13 @@ def materialize_mcp_sidecar_package(
         if resolver_provenance.target != selected_target:
             raise SubstrateError("resolver provenance target does not match requested target")
 
-    # 2. Confine target directory and validate non-symlink
+    # 2. Target path MUST be absent up front; refuse existing file, directory, or symlink
     if target_dir.is_symlink():
         raise SubstrateError(f"target_dir is a symlink: {target_dir.as_posix()!r}")
     raw_target = target_dir
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
-    if raw_target.is_symlink() or target_dir.is_symlink():
-        raise SubstrateError(f"target_dir is a symlink: {target_dir.as_posix()!r}")
-    if target_dir.exists():
-        if not target_dir.is_dir():
-            raise SubstrateError(f"target_dir must be a directory: {target_dir.as_posix()!r}")
-        for name in (".dockerignore", "Dockerfile.dockerignore", "compose.yaml", "docker-compose.yaml"):
-            planted = target_dir / name
-            if planted.exists() or planted.is_symlink():
-                raise SubstrateError(f"Target contains reserved build-control file: {name}")
-        for name in ("server.py", "requirements.txt", "Dockerfile", "offline-build-proof.json", "wheelhouse"):
-            entry = target_dir / name
-            if entry.is_symlink():
-                raise SubstrateError(f"target contains symlink entry: {name}")
-        for asset, _content in prepared_assets:
-            entry = target_dir / asset.destination
-            if entry.is_symlink():
-                raise SubstrateError(f"target contains symlink destination: {asset.destination}")
+    if raw_target.exists() or raw_target.is_symlink() or target_dir.exists() or target_dir.is_symlink():
+        raise SubstrateError(f"target_dir already exists: {target_dir.as_posix()!r}")
 
     parent = target_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -869,22 +854,8 @@ def materialize_mcp_sidecar_package(
         finally:
             os.close(staging_fd)
 
-        # 4. Atomic publish via renameat under parent directory fd (safely parks existing target into private hold)
-        if target_dir.exists():
-            hold = Path(tempfile.mkdtemp(prefix=f".{target_dir.name}.hold.", dir=parent))
-            os.chmod(hold, 0o700)
-            parked_rel = f"{hold.name}/old_target"
-            os.rename(target_dir.name, parked_rel, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-            try:
-                os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-            except Exception:
-                with contextlib.suppress(Exception):
-                    os.rename(parked_rel, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-                shutil.rmtree(hold, ignore_errors=True)
-                raise
-            shutil.rmtree(hold, ignore_errors=True)
-        else:
-            os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        # 4. Atomic publish via single rename under parent directory fd
+        os.rename(staging.name, target_dir.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         os.fsync(parent_fd)
         published = True
     finally:

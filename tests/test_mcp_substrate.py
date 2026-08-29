@@ -869,24 +869,21 @@ def test_runtime_asset_rejects_prefix_conflicts(tmp_path: Path):
         )
 
 
-def test_materialize_over_existing_directory_succeeds(tmp_path: Path):
+def test_materialize_refuses_existing_target_path(tmp_path: Path):
+    # Existing directory
     pkg_dir = tmp_path / "pkg_dir"
     pkg_dir.mkdir()
-    (pkg_dir / "old_stale.txt").write_text("stale", encoding="utf-8")
-    materialize_mcp_sidecar_package(
-        target_dir=pkg_dir,
-        tools=[_runtime_asset_tool()],
-        plan_only=True,
-    )
-    assert (pkg_dir / "server.py").is_file()
-    assert not (pkg_dir / "old_stale.txt").exists()
+    with pytest.raises(SubstrateError, match="already exists"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg_dir,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )
 
-
-def test_materialize_refuses_existing_file_and_symlink(tmp_path: Path):
     # Existing file
     pkg_file = tmp_path / "pkg_file"
     pkg_file.write_text("dummy", encoding="utf-8")
-    with pytest.raises(SubstrateError, match="must be a directory"):
+    with pytest.raises(SubstrateError, match="already exists"):
         materialize_mcp_sidecar_package(
             target_dir=pkg_file,
             tools=[_runtime_asset_tool()],
@@ -898,44 +895,12 @@ def test_materialize_refuses_existing_file_and_symlink(tmp_path: Path):
     real_dir.mkdir()
     pkg_link = tmp_path / "pkg_link"
     pkg_link.symlink_to(real_dir)
-    with pytest.raises(SubstrateError, match="symlink"):
+    with pytest.raises(SubstrateError, match="already exists|symlink"):
         materialize_mcp_sidecar_package(
             target_dir=pkg_link,
             tools=[_runtime_asset_tool()],
             plan_only=True,
         )
-
-
-def test_repeated_materialize_with_sibling_old_target(tmp_path: Path):
-    pkg = tmp_path / "pkg"
-    sibling = tmp_path / "old_target"
-    sibling.mkdir()
-    (sibling / "file.txt").write_text("keep_me", encoding="utf-8")
-
-    # First materialize
-    materialize_mcp_sidecar_package(
-        target_dir=pkg,
-        tools=[_runtime_asset_tool()],
-        plan_only=True,
-    )
-    assert (pkg / "server.py").is_file()
-
-    # Second materialize over existing pkg with sibling old_target present
-    materialize_mcp_sidecar_package(
-        target_dir=pkg,
-        tools=[_runtime_asset_tool()],
-        plan_only=True,
-    )
-    assert (pkg / "server.py").is_file()
-    assert (sibling / "file.txt").read_text(encoding="utf-8") == "keep_me"
-
-    # Third materialize over existing pkg
-    materialize_mcp_sidecar_package(
-        target_dir=pkg,
-        tools=[_runtime_asset_tool()],
-        plan_only=True,
-    )
-    assert (pkg / "server.py").is_file()
 
 
 def test_planted_wheelhouse_symlinks_rejected(tmp_path: Path):

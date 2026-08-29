@@ -208,13 +208,6 @@ def materialize(
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
         runtime_assets=runtime_assets,
     )
-    (mcp_sidecar_dir / "Dockerfile").write_text(
-        render_mcp_sidecar_dockerfile(
-            base_image=DEFAULT_PINNED_BASE_IMAGE,
-            runtime_assets=runtime_assets,
-        ),
-        encoding="utf-8",
-    )
     compose_doc = pkg["compose_doc"]
     compose_doc["services"]["main"].pop("image", None)
     compose_doc["services"]["main"]["build"] = "."

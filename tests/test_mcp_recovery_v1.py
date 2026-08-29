@@ -107,6 +107,7 @@ def _start_fastmcp(tmp_path: Path, fault: FaultClass, persistence: int) -> tuple
     env = {
         **os.environ,
         "MCP_RECOVERY_OUTPUT": str(out_dir),
+        "MCP_RECOVERY_PRIVATE_STATE": str(tmp_path / "private-state.json"),
         "MCP_RECOVERY_HOST": "127.0.0.1",
         "MCP_RECOVERY_PORT": str(port),
     }
@@ -229,8 +230,7 @@ def test_templates_all_cells_oracle_and_controls_do_not_plant_invariants(tmp_pat
             assert verifier.verify_harbor_task(task)["reward"] == 0.0
 
 
-def test_all_campaign0_cells_materialize_and_pass_static(monkeypatch):
-    monkeypatch.setenv("MCP_RECOVERY_WHEELHOUSE", "/tmp/no-wheelhouse")
+def test_all_campaign0_cells_materialize_and_pass_static():
     materializer = load("materializer")
     repo_root = Path(__file__).resolve().parents[1]
     paths = materializer.materialize_all_campaign0(seed=42)

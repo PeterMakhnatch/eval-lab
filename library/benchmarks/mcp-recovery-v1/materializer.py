@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,10 @@ from evallab.mcp_substrate import (
     DEFAULT_VOLUME_NAME,
     MCPToolDefinition,
     MCPToolParameter,
+    ResolverProvenance,
+    WheelhouseTarget,
+    DEFAULT_TARGET_PLATFORM_TAG,
+    DEFAULT_TARGET_PYTHON_TAG,
     generate_fastmcp_server_script,
     materialize_mcp_sidecar_package,
     render_mcp_compose_document,
@@ -38,7 +43,8 @@ from source import reject_committed_corpora, source_digest
 DEFAULT_OUT_DIR = Path("derived/harbor-tasks/mcp-recovery")
 SIDECAR_DIRNAME = "mcp-server"
 WHEELHOUSE_ENV = "MCP_RECOVERY_WHEELHOUSE"
-DEFAULT_WHEELHOUSE = Path("/tmp/fastmcp3_wheelhouse")
+RESOLVER_PROVENANCE_ENV = "MCP_RECOVERY_RESOLVER_PROVENANCE"
+SIDECAR_TARGET = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
 
 
 def output_path(
@@ -52,14 +58,21 @@ def output_path(
     return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{slug}-p{persistence}"
 
 
-def _wheelhouse() -> Path | None:
-    raw = os.environ.get(WHEELHOUSE_ENV, "").strip()
-    if not raw:
+def _wheelhouse_inputs() -> tuple[Path, ResolverProvenance] | None:
+    wheelhouse_raw = os.environ.get(WHEELHOUSE_ENV, "").strip()
+    provenance_raw = os.environ.get(RESOLVER_PROVENANCE_ENV, "").strip()
+    if not wheelhouse_raw and not provenance_raw:
         return None
-    path = Path(raw)
-    if path.is_dir() and any(path.glob("*.whl")):
-        return path
-    return None
+    if not wheelhouse_raw or not provenance_raw:
+        raise ValueError(f"{WHEELHOUSE_ENV} and {RESOLVER_PROVENANCE_ENV} must be set together")
+    wheelhouse = Path(wheelhouse_raw)
+    provenance_path = Path(provenance_raw)
+    if not wheelhouse.is_dir() or not provenance_path.is_file():
+        raise ValueError("target wheelhouse and resolver provenance must exist")
+    provenance = ResolverProvenance.from_json(json.loads(provenance_path.read_text(encoding="utf-8")))
+    if provenance.target != SIDECAR_TARGET:
+        raise ValueError("resolver provenance target does not match the pinned sidecar runtime")
+    return wheelhouse, provenance
 
 
 def _recovery_tools() -> list[MCPToolDefinition]:
@@ -103,9 +116,10 @@ from typing import Any
 
 FAULT_ID = "{fault_id}"
 PERSISTENCE = {persistence}
-PRIVATE_STATE = Path("/app/.recovery-runtime-state.json")
-PUBLIC_EVENTS = Path("/app/output/agent-events.jsonl")
-PUBLIC_CERTIFICATE = Path("/app/output/agent-state.json")
+PRIVATE_STATE = Path(os.environ.get("MCP_RECOVERY_PRIVATE_STATE", "/app/.recovery-runtime-state.json"))
+PUBLIC_ROOT = Path(os.environ.get("MCP_RECOVERY_OUTPUT", "/app/output"))
+PUBLIC_EVENTS = PUBLIC_ROOT / "agent-events.jsonl"
+PUBLIC_CERTIFICATE = PUBLIC_ROOT / "agent-state.json"
 
 
 def _digest(value: Any) -> str:
@@ -121,6 +135,7 @@ def _load() -> dict[str, Any]:
 
 
 def _save(state: dict[str, Any]) -> None:
+    PRIVATE_STATE.parent.mkdir(parents=True, exist_ok=True)
     PRIVATE_STATE.write_text(json.dumps(state, sort_keys=True) + "\\n", encoding="utf-8")
 
 
@@ -210,7 +225,7 @@ def recovery_write_record(key: str, value: str) -> Any:
 '''
 
 
-def generate_recovery_server_script(fault_class: FaultClass, persistence: int, fault_id: str = "opaque-test-fault") -> str:
+def generate_recovery_server_script(fault_class: FaultClass, persistence: int, fault_id: str) -> str:
     script = generate_fastmcp_server_script(
         tools=_recovery_tools(),
         server_name="mcp-recovery-sidecar",
@@ -485,14 +500,20 @@ as sufficient evidence of recovery.
     env_dir = target_dir / "environment"
     sidecar_dir = env_dir / SIDECAR_DIRNAME
     env_dir.mkdir(parents=True, exist_ok=True)
-    wheelhouse = _wheelhouse()
+    if sidecar_dir.exists():
+        shutil.rmtree(sidecar_dir)
+    wheelhouse_inputs = _wheelhouse_inputs()
+    wheelhouse = wheelhouse_inputs[0] if wheelhouse_inputs else None
+    provenance = wheelhouse_inputs[1] if wheelhouse_inputs else None
     pkg = materialize_mcp_sidecar_package(
         target_dir=sidecar_dir,
         tools=_recovery_tools(),
         server_name="mcp-recovery-sidecar",
         port=DEFAULT_MCP_PORT,
         wheelhouse_source=wheelhouse,
-        plan_only=wheelhouse is None,
+        plan_only=wheelhouse_inputs is None,
+        target=provenance.target if provenance else None,
+        resolver_provenance=provenance,
     )
     (sidecar_dir / "server.py").write_text(generate_recovery_server_script(fault, persistence, record.fault_id), encoding="utf-8")
     if wheelhouse is None:

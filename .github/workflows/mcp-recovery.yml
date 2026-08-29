@@ -49,17 +49,25 @@ jobs:
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
       - name: Install Harbor 0.21.0
         run: uv tool install "harbor==0.21.0"
-      - name: Populate FastMCP wheelhouse
+      - name: Resolve and record canonical target wheelhouse
         run: |
           set -euo pipefail
-          uv run python - <<'PY'
-          from pathlib import Path
-          from evallab.mcp_substrate import FASTMCP_SIDECAR_REQUIREMENTS_TXT
-          Path("/tmp/fastmcp3_reqs.txt").write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT)
-          PY
           mkdir -p /tmp/fastmcp3_wheelhouse
-          python3 -m pip download --require-hashes -r /tmp/fastmcp3_reqs.txt -d /tmp/fastmcp3_wheelhouse
+          python3 -m pip download --only-binary=:all: --implementation cp --python-version 3.12 --abi cp312 --platform manylinux_2_17_x86_64 --dest /tmp/fastmcp3_wheelhouse fastmcp==3.4.7
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+          from evallab.mcp_substrate import WheelhouseTarget, record_prepackaging_provenance
+          provenance = record_prepackaging_provenance(
+              Path("/tmp/fastmcp3_wheelhouse"),
+              WheelhouseTarget("cp312", "manylinux_2_17_x86_64"),
+          )
+          Path("/tmp/fastmcp3-resolver-provenance.json").write_text(
+              json.dumps(provenance.to_dict(), sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
           echo "MCP_RECOVERY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse" >> "$GITHUB_ENV"
+          echo "MCP_RECOVERY_RESOLVER_PROVENANCE=/tmp/fastmcp3-resolver-provenance.json" >> "$GITHUB_ENV"
       - name: Materialize task cell
         id: materialize
         env:

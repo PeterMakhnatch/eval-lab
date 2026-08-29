@@ -74,7 +74,7 @@ def materialize(
     distractor_count: int = 4,
     wheelhouse_source: Path | None = None,
     resolver_provenance: Any | None = None,
-    plan_only: bool = False,
+    plan_only: bool = True,
 ) -> dict[str, object]:
     state_mod = _get_state_module()
     generate_scenario = state_mod.generate_scenario
@@ -464,11 +464,32 @@ You are operating an agent workflow against a stateful streamable HTTP MCP serve
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Action Memory benchmark materializer")
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--cell-id", type=str, default="clean-baseline-4k")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--wheelhouse-source", type=Path, default=None)
+    parser.add_argument("--provenance-file", type=Path, default=None)
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument("--plan-only", action="store_true", help="Generate task plan specification without container build artifacts")
+    mode_group.add_argument("--production", action="store_true", help="Generate complete production package requiring wheelhouse")
     args = parser.parse_args()
 
-    res = materialize(output_dir=args.output_dir, cell_id=args.cell_id, seed=args.seed)
+    provenance = None
+    if args.production:
+        if args.wheelhouse_source is None:
+            parser.error("--production requires --wheelhouse-source")
+        if args.provenance_file is None or not args.provenance_file.is_file():
+            parser.error("--production requires valid --provenance-file")
+        from evallab.mcp_substrate import ResolverProvenance
+        provenance = ResolverProvenance.from_json(json.loads(args.provenance_file.read_text(encoding="utf-8")))
+
+    res = materialize(
+        output_dir=args.output_dir,
+        cell_id=args.cell_id,
+        seed=args.seed,
+        wheelhouse_source=args.wheelhouse_source,
+        resolver_provenance=provenance,
+        plan_only=args.plan_only,
+    )
     print(json.dumps(res, indent=2))

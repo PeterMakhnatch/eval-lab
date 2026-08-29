@@ -180,13 +180,7 @@ jobs:
               --n-concurrent 1 \
               --n-attempts 1 \
               --yes
-            uv run python - <<PY
-            from pathlib import Path
-            from evallab.registry import discover_control_evidence
-            evidence = discover_control_evidence(Path("${task_p}"), Path.cwd())
-            assert evidence.oracle.reward == 1.0
-            assert evidence.nop.reward == 0.0
-            PY
+            uv run python scripts/mcp_recovery/ci_pair.py controls "$task_p"
 
             # 5. Real Harbor fixed-policy execution against staged task copy
             staged_fixed="/tmp/harbor_staged_fixed_${arm}_${FAULT_MODE}_p${PERSISTENCE}"
@@ -194,14 +188,7 @@ jobs:
             cp -r "$task_p" "$staged_fixed"
 
             # Verify byte-identical fixed-policy probe across arms
-            uv run python - <<PY
-            import hashlib
-            from pathlib import Path
-            f_probe = Path("${fault_task}") / "controls/fixed-policy/blind-retry.sh"
-            c_probe = Path("${clean_task}") / "controls/fixed-policy/blind-retry.sh"
-            assert f_probe.is_file() and c_probe.is_file()
-            assert hashlib.sha256(f_probe.read_bytes()).hexdigest() == hashlib.sha256(c_probe.read_bytes()).hexdigest()
-            PY
+            uv run python scripts/mcp_recovery/ci_pair.py same-policy "$fault_task" "$clean_task"
 
             cp "$task_p/controls/fixed-policy/blind-retry.sh" "$staged_fixed/solution/solve.sh"
             chmod +x "$staged_fixed/solution/solve.sh"
@@ -216,20 +203,8 @@ jobs:
               --yes
 
             expected_fixed=$([ "$arm" = "fault" ] && echo "0.0" || echo "1.0")
-            uv run python - <<PY
-            import sys
-            from pathlib import Path
-            sys.path.insert(0, str(Path("library/benchmarks/mcp-recovery-v1").resolve()))
-            from verifier import load_fixed_policy_evidence
-            job_name = "mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-fixed-policy-${GITHUB_RUN_ID}"
-            evidence = load_fixed_policy_evidence(
-                Path("research/evidence/runs") / job_name,
-                Path("${staged_fixed}"),
-            )
-            expected = float("${expected_fixed}")
-            assert evidence.reward == expected, f"Fixed policy reward {evidence.reward} != {expected}"
-            print(f"Fixed policy settled trial={evidence.trial_dir} task_digest={evidence.task_digest} reward={evidence.reward}")
-            PY
+            job_name="mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-fixed-policy-${GITHUB_RUN_ID}"
+            uv run python scripts/mcp_recovery/ci_pair.py fixed "research/evidence/runs/${job_name}" "$staged_fixed" "$expected_fixed"
           done
       - name: Upload review packet and retained evidence
         if: always()

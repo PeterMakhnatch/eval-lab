@@ -134,6 +134,11 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     assert "Dependency Graph Nodes:" in instruction
     assert "uses tool" in instruction
     assert "/app/result.json" in instruction
+    # The materialized oracle and verifier must be valid, executable Python:
+    # a syntax error here (e.g. a mis-escaped newline in the f-string template)
+    # silently scores the Docker oracle 0.0 in the Linux certification gate.
+    compile(oracle_py, "solve.py", "exec")
+    compile(verifier_eval, "verifier_eval.py", "exec")
 
 
 def test_materializer_oracle_nop_mutants_and_answer_only(tmp_path):

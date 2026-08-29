@@ -429,6 +429,88 @@ def test_action_memory_feature_extraction(action_memory_trial_dir: Path):
     assert features.stale_value_bound is False
     assert features.binding_survival_rate == 1.0
     assert features.construct == "actionable_entity_memory_and_value_binding"
+    assert features.expected_handle_count == 7
+    assert features.valid_handle_count == 2
+    assert features.handle_set_match is False
+    assert features.handle_coverage_rate == 2.0 / 7.0
+
+
+def test_action_memory_retrieval_handle_fidelity_checks(tmp_path: Path):
+    """C1 retrieval handle checks must discriminate missing, duplicate, unknown, and reordered handles."""
+    trial_dir = tmp_path / "action_handle_fidelity"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002", "chunk_003"],
+            "target_entity": "entity_42",
+            "latest_value": "target_val",
+        },
+        "task_id": "handle_fidelity_task",
+        "opportunity_counts": {"read_opportunity_count": 3, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    # Emits: chunk_001, chunk_001 (duplicate), chunk_999 (unknown), chunk_002. Missing chunk_003!
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_999"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "mcp_call",
+            "call_id": "c4",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 4,
+            "event_type": "execute_mutation",
+            "payload": {
+                "entity_id": "entity_42",
+                "attribute": "routing_key",
+                "bound_value": "target_val",
+            },
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 3
+    assert features.valid_handle_count == 2
+    assert features.unknown_handle_count == 1
+    assert features.duplicate_handle_count == 2
+    assert features.handle_set_match is False
+    assert features.handle_order_match is False
+    assert features.handle_coverage_rate == 2.0 / 3.0
 
 
 def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
@@ -1098,14 +1180,16 @@ def test_benchmark_contrasts_do_not_cross_model_dimensions():
             trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
             causal_grade, task_success, total_tool_calls, model_call_count,
             raw_binding_opportunities, raw_conflicting_opportunities, binding_matched,
-            stale_value_bound, citation, verifier_truth_digest, model_name, agent_name,
+            stale_value_bound, expected_handle_count, valid_handle_count, unknown_handle_count,
+            duplicate_handle_count, handle_set_match, handle_order_match, handle_coverage_rate,
+            citation, verifier_truth_digest, model_name, agent_name,
             task_name, harness_version, scaffold_version, repeat_group_id, dose_axis,
             dose_value, dose_unit, alphabet_id, alphabet_version, quality_status,
             report_digest, source_digest, producer_version, projection_identity,
             dimension_digest, projection_status, analysis_ready, projection_refusals
         ) VALUES (
             ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
-            'C1', true, 1, 1, 1, 1, true, false, 'cas:trial', 'sha256:truth',
+            'C1', true, 1, 1, 1, 1, true, false, 3, 3, 0, 0, true, true, 1.0, 'cas:trial', 'sha256:truth',
             ?, 'agent-a', 'task-name', 'harness-v1', 'scaffold-v1', ?, 'context_bytes',
             4096, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
             ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''
@@ -1244,14 +1328,16 @@ def test_c1_matched_contrasts_reject_mismatched_harness_or_dose_strata():
             trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
             causal_grade, task_success, total_tool_calls, model_call_count,
             raw_binding_opportunities, raw_conflicting_opportunities, binding_matched,
-            stale_value_bound, citation, verifier_truth_digest, model_name, agent_name,
+            stale_value_bound, expected_handle_count, valid_handle_count, unknown_handle_count,
+            duplicate_handle_count, handle_set_match, handle_order_match, handle_coverage_rate,
+            citation, verifier_truth_digest, model_name, agent_name,
             task_name, harness_version, scaffold_version, repeat_group_id, dose_axis,
             dose_value, dose_unit, alphabet_id, alphabet_version, quality_status,
             report_digest, source_digest, producer_version, projection_identity,
             dimension_digest, projection_status, analysis_ready, projection_refusals
         ) VALUES (
             ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
-            'C1', true, 1, 1, 1, 1, true, false, 'cas:trial', 'sha256:truth',
+            'C1', true, 1, 1, 1, 1, true, false, 3, 3, 0, 0, true, true, 1.0, 'cas:trial', 'sha256:truth',
             'model-a', 'agent-a', 'task-name', ?, 'scaffold-v1', 'repeat-a', 'context_bytes',
             ?, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
             ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''

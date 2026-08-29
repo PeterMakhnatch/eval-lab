@@ -232,6 +232,11 @@ class TrialBudget:
             self._output_tokens = max(0, self._output_tokens + extra_output - released_output)
             self._cost_micros = max(0, self._cost_micros + extra_cost - released_cost)
 
+    def remaining_output(self) -> int:
+        max_output = _int_env("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS")
+        with self._lock:
+            return max(0, max_output - self._output_tokens)
+
 
 class ProxyServer(ThreadingHTTPServer):
     budget: TrialBudget
@@ -342,13 +347,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             input_tokens = _estimate_tokens(payload)
+            max_output = _int_env("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS")
             requested_output = payload.get("max_tokens")
-            if requested_output is None:
-                output_tokens = _int_env("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS")
+            if requested_output is None or int(requested_output) <= 0:
+                output_tokens = max_output
             else:
-                output_tokens = int(requested_output)
-            if output_tokens < 0:
-                raise ValueError("max_tokens")
+                output_tokens = min(int(requested_output), max_output)
+            remaining_output = self._budget().remaining_output()
+            output_tokens = min(output_tokens, remaining_output)
+            if output_tokens <= 0:
+                self._reject(429, b"trial budget exhausted\n")
+                return
             cost = _cost_micros(input_tokens, output_tokens)
         except (TypeError, ValueError):
             self._reject(400, b"invalid budget fields\n")
@@ -385,6 +394,16 @@ class Handler(BaseHTTPRequestHandler):
                 "x-evallab-proxy-nonce",
             }
         }
+        forwarded = {
+            name: payload[name]
+            for name in ("model", "messages", "tools", "tool_choice", "temperature")
+            if name in payload
+        }
+        forwarded["model"] = allowed_model
+        forwarded["max_tokens"] = output_tokens
+        forwarded["n"] = 1
+        forwarded["stream"] = False
+        body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         headers["Authorization"] = f"Bearer {key}"
         headers["Content-Length"] = str(len(body))
         headers["Accept-Encoding"] = "identity"

@@ -376,30 +376,29 @@ class RedactingBinaryWriter:
         self._handle = path.open("wb")
         os.chmod(path, PRIVATE_PERSIST_MODE)
 
-    def _emit(self, data: bytes) -> int:
-        sanitized = redact_secret_material(data, self._secrets)
-        written = self._handle.write(sanitized)
+    def _flush_window(self, *, finalize: bool) -> None:
+        sanitized = redact_secret_material(self._pending, self._secrets)
+        if finalize or len(sanitized) <= self._holdback:
+            if finalize and sanitized:
+                self._handle.write(sanitized)
+                self._handle.flush()
+                sanitized = b""
+            self._pending = sanitized
+            return
+        emit, self._pending = sanitized[: -self._holdback], sanitized[-self._holdback :]
+        self._handle.write(emit)
         self._handle.flush()
-        return written
 
     def write(self, data: bytes) -> int:
         self._pending += data
-        if len(self._pending) <= self._holdback:
-            return len(data)
-        emit, self._pending = (
-            self._pending[: -self._holdback],
-            self._pending[-self._holdback :],
-        )
-        self._emit(emit)
+        self._flush_window(finalize=False)
         return len(data)
 
     def flush(self) -> None:
         self._handle.flush()
 
     def close(self) -> None:
-        if self._pending:
-            self._emit(self._pending)
-            self._pending = b""
+        self._flush_window(finalize=True)
         self._handle.close()
         with suppress(OSError):
             os.chmod(self.path, PRIVATE_PERSIST_MODE)

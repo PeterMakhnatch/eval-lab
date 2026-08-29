@@ -342,7 +342,7 @@ def generate_fastmcp_server_script(
     lines.extend(
         [
             'if __name__ == "__main__":',
-            f'    mcp.run(transport="sse", host="0.0.0.0", port={port})',
+            f'    mcp.run(transport="streamable-http", host="0.0.0.0", port={port})',
             "",
         ]
     )

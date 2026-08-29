@@ -187,6 +187,7 @@ def test_fastmcp_script_generation_and_version_constraints():
     )
     script = generate_fastmcp_server_script([tool], server_name="test-server", port=8080)
     assert "from fastmcp import FastMCP" in script
+    assert 'mcp.run(transport="streamable-http"' in script
     assert "fastmcp==3.4.7" in FASTMCP_VERSION_CONSTRAINTS
 
 
@@ -291,10 +292,10 @@ return res""",
     async def _exercise_real_mcp():
         sys.path.insert(0, str(target_env))
         from mcp.client.session import ClientSession
-        from mcp.client.sse import sse_client
+        from mcp.client.streamable_http import streamable_http_client
 
         async with (
-            sse_client("http://127.0.0.1:8588/sse") as (read, write),
+            streamable_http_client("http://127.0.0.1:8588/mcp") as (read, write, _),
             ClientSession(read, write) as session,
         ):
             init_res = await session.initialize()
@@ -371,10 +372,10 @@ def test_real_fastmcp_fault_injection_and_client_recovery_e2e(tmp_path: Path):
     async def _exercise_fault():
         sys.path.insert(0, str(target_env))
         from mcp.client.session import ClientSession
-        from mcp.client.sse import sse_client
+        from mcp.client.streamable_http import streamable_http_client
 
         async with (
-            sse_client("http://127.0.0.1:8589/sse") as (read, write),
+            streamable_http_client("http://127.0.0.1:8589/mcp") as (read, write, _),
             ClientSession(read, write) as session,
         ):
             await session.initialize()

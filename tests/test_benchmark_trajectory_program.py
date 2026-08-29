@@ -33,6 +33,9 @@ from evallab.interpretation.benchmark_projection import (
 )
 from evallab.interpretation.feature_registry import (
     TRAJECTORY_FEATURE_REGISTRY,
+    audit_denominator_policy,
+    audit_registry_denominator_policies,
+    feature_contract_row,
     verify_feature_registry,
 )
 from evallab.interpretation.producers.action_memory import (
@@ -1178,20 +1181,58 @@ def test_recovery_contrasts_require_same_native_persistence_level():
 
 
 def test_feature_registry_registers_manipulation_checks():
-    """prompt_tokens_per_step and prompt_cache_hit_rate must be registered C0/C1 manipulation checks."""
+    """prompt_tokens_per_step and prompt_cache_hit_rate must be registered C0/C1 manipulation checks with valid required denominators."""
     ptps = TRAJECTORY_FEATURE_REGISTRY.get("prompt_tokens_per_step")
     assert ptps is not None
-    assert ptps.category == "benchmark_l1_fact"
+    assert ptps.category == "benchmark_l2_metric"
     assert ptps.causal_grade == "C0"
     assert ptps.data_type == "DOUBLE"
-    assert ptps.denominator_policy == "not_applicable"
+    assert ptps.denominator_sibling == "step_count"
+    assert ptps.null_on_zero_denominator is True
+    assert ptps.denominator_policy == "required"
+    assert ptps.declared_inputs == ("prompt_tokens", "step_count")
+    assert audit_denominator_policy(ptps) is None
+
+    row_ptps = feature_contract_row(ptps)
+    assert row_ptps.denominator_policy == "required"
+    assert row_ptps.denominator_sibling == "step_count"
+    assert row_ptps.null_on_zero_denominator is True
 
     pchr = TRAJECTORY_FEATURE_REGISTRY.get("prompt_cache_hit_rate")
     assert pchr is not None
-    assert pchr.category == "benchmark_l1_fact"
+    assert pchr.category == "benchmark_l2_metric"
     assert pchr.causal_grade == "C1"
     assert pchr.data_type == "DOUBLE"
-    assert pchr.denominator_policy == "not_applicable"
+    assert pchr.denominator_sibling == "prompt_tokens"
+    assert pchr.null_on_zero_denominator is True
+    assert pchr.denominator_policy == "required"
+    assert pchr.declared_inputs == ("cached_tokens", "prompt_tokens")
+    assert audit_denominator_policy(pchr) is None
+
+    row_pchr = feature_contract_row(pchr)
+    assert row_pchr.denominator_policy == "required"
+    assert row_pchr.denominator_sibling == "prompt_tokens"
+    assert row_pchr.null_on_zero_denominator is True
+
+    # Verify C1 retrieval handle fidelity features are also registered
+    for handle_feat in (
+        "expected_handle_count",
+        "valid_handle_count",
+        "unknown_handle_count",
+        "duplicate_handle_count",
+        "handle_set_match",
+        "handle_order_match",
+        "handle_coverage_rate",
+    ):
+        f_def = TRAJECTORY_FEATURE_REGISTRY.get(handle_feat)
+        assert f_def is not None
+        assert audit_denominator_policy(f_def) is None
+
+    # Verify neither manipulation check nor handle rate is flagged in registry policy debt
+    debt = audit_registry_denominator_policies()
+    assert "prompt_tokens_per_step" not in debt
+    assert "prompt_cache_hit_rate" not in debt
+    assert "handle_coverage_rate" not in debt
 
 
 def test_c1_matched_contrasts_reject_mismatched_harness_or_dose_strata():

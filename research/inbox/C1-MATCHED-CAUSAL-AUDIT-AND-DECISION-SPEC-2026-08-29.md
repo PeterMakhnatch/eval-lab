@@ -92,14 +92,30 @@ evidence_pin: origin/main 53a3af58
    - *Confound Guarded (C2):* Compaction or multi-turn retrieval consumes model API calls that single-turn arms never spend, confounding constant-step budgets with unequal call budgets.
    - *Requirement:* Report both step counts and model-call counts per trial.
 
-### 3.1 `FEATURE-DEBT-LEDGER` Audit & Registration Fix
-`[OBSERVED]` In prior commits, `prompt_tokens_per_step` and `prompt_cache_hit_rate` were emitted by all three producers (`action_memory.py`, `mcp_funcdag.py`, `mcp_recovery.py`) and stored in SQL tables, but were omitted from `TRAJECTORY_FEATURE_REGISTRY`.
-`[OBSERVED]` **Resolved in this PR:**
-- Registered `prompt_tokens_per_step` in `src/evallab/interpretation/feature_registry.py` as a $C_0$ Grade A mechanical fact (`category="benchmark_l1_fact"`, `denominator_policy="not_applicable"`).
-- Registered `prompt_cache_hit_rate` in `src/evallab/interpretation/feature_registry.py` as a $C_1$ Grade A manipulation check (`category="benchmark_l1_fact"`, `denominator_policy="not_applicable"`).
-- Both features declare `declared_inputs=()` and `available_before_verdict=True`, ensuring full compatibility with T1.1 lineage checks (`src/evallab/analysis_capability.py`).
+### 3.1 `FEATURE-DEBT-LEDGER` Audit & Invariant Resolution
+`[OBSERVED]` In prior commits, `prompt_tokens_per_step` and `prompt_cache_hit_rate` were emitted by all three producers (`action_memory.py`, `mcp_funcdag.py`, `mcp_recovery.py`) and stored in SQL tables, but were omitted from `TRAJECTORY_FEATURE_REGISTRY`. An initial patch registered them with `denominator_policy="not_applicable"` and empty inputs, which silently defeated the denominator invariant.
+`[OBSERVED]` **Corrected Invariant Registration:**
+- **`prompt_tokens_per_step` ($C_0$ Manipulation Check / L2 Ratio):**
+  * Category: `benchmark_l2_metric`, Type: `DOUBLE`.
+  * Denominator Sibling: `step_count`, `null_on_zero_denominator=True`.
+  * Denominator Policy: `required`, `null_condition="NULL when step_count == 0"`.
+  * Declared Inputs: `("prompt_tokens", "step_count")`, `available_before_verdict=True`.
+- **`prompt_cache_hit_rate` ($C_1$ Manipulation Check / L2 Ratio):**
+  * Category: `benchmark_l2_metric`, Type: `DOUBLE`.
+  * Denominator Sibling: `prompt_tokens`, `null_on_zero_denominator=True`.
+  * Denominator Policy: `required`, `null_condition="NULL when prompt_tokens == 0 or prompt_tokens is NULL"`.
+  * Declared Inputs: `("cached_tokens", "prompt_tokens")`, `available_before_verdict=True`.
 
----
+### 3.2 C1 Retrieval Handle Fidelity & Order Governance
+`[OBSERVED]` Recent empirical runs demonstrated that simple read count checks (e.g. `observed_reads == 257`) can hide severe retrieval confounds: one missing expected handle plus one hallucinated/near-typo handle preserves nominal count while corrupting required state.
+`[OBSERVED]` **Registered C1 Handle Fidelity Observables:**
+1. **`expected_handle_count` ($C_1$ Fact):** Count of declared retrieval targets from task contract (`denominator_policy="not_applicable"`).
+2. **`valid_handle_count` ($C_1$ Fact):** Count of requested handles matching declared contract universe (`denominator_policy="not_applicable"`).
+3. **`unknown_handle_count` ($C_1$ Fact):** Count of requested handles outside declared contract universe (hallucination/corruption check, `denominator_policy="not_applicable"`).
+4. **`duplicate_handle_count` ($C_0$ Fact):** Count of repeated redundant requests for identical handles (`total_requests - distinct_valid_handles`).
+5. **`handle_set_match` ($C_1$ Fact):** Boolean indicating whether all expected contract retrieval handles were requested ($\text{expected\_handles} \subseteq \text{observed\_handles}$).
+6. **`handle_order_match` ($C_1$ Fact):** Boolean indicating whether retrieval handles were requested in strictly conformed canonical chronological order without reordering.
+7. **`handle_coverage_rate` ($C_1$ L2 Metric):** Fraction of expected handles requested ($\text{valid\_handle\_count} / \text{expected\_handle\_count}$), declaring `denominator_sibling="expected_handle_count"`, `null_on_zero_denominator=True`, `denominator_policy="required"`, and `declared_inputs=("valid_handle_count", "expected_handle_count")`.
 
 ## 4. Mechanical Anti-Confound Enforcement in DuckDB Views
 

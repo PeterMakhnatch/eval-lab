@@ -67,7 +67,7 @@ def verify(
             try:
                 ev = json.loads(line_str)
                 event_count += 1
-                ev_idx = ev.get("event_index", 0)
+                ev_idx = ev.get("event_index") or ev.get("event_ordinal", 0)
                 if ev_idx <= last_index:
                     res = {"reward": 0.0, "reason": "non_monotone_event_indices", "truth_digest": truth_digest}
                     _record(reward_dir, res)

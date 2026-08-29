@@ -214,19 +214,35 @@ def materialize(
             encoding="utf-8",
         )
 
-        solution_solve_py = f"""#!/usr/bin/env python3
+        solution_solve_py = """#!/usr/bin/env python3
 from client import McpHttpSession
+import json
+import re
 
 def main():
     session = McpHttpSession()
     status, raw = session.initialize()
     if status != 200:
         raise RuntimeError(raw)
-    session.call_tool("execute_mutation", {{
-        "entity_id": "{spec.target_entity}",
-        "attribute": "{spec.target_attribute}",
-        "bound_value": "{spec.latest_value}",
-    }})
+    listed = session.call_tool("list_context_chunks", {})
+    if not isinstance(listed, dict) or "chunk_ids" not in listed:
+        raise RuntimeError(f"list_context_chunks returned {listed!r}")
+    target_entity = None
+    latest_value = None
+    for chunk_id in listed["chunk_ids"]:
+        chunk = session.call_tool("get_context_chunk", {"chunk_id": chunk_id})
+        text = json.dumps(chunk, sort_keys=True) if isinstance(chunk, dict) else str(chunk)
+        if target_entity is None:
+            match = re.search(r"for\s+(entity_\d+)", text)
+            if match:
+                target_entity = match.group(1)
+        if target_entity and re.search(rf"\b{re.escape(target_entity)}\b", text):
+            match_value = re.search(r"'(?P<val>[^']+)'", text)
+            if match_value:
+                latest_value = match_value.group("val")
+    if not target_entity or not latest_value:
+        raise RuntimeError("could not resolve latest bound value from MCP chunks")
+    session.call_tool("execute_mutation", {"entity_id": target_entity, "attribute": "routing_key", "bound_value": latest_value})
 
 if __name__ == "__main__":
     main()
@@ -251,8 +267,11 @@ if __name__ == "__main__":
         (verifier_dir / "test.sh").write_text(verifier_test_sh, encoding="utf-8")
         (verifier_dir / "test.sh").chmod(0o755)
 
+        fair_client = solution_solve_py.replace("# Independent", "# Fair client", 1)
+        (workbench / "fair-alternative.py").write_text(fair_client, encoding="utf-8")
+        shutil.copy2(ROOT / "client.py", workbench / "client.py")
         (workbench / "fair-alternative.sh").write_text(
-            "#!/bin/sh\nset -eu\n# Independent wrapper uses the mounted reference client workflow.\nexec python3 /solution/solve.py\n",
+            "#!/bin/sh\nset -eu\nexec python3 /workbench/fair-alternative.py\n",
             encoding="utf-8",
         )
         (workbench / "fair-alternative.sh").chmod(0o755)

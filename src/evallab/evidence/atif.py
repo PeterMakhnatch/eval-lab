@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Any, Literal, Protocol, TypeGuard
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
@@ -796,17 +796,7 @@ PARQUET_SCHEMAS = {
 
 
 def _write_parquet(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    table = pa.Table.from_pylist(rows, schema=PARQUET_SCHEMAS[table_name])
-    temporary = path.with_suffix(".parquet.tmp")
-    pq.write_table(
-        table,
-        temporary,
-        compression="zstd",
-        use_dictionary=False,
-        write_statistics=True,
-    )
-    temporary.replace(path)
+    write_table_atomic(path, rows, PARQUET_SCHEMAS[table_name])
     return ExportedTable(
         table=table_name,
         path=path,

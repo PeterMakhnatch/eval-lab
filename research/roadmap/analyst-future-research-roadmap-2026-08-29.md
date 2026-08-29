@@ -39,9 +39,17 @@ next by decision value and state honestly which analyses will refuse; sections
 6–9 cover the infrastructure that gates admissibility, what not to build, and
 five claims this program could actually settle.
 
-One structural point precedes all of it: **model access and model capability are
-separate axes** (§1.5). A lane that returns HTTP 429 produced no trial, and must
-never appear as a zero.
+Two structural points precede all of it.
+
+**Model access and model capability are separate axes** (§1.5). A lane that
+returns HTTP 429 produced no trial and must never appear as a zero.
+
+**Wave 2 relocated the interesting failure** (§1.6). Across 21 scored trials,
+failure concentrates in Action Memory at 64k, the **seed** decides the outcome
+rather than the neutral/semantic arm, and every Action Memory failure observed so
+far — at 16k and 64k, in both lanes — is a **retrieval-sequencing fault** rather
+than a failure to retrieve. That revises three of the six claims in §9 and changes
+the E3 seed design.
 
 The single most consequential number in this document is **`clearance_n = 20`**
 (`src/evallab/analysis_capability.py:387`) against **18 pilot trials**. T1.1
@@ -167,7 +175,89 @@ FuncDAG depth available — is the first direct evidence for claim C5: if the
 hardest configured depth is at ceiling for both tiers, FuncDAG depth cannot rank
 them, and §3.2's expansion must lean on distractor count rather than depth.
 
-### 1.6 Forecast, stated as such
+### 1.6 Wave-2 outcomes — where failure actually concentrates
+
+`[USER-REPORTED 2026-08-29]` Not yet promoted, so tagged distinctly from
+`[OBSERVED]`. **21 valid scored trials, 17 at reward 1.0.** Internal arithmetic
+cross-checked below; the totals reconcile exactly.
+
+| Lane | Cell | n | reward 1.0 |
+|---|---|---:|---:|
+| Flash | FuncDAG depth 5 | 3 | 3 |
+| Flash | FuncDAG high name-similarity | 3 | 2 |
+| Flash | Action 64k seed 42, neutral | 1 | 1 |
+| Flash | Action 64k seed 42, semantic | 1 | 1 |
+| Flash | Action 64k seed 1337, neutral | 1 | 0 |
+| Flash | Action 64k seed 1337, semantic | 1 | 0 |
+| Flash | Recovery persistent-signature + silent-wrong-payload, clean+fault | 8 | 8 |
+| Full | FuncDAG depth 5 | 1 | 1 |
+| Full | Recovery persistent | 1 | 1 |
+| Full | Action 64k semantic seed 42 | 1 | 0 |
+| **Total** | | **21** | **17** |
+
+Flash subtotal 18/15; Full subtotal 3/2, matching the reported 2/3 mini-lane.
+Combined with wave 1 that is 32/39 scored trials. `[INFERENCE]` Flash's wave-2
+subtotal being 18/15 — numerically identical to the wave-1 pilot — is a
+coincidence of cell selection, not a stability result.
+
+**No ranking claim is made or supported.** Full and Flash overlap on three cells
+at n=1 per cell. Full failed the one Action 64k semantic seed-42 cell that Flash
+passed; a single trial each way cannot order two lanes, and §4.2 shows why: at
+these baselines MDE is undefined below n=40.
+
+#### The finding: failure is concentrated in Action Memory at 64k, and the seed dominates the arm
+
+`[USER-REPORTED]` Across both lanes the 64k slice is 5 trials with 2 passes,
+while FuncDAG depth-5 is 4/4 and Recovery is 9/9. Within 64k:
+
+- **seed 42** — Flash passed *both* neutral and semantic.
+- **seed 1337** — Flash failed *both* neutral and semantic.
+
+`[INFERENCE]` The arm made no difference at either seed; the **seed** did. That is
+the opposite of the pattern the 16k pilot pair suggested, and it is the single most
+important design consequence in this update: at 64k, **seed-to-seed variance
+dominates the neutral-versus-semantic contrast**. Any dose-ladder analysis that
+averages over seeds will report a semantic effect that is really a seed effect, and
+any 2-seed design at 64k is underdetermined. This revises claim C1 directly.
+
+#### The mechanism: both 64k failures are sequencing faults, not coverage faults
+
+`[USER-REPORTED]` The two 64k failure signatures are distinct and both diagnostic:
+
+| Lane / cell | Signature | Reading |
+|---|---|---|
+| Flash, seed 1337 (both arms) | **complete but reordered**, 257 reads | Count correct, order wrong — the agent retrieved everything and sequenced it wrongly |
+| Full, semantic seed 42 | **258 observed / 257 expected** | One extra read — a duplicate, the same signature as the 16k pilot failure at 66/65 |
+
+`[INFERENCE]` This is the strongest mechanistic thread in the evidence base. Across
+16k and 64k, and across both lanes, **every Action Memory failure so far is a
+retrieval-sequencing fault — ordering or duplication — and none is a failure to
+retrieve the content.** The verifier reason at 16k was already
+`incomplete_or_reordered_context_retrieval`
+(`research/evidence/zai-opencode-mcp-pilot-2026-08-29.md:84`). That is why a
+sequential-retrieval scaffold is the right thing to be testing, and it converts a
+vague "context degradation" hypothesis into a specific, falsifiable one: the
+binding failure is *order maintenance over a long read sequence*, not capacity.
+
+`[INFERENCE]` It also means **read-sequence instrumentation is now the highest-value
+feature work**, and it needs no new schema: `tool_call_count`,
+`unique_tools_count` and `repeated_command_count` are already registered, and
+`observation_index` / `source_call_id` already order observations
+(`src/evallab/evidence/atif.py:102-114`). Duplication is `tool_call_count >
+unique_tools_count`; reordering needs the observation index compared against the
+expected sequence, which the verifier already computes.
+
+#### Recovery: two new fault classes passed clean and fault arms
+
+`[USER-REPORTED]` `persistent-signature` and `silent-wrong-payload`, clean and
+fault arms, **8/8**. `[INFERENCE]` This is evidence *against* claim C2. If recovery
+were a single learned `refresh_auth`-shaped move, fault arms in classes needing a
+different mutation should fail. They did not. C2 is downgraded accordingly, with
+the caveat that n = 2 per cell and `silent-wrong-payload` is the class most worth
+re-examining, since a silently wrong payload can be "recovered" by a retry that
+never diagnosed anything.
+
+### 1.7 Forecast, stated as such
 
 `[FORECAST]` A second lane on these same six cells will land between 10/18 and
 18/18. That interval is wide enough to be nearly useless, which is the point: at
@@ -261,7 +351,12 @@ input shape `curve.py` was built for.
 
 - **Cells:** dose ∈ {4k, 16k, 64k, 128k} × arm ∈ {`neutral_padding`,
   `semantic_distractor`} × seed ∈ {42, 1337, 2026} = **24 cells**.
-- **Reps:** 3 per cell = **72 trials**. This crosses `clearance_n = 20`.
+- **Reps:** 3 per cell = **72 trials**, plus 3 further seeds at 64k and 128k
+  (+36) = **108 trials**. Comfortably crosses `clearance_n = 20`.
+- **Seed design, revised by wave 2:** `[USER-REPORTED]` §1.6 showed the seed
+  deciding the 64k outcome while the arm did not. The arm contrast is therefore
+  **blocked within seed** and never pooled across seeds, and the high-dose levels
+  carry 6 seeds because the variance is between seeds rather than within them.
 - **Control:** the clean 4k baseline is the dose-zero anchor; `neutral_padding`
   is the within-dose control isolating *semantic interference* from *length*.
 - **Primary estimand:** success as a function of dose, per arm, with the
@@ -316,10 +411,11 @@ the tutor report names: `[OBSERVED]` the TB3 5-task screen produced all five
 rewards at 0.0 on `gemini-3.7-flash-low`, so a second arm there would compare two
 floors.
 
-- **Cells:** whichever of E3/E4 showed within-lane spread, reused exactly.
-  `[USER-REPORTED]` **Explicitly excluded: the depth-5 seed-42 FuncDAG canary
-  cell**, which both tiers already cleared. A cell both arms pass cannot separate
-  them.
+- **Cells:** `[USER-REPORTED]` wave 2 already identifies the discriminating ones.
+  **Include:** FuncDAG **high name-similarity** (ran 2/3) and Action Memory **64k**
+  (ran 2/5), seed-blocked. **Exclude:** FuncDAG **depth 5** (4/4 across both lanes)
+  and Recovery `persistent-signature` / `silent-wrong-payload` (8/8) — a cell both
+  arms pass cannot separate them.
 - **Lanes:** `zai-coding-plan/glm-5.3` (full) and `zai-coding-plan/glm-5.3-flash`.
   `glm-5.3-highspeed` is **excluded as an access-gated lane with n = 0**, recorded
   the way the DeepSeek screen is recorded — never as a rate.
@@ -368,7 +464,18 @@ certified in #262 and #275.
 `[OBSERVED]` The pilot ran exactly one dose pair (16k neutral vs semantic) at one
 seed. Observed 3/3 vs 2/3 — **a difference of one trial**.
 
-Expansion (= E3): the full 4×2×3 grid, 3 reps, 72 trials. The design point that
+**Design change forced by wave 2.** `[USER-REPORTED]` §1.6: at 64k the seed
+decided the outcome and the arm did not. `[INFERENCE]` Three seeds cannot separate
+a seed effect from an arm effect when the seed effect is this large — with 3 seeds
+a single unlucky seed moves the arm mean by a third. The 64k and 128k levels
+therefore need **more seeds, not more repetitions**: variance is between seeds, so
+repetitions inside a seed buy little. Recommended revision: keep 3 reps but raise
+the high-dose levels to **6 seeds**, and treat the arm contrast at 64k as
+*seed-blocked* — paired within seed, never pooled across seeds.
+
+Expansion (= E3): the full 4×2×3 grid, 3 reps, 72 trials, **plus 3 additional
+seeds at 64k and 128k** (2 doses × 2 arms × 3 new seeds × 3 reps = 36 further
+trials, 108 total). The design point that
 matters is that `neutral_padding` and `semantic_distractor` are matched on dose
 and seed with arm as the *declared single delta*, so the contrast isolates
 semantic interference from context length. `[INFERENCE]` Without the neutral arm
@@ -389,6 +496,14 @@ certified #263/#289. The pilot ran `syn-funcdag-easy` only.
 Expansion: depth ∈ {3,4,5} × distractors ∈ {2,4,6} at width 3, seeds {42,101,2024},
 3 reps = **81 trials**. Width held at 3 to keep the grid affordable; width is the
 axis with the weakest prior reason to matter.
+
+`[USER-REPORTED]` **Wave 2 settles this: depth is exhausted, name-similarity is
+live.** Depth 5 ran 4/4 across both lanes, while **high name-similarity ran 2/3**.
+`[INFERENCE]` Name-similarity is therefore the difficulty axis that actually
+discriminates for this vertical, and it is already a certified generator parameter
+(`name_similarity`, a registered dose field). The expansion should be
+name-similarity × distractor count **at fixed depth 5**, dropping depths 3–4
+entirely rather than sampling them.
 
 `[USER-REPORTED]` **Depth is probably already exhausted as a difficulty axis.**
 Both `glm-5.3` and `glm-5.3-flash` cleared the depth-5 seed-42 canary, and depth 5
@@ -418,6 +533,14 @@ class (`transient-http-5xx`) at persistence 1.
 Expansion (= E4): the full 5×2 grid with twins, 60 trials. Persistence 2 is the
 axis most likely to separate genuine recovery from a single retry, because a
 one-shot retry cannot clear a fault that persists.
+
+`[USER-REPORTED]` Wave 2 already ran two of the five classes —
+`persistent-signature` and `silent-wrong-payload` — clean and fault, 8/8.
+`[INFERENCE]` Two consequences. First, C2 is weakly refuted (§9). Second, the
+remaining value in E4 is concentrated in the **three unrun classes** and in
+**per-trial `causal_mutation` verification for `silent-wrong-payload`**, where a
+blind retry is most likely to be scored as recovery. Running the two passed
+classes again at persistence 2 is worth less than covering the three unrun ones.
 
 ### 3.4 The 44-item keyed judge calibration
 
@@ -829,9 +952,16 @@ falsifiable failure mode that none of the other five covers.
   all four dose levels in E3.
 - **Established by:** a monotone semantic-minus-neutral gap that widens with dose,
   at matched dose and seed.
-- **Boundary:** E3 only (72 trials, one model, enforced isolation). Says nothing
-  about other models or other memory tasks. **Not** established by the pilot's
+- **Boundary:** E3 only (72 trials, one lane, enforced isolation). Says nothing
+  about other lanes or other memory tasks. **Not** established by the pilot's
   single 16k pair — that is a one-trial difference.
+- **Status: now evidence AGAINST, and this is the biggest revision in the memo.**
+  `[USER-REPORTED]` §1.6: at 64k, Flash passed **both** arms on seed 42 and failed
+  **both** arms on seed 1337. The arm made no difference at either seed; the seed
+  did. `[INFERENCE]` So the live hypothesis is no longer "semantic distractors
+  degrade beyond length" but **"seed-to-seed variance dominates the arm contrast at
+  high dose"**. C1 as originally stated is close to refuted at 64k on 5 trials, and
+  E3 must be re-designed to separate the two — see the seed-count change in §3.1.
 
 ### C2 — The Recovery vertical measures one learned repair move, not general recovery
 
@@ -839,11 +969,18 @@ falsifiable failure mode that none of the other five covers.
   across the five fault classes in E4.
 - **Established by:** `refresh_auth`-shaped repair dominating successes across
   classes where it is not the designated mutation.
-- **Boundary:** `[OBSERVED]` the pilot's evidence is suggestive and thin — both
+- **Boundary:** `[OBSERVED]` the wave-1 evidence was suggestive and thin — both
   passing fault trials used `refresh_auth`, the failing one omitted the designated
-  mutation (`zai-opencode-mcp-pilot-2026-08-29.md:92`). n=3. This claim is
-  currently *unsettled*, and it is the one I would most want E4 to answer because
-  a positive finding would invalidate the vertical's stated estimand.
+  mutation (`zai-opencode-mcp-pilot-2026-08-29.md:92`). n=3.
+- **Status: downgraded by wave 2.** `[USER-REPORTED]` §1.6:
+  `persistent-signature` and `silent-wrong-payload` passed clean *and* fault arms
+  8/8. If recovery were one learned `refresh_auth`-shaped move, fault arms in
+  classes requiring a different mutation should have failed. `[INFERENCE]` C2 is
+  now *weakly refuted* at n = 2 per cell. The residual worry is narrower and worth
+  keeping: **`silent-wrong-payload` is the class where a blind retry can look like
+  recovery**, because a silently wrong payload may be corrected by a retry that
+  diagnosed nothing. E4 should verify `causal_mutation` per trial for that class
+  specifically rather than trusting the aggregate 8/8.
 
 ### C3 — A model grader cannot distinguish right-cause/useless-actions from correct diagnosis
 
@@ -882,9 +1019,14 @@ falsifiable failure mode that none of the other five covers.
   programme-level consequence: if the cell inventory has no mid-range difficulty,
   no amount of additional n produces a model comparison, and the correct response
   is task re-selection or generator extension rather than more runs.
-- **Status:** promoted from *unsettled* to *supported but not established*. One
-  canary at n=1 per tier is not a measurement; E5's stop/go rule is written to
-  settle it.
+- **Status: revised and narrowed by wave 2.** `[USER-REPORTED]` §1.6 shows the
+  inventory is **not** uniformly at ceiling: FuncDAG **high name-similarity ran
+  2/3** and the Action **64k** slice ran 2/5. What is exhausted is the **depth**
+  axis specifically — depth 5 is 4/4 across both lanes. `[INFERENCE]` So the
+  correct form of the claim is not "the cells are too easy" but **"the depth factor
+  is saturated while name-similarity and dose 64k discriminate"**. That is a much
+  more useful finding, and it redirects E5's cell selection to high-name-similarity
+  and 64k rather than to task re-selection wholesale.
 
 ### C6 — Access gating has been mistaken for capability somewhere in the record
 
@@ -946,7 +1088,11 @@ Every numeric claim in this memo, and how it was checked at `origin/main`
 | Item | Status | Handling |
 |---|---|---|
 | `glm-5.3-highspeed` not in subscription; HTTP 429; **no model outcome** | `[USER-REPORTED 2026-08-29]`; no promoted artifact carries it | Recorded as an access-gated lane at **n = 0** with a stated reason. Never a scored trial, a denominator entry or a refusal rate (§1.5, C6) |
-| `glm-5.3` (full) and `glm-5.3-flash` both accessible; both cleared the depth-5 seed-42 FuncDAG canary | `[USER-REPORTED 2026-08-29]` | E5 rewritten as a within-provider full-vs-Flash mini-lane; that canary cell explicitly excluded from the contrast set; FuncDAG difficulty axis shifted from depth to distractor count (§1.5, §3.2, §3.5, E5, C5) |
+| `glm-5.3` (full) and `glm-5.3-flash` both accessible; both cleared the depth-5 seed-42 FuncDAG canary | `[USER-REPORTED 2026-08-29]` | E5 rewritten as a within-provider full-vs-Flash mini-lane; that canary cell explicitly excluded from the contrast set (§1.5, §3.5, E5, C5) |
+| Wave 2: **21 valid scored trials, 17 at reward 1.0**; Flash 18/15, Full 3/2 | `[USER-REPORTED 2026-08-29]` | Arithmetic reconciled here cell-by-cell: the ten cells sum to exactly 21/17 and the Full subtotal matches the reported 2/3. Recorded in §1.6 with **no ranking claim** — the lanes overlap on three cells at n=1 each |
+| Wave 2 mechanism: Action 64k failures are **complete-but-reordered (257 reads)** and **258/257 duplicate** | `[USER-REPORTED 2026-08-29]` | Identified as the memo's strongest mechanistic thread: every Action Memory failure at 16k and 64k in both lanes is a sequencing fault, not a coverage fault. Drives the read-sequence instrumentation recommendation (§1.6) and revises C1 |
+| Wave 2: seed 42 passed both arms at 64k, seed 1337 failed both | `[USER-REPORTED 2026-08-29]` | Seed dominates arm at high dose. Revises C1 from *unsettled* to *evidence against*, and changes E3 to 6 seeds at 64k/128k with seed-blocked pairing (§3.1, E3) |
+| Wave 2: Recovery `persistent-signature` + `silent-wrong-payload` 8/8 clean+fault | `[USER-REPORTED 2026-08-29]` | Weakly refutes C2. Redirects E4 to the three unrun classes plus per-trial `causal_mutation` verification for `silent-wrong-payload` (§3.3, C2) |
 
 `[OBSERVED]` I searched the repository for `glm-5.3-highspeed` and for non-Flash
 `glm-5.3` model artifacts and found none — the 58 files matching `429` are

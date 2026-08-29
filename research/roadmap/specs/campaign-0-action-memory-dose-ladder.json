@@ -73,9 +73,25 @@
     "n_attempts": 3,
     "n_concurrent": 1,
     "max_retries": 0,
-    "total_trials": 72,
+    "total_trials": 108,
     "declared_single_delta": "arm, at matched dose_bytes and seed",
-    "dose_zero_anchor": "action-memory clean baseline 4k, seed 42"
+    "dose_zero_anchor": "action-memory clean baseline 4k, seed 42",
+    "seed": [
+      42,
+      1337,
+      2026
+    ],
+    "high_dose_seed_extension": {
+      "doses": [
+        65536,
+        131072
+      ],
+      "additional_seeds": 3,
+      "total_seeds_at_high_dose": 6,
+      "additional_trials": 36,
+      "total_trials": 108,
+      "rationale": "USER-REPORTED wave 2: at 64k the SEED decided the outcome and the neutral/semantic arm did not - seed 42 passed both arms, seed 1337 failed both. Variance is between seeds, so repetitions inside a seed buy little and three seeds cannot separate a seed effect from an arm effect this large."
+    }
   },
   "estimands": {
     "primary": {
@@ -86,7 +102,8 @@
         "task_block_id",
         "dose_bytes",
         "seed"
-      ]
+      ],
+      "blocking": "seed-blocked: the arm contrast is paired WITHIN seed and never pooled across seeds"
     },
     "secondary": {
       "name": "dose_response_shape",
@@ -94,7 +111,8 @@
       "note": "Shape, not rate. A monotone decline in semantic that is absent in neutral is the finding of interest."
     },
     "instrumentation": {
-      "retrieval_duplication": "unique_tools_count vs tool_call_count and repeated_command_count, already registered features. The pilot's only semantic failure was a duplicate chunk read (66 observed vs 65 expected)."
+      "retrieval_duplication": "unique_tools_count vs tool_call_count and repeated_command_count, already registered features. The pilot's only semantic failure was a duplicate chunk read (66 observed vs 65 expected).",
+      "retrieval_sequencing": "USER-REPORTED wave 2 failure signatures at 64k: complete-but-reordered (257 reads, count correct/order wrong) and 258/257 (one duplicate, same signature as the 16k pilot's 66/65). Every Action Memory failure observed so far is a SEQUENCING fault, not a coverage fault. Duplication is detectable as tool_call_count > unique_tools_count; reordering needs observation_index compared against the verifier's expected sequence. No new schema required."
     }
   },
   "denominator_declaration": {
@@ -190,5 +208,25 @@
       "dose_bytes",
       "seed"
     ]
+  },
+  "wave2_context": {
+    "status": "USER-REPORTED 2026-08-29, not yet promoted",
+    "totals": {
+      "scored_trials": 21,
+      "reward_1": 17,
+      "flash": "18/15",
+      "full": "3/2"
+    },
+    "already_run_at_64k": {
+      "seed42": {
+        "neutral": "pass",
+        "semantic": "pass (Flash), fail (Full)"
+      },
+      "seed1337": {
+        "neutral": "fail",
+        "semantic": "fail"
+      }
+    },
+    "no_ranking_claim": "Lanes overlap on three cells at n=1 each; MDE is undefined below n=40 at these baselines."
   }
 }

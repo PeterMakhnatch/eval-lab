@@ -1,0 +1,10 @@
+[Unit]
+Description=Eval Lab continuous operator timer (disabled by default)
+
+[Timer]
+OnBootSec=
+Persistent=false
+Unit=evallab-continuous-operator.service
+
+[Install]
+# Intentionally empty. Timer stays inactive until explicitly enabled.

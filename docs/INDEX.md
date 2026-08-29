@@ -50,6 +50,8 @@ inputs:
     digest: sha256:b0cb0cb970607d10203efed8326ab26be084280119c94676ca1d3c6f5c1062bf
   - path: docs/context-packs.md
     digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
+  - path: docs/continuous-loop-operator.md
+    digest: sha256:e9265af89afa2ef293f76c1d637e33d392fe5771ddd287cbe64c55f7e824f609
   - path: docs/contracts.md
     digest: sha256:dea76c2aaf874341239d2c3518a5dac7eeb5fbafbf26c72a109a1f711e950fbe
   - path: docs/craft.md
@@ -87,7 +89,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:988743dd456944ef5660b1d1a613a3bb3c6ae973ff8ba50ce9e5df8083d879d2
+    digest: sha256:2ea898ffa7c1f2feb696dff9de6658e350ca06e76842c2a5d829541602bf3f33
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parallel-work.md
@@ -274,6 +276,7 @@ an operator can see what is archived.
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
+| `docs/continuous-loop-operator.md` | Continuous-loop operator (disabled by default) | `living` | `operator, runner` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
@@ -316,6 +319,7 @@ an operator can see what is archived.
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
 | `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `living` | `builder, analyst, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
+| `docs/continuous-loop-operator.md` | Continuous-loop operator (disabled by default) | `living` | `operator, runner` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |

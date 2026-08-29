@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.continuous-operator</string>
+	<key>Disabled</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/env</string>
+		<string>uv</string>
+		<string>run</string>
+		<string>python</string>
+		<string>-m</string>
+		<string>evallab.ops_continuous</string>
+		<string>validate</string>
+	</array>
+	<key>StandardOutPath</key>
+	<string>/Users/Shared/Library/Logs/evallab/continuous-operator.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/Shared/Library/Logs/evallab/continuous-operator.error.log</string>
+</dict>
+</plist>

@@ -7,6 +7,10 @@ audience:
 
 # Operations
 
+## Continuous-loop operator (disabled)
+
+**No services or runs authorized.** Templates, validate/dry-run oracles, and the pause/drain/kill runbook live in [`docs/continuous-loop-operator.md`](continuous-loop-operator.md). Units stay disabled; do not bootstrap launchd or systemd from this checkout.
+
 ## Local database
 
 Copy `.env.example` to `.env`, change the password if the database is exposed

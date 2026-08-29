@@ -1,0 +1,8 @@
+services:
+  continuous-operator:
+    build:
+      context: ../..
+      dockerfile: containers/continuous-operator/Dockerfile
+    restart: "no"
+    profiles: ["manual"]
+    command: ["validate"]

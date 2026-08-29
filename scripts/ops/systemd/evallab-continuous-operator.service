@@ -1,0 +1,15 @@
+[Unit]
+Description=Eval Lab continuous operator (disabled by default)
+Documentation=docs/continuous-loop-operator.md
+After=network-online.target
+# Do not pull in docker or postgres. No services or runs authorized.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env uv run python -m evallab.ops_continuous validate
+RemainAfterExit=no
+Restart=no
+
+[Install]
+# Intentionally empty Install section. Do not enable on boot.
+# Enable only after an explicit operator token, standing approval, and budget.

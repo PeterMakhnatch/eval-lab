@@ -444,24 +444,22 @@ def main():
     contiguous = bool(events) and [event.get("event_ordinal") for event in events] == list(range(1, len(events) + 1))
     successes = [event for event in events if event.get("event_type") == "tool_call_success"]
 
-    cursor = 0
+    dag_ok = len(successes) == len(topological_order)
     matched = 0
-    dag_ok = True
-    for node_id in topological_order:
-        expected_tool = node_tool_map[node_id]
-        expected_args = node_expected_calls[node_id]["expected_args"]
-        expected_val = ref_node_values[node_id]
-        found = False
-        while cursor < len(successes):
-            event = successes[cursor]
-            cursor += 1
-            if event["tool_name"] == expected_tool and event["arguments"] == expected_args and _result_value(event["result"]) == expected_val:
-                found = True
-                matched += 1
+    if dag_ok:
+        for node_id, event in zip(topological_order, successes, strict=True):
+            expected_tool = node_tool_map[node_id]
+            expected_args = node_expected_calls[node_id]["expected_args"]
+            expected_val = ref_node_values[node_id]
+            if (
+                event["tool_name"] != expected_tool
+                or event["arguments"] != expected_args
+                or _result_value(event["result"]) != expected_val
+            ):
+                dag_ok = False
                 break
-        if not found:
-            dag_ok = False
-            break
+            matched += 1
+
     val_prop = matched / len(topological_order)
     reward = 1.0 if agent_val == exp_val and dag_ok and val_prop == 1.0 and schema_rate == 1.0 and contiguous else 0.0
     print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}, dag_conf={dag_ok}, val_prop={val_prop}")

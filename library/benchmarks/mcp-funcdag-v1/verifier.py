@@ -115,29 +115,22 @@ def verify_execution(
     contiguous_ordinals = bool(events) and [event.get("event_ordinal") for event in events] == list(range(1, len(events) + 1))
     successful_calls = [event for event in events if event.get("event_type") == "tool_call_success"]
 
-    # Only exact, bound-success calls may satisfy required DAG nodes. Error/probe events never substitute.
-    tool_idx = 0
-    dag_conformance = True
+    # Only exact, bound-success calls satisfy the required DAG sequence: no extras may precede or follow.
+    dag_conformance = len(successful_calls) == len(topological_order)
     valid_intermediate_count = 0
-    for node_id in topological_order:
-        expected_tool = node_tool_map[node_id]
-        expected_val = reference_node_values[node_id]
-        expected_args = node_expected_calls[node_id]["expected_args"]
-        found_match = False
-        while tool_idx < len(successful_calls):
-            call = successful_calls[tool_idx]
-            tool_idx += 1
+    if dag_conformance:
+        for node_id, call in zip(topological_order, successful_calls, strict=True):
+            expected_tool = node_tool_map[node_id]
+            expected_val = reference_node_values[node_id]
+            expected_args = node_expected_calls[node_id]["expected_args"]
             if (
-                call["tool_name"] == expected_tool
-                and _result_value(call["result"]) == expected_val
-                and call["arguments"] == expected_args
+                call["tool_name"] != expected_tool
+                or call["arguments"] != expected_args
+                or _result_value(call["result"]) != expected_val
             ):
-                found_match = True
-                valid_intermediate_count += 1
+                dag_conformance = False
                 break
-        if not found_match:
-            dag_conformance = False
-            break
+            valid_intermediate_count += 1
 
     value_propagation_accuracy = valid_intermediate_count / len(topological_order)
     reward = float(

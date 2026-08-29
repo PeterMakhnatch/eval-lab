@@ -6,6 +6,7 @@
 # fixtures. They are not standing approvals and are not enable tokens.
 continuous_loop_policy:
   policy_schema_version: "1"
+  spec_id: ""
   approval_signature_ref: ""
   approval_digest: ""
   slo_freshness:

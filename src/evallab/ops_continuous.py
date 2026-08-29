@@ -22,6 +22,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import ValidationError, field_validator, model_validator
 
+from evallab.evidence_store import load_blob, store_blob
 from evallab.execution_contracts import CONTROL_AGENTS, PaidRunAuthorization, load_policy
 from evallab.schemas import ContractModel, StandingApprovalsPolicy
 
@@ -29,6 +30,11 @@ MODES = frozenset({"DISABLED", "PAUSED", "RUNNING", "DRAINING", "MAINTENANCE", "
 KILL_DISPOSITION = "FAILED_OPERATOR_KILL"
 DEFAULT_MODE = "DISABLED"
 REQUIRED_SCOPE = "continuous-loop"
+HEARTBEAT_SKEW_SECONDS = 2.0
+KILLED_ALLOWED_COMMANDS = frozenset(
+    {"kill", "recover", "drain", "status", "rotate-logs", "rotate-cas"}
+)
+TRUST_KINDS = frozenset({"approval", "budget", "recovery"})
 SHA256_HEX = 64
 STATE_DIR_MODE = 0o700
 STATE_FILE_MODE = 0o600
@@ -158,13 +164,14 @@ class QualityAndQuarantinePolicy(ContractModel):
 
 class ContinuousLoopPolicy(ContractModel):
     policy_schema_version: str
+    spec_id: str
     approval_signature_ref: str
     approval_digest: str
     slo_freshness: SloFreshnessPolicy
     operational_limits: OperationalLimitsPolicy
     quality_and_quarantine: QualityAndQuarantinePolicy
 
-    @field_validator("policy_schema_version", "approval_signature_ref")
+    @field_validator("policy_schema_version", "approval_signature_ref", "spec_id")
     @classmethod
     def _nonempty(cls, value: str) -> str:
         if not value.strip():
@@ -182,17 +189,15 @@ class ContinuousLoopPolicy(ContractModel):
 def canonical_binding_payload(
     *,
     policy: Mapping[str, Any],
-    approval: PaidRunAuthorization,
     budget: Mapping[str, Any],
 ) -> bytes:
     body = {key: policy[key] for key in policy if key != "approval_digest"}
     envelope = {
-        "approval": {
-            "actor": approval.actor,
-            "authorized_at": approval.authorized_at.astimezone(UTC).isoformat(),
-            "spec_id": approval.spec_id,
+        "budget": {
+            "ceiling_usd": budget["ceiling_usd"],
+            "expires_at": budget["expires_at"],
+            "scope": list(budget["scope"]),
         },
-        "budget": dict(budget),
         "policy": body,
     }
     return json.dumps(envelope, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
@@ -201,7 +206,6 @@ def canonical_binding_payload(
 def bind_policy_digest(
     *,
     policy: Mapping[str, Any],
-    approval: PaidRunAuthorization,
     budget: Mapping[str, Any],
     mac_key: bytes,
 ) -> str:
@@ -209,7 +213,7 @@ def bind_policy_digest(
         raise ValueError("mac key required")
     return hmac.new(
         mac_key,
-        canonical_binding_payload(policy=policy, approval=approval, budget=budget),
+        canonical_binding_payload(policy=policy, budget=budget),
         hashlib.sha256,
     ).hexdigest()
 
@@ -267,6 +271,136 @@ def parse_paid_authorization(
     )
 
 
+
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def trust_root_for(state_dir: Path, environ: Mapping[str, str]) -> Path:
+    if environ.get("EVAL_LAB_TRUST_STORE"):
+        return Path(environ["EVAL_LAB_TRUST_STORE"])
+    return state_dir / "trust"
+
+
+def _index_mac(entries: Mapping[str, str], store_key: bytes) -> str:
+    payload = json.dumps(dict(entries), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hmac.new(store_key, payload, hashlib.sha256).hexdigest()
+
+
+def load_trust_index(root: Path, store_key: bytes) -> dict[str, str]:
+    if not store_key:
+        return {}
+    raw = _load_json_mapping(root / "index.json")
+    if not raw:
+        return {}
+    entries = raw.get("entries")
+    mac = raw.get("mac")
+    if not isinstance(entries, dict) or not isinstance(mac, str):
+        return {}
+    cleaned = {str(key): str(value) for key, value in entries.items() if isinstance(value, str)}
+    if not hmac.compare_digest(mac, _index_mac(cleaned, store_key)):
+        return {}
+    return cleaned
+
+
+def put_trusted_record(
+    root: Path,
+    store_key: bytes,
+    record: Mapping[str, Any],
+) -> str:
+    kind = str(record.get("kind", ""))
+    spec_id = str(record.get("spec_id", ""))
+    if kind not in TRUST_KINDS or not spec_id:
+        raise ValueError("trusted record requires kind and spec_id")
+    if not store_key:
+        raise ValueError("store key required")
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    payload = json.dumps(dict(record), sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    uri = store_blob(root, payload)
+    entries = load_trust_index(root, store_key)
+    entries[f"{kind}:{spec_id}"] = uri
+    index = {"entries": entries, "mac": _index_mac(entries, store_key)}
+    _write_text(root / "index.json", json.dumps(index, indent=2, sort_keys=True))
+    return uri
+
+
+def lookup_trusted_record(
+    root: Path,
+    store_key: bytes,
+    *,
+    kind: str,
+    spec_id: str,
+    now: datetime,
+) -> tuple[PaidRunAuthorization | None, dict[str, Any]]:
+    if kind not in TRUST_KINDS or not spec_id or not store_key:
+        return None, {}
+    entries = load_trust_index(root, store_key)
+    uri = entries.get(f"{kind}:{spec_id}")
+    if not uri:
+        return None, {}
+    try:
+        loaded = json.loads(load_blob(root, uri).decode("utf-8"))
+    except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+        return None, {}
+    if not isinstance(loaded, dict):
+        return None, {}
+    if loaded.get("kind") != kind or loaded.get("spec_id") != spec_id:
+        return None, {}
+    signer = loaded.get("signer") or loaded.get("actor")
+    scope = loaded.get("scope")
+    if not isinstance(signer, str) or not signer.strip():
+        return None, {}
+    if not isinstance(scope, list) or REQUIRED_SCOPE not in scope:
+        return None, {}
+    expires_raw = loaded.get("expires_at")
+    if not isinstance(expires_raw, str):
+        return None, {}
+    try:
+        expires = _aware(datetime.fromisoformat(expires_raw.replace("Z", "+00:00")))
+    except ValueError:
+        return None, {}
+    if expires <= now:
+        return None, {}
+    max_age = loaded.get("max_age_seconds")
+    try:
+        max_age_s = float(max_age)
+    except (TypeError, ValueError):
+        return None, {}
+    if max_age_s <= 0:
+        return None, {}
+    auth = parse_paid_authorization(
+        {
+            "spec_id": spec_id,
+            "actor": loaded.get("actor"),
+            "authorized_at": loaded.get("authorized_at"),
+            "quota_override": loaded.get("quota_override", False),
+        },
+        now=now,
+    )
+    if auth is None:
+        return None, {}
+    age = now - auth.authorized_at
+    if age > timedelta(seconds=max_age_s):
+        return None, {}
+    extra: dict[str, Any] = {
+        "actor": auth.actor,
+        "signer": signer,
+        "scope": list(scope),
+        "expires_at": expires.isoformat(),
+        "spec_id": spec_id,
+        "kind": kind,
+        "max_age_seconds": max_age_s,
+    }
+    if kind == "budget":
+        ceiling = loaded.get("ceiling_usd")
+        if not isinstance(ceiling, (int, float)) or ceiling <= 0:
+            return None, {}
+        extra["ceiling_usd"] = ceiling
+    return auth, extra
+
+
 def load_standing_policy(path: Path | None) -> StandingApprovalsPolicy | None:
     if path is None or not path.is_file():
         return None
@@ -310,7 +444,7 @@ class OperatorContext:
     env_self_asserted_budget: bool
     mac_key: bytes
     budget_payload: dict[str, Any]
-    recovery_token: str
+    recovery: PaidRunAuthorization | None
 
 
 def load_loop_policy(path: Path | None) -> ContinuousLoopPolicy | None:
@@ -411,16 +545,6 @@ def context_from_env(
     drain_timeout_seconds: float | None,
     environ: Mapping[str, str],
 ) -> OperatorContext:
-    approval_path = (
-        Path(environ["EVAL_LAB_APPROVAL_MANIFEST"])
-        if environ.get("EVAL_LAB_APPROVAL_MANIFEST")
-        else state_dir / "approval.json"
-    )
-    budget_path = (
-        Path(environ["EVAL_LAB_BUDGET_MANIFEST"])
-        if environ.get("EVAL_LAB_BUDGET_MANIFEST")
-        else state_dir / "budget.json"
-    )
     secret_probe = state_dir / "secret_present"
     standing_path = (
         Path(environ["EVAL_LAB_STANDING_POLICY"])
@@ -431,40 +555,28 @@ def context_from_env(
     standing = load_standing_policy(standing_path)
     env_self_asserted_approval = bool(environ.get("EVAL_LAB_STANDING_APPROVAL"))
     env_self_asserted_budget = environ.get("EVAL_LAB_BUDGET_PRESENT", "") in {"1", "true", "yes"}
-    approval = parse_paid_authorization(_load_json_mapping(approval_path), now=now)
-    budget_raw = _load_json_mapping(budget_path)
-    budget = parse_paid_authorization(budget_raw, now=now, allowed_fields=BUDGET_FIELDS)
-    budget_payload: dict[str, Any] = {}
-    if isinstance(budget_raw, dict) and budget is not None:
-        expires_raw = budget_raw.get("expires_at")
-        scope = budget_raw.get("scope")
-        expired = True
-        expires_iso = ""
-        if isinstance(expires_raw, str):
-            try:
-                expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
-            except ValueError:
-                expires = None
-            else:
-                expires = expires.replace(tzinfo=UTC) if expires.tzinfo is None else expires.astimezone(UTC)
-                expired = expires <= now
-                expires_iso = expires.isoformat()
-        if not expired and isinstance(scope, list) and REQUIRED_SCOPE in scope:
-            budget_payload = {
-                "actor": budget.actor,
-                "ceiling_usd": budget_raw.get("ceiling_usd"),
-                "expires_at": expires_iso,
-                "scope": list(scope),
-                "spec_id": budget.spec_id,
-            }
-        else:
-            budget = None
     mac_path = (
-        Path(environ["EVAL_LAB_APPROVAL_MAC_KEY"])
-        if environ.get("EVAL_LAB_APPROVAL_MAC_KEY")
-        else state_dir / "approval.mac"
+        Path(environ["EVAL_LAB_TRUST_MAC_KEY"])
+        if environ.get("EVAL_LAB_TRUST_MAC_KEY")
+        else state_dir / "trust.mac"
     )
+    if not mac_path.is_file() and (state_dir / "approval.mac").is_file():
+        mac_path = state_dir / "approval.mac"
     mac_key = load_mac_key(mac_path)
+    trust_root = trust_root_for(state_dir, environ)
+    spec_id = policy.spec_id if policy is not None else ""
+    approval, _approval_extra = lookup_trusted_record(
+        trust_root, mac_key, kind="approval", spec_id=spec_id, now=now
+    )
+    budget, budget_payload = lookup_trusted_record(
+        trust_root, mac_key, kind="budget", spec_id=spec_id, now=now
+    )
+    recovery, _recovery_extra = lookup_trusted_record(
+        trust_root, mac_key, kind="recovery", spec_id=spec_id, now=now
+    )
+    if budget is not None and "ceiling_usd" not in budget_payload:
+        budget = None
+        budget_payload = {}
     secret_ref = environ.get("EVAL_LAB_SECRET_REF", "")
     secret_present = secret_probe.is_file() or environ.get("EVAL_LAB_SECRET_PRESENT", "") in {
         "1",
@@ -490,7 +602,7 @@ def context_from_env(
         env_self_asserted_budget=env_self_asserted_budget,
         mac_key=mac_key,
         budget_payload=budget_payload,
-        recovery_token=environ.get("EVAL_LAB_RECOVERY_TOKEN", ""),
+        recovery=recovery,
     )
 
 
@@ -544,8 +656,11 @@ def _heartbeat_stale(ctx: OperatorContext) -> bool:
     if stamped.tzinfo is None:
         stamped = stamped.replace(tzinfo=UTC)
     stamped = stamped.astimezone(UTC)
-    if stamped > ctx.now:
+    skew = timedelta(seconds=HEARTBEAT_SKEW_SECONDS)
+    if stamped > ctx.now + skew:
         return True
+    if stamped > ctx.now:
+        return False
     age = ctx.now - stamped
     return age > timedelta(seconds=float(stale_after))
 
@@ -579,13 +694,16 @@ def admission_reason(ctx: OperatorContext) -> str | None:
         return REASON_MISSING_SECRET
     if ctx.policy is None:
         return REASON_DEFAULT_DISABLED
+    if ctx.policy.spec_id != ctx.approval.spec_id or ctx.policy.spec_id != ctx.budget.spec_id:
+        return REASON_MISSING_STANDING_APPROVAL
+    if ctx.approval.spec_id != ctx.budget.spec_id:
+        return REASON_MISSING_STANDING_APPROVAL
     if ctx.policy.approval_signature_ref != ctx.approval.actor:
         return REASON_MISSING_STANDING_APPROVAL
     if not ctx.mac_key or not ctx.budget_payload:
         return REASON_MISSING_STANDING_APPROVAL
     expected = bind_policy_digest(
         policy=ctx.policy.model_dump(mode="json"),
-        approval=ctx.approval,
         budget=ctx.budget_payload,
         mac_key=ctx.mac_key,
     )
@@ -735,8 +853,11 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
-    if not ctx.recovery_token or ctx.recovery_token in {ctx.enable_token, ctx.enable_identity}:
-        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery token must be distinct")
+    if ctx.recovery is None:
+        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing")
+    identities = {ctx.enable_token, ctx.enable_identity, ctx.approval.actor if ctx.approval else "", ctx.budget.actor if ctx.budget else ""}
+    if ctx.recovery.actor in identities or (ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id):
+        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization must be distinct")
     write_mode(ctx.state_dir, DEFAULT_MODE)
     return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by authorized recovery")
 
@@ -845,7 +966,11 @@ def main(
         drain_timeout_seconds=args.drain_timeout_seconds,
         environ=env,
     )
-    verdict = COMMANDS[args.command](ctx)
+    if read_mode(state_dir) == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:
+        blocked = _refuse_if_killed(ctx, args.command)
+        verdict = blocked if blocked is not None else COMMANDS[args.command](ctx)
+    else:
+        verdict = COMMANDS[args.command](ctx)
     sys.stdout.write(json.dumps(verdict.payload, indent=2, sort_keys=True) + "\n")
     return verdict.exit_code()
 

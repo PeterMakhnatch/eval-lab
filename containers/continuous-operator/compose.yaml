@@ -1,3 +1,6 @@
+volumes:
+  evallab-operator-state:
+
 services:
   continuous-operator:
     build:
@@ -9,7 +12,8 @@ services:
     read_only: true
     environment:
       EVAL_LAB_OPERATOR_STATE: /var/lib/evallab-operator
+    volumes:
+      - evallab-operator-state:/var/lib/evallab-operator
     tmpfs:
       - /tmp:mode=0700
-      - /var/lib/evallab-operator:mode=0700
     command: ["validate", "--state-dir", "/var/lib/evallab-operator"]

@@ -21,13 +21,13 @@
 		<string>evallab.ops_continuous</string>
 		<string>validate</string>
 		<string>--state-dir</string>
-		<string>operator-state</string>
+		<string>/var/tmp/evallab-operator/state</string>
 	</array>
 	<key>Umask</key>
 	<integer>63</integer>
 	<key>StandardOutPath</key>
-	<string>/dev/null</string>
+	<string>/var/tmp/evallab-operator/logs/continuous-operator.out</string>
 	<key>StandardErrorPath</key>
-	<string>/dev/null</string>
+	<string>/var/tmp/evallab-operator/logs/continuous-operator.err</string>
 </dict>
 </plist>

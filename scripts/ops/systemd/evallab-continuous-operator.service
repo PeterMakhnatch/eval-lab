@@ -31,7 +31,10 @@ SystemCallArchitectures=native
 CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX
-LoadCredential=evallab-hmac:/root-managed/evallab-hmac
+# HMAC is optional so disabled validate starts without /root-managed/evallab-hmac.
+# Enablement drop-in (not required for default disabled units):
+# LoadCredential=evallab-hmac:/root-managed/evallab-hmac
+# Then the operator reads $CREDENTIALS_DIRECTORY/evallab-hmac (0400/0440, not euid-writable).
 LogsDirectory=evallab
 StateDirectory=evallab-operator
 StateDirectoryMode=0700

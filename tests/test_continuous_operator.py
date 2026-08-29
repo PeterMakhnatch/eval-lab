@@ -492,18 +492,19 @@ def test_fresh_heartbeat_status_unknown_health(tmp_path: Path) -> None:
     assert body["running"] is False
 
 
-def test_graceful_drain_then_timeout(tmp_path: Path) -> None:
+def test_graceful_drain_terminates_inflight(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml", drain_timeout=10)
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
     waiting = _run(tmp_path, "drain", policy=policy, now=NOW)
-    assert waiting.returncode == 2
-    assert _payload(waiting)["reason"] == REASON_DRAIN_INCOMPLETE
-    assert json.loads((state / "drain.json").read_text())["complete"] is False
-    timed = _run(tmp_path, "drain", policy=policy, now=NOW + timedelta(seconds=11))
-    assert timed.returncode == 2
-    assert _payload(timed)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert waiting.returncode == 0
+    assert json.loads((state / "drain.json").read_text())["complete"] is True
+    assert json.loads((state / "inflight.json").read_text()) == []
+    leases = json.loads((state / "leases.json").read_text())
+    assert leases[0]["id"] == "lease-1"
+    assert leases[0]["status"] == "terminal"
+    assert (state / "mode").read_text().strip() == "DISABLED"
 
 
 def test_kill_records_operator_kill(tmp_path: Path) -> None:
@@ -518,10 +519,12 @@ def test_kill_records_operator_kill(tmp_path: Path) -> None:
     assert record["signalled"] is False
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
     assert (state / "mode").read_text().strip() == "KILLED"
-    drain = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1))
-    assert drain.returncode == 2
-    assert _payload(drain)["reason"] == REASON_DRAIN_INCOMPLETE
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
+    drain = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1))
+    assert drain.returncode == 0
+    assert json.loads((state / "inflight.json").read_text()) == []
+    assert json.loads((state / "kill.json").read_text())["executed"] is True
+    assert (state / "mode").read_text().strip() == "KILLED"
 
 
 def test_validate_does_not_clear_killed_or_draining(tmp_path: Path) -> None:
@@ -551,13 +554,14 @@ def test_malformed_inflight_fails_closed(tmp_path: Path) -> None:
     assert (state / "mode").read_text().strip() == "DRAINING"
 
 
-def test_drain_without_timeout_still_incomplete(tmp_path: Path) -> None:
+def test_drain_without_timeout_settles_inflight(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
     result = _run(tmp_path, "drain", now=NOW)
-    assert result.returncode == 2
-    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert result.returncode == 0
+    assert json.loads((state / "inflight.json").read_text()) == []
+    assert (state / "mode").read_text().strip() == "DISABLED"
 
 
 def test_empty_inflight_drain_disables(tmp_path: Path) -> None:
@@ -631,6 +635,7 @@ def test_systemd_units_not_wanted() -> None:
     assert "Persistent=false" in timer
     assert "DynamicUser=yes" in service
     assert "LoadCredential=evallab-hmac:/root-managed/evallab-hmac" in service
+    assert not any(line.strip().startswith("LoadCredential=") for line in service.splitlines())
     assert "BindReadOnlyPaths=" not in service
     assert "NoNewPrivileges=yes" in service
     assert "ProtectSystem=strict" in service
@@ -842,6 +847,7 @@ def test_rendered_templates_confine_writable_state() -> None:
     assert "--state-dir /var/lib/evallab-operator" in service
     assert "StateDirectory=evallab-operator" in service
     assert "LoadCredential=evallab-hmac:/root-managed/evallab-hmac" in service
+    assert not any(line.strip().startswith("LoadCredential=") for line in service.splitlines())
     assert "read_only: true" in compose
     assert "evallab-operator-state:/var/lib/evallab-operator" in compose
     assert plist["ProgramArguments"][-1] == LAUNCHD_STATE_TOKEN
@@ -1109,4 +1115,36 @@ def test_launchd_installer_renders_absolute_macos_paths(tmp_path: Path) -> None:
     assert "~" not in dest.read_text()
     assert "/var/tmp/evallab-operator" not in dest.read_text()
     assert "KeepAlive" not in loaded
+
+def test_pause_restart_do_not_overwrite_draining(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps({"lease": 1}))
+    drained = _run(tmp_path, "drain", now=NOW)
+    assert (state / "mode").read_text().strip() == "DRAINING"
+    assert drained.returncode == 2
+    for command in ("pause", "restart", "maintenance", "start", "validate"):
+        result = _run(tmp_path, command, now=NOW)
+        assert result.returncode == 2
+        assert (state / "mode").read_text().strip() == "DRAINING"
+
+
+def test_drain_then_signed_recovery_clears_killed(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-open"]))
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    assert json.loads((state / "kill.json").read_text())["executed"] is False
+    drained = _run(tmp_path, "drain", now=NOW)
+    assert drained.returncode == 0
+    assert json.loads((state / "kill.json").read_text())["executed"] is True
+    assert json.loads((state / "inflight.json").read_text()) == []
+    assert (state / "mode").read_text().strip() == "KILLED"
+    _write_auths(state, recovery_actor=RECOVERY)
+    recovered = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert recovered.returncode == 0
+    assert (state / "mode").read_text().strip() == "DISABLED"
 

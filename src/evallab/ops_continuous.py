@@ -887,6 +887,37 @@ def write_mode(state_dir: Path, mode: str) -> None:
     _write_text(state_dir / "mode", mode)
 
 
+def _atomic_write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.chmod(tmp, STATE_FILE_MODE)
+    tmp.replace(path)
+
+
+def apply_mode_transition(state_dir: Path, target: str, *, command: str) -> str | None:
+    """Centralize legality. KILLED only from kill; recover only after drain settlement."""
+    if target not in MODES:
+        return "illegal_transition"
+    current = read_mode(state_dir)
+    if current == target:
+        return None
+    if current == "KILLED" and command != "recover":
+        return "killed_latched"
+    if current == "DRAINING" and command not in {"drain", "kill"}:
+        return "draining_latched"
+    if target == "KILLED" and command != "kill":
+        return "illegal_transition"
+    if target == "DRAINING" and command != "drain":
+        return "illegal_transition"
+    if current == "KILLED" and target != "DISABLED":
+        return "killed_latched"
+    if current == "KILLED" and command != "recover":
+        return "killed_latched"
+    write_mode(state_dir, target)
+    return None
+
+
 def _latched_kill(state_dir: Path) -> bool:
     return read_mode(state_dir) == "KILLED"
 
@@ -900,6 +931,20 @@ def _refuse_if_killed(ctx: OperatorContext, action: str) -> OperatorVerdict | No
         reason=REASON_DEFAULT_DISABLED,
         detail=f"{action} refused; emergency KILLED latch held",
     )
+
+
+def _refuse_if_latched(ctx: OperatorContext, action: str) -> OperatorVerdict | None:
+    mode = read_mode(ctx.state_dir)
+    if mode == "KILLED":
+        return _refuse_if_killed(ctx, action)
+    if mode == "DRAINING":
+        return _verdict(
+            ctx,
+            ok=False,
+            reason=REASON_DRAIN_INCOMPLETE,
+            detail=f"{action} refused; DRAINING latch held until drain settles inflight",
+        )
+    return None
 
 
 def context_from_env(
@@ -1133,23 +1178,75 @@ def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
     return loaded, None
 
 
-def _leases_unsettled(state_dir: Path) -> bool:
+def _load_leases(state_dir: Path) -> tuple[list[dict[str, Any]] | None, str | None]:
     path = state_dir / "leases.json"
     if not path.is_file():
-        return False
+        return [], None
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return True
+        return None, "malformed_leases"
     if not isinstance(loaded, list):
-        return True
+        return None, "malformed_leases"
+    leases: list[dict[str, Any]] = []
     for item in loaded:
         if not isinstance(item, dict):
-            return True
+            return None, "malformed_leases"
+        leases.append(item)
+    return leases, None
+
+
+def _leases_unsettled(state_dir: Path) -> bool:
+    leases, error = _load_leases(state_dir)
+    if error is not None or leases is None:
+        return True
+    for item in leases:
         status = item.get("status")
         if not isinstance(status, str) or status not in TERMINAL_LEASE_STATUSES:
             return True
     return False
+
+
+def _reconcile_inflight_leases(state_dir: Path, inflight: list[Any]) -> list[dict[str, Any]] | None:
+    leases, error = _load_leases(state_dir)
+    if error is not None or leases is None:
+        return None
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in leases:
+        ident = item.get("id")
+        if isinstance(ident, str) and ident.strip():
+            by_id[ident] = dict(item)
+    for raw in inflight:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        rec = by_id.get(raw, {"id": raw})
+        rec["id"] = raw
+        rec["status"] = "terminal"
+        rec["terminated"] = True
+        rec["settled"] = True
+        by_id[raw] = rec
+    for rec in list(by_id.values()):
+        status = rec.get("status")
+        if not isinstance(status, str) or status not in TERMINAL_LEASE_STATUSES:
+            rec["status"] = "terminal"
+            rec["terminated"] = True
+            rec["settled"] = True
+    return list(by_id.values())
+
+
+def _commit_drain_settlement(
+    state_dir: Path,
+    *,
+    leases: list[dict[str, Any]],
+    kill_record: Mapping[str, Any] | None,
+) -> None:
+    _atomic_write_json(state_dir / "leases.json", leases)
+    _atomic_write_json(state_dir / "inflight.json", [])
+    if kill_record is not None:
+        record = dict(kill_record)
+        record["executed"] = True
+        record["inflight"] = []
+        _atomic_write_json(state_dir / "kill.json", record)
 
 
 def _recovery_settled(state_dir: Path) -> str | None:
@@ -1201,9 +1298,9 @@ def render_launchd_plist(template: Path, dest: Path, *, home: Path) -> Path:
 
 
 def cmd_validate(ctx: OperatorContext) -> OperatorVerdict:
-    fenced = _fenced_mode(ctx.state_dir)
-    if fenced is None:
-        write_mode(ctx.state_dir, DEFAULT_MODE)
+    blocked = _refuse_if_latched(ctx, "validate")
+    if blocked:
+        return blocked
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="control plane remains DISABLED")
@@ -1212,14 +1309,14 @@ def cmd_validate(ctx: OperatorContext) -> OperatorVerdict:
         ok=True,
         reason=None,
         detail="gates passed; unit remains disabled; no service started",
-        extra={"gates": "passed", "fenced": fenced},
+        extra={"gates": "passed"},
     )
 
 
 def cmd_start(ctx: OperatorContext) -> OperatorVerdict:
-    fenced = _fenced_mode(ctx.state_dir)
-    if fenced is None:
-        write_mode(ctx.state_dir, DEFAULT_MODE)
+    blocked = _refuse_if_latched(ctx, "start")
+    if blocked:
+        return blocked
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="start refused; remains DISABLED")
@@ -1271,32 +1368,38 @@ def cmd_quota(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_pause(ctx: OperatorContext) -> OperatorVerdict:
-    blocked = _refuse_if_killed(ctx, "pause")
+    blocked = _refuse_if_latched(ctx, "pause")
     if blocked:
         return blocked
-    write_mode(ctx.state_dir, "PAUSED")
+    illegal = apply_mode_transition(ctx.state_dir, "PAUSED", command="pause")
+    if illegal:
+        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="pause refused")
     return _verdict(ctx, ok=True, reason=None, detail="recorded pause; no process signalled")
 
 
 def cmd_maintenance(ctx: OperatorContext) -> OperatorVerdict:
-    blocked = _refuse_if_killed(ctx, "maintenance")
+    blocked = _refuse_if_latched(ctx, "maintenance")
     if blocked:
         return blocked
-    write_mode(ctx.state_dir, "MAINTENANCE")
+    illegal = apply_mode_transition(ctx.state_dir, "MAINTENANCE", command="maintenance")
+    if illegal:
+        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="maintenance refused")
     return _verdict(ctx, ok=True, reason=None, detail="recorded maintenance; no process signalled")
 
 
 def cmd_restart(ctx: OperatorContext) -> OperatorVerdict:
-    blocked = _refuse_if_killed(ctx, "restart")
+    blocked = _refuse_if_latched(ctx, "restart")
     if blocked:
         return blocked
     _write_text(ctx.state_dir / "restart.json", json.dumps({"intended": "restart", "executed": False}))
-    write_mode(ctx.state_dir, DEFAULT_MODE)
+    illegal = apply_mode_transition(ctx.state_dir, DEFAULT_MODE, command="restart")
+    if illegal:
+        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="restart refused")
     return _verdict(ctx, ok=True, reason=None, detail="recorded restart intent; unit stays disabled")
 
 
 def cmd_upgrade(ctx: OperatorContext) -> OperatorVerdict:
-    blocked = _refuse_if_killed(ctx, "upgrade")
+    blocked = _refuse_if_latched(ctx, "upgrade")
     if blocked:
         return blocked
     _write_text(ctx.state_dir / "upgrade.json", json.dumps({"intended": "upgrade", "executed": False}))
@@ -1304,7 +1407,7 @@ def cmd_upgrade(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_rollback(ctx: OperatorContext) -> OperatorVerdict:
-    blocked = _refuse_if_killed(ctx, "rollback")
+    blocked = _refuse_if_latched(ctx, "rollback")
     if blocked:
         return blocked
     _write_text(ctx.state_dir / "rollback.json", json.dumps({"intended": "rollback", "executed": False}))
@@ -1362,28 +1465,25 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     with spent_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps({"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
     os.chmod(spent_path, STATE_FILE_MODE)
-    write_mode(ctx.state_dir, DEFAULT_MODE)
+    illegal = apply_mode_transition(ctx.state_dir, DEFAULT_MODE, command="recover")
+    if illegal:
+        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover refused")
     return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by one-time recovery")
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
-    if read_mode(ctx.state_dir) != "KILLED":
-        write_mode(ctx.state_dir, "DRAINING")
-    inflight, inflight_error = _load_inflight(ctx.state_dir)
+    current = read_mode(ctx.state_dir)
+    if current != "KILLED":
+        illegal = apply_mode_transition(ctx.state_dir, "DRAINING", command="drain")
+        if illegal:
+            return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="drain refused")
     started_raw = _read_text(ctx.state_dir / "drain_started")
     if not started_raw:
         _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
-    kill_record = _load_json_mapping(ctx.state_dir / "kill.json") or {}
-    kill_unexecuted = kill_record.get("executed") is False
-    remaining = bool(inflight) or inflight_error is not None or kill_unexecuted
-    if remaining:
-        drain = {
-            "inflight": inflight if inflight is not None else [],
-            "complete": False,
-            "malformed": inflight_error,
-            "fenced_kill": kill_unexecuted,
-        }
-        _write_text(ctx.state_dir / "drain.json", json.dumps(drain, indent=2, sort_keys=True))
+    inflight, inflight_error = _load_inflight(ctx.state_dir)
+    if inflight_error is not None or inflight is None:
+        drain = {"inflight": [], "complete": False, "malformed": inflight_error}
+        _atomic_write_json(ctx.state_dir / "drain.json", drain)
         return _verdict(
             ctx,
             ok=False,
@@ -1391,15 +1491,30 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
             detail="in-flight leases remain until settlement",
             extra=drain,
         )
-    if read_mode(ctx.state_dir) != "KILLED":
-        write_mode(ctx.state_dir, DEFAULT_MODE)
-    drain = {"inflight": [], "complete": True}
-    _write_text(ctx.state_dir / "drain.json", json.dumps(drain, indent=2))
-    return _verdict(ctx, ok=True, reason=None, detail="drain complete; mode DISABLED")
+    leases = _reconcile_inflight_leases(ctx.state_dir, inflight)
+    if leases is None:
+        drain = {"inflight": inflight, "complete": False, "malformed": "malformed_leases"}
+        _atomic_write_json(ctx.state_dir / "drain.json", drain)
+        return _verdict(
+            ctx,
+            ok=False,
+            reason=REASON_DRAIN_INCOMPLETE,
+            detail="in-flight leases remain until settlement",
+            extra=drain,
+        )
+    kill_record = _load_json_mapping(ctx.state_dir / "kill.json")
+    _commit_drain_settlement(ctx.state_dir, leases=leases, kill_record=kill_record)
+    drain = {"inflight": [], "complete": True, "terminated": [item.get("id") for item in leases]}
+    _atomic_write_json(ctx.state_dir / "drain.json", drain)
+    if read_mode(ctx.state_dir) == "KILLED":
+        return _verdict(ctx, ok=True, reason=None, detail="drain settled; KILLED latch held until recovery", extra=drain)
+    illegal = apply_mode_transition(ctx.state_dir, DEFAULT_MODE, command="drain")
+    if illegal:
+        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="drain complete but mode latched", extra=drain)
+    return _verdict(ctx, ok=True, reason=None, detail="drain complete; mode DISABLED", extra=drain)
 
 
 def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
-    write_mode(ctx.state_dir, "KILLED")
     inflight, inflight_error = _load_inflight(ctx.state_dir)
     record = {
         "disposition": KILL_DISPOSITION,
@@ -1408,9 +1523,12 @@ def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
         "signalled": False,
         "fenced": inflight if inflight is not None else [],
         "malformed_inflight": inflight_error,
-        "note": "emergency kill recorded; leases fenced until settlement; no process signalled",
+        "note": "emergency kill recorded; leases fenced until drain settlement; no process signalled",
     }
-    _write_text(ctx.state_dir / "kill.json", json.dumps(record, indent=2, sort_keys=True))
+    _atomic_write_json(ctx.state_dir / "kill.json", record)
+    illegal = apply_mode_transition(ctx.state_dir, "KILLED", command="kill")
+    if illegal:
+        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="kill refused", extra=record)
     return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
 
 
@@ -1492,8 +1610,12 @@ def main(
         secret_store=resolved_store,
         secrets_root=secrets_root,
     )
-    if read_mode(state_dir) == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:
+    mode = read_mode(state_dir)
+    if mode == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:
         blocked = _refuse_if_killed(ctx, args.command)
+        verdict = blocked if blocked is not None else COMMANDS[args.command](ctx)
+    elif mode == "DRAINING" and args.command in {"pause", "restart", "maintenance", "start", "validate", "upgrade", "rollback"}:
+        blocked = _refuse_if_latched(ctx, args.command)
         verdict = blocked if blocked is not None else COMMANDS[args.command](ctx)
     else:
         verdict = COMMANDS[args.command](ctx)

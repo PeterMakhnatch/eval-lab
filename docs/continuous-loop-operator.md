@@ -112,7 +112,7 @@ policy fields also keep the operator DISABLED.
   directories mode 0700 with no symlink and log files 0600, and does not
   `launchctl bootstrap`. Template tokens stay in the committed plist.
 - systemd: `[Install]` has no `WantedBy=`. `DynamicUser=yes`,
-  `StateDirectory=evallab-operator`, `LoadCredential=evallab-hmac:/root-managed/evallab-hmac`.
+  `StateDirectory=evallab-operator`, `LoadCredential=evallab-hmac:/root-managed/evallab-hmac` is an optional enablement drop-in so disabled `validate` starts without the credential file.
   The unit reads `$CREDENTIALS_DIRECTORY/evallab-hmac`, not a root-0400
   `BindReadOnlyPaths=/run/secrets` mount. Do not `systemctl enable`.
 - compose: `restart: "no"` and `profiles: ["manual"]`; `read_only: true`;
@@ -130,12 +130,13 @@ policy fields also keep the operator DISABLED.
   Empty inflight with no kill fence → mode `DISABLED`.
 - `kill` writes `$STATE/kill.json` with `FAILED_OPERATOR_KILL`,
   `executed: false`, and **does not wipe** inflight leases.
-- `KILLED` is a latch: `pause`, `maintenance`, `restart`, `upgrade`, and
-  `rollback` refuse and leave the latch set. `recover` requires
-  `kill.json` `executed: true`, empty `inflight.json`, and every lease in
-  `leases.json` terminal/settled **before** consuming the one-time recovery
-  authorization. Otherwise the latch stays `KILLED` and the nonce is not
-  spent. Replay of a spent nonce is `recovery_spent`.
+- Mode transitions are centralized. `KILLED` is entered only after the kill
+  action writes its audit (`kill.json` with `executed: false`). `DRAINING` and
+  `KILLED` cannot be overwritten by `pause`, `restart`, `maintenance`,
+  `start`, or `validate`. `drain` reconciles every inflight lease, marks each
+  terminal, then atomically writes empty `inflight.json` and
+  `kill.executed=true` when a kill record exists. Only then may a signed
+  one-time recovery clear `KILLED`. Replay of a spent nonce is `recovery_spent`.
 
 ## Health / CAS rotation
 

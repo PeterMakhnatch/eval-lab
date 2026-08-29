@@ -463,59 +463,61 @@ def run_harbor_process(
         raise
     os.close(write_fd)
     pump.start()
-    started = time.monotonic()
-    if lease_path is not None:
-        try:
-            if lease_path.is_file():
-                lease_path.touch()
-        except OSError:
-            pass
-    last_heartbeat = started
-    first_seen: dict[Path, float] = {}
-    while True:
-        returncode = process.poll()
-        if returncode is not None:
-            break
-        now = time.monotonic()
-        if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
+    try:
+        started = time.monotonic()
+        if lease_path is not None:
             try:
                 if lease_path.is_file():
                     lease_path.touch()
             except OSError:
                 pass
-            last_heartbeat = now
-        timed_out_trial: str | None = None
-        if job_dir is not None and trial_timeout_seconds is not None:
-            active = set(_active_trial_directories(job_dir))
-            first_seen = {
-                path: observed for path, observed in first_seen.items() if path in active
-            }
-            for path in active:
-                first_seen.setdefault(path, now)
-                if now - first_seen[path] >= trial_timeout_seconds:
-                    timed_out_trial = path.name
-                    break
-        if timed_out_trial is not None or now - started >= timeout_seconds:
-            _terminate_process_group(process)
-            pump.join(timeout=5)
-            _unlink_secret_dir(owned_secret_dir, owned_secret_path)
-            return HarborProcessResult(
-                returncode=(process.returncode if process.returncode is not None else -1),
-                timed_out=True,
-                log_path=log_path,
-                timed_out_trial=timed_out_trial,
-            )
-        try:
-            process.wait(timeout=WATCHDOG_POLL_SECONDS)
-        except subprocess.TimeoutExpired:
-            continue
-    pump.join(timeout=5)
-    _unlink_secret_dir(owned_secret_dir, owned_secret_path)
-    return HarborProcessResult(
-        returncode=returncode,
-        timed_out=False,
-        log_path=log_path,
-    )
+        last_heartbeat = started
+        first_seen: dict[Path, float] = {}
+        while True:
+            returncode = process.poll()
+            if returncode is not None:
+                break
+            now = time.monotonic()
+            if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
+                try:
+                    if lease_path.is_file():
+                        lease_path.touch()
+                except OSError:
+                    pass
+                last_heartbeat = now
+            timed_out_trial: str | None = None
+            if job_dir is not None and trial_timeout_seconds is not None:
+                active = set(_active_trial_directories(job_dir))
+                first_seen = {
+                    path: observed for path, observed in first_seen.items() if path in active
+                }
+                for path in active:
+                    first_seen.setdefault(path, now)
+                    if now - first_seen[path] >= trial_timeout_seconds:
+                        timed_out_trial = path.name
+                        break
+            if timed_out_trial is not None or now - started >= timeout_seconds:
+                _terminate_process_group(process)
+                pump.join(timeout=5)
+                return HarborProcessResult(
+                    returncode=(process.returncode if process.returncode is not None else -1),
+                    timed_out=True,
+                    log_path=log_path,
+                    timed_out_trial=timed_out_trial,
+                )
+            try:
+                process.wait(timeout=WATCHDOG_POLL_SECONDS)
+            except subprocess.TimeoutExpired:
+                continue
+        pump.join(timeout=5)
+        return HarborProcessResult(
+            returncode=returncode,
+            timed_out=False,
+            log_path=log_path,
+        )
+
+    finally:
+        _unlink_secret_dir(owned_secret_dir, owned_secret_path)
 
 
 def _tail_text(path: Path, *, limit_bytes: int = 1_000_000) -> str:

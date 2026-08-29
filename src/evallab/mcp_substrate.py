@@ -49,7 +49,7 @@ DEFAULT_VOLUME_MOUNT = "/app/output"
 DEFAULT_INTERNAL_NETWORK_NAME = "workbench-internal"
 DEFAULT_MCP_PORT = 8080
 DEFAULT_PINNED_BASE_IMAGE = (
-    "python@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
+    "python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
 PINNED_BASE_IMAGE_INDEX_DIGEST = (
     "sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
@@ -59,7 +59,7 @@ PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST = (
 )
 DEFAULT_TARGET_PYTHON_TAG = "cp312"
 DEFAULT_TARGET_PLATFORM_TAG = "manylinux_2_17_x86_64"
-_PINNED_PYTHON_IMAGE_RE = re.compile(r"^python@sha256:[a-f0-9]{64}$")
+_PINNED_PYTHON_IMAGE_RE = re.compile(r"^python:3\.12\.11-slim@sha256:[a-f0-9]{64}$")
 _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 # Pinned FastMCP 3.4.7 streamable-HTTP sidecar dependencies with strict hash locking
@@ -81,7 +81,7 @@ def validate_target_base_runtime(
     """Fail-closed compatibility check for Python tag, platform, and pinned base image."""
     if not isinstance(base_image, str) or not _PINNED_PYTHON_IMAGE_RE.fullmatch(base_image):
         raise SubstrateError(
-            f"base image must be pinned python@sha256:<digest>, got {base_image!r}"
+            f"base image must be pinned python:3.12.11-slim@sha256:<index-digest>, got {base_image!r}"
         )
     if not isinstance(base_image_index_digest, str) or not _DIGEST_RE.fullmatch(
         base_image_index_digest
@@ -461,14 +461,14 @@ def materialize_mcp_sidecar_package(
         plan_only: When True, skips Dockerfile/wheelhouse copying and emits only plan specification.
         internal_network_name: Name of the task-local internal Docker bridge.
     """
-    target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
-    target_dir.mkdir(parents=True, exist_ok=True)
     selected_target = target or WheelhouseTarget(
         python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
     )
     runtime_meta = validate_target_base_runtime(
         selected_target.python_tag, selected_target.platform_tag, base_image
     )
+    target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. server.py
     server_code = generate_fastmcp_server_script(

@@ -1020,43 +1020,6 @@ def compute_item_context_digest(
 RATING_CONTRACT_SCHEMA = "goldset-rating-contract/v1"
 
 
-def compute_rating_contract_digest(
-    items: Sequence[LabelItem],
-    *,
-    codebook_version: str,
-    rating_schema_version: str,
-    package_schema_version: str,
-) -> str:
-    """IMMUTABLE contract a rater signs. Computed BEFORE any intake.
-
-    Why this exists: ratings previously had to bind `package_digest`, but that
-    digest covers the whole serialized package INCLUDING readiness and rating
-    summaries - so it changes as ratings arrive. Requiring a rating to sign it was
-    circular: the value only exists after the ratings are counted.
-
-    This digest covers exactly what a rater is shown and judged against, in order,
-    plus the codebook and schema versions. Nothing downstream of intake can alter
-    it, so it is stable for the whole labelling campaign. Artifact digests
-    (`package_digest`, `build_id`) stay SEPARATE and are free to include readiness
-    and rating summaries.
-    """
-    payload = {
-        "contract_schema": RATING_CONTRACT_SCHEMA,
-        "codebook_version": codebook_version,
-        "rating_schema_version": rating_schema_version,
-        "package_schema_version": package_schema_version,
-        # Order matters: the ordered sequence of what raters see is part of the
-        # contract, not merely the set.
-        "ordered_items": [
-            {"item_id": i.item_id, "item_context_digest": i.item_context_digest}
-            for i in sorted(items, key=lambda x: x.item_id)
-        ],
-    }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    ).hexdigest()
-
-
 def compute_item_set_digest(items: Sequence[LabelItem], codebook_version: str) -> str:
     """Stable anchor ratings bind to. Changes on ANY recut that alters items.
 
@@ -1081,6 +1044,9 @@ RATING_SIGNED_FIELDS = (
     "item_id",
     "item_context_digest",
     "rater_key_id",
+    # Correction intent MUST be signed, or a proxy can inject or alter it. The
+    # field is included whether it is null or set, so its absence is also signed.
+    "supersedes",
     *HUMAN_JUDGED_FIELDS,
 )
 
@@ -1111,6 +1077,25 @@ def verify_rating_signature(record: Mapping[str, Any], keyring: Mapping[str, str
         return False
     supplied = str(record.get("signature") or "")
     return hmac.compare_digest(sign_rating(record, secret), supplied)
+
+
+def is_ledger_dir(path: Path | None) -> bool:
+    """A ledger root is identified by its manifest, never by globbing JSON."""
+    return bool(path) and (path / "head.json").is_file() and (path / "ledger.jsonl").is_file()
+
+
+def load_intake(ratings_dir: Path | None) -> tuple[list[dict[str, Any]], str]:
+    """Production intake. Prefers the append-only ledger over a loose glob.
+
+    Pointing the glob loader at a ledger root ingested head.json as a malformed
+    record and ignored records/ entirely; pointing it at records/ ingested
+    superseded records alongside their corrections and produced spurious
+    conflicts. Neither is a usable intake path, so the ledger is detected and its
+    EFFECTIVE view is used.
+    """
+    if is_ledger_dir(ratings_dir) and ratings_dir is not None:
+        return effective_ratings(load_ledger(ratings_dir)), "append_only_ledger"
+    return load_rating_records(ratings_dir), "loose_json_glob"
 
 
 def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
@@ -1220,6 +1205,7 @@ def evaluate_readiness(
     *,
     rating_contract_digest: str | None = None,
     keyring: Mapping[str, str] | None = None,
+    intake_mode: str = "unspecified",
 ) -> dict[str, Any]:
     """Fail-closed. Validates labels, not merely the presence of rater IDs (B4).
 
@@ -1326,6 +1312,7 @@ def evaluate_readiness(
         "readiness": "READY" if not blockers else "NOT_READY",
         "cluster_adequacy": adequacy,
         "rating_intake": {
+            "intake_mode": intake_mode,
             "records_seen": len(records),
             "records_accepted": len(accepted),
             "records_rejected": len(records) - len(accepted),
@@ -1391,6 +1378,20 @@ def evaluate_readiness(
 # ---------------------------------------------------------------------------
 
 LEDGER_SCHEMA = "goldset-rating-ledger/v1"
+
+# SCOPE OF THE GUARANTEE, stated honestly.
+#
+# The ledger is LOCALLY TAMPER-EVIDENT: any edit, deletion or reordering that
+# leaves the chain or the head manifest inconsistent is detected at load.
+#
+# It is NOT ROLLBACK-PROOF on its own. An attacker who truncates ledger.jsonl AND
+# rewrites head.json consistently produces a shorter but internally valid ledger.
+# Detecting that requires an EXTERNAL ANCHOR - a head hash published somewhere the
+# attacker does not control. `verify_against_anchor` accepts such an anchor; until
+# one is published, truncation resistance MUST NOT be claimed.
+LEDGER_ANCHOR_NOTE = (
+    "locally tamper-evident; rollback/truncation detectable only against an external head anchor"
+)
 GENESIS_HASH = "0" * 64
 
 
@@ -1465,11 +1466,33 @@ def append_rating_record(
                 f"live record; a correction must set supersedes"
             )
         if supersedes:
-            known = {str(r.get("record_id")) for r in existing}
-            if supersedes not in known:
+            by_id = {str(r.get("record_id")): r for r in existing}
+            target = by_id.get(supersedes)
+            if target is None:
                 raise LedgerError(f"SUPERSEDES_UNKNOWN_RECORD: {supersedes}")
             if supersedes in superseded_ids:
                 raise LedgerError(f"SUPERSEDES_ALREADY_SUPERSEDED: {supersedes}")
+            # A correction may only replace the SAME rater's rating of the SAME
+            # item. Without this, supersedes is a deletion primitive: pointing it
+            # at another rater's record removed that record from the effective
+            # view.
+            if str(target.get("item_id")) != identity[0]:
+                raise LedgerError(
+                    f"SUPERSEDES_CROSS_ITEM: target item {target.get('item_id')!r} "
+                    f"!= {identity[0]!r}"
+                )
+            if str(target.get("rater_key_id")) != identity[1]:
+                raise LedgerError(
+                    f"SUPERSEDES_CROSS_RATER: target rater "
+                    f"{target.get('rater_key_id')!r} != {identity[1]!r}"
+                )
+            # Correction intent must be signed by the rater, not asserted by the
+            # caller appending on their behalf.
+            if record.get("supersedes") != supersedes:
+                raise LedgerError(
+                    "SUPERSEDES_NOT_IN_SIGNED_RECORD: the record must itself carry "
+                    "and sign the supersedes field"
+                )
 
         stored = dict(record)
         stored["created_at"] = created_at
@@ -1583,6 +1606,30 @@ def load_ledger(ledger_dir: Path) -> list[dict[str, Any]]:
     return records
 
 
+def verify_against_anchor(ledger_dir: Path, anchor_head_hash: str, anchor_count: int) -> None:
+    """Check the ledger against an EXTERNALLY published head anchor.
+
+    This is what makes truncation detectable. The anchor must come from somewhere
+    the ledger's writer does not control - a signed release, a VCS tag, or a
+    countersigned checkpoint. Without it the ledger can be rolled back to any
+    earlier consistent state.
+    """
+    head_hash, count = ledger_head(ledger_dir)
+    if count < anchor_count:
+        raise LedgerError(
+            f"LEDGER_ROLLBACK_DETECTED: local count {count} < anchored {anchor_count}"
+        )
+    if count == anchor_count and head_hash != anchor_head_hash:
+        raise LedgerError(
+            f"LEDGER_FORK_DETECTED: local head {head_hash[:12]}… != anchored "
+            f"{anchor_head_hash[:12]}… at count {count}"
+        )
+    if anchor_count:
+        entries = load_ledger(ledger_dir)
+        if len(entries) < anchor_count:
+            raise LedgerError("LEDGER_ROLLBACK_DETECTED: fewer records than anchored")
+
+
 def effective_ratings(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Latest non-superseded record per (item_id, rater_key_id).
 
@@ -1598,6 +1645,33 @@ def effective_ratings(records: Sequence[Mapping[str, Any]]) -> list[dict[str, An
     return [out[k] for k in sorted(out)]
 
 
+def taxonomy_contract_block() -> dict[str, Any]:
+    """The exact taxonomy/codebook a rater is shown, and which the contract covers."""
+    return {
+        "primary_label": PRIMARY_LABEL,
+        "human_judged_fields": list(HUMAN_JUDGED_FIELDS),
+        "allowed_values": {k: list(v) for k, v in ALLOWED_VALUES.items()},
+        "primary_definitions": PRIMARY_DEFINITIONS,
+        "facet_definitions": FACET_DEFINITIONS,
+        "attention_check_field": ATTENTION_CHECK_FIELD,
+        "missing_data_semantics": {
+            CANNOT_JUDGE: (
+                "Context IS present; the step is genuinely ambiguous. Measures taxonomy ambiguity."
+            ),
+            INSUFFICIENT_CONTEXT: (
+                "Context is ABSENT or TRUNCATED in the package. Measures package "
+                "completeness and reports a builder-fixable defect."
+            ),
+            "note": (
+                "These MUST NOT be pooled. Cross-check rater "
+                "INSUFFICIENT_CONTEXT against item.context_completeness."
+                "builder_verdict; disagreement means the builder missed a defect."
+            ),
+        },
+        "excluded_labels": EXCLUDED_LABELS,
+    }
+
+
 def build_package(
     runs_root: Path,
     *,
@@ -1608,10 +1682,11 @@ def build_package(
     authority_secret: str | None = None,
     keystore_path: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    taxonomy_block = taxonomy_contract_block()
     universe, truths, census = enumerate_universe(runs_root)
     selected = select_items(universe, core_n=core_n, boost_per_stratum=boost_per_stratum)
     keep = {i.item_id for i in selected}
-    records = load_rating_records(ratings_dir)
+    records, intake_mode = load_intake(ratings_dir)
     qualified, keyring, registry_problems = load_rater_registry(
         registry_path, authority_secret, keystore_path
     )
@@ -1622,18 +1697,29 @@ def build_package(
         i for i in selected if i.context_completeness.get("builder_verdict") == "COMPLETE"
     ]
     excluded_incomplete = len(selected) - len(deliverable)
-    rating_contract_digest = compute_rating_contract_digest(
-        deliverable,
-        codebook_version=TAXONOMY_VERSION,
-        rating_schema_version=RATING_SCHEMA_VERSION,
-        package_schema_version=SCHEMA_VERSION,
+    # ONE canonical contract digest, computed from the SAME canonical bundle the
+    # rater receives. Two functions previously disagreed - the server expected an
+    # item-only digest while the client signed a whole-bundle digest - so every
+    # genuine rating was rejected with RATING_CONTRACT_DIGEST_MISMATCH. The
+    # distributed path never worked, and testing each half in isolation could not
+    # reveal it.
+    contract_bundle = build_rater_bundle(
+        {
+            "taxonomy_version": TAXONOMY_VERSION,
+            "rating_schema_version": RATING_SCHEMA_VERSION,
+            "taxonomy": taxonomy_block,
+            "items": [asdict(i) for i in deliverable],
+            "deliverable_item_ids": sorted(i.item_id for i in deliverable),
+        }
     )
+    rating_contract_digest = compute_bundle_contract_digest(contract_bundle)
     readiness = evaluate_readiness(
         deliverable,
         records,
         qualified_rater_ids=qualified,
         rating_contract_digest=rating_contract_digest,
         keyring=keyring or None,
+        intake_mode=intake_mode,
     )
     readiness["registry"] = {
         "source": str(registry_path) if registry_path else None,
@@ -1679,30 +1765,7 @@ def build_package(
                 "and primes the error_response facet."
             ),
         },
-        "taxonomy": {
-            "primary_label": PRIMARY_LABEL,
-            "human_judged_fields": list(HUMAN_JUDGED_FIELDS),
-            "allowed_values": {k: list(v) for k, v in ALLOWED_VALUES.items()},
-            "primary_definitions": PRIMARY_DEFINITIONS,
-            "facet_definitions": FACET_DEFINITIONS,
-            "attention_check_field": ATTENTION_CHECK_FIELD,
-            "missing_data_semantics": {
-                CANNOT_JUDGE: (
-                    "Context IS present; the step is genuinely ambiguous. Measures "
-                    "taxonomy ambiguity."
-                ),
-                INSUFFICIENT_CONTEXT: (
-                    "Context is ABSENT or TRUNCATED in the package. Measures package "
-                    "completeness and reports a builder-fixable defect."
-                ),
-                "note": (
-                    "These MUST NOT be pooled. Cross-check rater "
-                    "INSUFFICIENT_CONTEXT against item.context_completeness."
-                    "builder_verdict; disagreement means the builder missed a defect."
-                ),
-            },
-            "excluded_labels": EXCLUDED_LABELS,
-        },
+        "taxonomy": taxonomy_block,
         "statistical_parameters_owned_by_tutor": {
             "decided_2026_08_28": {
                 "primary_statistic": "gwet_ac1_multirater_nominal",
@@ -1820,10 +1883,6 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
         taxonomy["missing_data_semantics"] = semantics
     return {
         "schema_version": BUNDLE_SCHEMA,
-        # INFORMATIONAL ONLY - not signed. The signed binding is
-        # rating_contract_digest, which is immutable for the campaign.
-        "package_digest_informational_only": package["package_digest"],
-        "rating_contract_digest": package["readiness"]["authentication"]["rating_contract_digest"],
         "taxonomy_version": package["taxonomy_version"],
         "codebook_version": package["taxonomy_version"],
         "rating_schema_version": package["rating_schema_version"],
@@ -1906,6 +1965,46 @@ def verify_bundle(bundle: Mapping[str, Any], distribution_secret: str | None) ->
       - any item_context_digest disagrees with recomputation from its own
         signed inputs (rater_context + cluster_id + step_index)
     """
+    if not isinstance(bundle, Mapping):
+        raise BundleVerificationError(f"BUNDLE_NOT_AN_OBJECT: got {type(bundle).__name__}")
+    if bundle.get("schema_version") != BUNDLE_SCHEMA:
+        raise BundleVerificationError(
+            f"BUNDLE_SCHEMA_UNSUPPORTED: {bundle.get('schema_version')!r} != {BUNDLE_SCHEMA!r}"
+        )
+    for required in (
+        "taxonomy",
+        "instructions_to_rater",
+        "codebook_version",
+        "rating_schema_version",
+        "items",
+        "rating_contract_digest",
+    ):
+        if required not in bundle:
+            raise BundleVerificationError(f"BUNDLE_MISSING_FIELD: {required}")
+    items = bundle.get("items")
+    if not isinstance(items, list):
+        raise BundleVerificationError(f"BUNDLE_ITEMS_NOT_A_LIST: got {type(items).__name__}")
+    if not items:
+        raise BundleVerificationError("BUNDLE_EMPTY: no items to rate")
+    for position, entry in enumerate(items):
+        if not isinstance(entry, Mapping):
+            raise BundleVerificationError(
+                f"BUNDLE_ITEM_NOT_AN_OBJECT: index {position} is {type(entry).__name__}"
+            )
+        for field in (
+            "item_id",
+            "item_context_digest",
+            "cluster_id",
+            "step_index",
+            "rater_context",
+        ):
+            if field not in entry:
+                raise BundleVerificationError(
+                    f"BUNDLE_ITEM_MISSING_FIELD: index {position} lacks {field}"
+                )
+    if len({str(i["item_id"]) for i in items}) != len(items):
+        raise BundleVerificationError("BUNDLE_DUPLICATE_ITEM_IDS")
+
     if not distribution_secret:
         raise BundleVerificationError("NO_DISTRIBUTION_KEY: cannot verify coordinator")
     expected_signature = sign_bundle(bundle, distribution_secret)
@@ -1939,6 +2038,7 @@ def prepare_rating(
     rater_key_id: str,
     rater_secret: str,
     distribution_secret: str,
+    supersedes: str | None = None,
 ) -> dict[str, Any]:
     """Rater-client path. Verifies the bundle and RECOMPUTES before signing.
 
@@ -1961,6 +2061,7 @@ def prepare_rating(
         "item_id": item_id,
         "item_context_digest": context_digest,
         "rater_key_id": rater_key_id,
+        "supersedes": supersedes,
         **{field: labels[field] for field in HUMAN_JUDGED_FIELDS},
     }
     record["signature"] = sign_rating(record, rater_secret)
@@ -1982,9 +2083,14 @@ def export_rater_bundle(
     published - and the destination must be empty or absent, never merged into.
     """
     bundle = build_rater_bundle(package)
-    # The contract digest is now over the FULL canonical bundle, and the
-    # coordinator signs it so a rater can verify provenance independently.
     bundle["rating_contract_digest"] = compute_bundle_contract_digest(bundle)
+    declared = package.get("readiness", {}).get("authentication", {}).get("rating_contract_digest")
+    if declared and declared != bundle["rating_contract_digest"]:
+        raise BundleVerificationError(
+            f"CONTRACT_DIGEST_DIVERGENCE: package declares {declared[:12]}… but the "
+            f"exported bundle computes {bundle['rating_contract_digest'][:12]}…; the "
+            f"server would reject every rating produced from this bundle"
+        )
     if distribution_secret:
         bundle["coordinator_signature"] = sign_bundle(bundle, distribution_secret)
     staging = Path(tempfile.mkdtemp(prefix="goldset-bundle-"))
@@ -2198,6 +2304,14 @@ def main() -> int:
     parser.add_argument("--core-n", type=int, default=None)
     parser.add_argument("--boost-per-stratum", type=int, default=0)
     parser.add_argument(
+        "--distribution-secret-env",
+        default="GOLDSET_DISTRIBUTION_SECRET",
+        help=(
+            "env var holding the coordinator distribution secret; REQUIRED to "
+            "export a rater bundle, since an unsigned bundle cannot be verified"
+        ),
+    )
+    parser.add_argument(
         "--export-rater-bundle",
         type=Path,
         default=None,
@@ -2221,12 +2335,22 @@ def main() -> int:
         return 2
 
     if args.export_rater_bundle is not None:
+        distribution_secret = os.environ.get(args.distribution_secret_env)
+        if not distribution_secret:
+            print(
+                f"REFUSED UNSIGNED_EXPORT: set {args.distribution_secret_env}; an "
+                f"unsigned bundle carries no coordinator signature and a rater "
+                f"cannot verify it"
+            )
+            return 2
         try:
-            bundle_path = export_rater_bundle(package, args.export_rater_bundle)
-        except BundleContaminationError as exc:
+            bundle_path = export_rater_bundle(
+                package, args.export_rater_bundle, distribution_secret
+            )
+        except (BundleContaminationError, BundleVerificationError) as exc:
             print(f"REFUSED {exc}")
             return 2
-        print(f"wrote {bundle_path} (RATER-SAFE, no truth artifacts)")
+        print(f"wrote {bundle_path} (RATER-SAFE, coordinator-signed)")
 
     file_sha256 = hashlib.sha256(args.out.read_bytes()).hexdigest()
     census = package["census"]

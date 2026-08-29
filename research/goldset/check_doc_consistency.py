@@ -254,9 +254,84 @@ def self_test() -> int:
     return 1 if failures else 0
 
 
+def fix_doc() -> int:
+    """Regenerate the governed values in place, from the live package.
+
+    Check and fix share one source of truth, so the document can be brought back
+    into agreement mechanically instead of hand-patched - which failed at every
+    review for nine revisions.
+    """
+    facts = live_facts()
+    doc = DOC.read_text(encoding="utf-8")
+    doc = re.sub(
+        r"(labeling_package_file_sha256:\s*)[0-9a-f]{64}",
+        r"\g<1>" + facts["file_sha256"],
+        doc,
+    )
+    doc = re.sub(
+        r"(package_digest_in_band:\s*)[0-9a-f]{64}",
+        r"\g<1>" + facts["package_digest"],
+        doc,
+    )
+    doc = re.sub(r"(build_id:\s*)[0-9a-f]{64}", r"\g<1>" + facts["build_id"], doc)
+    doc = re.sub(
+        r"readiness: NOT_READY \(\d+ blockers\)",
+        f"readiness: NOT_READY ({facts['n_blockers']} blockers)",
+        doc,
+    )
+
+    def _table_row(match: re.Match[str]) -> str:
+        label = match.group(1)
+        if "file_sha256" in label or "bytes on disk" in label:
+            return label + facts["file_sha256"]
+        if "rating_contract_digest" in label or "rater-visible" in label:
+            return label + facts["rating_contract_digest"]
+        if "build_id" in label or "truth" in label:
+            return label + facts["build_id"]
+        return label + facts["package_digest"]
+
+    doc = re.sub(r"(\|[^|\n]*\|\s*`)([0-9a-f]{64})", _table_row, doc)
+    doc = re.sub(
+        r"`labeling_package_file_sha256 [0-9a-f]{8}…`",
+        f"`labeling_package_file_sha256 {facts['file_sha256'][:8]}…`",
+        doc,
+    )
+    doc = re.sub(r"`sha256 [0-9a-f]{8}…`", f"`sha256 {facts['file_sha256'][:8]}…`", doc)
+    doc = re.sub(
+        r"Expect `labeling_package_file_sha256 [0-9a-f]{64}`",
+        f"Expect `labeling_package_file_sha256 {facts['file_sha256']}`",
+        doc,
+    )
+    census = "\n".join(f"{k}: {facts['census'][k]}" for k in GOVERNED_CENSUS_FIELDS)
+    doc = CENSUS_BLOCK_RE.sub(lambda _: f"<!--census-->\n```\n{census}\n```", doc, count=1)
+    blockers = "\n".join(facts["blockers"])
+    doc = re.sub(
+        r"```\nreadiness NOT_READY\n(?:[^\n]*\n)*?```",
+        f"```\nreadiness NOT_READY\n{blockers}\n```",
+        doc,
+        count=1,
+    )
+    doc = re.sub(
+        r"```\n(?:[A-Z_]+(?:_TOO_HIGH|_BELOW_FLOOR|_TOO_SMALL|_ABSENT|_RATINGS)[^\n]*\n)+```",
+        f"```\n{blockers}\n```",
+        doc,
+    )
+    DOC.write_text(doc, encoding="utf-8")
+    remaining = check(doc, facts)
+    if remaining:
+        print(f"fix applied but {len(remaining)} violations remain:")
+        for violation in remaining:
+            print(f"  {violation}")
+        return 1
+    print("doc regenerated: clean")
+    return 0
+
+
 def main() -> int:
     if "--self-test" in sys.argv:
         return self_test()
+    if "--fix" in sys.argv:
+        return fix_doc()
     facts = live_facts()
     violations = check(DOC.read_text(encoding="utf-8"), facts)
     if violations:

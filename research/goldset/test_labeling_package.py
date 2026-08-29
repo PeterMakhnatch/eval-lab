@@ -24,8 +24,10 @@ from build_labeling_package import (  # noqa: E402
     HUMAN_JUDGED_FIELDS,
     INSUFFICIENT_CONTEXT,
     KEYSTORE_SCHEMA_VERSION,
+    LEDGER_SCHEMA,
     MIN_EFFECTIVE_CLUSTERS,
     RATING_SCHEMA_VERSION,
+    RATING_SIGNED_FIELDS,
     REGISTRY_SCHEMA_VERSION,
     REQUIRED_RATERS_PER_ITEM,
     BundleContaminationError,
@@ -56,6 +58,7 @@ from build_labeling_package import (  # noqa: E402
     sign_rating,
     sign_registry,
     validate_rating,
+    verify_against_anchor,
     verify_bundle,
     verify_rating_signature,
     write_paired_outputs,
@@ -63,7 +66,7 @@ from build_labeling_package import (  # noqa: E402
 
 EXPECTED_ITEMS = 183  # distinct contexts; only byte-identical paths alias
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "ad169c4b76da2985285b242cfee3471916d78f098a75d11c113d91b2a13259c2"
+EXPECTED_DIGEST = "165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b"
 
 
 def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
@@ -549,8 +552,8 @@ def main() -> int:
             bundle["rating_contract_digest"] == compute_bundle_contract_digest(bundle),
         )
         check(
-            "bundle labels package_digest informational-only, not signed",
-            "package_digest_informational_only" in bundle and "package_digest" not in bundle,
+            "bundle carries NO artifact digest: build identity is not contract",
+            "package_digest" not in bundle and "package_digest_informational_only" not in bundle,
         )
         check(
             "every bundle item binds an item_context_digest",
@@ -1202,6 +1205,39 @@ def main() -> int:
                 _raises(BundleVerificationError, lambda p=poisoned: verify_bundle(p, DIST)),
             )
         check(
+            "a non-mapping bundle is refused",
+            _raises(
+                BundleVerificationError,
+                lambda: verify_bundle({"x": 1}, DIST),
+            ),
+        )
+        for name, mutate in (
+            ("unsupported schema", lambda d: {**d, "schema_version": "v0"}),
+            ("missing taxonomy", lambda d: {k: v for k, v in d.items() if k != "taxonomy"}),
+            (
+                "missing instructions",
+                lambda d: {k: v for k, v in d.items() if k != "instructions_to_rater"},
+            ),
+            ("items not a list", lambda d: {**d, "items": {"a": 1}}),
+            ("empty bundle", lambda d: {**d, "items": []}),
+            (
+                "item missing cluster_id",
+                lambda d: {
+                    **d,
+                    "items": [{k: v for k, v in d["items"][0].items() if k != "cluster_id"}],
+                },
+            ),
+            ("duplicate item ids", lambda d: {**d, "items": [d["items"][0], dict(d["items"][0])]}),
+        ):
+            malformed = mutate(json.loads(json.dumps(sb)))
+            check(
+                f"{name} is refused with a typed error",
+                _raises(
+                    BundleVerificationError,
+                    lambda m=malformed: verify_bundle(m, DIST),
+                ),
+            )
+        check(
             "wrong distribution key is refused",
             _raises(BundleVerificationError, lambda: verify_bundle(sb, "WRONG")),
         )
@@ -1289,9 +1325,16 @@ def main() -> int:
                 ),
             ),
         )
+        # supersedes is a SIGNED field, so a correction must carry it in the
+        # record itself - a caller cannot assert correction intent on the rater's
+        # behalf.
         correction = append_rating_record(
             ledger,
-            {**base, "step_contribution": "HARMFUL"},
+            {
+                **base,
+                "step_contribution": "HARMFUL",
+                "supersedes": first["record_id"],
+            },
             created_at="T3",
             supersedes=first["record_id"],
         )
@@ -1326,6 +1369,175 @@ def main() -> int:
         check(
             "overwritten record is detected",
             _raises(LedgerError, lambda: load_ledger(ledger)),
+        )
+
+    print("E2E-FULL - export -> verify -> prepare -> ledger -> rebuild")
+    with tempfile.TemporaryDirectory() as tmp:
+        T = Path(tmp)
+        # Synthetic corpus so the acceptance E2E runs EVERYWHERE, including CI
+        # where runs/ is gitignored. Skipping it would defeat its purpose.
+        e2e_runs = _synthetic_runs(T / "corpus")
+        DIST2 = "dist-key"
+        KEYS = {"r1": "s1", "r2": "s2", "r3": "s3"}
+        pkg2, truth2 = build_package(e2e_runs, core_n=None, boost_per_stratum=0, ratings_dir=None)
+        write_paired_outputs(pkg2, truth2, T / "pkg.json", T / "truth.json")
+        server_contract = pkg2["readiness"]["authentication"]["rating_contract_digest"]
+        exported = export_rater_bundle(pkg2, T / "bundle", distribution_secret=DIST2)
+        eb = json.loads(exported.read_text(encoding="utf-8"))
+        check(
+            "ONE canonical contract digest: package == exported bundle",
+            server_contract == eb["rating_contract_digest"],
+        )
+        labels2 = {f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS}
+        ledger2 = T / "ledger"
+        chosen = [i["item_id"] for i in eb["items"][:2]]
+        expected_records = len(chosen) * len(KEYS)
+        for iid in chosen:
+            for key_id, secret in KEYS.items():
+                prepared = prepare_rating(
+                    eb,
+                    item_id=iid,
+                    labels=labels2,
+                    rater_key_id=key_id,
+                    rater_secret=secret,
+                    distribution_secret=DIST2,
+                )
+                append_rating_record(ledger2, prepared, created_at=f"T-{iid[:6]}-{key_id}")
+        reg3 = {
+            "schema_version": REGISTRY_SCHEMA_VERSION,
+            "authority_key_id": "a",
+            "raters": [{"key_id": k, "qualified": True} for k in KEYS],
+        }
+        reg3["signature"] = sign_registry(reg3, "AUTH")
+        (T / "reg.json").write_text(json.dumps(reg3), encoding="utf-8")
+        (T / "ks.json").write_text(
+            json.dumps({"schema_version": KEYSTORE_SCHEMA_VERSION, "keys": KEYS}),
+            encoding="utf-8",
+        )
+        rebuilt, _ = build_package(
+            e2e_runs,
+            core_n=None,
+            boost_per_stratum=0,
+            ratings_dir=ledger2,
+            registry_path=T / "reg.json",
+            authority_secret="AUTH",
+            keystore_path=T / "ks.json",
+        )
+        ri2 = rebuilt["readiness"]["rating_intake"]
+        check("intake detects the append-only ledger", ri2["intake_mode"] == "append_only_ledger")
+        check(
+            "every genuine client rating is ACCEPTED end to end",
+            ri2["records_accepted"] == expected_records and ri2["records_rejected"] == 0,
+            f"got accepted={ri2['records_accepted']} rejected={ri2['records_rejected']} "
+            f"reasons={ri2['primary_rejection_reasons']}",
+        )
+        counts2 = rebuilt["readiness"]["context_diagnostic_2x2"]["counts"]
+        check("diagnostic total equals accepted", sum(counts2.values()) == ri2["records_accepted"])
+
+    print("SEC-SUPERSEDE - correction authorization")
+    with tempfile.TemporaryDirectory() as tmp:
+        ledger3 = Path(tmp) / "l"
+
+        def _rec(item: str, rater: str, sup: str | None = None, **over: object) -> dict:
+            r = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "item_id": item,
+                "rater_key_id": rater,
+                "supersedes": sup,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+                **over,
+            }
+            r["signature"] = sign_rating(r, "k")
+            return r
+
+        victim = append_rating_record(ledger3, _rec("i1", "victim"), created_at="T0")
+        append_rating_record(ledger3, _rec("i2", "victim"), created_at="T1")
+        vid = victim["record_id"]
+        check(
+            "cross-RATER supersede is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger3, _rec("i1", "attacker", vid), created_at="TX", supersedes=vid
+                ),
+            ),
+        )
+        check(
+            "cross-ITEM supersede is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger3, _rec("i2", "victim", vid), created_at="TY", supersedes=vid
+                ),
+            ),
+        )
+        check(
+            "unsigned correction intent is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger3, _rec("i1", "victim", None), created_at="TZ", supersedes=vid
+                ),
+            ),
+        )
+        check("supersedes is inside the signed fields", "supersedes" in RATING_SIGNED_FIELDS)
+        append_rating_record(
+            ledger3,
+            _rec("i1", "victim", vid, step_contribution="HARMFUL"),
+            created_at="T3",
+            supersedes=vid,
+        )
+        check(
+            "own correction is accepted and the victim record is retained",
+            (ledger3 / "records" / f"{vid}.json").is_file()
+            and len(effective_ratings(load_ledger(ledger3))) == 2,
+        )
+
+    print("SEC-ANCHOR - rollback is only detectable against an external anchor")
+    with tempfile.TemporaryDirectory() as tmp:
+        ledger4 = Path(tmp) / "l"
+
+        def _r4(rater: str) -> dict:
+            r = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "item_id": "i1",
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            r["signature"] = sign_rating(r, "k")
+            return r
+
+        for n in range(3):
+            append_rating_record(ledger4, _r4(f"r{n}"), created_at=f"T{n}")
+        anchor_head, anchor_count = ledger_head(ledger4)
+        lines = (ledger4 / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
+        first_entry = json.loads(lines[0])
+        (ledger4 / "ledger.jsonl").write_text(lines[0] + "\n", encoding="utf-8")
+        (ledger4 / "head.json").write_text(
+            json.dumps(
+                {
+                    "schema": LEDGER_SCHEMA,
+                    "head_hash": first_entry["entry_hash"],
+                    "count": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        for stale in (ledger4 / "records").glob("*.json"):
+            if stale.stem != first_entry["record_id"]:
+                os.chmod(stale, 0o644)
+                stale.unlink()
+        check(
+            "a consistently-rewritten rollback passes LOCAL verification",
+            len(load_ledger(ledger4)) == 1,
+        )
+        check(
+            "the external anchor DETECTS the rollback",
+            _raises(
+                LedgerError,
+                lambda: verify_against_anchor(ledger4, anchor_head, anchor_count),
+            ),
         )
 
     print("SEC-CLONE - item-level logical dedup with lineage")

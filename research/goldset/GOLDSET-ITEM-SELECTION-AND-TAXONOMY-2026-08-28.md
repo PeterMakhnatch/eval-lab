@@ -14,9 +14,9 @@ collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-labeling_package_file_sha256: ad169c4b76da2985285b242cfee3471916d78f098a75d11c113d91b2a13259c2
-package_digest_in_band: 646398e211ed0069e99cf4a72d4abe2da3dc6a43a19df300beff7a70130bc91f
-build_id: 8c8ddd695b08f216060eedbfb4a417880c4571869873a2c8878a9468b6c3be95
+labeling_package_file_sha256: 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b
+package_digest_in_band: 5830c8cffc74a7bad48969263b058e42207a143a01a4a09c234da23724de7748
+build_id: 35a7ab66a78de1d9692e7aeb439fe7ca016f477f4a9753c17be893fa52b60ea5
 revision: 10
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
@@ -69,16 +69,16 @@ Two families, and conflating them caused two separate review blockers.
 
 | Name | Covers | Value |
 |---|---|---|
-| `rating_contract_digest` | ordered rater-visible item contexts + codebook + rating-schema + package-schema versions | `76a65a392da9cfc83dc97492ad115d656b09d08d907e7bcf1c160bd28d242cbf` |
+| `rating_contract_digest` | ordered rater-visible item contexts + codebook + rating-schema + package-schema versions | `d6898d1b85c89775eb3180b643c4adf3b0c1cda0c9971486c385cf51ec493fb1` |
 | `item_context_digest` | per item: trial identity + step ordinal + instruction + every prior and current field | per item |
 
 **Artifact digests — identify a build. May include readiness and rating summaries.**
 
 | Name | Covers | Value |
 |---|---|---|
-| `labeling_package_file_sha256` | sha256 of the file **bytes on disk** | `ad169c4b76da2985285b242cfee3471916d78f098a75d11c113d91b2a13259c2` |
-| `package_digest` (in-band) | serialized package minus its own key | `646398e211ed0069e99cf4a72d4abe2da3dc6a43a19df300beff7a70130bc91f` |
-| `build_id` | ser(pkg − {build_id, package_digest}) + ser(truth − {build_id}) | `8c8ddd695b08f216060eedbfb4a417880c4571869873a2c8878a9468b6c3be95` |
+| `labeling_package_file_sha256` | sha256 of the file **bytes on disk** | `165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b` |
+| `package_digest` (in-band) | serialized package minus its own key | `5830c8cffc74a7bad48969263b058e42207a143a01a4a09c234da23724de7748` |
+| `build_id` | ser(pkg − {build_id, package_digest}) + ser(truth − {build_id}) | `35a7ab66a78de1d9692e7aeb439fe7ca016f477f4a9753c17be893fa52b60ea5` |
 
 **Why the split is load-bearing.** Ratings previously had to bind `package_digest`,
 which covers readiness and rating summaries — so it **changes as ratings arrive**.
@@ -218,7 +218,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `labeling_package_file_sha256 ad169c4b…`.
+byte-identical package, `labeling_package_file_sha256 165a3f78…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -274,42 +274,51 @@ If raters mark `INSUFFICIENT_CONTEXT` on items the builder called `COMPLETE`, **
 builder missed a defect it believed it had detected.** That disagreement is a
 measurement of the package, obtainable only because the two signals are separate.
 
-### 2.5 Delivery guard — raters receive ONLY the exported bundle
+### 2.5 Delivery guard — exact allowlist, coordinator-signed
 
 The default tree co-locates `labeling_package.json` and
 `machine_truth_WITHHELD.json`. **That directory must never be handed to a rater.**
 
-Raters receive exactly one artifact, produced by:
-
 ```bash
+export GOLDSET_DISTRIBUTION_SECRET=...        # required; unsigned export refuses
 python3 research/goldset/build_labeling_package.py \
   --runs-root runs \
   --out research/goldset/labeling_package.json \
   --machine-truth-out research/goldset/machine_truth_WITHHELD.json \
-  --export-rater-bundle <clean-empty-dir>
+  --export-rater-bundle <empty-or-absent-dir>
 ```
 
-`export_rater_bundle` scans **recursively** and refuses if the target directory
-holds anything matching `*machine_truth*`, `*WITHHELD*`, `*truth*`, `*attention*`,
-`*labeling_package*`, `*registry*`, `*keystore*`, `*secret*`, `*.key` or `*.pem`.
-It re-asserts after writing.
+**Isolation is an EXACT ALLOWLIST, not a pathname denylist.** The earlier denylist
+was bypassed by renaming: the withheld truth copied to `deep/answers.json` exported
+cleanly with the full truth in the destination. A denylist can never be complete,
+and content-matching only moves the goalposts. So:
 
-**Secrets never live in the roster.** The signed roster
-(`goldset-rater-registry/v1`) carries `key_id` and `qualified` only; a roster
-containing any secret field is **rejected outright**. Rater secrets come from a
-separate `goldset-rater-keystore/v1` file that is never exported and never written
-into any artifact.
+- the bundle is generated into a **fresh temporary directory**
+- that directory is verified to contain **exactly** `BUNDLE_ALLOWLIST`
+  (`rater_bundle.json`) — every extra path, unowned directory and symlink is
+  rejected
+- the destination must be **empty or absent**; a bundle is never merged into
+  pre-existing paths
+- the allowlist is **re-verified after publish**
 
-**Ratings bind `item_set_digest`**, a stable digest over the sorted <!--hist-->
-`(item_id, logical_step_digest)` pairs. A rating signed against a different item
-set is rejected even when the individual item and its logical digest survive a
-recut — that is the replay defence. The bundle omits `attention_check_field`, omits every truth row, and
-strips prose revealing that a withheld truth exists.
+Filename and content are therefore irrelevant: anything the bundle does not own is
+rejected.
 
-**Open follow-ups, recorded not fixed:** the build lock leaves an empty
-`.goldset-build.lock` artifact, and `builder_verdict` may bias raters toward
-`INSUFFICIENT_CONTEXT` on items it marks `INCOMPLETE` — a blinding question for
-Tutor, since the cross-check value and the priming risk trade off directly.
+**The export is coordinator-signed and the CLI refuses to produce an unsigned
+bundle**, because a rater cannot verify a bundle that carries no signature.
+
+**Withheld from the bundle:** `builder_verdict`, `degraded_reasons`, the
+attention-check identity, and every truth row. Bundle items expose exactly
+`item_id`, `item_context_digest`, `cluster_id`, `step_index`, `rater_context` — the
+last two are present precisely so a rater can **recompute** the context digest
+rather than copy a supplied value.
+
+**The bundle carries no artifact digest.** `package_digest` and `build_id` identify
+a *build*; the contract is what a rater is shown. Mixing them made the contract
+digest circular.
+
+**Open follow-up, recorded not fixed:** `builder_verdict` priming risk is resolved
+by withholding it and taking the signal post-hoc via the 2×2 diagnostic.
 
 ## 3. Cluster adequacy — Tutor's power verdict: HOLD LABELING
 
@@ -474,7 +483,7 @@ python3 research/goldset/build_labeling_package.py \
 python3 research/goldset/test_labeling_package.py   # 123 standalone checks + 22 pytest
 ```
 
-Expect `labeling_package_file_sha256 ad169c4b76da2985285b242cfee3471916d78f098a75d11c113d91b2a13259c2`
+Expect `labeling_package_file_sha256 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

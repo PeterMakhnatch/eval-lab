@@ -9,7 +9,7 @@
       "repeats_prior_action"
     ]
   },
-  "build_id": "8c8ddd695b08f216060eedbfb4a417880c4571869873a2c8878a9468b6c3be95",
+  "build_id": "35a7ab66a78de1d9692e7aeb439fe7ca016f477f4a9753c17be893fa52b60ea5",
   "census": {
     "agent_steps_per_cluster": {
       "06adc723e66a2e5cd2b337439bb309cabf352c8b9f0cc108375e3f20bfc9e21f": 9,
@@ -47399,13 +47399,13 @@
       "power_argument"
     ]
   },
-  "package_digest": "646398e211ed0069e99cf4a72d4abe2da3dc6a43a19df300beff7a70130bc91f",
+  "package_digest": "5830c8cffc74a7bad48969263b058e42207a143a01a4a09c234da23724de7748",
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
     "authentication": {
       "append_only_unique_key": "(item_id, rater_key_id)",
       "rater_id_is_self_asserting": false,
-      "rating_contract_digest": "76a65a392da9cfc83dc97492ad115d656b09d08d907e7bcf1c160bd28d242cbf",
+      "rating_contract_digest": "d6898d1b85c89775eb3180b643c4adf3b0c1cda0c9971486c385cf51ec493fb1",
       "rating_contract_schema": "goldset-rating-contract/v1",
       "replay_defence": "Ratings bind rating_contract_digest, computed BEFORE intake over the ordered rater-visible contexts plus codebook and schema versions. It is immutable for the campaign, so the binding is not circular. package_digest and build_id are SEPARATE artifact digests and may include readiness and rating summaries.",
       "requires": [
@@ -47454,6 +47454,7 @@
     "qualified_rater_pool_size": 0,
     "rating_intake": {
       "all_rejection_reasons_non_exclusive": {},
+      "intake_mode": "loose_json_glob",
       "note": "Only ACCEPTED records reach any diagnostic - validated, signature-verified against a qualified key, and bound to the rating contract. Rejected records are counted here and nowhere else, so a forged or unsigned submission cannot enter a diagnostic without first passing validation.",
       "primary_rejection_reasons": {},
       "reconciliation": "records_seen == records_accepted + records_rejected, and sum(primary_rejection_reasons) == records_rejected == records_with_reason. all_rejection_reasons_non_exclusive may sum HIGHER because one record can fail several checks - a replayed contract digest also invalidates the signature.",

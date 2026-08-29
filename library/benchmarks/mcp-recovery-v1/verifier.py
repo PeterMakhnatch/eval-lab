@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.registry import harbor_task_digest
-from evallab.results import load_job
 
 from envelope import decrypt_envelope
 
@@ -307,6 +305,9 @@ def load_fixed_policy_evidence(job_dir: Path | str, staged_task: Path | str) -> 
     task_path = Path(staged_task)
     if not job_path.is_dir() or not task_path.is_dir():
         raise ValueError("fixed-policy job or staged task is missing")
+
+    from evallab.registry import harbor_task_digest
+    from evallab.results import load_job
 
     expected_digest = harbor_task_digest(task_path)
     job = load_job(job_path)

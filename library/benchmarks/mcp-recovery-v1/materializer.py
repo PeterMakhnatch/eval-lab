@@ -435,173 +435,39 @@ PY
 
 def _verifier_py() -> str:
     return '''import json
+import shutil
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE / "fixtures"))
-from envelope import decrypt_envelope
+FIXTURES = HERE / "fixtures"
+sys.path.insert(0, str(FIXTURES))
+from verifier import verify_harbor_task
 
 LOG_DIR = Path("/logs/verifier")
-ENVELOPE_FILE = Path("/app/output/sealed-evidence.json")
-FIXTURES = HERE / "fixtures"
-
-MUTATION_TOOLS = frozenset({"refresh_auth", "fallback_query"})
+SOURCE_ENVELOPE = Path("/app/output/sealed-evidence.json")
+SOURCE_EVENTS = Path("/app/output/benchmark-events.jsonl")
 
 
 def main() -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    passed = False
-    reason = "missing or invalid evidence envelope"
-    checks: dict = {}
-    auto_clear = False
-
-    record_file = FIXTURES / "fault_record.json"
-    key_file = FIXTURES / "secret_key.txt"
-
-    if ENVELOPE_FILE.is_file() and record_file.is_file() and key_file.is_file():
-        record = json.loads(record_file.read_text(encoding="utf-8"))
-        try:
-            key = bytes.fromhex(key_file.read_text(encoding="utf-8").strip())
-            if len(key) != 32:
-                raise ValueError("verifier key length is invalid")
-        except Exception as exc:
-            reason = f"invalid verifier key: {exc}"
-            key = None
-
-        if key is not None:
-            task_id = str(record["task_id"])
-            fault_id = str(record["fault_id"])
-            target_tool = str(record.get("target_tool", "write_record"))
-            payload_cfg = record.get("injection_payload") or {}
-            expected_persistence = int(payload_cfg.get("persistence", 1))
-            is_clean_twin = bool(payload_cfg.get("is_clean_twin", False))
-
-            try:
-                raw_envelope = json.loads(ENVELOPE_FILE.read_text(encoding="utf-8"))
-                payload = decrypt_envelope(
-                    key,
-                    raw_envelope,
-                    task_id=task_id,
-                    fault_id=fault_id,
-                    persistence=expected_persistence,
-                )
-            except Exception as exc:
-                reason = f"envelope decryption failed: {exc}"
-                payload = None
-
-            if payload is not None:
-                events = payload.get("events", [])
-                monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
-                injections = [ev for ev in events if ev.get("fault_injected") is True and ev.get("fault_id") == fault_id]
-                exact_injections = len(injections) == expected_persistence
-                state_changed = payload.get("initial_digest") != payload.get("final_digest") and bool(payload.get("records"))
-
-                if is_clean_twin:
-                    writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
-                    reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
-                    confirmed = any(
-                        w.get("written_value") and r.get("read_value") == w.get("written_value") and int(r.get("event_index", 0)) > int(w.get("event_index", 0))
-                        for w in writes for r in reads
-                    ) if writes and reads else False
-                    passed = bool(monotonic and exact_injections and writes and reads and confirmed and state_changed)
-                    reason = "ok" if passed else "clean twin invariant failure"
-                    checks = {
-                        "monotonic": monotonic,
-                        "zero_faults": exact_injections,
-                        "write_ok": bool(writes),
-                        "read_ok": bool(reads),
-                        "confirmed": confirmed,
-                        "state_changed": state_changed,
-                    }
-                else:
-                    if not injections:
-                        passed = False
-                        reason = "no fault injections observed"
-                    else:
-                        first_fault_idx = min(int(ev["event_index"]) for ev in injections)
-
-                        post_fault_target_successes = [
-                            int(ev["event_index"])
-                            for ev in events
-                            if ev.get("tool") in ("write_record", "read_record")
-                            and ev.get("outcome") == "ok"
-                            and int(ev.get("event_index", 0)) > first_fault_idx
-                        ]
-
-                        if not post_fault_target_successes:
-                            passed = False
-                            reason = "no post-fault target operation succeeded"
-                        else:
-                            first_post_fault_success = min(post_fault_target_successes)
-
-                            mutations_before_success = [
-                                int(ev["event_index"])
-                                for ev in events
-                                if ev.get("tool") in MUTATION_TOOLS
-                                and first_fault_idx < int(ev.get("event_index", -1)) < first_post_fault_success
-                            ]
-                            causal_mutation = bool(mutations_before_success)
-
-                            # Confirmation check based on target tool kind
-                            confirmed_read = False
-                            if target_tool == "read_record":
-                                # Silent fault: initial write -> corrupt reads -> mutation -> clean read matching initial write
-                                initial_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) < first_fault_idx]
-                                clean_reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
-                                for w in initial_writes:
-                                    w_val = w.get("written_value")
-                                    if any(r.get("read_value") == w_val for r in clean_reads):
-                                        confirmed_read = True
-                                        break
-                                if not confirmed_read:
-                                    post_mut_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
-                                    for w in post_mut_writes:
-                                        w_val = w.get("written_value")
-                                        w_idx = int(w.get("event_index", 0))
-                                        if any(r.get("read_value") == w_val and int(r.get("event_index", 0)) > w_idx for r in clean_reads):
-                                            confirmed_read = True
-                                            break
-                            else:
-                                # Write faults: mutation -> post-mutation write -> matching read
-                                post_mut_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) >= first_post_fault_success]
-                                for w in post_mut_writes:
-                                    w_idx = int(w.get("event_index", 0))
-                                    w_val = w.get("written_value")
-                                    matching = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and int(ev.get("event_index", 0)) > w_idx and ev.get("read_value") == w_val]
-                                    if matching:
-                                        confirmed_read = True
-                                        break
-
-                            auto_clear = bool(state_changed and exact_injections and not causal_mutation)
-                            passed = bool(monotonic and exact_injections and causal_mutation and confirmed_read and state_changed)
-                            reason = "ok" if passed else "causal recovery verification failed"
-
-                    checks = {
-                        "monotonic": monotonic,
-                        "exact_injections": exact_injections,
-                        "causal_mutation": causal_mutation if injections and post_fault_target_successes else False,
-                        "read_confirmed": confirmed_read if injections and post_fault_target_successes else False,
-                        "state_changed": state_changed,
-                        "auto_clear": auto_clear,
-                    }
-
-    reward = 1.0 if passed else 0.0
-    (LOG_DIR / "reward.txt").write_text(f"{reward:.1f}\\n", encoding="utf-8")
-    (LOG_DIR / "reward.json").write_text(
-        json.dumps({"reward": reward, "passed": float(passed)}, sort_keys=True) + "\\n",
-        encoding="utf-8",
-    )
-    (LOG_DIR / "checks.json").write_text(
-        json.dumps({"passed": passed, "reason": reason, "checks": checks, "auto_clear": auto_clear}, sort_keys=True) + "\\n",
-        encoding="utf-8",
-    )
+    sandbox = Path("/tmp/recovery-verifier-task")
+    if sandbox.exists():
+        shutil.rmtree(sandbox)
+    (sandbox / "tests").mkdir(parents=True)
+    shutil.copytree(FIXTURES, sandbox / "tests" / "fixtures")
+    (sandbox / "output").mkdir(parents=True)
+    if SOURCE_ENVELOPE.is_file():
+        shutil.copy2(SOURCE_ENVELOPE, sandbox / "output" / "sealed-evidence.json")
+    if SOURCE_EVENTS.is_file():
+        shutil.copy2(SOURCE_EVENTS, sandbox / "output" / "benchmark-events.jsonl")
+    result = verify_harbor_task(sandbox, reward_dir=LOG_DIR)
+    (LOG_DIR / "checks.json").write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
     main()
 '''
-
 
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -830,6 +696,7 @@ before retrying.
     fixtures = tests_dir / "fixtures"
     fixtures.mkdir(parents=True, exist_ok=True)
     (fixtures / "envelope.py").write_text((ROOT / "envelope.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (fixtures / "verifier.py").write_text((ROOT / "verifier.py").read_text(encoding="utf-8"), encoding="utf-8")
     (fixtures / "secret_key.txt").write_text(secret_key_hex, encoding="utf-8")
     (fixtures / "fault_record.json").write_text(
         json.dumps(record.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",

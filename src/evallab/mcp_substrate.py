@@ -25,8 +25,10 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import shutil
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +39,7 @@ from evallab.benchmark_program_contracts import (
     canonical_json,
     compute_sha256,
     safe_resolve_subpath,
+    validate_safe_relative_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +67,17 @@ _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 # Pinned FastMCP 3.4.7 streamable-HTTP sidecar dependencies with strict hash locking
 FASTMCP_VERSION_CONSTRAINTS: tuple[str, ...] = ("fastmcp==3.4.7",)
+RESERVED_RUNTIME_ASSET_PATHS = frozenset(
+    {
+        "Dockerfile",
+        "offline-build-proof.json",
+        "requirements.txt",
+        "server.py",
+        "wheelhouse",
+    }
+)
+_RUNTIME_ASSET_DEST_RE = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._/-]*$")
+_OP_REGISTRY_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 class SubstrateError(Exception):
@@ -212,6 +226,137 @@ class MCPToolParameter:
             "description": self.description,
             "required": self.required,
         }
+
+
+@dataclass(frozen=True)
+class RuntimeAsset:
+    """Explicit host file copied into the sidecar package at a confined relative path."""
+
+    destination: str
+    source: Path
+
+
+def op_registry_module_destination(module: str) -> str:
+    """Map a dotted op-registry module name to its required runtime asset path."""
+    if not module or not _OP_REGISTRY_MODULE_RE.fullmatch(module):
+        raise SubstrateError(f"Invalid op_registry_module: {module!r}")
+    return "/".join(module.split(".")) + ".py"
+
+
+def _runtime_asset_has_control_chars(value: str) -> bool:
+    return any(ord(char) < 32 or ord(char) == 127 for char in value)
+
+
+def _read_runtime_asset_source(source: Path) -> bytes:
+    if source.is_symlink():
+        raise SubstrateError(f"Runtime asset source is a symlink: {source.as_posix()}")
+    if not source.is_file():
+        raise SubstrateError(f"Runtime asset source is not a regular file: {source.as_posix()}")
+    return source.read_bytes()
+
+
+def validate_runtime_assets(
+    runtime_assets: Sequence[RuntimeAsset],
+) -> tuple[tuple[RuntimeAsset, bytes], ...]:
+    """Fail-closed validation of explicit runtime assets.
+
+    Destinations are relative, normalized, confined, non-reserved, unique, and
+    free of traversal/control characters. Sources are regular non-symlink files.
+    Results are sorted by destination for deterministic COPY/proof order.
+    """
+    prepared: dict[str, tuple[RuntimeAsset, bytes]] = {}
+    for asset in runtime_assets:
+        destination = asset.destination
+        if not isinstance(destination, str) or _runtime_asset_has_control_chars(destination):
+            raise SubstrateError(
+                f"Runtime asset destination contains control characters: {destination!r}"
+            )
+        try:
+            destination = validate_safe_relative_path(destination)
+        except ValueError as exc:
+            raise SubstrateError(str(exc)) from exc
+        if not _RUNTIME_ASSET_DEST_RE.fullmatch(destination):
+            raise SubstrateError(
+                f"Runtime asset destination is not a confined POSIX path: {destination!r}"
+            )
+        first_component = destination.split("/", 1)[0]
+        if (
+            destination in RESERVED_RUNTIME_ASSET_PATHS
+            or first_component in RESERVED_RUNTIME_ASSET_PATHS
+        ):
+            raise SubstrateError(f"Runtime asset destination is reserved: {destination!r}")
+        if destination in prepared:
+            raise SubstrateError(f"Duplicate runtime asset destination: {destination!r}")
+        source = asset.source if isinstance(asset.source, Path) else Path(asset.source)
+        content = _read_runtime_asset_source(source)
+        prepared[destination] = (
+            RuntimeAsset(destination=destination, source=source),
+            content,
+        )
+    return tuple(prepared[key] for key in sorted(prepared))
+
+
+def _assert_confined_nonsymlink_destination(root: Path, destination: str) -> Path:
+    try:
+        resolved = safe_resolve_subpath(root, destination)
+    except ValueError as exc:
+        raise SubstrateError(str(exc)) from exc
+    root_resolved = root.resolve()
+    cursor = resolved
+    while True:
+        if cursor.is_symlink():
+            raise SubstrateError(f"Runtime asset destination is a symlink: {destination!r}")
+        if cursor == root_resolved:
+            break
+        parent = cursor.parent
+        if parent == cursor:
+            break
+        cursor = parent
+    return resolved
+
+
+def _atomic_write_bytes(destination: Path, data: bytes) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, destination)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _runtime_asset_proof_records(
+    prepared: Sequence[tuple[RuntimeAsset, bytes]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": asset.destination,
+            "sha256": compute_sha256(content),
+            "size_bytes": len(content),
+        }
+        for asset, content in prepared
+    ]
+
+
+def _require_op_registry_asset(
+    op_registry_module: str | None,
+    prepared: Sequence[tuple[RuntimeAsset, bytes]],
+) -> None:
+    if op_registry_module is None:
+        return
+    required = op_registry_module_destination(op_registry_module)
+    present = {asset.destination for asset, _content in prepared}
+    if required not in present:
+        raise SubstrateError(
+            f"op_registry_module {op_registry_module!r} requires runtime asset {required!r}"
+        )
 
 
 @dataclass(frozen=True)
@@ -415,8 +560,13 @@ def render_mcp_sidecar_dockerfile(
     wheelhouse_dir: str = "/wheelhouse",
     app_dir: str = "/app",
     server_script_name: str = "server.py",
+    runtime_assets: Sequence[RuntimeAsset] = (),
 ) -> str:
     """Render canonical offline sidecar Dockerfile using strict hash-locked pip installation."""
+    asset_copy = "".join(
+        f"COPY {asset.destination} {app_dir}/{asset.destination}\n"
+        for asset in sorted(runtime_assets, key=lambda item: item.destination)
+    )
     return f"""FROM {base_image}
 
 WORKDIR {app_dir}
@@ -424,7 +574,7 @@ WORKDIR {app_dir}
 COPY wheelhouse {wheelhouse_dir}
 COPY requirements.txt {app_dir}/requirements.txt
 COPY {server_script_name} {app_dir}/{server_script_name}
-
+{asset_copy}
 RUN pip install --no-cache-dir --no-index --find-links={wheelhouse_dir} --require-hashes -r {app_dir}/requirements.txt
 
 RUN mkdir -p /app/output
@@ -446,6 +596,7 @@ def materialize_mcp_sidecar_package(
     internal_network_name: str = DEFAULT_INTERNAL_NETWORK_NAME,
     target: WheelhouseTarget | None = None,
     resolver_provenance: ResolverProvenance | None = None,
+    runtime_assets: Sequence[RuntimeAsset] = (),
 ) -> dict[str, Any]:
     """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package.
 
@@ -460,6 +611,7 @@ def materialize_mcp_sidecar_package(
         fault_record: Optional FaultInjectionRecord for deterministic fault injection.
         plan_only: When True, skips Dockerfile/wheelhouse copying and emits only plan specification.
         internal_network_name: Name of the task-local internal Docker bridge.
+        runtime_assets: Explicit runtime files copied into the sidecar; destinations are COPY'd canonically.
     """
     selected_target = target or WheelhouseTarget(
         python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
@@ -467,6 +619,8 @@ def materialize_mcp_sidecar_package(
     runtime_meta = validate_target_base_runtime(
         selected_target.python_tag, selected_target.platform_tag, base_image
     )
+    prepared_assets = validate_runtime_assets(runtime_assets)
+    _require_op_registry_asset(op_registry_module, prepared_assets)
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -480,9 +634,15 @@ def materialize_mcp_sidecar_package(
     )
     (target_dir / "server.py").write_text(server_code, encoding="utf-8")
 
+    sorted_assets = tuple(asset for asset, _content in prepared_assets)
+    for asset, content in prepared_assets:
+        destination = _assert_confined_nonsymlink_destination(target_dir, asset.destination)
+        _atomic_write_bytes(destination, content)
+
     # 2. requirements.txt is emitted only after selected wheels are staged.
 
     wheel_inventory: list[dict[str, Any]] = []
+    asset_proof = _runtime_asset_proof_records(prepared_assets)
 
     if plan_only:
         # Plan-only mode: Dockerfile and wheelhouse omitted
@@ -492,6 +652,8 @@ def materialize_mcp_sidecar_package(
             **runtime_meta,
             "requirements_sha256": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
         }
+        if asset_proof:
+            proof_data["runtime_assets"] = asset_proof
         (target_dir / "offline-build-proof.json").write_text(
             canonical_json(proof_data) + "\n", encoding="utf-8"
         )
@@ -515,7 +677,9 @@ def materialize_mcp_sidecar_package(
         (target_dir / "requirements.txt").write_text(requirements_lock, encoding="utf-8")
 
         # 3. Dockerfile
-        dockerfile_content = render_mcp_sidecar_dockerfile(base_image=base_image)
+        dockerfile_content = render_mcp_sidecar_dockerfile(
+            base_image=base_image, runtime_assets=sorted_assets
+        )
         (target_dir / "Dockerfile").write_text(dockerfile_content, encoding="utf-8")
 
         proof_data = {
@@ -525,7 +689,10 @@ def materialize_mcp_sidecar_package(
             "requirements_sha256": compute_sha256(requirements_lock),
             "wheel_count": len(wheel_inventory),
             "wheels": wheel_inventory,
+            "dockerfile_sha256": compute_sha256(dockerfile_content),
         }
+        if asset_proof:
+            proof_data["runtime_assets"] = asset_proof
         (target_dir / "offline-build-proof.json").write_text(
             canonical_json(proof_data) + "\n", encoding="utf-8"
         )
@@ -562,6 +729,7 @@ def compute_mcp_substrate_digest(
     *,
     target: WheelhouseTarget | None = None,
     base_image: str = DEFAULT_PINNED_BASE_IMAGE,
+    runtime_assets: Sequence[RuntimeAsset] = (),
 ) -> str:
     """Compute deterministic SHA-256 digest of the MCP substrate manifest, requirements, and full tool definitions."""
     selected_target = target or WheelhouseTarget(
@@ -575,6 +743,9 @@ def compute_mcp_substrate_digest(
             selected_target.python_tag, selected_target.platform_tag, base_image
         ),
     }
+    prepared_assets = validate_runtime_assets(runtime_assets)
+    if prepared_assets:
+        payload["runtime_assets"] = _runtime_asset_proof_records(prepared_assets)
     if tool_defs is not None:
         payload["tools"] = [
             {

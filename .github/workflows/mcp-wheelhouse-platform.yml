@@ -44,3 +44,47 @@ jobs:
         run: |
           IMAGE='python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f'
           docker run --rm --network=none -v /tmp/mcp-staged-wheelhouse:/wheelhouse:ro -v /tmp/mcp-req:/req:ro "$IMAGE" python -c "import sys,subprocess; print(subprocess.check_output([sys.executable,'--version'], text=True).strip()); assert sys.version_info[:2]==(3,12), sys.version; subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir','--no-index','--find-links=/wheelhouse','--require-hashes','-r','/req/requirements.txt']); import fastmcp; print('fastmcp', getattr(fastmcp,'__version__','imported'))"
+
+      - name: Offline import asset-backed OP_REGISTRY in pinned 3.12 image
+        run: |
+          IMAGE='python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f'
+          mkdir -p /tmp/mcp-runtime-assets-src
+          printf '%s\n' "def ping():" "    return 'pong'" "OP_REGISTRY = {'ping': ping}" > /tmp/mcp-runtime-assets-src/ops.py
+          uv run --no-sync python <<'PY'
+          from pathlib import Path
+          from evallab.mcp_substrate import (
+              DEFAULT_TARGET_PLATFORM_TAG,
+              DEFAULT_TARGET_PYTHON_TAG,
+              MCPToolDefinition,
+              MCPToolParameter,
+              RuntimeAsset,
+              WheelhouseTarget,
+              materialize_mcp_sidecar_package,
+              record_prepackaging_provenance,
+          )
+          src = Path("/tmp/fastmcp3_linux_wheelhouse")
+          target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+          provenance = record_prepackaging_provenance(src, target)
+          ops = Path("/tmp/mcp-runtime-assets-src/ops.py")
+          sidecar = Path("/tmp/mcp-asset-sidecar")
+          tool = MCPToolDefinition(
+              name="ping",
+              description="ping",
+              parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+              metadata={"op_kind": "ping"},
+          )
+          materialize_mcp_sidecar_package(
+              target_dir=sidecar,
+              tools=[tool],
+              op_registry_module="ops",
+              runtime_assets=(RuntimeAsset("ops.py", ops),),
+              wheelhouse_source=src,
+              target=target,
+              resolver_provenance=provenance,
+          )
+          dockerfile = (sidecar / "Dockerfile").read_text(encoding="utf-8")
+          assert "COPY ops.py /app/ops.py" in dockerfile
+          print(dockerfile)
+          PY
+          docker build --network=none -t mcp-asset-sidecar /tmp/mcp-asset-sidecar
+          docker run --rm --network=none mcp-asset-sidecar python -c "import sys,fastmcp,ops; print(sys.version); assert sys.version_info[:2]==(3,12), sys.version; print('fastmcp', getattr(fastmcp,'__version__','imported')); assert ops.OP_REGISTRY['ping']()=='pong'"

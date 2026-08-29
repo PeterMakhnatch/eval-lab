@@ -14,7 +14,7 @@ collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: 725daf59404e0350bac0927e310b5c784947244704a365f42a4a87c42a98cfa2
+package_sha256: a6b9deec397159f59bf78730977a920643c99471ecacd9095b5994cd36581c2e
 revision: 2
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
@@ -144,6 +144,49 @@ Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
 byte-identical package, `sha256 725daf59…`.
 
+### 2.3 Alias manifest — the dedup is auditable
+
+`census.alias_manifest` maps every content digest to its canonical relpath, all
+relpaths, and a duplicate count. 26 entries; duplicate counts sum to exactly the
+3 dropped paths, asserted by test.
+
+The manifest also exposes the *cause* of the duplication: three trials appear both
+under a campaign prefix and at top level, e.g.
+
+```
+minimal-harbor-luna-20260824/minimal-luna-gaia2-ambiguous-amd64/gaia2-ambiguous__np3YExC/...
+                             minimal-luna-gaia2-ambiguous-amd64/gaia2-ambiguous__np3YExC/...
+```
+
+A nested copy, not two distinct runs. Content addressing collapses them correctly
+and the manifest records that it happened, so the dedup is checkable rather than
+asserted.
+
+### 2.4 `CANNOT_JUDGE` vs `INSUFFICIENT_CONTEXT` — different failures
+
+Every human-judged field now offers **both**, and they must never be pooled:
+
+| Value | Meaning | What its rate measures |
+|---|---|---|
+| `CANNOT_JUDGE` | Context **is** present; the step is genuinely ambiguous | **Taxonomy** ambiguity |
+| `INSUFFICIENT_CONTEXT` | Context is **absent or truncated in the package** | **Package** completeness — a builder-fixable defect |
+
+Conflating them hides package defects inside a taxonomy-ambiguity number. A rising
+`CANNOT_JUDGE` rate says the label set needs work; a rising `INSUFFICIENT_CONTEXT`
+rate says the builder does.
+
+**Cross-check, and this is the point of the pair.** Each item carries
+`context_completeness.builder_verdict` — `COMPLETE` or `DEGRADED` — declared by the
+builder, not the rater. Current distribution:
+
+```
+COMPLETE 158    DEGRADED 25
+```
+
+If raters mark `INSUFFICIENT_CONTEXT` on items the builder called `COMPLETE`, **the
+builder missed a defect it believed it had detected.** That disagreement is a
+measurement of the package, obtainable only because the two signals are separate.
+
 ## 3. The clustering finding — this decides the power argument
 
 **183 items nest inside 20 clusters.** Steps within a trial share task, model, and
@@ -250,10 +293,10 @@ python3 research/goldset/build_labeling_package.py \
   --machine-truth-out research/goldset/machine_truth_WITHHELD.json \
   --boost-per-stratum 3
 
-python3 research/goldset/test_labeling_package.py   # 30 checks
+python3 research/goldset/test_labeling_package.py   # 45 checks
 ```
 
-Expect `package_sha256 725daf59404e0350bac0927e310b5c784947244704a365f42a4a87c42a98cfa2`
+Expect `package_sha256 a6b9deec397159f59bf78730977a920643c99471ecacd9095b5994cd36581c2e`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

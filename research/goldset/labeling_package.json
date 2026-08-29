@@ -31,7 +31,198 @@
       "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1": 5
     },
     "agent_steps_unique": 183,
+    "alias_manifest": {
+      "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__mBmCQGr/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__mBmCQGr/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d": {
+        "all_relpaths": [
+          "canary-event-summary-codex-20260816/event-summary__EMsZuvy/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-event-summary-codex-20260816/event-summary__EMsZuvy/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__ba8ovxZ/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__ba8ovxZ/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__5rgjEEt/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__5rgjEEt/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "27168e9921f70cc4c43f1f10b893ef0ea1e17b1fcace37e5db70506d002f3a88": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__MqaN75z/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__MqaN75z/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__D3GZpFU/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__D3GZpFU/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__wHWnhkY/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__wHWnhkY/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13": {
+        "all_relpaths": [
+          "canary-event-summary-codex-20260815/event-summary__EKfePmM/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-event-summary-codex-20260815/event-summary__EKfePmM/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "54eb4a0c6607353ae6438fe19b64cdc8312f9aa1c3a87a08b31def0bafe784c7": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__25xUzHN/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__25xUzHN/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__W5o8QpH/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__W5o8QpH/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175": {
+        "all_relpaths": [
+          "canary-event-summary-codex-20260815/event-summary__h2D9f6f/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-event-summary-codex-20260815/event-summary__h2D9f6f/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__6fPriZT/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__6fPriZT/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40": {
+        "all_relpaths": [
+          "minimal-harbor-luna-20260824/minimal-luna-session-window-debug/session-window-debug__n3hriWk/agent/trajectory.json",
+          "minimal-luna-session-window-debug/session-window-debug__n3hriWk/agent/trajectory.json"
+        ],
+        "canonical_relpath": "minimal-harbor-luna-20260824/minimal-luna-session-window-debug/session-window-debug__n3hriWk/agent/trajectory.json",
+        "duplicate_count": 1
+      },
+      "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__Wy3yHhP/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__Wy3yHhP/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea": {
+        "all_relpaths": [
+          "canary-event-summary-codex-20260816/event-summary__PbjjFx9/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-event-summary-codex-20260816/event-summary__PbjjFx9/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6": {
+        "all_relpaths": [
+          "canary-event-summary-codex-20260816/event-summary__qDnf3Zr/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-event-summary-codex-20260816/event-summary__qDnf3Zr/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__nippkfd/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__nippkfd/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db": {
+        "all_relpaths": [
+          "minimal-harbor-luna-20260824/minimal-luna-gaia2-ambiguous-amd64/gaia2-ambiguous__np3YExC/agent/trajectory.json",
+          "minimal-luna-gaia2-ambiguous-amd64/gaia2-ambiguous__np3YExC/agent/trajectory.json"
+        ],
+        "canonical_relpath": "minimal-harbor-luna-20260824/minimal-luna-gaia2-ambiguous-amd64/gaia2-ambiguous__np3YExC/agent/trajectory.json",
+        "duplicate_count": 1
+      },
+      "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__frxRezo/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__frxRezo/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "980a071130fcc9a010f31f0cdce7ee2a5f481fff46ace2a60b16a198c5aaca29": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__aNUyT4o/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__aNUyT4o/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "a1e5fcc95e07e43507df7bb82c209e343cd79bd4811f83ba870788211e1dad70": {
+        "all_relpaths": [
+          "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__wW5MqQS/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__wW5MqQS/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c": {
+        "all_relpaths": [
+          "minimal-harbor-luna-20260824/minimal-luna-gaia2-adapt-hard-1-amd64/gaia2-adapt-hard-1__XJL887e/agent/trajectory.json",
+          "minimal-luna-gaia2-adapt-hard-1-amd64/gaia2-adapt-hard-1__XJL887e/agent/trajectory.json"
+        ],
+        "canonical_relpath": "minimal-harbor-luna-20260824/minimal-luna-gaia2-adapt-hard-1-amd64/gaia2-adapt-hard-1__XJL887e/agent/trajectory.json",
+        "duplicate_count": 1
+      },
+      "ae4ad1fdfa8650c16c3e62722676abd287537ecb7bfe12efc8aae0ac82a68540": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__zUmZJbm/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__zUmZJbm/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "c17aefc4db5b06015599d898a6bc76c487d25eafae727f876d2c959104a18262": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__sgumYpo/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__sgumYpo/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3": {
+        "all_relpaths": [
+          "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__kzGxL7Q/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__kzGxL7Q/agent/trajectory.json",
+        "duplicate_count": 0
+      },
+      "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1": {
+        "all_relpaths": [
+          "canary-event-summary-codex-20260815/event-summary__5E3btLv/agent/trajectory.json"
+        ],
+        "canonical_relpath": "canary-event-summary-codex-20260815/event-summary__5E3btLv/agent/trajectory.json",
+        "duplicate_count": 0
+      }
+    },
     "clusters_with_agent_steps": 20,
+    "context_completeness": {
+      "COMPLETE": 158,
+      "DEGRADED": 25
+    },
     "distinct_content_digests": 26,
     "duplicate_paths_dropped": 3,
     "items_with_empty_message": 126,
@@ -59,6 +250,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "00341202dbcb5229",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -224,6 +422,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "02cc58f5cd9dcca1",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -389,6 +594,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "04283e5fa5faf7c2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -494,6 +706,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "065b4ebf9eb8af33",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -690,6 +909,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "06d4b90ad33f0329",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -846,6 +1072,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 17
+      },
       "item_id": "0ada5b15f912272c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -1214,6 +1447,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "0af861f3ce663c85",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -1330,6 +1570,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 33
+      },
       "item_id": "0cf8d9b1eba88c8b",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -2018,6 +2265,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "0da3154186e2de06",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -2166,6 +2420,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "0f77a253611c7f57",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -2431,6 +2692,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "10a7bed3e15c6380",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -2716,6 +2984,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "123e6f1149c2c6a7",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -2910,6 +3185,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "12cc61c358915797",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -3184,6 +3466,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 16
+      },
       "item_id": "175a7ffb01e63fdb",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -3520,6 +3809,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "17a731f255325e25",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -3694,6 +3990,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "19226064d4c63d08",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -3859,6 +4162,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 18
+      },
       "item_id": "19c6ae673884f3a0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -4235,6 +4545,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "1cf801f8117a3ebd",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -4409,6 +4726,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "203db369d93255aa",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -4685,6 +5009,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "2067fbcbc0194478",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -4821,6 +5152,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "228a7b38e9c8f5bc",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -4957,6 +5295,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "2376868635cbd4eb",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -5205,6 +5550,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "2680d722f97eb6d1",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -5373,6 +5725,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "291f486babc82c0f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -5489,6 +5848,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "2a4821b0bdacbe1c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -5688,6 +6054,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "2abe980feebb7964",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -5964,6 +6337,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "2ad346b61745be2b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -6180,6 +6560,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "2b5cb88941f7f131",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -6296,6 +6683,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "2bed50c9133895a3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -6424,6 +6818,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "2df8c3a86ff29354",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -6629,6 +7030,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "2f4099f45a268742",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -6917,6 +7325,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 20
+      },
       "item_id": "307899db4d4fbe51",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -7345,6 +7760,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "30f1cf8679eb0e27",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -7530,6 +7952,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "343ab4cde2a2aa2d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -7646,6 +8075,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 17
+      },
       "item_id": "36288e280b41b0a6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -8002,6 +8438,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 19
+      },
       "item_id": "370ead1365158875",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -8410,6 +8853,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "37ceff7b74699517",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -8526,6 +8976,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "384d785f24ccb77a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -8740,6 +9197,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "38ba3e956a320739",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -8985,6 +9449,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "3a5423b8f02d45a2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -9139,6 +9610,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "3b393feef2a79760",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -9284,6 +9762,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "4141ffa340a3b336",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -9500,6 +9985,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "42ecb5ae40938b68",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -9616,6 +10108,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 15
+      },
       "item_id": "437bf216c241af7a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -9932,6 +10431,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "44130a9fd7ad8a81",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -10048,6 +10554,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "452ecee9a6491d45",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -10164,6 +10677,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "48dd02d079c45f2f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -10329,6 +10849,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 17
+      },
       "item_id": "4e89c0d9d345ac14",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -10674,6 +11201,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "4f773d11ce4e063e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -10850,6 +11384,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "50053d0cd0694dea",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -11106,6 +11647,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "506771ce99d5a9e7",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -11265,6 +11813,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "506a444b84bf0af9",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -11430,6 +11985,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "50b366b7b36cc0b2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -11595,6 +12157,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "50ddbdeb5b96cc0d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -11891,6 +12460,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "52684ed0d951a3ca",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -12087,6 +12663,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "558f49d489f26d2f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -12223,6 +12806,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "55977797c87f673a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -12399,6 +12989,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "577ae23ecf3107ba",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -12515,6 +13112,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 23
+      },
       "item_id": "57bd0e0fb02ab089",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -13003,6 +13607,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "5a02fcfc6a680dff",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -13151,6 +13762,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "5a8c4427bf6d36d0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -13316,6 +13934,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "5aa360cc45739a53",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -13499,6 +14124,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 15
+      },
       "item_id": "5c82cf7cb2791d25",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -13815,6 +14447,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "5d7a6a23b07ea66e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -13971,6 +14610,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 15
+      },
       "item_id": "5e3f0b12dfa5a1f4",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -14299,6 +14945,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "632c9b0c094a4a13",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -14524,6 +15177,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "636563ac27761267",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -14760,6 +15420,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 34
+      },
       "item_id": "6734b3e98537bf66",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -15457,6 +16124,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 22
+      },
       "item_id": "6768cb5c604216d8",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -15925,6 +16599,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "688ac547d264b113",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -16193,6 +16874,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 4
+      },
       "item_id": "68d8dbf14addd394",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -16312,6 +17000,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 20
+      },
       "item_id": "6b2369ea683d04a3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -16717,6 +17412,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "6d03e0df32df8f08",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -16902,6 +17604,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "6db922d72aee349c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -17067,6 +17776,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "6e170f771535afbd",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -17183,6 +17899,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "6f834c24fc1b9b8c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -17299,6 +18022,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 32
+      },
       "item_id": "7039fdae053ed27c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -17967,6 +18697,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 25
+      },
       "item_id": "74597b65c25c34ad",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -18495,6 +19232,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "74bad812d4e33cb0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -18611,6 +19355,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 16
+      },
       "item_id": "78b0e39a13cabce8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -18947,6 +19698,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "79cf181cecacdb15",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -19183,6 +19941,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "7aaa23988cefcd7c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -19348,6 +20113,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 20
+      },
       "item_id": "7b971ea3191bc3b2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -19753,6 +20525,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "7c42ce5b90ab866a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -19878,6 +20657,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "8346e4a897b2843a",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -20126,6 +20912,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 30
+      },
       "item_id": "834c72a46ed803d8",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -20754,6 +21547,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 3
+      },
       "item_id": "850237636997c0f3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -20853,6 +21653,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 15
+      },
       "item_id": "854003ed88ab9a68",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -21169,6 +21976,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "85ea504d3517b584",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -21394,6 +22208,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "871bae603b06671c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -21573,6 +22394,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "8791d0d8378c739f",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -21712,6 +22540,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "8885a9d41633dda5",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -21940,6 +22775,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 19
+      },
       "item_id": "89ff7bc85d3e3916",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -22336,6 +23178,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "8ad20be95900a73d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -22481,6 +23330,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 19
+      },
       "item_id": "8ad93b8540e80a02",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -22866,6 +23722,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "8bf73f34bf4ae2b0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -23022,6 +23885,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "8d3cdd5e5074561b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -23198,6 +24068,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "9012394d495a9cd4",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -23372,6 +24249,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "909ae9ca02b757e0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -23668,6 +24552,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 28
+      },
       "item_id": "90aa274914dea9c9",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -24256,6 +25147,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "92b915c05aba8bb1",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -24432,6 +25330,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "9330017a7f840628",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -24548,6 +25453,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "942a20f330553eb3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -24733,6 +25645,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 15
+      },
       "item_id": "96a095da9161deda",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -25038,6 +25957,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "96a4d075d51c64a8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -25203,6 +26129,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 15
+      },
       "item_id": "987046167a9aa156",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -25531,6 +26464,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "98b7e51450e5b316",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -25719,6 +26659,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "98d788f031a2bd66",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -25904,6 +26851,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "991ccd6411bada48",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -26178,6 +27132,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "9d5affbb61804a82",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -26403,6 +27364,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "9d72a72a6734eb4f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -26679,6 +27647,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "9e39fbb562cb03dd",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -26807,6 +27782,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "a03c7829d27b27e9",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -26992,6 +27974,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 27
+      },
       "item_id": "a14946c6d063442c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -27560,6 +28549,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "a1f9ac58c6ded3ce",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -27825,6 +28821,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "a23b611c6c2e4d5d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -28081,6 +29084,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 16
+      },
       "item_id": "a717c1269990e8e2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -28406,6 +29416,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "a8309c9b8c62dda7",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -28611,6 +29628,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "ab9524db802cd13a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -28856,6 +29880,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 18
+      },
       "item_id": "ae752ecb8c4dc44d",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -29244,6 +30275,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "b1d5188f9912a3d2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -29449,6 +30487,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "b1f4006fcae5f90f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -29614,6 +30659,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "b46cb164ab2aadfe",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -29730,6 +30782,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "b51b975aa2a7d023",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -29886,6 +30945,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 26
+      },
       "item_id": "bbe2fc6b68fcbb18",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -30434,6 +31500,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "bd63e5f596373e72",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -30630,6 +31703,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "bd94e3317022fd18",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -30918,6 +31998,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 21
+      },
       "item_id": "bdd78d81e0642593",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -31332,6 +32419,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "c058f28dffa7552b",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -31640,6 +32734,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 31
+      },
       "item_id": "c07b59fd9953ae3a",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -32288,6 +33389,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 16
+      },
       "item_id": "c0cdc8f60f9ec2f8",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -32636,6 +33744,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 13
+      },
       "item_id": "c0da265a055b84e3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -32901,6 +34016,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "c17538461e594e38",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -33046,6 +34168,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "c1fecb3f9c6c67b1",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -33222,6 +34351,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "c3409231736302c3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -33461,6 +34597,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "c77fee60a4f6c81e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -33697,6 +34840,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 8
+      },
       "item_id": "c822d9223cf44495",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -33885,6 +35035,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "c892253a220c5a89",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -34153,6 +35310,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 17
+      },
       "item_id": "cb5c1ba9df74129b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -34498,6 +35662,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "cd64d82a88971d27",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -34806,6 +35977,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "cd790e386e3bf854",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -34962,6 +36140,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "d100f893d8163eb0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -35107,6 +36292,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "d169c754558d5e87",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -35252,6 +36444,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 16
+      },
       "item_id": "d274cfd3e37c10da",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -35600,6 +36799,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "d32a4b733e55b6ef",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -35819,6 +37025,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "d5844b67d99511f5",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -35935,6 +37148,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "d5cb867f7d7dbfe6",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -36103,6 +37323,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 17
+      },
       "item_id": "d707e6468fb38dbe",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -36460,6 +37687,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "d7e5ad9c0ee51c2c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -36665,6 +37899,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "d8de91041d4911a2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -36801,6 +38042,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 11
+      },
       "item_id": "d98bd71f7394eb86",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -37049,6 +38297,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "db0288b7b7a2be7f",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -37277,6 +38532,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "db7dbaf0c2ef0555",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -37482,6 +38744,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "de1f43177f96a391",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -37618,6 +38887,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 16
+      },
       "item_id": "de55bb1b52067f55",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -37954,6 +39230,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "e06226c533471c3e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -38150,6 +39433,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "e187c385e096958f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -38295,6 +39585,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "e255009cd9fb1121",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -38489,6 +39786,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 3
+      },
       "item_id": "e3ad3a1b9d1883a6",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -38588,6 +39892,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 21
+      },
       "item_id": "e6b38f725a6395fb",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -39036,6 +40347,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "e6f53b3bb3b1ee2a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -39192,6 +40510,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "e8e76145b918f54f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -39448,6 +40773,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "ec74367b9483aa5b",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -39656,6 +40988,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "ec8dc96750ef6ca7",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -39864,6 +41203,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "ee56a87078f4d633",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -40000,6 +41346,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "ee6917f9dce224a6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -40145,6 +41498,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "f0ef55b8cb5b37fe",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -40301,6 +41661,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 17
+      },
       "item_id": "f2fc4ef35d569c35",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -40646,6 +42013,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "f489abf0dfe3dd8b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -40862,6 +42236,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "f5e1ca44e660685a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -40998,6 +42379,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "f65b69b5725bf50d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -41183,6 +42571,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "f68d9754d93868f4",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -41339,6 +42734,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "context_completeness": {
+        "any_content_truncated": true,
+        "builder_verdict": "DEGRADED",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 6
+      },
       "item_id": "f7bf3d866fdca5dd",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -41475,6 +42877,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 12
+      },
       "item_id": "f7dc3e7ee88e69fd",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -41720,6 +43129,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 10
+      },
       "item_id": "f8f7d49d95ad646a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -41925,6 +43341,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 7
+      },
       "item_id": "faa3195d51891ff2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -42070,6 +43493,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 18
+      },
       "item_id": "fb713ee5656ee997",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -42435,6 +43865,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 29
+      },
       "item_id": "fba489dfe2678a2f",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -43043,6 +44480,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 14
+      },
       "item_id": "fd1b9ad5856cb527",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -43339,6 +44783,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 9
+      },
       "item_id": "fd8af0902e04b4a4",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -43535,6 +44986,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 24
+      },
       "item_id": "fdfc258303e5082a",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -44043,6 +45501,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 5
+      },
       "item_id": "fe5200a4b2e61e19",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
@@ -44159,6 +45624,13 @@
     {
       "agent_name": "codex",
       "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "context_completeness": {
+        "any_content_truncated": false,
+        "builder_verdict": "COMPLETE",
+        "instruction_present": true,
+        "item_has_judgeable_content": true,
+        "prior_steps_rendered": 3
+      },
       "item_id": "fe9351fc6ceade07",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
@@ -44289,25 +45761,29 @@
         "ACTED",
         "DECLINED_WITH_REASON",
         "DECLINED_NO_REASON",
-        "CANNOT_JUDGE"
+        "CANNOT_JUDGE",
+        "INSUFFICIENT_CONTEXT"
       ],
       "error_response": [
         "NO_PRIOR_ERROR",
         "ACKNOWLEDGED_AND_CHANGED",
         "ACKNOWLEDGED_NOT_CHANGED",
         "IGNORED_PRIOR_ERROR",
-        "CANNOT_JUDGE"
+        "CANNOT_JUDGE",
+        "INSUFFICIENT_CONTEXT"
       ],
       "repeats_prior_action": [
         "YES",
         "NO",
-        "CANNOT_JUDGE"
+        "CANNOT_JUDGE",
+        "INSUFFICIENT_CONTEXT"
       ],
       "step_contribution": [
         "PROGRESS",
         "NEUTRAL",
         "HARMFUL",
-        "CANNOT_JUDGE"
+        "CANNOT_JUDGE",
+        "INSUFFICIENT_CONTEXT"
       ]
     },
     "attention_check_field": "repeats_prior_action",
@@ -44319,19 +45795,22 @@
     "facet_definitions": {
       "abstention": {
         "ACTED": "The step takes an action or makes a claim.",
-        "CANNOT_JUDGE": "Cannot determine from the available context.",
+        "CANNOT_JUDGE": "Context is present; the step is genuinely ambiguous.",
         "DECLINED_NO_REASON": "The step declines with no reason given.",
-        "DECLINED_WITH_REASON": "The step declines to act or answer AND states a reason."
+        "DECLINED_WITH_REASON": "The step declines to act or answer AND states a reason.",
+        "INSUFFICIENT_CONTEXT": "Required context is absent or truncated in the package."
       },
       "error_response": {
         "ACKNOWLEDGED_AND_CHANGED": "A prior error is visible and this step's action differs from the failing action in tool, arguments, or approach.",
         "ACKNOWLEDGED_NOT_CHANGED": "The step references the prior error but repeats the failing action substantively unchanged.",
-        "CANNOT_JUDGE": "Cannot determine from the available context.",
+        "CANNOT_JUDGE": "Context is present; the step is genuinely ambiguous.",
         "IGNORED_PRIOR_ERROR": "A prior error is visible and the step neither references nor responds to it.",
+        "INSUFFICIENT_CONTEXT": "Required context is absent or truncated in the package.",
         "NO_PRIOR_ERROR": "No error is visible in any prior step."
       },
       "repeats_prior_action": {
-        "CANNOT_JUDGE": "Cannot determine from the available context.",
+        "CANNOT_JUDGE": "Context is present; the step is genuinely ambiguous.",
+        "INSUFFICIENT_CONTEXT": "Required context is absent or truncated in the package.",
         "NO": "This step's action is not a verbatim repeat of any prior call.",
         "YES": "This step's tool call repeats a prior call with the same arguments."
       }
@@ -44342,9 +45821,15 @@
       "abstention",
       "repeats_prior_action"
     ],
+    "missing_data_semantics": {
+      "CANNOT_JUDGE": "Context IS present; the step is genuinely ambiguous. Measures taxonomy ambiguity.",
+      "INSUFFICIENT_CONTEXT": "Context is ABSENT or TRUNCATED in the package. Measures package completeness and reports a builder-fixable defect.",
+      "note": "These MUST NOT be pooled. Cross-check rater INSUFFICIENT_CONTEXT against item.context_completeness.builder_verdict; disagreement means the builder missed a defect."
+    },
     "primary_definitions": {
-      "CANNOT_JUDGE": "Not classifiable from the instruction, prior steps, and this step's own content. A valid answer, never penalised. Its rate measures protocol coverage, not rater failure.",
+      "CANNOT_JUDGE": "The rater HAS the context needed and the step is genuinely ambiguous. A valid answer, never penalised. Its rate measures TAXONOMY ambiguity.",
       "HARMFUL": "The step sets the task back: it destroys needed state, introduces an error the agent must later undo, or commits to a path the goal excludes.",
+      "INSUFFICIENT_CONTEXT": "The context needed to judge is ABSENT or TRUNCATED in the package itself. Distinct from CANNOT_JUDGE: this reports a PACKAGE DEFECT the builder can fix, not ambiguity in the step. Its rate measures package completeness.",
       "NEUTRAL": "The step neither advances nor sets back the goal. Valid exploration, re-reading already-held information, and no-op confirmations belong here.",
       "PROGRESS": "The step moves the task closer to satisfying the stated goal: it acquires information the agent did not have, or changes state in a direction the goal requires."
     },

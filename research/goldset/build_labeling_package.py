@@ -61,9 +61,12 @@ MAX_TEXT_CHARS = 4000
 MAX_OBS_CHARS = 4000
 
 CANNOT_JUDGE = "CANNOT_JUDGE"
+INSUFFICIENT_CONTEXT = "INSUFFICIENT_CONTEXT"
+
+SelectionArm = Literal["prevalence_core", "rare_cell_boost"]
 
 PRIMARY_LABEL = "step_contribution"
-PRIMARY_VALUES = ("PROGRESS", "NEUTRAL", "HARMFUL", CANNOT_JUDGE)
+PRIMARY_VALUES = ("PROGRESS", "NEUTRAL", "HARMFUL", CANNOT_JUDGE, INSUFFICIENT_CONTEXT)
 
 PRIMARY_DEFINITIONS = {
     "PROGRESS": (
@@ -80,9 +83,13 @@ PRIMARY_DEFINITIONS = {
         "the agent must later undo, or commits to a path the goal excludes."
     ),
     CANNOT_JUDGE: (
-        "Not classifiable from the instruction, prior steps, and this step's own "
-        "content. A valid answer, never penalised. Its rate measures protocol "
-        "coverage, not rater failure."
+        "The rater HAS the context needed and the step is genuinely ambiguous. A "
+        "valid answer, never penalised. Its rate measures TAXONOMY ambiguity."
+    ),
+    INSUFFICIENT_CONTEXT: (
+        "The context needed to judge is ABSENT or TRUNCATED in the package itself. "
+        "Distinct from CANNOT_JUDGE: this reports a PACKAGE DEFECT the builder can "
+        "fix, not ambiguity in the step. Its rate measures package completeness."
     ),
 }
 
@@ -94,14 +101,16 @@ FACET_LABELS = {
         "ACKNOWLEDGED_NOT_CHANGED",
         "IGNORED_PRIOR_ERROR",
         CANNOT_JUDGE,
+        INSUFFICIENT_CONTEXT,
     ),
     "abstention": (
         "ACTED",
         "DECLINED_WITH_REASON",
         "DECLINED_NO_REASON",
         CANNOT_JUDGE,
+        INSUFFICIENT_CONTEXT,
     ),
-    "repeats_prior_action": ("YES", "NO", CANNOT_JUDGE),
+    "repeats_prior_action": ("YES", "NO", CANNOT_JUDGE, INSUFFICIENT_CONTEXT),
 }
 
 FACET_DEFINITIONS = {
@@ -116,21 +125,23 @@ FACET_DEFINITIONS = {
             "substantively unchanged."
         ),
         "IGNORED_PRIOR_ERROR": (
-            "A prior error is visible and the step neither references nor responds "
-            "to it."
+            "A prior error is visible and the step neither references nor responds to it."
         ),
-        CANNOT_JUDGE: "Cannot determine from the available context.",
+        CANNOT_JUDGE: "Context is present; the step is genuinely ambiguous.",
+        INSUFFICIENT_CONTEXT: "Required context is absent or truncated in the package.",
     },
     "abstention": {
         "ACTED": "The step takes an action or makes a claim.",
         "DECLINED_WITH_REASON": "The step declines to act or answer AND states a reason.",
         "DECLINED_NO_REASON": "The step declines with no reason given.",
-        CANNOT_JUDGE: "Cannot determine from the available context.",
+        CANNOT_JUDGE: "Context is present; the step is genuinely ambiguous.",
+        INSUFFICIENT_CONTEXT: "Required context is absent or truncated in the package.",
     },
     "repeats_prior_action": {
         "YES": "This step's tool call repeats a prior call with the same arguments.",
         "NO": "This step's action is not a verbatim repeat of any prior call.",
-        CANNOT_JUDGE: "Cannot determine from the available context.",
+        CANNOT_JUDGE: "Context is present; the step is genuinely ambiguous.",
+        INSUFFICIENT_CONTEXT: "Required context is absent or truncated in the package.",
     },
 }
 
@@ -150,9 +161,7 @@ EXCLUDED_LABELS = {
         "Requires an oracle optimal path. None exists, so any label encodes the "
         "rater's guess at optimality."
     ),
-    "step_efficiency": (
-        "Same defect, plus it presumes a cost model the instruction never states."
-    ),
+    "step_efficiency": ("Same defect, plus it presumes a cost model the instruction never states."),
     "unrecoverability": (
         "Counterfactual - quantifies over all continuations. Blocked on a "
         "preregistered predicate with a declared false-positive rate against later "
@@ -201,8 +210,9 @@ class LabelItem:
     agent_name: str | None
     stratum: str
     sampling_weight: float
-    selection_arm: Literal["prevalence_core", "rare_cell_boost"]
+    selection_arm: SelectionArm
     cluster_id: str
+    context_completeness: dict[str, Any]
     rater_context: dict[str, Any]
 
 
@@ -263,15 +273,43 @@ def _extract_instruction(steps: Sequence[dict[str, Any]], upto: int) -> dict[str
     item so the rater sees exactly what the agent saw, and mark the last one as
     the presumed task statement.
     """
-    user_steps = [
-        _step_view(s, i) for i, s in enumerate(steps[:upto]) if s.get("source") == "user"
-    ]
+    user_steps = [_step_view(s, i) for i, s in enumerate(steps[:upto]) if s.get("source") == "user"]
     return {
         "presumed_task_statement": user_steps[-1] if user_steps else None,
         "all_user_steps_before_item": user_steps,
         "extraction_rule": (
             "trailing user step before the item; earlier user steps are harness "
             "preamble and are included in full for completeness"
+        ),
+    }
+
+
+def _completeness(steps: Sequence[dict[str, Any]], index: int) -> dict[str, Any]:
+    """Builder-declared context completeness.
+
+    A rater choosing INSUFFICIENT_CONTEXT can be cross-checked against this. If
+    the builder says context is complete and raters disagree, the package has a
+    defect the builder did not detect - which is exactly the signal we want.
+    """
+    step = steps[index]
+    has_user = any(s.get("source") == "user" for s in steps[:index])
+    item_view = _step_view(step, index)
+    any_trunc = (
+        item_view["message_truncated"]
+        or any(c["arguments_truncated"] for c in item_view["tool_calls"])
+        or any(o["content_truncated"] for o in item_view["observation"])
+    )
+    judgeable = (
+        bool(item_view["tool_calls"] or item_view["observation"])
+        or not item_view["message_is_empty"]
+    )
+    return {
+        "instruction_present": has_user,
+        "prior_steps_rendered": index,
+        "item_has_judgeable_content": judgeable,
+        "any_content_truncated": any_trunc,
+        "builder_verdict": (
+            "COMPLETE" if (has_user and judgeable and not any_trunc) else "DEGRADED"
         ),
     }
 
@@ -365,11 +403,10 @@ def enumerate_universe(
                     sampling_weight=1.0,
                     selection_arm="prevalence_core",
                     cluster_id=digest,  # B3: cluster is the trajectory content
+                    context_completeness=_completeness(steps, index),
                     rater_context={
                         "instruction": _extract_instruction(steps, index),
-                        "prior_steps": [
-                            _step_view(s, i) for i, s in enumerate(steps[:index])
-                        ],
+                        "prior_steps": [_step_view(s, i) for i, s in enumerate(steps[:index])],
                         "item_step": _step_view(step, index),
                         "total_steps_in_trajectory": len(steps),
                     },
@@ -389,9 +426,16 @@ def enumerate_universe(
             )
             per_cluster.append(digest)
 
-    empty_msg = sum(
-        1 for i in items if i.rater_context["item_step"]["message_is_empty"]
-    )
+    alias_manifest = {
+        digest: {
+            "canonical_relpath": str(sorted(group)[0].relative_to(runs_root)),
+            "all_relpaths": [str(p.relative_to(runs_root)) for p in sorted(group)],
+            "duplicate_count": len(group) - 1,
+        }
+        for digest, group in sorted(by_sha.items())
+    }
+
+    empty_msg = sum(1 for i in items if i.rater_context["item_step"]["message_is_empty"])
     census = {
         "trajectory_files_seen": len(paths),
         "distinct_content_digests": len(by_sha),
@@ -410,7 +454,9 @@ def enumerate_universe(
         "strata": _counts(i.stratum for i in items),
         "agent_steps_per_cluster": _counts(per_cluster),
         "models": _counts(str(i.model_name) for i in items),
+        "context_completeness": _counts(i.context_completeness["builder_verdict"] for i in items),
     }
+    census["alias_manifest"] = alias_manifest
     return items, truths, census
 
 
@@ -425,9 +471,7 @@ def select_items(
     items: Sequence[LabelItem], *, core_n: int | None, boost_per_stratum: int
 ) -> list[LabelItem]:
     ordered = sorted(items, key=lambda i: i.item_id)
-    seed_material = hashlib.sha256(
-        "".join(i.item_id for i in ordered).encode("utf-8")
-    ).hexdigest()
+    seed_material = hashlib.sha256("".join(i.item_id for i in ordered).encode("utf-8")).hexdigest()
     rng = random.Random(int(seed_material[:16], 16))
 
     if core_n is None or core_n >= len(ordered):
@@ -442,7 +486,7 @@ def select_items(
     by_stratum: dict[str, list[LabelItem]] = {}
     for item in ordered:
         by_stratum.setdefault(item.stratum, []).append(item)
-    for stratum, pool in sorted(by_stratum.items()):
+    for _stratum, pool in sorted(by_stratum.items()):
         remaining = [i for i in pool if i.item_id not in chosen]
         take = min(boost_per_stratum, len(remaining))
         for item in rng.sample(remaining, take) if take else []:
@@ -451,7 +495,7 @@ def select_items(
     return sorted(chosen.values(), key=lambda i: i.item_id)
 
 
-def _rearm(item: LabelItem, weight: float, arm: str) -> LabelItem:
+def _rearm(item: LabelItem, weight: float, arm: SelectionArm) -> LabelItem:
     return LabelItem(
         item_id=item.item_id,
         source_sha256=item.source_sha256,
@@ -461,8 +505,9 @@ def _rearm(item: LabelItem, weight: float, arm: str) -> LabelItem:
         agent_name=item.agent_name,
         stratum=item.stratum,
         sampling_weight=weight,
-        selection_arm=arm,  # type: ignore[arg-type]
+        selection_arm=arm,
         cluster_id=item.cluster_id,
+        context_completeness=item.context_completeness,
         rater_context=item.rater_context,
     )
 
@@ -547,14 +592,10 @@ def evaluate_readiness(
 
     zero = sum(1 for i in items if not by_item.get(i.item_id))
     under = sum(
-        1
-        for i in items
-        if 0 < len(by_item.get(i.item_id, set())) < REQUIRED_RATERS_PER_ITEM
+        1 for i in items if 0 < len(by_item.get(i.item_id, set())) < REQUIRED_RATERS_PER_ITEM
     )
     unqualified = sum(
-        1
-        for i in items
-        if by_item.get(i.item_id) and not by_item[i.item_id] <= qualified
+        1 for i in items if by_item.get(i.item_id) and not by_item[i.item_id] <= qualified
     )
     if zero:
         blockers.append(f"ITEMS_WITH_ZERO_VALID_RATINGS: {zero}")
@@ -616,6 +657,21 @@ def build_package(
             "primary_definitions": PRIMARY_DEFINITIONS,
             "facet_definitions": FACET_DEFINITIONS,
             "attention_check_field": ATTENTION_CHECK_FIELD,
+            "missing_data_semantics": {
+                CANNOT_JUDGE: (
+                    "Context IS present; the step is genuinely ambiguous. Measures "
+                    "taxonomy ambiguity."
+                ),
+                INSUFFICIENT_CONTEXT: (
+                    "Context is ABSENT or TRUNCATED in the package. Measures package "
+                    "completeness and reports a builder-fixable defect."
+                ),
+                "note": (
+                    "These MUST NOT be pooled. Cross-check rater "
+                    "INSUFFICIENT_CONTEXT against item.context_completeness."
+                    "builder_verdict; disagreement means the builder missed a defect."
+                ),
+            },
             "excluded_labels": EXCLUDED_LABELS,
         },
         "unset_parameters_owned_by_tutor": {
@@ -668,9 +724,7 @@ def main() -> int:
     )
     for path, payload in ((args.out, package), (args.machine_truth_out, truth)):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     digest = hashlib.sha256(args.out.read_bytes()).hexdigest()
     census = package["census"]

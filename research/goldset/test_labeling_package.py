@@ -16,6 +16,7 @@ from build_labeling_package import (  # noqa: E402
     ALLOWED_VALUES,
     CANNOT_JUDGE,
     HUMAN_JUDGED_FIELDS,
+    INSUFFICIENT_CONTEXT,
     RATING_SCHEMA_VERSION,
     REQUIRED_RATERS_PER_ITEM,
     LabelItem,
@@ -48,8 +49,7 @@ def main() -> int:
     check(
         "every item carries a presumed task statement",
         all(
-            i["rater_context"]["instruction"]["presumed_task_statement"] is not None
-            for i in items
+            i["rater_context"]["instruction"]["presumed_task_statement"] is not None for i in items
         ),
     )
     check(
@@ -128,6 +128,7 @@ def main() -> int:
             sampling_weight=1.0,
             selection_arm="prevalence_core",
             cluster_id="d" * 64,
+            context_completeness={"builder_verdict": "COMPLETE"},
             rater_context={},
         )
     ]
@@ -159,9 +160,7 @@ def main() -> int:
     )
     check(
         "same rater three times does NOT clear readiness",
-        evaluate_readiness(
-            fake, [{**good, "rater_id": "r1"}] * 3, ["r1", "r2", "r3"]
-        )["readiness"]
+        evaluate_readiness(fake, [{**good, "rater_id": "r1"}] * 3, ["r1", "r2", "r3"])["readiness"]
         == "NOT_READY",
     )
     check(
@@ -178,12 +177,51 @@ def main() -> int:
         == "NOT_READY",
     )
 
-    print("B5 - CANNOT_JUDGE on every human-judged field")
+    print("B5 - CANNOT_JUDGE and INSUFFICIENT_CONTEXT on every human-judged field")
     for field_name in HUMAN_JUDGED_FIELDS:
         check(
             f"{field_name} offers CANNOT_JUDGE",
             CANNOT_JUDGE in ALLOWED_VALUES[field_name],
         )
+        check(
+            f"{field_name} offers INSUFFICIENT_CONTEXT",
+            INSUFFICIENT_CONTEXT in ALLOWED_VALUES[field_name],
+        )
+    check(
+        "CANNOT_JUDGE and INSUFFICIENT_CONTEXT are distinct values",
+        CANNOT_JUDGE != INSUFFICIENT_CONTEXT,
+    )
+    check(
+        "missing_data_semantics documents the distinction",
+        CANNOT_JUDGE in package["taxonomy"]["missing_data_semantics"]
+        and INSUFFICIENT_CONTEXT in package["taxonomy"]["missing_data_semantics"],
+    )
+
+    print("alias manifest and builder-declared completeness")
+    manifest = package["census"]["alias_manifest"]
+    check(
+        "manifest covers every distinct content digest",
+        len(manifest) == package["census"]["distinct_content_digests"],
+    )
+    check(
+        "manifest duplicate_count sums to duplicate_paths_dropped",
+        sum(e["duplicate_count"] for e in manifest.values())
+        == package["census"]["duplicate_paths_dropped"],
+    )
+    check(
+        "every item's source_sha256 appears in the manifest",
+        all(i["source_sha256"] in manifest for i in items),
+    )
+    check(
+        "every item declares a builder completeness verdict",
+        all(
+            i["context_completeness"]["builder_verdict"] in ("COMPLETE", "DEGRADED") for i in items
+        ),
+    )
+    check(
+        "completeness census is reported",
+        "context_completeness" in package["census"],
+    )
 
     print("determinism")
     a, _ = build_package(RUNS, core_n=None, boost_per_stratum=3, ratings_dir=None)

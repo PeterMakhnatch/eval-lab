@@ -1,0 +1,730 @@
+{
+  "aggregate": {
+    "cached_tokens": 18095360,
+    "completion_tokens": 110022,
+    "passes": 18,
+    "prompt_tokens": 18724686,
+    "steps": 752,
+    "tool_calls": 2915,
+    "trials": 27
+  },
+  "non_scored_attempts": [
+    {
+      "classification": "harness_budget",
+      "count": 2,
+      "include_in_reward_denominator": false,
+      "job": "zai-wave2-action64k-s1337-sequential-scaffold",
+      "reason": "AgentTimeoutError at default timeout"
+    },
+    {
+      "classification": "provider_access",
+      "count_observed": 1,
+      "include_in_reward_denominator": false,
+      "job": "zai-wave2-highspeed-paired-mini",
+      "reason": "HTTP 429 current subscription does not include glm-5.3-highspeed; job cancelled after first access error"
+    }
+  ],
+  "rows": [
+    {
+      "arm": null,
+      "cached_tokens": 60992,
+      "cell": "depth_5",
+      "completion_tokens": 477,
+      "family": "funcdag",
+      "job": "zai-wave2-funcdag-depth5-s42",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 68971,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 8,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-depth5/1a86c94297917091/mcp-funcdag-depth_5-seed42",
+      "tool_calls": 10,
+      "trial": "mcp-funcdag-depth_5-seed42__PBZKQYS",
+      "verifier": {}
+    },
+    {
+      "arm": "neutral_padding",
+      "cached_tokens": 334528,
+      "cell": "64k",
+      "completion_tokens": 8543,
+      "family": "action-memory",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 375163,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 17,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337",
+      "tool_calls": 259,
+      "trial": "action-64k-neutral_padding-s1337__xTVP9AZ",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 257,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": "neutral_padding",
+      "cached_tokens": 340480,
+      "cell": "64k",
+      "completion_tokens": 8472,
+      "family": "action-memory",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 372805,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 17,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s42",
+      "tool_calls": 259,
+      "trial": "action-64k-neutral_padding-s42__5Udx2Ac",
+      "verifier": {
+        "result.json": {
+          "events_validated": 259,
+          "mutation_events": 1,
+          "read_events": 257,
+          "reason": "exact_latest_value_bound_after_complete_retrieval",
+          "reward": 1.0,
+          "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a"
+        }
+      }
+    },
+    {
+      "arm": "semantic_distractor",
+      "cached_tokens": 418560,
+      "cell": "64k",
+      "completion_tokens": 8468,
+      "family": "action-memory",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 468128,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 17,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s42",
+      "tool_calls": 259,
+      "trial": "action-64k-semantic_distractor-s__CrxsJ57",
+      "verifier": {
+        "result.json": {
+          "events_validated": 259,
+          "mutation_events": 1,
+          "read_events": 257,
+          "reason": "exact_latest_value_bound_after_complete_retrieval",
+          "reward": 1.0,
+          "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a"
+        }
+      }
+    },
+    {
+      "arm": "semantic_distractor",
+      "cached_tokens": 266752,
+      "cell": "64k",
+      "completion_tokens": 8586,
+      "family": "action-memory",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 317126,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 12,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s1337",
+      "tool_calls": 259,
+      "trial": "action-64k-semantic_distractor-s__Qoz3nbU",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 257,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": null,
+      "cached_tokens": 105728,
+      "cell": "depth_5",
+      "completion_tokens": 1829,
+      "family": "funcdag",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 116583,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 101,
+      "steps": 11,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-depth5/6691a99d139d88e0/mcp-funcdag-depth_5-seed101",
+      "tool_calls": 9,
+      "trial": "mcp-funcdag-depth_5-seed101__mJU4JQC",
+      "verifier": {}
+    },
+    {
+      "arm": null,
+      "cached_tokens": 99200,
+      "cell": "depth_5",
+      "completion_tokens": 1477,
+      "family": "funcdag",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 109943,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 2024,
+      "steps": 11,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-depth5/ee96bbda038c4648/mcp-funcdag-depth_5-seed2024",
+      "tool_calls": 9,
+      "trial": "mcp-funcdag-depth_5-seed2024__gXLQWSh",
+      "verifier": {}
+    },
+    {
+      "arm": null,
+      "cached_tokens": 27264,
+      "cell": "name_similarity_high",
+      "completion_tokens": 412,
+      "family": "funcdag",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 43138,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 2024,
+      "steps": 6,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-name-sim/d7828fc49a879cc6/mcp-funcdag-name_similarity_high-seed2024",
+      "tool_calls": 6,
+      "trial": "mcp-funcdag-name_similarity_high__DvpHJGh",
+      "verifier": {}
+    },
+    {
+      "arm": null,
+      "cached_tokens": 54464,
+      "cell": "name_similarity_high",
+      "completion_tokens": 934,
+      "family": "funcdag",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 69235,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 101,
+      "steps": 8,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-name-sim/88e13beb92bfdbeb/mcp-funcdag-name_similarity_high-seed101",
+      "tool_calls": 6,
+      "trial": "mcp-funcdag-name_similarity_high__TkhqHSN",
+      "verifier": {}
+    },
+    {
+      "arm": null,
+      "cached_tokens": 53760,
+      "cell": "name_similarity_high",
+      "completion_tokens": 1198,
+      "family": "funcdag",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 69455,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 8,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-name-sim/6058bc1b0d94ce9f/mcp-funcdag-name_similarity_high-seed42",
+      "tool_calls": 6,
+      "trial": "mcp-funcdag-name_similarity_high__sbQkE2R",
+      "verifier": {}
+    },
+    {
+      "arm": "fault",
+      "cached_tokens": 38912,
+      "cell": "persistent-signature-error",
+      "completion_tokens": 239,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 39486,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 6,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s42-fault",
+      "tool_calls": 4,
+      "trial": "recovery-persistent-signature-er__Lm9ohzb",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "causal_mutation": true,
+          "exact_injections": true,
+          "fault_count": 1,
+          "monotonic": true,
+          "read_confirmed": true,
+          "required_fault_count": 1,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true
+        }
+      }
+    },
+    {
+      "arm": "clean",
+      "cached_tokens": 7936,
+      "cell": "persistent-signature-error",
+      "completion_tokens": 183,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 23586,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 4,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s1337-clean",
+      "tool_calls": 2,
+      "trial": "recovery-persistent-signature-er__QHaoyPA",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "confirmed": true,
+          "fault_count": 0,
+          "monotonic": true,
+          "read_ok": true,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true,
+          "zero_faults": true
+        }
+      }
+    },
+    {
+      "arm": "fault",
+      "cached_tokens": 28352,
+      "cell": "persistent-signature-error",
+      "completion_tokens": 204,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 39474,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 6,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s1337-fault",
+      "tool_calls": 4,
+      "trial": "recovery-persistent-signature-er__YXTpcLZ",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "causal_mutation": true,
+          "exact_injections": true,
+          "fault_count": 1,
+          "monotonic": true,
+          "read_confirmed": true,
+          "required_fault_count": 1,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true
+        }
+      }
+    },
+    {
+      "arm": "clean",
+      "cached_tokens": 15360,
+      "cell": "persistent-signature-error",
+      "completion_tokens": 161,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 23337,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 4,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s42-clean",
+      "tool_calls": 2,
+      "trial": "recovery-persistent-signature-er__mp4YbvW",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "confirmed": true,
+          "fault_count": 0,
+          "monotonic": true,
+          "read_ok": true,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true,
+          "zero_faults": true
+        }
+      }
+    },
+    {
+      "arm": "clean",
+      "cached_tokens": 12544,
+      "cell": "silent-wrong-payload",
+      "completion_tokens": 133,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 23392,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 4,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s1337-clean",
+      "tool_calls": 2,
+      "trial": "recovery-silent-wrong-payload-s1__UBdmtRU",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "confirmed": true,
+          "fault_count": 0,
+          "monotonic": true,
+          "read_ok": true,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true,
+          "zero_faults": true
+        }
+      }
+    },
+    {
+      "arm": "fault",
+      "cached_tokens": 41920,
+      "cell": "silent-wrong-payload",
+      "completion_tokens": 319,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 48314,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 7,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s1337-fault",
+      "tool_calls": 5,
+      "trial": "recovery-silent-wrong-payload-s1__fZmgR5y",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "causal_mutation": true,
+          "exact_injections": true,
+          "fault_count": 1,
+          "monotonic": true,
+          "read_confirmed": true,
+          "required_fault_count": 1,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": false
+        }
+      }
+    },
+    {
+      "arm": "clean",
+      "cached_tokens": 23232,
+      "cell": "silent-wrong-payload",
+      "completion_tokens": 172,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 23636,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 4,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s42-clean",
+      "tool_calls": 2,
+      "trial": "recovery-silent-wrong-payload-s4__PmKJB8T",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "confirmed": true,
+          "fault_count": 0,
+          "monotonic": true,
+          "read_ok": true,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true,
+          "zero_faults": true
+        }
+      }
+    },
+    {
+      "arm": "fault",
+      "cached_tokens": 64384,
+      "cell": "silent-wrong-payload",
+      "completion_tokens": 392,
+      "family": "recovery",
+      "job": "zai-wave2-flash-matrix",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 65517,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 9,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s42-fault",
+      "tool_calls": 7,
+      "trial": "recovery-silent-wrong-payload-s4__cVZm97U",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "causal_mutation": true,
+          "exact_injections": true,
+          "fault_count": 1,
+          "monotonic": true,
+          "read_confirmed": true,
+          "required_fault_count": 1,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": false
+        }
+      }
+    },
+    {
+      "arm": null,
+      "cached_tokens": 60672,
+      "cell": "depth_5",
+      "completion_tokens": 395,
+      "family": "funcdag",
+      "job": "zai-wave2-glm53-funcdag-canary",
+      "model": "zai-coding-plan/glm-5.3",
+      "prompt_tokens": 68823,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 8,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/funcdag-depth5/1a86c94297917091/mcp-funcdag-depth_5-seed42",
+      "tool_calls": 10,
+      "trial": "mcp-funcdag-depth_5-seed42__Ca9ToPk",
+      "verifier": {}
+    },
+    {
+      "arm": "semantic_distractor",
+      "cached_tokens": 492672,
+      "cell": "64k",
+      "completion_tokens": 8640,
+      "family": "action-memory",
+      "job": "zai-wave2-glm53-paired-mini",
+      "model": "zai-coding-plan/glm-5.3",
+      "prompt_tokens": 539198,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 19,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s42",
+      "tool_calls": 260,
+      "trial": "action-64k-semantic_distractor-s__ZppWXWx",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 258,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a"
+        }
+      }
+    },
+    {
+      "arm": "fault",
+      "cached_tokens": 33472,
+      "cell": "persistent-signature-error",
+      "completion_tokens": 200,
+      "family": "recovery",
+      "job": "zai-wave2-glm53-paired-mini",
+      "model": "zai-coding-plan/glm-5.3",
+      "prompt_tokens": 39201,
+      "reward": 1.0,
+      "scaffold": "none",
+      "seed": 42,
+      "steps": 6,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s42-fault",
+      "tool_calls": 4,
+      "trial": "recovery-persistent-signature-er__pgAA5NR",
+      "verifier": {
+        "checks.json": {
+          "auto_clear": false,
+          "causal_mutation": true,
+          "exact_injections": true,
+          "fault_count": 1,
+          "monotonic": true,
+          "read_confirmed": true,
+          "required_fault_count": 1,
+          "reward": 1.0,
+          "state_changed": true,
+          "success": true,
+          "write_ok": true
+        }
+      }
+    },
+    {
+      "arm": "neutral_padding",
+      "cached_tokens": 363648,
+      "cell": "64k",
+      "completion_tokens": 8610,
+      "family": "action-memory",
+      "job": "zai-wave2-action64k-s1337-repeats",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 394570,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 18,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337",
+      "tool_calls": 259,
+      "trial": "action-64k-neutral_padding-s1337__JvdEs9Y",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 257,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": "neutral_padding",
+      "cached_tokens": 196608,
+      "cell": "64k",
+      "completion_tokens": 8527,
+      "family": "action-memory",
+      "job": "zai-wave2-action64k-s1337-repeats",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 227610,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 11,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337",
+      "tool_calls": 259,
+      "trial": "action-64k-neutral_padding-s1337__wCHLZ4M",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 257,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": "semantic_distractor",
+      "cached_tokens": 452928,
+      "cell": "64k",
+      "completion_tokens": 8566,
+      "family": "action-memory",
+      "job": "zai-wave2-action64k-s1337-repeats",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 499904,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 16,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s1337",
+      "tool_calls": 259,
+      "trial": "action-64k-semantic_distractor-s__FLiG7jy",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 257,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": "semantic_distractor",
+      "cached_tokens": 469952,
+      "cell": "64k",
+      "completion_tokens": 8697,
+      "family": "action-memory",
+      "job": "zai-wave2-action64k-s1337-repeats",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 520272,
+      "reward": 0.0,
+      "scaffold": "none",
+      "seed": 1337,
+      "steps": 18,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s1337",
+      "tool_calls": 261,
+      "trial": "action-64k-semantic_distractor-s__Pgukjp8",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 259,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": "neutral_padding",
+      "cached_tokens": 6634624,
+      "cell": "64k",
+      "completion_tokens": 10662,
+      "family": "action-memory",
+      "job": "zai-wave2-action64k-s1337-sequential-scaffold-t3",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 6683558,
+      "reward": 1.0,
+      "scaffold": "sequential-v1",
+      "seed": 1337,
+      "steps": 261,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337",
+      "tool_calls": 259,
+      "trial": "action-64k-neutral_padding-s1337__u4CZxsA",
+      "verifier": {
+        "result.json": {
+          "events_validated": 259,
+          "mutation_events": 1,
+          "read_events": 257,
+          "reason": "exact_latest_value_bound_after_complete_retrieval",
+          "reward": 1.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    },
+    {
+      "arm": "semantic_distractor",
+      "cached_tokens": 7396416,
+      "cell": "64k",
+      "completion_tokens": 13526,
+      "family": "action-memory",
+      "job": "zai-wave2-action64k-s1337-sequential-scaffold-t3",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "prompt_tokens": 7454261,
+      "reward": 0.0,
+      "scaffold": "sequential-v1",
+      "seed": 1337,
+      "steps": 236,
+      "task_path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s1337",
+      "tool_calls": 234,
+      "trial": "action-64k-semantic_distractor-s__A67eDZ2",
+      "verifier": {
+        "result.json": {
+          "expected_reads": 257,
+          "observed_reads": 232,
+          "reason": "incomplete_or_reordered_context_retrieval",
+          "reward": 0.0,
+          "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca"
+        }
+      }
+    }
+  ],
+  "schema_version": "1.0",
+  "scope": "wave-2 scored outcomes through sequential-scaffold-t3"
+}

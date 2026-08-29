@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "trial_name": "action-64k-semantic_distractor-s__TyoghGd",
+  "source": "research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
+  "primary_category": "harness_failure",
+  "summary": "The sequential-retrieval attempt exceeded the default agent timeout while still issuing one-by-one context reads; it is a non-scored harness-budget outcome, not reward 0 model evidence.",
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "review_status": "draft_pending_research_review",
+  "review_note": "Deterministic infrastructure triage; explicitly excluded from scored denominators and not a human gold label.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 86,
+      "supports": "ATIF step 86 is the final captured agent step; the second evidence item records the outcome or infrastructure finding."
+    },
+    {
+      "path": "exception.txt",
+      "step": null,
+      "supports": "exception.txt records AgentTimeoutError from the agent execution budget."
+    }
+  ],
+  "labelled_by": "Main, 2026-08-29, deterministic wave-2 taxonomy triage",
+  "parent_trajectory_sha256": "sha256:295e7429c5b2d9e42b0fb115a2a22dfce25c94d0db302594e165a27a22217565"
+}

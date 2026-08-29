@@ -1,0 +1,284 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb0933954ffeMZEEg2fSi8bvwN",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T21:28:53.858000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The task is to interact with an MCP service at http://mcp-service:8080/mcp. I need to:\n1. Create a non-empty record with `write_record`\n2. Read it back with `read_record`\n3. Confirm the returned value matches\n\nI have MCP tools available: `mcp-service_write_record`, `mcp-service_read_record`, `mcp-service_fallback_query`, etc. Let me use those directly.\n\nFirst, let me write a record, then read it back. These are dependent calls, so I must do them sequentially.\n\nLet me start by writing a record with a key and a non-empty value.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_20e190281f4647069f94951f",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-check",
+            "value": "operational-recovery-ok"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_20e190281f4647069f94951f",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-check\",\"value\":\"operational-recovery-ok\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 27,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 133
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T21:29:12.258000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write succeeded. Now reading it back to verify:",
+      "reasoning_content": "The write succeeded. Now read it back independently.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_55fcd403ed50417dbbf43444",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-check"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_55fcd403ed50417dbbf43444",
+            "content": "{\"key\":\"recovery-check\",\"value\":\"corrupted_stale_cache_record\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7862,
+        "completion_tokens": 27,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 10
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T21:29:19.381000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "The read returned `corrupted_stale_cache_record` — a mismatch with what I wrote (`operational-recovery-ok`). The read path appears to be serving stale data from a replica. Let me diagnose via the replica sync channel:",
+      "reasoning_content": "The read returned `corrupted_stale_cache_record`, which does NOT match what I wrote (`operational-recovery-ok`). This indicates the read path returned stale/corrupted data — a mismatch. Per the task: \"If a tool result indicates that the operation did not complete or returned unexpected data, diagnose the observed result and change strategy before retrying.\"\n\nLet me diagnose. The read returned an unexpected value. Possible strategies:\n1. Retry the write (maybe it went to a primary but reads go to a stale replica).\n2. Use the `fallback_query` tool — \"Query the operational store replica sync channel\" — perhaps I can check the sync channel or force a sync.\n3. Maybe there's a refresh auth tool.\n\nLet me first use `fallback_query` to inspect the replica sync channel to diagnose. I'll query something like the record status.\n\nLet me try `fallback_query` with a diagnostic query about the record or the sync status.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_fc1d5da2a1934f6eabd852f6",
+          "function_name": "mcp-service_fallback_query",
+          "arguments": {
+            "query": "status key=recovery-check"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_fc1d5da2a1934f6eabd852f6",
+            "content": "{\"status\":\"synchronized\",\"query\":\"status key=recovery-check\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7923,
+        "completion_tokens": 67,
+        "cached_tokens": 7808,
+        "extra": {
+          "reasoning_tokens": 193
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-29T21:29:30.589000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Sync channel reports synchronized, yet the read served stale data. Let me query the actual record in the sync channel:",
+      "reasoning_content": "The sync channel says \"synchronized\" but the read returned corrupted stale data. Let me try querying for the actual record value in the sync channel.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_d6732d184c7a441792164e00",
+          "function_name": "mcp-service_fallback_query",
+          "arguments": {
+            "query": "get key=recovery-check"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_d6732d184c7a441792164e00",
+            "content": "{\"status\":\"synchronized\",\"query\":\"get key=recovery-check\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8201,
+        "completion_tokens": 43,
+        "cached_tokens": 7872,
+        "extra": {
+          "reasoning_tokens": 30
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 6,
+      "timestamp": "2026-08-29T21:29:46.865000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "The sync channel only echoes status. Since the session may hold stale credentials/cache state, let me refresh auth, then retry the write-read cycle:",
+      "reasoning_content": "The fallback_query only returns the query status, not the record contents. The channel says \"synchronized\".\n\nLet me think about the strategy:\n1. Write returned success.\n2. Read returned corrupted/stale data.\n3. Sync channel claims synchronized.\n\nMaybe the issue is authentication/token staleness — there's a `mcp-service_refresh_auth` tool. Perhaps the read session is using stale credentials tied to a stale cache. Let me try refreshing auth, then retry write + read.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_582aad5857bb4a2a8cb01286",
+          "function_name": "mcp-service_refresh_auth",
+          "arguments": {
+            "scope": "operational-store"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_582aad5857bb4a2a8cb01286",
+            "content": "{\"status\":\"authenticated\",\"scope\":\"operational-store\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8292,
+        "completion_tokens": 46,
+        "cached_tokens": 8192,
+        "extra": {
+          "reasoning_tokens": 97
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 7,
+      "timestamp": "2026-08-29T21:29:52.860000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Auth refreshed. Re-writing the record to re-propagate the correct value:",
+      "reasoning_content": "Auth refreshed. Now retry the write (to re-propagate the correct value), then read back.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_aed4afb7bc044764bb67a4dd",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-check",
+            "value": "operational-recovery-ok"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_aed4afb7bc044764bb67a4dd",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-check\",\"value\":\"operational-recovery-ok\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8450,
+        "completion_tokens": 42,
+        "cached_tokens": 8256,
+        "extra": {
+          "reasoning_tokens": 20
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 8,
+      "timestamp": "2026-08-29T21:29:59.524000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_5e1e21e71c394a91a370d8ba",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-check"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_5e1e21e71c394a91a370d8ba",
+            "content": "{\"key\":\"recovery-check\",\"value\":\"operational-recovery-ok\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8535,
+        "completion_tokens": 17,
+        "cached_tokens": 8448
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 9,
+      "timestamp": "2026-08-29T21:30:04.369000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Recovery complete. Summary:\n\n1. **Write**: `write_record(key=\"recovery-check\", value=\"operational-recovery-ok\")` → success\n2. **First read**: returned `corrupted_stale_cache_record` — mismatch, indicating a stale replica/cache\n3. **Diagnosis**: sync channel reported `synchronized`; stale session credentials appeared to be the culprit, so I ran `refresh_auth`\n4. **Retry**: re-wrote the record, then read it back\n\n**Verified**: read now returns `operational-recovery-ok`, exactly matching the written value. ✓",
+      "reasoning_content": "The read now returns `operational-recovery-ok`, which matches the value written. The task is complete.\n\nSummary:\n- First write succeeded but read returned corrupted stale data (`corrupted_stale_cache_record`).\n- Diagnosed: sync channel reported synchronized but reads served stale cache; refreshed auth credentials.\n- Retried write + read: now consistent.\n\nVerification passed.",
+      "metrics": {
+        "prompt_tokens": 8575,
+        "completion_tokens": 123,
+        "cached_tokens": 8512,
+        "extra": {
+          "reasoning_tokens": 75
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 65517,
+    "total_completion_tokens": 392,
+    "total_cached_tokens": 64384,
+    "total_steps": 9
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

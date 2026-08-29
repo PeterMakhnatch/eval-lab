@@ -1,0 +1,35 @@
+{
+    "job_name": "zai-wave2-action64k-s1337-sequential-scaffold-t3",
+    "jobs_dir": "runs/zai-opencode-wave2",
+    "agent_timeout_multiplier": 3.0,
+    "n_concurrent_trials": 2,
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "agents": [
+        {
+            "name": "zai_opencode_adapter:ZaiOpenCode",
+            "model_name": "zai-coding-plan/glm-5.3-flash",
+            "n_concurrent": 2
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s1337"
+        }
+    ],
+    "extra_instruction_paths": [
+        "/tmp/evallab-action-sequential-retrieval.txt"
+    ]
+}

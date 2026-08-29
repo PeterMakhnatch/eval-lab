@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "mcp-funcdag-depth_5-seed42__Ca9ToPk",
+  "source": "research/evidence/runs/zai-wave2-glm53-funcdag-canary/mcp-funcdag-depth_5-seed42__Ca9ToPk",
+  "reward": 1.0,
+  "agent": "opencode / zai-coding-plan/glm-5.3",
+  "primary_category": "unknown",
+  "summary": "The agent completed the task and received verifier reward 1.0; no failure mechanism applies.",
+  "review_status": "draft_pending_research_review",
+  "review_note": "Reward-1.0 deterministic triage; unknown means no failure mechanism applies, not a human gold label.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 8,
+      "supports": "ATIF step 8 is the final captured agent step; the second evidence item records the outcome or infrastructure finding."
+    },
+    {
+      "path": "verifier/reward.txt",
+      "step": null,
+      "supports": "reward.txt records reward 1.0 for this scored trial."
+    }
+  ],
+  "labelled_by": "Main, 2026-08-29, deterministic wave-2 taxonomy triage",
+  "parent_trajectory_sha256": "sha256:15ff55ab35e3a368256e15d2854db96c021d6d159c8dbc542a92358a643ffd30"
+}

@@ -1,0 +1,76 @@
+{
+    "job_name": "zai-wave2-flash-matrix",
+    "jobs_dir": "runs/zai-opencode-wave2",
+    "n_concurrent_trials": 3,
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "agents": [
+        {
+            "name": "zai_opencode_adapter:ZaiOpenCode",
+            "model_name": "zai-coding-plan/glm-5.3-flash",
+            "n_concurrent": 3
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s42"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s1337"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s42"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/funcdag-depth5/6691a99d139d88e0/mcp-funcdag-depth_5-seed101"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/funcdag-depth5/ee96bbda038c4648/mcp-funcdag-depth_5-seed2024"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/funcdag-name-sim/6058bc1b0d94ce9f/mcp-funcdag-name_similarity_high-seed42"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/funcdag-name-sim/88e13beb92bfdbeb/mcp-funcdag-name_similarity_high-seed101"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/funcdag-name-sim/d7828fc49a879cc6/mcp-funcdag-name_similarity_high-seed2024"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s1337-clean"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s1337-fault"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s42-clean"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-persistent-signature-error-s42-fault"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s1337-clean"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s1337-fault"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s42-clean"
+        },
+        {
+            "path": "/tmp/evallab-zai-wave2-tasks/recovery-silent-wrong-payload-s42-fault"
+        }
+    ]
+}

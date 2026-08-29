@@ -1,0 +1,1 @@
+Verification complete: reward=1.0, agent_val=-2, exp_val=-2, dag_conf=True, val_prop=1.0

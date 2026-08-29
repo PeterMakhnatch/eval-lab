@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "action-64k-neutral_padding-s1337__u4CZxsA",
+  "source": "research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-neutral_padding-s1337__u4CZxsA",
+  "reward": 1.0,
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "primary_category": "unknown",
+  "summary": "The agent completed the task and received verifier reward 1.0; no failure mechanism applies.",
+  "review_status": "draft_pending_research_review",
+  "review_note": "Reward-1.0 deterministic triage; unknown means no failure mechanism applies, not a human gold label.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 261,
+      "supports": "ATIF step 261 is the final captured agent step; the second evidence item records the outcome or infrastructure finding."
+    },
+    {
+      "path": "verifier/reward.txt",
+      "step": null,
+      "supports": "reward.txt records reward 1.0 for this scored trial."
+    }
+  ],
+  "labelled_by": "Main, 2026-08-29, deterministic wave-2 taxonomy triage",
+  "parent_trajectory_sha256": "sha256:abe18c46533b720e55a6fd2d1ec68c1df9e72094537a61d338bdab8e9f9a121d"
+}

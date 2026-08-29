@@ -1,0 +1,9 @@
+{"arguments":{"x":9,"y":4},"event_ordinal":1,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":13},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_1"}
+{"arguments":{"x":4,"y":9},"event_ordinal":2,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-5},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_2"}
+{"arguments":{"base":13,"factor":-5},"event_ordinal":3,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-62},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_3"}
+{"arguments":{"offset":13,"val":-5},"event_ordinal":4,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":16},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_4"}
+{"arguments":{"u":-62,"v":16},"event_ordinal":5,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-39},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_5"}
+{"arguments":{"x":16,"y":-62},"event_ordinal":6,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-992},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_6"}
+{"arguments":{"x":-39,"y":-992},"event_ordinal":7,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":953},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_7"}
+{"arguments":{"a":-992,"b":-39},"event_ordinal":8,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-2018},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_8"}
+{"arguments":{"offset":-2018,"val":953},"event_ordinal":9,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-2130},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_9"}

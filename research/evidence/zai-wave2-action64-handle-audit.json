@@ -1,0 +1,248 @@
+{
+  "comparators": [
+    {
+      "arm": "neutral_padding",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 257,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [],
+      "first_order_mismatch_index": null,
+      "issued_count": 257,
+      "missing_expected_handles": [],
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "not_found_events": 0,
+      "order_mismatch_count_in_shared_prefix": 0,
+      "source": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-neutral_padding-s42__5Udx2Ac",
+      "trial": "action-64k-neutral_padding-s42__5Udx2Ac",
+      "unique_content_handle_count": 257
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 257,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [],
+      "first_order_mismatch_index": null,
+      "issued_count": 257,
+      "missing_expected_handles": [],
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "not_found_events": 0,
+      "order_mismatch_count_in_shared_prefix": 0,
+      "source": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-semantic_distractor-s__CrxsJ57",
+      "trial": "action-64k-semantic_distractor-s__CrxsJ57",
+      "unique_content_handle_count": 257
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 258,
+      "duplicate_issued_handles": {
+        "ctx_07885d4e5dd4e2748872869d": 2
+      },
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_07885d4e5dd4e2748872869d"
+      ],
+      "first_order_mismatch_index": 1,
+      "issued_count": 258,
+      "missing_expected_handles": [],
+      "model": "zai-coding-plan/glm-5.3",
+      "not_found_events": 0,
+      "order_mismatch_count_in_shared_prefix": 39,
+      "source": "research/evidence/runs/zai-wave2-glm53-paired-mini/action-64k-semantic_distractor-s__ZppWXWx",
+      "trial": "action-64k-semantic_distractor-s__ZppWXWx",
+      "unique_content_handle_count": 257
+    }
+  ],
+  "event_schema": "mcp-tool-event-v1",
+  "expected_handle_source": "first list_context_chunks success event in each benchmark-events.jsonl",
+  "schema_version": "1.0",
+  "scope": "six unscaffolded GLM-5.3-Flash Action Memory 64k seed1337 failures",
+  "summary": {
+    "all_atif_match_event_order": true,
+    "all_missing_same_expected_handle": true,
+    "content_read_counts": [
+      256,
+      256,
+      256,
+      256,
+      256,
+      257
+    ],
+    "first_mismatch_indexes": [
+      2,
+      2,
+      10,
+      83,
+      83,
+      83
+    ],
+    "issued_counts": [
+      257,
+      257,
+      257,
+      257,
+      257,
+      259
+    ],
+    "missing_handle": "ctx_2110473c018845ab0cc32bf4",
+    "not_found_counts": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      2
+    ],
+    "trial_count": 6,
+    "unique_content_handle_counts": [
+      256,
+      256,
+      256,
+      256,
+      256,
+      256
+    ]
+  },
+  "trials": [
+    {
+      "arm": "neutral_padding",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 256,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "first_order_mismatch_index": 10,
+      "issued_count": 257,
+      "missing_expected_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "not_found_events": 1,
+      "order_mismatch_count_in_shared_prefix": 10,
+      "source": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-neutral_padding-s1337__xTVP9AZ",
+      "transport_success_events": 257,
+      "trial": "action-64k-neutral_padding-s1337__xTVP9AZ",
+      "unique_content_handle_count": 256,
+      "unique_issued_count": 257
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 256,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "first_order_mismatch_index": 83,
+      "issued_count": 257,
+      "missing_expected_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "not_found_events": 1,
+      "order_mismatch_count_in_shared_prefix": 1,
+      "source": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-semantic_distractor-s__Qoz3nbU",
+      "transport_success_events": 257,
+      "trial": "action-64k-semantic_distractor-s__Qoz3nbU",
+      "unique_content_handle_count": 256,
+      "unique_issued_count": 257
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 256,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_2110473c018845ab0cc32bf3"
+      ],
+      "first_order_mismatch_index": 83,
+      "issued_count": 257,
+      "missing_expected_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "not_found_events": 1,
+      "order_mismatch_count_in_shared_prefix": 1,
+      "source": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__JvdEs9Y",
+      "transport_success_events": 257,
+      "trial": "action-64k-neutral_padding-s1337__JvdEs9Y",
+      "unique_content_handle_count": 256,
+      "unique_issued_count": 257
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 256,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "first_order_mismatch_index": 2,
+      "issued_count": 257,
+      "missing_expected_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "not_found_events": 1,
+      "order_mismatch_count_in_shared_prefix": 19,
+      "source": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__wCHLZ4M",
+      "transport_success_events": 257,
+      "trial": "action-64k-neutral_padding-s1337__wCHLZ4M",
+      "unique_content_handle_count": 256,
+      "unique_issued_count": 257
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 256,
+      "duplicate_issued_handles": {},
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "first_order_mismatch_index": 2,
+      "issued_count": 257,
+      "missing_expected_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "not_found_events": 1,
+      "order_mismatch_count_in_shared_prefix": 3,
+      "source": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__FLiG7jy",
+      "transport_success_events": 257,
+      "trial": "action-64k-semantic_distractor-s__FLiG7jy",
+      "unique_content_handle_count": 256,
+      "unique_issued_count": 257
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_issuance_matches_event_order": true,
+      "content_read_events": 257,
+      "duplicate_issued_handles": {
+        "ctx_2110473c018845ab0cc32bf6": 2,
+        "ctx_f4e8c2abe047ae311b1b587b": 2
+      },
+      "expected_count": 257,
+      "extra_issued_handles": [
+        "ctx_2110473c018845ab0cc32bf6",
+        "ctx_2110473c018845ab0cc32bf6",
+        "ctx_f4e8c2abe047ae311b1b587b"
+      ],
+      "first_order_mismatch_index": 83,
+      "issued_count": 259,
+      "missing_expected_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "not_found_events": 2,
+      "order_mismatch_count_in_shared_prefix": 1,
+      "source": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__Pgukjp8",
+      "transport_success_events": 259,
+      "trial": "action-64k-semantic_distractor-s__Pgukjp8",
+      "unique_content_handle_count": 256,
+      "unique_issued_count": 257
+    }
+  ]
+}

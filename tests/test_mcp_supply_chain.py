@@ -218,6 +218,9 @@ def test_verify_provenance_rejects_forged_records_with_valid_manifest_digest(tmp
     # Gold-label is_distractor must NOT appear in the agent-readable canonical events
     assert "is_distractor" not in code
     assert "DISTRACTOR_TOOLS" not in code
+    # No distractor/noop/unused label may leak into the agent-visible schema/results
+    for label in ("noop_distractor", "noop", "unused", "distractor"):
+        assert label not in code
     # No backward-compat shim
     assert "def log_tool_event" not in code
 

@@ -236,7 +236,6 @@ def canonical_tool_definitions_payload(
                 "description": t.description,
                 "parameters": [p.to_dict() for p in t.parameters],
                 "output_type": t.output_type,
-                "is_distractor": t.is_distractor,
                 "metadata": dict(t.metadata),
                 "execution_body": t.execution_body or "",
             }
@@ -321,7 +320,6 @@ def tool_definitions_from_payload(payload: Mapping[str, Any]) -> list[MCPToolDef
                 description=description,
                 parameters=tuple(params),
                 output_type=raw.get("output_type", "object"),
-                is_distractor=bool(raw.get("is_distractor", False)),
                 metadata=dict(raw.get("metadata", {})),
                 execution_body=raw.get("execution_body") or None,
             )
@@ -693,7 +691,6 @@ class MCPToolDefinition:
     description: str
     parameters: tuple[MCPToolParameter, ...]
     output_type: str = "object"
-    is_distractor: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
     execution_body: str | None = None
 
@@ -908,13 +905,6 @@ def generate_fastmcp_server_script(
         if tool.execution_body:
             for b_line in tool.execution_body.strip().splitlines():
                 lines.append(f"    {b_line}")
-        elif tool.is_distractor:
-            lines.extend(
-                [
-                    '    res = {"status": "noop_distractor", "value": None}',
-                    "    return res",
-                ]
-            )
         else:
             op_kind = tool.metadata.get("op_kind", tool.name)
             lines.extend(

@@ -9,7 +9,7 @@
       "repeats_prior_action"
     ]
   },
-  "build_id": "26bdea4aac453399f3d97283eee7136f297457b2139854349e1e9a26b75a8b52",
+  "build_id": "8c8ddd695b08f216060eedbfb4a417880c4571869873a2c8878a9468b6c3be95",
   "census": {
     "agent_steps_per_cluster": {
       "06adc723e66a2e5cd2b337439bb309cabf352c8b9f0cc108375e3f20bfc9e21f": 9,
@@ -47399,7 +47399,7 @@
       "power_argument"
     ]
   },
-  "package_digest": "a8cce820fd40cef71a527112a2d3be3ee78b0f1b3b8a1b17c87ae2e7d99c97b0",
+  "package_digest": "646398e211ed0069e99cf4a72d4abe2da3dc6a43a19df300beff7a70130bc91f",
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
     "authentication": {
@@ -47453,11 +47453,14 @@
     },
     "qualified_rater_pool_size": 0,
     "rating_intake": {
+      "all_rejection_reasons_non_exclusive": {},
       "note": "Only ACCEPTED records reach any diagnostic - validated, signature-verified against a qualified key, and bound to the rating contract. Rejected records are counted here and nowhere else, so a forged or unsigned submission cannot enter a diagnostic without first passing validation.",
+      "primary_rejection_reasons": {},
+      "reconciliation": "records_seen == records_accepted + records_rejected, and sum(primary_rejection_reasons) == records_rejected == records_with_reason. all_rejection_reasons_non_exclusive may sum HIGHER because one record can fail several checks - a replayed contract digest also invalidates the signature.",
       "records_accepted": 0,
       "records_rejected": 0,
       "records_seen": 0,
-      "rejection_reasons": {}
+      "records_with_reason": 0
     },
     "readiness": "NOT_READY",
     "registry": {

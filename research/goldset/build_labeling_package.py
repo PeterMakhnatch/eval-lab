@@ -52,7 +52,7 @@ import json
 import os
 import random
 import tempfile
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -786,6 +786,40 @@ def context_diagnostic_2x2(
     }
 
 
+# Deterministic precedence for the ONE canonical primary rejection reason per
+# record. Reasons are non-exclusive (a replayed contract digest also invalidates
+# the signature), so a flat reason tally cannot reconcile with records_rejected.
+# The primary tally does reconcile, exactly; all_reasons is published alongside and
+# explicitly labelled non-exclusive.
+REJECTION_PRECEDENCE = (
+    "MALFORMED_ENTRY",
+    "UNPARSEABLE_FILE",
+    "BAD_SCHEMA_VERSION",
+    "MISSING_ITEM_ID",
+    "MISSING_RATER_KEY_ID",
+    "RATER_KEY_NOT_QUALIFIED",
+    "SIGNATURE_UNVERIFIABLE_NO_KEYRING",
+    "SIGNATURE_INVALID_OR_UNREGISTERED_KEY",
+    "RATING_CONTRACT_DIGEST_NOT_ENFORCED",
+    "RATING_CONTRACT_DIGEST_MISMATCH",
+    "ITEM_CONTEXT_DIGEST_NOT_ENFORCED",
+    "ITEM_CONTEXT_DIGEST_MISMATCH",
+    "UNKNOWN_ITEM",
+    "UNKNOWN_ITEM_ID",
+    "DUPLICATE_SUBMISSION",
+    "CONFLICTING_SUBMISSION",
+)
+
+
+def primary_rejection_reason(reasons: Sequence[str]) -> str:
+    """Single canonical reason, by declared precedence. Never ambiguous."""
+    categories = {r.split(":", 1)[0] for r in reasons}
+    for candidate in REJECTION_PRECEDENCE:
+        if candidate in categories:
+            return candidate
+    return "OTHER"
+
+
 REQUIRED_RATERS_PER_ITEM = 3
 
 # Cluster adequacy, set by Tutor (wK:p4) power verdict 2026-08-28.
@@ -855,6 +889,8 @@ def load_rater_keystore(keystore_path: Path | None) -> tuple[dict[str, str], lis
         doc = json.loads(keystore_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return {}, [f"KEYSTORE_UNREADABLE: {exc}"]
+    if not isinstance(doc, dict):
+        return {}, [f"KEYSTORE_NOT_AN_OBJECT: got {type(doc).__name__}"]
     if doc.get("schema_version") != KEYSTORE_SCHEMA_VERSION:
         return {}, ["KEYSTORE_BAD_SCHEMA_VERSION"]
     keys = doc.get("keys") or {}
@@ -902,6 +938,8 @@ def load_rater_registry(
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return [], {}, [f"REGISTRY_UNREADABLE: {exc}"]
+    if not isinstance(registry, dict):
+        return [], {}, [f"REGISTRY_NOT_AN_OBJECT: got {type(registry).__name__}"]
     if registry.get("schema_version") != REGISTRY_SCHEMA_VERSION:
         return [], {}, ["REGISTRY_BAD_SCHEMA_VERSION"]
     if authority_secret is None:
@@ -1104,6 +1142,7 @@ def validate_rating(
     rating_contract_digest: str | None = None,
     context_digests: Mapping[str, str] | None = None,
     keyring: Mapping[str, str] | None = None,
+    qualified_rater_ids: Collection[str] | None = None,
 ) -> list[str]:
     """Validate one RatingRecord.
 
@@ -1121,8 +1160,16 @@ def validate_rating(
     item_id = str(record.get("item_id") or "").strip()
     if not item_id:
         errors.append("MISSING_ITEM_ID")
-    if not str(record.get("rater_key_id") or "").strip():
+    key_id = str(record.get("rater_key_id") or "").strip()
+    if not key_id:
         errors.append("MISSING_RATER_KEY_ID")
+    # Qualification is an ACCEPTANCE criterion, not merely a readiness blocker: a
+    # signature-valid record from an unqualified key previously reached the
+    # accepted set and therefore the diagnostic.
+    if qualified_rater_ids is None:
+        errors.append("QUALIFICATION_NOT_ENFORCED")
+    elif key_id and key_id not in qualified_rater_ids:
+        errors.append(f"RATER_KEY_NOT_QUALIFIED: {key_id}")
 
     # Replay defence: a rating signed against a different item set is rejected
     # even when the individual item_id and logical digest still exist (P1).
@@ -1198,7 +1245,15 @@ def evaluate_readiness(
     by_item: dict[str, set[str]] = {}
     seen: dict[tuple[str, str], str] = {}
     accepted: list[dict[str, Any]] = []
-    rejection_reasons: dict[str, int] = {}
+    primary_reasons: dict[str, int] = {}
+    all_reasons: dict[str, int] = {}
+
+    def _reject(reasons: Sequence[str]) -> None:
+        primary = primary_rejection_reason(reasons)
+        primary_reasons[primary] = primary_reasons.get(primary, 0) + 1
+        for reason in {r.split(":", 1)[0] for r in reasons}:
+            all_reasons[reason] = all_reasons.get(reason, 0) + 1
+
     context_digests = {i.item_id: i.item_context_digest for i in items}
     for record in records:
         errors = validate_rating(
@@ -1206,16 +1261,15 @@ def evaluate_readiness(
             rating_contract_digest=rating_contract_digest,
             context_digests=context_digests,
             keyring=keyring,
+            qualified_rater_ids=qualified,
         )
         if errors:
             invalid += 1
-            for reason in errors:
-                key = reason.split(":", 1)[0]
-                rejection_reasons[key] = rejection_reasons.get(key, 0) + 1
+            _reject(errors)
             continue
         if record["item_id"] not in item_ids:
             unknown_item += 1
-            rejection_reasons["UNKNOWN_ITEM_ID"] = rejection_reasons.get("UNKNOWN_ITEM_ID", 0) + 1
+            _reject(["UNKNOWN_ITEM_ID"])
             continue
         key = (record["item_id"], record["rater_key_id"])
         fingerprint = rating_signing_payload(record)
@@ -1227,7 +1281,7 @@ def evaluate_readiness(
                 duplicate_submissions += 1
             else:
                 conflicting_submissions += 1
-            rejection_reasons[label] = rejection_reasons.get(label, 0) + 1
+            _reject([label])
             continue
         seen[key] = fingerprint
         accepted.append(dict(record))
@@ -1268,7 +1322,16 @@ def evaluate_readiness(
             "records_seen": len(records),
             "records_accepted": len(accepted),
             "records_rejected": len(records) - len(accepted),
-            "rejection_reasons": dict(sorted(rejection_reasons.items())),
+            "primary_rejection_reasons": dict(sorted(primary_reasons.items())),
+            "all_rejection_reasons_non_exclusive": dict(sorted(all_reasons.items())),
+            "records_with_reason": sum(primary_reasons.values()),
+            "reconciliation": (
+                "records_seen == records_accepted + records_rejected, and "
+                "sum(primary_rejection_reasons) == records_rejected == "
+                "records_with_reason. all_rejection_reasons_non_exclusive may sum "
+                "HIGHER because one record can fail several checks - a replayed "
+                "contract digest also invalidates the signature."
+            ),
             "note": (
                 "Only ACCEPTED records reach any diagnostic - validated, "
                 "signature-verified against a qualified key, and bound to the "

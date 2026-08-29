@@ -44,12 +44,13 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
     sign_rating,
     sign_registry,
     validate_rating,
+    verify_rating_signature,
     write_paired_outputs,
 )
 
 EXPECTED_ITEMS = 183  # distinct contexts; only byte-identical paths alias
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "3d5653ba58ba1ef20d9ac572231362b95e3999637e028c4a39b0bc2f2487ed25"
+EXPECTED_DIGEST = "ad169c4b76da2985285b242cfee3471916d78f098a75d11c113d91b2a13259c2"
 
 
 def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
@@ -257,6 +258,7 @@ def main() -> int:
             rating_contract_digest="contract",
             context_digests={"item000": f"{0:064x}"},
             keyring=b4_keyring,
+            qualified_rater_ids=list(b4_keyring),
         )
         == [],
     )
@@ -601,6 +603,7 @@ def main() -> int:
             rating_contract_digest="contract",
             context_digests=digests,
             keyring=keyring,
+            qualified_rater_ids=list(keyring),
         )
         == [],
     )
@@ -612,6 +615,7 @@ def main() -> int:
             rating_contract_digest="contract",
             context_digests=digests,
             keyring=keyring,
+            qualified_rater_ids=list(keyring),
         ),
     )
     check(
@@ -622,6 +626,7 @@ def main() -> int:
             rating_contract_digest="contract",
             context_digests=digests,
             keyring=keyring,
+            qualified_rater_ids=list(keyring),
         ),
     )
     check(
@@ -639,6 +644,7 @@ def main() -> int:
             rating_contract_digest="contract",
             context_digests=digests,
             keyring=keyring,
+            qualified_rater_ids=list(keyring),
         ),
     )
     check(
@@ -649,6 +655,7 @@ def main() -> int:
             rating_contract_digest="contract",
             context_digests=digests,
             keyring=keyring,
+            qualified_rater_ids=list(keyring),
         ),
     )
 
@@ -843,6 +850,7 @@ def main() -> int:
                 rating_contract_digest=real_contract,
                 context_digests={i.item_id: i.item_context_digest for i in real_items},
                 keyring=e2e_keys,
+                qualified_rater_ids=list(e2e_keys),
             )
             == []
             for r in full
@@ -858,6 +866,7 @@ def main() -> int:
             rating_contract_digest=real_contract,
             context_digests=ctx_map,
             keyring=e2e_keys,
+            qualified_rater_ids=list(e2e_keys),
         )
 
     check(
@@ -961,18 +970,100 @@ def main() -> int:
         counts["COMPLETE|INSUFFICIENT_CONTEXT"] == 0,
     )
     check(
+        "reconciliation: sum(primary reasons) == records_rejected",
+        sum(intake["primary_rejection_reasons"].values())
+        == intake["records_rejected"]
+        == intake["records_with_reason"],
+    )
+    check(
+        "all_reasons is NON-EXCLUSIVE and may sum higher than rejected",
+        sum(intake["all_rejection_reasons_non_exclusive"].values()) >= intake["records_rejected"],
+    )
+    check(
         "rejection reasons are reported by category",
         {
             "SIGNATURE_INVALID_OR_UNREGISTERED_KEY",
             "RATING_CONTRACT_DIGEST_MISMATCH",
             "MALFORMED_ENTRY",
         }
-        <= set(intake["rejection_reasons"]),
-        f"got {sorted(intake['rejection_reasons'])}",
+        <= set(intake["primary_rejection_reasons"])
+        | set(intake["all_rejection_reasons_non_exclusive"]),
+        f"got {sorted(intake['primary_rejection_reasons'])}",
     )
     check(
         "records_seen accounts for every submission",
         intake["records_seen"] == len(diag_good) + len(diag_forged),
+    )
+
+    print("SEC-QUAL - signature-VALID record from an UNQUALIFIED key")
+    # The keyring HOLDS this key; the qualified roster does NOT list it. Signature
+    # verification therefore SUCCEEDS, which is exactly why qualification has to be
+    # an acceptance criterion rather than a readiness blocker only.
+    qual_keys = {**e2e_keys, "rogue": "rogue-secret"}
+    qual_items = real_items[:2]
+
+    def _q(item: LabelItem, key_id: str, **over: object) -> dict:
+        rec = {
+            "schema_version": RATING_SCHEMA_VERSION,
+            "rating_contract_digest": real_contract,
+            "item_id": item.item_id,
+            "item_context_digest": item.item_context_digest,
+            "rater_key_id": key_id,
+            **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            **over,
+        }
+        rec["signature"] = sign_rating(rec, qual_keys[key_id])
+        return rec
+
+    qual_good = [_q(i, f"rater-{n}") for i in qual_items for n in (1, 2, 3)]
+    rogue = _q(qual_items[0], "rogue", step_contribution=INSUFFICIENT_CONTEXT)
+    check(
+        "rogue signature is genuinely VALID against its own key",
+        verify_rating_signature(rogue, qual_keys),
+    )
+    qual_res = evaluate_readiness(
+        qual_items,
+        [*qual_good, rogue],
+        list(e2e_keys),  # roster EXCLUDES rogue
+        rating_contract_digest=real_contract,
+        keyring=qual_keys,
+    )
+    qi = qual_res["rating_intake"]
+    qc = qual_res["context_diagnostic_2x2"]["counts"]
+    check(
+        "valid-signature unqualified record is REJECTED",
+        qi["records_rejected"] == 1,
+        f"got {qi['records_rejected']}",
+    )
+    check(
+        "canonical reason is RATER_KEY_NOT_QUALIFIED",
+        qi["primary_rejection_reasons"].get("RATER_KEY_NOT_QUALIFIED") == 1,
+        f"got {qi['primary_rejection_reasons']}",
+    )
+    check(
+        "unqualified record is ABSENT from the diagnostic",
+        qc["COMPLETE|INSUFFICIENT_CONTEXT"] == 0,
+    )
+    check(
+        "diagnostic total equals accepted, excluding the rogue",
+        sum(qc.values()) == qi["records_accepted"] == len(qual_good),
+    )
+    check(
+        "seen == accepted + rejected",
+        qi["records_seen"] == qi["records_accepted"] + qi["records_rejected"],
+    )
+    check(
+        "reason totals reconcile exactly on the primary tally",
+        sum(qi["primary_rejection_reasons"].values())
+        == qi["records_rejected"]
+        == qi["records_with_reason"],
+    )
+    check(
+        "qualification cannot be silently skipped",
+        "QUALIFICATION_NOT_ENFORCED"
+        in validate_rating(
+            rogue, rating_contract_digest=real_contract, context_digests=ctx_map, keyring=qual_keys
+        ),
     )
 
     print("SEC-CLONE - item-level logical dedup with lineage")

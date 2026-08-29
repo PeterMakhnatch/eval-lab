@@ -255,7 +255,14 @@ def test_diagnostic_consumes_only_accepted_records(package: dict) -> None:
     assert intake["records_accepted"] + intake["records_rejected"] == intake["records_seen"]
     # The diagnostic may only account for accepted records.
     assert sum(counts.values()) == intake["records_accepted"]
-    assert "rejection_reasons" in intake
+    assert "primary_rejection_reasons" in intake
+    assert "all_rejection_reasons_non_exclusive" in intake
+    # Exact reconciliation on the canonical tally; all_reasons may sum higher.
+    assert (
+        sum(intake["primary_rejection_reasons"].values())
+        == intake["records_rejected"]
+        == intake["records_with_reason"]
+    )
 
 
 def test_context_diagnostic_2x2_is_reported(package: dict) -> None:
@@ -271,10 +278,21 @@ def test_context_diagnostic_2x2_is_reported(package: dict) -> None:
     assert "builder_over_strict" in diag
 
 
-def test_frontmatter_blocker_count_matches_readiness(package: dict) -> None:
-    """Protocol frontmatter must not advertise a stale blocker count."""
-    doc = (GOLDSET / "GOLDSET-ITEM-SELECTION-AND-TAXONOMY-2026-08-28.md").read_text(
-        encoding="utf-8"
+def test_protocol_doc_is_mechanically_consistent() -> None:
+    """Broad doc-vs-artifact consistency check.
+
+    The narrow frontmatter-count test caught exactly one class of drift and
+    reviewers kept finding stale digests and stale arithmetic elsewhere by eye.
+    This runs the mechanical checker, which derives every hash and numeric claim
+    from the live package. On first run against a stale document it reported 38
+    violations across sections the old test never touched.
+    """
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, str(GOLDSET / "check_doc_consistency.py")],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        check=False,
     )
-    n = len(package["readiness"]["blockers"])
-    assert f"readiness: NOT_READY ({n} blockers)" in doc
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "doc consistency: clean" in result.stdout

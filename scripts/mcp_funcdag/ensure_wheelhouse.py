@@ -27,7 +27,7 @@ MACOS_CP312_ARM64 = WheelhouseTarget("cp312", "macosx_11_0_arm64")
 
 
 def default_target() -> WheelhouseTarget:
-    return LINUX_CP312_X86_64 if sys.platform.startswith("linux") else MACOS_CP312_ARM64
+    return LINUX_CP312_X86_64
 
 
 def stage_command(dest: Path, target: WheelhouseTarget) -> list[str]:

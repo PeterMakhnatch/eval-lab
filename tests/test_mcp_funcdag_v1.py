@@ -113,8 +113,8 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     assert "from fastmcp import FastMCP" in server_py
     assert 'transport="streamable-http"' in server_py
     oracle_py = (task_dir / "solution" / "solve.py").read_text(encoding="utf-8")
-    assert "from fastmcp import Client" in oracle_py
-    assert "async with Client(" in oracle_py
+    assert "class McpHttpSession:" in oracle_py
+    assert "session = McpHttpSession(" in oracle_py
     assert 'MCP_HOST = "mcp-service"' in oracle_py
     assert 'result_path = Path("/app/result.json")' in oracle_py
     assert not (sidecar / "runtime.py").exists()
@@ -249,7 +249,7 @@ def test_ensure_wheelhouse_uses_target_resolver_provenance_not_venv_pip(tmp_path
     assert "fastmcp==3.4.7 --hash=sha256:" in provenance_lock
 
 
-def test_materializer_installs_fastmcp_client_in_main_image(tmp_path):
+def test_materializer_main_image_environment(tmp_path):
     wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
     if not (wheelhouse / "resolver-provenance.json").is_file():
         pytest.skip("FastMCP wheelhouse is not staged on this host")
@@ -259,6 +259,5 @@ def test_materializer_installs_fastmcp_client_in_main_image(tmp_path):
         contract_mod.CAMPAIGN_0_CELLS[0], output_root=tmp_path, wheelhouse=wheelhouse
     )
     dockerfile = (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
-    assert "COPY mcp-server/requirements.txt /requirements.txt" in dockerfile
-    assert "COPY mcp-server/wheelhouse /wheelhouse" in dockerfile
-    assert "--require-hashes -r /requirements.txt" in dockerfile
+    assert "RUN mkdir -p /app /app/output" in dockerfile
+    assert "COPY mcp-server" not in dockerfile

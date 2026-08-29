@@ -113,38 +113,6 @@ def _write_compose(environment: Path, sidecar_rel: str = "./mcp-server") -> dict
 
 
 
-def _write_workbench_build_proof(environment: Path, sidecar_dir: Path) -> None:
-    """Emit the workbench v2 offline_build_proof covering sidecar wheels."""
-    reqs = sidecar_dir / "requirements.txt"
-    lock_digest = "sha256:" + hashlib.sha256(reqs.read_bytes()).hexdigest()
-    pinned = []
-    wheelhouse = sidecar_dir / "wheelhouse"
-    for wheel in sorted(wheelhouse.glob("*.whl")):
-        stem = wheel.name[:-4]
-        parts = stem.split("-")
-        name = parts[0].replace("_", "-")
-        version = parts[1] if len(parts) > 1 else "0"
-        pinned.append(
-            {
-                "name": name,
-                "version": version,
-                "wheel": wheel.name,
-            }
-        )
-    proof = {
-        "schema_version": "1.0",
-        "kind": "offline_build_proof",
-        "ecosystem": "python",
-        "lockfile": "mcp-server/requirements.txt",
-        "lockfile_digest": lock_digest,
-        "pinned_dependencies": pinned,
-        "reviewed_by": "eval-lab-mcp-funcdag",
-    }
-    (environment / "offline-build-proof.json").write_text(
-        json.dumps(proof, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-
-
 def materialize_task(
     cell: dict[str, Any],
     output_root: Path | None = None,
@@ -278,7 +246,7 @@ Save the final calculated integer result to `/app/result.json` in format:
     )
 
     (environment / "Dockerfile").write_text(
-        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nRUN mkdir -p /app/output\n",
+        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nRUN mkdir -p /app /app/output\n",
         encoding="utf-8",
     )
 
@@ -302,24 +270,6 @@ Save the final calculated integer result to `/app/result.json` in format:
         plan_only=plan_only,
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
     )
-    if plan_only:
-        (sidecar_dir / "Dockerfile").write_text(
-            f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nWORKDIR /app\n"
-            "COPY server.py /app/server.py\n"
-            "RUN mkdir -p /app/output\n"
-            'CMD ["python", "/app/server.py"]\n',
-            encoding="utf-8",
-        )
-    if not plan_only:
-        (environment / "Dockerfile").write_text(
-            f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\n"
-            "COPY mcp-server/requirements.txt /requirements.txt\n"
-            "COPY mcp-server/wheelhouse /wheelhouse\n"
-            "RUN python -m pip install --no-cache-dir --no-index --find-links=/wheelhouse --require-hashes -r /requirements.txt\n"
-            "RUN mkdir -p /app/output\n",
-            encoding="utf-8",
-        )
-        _write_workbench_build_proof(environment, sidecar_dir)
     _write_compose(environment)
 
     (tests / "Dockerfile").write_text(
@@ -504,12 +454,12 @@ if __name__ == "__main__":
 
 
 def _oracle_solve_py(dag_spec: DAGSpec) -> str:
-    return f'''#!/usr/bin/env python3
-import asyncio
+    client_src = (ROOT / "client.py").read_text(encoding="utf-8")
+    return f"""#!/usr/bin/env python3
 import json
 from pathlib import Path
 
-from fastmcp import Client
+{client_src}
 
 initial_inputs = {json.dumps(dag_spec.initial_inputs)}
 nodes = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings": n.input_bindings} for n in dag_spec.nodes])}
@@ -517,35 +467,33 @@ topological_order = {json.dumps(dag_spec.topological_order)}
 target_node_id = {json.dumps(dag_spec.target_node_id)}
 PORT = {DEFAULT_MCP_PORT}
 MCP_HOST = "mcp-service"
-MCP_ENDPOINT = "http" + "://" + MCP_HOST + ":" + str(PORT) + "/mcp"
 
+def solve() -> None:
+    session = McpHttpSession(host=MCP_HOST, port=PORT)
+    status, raw = session.initialize()
+    if status != 200:
+        raise RuntimeError(f"Failed to initialize MCP session: {{raw}}")
 
-async def solve() -> None:
     node_map = {{n["node_id"]: n for n in nodes}}
     node_values = dict(initial_inputs)
-    async with Client(MCP_ENDPOINT) as client:
-        for nid in topological_order:
-            node = node_map[nid]
-            tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
-            call_result = await client.call_tool(node["tool_name"], tool_args)
-            value = call_result.data
-            if not isinstance(value, dict) or "value" not in value:
-                raise RuntimeError(f"Tool {{node['tool_name']}} returned no integer value: {{value!r}}")
-            node_values[nid] = value["value"]
+    for nid in topological_order:
+        node = node_map[nid]
+        tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
+        res = session.call_tool(node["tool_name"], tool_args)
+        if not isinstance(res, dict) or "value" not in res:
+            raise RuntimeError(f"Tool {{node['tool_name']}} returned no integer value: {{res!r}}")
+        node_values[nid] = res["value"]
 
     target_val = node_values[target_node_id]
     result_path = Path("/app/result.json")
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(
-        json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8"
+        json.dumps({{"target_value": target_val}}, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Oracle solved with target_value: {{target_val}}")
 
-
-asyncio.run(solve())
-'''
-
-
+solve()
+"""
 def _oracle_solve_sh_wrap(dag_spec: DAGSpec) -> str:
     py = _oracle_solve_py(dag_spec)
     return "#!/bin/bash\nset -euo pipefail\npython3 - <<'PYEOF'\n" + py.split("#!/usr/bin/env python3\n", 1)[-1] + "\nPYEOF\n"

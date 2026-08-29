@@ -463,3 +463,13 @@ def test_workbench_rejects_forged_tool_proof_digest(tmp_path: Path):
     forged["tool_definitions_sha256"] = "f" * 64
     errors = verify_proof_independently(sidecar, forged)
     assert any("tool_definitions_sha256 does not match reconstructed canonical digest" in e for e in errors)
+
+
+def test_generated_server_is_canonical_regardless_of_tool_order():
+    """Tool order must not affect server bytes (Workbench regeneration matches)."""
+    a = MCPToolDefinition(name="a_tool", description="A", parameters=(MCPToolParameter(name="x", type_name="int", description="x"),))
+    b = MCPToolDefinition(name="b_tool", description="B", parameters=(MCPToolParameter(name="y", type_name="int", description="y"),))
+    ab = generate_fastmcp_server_script([a, b])
+    ba = generate_fastmcp_server_script([b, a])
+    assert ab == ba, "generated server must be byte-identical regardless of tool order"
+    assert ab.index("def a_tool(") < ab.index("def b_tool(")

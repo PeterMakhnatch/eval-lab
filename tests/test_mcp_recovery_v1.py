@@ -215,6 +215,16 @@ def test_materialized_tasks_hide_truth_from_agent_surface(tmp_path):
     assert (task / "solution" / "solve.sh").read_bytes() != (task / "workbench" / "fair-alternative.sh").read_bytes()
 
 
+def test_materialized_verifier_binds_the_private_opaque_fault_id(tmp_path):
+    materializer = load("materializer")
+    task = materializer.materialize_task(tmp_path / "task", seed=42)
+    record = json.loads((task / "tests" / "fixtures" / "fault_record.json").read_text(encoding="utf-8"))
+    verifier_source = (task / "tests" / "verify.py").read_text(encoding="utf-8")
+    assert f'EXPECTED_FAULT_ID = "{record["fault_id"]}"' in verifier_source
+    assert 'EXPECTED_FAULT_ID = "{fault_id}"' not in verifier_source
+
+
+
 def test_templates_all_cells_oracle_and_controls_do_not_plant_invariants(tmp_path):
     materializer = load("materializer")
     templates = load("templates")

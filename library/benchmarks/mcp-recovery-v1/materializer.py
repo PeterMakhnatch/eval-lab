@@ -318,7 +318,7 @@ from pathlib import Path
 LOG_DIR = Path("/logs/verifier")
 EVENTS = Path("/app/output/benchmark-events.jsonl")
 CERTIFICATE = Path("/app/output/final-state.json")
-EXPECTED_FAULT_ID = "{{fault_id}}"
+EXPECTED_FAULT_ID = "{fault_id}"
 EXPECTED_INJECTIONS = {persistence}
 MUTATIONS = {{"refresh_auth", "fallback_query"}}
 

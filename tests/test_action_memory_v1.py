@@ -73,15 +73,14 @@ def test_state_generation_deterministic_and_dosed():
 def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     mat_mod = load("action_memory_mat_test", "materializer")
     target = tmp_path / "action_mem_task"
-    # Materialize plan_only
-    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
     assert (target / "task.toml").exists()
     assert (target / "instruction.md").exists()
-    assert not (target / "environment" / "docker-compose.yaml").exists()
+    assert (target / "environment" / "docker-compose.yaml").exists()
     assert (target / "environment" / "mcp-server" / "server.py").exists()
     assert (target / "environment" / "mcp-server" / "scenario.json").exists()
-    assert (target / "environment" / "mcp-server" / "offline-build-proof.json").exists()
-    assert not (target / "environment" / "mcp-server" / "Dockerfile").exists()
+    assert (target / "environment" / "mcp-server" / "runtime.py").exists()
+    assert (target / "environment" / "mcp-server" / "Dockerfile").exists()
     assert (target / "verifier" / "verify.py").exists()
     assert (target / "tests" / "verify.py").exists()
     assert (target / "solution" / "solve.sh").exists()

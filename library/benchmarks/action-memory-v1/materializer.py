@@ -218,14 +218,21 @@ def materialize(
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
         runtime_assets=runtime_assets,
     )
-    if not plan_only and pkg["compose_doc"] is not None:
-        compose_doc = pkg["compose_doc"]
-        compose_doc["services"]["main"].pop("image", None)
-        compose_doc["services"]["main"]["build"] = "."
-        (environment / "docker-compose.yaml").write_text(
-            yaml.safe_dump(compose_doc, sort_keys=False),
-            encoding="utf-8",
-        )
+    (mcp_sidecar_dir / "Dockerfile").write_text(
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/output\nCOPY runtime.py /app/runtime.py\nCOPY scenario.json /app/scenario.json\nENTRYPOINT [\"python3\", \"/app/runtime.py\", \"--task-dir\", \"/app\", \"--evidence-dir\", \"/app/output\", \"--port\", \"8080\"]\n",
+        encoding="utf-8",
+    )
+    compose_doc = render_mcp_compose_document(
+        sidecar_service=DEFAULT_SIDECAR_SERVICE,
+        sidecar_build_context="./" + mcp_sidecar_dir.name,
+        network_name=DEFAULT_INTERNAL_NETWORK_NAME,
+    )
+    compose_doc["services"]["main"].pop("image", None)
+    compose_doc["services"]["main"]["build"] = "."
+    (environment / "docker-compose.yaml").write_text(
+        yaml.safe_dump(compose_doc, sort_keys=False),
+        encoding="utf-8",
+    )
 
     # Solution script using http.client with readiness check
     solution_solve_py = f'''#!/usr/bin/env python3

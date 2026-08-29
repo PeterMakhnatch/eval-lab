@@ -507,10 +507,215 @@ def test_action_memory_retrieval_handle_fidelity_checks(tmp_path: Path):
     assert features.expected_handle_count == 3
     assert features.valid_handle_count == 2
     assert features.unknown_handle_count == 1
-    assert features.duplicate_handle_count == 2
+    assert features.duplicate_handle_count == 1
     assert features.handle_set_match is False
     assert features.handle_order_match is False
     assert features.handle_coverage_rate == 2.0 / 3.0
+
+
+def test_action_memory_near_typo_unknown_handle_only(tmp_path: Path):
+    """A near-typo unknown handle must increment unknown_handle_count without falsely reporting duplicates."""
+    trial_dir = tmp_path / "action_typo"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002", "chunk_003"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "typo_task",
+        "opportunity_counts": {"read_opportunity_count": 3, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_003_typo"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 3
+    assert features.valid_handle_count == 2
+    assert features.unknown_handle_count == 1
+    assert features.duplicate_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_order_match is False
+    assert features.handle_coverage_rate == 2.0 / 3.0
+
+
+def test_action_memory_all_expected_plus_extra_unknown_handle_fails_set_match(tmp_path: Path):
+    """Requesting all expected handles plus an extra unknown handle must fail exact set match."""
+    trial_dir = tmp_path / "action_extra_handle"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "extra_handle_task",
+        "opportunity_counts": {"read_opportunity_count": 2, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_unknown_extra"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 2
+    assert features.valid_handle_count == 2
+    assert features.unknown_handle_count == 1
+    assert features.duplicate_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_order_match is False
+    assert features.handle_coverage_rate == 1.0
+
+
+def test_action_memory_expected_handle_application_error_rejected(tmp_path: Path):
+    """Expected handle requested with an application not_found/error payload must not increment valid_handle_count."""
+    trial_dir = tmp_path / "action_app_error"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "app_err_task",
+        "opportunity_counts": {"read_opportunity_count": 2, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_executed",
+            "call_id": "c1",
+            "result": {"content": "data 1"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "tool_result",
+            "call_id": "c2",
+            "result": {"status": "not_found", "error": "Chunk missing"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 2
+    assert features.valid_handle_count == 1
+    assert features.unknown_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_coverage_rate == 0.5
+
+
+def test_prompt_cache_hit_rate_strict_token_weighting(action_memory_trial_dir: Path):
+    """prompt_cache_hit_rate must compute strict token-weighted cached_tokens / prompt_tokens."""
+    bundle = load_trial_bundle(action_memory_trial_dir)
+    # Step tokens [100, 150] with cached [100, 0] -> 100 / 250 = 0.40
+    f1 = extract_action_memory_features(bundle, step_tokens=[100, 150], cached_step_tokens=[100, 0])
+    assert f1.prompt_cache_hit_rate == 0.40
+
+    # Step tokens [100, 150] with cached [100, 150] -> 250 / 250 = 1.00
+    f2 = extract_action_memory_features(
+        bundle, step_tokens=[100, 150], cached_step_tokens=[100, 150]
+    )
+    assert f2.prompt_cache_hit_rate == 1.00
+
+    # Empty step tokens -> None (NULL)
+    f3 = extract_action_memory_features(bundle, step_tokens=[], cached_step_tokens=[])
+    assert f3.prompt_cache_hit_rate is None
+
+    # Length mismatch -> None (NULL)
+    f4 = extract_action_memory_features(bundle, step_tokens=[100, 150], cached_step_tokens=[100])
+    assert f4.prompt_cache_hit_rate is None
 
 
 def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):

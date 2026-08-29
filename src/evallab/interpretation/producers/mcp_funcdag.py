@@ -98,6 +98,7 @@ def extract_mcp_funcdag_features(
     step_tokens: Sequence[int] | None = None,
     cache_hits: Sequence[bool] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
+    cached_step_tokens: Sequence[int] | None = None,
 ) -> McpFuncDagFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an mcp-funcdag trial bundle."""
     contract = bundle.contract

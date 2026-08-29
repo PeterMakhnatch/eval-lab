@@ -122,6 +122,7 @@ def extract_action_memory_features(
     step_tokens: Sequence[int] | None = None,
     cache_hits: Sequence[bool] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
+    cached_step_tokens: Sequence[int] | None = None,
 ) -> ActionMemoryFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an action-memory trial bundle."""
     contract = bundle.contract
@@ -220,54 +221,71 @@ def extract_action_memory_features(
             opp_counts.get("read_opportunity_count", cell_factors.get("read_opportunity_count", 0))
         )
     )
-
     observed_handles: list[str] = []
-    for call in calls:
-        if call.tool_name in (
-            "read_chunk",
-            "get_context_chunk",
-            "memory_mcp_get_context_chunk",
-            "memory_read",
-        ):
-            cid = (
-                call.arguments.get("chunk_id")
-                or call.arguments.get("key")
-                or call.arguments.get("id")
-            )
-            if cid is not None:
-                observed_handles.append(str(cid))
-    for ev in events:
-        if (
-            ev.event_type == "read_chunk"
-            and isinstance(ev.payload, dict)
-            and "chunk_id" in ev.payload
-        ):
-            cid_str = str(ev.payload["chunk_id"])
-            if cid_str not in observed_handles:
+    successful_valid_handles: list[str] = []
+    if calls:
+        for call in calls:
+            if call.tool_name in (
+                "read_chunk",
+                "get_context_chunk",
+                "memory_mcp_get_context_chunk",
+                "memory_read",
+            ):
+                cid = (
+                    call.arguments.get("chunk_id")
+                    or call.arguments.get("key")
+                    or call.arguments.get("id")
+                )
+                if cid is not None:
+                    cid_str = str(cid)
+                    observed_handles.append(cid_str)
+                    call_error = bool(
+                        call.is_error
+                        or (
+                            isinstance(call.result_payload, dict)
+                            and (
+                                call.result_payload.get("error")
+                                or call.result_payload.get("is_error")
+                                or call.result_payload.get("status")
+                                in ("error", "not_found", "not-found")
+                            )
+                        )
+                    )
+                    if not call_error and (not expected_set or cid_str in expected_set):
+                        successful_valid_handles.append(cid_str)
+    else:
+        for ev in events:
+            if (
+                ev.event_type == "read_chunk"
+                and isinstance(ev.payload, dict)
+                and "chunk_id" in ev.payload
+            ):
+                cid_str = str(ev.payload["chunk_id"])
                 observed_handles.append(cid_str)
+                if not expected_set or cid_str in expected_set:
+                    successful_valid_handles.append(cid_str)
 
-    valid_handles = (
-        [h for h in observed_handles if h in expected_set]
-        if expected_set
-        else list(dict.fromkeys(observed_handles))
-    )
+    valid_handle_count = len(set(successful_valid_handles))
     unknown_handles = [h for h in observed_handles if h not in expected_set] if expected_set else []
-    valid_handle_count = len(set(valid_handles))
     unknown_handle_count = len(unknown_handles)
-    duplicate_handle_count = max(len(observed_handles) - len(set(valid_handles)), 0)
+    duplicate_handle_count = max(len(observed_handles) - len(set(observed_handles)), 0)
 
     if expected_set:
-        handle_set_match = expected_set.issubset(set(observed_handles))
+        handle_set_match = (
+            set(successful_valid_handles) == expected_set and len(unknown_handles) == 0
+        )
         expected_handle_count = len(expected_set)
     elif expected_handle_count > 0:
         if valid_handle_count > 0:
             valid_handle_count = min(valid_handle_count, expected_handle_count)
-        handle_set_match = valid_handle_count >= expected_handle_count
+        handle_set_match = valid_handle_count >= expected_handle_count and unknown_handle_count == 0
     else:
         handle_set_match = len(observed_handles) == 0
 
     if isinstance(expected_chunk_ids, list) and expected_chunk_ids:
-        handle_order_match = observed_handles == expected_chunk_ids
+        handle_order_match = (
+            successful_valid_handles == expected_chunk_ids and len(unknown_handles) == 0
+        )
     else:
         handle_order_match = (
             handle_set_match and duplicate_handle_count == 0 and unknown_handle_count == 0
@@ -275,7 +293,9 @@ def extract_action_memory_features(
 
     handle_coverage_rate: float | None = None
     if expected_handle_count > 0:
-        handle_coverage_rate = float(min(valid_handle_count, expected_handle_count) / expected_handle_count)
+        handle_coverage_rate = float(
+            min(valid_handle_count, expected_handle_count) / expected_handle_count
+        )
     # Also inspect final state mutations if no tool calls were explicitly parsed
     if not mutation_calls and final_state.mutations:
         for mut in final_state.mutations:
@@ -309,9 +329,12 @@ def extract_action_memory_features(
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
     prompt_cache_hit_rate: float | None = None
-    if step_tokens and sum(step_tokens) > 0 and cache_hits and len(step_tokens) == len(cache_hits):
-        cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
-        prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
+    if step_tokens and sum(step_tokens) > 0:
+        if cached_step_tokens and len(cached_step_tokens) == len(step_tokens):
+            prompt_cache_hit_rate = float(sum(cached_step_tokens) / sum(step_tokens))
+        elif cache_hits and len(cache_hits) == len(step_tokens):
+            cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
+            prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

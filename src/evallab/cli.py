@@ -2989,6 +2989,11 @@ def _traj_benchmark_command(
             return 0
         bundle = ingest_benchmark_trial(trial_dir)
         step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
+        cached_tokens = [
+            s.cached_tokens if s.cached_tokens is not None else 0
+            for s in outline.steps
+            if s.prompt_tokens is not None
+        ]
         report = (
             load_compliance_report(_resolve(root, args.compliance_report))
             if getattr(args, "compliance_report", None)
@@ -3004,15 +3009,24 @@ def _traj_benchmark_command(
         dimensions = build_projection_dimensions(bundle, report, metadata=metadata)
         if bundle.contract.family == "action-memory-v1":
             feat_obj = extract_action_memory_features(
-                bundle, step_tokens=step_tokens, dimensions=dimensions
+                bundle,
+                step_tokens=step_tokens,
+                dimensions=dimensions,
+                cached_step_tokens=cached_tokens,
             )
         elif bundle.contract.family == "mcp-funcdag-v1":
             feat_obj = extract_mcp_funcdag_features(
-                bundle, step_tokens=step_tokens, dimensions=dimensions
+                bundle,
+                step_tokens=step_tokens,
+                dimensions=dimensions,
+                cached_step_tokens=cached_tokens,
             )
         elif bundle.contract.family == "mcp-recovery-v1":
             feat_obj = extract_mcp_recovery_features(
-                bundle, step_tokens=step_tokens, dimensions=dimensions
+                bundle,
+                step_tokens=step_tokens,
+                dimensions=dimensions,
+                cached_step_tokens=cached_tokens,
             )
         else:
             raise ValueError(f"Unknown benchmark family: {bundle.contract.family}")

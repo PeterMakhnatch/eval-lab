@@ -2,10 +2,7 @@ name: mcp-wheelhouse-platform
 
 on:
   pull_request:
-    paths:
-      - src/evallab/mcp_substrate.py
-      - tests/test_mcp_substrate.py
-      - .github/workflows/mcp-wheelhouse-platform.yml
+    branches: [main]
   workflow_dispatch:
 
 permissions:

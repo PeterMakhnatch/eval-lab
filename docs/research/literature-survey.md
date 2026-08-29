@@ -82,10 +82,22 @@ directional, no effect sizes published):
 
 ## 2. Benchmark contracts: Terminal-Bench 2/3 and SWE-bench
 
-**Version correction:** there is **no Terminal-Bench 4.0** as of 2026-08-15.
-The lineage is TB1 → TB2 (89 tasks) → TB2.1 → **TB3 = Frontier-Bench v0.1**
-(74 tasks, 7 domains, semver, continuously evolving). The mission brief's
-"2.0/3.0/4.0" reflects a version that does not exist yet.
+**Version correction (2026-08-28):** the 2026-08-15 note below was correct
+*then* — there was no Terminal-Bench 4.0 — but Terminal-Bench 4.0 **was
+released 2026-08-26/28** (release tag `v4.0.0`, commit `452bf30`). The lineage
+is TB1 → TB2 (89 tasks) → TB2.1 → **TB3** (74 tasks) → **TB4** (66 tasks), all
+under the same `terminal-bench/terminal-bench` dataset with semantic
+versioning. TB4 is a maintenance release (not a re-built sequel): it removes 8
+saturated/contaminated tasks, fixes 19, and sets a flat 8-hour agent timeout on
+every task. **TB3 and TB4 scores are not comparable** — TB4 is a semver
+x-increment requiring a full re-run, so a TB3 cohort must never be mixed with
+or compared against a TB4 cohort.
+
+The machine-readable migration record (8 removed, 19 fixed, pin/license/schema
+status, expected 66-task inventory) lives at
+`src/evallab/data/terminal-bench-4-migration.json`; `python -m evallab.craft
+plan --tb4` reports the live inventory and 74→66 delta against a pinned v4
+checkout.
 
 ### TB2 → TB3: what changed and why (verified against local clones)
 

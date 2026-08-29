@@ -223,9 +223,9 @@
       "passed": false,
       "result_digest": "sha256:e5a77a2240c2995e56f22d94329cb04774d2df3f6cdbe0ab651dd3078c994c8c",
       "reward": 0.0,
-      "trajectory_digest": "sha256:b655436b8d6483f8763bb1ab81880a0ee43e7ba63110ab85a7818ee792e93ee3",
+      "trajectory_digest": "sha256:2704205decb0982eb6d9a1afdd916df7bebb492514952cf05d6da74d031ce24c",
       "trial_name": "action-64k-neutral_padding-s1337__JvdEs9Y",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__JvdEs9Y",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__JvdEs9Y",
       "wave": "wave2"
     },
     {
@@ -235,9 +235,9 @@
       "passed": false,
       "result_digest": "sha256:e77d40fcad98b2c8b20eb448ba6800e3bcd61fcd434de003657b4cf96e6a1ed1",
       "reward": 0.0,
-      "trajectory_digest": "sha256:3e515958cddf93225deec85421fa6921a786b33e8f68d2d39d9471f5a776e035",
+      "trajectory_digest": "sha256:570dc30077e1b4d5499dee47bbbccd55901c1f6a87e9e0b4ed21e81d74615bfa",
       "trial_name": "action-64k-neutral_padding-s1337__wCHLZ4M",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__wCHLZ4M",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__wCHLZ4M",
       "wave": "wave2"
     },
     {
@@ -247,9 +247,9 @@
       "passed": false,
       "result_digest": "sha256:ea377ab0d2d5ab267a75d17eef0162b6c6d4750e3f7a1a08aac7f82bb86ceba2",
       "reward": 0.0,
-      "trajectory_digest": "sha256:4b07f3c6ec0000f2408c401c84a9dfaf10025d8304f1c8277e08f4500a10159f",
+      "trajectory_digest": "sha256:49e75950cb7528ea2ed42c0a9c3afbb0db13fd398edf8cdb6eca70385b176eca",
       "trial_name": "action-64k-semantic_distractor-s__FLiG7jy",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__FLiG7jy",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__FLiG7jy",
       "wave": "wave2"
     },
     {
@@ -259,9 +259,9 @@
       "passed": false,
       "result_digest": "sha256:a72e4ae7eb7c93f8e16f2d00d3d5def848e8fff316d387cc351fff12d3ccbcc2",
       "reward": 0.0,
-      "trajectory_digest": "sha256:f9061155712ad8483ea61c86f85c9500fae2734080609ac09cd4837331ecca2a",
+      "trajectory_digest": "sha256:936551de38b7fdc92c371f9bef2e7a259f4ae2ca075daf4d43d8c3102320726c",
       "trial_name": "action-64k-semantic_distractor-s__Pgukjp8",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__Pgukjp8",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__Pgukjp8",
       "wave": "wave2"
     },
     {
@@ -271,9 +271,9 @@
       "passed": false,
       "result_digest": "sha256:e459793a5d902682b429424f7c8029cde779a0c9672fe51f19b7cdf1eaeb20f8",
       "reward": null,
-      "trajectory_digest": "sha256:eda362728d6736401ebe3ed929c6e87dbbcee7746a655d703718c34c3028b0bf",
+      "trajectory_digest": "sha256:f4b91cbc876be00ed466b03c67d9a1f09ac7dc90191dbce59a2782030dab78ce",
       "trial_name": "action-64k-neutral_padding-s1337__VxJbtpZ",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-neutral_padding-s1337__VxJbtpZ",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-neutral_padding-s1337__VxJbtpZ",
       "wave": "wave2"
     },
     {
@@ -283,9 +283,9 @@
       "passed": false,
       "result_digest": "sha256:5b3ef95123bbc4dde2bada5bdd04f0ab36c314c6972d99a9abc0f3dd778e691c",
       "reward": null,
-      "trajectory_digest": "sha256:fbc5c2c93a6ee29d8c618616e0c2ea1584b15d85ebfe84216d49e8b245822c2f",
+      "trajectory_digest": "sha256:295e7429c5b2d9e42b0fb115a2a22dfce25c94d0db302594e165a27a22217565",
       "trial_name": "action-64k-semantic_distractor-s__TyoghGd",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
       "wave": "wave2"
     },
     {
@@ -295,9 +295,9 @@
       "passed": true,
       "result_digest": "sha256:d8e527e48887d5c82ee98d114105e7c9556940eb8b4b5b5ceada4a7a9398e463",
       "reward": 1.0,
-      "trajectory_digest": "sha256:a67652d070be625a19b22bb7ddd073bf893376d79c16a4b38f8a355415495945",
+      "trajectory_digest": "sha256:abe18c46533b720e55a6fd2d1ec68c1df9e72094537a61d338bdab8e9f9a121d",
       "trial_name": "action-64k-neutral_padding-s1337__u4CZxsA",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-neutral_padding-s1337__u4CZxsA",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-neutral_padding-s1337__u4CZxsA",
       "wave": "wave2"
     },
     {
@@ -307,9 +307,9 @@
       "passed": false,
       "result_digest": "sha256:2df4d168bdcb1876f10ceda5011f9abdb08bd9ed799ff826dc9ffb51b386c20b",
       "reward": 0.0,
-      "trajectory_digest": "sha256:741a5e6a4d387fa84de2df71d62cfdda102bfc4695ac9e825d793038e563efa3",
+      "trajectory_digest": "sha256:c65671b092f41992a839bce271cc28db6f52fd475f026880e075d775bfe8a90c",
       "trial_name": "action-64k-semantic_distractor-s__A67eDZ2",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-semantic_distractor-s__A67eDZ2",
+      "trial_path": "research/evidence/runs/zai-wave2-action64k-s1337-sequential-scaffold-t3/action-64k-semantic_distractor-s__A67eDZ2",
       "wave": "wave2"
     },
     {
@@ -319,9 +319,9 @@
       "passed": false,
       "result_digest": "sha256:840d7a89623f944e23a2e3c0eddbac9c7bc96bd4802d38a17d042545a6d6155c",
       "reward": 0.0,
-      "trajectory_digest": "sha256:517e0c20a1b1d9139602d207bd64ee7fbd27c43191a58452b2446e9a55508c10",
+      "trajectory_digest": "sha256:420be0cbd4775e3f8250c1add44edcd86746a71a8f3e46e6f2544b30084d84db",
       "trial_name": "action-64k-neutral_padding-s1337__xTVP9AZ",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/action-64k-neutral_padding-s1337__xTVP9AZ",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-neutral_padding-s1337__xTVP9AZ",
       "wave": "wave2"
     },
     {
@@ -331,9 +331,9 @@
       "passed": true,
       "result_digest": "sha256:5d9898a9721698cffcf28d99f2e2a80eb039f79109552e5190f7cdaa04c8eb26",
       "reward": 1.0,
-      "trajectory_digest": "sha256:12a0993362e5bf75248f71621f92a21516d9a802f008b34769212e71945007db",
+      "trajectory_digest": "sha256:56a8e78b07cd924ae419f0474d8c2efd65922dee47c118a8aa78b4b1adb96fb8",
       "trial_name": "action-64k-neutral_padding-s42__5Udx2Ac",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/action-64k-neutral_padding-s42__5Udx2Ac",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-neutral_padding-s42__5Udx2Ac",
       "wave": "wave2"
     },
     {
@@ -343,9 +343,9 @@
       "passed": true,
       "result_digest": "sha256:bcd7dd6a85507feb8a39c580a7e8b25d99f65c18fba47aae64f8c9df4f76b613",
       "reward": 1.0,
-      "trajectory_digest": "sha256:4f9130537bdc69311e62bc0801ad0cd1d66aec3fc154d27a5e709fea71f4051d",
+      "trajectory_digest": "sha256:063d723da24cb2f4a9ca1d994d3a5550bae8794a2b203952850e36accbf12db0",
       "trial_name": "action-64k-semantic_distractor-s__CrxsJ57",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/action-64k-semantic_distractor-s__CrxsJ57",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-semantic_distractor-s__CrxsJ57",
       "wave": "wave2"
     },
     {
@@ -355,9 +355,9 @@
       "passed": false,
       "result_digest": "sha256:7cbd50b6c07cdaee57daeb941f607b004bc1a36e5b6a3164de01ecd407907e30",
       "reward": 0.0,
-      "trajectory_digest": "sha256:a80ca389b02e19c3d5274967fde34a5529e2073f60768d8c0c8551a8852a8968",
+      "trajectory_digest": "sha256:c1e6fa1d307a160845c90568ce26a93052222cd439396e74745ee5927f0b6658",
       "trial_name": "action-64k-semantic_distractor-s__Qoz3nbU",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/action-64k-semantic_distractor-s__Qoz3nbU",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/action-64k-semantic_distractor-s__Qoz3nbU",
       "wave": "wave2"
     },
     {
@@ -367,9 +367,9 @@
       "passed": true,
       "result_digest": "sha256:2b8ef497bd65021777ac766c4aa36e371608cea953241120626dc69be7ec8a65",
       "reward": 1.0,
-      "trajectory_digest": "sha256:7ca3e87a230b7221c8ba9f151e422c9093460e56954beb88388e6f2deef6b5d3",
+      "trajectory_digest": "sha256:d3a1af561372d37abe4972ea48506b7e397ac5fae8af5dd2b3fb3e1a006b08c4",
       "trial_name": "mcp-funcdag-depth_5-seed101__mJU4JQC",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/mcp-funcdag-depth_5-seed101__mJU4JQC",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/mcp-funcdag-depth_5-seed101__mJU4JQC",
       "wave": "wave2"
     },
     {
@@ -379,9 +379,9 @@
       "passed": true,
       "result_digest": "sha256:114944e5f2e2709e013074718e6f8a551f789ebce2cba7adec7c428992f1baec",
       "reward": 1.0,
-      "trajectory_digest": "sha256:ea6352d28e8dfd8637bbbabbf5807ccc56418b68756c85f272f0f9048143feca",
+      "trajectory_digest": "sha256:fb2146e22ce7ed4b5c1888a4b1f61bedb76748afc625f3eac9f66daca3594d5b",
       "trial_name": "mcp-funcdag-depth_5-seed2024__gXLQWSh",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/mcp-funcdag-depth_5-seed2024__gXLQWSh",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/mcp-funcdag-depth_5-seed2024__gXLQWSh",
       "wave": "wave2"
     },
     {
@@ -391,9 +391,9 @@
       "passed": false,
       "result_digest": "sha256:f133e1e9d4ef67f55b0450440a47785710fa8a99a533889f5bed418995e66b27",
       "reward": 0.0,
-      "trajectory_digest": "sha256:4461b8b607142059d0c01c94f30de7327cda1af9af27fa0a3cc3ae54c4d28a41",
+      "trajectory_digest": "sha256:94875c7d5ebeb90f28e95f03821d984a6899628612dec85782cdf1f75c3648bb",
       "trial_name": "mcp-funcdag-name_similarity_high__DvpHJGh",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__DvpHJGh",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__DvpHJGh",
       "wave": "wave2"
     },
     {
@@ -403,9 +403,9 @@
       "passed": true,
       "result_digest": "sha256:8eda659f09e0b50f24e33ea03a473eb0b0c6c24732a3ef53d6079d06791fb213",
       "reward": 1.0,
-      "trajectory_digest": "sha256:f08b19f6bfc0506136cf3bc1e4d86ba5ecb940f412b70b08c2720b6e867c895e",
+      "trajectory_digest": "sha256:186a149cfb4e97c894731cb3e4979acd2d52e0bec2b9efc28be0667d519a6807",
       "trial_name": "mcp-funcdag-name_similarity_high__TkhqHSN",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__TkhqHSN",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__TkhqHSN",
       "wave": "wave2"
     },
     {
@@ -415,9 +415,9 @@
       "passed": true,
       "result_digest": "sha256:69a3ba0f3fea8410a80e180e3194dad0fabe5e015f7bcc1540faee84a41ea1b6",
       "reward": 1.0,
-      "trajectory_digest": "sha256:b831f87b3ef6e2ee459033edb93b57d8cd8504ace5038adc706684f75012e5f7",
+      "trajectory_digest": "sha256:89a38cc2721e519b0d746f23f7ac394459447c7955f8f0d69f1538d29a5af0f3",
       "trial_name": "mcp-funcdag-name_similarity_high__sbQkE2R",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__sbQkE2R",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__sbQkE2R",
       "wave": "wave2"
     },
     {
@@ -427,9 +427,9 @@
       "passed": true,
       "result_digest": "sha256:6b3e77da82f7dfaf80aa80bf28e723ae6b261a0e12fd90f7e4e36fbc3e48cde1",
       "reward": 1.0,
-      "trajectory_digest": "sha256:3bac91f642e2c11065a29b4341a6e70a9790eb865ea3cf266aa89e3ef44bb76a",
+      "trajectory_digest": "sha256:b03d7eb3b46a71408e13762c0054ad1bfee69024e8a2045fbdcd2322b71081fe",
       "trial_name": "recovery-persistent-signature-er__Lm9ohzb",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-persistent-signature-er__Lm9ohzb",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-persistent-signature-er__Lm9ohzb",
       "wave": "wave2"
     },
     {
@@ -439,9 +439,9 @@
       "passed": true,
       "result_digest": "sha256:7cba2560b626f615d9461ed1f0480386bff8df3de667162562026fdb40f9a657",
       "reward": 1.0,
-      "trajectory_digest": "sha256:ec41ffc720bca9bd03c8309e34f9bad345811d5e37def40e909f0f2b9b2bae64",
+      "trajectory_digest": "sha256:50c3e12fa373a8365183fb5ed91f8e3395e44fa4853cd86cbcadd8d879aeacbb",
       "trial_name": "recovery-persistent-signature-er__QHaoyPA",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-persistent-signature-er__QHaoyPA",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-persistent-signature-er__QHaoyPA",
       "wave": "wave2"
     },
     {
@@ -451,9 +451,9 @@
       "passed": true,
       "result_digest": "sha256:7ec1ca0828c0772ed466403d33b919ee5e9364c09cb240b6811b6e0b2543dbb4",
       "reward": 1.0,
-      "trajectory_digest": "sha256:3b6959792d10eea3657d276ba41e31a2865016a9b1acbca57a99d4c96de4042c",
+      "trajectory_digest": "sha256:745c027e3fdbe19d36dc30675553f84733523fd199e4d4cd42d48a2472bb111e",
       "trial_name": "recovery-persistent-signature-er__YXTpcLZ",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-persistent-signature-er__YXTpcLZ",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-persistent-signature-er__YXTpcLZ",
       "wave": "wave2"
     },
     {
@@ -463,9 +463,9 @@
       "passed": true,
       "result_digest": "sha256:af1f6f43db04ae800873e34bb41b50767d0424ecdb9f0f01910d5b836155cb72",
       "reward": 1.0,
-      "trajectory_digest": "sha256:64fcb1a35092beccae3db2d89c5dfa4f2f354d0f721eb2bb08767fd7550b7846",
+      "trajectory_digest": "sha256:64bec0c5e74d554c63645adec4b7cda8c312c73249d1e69d027179a4fca878a4",
       "trial_name": "recovery-persistent-signature-er__mp4YbvW",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-persistent-signature-er__mp4YbvW",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-persistent-signature-er__mp4YbvW",
       "wave": "wave2"
     },
     {
@@ -475,9 +475,9 @@
       "passed": true,
       "result_digest": "sha256:d4d6a2b44420075a770c79316a1a527c38369c1f1d7b7db77358cbd33e1670bb",
       "reward": 1.0,
-      "trajectory_digest": "sha256:92a3a6ecf4e4a0b112cc792f70d2448be2383a6e8c9094d499cfb41ad23de107",
+      "trajectory_digest": "sha256:eec8afab78516db2b588c8a6d4fc440be25c21751170bc1016888462d809b994",
       "trial_name": "recovery-silent-wrong-payload-s1__UBdmtRU",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s1__UBdmtRU",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s1__UBdmtRU",
       "wave": "wave2"
     },
     {
@@ -487,9 +487,9 @@
       "passed": true,
       "result_digest": "sha256:340f9980ab87806ca023802892cbf59ffffd62e3d9b3e67d321de2281c01e8e8",
       "reward": 1.0,
-      "trajectory_digest": "sha256:f18479a054ba3a463e94d7c3e4d5fa3ebddc7bbbcc7734c2eff262d60b42da52",
+      "trajectory_digest": "sha256:5bd00a824d965a78227507f5dcdb7d4d4349de92de764d83b255942c4ebee841",
       "trial_name": "recovery-silent-wrong-payload-s1__fZmgR5y",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s1__fZmgR5y",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s1__fZmgR5y",
       "wave": "wave2"
     },
     {
@@ -499,9 +499,9 @@
       "passed": true,
       "result_digest": "sha256:b8c5f5c8b37995be69c8f0bdfe80d346a6ad02ac86d448faff4843799d81e7f8",
       "reward": 1.0,
-      "trajectory_digest": "sha256:f1a236c3fcbc665e3d1bf5c6054c0c2f1986a671218872027f432e3b40b1f4da",
+      "trajectory_digest": "sha256:0db78bd3a9092813db853f16e40318f5fd0a1bf624eae9086363de10d39d4fe4",
       "trial_name": "recovery-silent-wrong-payload-s4__PmKJB8T",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s4__PmKJB8T",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s4__PmKJB8T",
       "wave": "wave2"
     },
     {
@@ -511,9 +511,9 @@
       "passed": true,
       "result_digest": "sha256:14d846d51b4732dfd984f4c278014a0ba1e3376f31861c838c20e22024fafd0f",
       "reward": 1.0,
-      "trajectory_digest": "sha256:75fcfa2866b7217aee30098c34debf0a9daed3f5ffe94c1454203dd51f33c96f",
+      "trajectory_digest": "sha256:b43df949cc6e926fe8ff667ae4f1d278290622f35bc32da1b1dcaf682709b618",
       "trial_name": "recovery-silent-wrong-payload-s4__cVZm97U",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s4__cVZm97U",
+      "trial_path": "research/evidence/runs/zai-wave2-flash-matrix/recovery-silent-wrong-payload-s4__cVZm97U",
       "wave": "wave2"
     },
     {
@@ -523,61 +523,49 @@
       "passed": true,
       "result_digest": "sha256:c27e95e89ae80b8e6fd41914b90301cb95a818593fa97f6eb15d7ef5ccf38472",
       "reward": 1.0,
-      "trajectory_digest": "sha256:a48d1de752d5bc9c335cabd67c54c5ca2a6235a644fd09412a2cb6f303bfd9a2",
+      "trajectory_digest": "sha256:c9b6a1259905e9091034ac361cb71624807d2f160f202e3b944265fa29dcb5d5",
       "trial_name": "mcp-funcdag-depth_5-seed42__PBZKQYS",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-funcdag-depth5-s42/mcp-funcdag-depth_5-seed42__PBZKQYS",
+      "trial_path": "research/evidence/runs/zai-wave2-funcdag-depth5-s42/mcp-funcdag-depth_5-seed42__PBZKQYS",
       "wave": "wave2"
     },
     {
       "benchmark_family": "funcdag",
       "job_name": "zai-wave2-glm53-funcdag-canary",
-      "model_name": "glm-5.3-flash",
+      "model_name": "glm-5.3-full",
       "passed": true,
       "result_digest": "sha256:844c440b30ae032b13c0c3348325d9f5bf4a046393234a6350c89b1cc369594e",
       "reward": 1.0,
-      "trajectory_digest": "sha256:cda4bd2a2436b97df72363727e3cad1d9dc6b4e8e2b6025b03bed4482c439ceb",
+      "trajectory_digest": "sha256:15ff55ab35e3a368256e15d2854db96c021d6d159c8dbc542a92358a643ffd30",
       "trial_name": "mcp-funcdag-depth_5-seed42__Ca9ToPk",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-glm53-funcdag-canary/mcp-funcdag-depth_5-seed42__Ca9ToPk",
+      "trial_path": "research/evidence/runs/zai-wave2-glm53-funcdag-canary/mcp-funcdag-depth_5-seed42__Ca9ToPk",
       "wave": "wave2"
     },
     {
       "benchmark_family": "action_memory",
       "job_name": "zai-wave2-glm53-paired-mini",
-      "model_name": "glm-5.3-flash",
+      "model_name": "glm-5.3-full",
       "passed": false,
       "result_digest": "sha256:978878b41724ac501af5d15485ee2f1b485fec01ec45382016438cf8a91db7f2",
       "reward": 0.0,
-      "trajectory_digest": "sha256:887e4c2b5679b6909e9d3cebd5cc2ce4ca869f5346fe7827d596e111b3b828cd",
+      "trajectory_digest": "sha256:e88fccd510d93f6f66218b6687ca3e27c44a4916657c76a733ca429ef1c27ec0",
       "trial_name": "action-64k-semantic_distractor-s__ZppWXWx",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-glm53-paired-mini/action-64k-semantic_distractor-s__ZppWXWx",
+      "trial_path": "research/evidence/runs/zai-wave2-glm53-paired-mini/action-64k-semantic_distractor-s__ZppWXWx",
       "wave": "wave2"
     },
     {
       "benchmark_family": "recovery",
       "job_name": "zai-wave2-glm53-paired-mini",
-      "model_name": "glm-5.3-flash",
+      "model_name": "glm-5.3-full",
       "passed": true,
       "result_digest": "sha256:8003296b155f303026139fbfda2736febdb80339bd63de98d171304f68da9978",
       "reward": 1.0,
-      "trajectory_digest": "sha256:c548e03578d78d6919c173466b395ddc1328bba7717a9e9d7f37c877e60be438",
+      "trajectory_digest": "sha256:0074d3f246327a761fd19489bf5b26cca7044c4d5798e8cc97759f93bb97b02a",
       "trial_name": "recovery-persistent-signature-er__pgAA5NR",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-glm53-paired-mini/recovery-persistent-signature-er__pgAA5NR",
-      "wave": "wave2"
-    },
-    {
-      "benchmark_family": "funcdag",
-      "job_name": "zai-wave2-highspeed-paired-mini",
-      "model_name": "glm-5.3-highspeed",
-      "passed": false,
-      "result_digest": "sha256:5c56161d718e2aaaea73d7c030b708f76f8495f4668704c00933280e4d338f96",
-      "reward": null,
-      "trajectory_digest": "",
-      "trial_name": "mcp-funcdag-depth_5-seed42__q22U798",
-      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-highspeed-paired-mini/mcp-funcdag-depth_5-seed42__q22U798",
+      "trial_path": "research/evidence/runs/zai-wave2-glm53-paired-mini/recovery-persistent-signature-er__pgAA5NR",
       "wave": "wave2"
     }
   ],
-  "entry_count": 48,
+  "entry_count": 47,
   "manifest_version": "1.0.0",
   "program": "zai-opencode-mcp-wave1-wave2"
 }

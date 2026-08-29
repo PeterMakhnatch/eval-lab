@@ -7,7 +7,7 @@ status: complete
 epistemic: observed outcomes across Flash, Full, and Highspeed on MCP synthetic benchmarks; strictly scoped to tested configurations; no general ranking or unsupported dose slopes
 collection: trajectory-analysis
 reviewed: 2026-08-29
-snapshot_digest: sha256:fea1041d283823dcabb77f6872dae35dfecca7b49791849149fbe707b9cef891
+snapshot_digest: sha256:dbaa75f35816e2374ffa1c0f3b9af43ceb0975b07daa59815bdba333d096a478
 ---
 
 # Z.ai OpenCode MCP Experiment Program — Wave 1 & Wave 2 Consolidated Analysis
@@ -20,27 +20,30 @@ This report consolidates empirical findings from the expanded Z.ai Coding Plan e
 2. **Action Memory (Context Dilation & Distraction Resistance: 4k, 16k, 64k)**
 3. **Recovery (Error Detection & Autonomous Adaptation: transient 5xx, persistent signature, silent wrong)**
 
-The evaluated corpus comprises **48 total attempts** (45 scored trials + 3 infrastructure exclusions):
+The evaluated corpus comprises **47 total attempts** (45 scored trials + 2 infrastructure exclusions):
 
 - **Combined Program Scored Total:** 33/45 passed (73.3%) across Wave 1 (15/18) and Wave 2 (18/27).
 - **Wave 2 Scored Total:** 18/27 passed (66.7% across 27 scored trials):
-  - **GLM-5.3-Flash (Wave 2):** 18/27 passed (16/24, 66.7%).
-  - **GLM-5.3 Full (Wave 2):** 0/0 passed (2/3, 66.7% — FuncDAG depth 5 canary 1/1, Recovery persistent signature 1/1, Action 64k semantic 0/1).
+  - **GLM-5.3-Flash (Wave 2):** 16/24 passed (16/24, 66.7%).
+  - **GLM-5.3 Full (Wave 2):** 2/3 passed (2/3, 66.7% — FuncDAG depth 5 canary 1/1, Recovery persistent signature 1/1, Action 64k semantic 0/1).
 - **GLM-5.3-Highspeed:** 0/0 scored trials (all 3 mini-battery attempts were excluded from scored denominators due to upstream subscription HTTP 429 access restrictions).
-- **Infrastructure Exclusions (Non-Scored):** 3 trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).
+- **Infrastructure Exclusions (Non-Scored):** 2 trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).
 
 | Benchmark Family | Wave | Model | Tasks / Cells | Completed Trials | Reward 1.0 | Pass Rate |
 |---|---|---|---|---:|---:|---:|
 | action_memory    | wave1 | glm-5.3-flash  | 16k                  |                6 |          5 |     83.3% |
 | action_memory    | wave1 | glm-5.3-flash  | 4k                   |                3 |          3 |    100.0% |
-| action_memory    | wave2 | glm-5.3-flash  | 64k                  |               11 |          3 |     27.3% |
+| action_memory    | wave2 | glm-5.3-flash  | 64k                  |               10 |          3 |     30.0% |
+| action_memory    | wave2 | glm-5.3-full   | 64k                  |                1 |          0 |      0.0% |
 | funcdag          | wave1 | glm-5.3-flash  | easy                 |                3 |          2 |     66.7% |
-| funcdag          | wave2 | glm-5.3-flash  | depth_5              |                4 |          4 |    100.0% |
+| funcdag          | wave2 | glm-5.3-flash  | depth_5              |                3 |          3 |    100.0% |
 | funcdag          | wave2 | glm-5.3-flash  | name_similarity_high |                3 |          2 |     66.7% |
+| funcdag          | wave2 | glm-5.3-full   | depth_5              |                1 |          1 |    100.0% |
 | recovery         | wave1 | glm-5.3-flash  | clean_twin           |                3 |          3 |    100.0% |
 | recovery         | wave1 | glm-5.3-flash  | fault                |                3 |          2 |     66.7% |
-| recovery         | wave2 | glm-5.3-flash  | persistent_signature_error |                5 |          5 |    100.0% |
+| recovery         | wave2 | glm-5.3-flash  | persistent_signature_error |                4 |          4 |    100.0% |
 | recovery         | wave2 | glm-5.3-flash  | silent_wrong_payload |                4 |          4 |    100.0% |
+| recovery         | wave2 | glm-5.3-full   | persistent_signature_error |                1 |          1 |    100.0% |
 
 ---
 
@@ -80,12 +83,12 @@ All comparisons are strictly blocked on matching task, seed, and perturbation pa
 
 | Contrast Identifier | Dimension | Arm A (Baseline / Clean) | Arm B (Perturbed / Treatment) | Observed Mean A | Observed Mean B | Delta (B - A) | Notes |
 |---|---|---|---|---:|---:|---:|---|
-| Action Memory 64k Neutral vs Semantic Distractor | context_dilation_distractor | 64k neutral padding (n=6) | 64k semantic distractor (n=7) | 0.400 | 0.167 | -0.233 | Neutral arm n=6, Semantic arm n=7; Seed-matched pairs for s42 and s1337. |
-| Recovery persistent_signature_error: Fault vs Clean Twin | fault_injection_effect | persistent_signature_error clean twin (n=2) | persistent_signature_error fault arm (n=3) | 1.000 | 1.000 | +0.000 | Clean twin n=2, Fault arm n=3; Tests whether unperturbed state passes vs causal recovery under perturbation. |
+| Action Memory 64k Neutral vs Semantic Distractor | context_dilation_distractor | 64k neutral padding (n=6) | 64k semantic distractor (n=6) | 0.400 | 0.200 | -0.200 | Neutral arm n=6, Semantic arm n=6; Seed-matched pairs for s42 and s1337. |
+| Recovery persistent_signature_error: Fault vs Clean Twin | fault_injection_effect | persistent_signature_error clean twin (n=2) | persistent_signature_error fault arm (n=2) | 1.000 | 1.000 | +0.000 | Clean twin n=2, Fault arm n=2; Tests whether unperturbed state passes vs causal recovery under perturbation. |
 | Recovery silent_wrong_payload: Fault vs Clean Twin | fault_injection_effect | silent_wrong_payload clean twin (n=2) | silent_wrong_payload fault arm (n=2) | 1.000 | 1.000 | +0.000 | Clean twin n=2, Fault arm n=2; Tests whether unperturbed state passes vs causal recovery under perturbation. |
-| Paired Model Contrast: funcdag_depth5_s42 | model_variant_pairing | GLM-5.3-Flash (n=2) | GLM-5.3-Highspeed (n=1) | 1.000 | 0.000 | -1.000 | Flash n=2, Highspeed n=1; Direct paired comparison on identical task configuration. Not a general model ranking. |
-| Paired Model Contrast: action_64k_semantic_s42 | model_variant_pairing | GLM-5.3-Flash (n=2) | GLM-5.3-Highspeed (n=0) | 0.500 | 0.000 | -0.500 | Flash n=2, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
-| Paired Model Contrast: recovery_persistent_s42 | model_variant_pairing | GLM-5.3-Flash (n=3) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=3, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
+| Paired Model Contrast: funcdag_depth5_s42 | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=1, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
+| Paired Model Contrast: action_64k_semantic_s42 | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=1, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
+| Paired Model Contrast: recovery_persistent_s42 | model_variant_pairing | GLM-5.3-Flash (n=2) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=2, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
 
 ---
 
@@ -106,13 +109,13 @@ Comparing Action Memory across 4k, 16k, and 64k doses reveals marked degradation
 The frozen Research-Engineer T1 analysis API suite was executed over the full combined dataset without manual input transformation:
 
 ### 5.1 T1.1 Process-vs-Outcome Discrimination Gate
-- **Snapshot Digest:** `sha256:fea1041d283823dcabb77f6872dae35dfecca7b49791849149fbe707b9cef891`
-- **Report Digest:** `sha256:2b1c75471f0932e35f00a44f262f6b5d23cdda47fa0fcc22d765a9f55322f41c`
+- **Snapshot Digest:** `sha256:dbaa75f35816e2374ffa1c0f3b9af43ceb0975b07daa59815bdba333d096a478`
+- **Report Digest:** `sha256:4e8288bff8bdf0ae703869f3d6e53de520c88c694ff58981700256f3a3414958`
 
 | Feature Name | Lineage / Metric Inputs | Verdict | Epistemic Basis | CI Disposition | Requires Allowlist |
 |---|---|---|---|---|---|
 | `dag_edge_conformance_rate` | `LINEAGE_VIOLATION` | **LINEAGE_VIOLATION** | `REGISTRY_CONFIRMED` | `BLOCK` | `False` |
-| `prompt_tokens` | `EMPIRICAL_SUSPECT` | **EMPIRICAL_SUSPECT** | `EMPIRICAL_DIAGNOSTIC` | `ADVISORY` | `False` |
+| `prompt_tokens` | `CLEAR` | **CLEAR** | `EMPIRICAL_DIAGNOSTIC` | `CLEAR` | `False` |
 | `step_count` | `CLEAR` | **CLEAR** | `EMPIRICAL_DIAGNOSTIC` | `CLEAR` | `False` |
 | `tool_call_count` | `CLEAR` | **CLEAR** | `EMPIRICAL_DIAGNOSTIC` | `CLEAR` | `False` |
 | `value_propagation_accuracy` | `LINEAGE_VIOLATION` | **LINEAGE_VIOLATION** | `REGISTRY_CONFIRMED` | `BLOCK` | `False` |
@@ -120,14 +123,14 @@ The frozen Research-Engineer T1 analysis API suite was executed over the full co
 **Key Invariant Verified:** The two PR #267 known-positive features (`value_propagation_accuracy` and `dag_edge_conformance_rate`) are flagged statically as `LINEAGE_VIOLATION` with `basis = REGISTRY_CONFIRMED` and `ci_disposition = BLOCK` because they read post-verdict fields (`invariants_passed`).
 
 ### 5.2 T1.2 Opportunity-Conditioned Recovery
-- **Result Digest:** `sha256:a6a8feb5108bdf888cee57a4277d6c07ba19a1d6339084c9a8fa991a3937023d`
+- **Result Digest:** `sha256:58e0f28c0300601dbd5c5ff33165289791519122de0cc785c99b0f8046a2aece`
 - **Status:** `REFUSAL` (Refusal: `REPEAT_INELIGIBLE`)
 - **Point Estimand:** Fault-weighted recovery rate over eligible fault opportunities = NULL
 - **Cluster Bootstrap:** `percentile_cluster_bootstrap` with 0 resamples, clustered by `coalesce(repeat_group_id, trial_id)`.
 - **Sample Power:** n_total = 8, n_effective = 5 clusters.
 
 ### 5.3 T1.3 Cascade Distance Analysis
-- **Report Digest:** `sha256:e9b840536c97dc61c6762234bb14756e22eb2375bc81ccc4155eb5e05a936ad1`
+- **Report Digest:** `sha256:62ed78463934148ef589427238c15c79ed29c352ce728e8af78b71c2c31c6f98`
 - **Evaluated Trajectories (steps $\ge 5$):** 39
 - **Observed Lock Events:** 0
 - **Right-Censored Trajectories:** 39

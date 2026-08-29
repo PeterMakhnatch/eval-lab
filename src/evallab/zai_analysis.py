@@ -354,8 +354,24 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
         except Exception:
             pass
 
+    agent_res = result_data.get("agent_result") or {}
+    if not prompt_tokens and agent_res.get("n_input_tokens") is not None:
+        prompt_tokens = int(agent_res.get("n_input_tokens") or 0)
+    if not completion_tokens and agent_res.get("n_output_tokens") is not None:
+        completion_tokens = int(agent_res.get("n_output_tokens") or 0)
+    if not cached_tokens and agent_res.get("n_cache_tokens") is not None:
+        cached_tokens = int(agent_res.get("n_cache_tokens") or 0)
+
     # Normalize model name
-    model_name = "glm-5.3-highspeed" if "highspeed" in model_name.lower() else "glm-5.3-flash"
+    m_lower = model_name.lower()
+    if "highspeed" in m_lower:
+        model_name = "glm-5.3-highspeed"
+    elif "flash" in m_lower:
+        model_name = "glm-5.3-flash"
+    elif "glm-5.3" in m_lower or "glm53" in m_lower or "glm53" in job_name.lower():
+        model_name = "glm-5.3-full"
+    else:
+        model_name = "glm-5.3-flash"
     # Cascade setup: 1-based indexing
     if step_count >= 5:
         if not passed and first_error_step is not None:

@@ -18,9 +18,7 @@ from evallab.zai_report import (
 )
 
 WAVE1_RUNS_DIR = Path("research/evidence/runs")
-WAVE2_RUNS_DIR = Path(
-    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2"
-)
+WAVE2_RUNS_DIR = Path("research/evidence/runs")
 OUTPUT_DIR = Path("research/analysis")
 
 

@@ -12,7 +12,8 @@ root. Any non-trusted target has no reviewed manifest and is refused explicitly.
 
 The resolver is the project's locked ``pip`` (pinned exactly in ``pyproject.toml``
 and ``uv.lock``); the command runs that locked environment's ``python -m pip`` via
-``sys.executable`` instead of live-resolving ``pip`` at staging time. The
+``sys.executable`` instead of live-resolving ``pip`` at staging time, and the
+executing resolver version is verified fail-closed before any staging. The
 destination and provenance paths are guarded against symlinks and
 attacker-owned/group-or-world-writable directories before any cache reuse or
 write.
@@ -73,6 +74,29 @@ def _require_trusted_target(target: WheelhouseTarget) -> None:
         )
 
 
+def _require_locked_resolver() -> None:
+    """Fail closed unless the executing pip is exactly the locked resolver version.
+
+    A direct invocation must not bypass the locked-resolver claim: if the
+    environment's pip is missing or a different version than the pinned
+    ``RESOLVER_PIP_PIN``, staging is refused before any command is produced or run.
+    """
+    import importlib.metadata as metadata
+
+    expected = RESOLVER_PIP_PIN.split("==", 1)[1]
+    try:
+        installed = metadata.version("pip")
+    except metadata.PackageNotFoundError:
+        raise SubstrateError(
+            f"locked resolver {RESOLVER_PIP_PIN} is not installed in this environment"
+        ) from None
+    if installed != expected:
+        raise SubstrateError(
+            f"resolver pip version mismatch: installed {installed!r}, expected {expected!r} "
+            f"({RESOLVER_PIP_PIN}); refusing to stage with an unverified resolver"
+        )
+
+
 def stage_command(dest: Path, target: WheelhouseTarget) -> list[str]:
     """Return the locked-resolver download command for the explicit runtime target.
 
@@ -82,6 +106,7 @@ def stage_command(dest: Path, target: WheelhouseTarget) -> list[str]:
     Any other target has no trusted manifest to pin against and is refused.
     """
     _require_trusted_target(target)
+    _require_locked_resolver()
     requirements = trusted_manifest_requirements()
     return [
         sys.executable,
@@ -106,29 +131,44 @@ def stage_command(dest: Path, target: WheelhouseTarget) -> list[str]:
 def _validate_destination(dest: Path) -> None:
     """Fail closed on a symlinked, attacker-owned, or group/world-writable destination.
 
-    An absent destination is created with owner-only (0700) permissions. An
-    existing destination must be a real directory owned by the current euid and
-    not group- or world-writable, so a predictable ``/tmp`` pre-created directory
-    (or a symlink) cannot be used to redirect or tamper with staging.
+    An absent destination is created atomically with owner-only (0700) permissions
+    via ``exist_ok=False``; if creation races with ``FileExistsError``, the now
+    existing path is re-validated by ``lstat`` before any chmod. An existing
+    destination must be a real directory owned by the current euid and not group-
+    or world-writable, so a predictable ``/tmp`` pre-created directory (or a
+    symlink) cannot be used to redirect or tamper with staging.
     """
-    if dest.is_symlink():
-        raise SubstrateError(f"wheelhouse destination is a symlink: {dest.as_posix()!r}")
-    if not dest.exists():
-        dest.mkdir(parents=True, exist_ok=True)
-        os.chmod(dest, 0o700)
-    st = os.lstat(dest)
-    if not stat.S_ISDIR(st.st_mode):
-        raise SubstrateError(f"wheelhouse destination is not a real directory: {dest.as_posix()!r}")
-    if st.st_uid != os.geteuid():
-        raise SubstrateError(
-            f"wheelhouse destination is not owned by the current user: {dest.as_posix()!r}"
-        )
-    if st.st_mode & 0o022:
-        raise SubstrateError(
-            f"wheelhouse destination is group/world-writable: {dest.as_posix()!r}"
-        )
-    if not (st.st_mode & 0o200):
-        raise SubstrateError(f"wheelhouse destination is not owner-writable: {dest.as_posix()!r}")
+    for _ in range(2):
+        try:
+            st = os.lstat(dest)
+        except FileNotFoundError:
+            try:
+                os.makedirs(dest, mode=0o700, exist_ok=False)
+            except FileExistsError:
+                continue  # raced with creation; re-validate the existing path
+            st = os.lstat(dest)
+        if stat.S_ISLNK(st.st_mode):
+            raise SubstrateError(f"wheelhouse destination is a symlink: {dest.as_posix()!r}")
+        if not stat.S_ISDIR(st.st_mode):
+            raise SubstrateError(
+                f"wheelhouse destination is not a real directory: {dest.as_posix()!r}"
+            )
+        if st.st_uid != os.geteuid():
+            raise SubstrateError(
+                f"wheelhouse destination is not owned by the current user: {dest.as_posix()!r}"
+            )
+        if st.st_mode & 0o022:
+            raise SubstrateError(
+                f"wheelhouse destination is group/world-writable: {dest.as_posix()!r}"
+            )
+        if not (st.st_mode & 0o200):
+            raise SubstrateError(
+                f"wheelhouse destination is not owner-writable: {dest.as_posix()!r}"
+            )
+        return
+    raise SubstrateError(
+        f"wheelhouse destination creation raced repeatedly: {dest.as_posix()!r}"
+    )
 
 
 def _validate_provenance_path(provenance_path: Path) -> None:
@@ -164,6 +204,8 @@ def ensure_wheelhouse(
     # Reject every non-trusted target up front, before any cache branch, so a
     # crafted cached provenance cannot bypass stage_command's rejection.
     _require_trusted_target(target)
+    # Enforce the locked resolver fail-closed before any cache reuse/clear/write.
+    _require_locked_resolver()
     _validate_destination(dest)
     provenance_path = dest / PROVENANCE_FILENAME
     _validate_provenance_path(provenance_path)

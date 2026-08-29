@@ -346,6 +346,96 @@ def test_ensure_wheelhouse_rejects_non_trusted_target_before_cache(tmp_path):
     assert not recorded, "non-trusted target must be rejected before any staging"
 
 
+def test_ensure_wheelhouse_rejects_wrong_pip_resolver_version(tmp_path, monkeypatch):
+    """A pip version other than the pinned locked resolver is refused before staging."""
+    import importlib.metadata as metadata
+
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    real_version = metadata.version("pip")
+    assert real_version == mod.RESOLVER_PIP_PIN.split("==", 1)[1]
+    monkeypatch.setattr(
+        "importlib.metadata.version", lambda dist: "9.9.9" if dist == "pip" else real_version
+    )
+
+    def fake_run(argv, check=False):
+        return subprocess.CompletedProcess(argv, 0)
+
+    with pytest.raises(SubstrateError, match="resolver pip version mismatch"):
+        mod.ensure_wheelhouse(dest, target=mod.LINUX_CP312_X86_64, run=fake_run)
+    with pytest.raises(SubstrateError, match="resolver pip version mismatch"):
+        mod.stage_command(dest, mod.LINUX_CP312_X86_64)
+
+
+def test_ensure_wheelhouse_rejects_missing_pip_resolver(tmp_path, monkeypatch):
+    """A missing pip resolver is refused fail-closed before any staging."""
+    import importlib.metadata as metadata
+
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    def fake_version(dist):
+        if dist == "pip":
+            raise metadata.PackageNotFoundError("pip")
+        return metadata.version(dist)
+
+    monkeypatch.setattr("importlib.metadata.version", fake_version)
+
+    def fake_run(argv, check=False):
+        return subprocess.CompletedProcess(argv, 0)
+
+    with pytest.raises(SubstrateError, match="not installed"):
+        mod.ensure_wheelhouse(dest, target=mod.LINUX_CP312_X86_64, run=fake_run)
+
+
+def test_ensure_wheelhouse_destination_creation_race_revalidates(tmp_path, monkeypatch):
+    """A FileExistsError during atomic creation re-validates the raced path, not chmods blindly."""
+    from evallab.mcp_substrate import (
+        ResolverProvenance,
+        trusted_wheel_manifest_digest,
+        trusted_wheel_manifest_source,
+    )
+
+    mod = _load_ensure_wheelhouse_module()
+    target = mod.LINUX_CP312_X86_64
+    dest = tmp_path / "wheels"
+
+    provenance = ResolverProvenance(
+        target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
+        wheels=(),
+    )
+    monkeypatch.setattr(mod, "record_prepackaging_provenance", lambda *_: provenance)
+
+    real_makedirs = mod.os.makedirs
+
+    def racy_makedirs(path, mode=0o777, exist_ok=False):
+        if str(path).endswith("wheels") and not exist_ok:
+            # First call races: another actor created the dir after our lstat miss.
+            Path(path).mkdir(parents=True, exist_ok=True)
+            raise FileExistsError(f"race: {path}")
+        return real_makedirs(path, mode=mode, exist_ok=exist_ok)
+
+    monkeypatch.setattr(mod.os, "makedirs", racy_makedirs)
+
+    def fake_run(argv, check=False):
+        return subprocess.CompletedProcess(argv, 0)
+
+    mod.ensure_wheelhouse(dest, target=target, run=fake_run)
+    # The raced existing dir was validated (owner-only not required post-race;
+    # it is our own tmp_path dir), not chmodded by the helper.
+    assert dest.is_dir()
+    assert not dest.is_symlink()
+
+
 def test_ensure_wheelhouse_rejects_symlinked_destination(tmp_path):
     """A symlinked destination is refused before any cache reuse/clear/write."""
     from evallab.mcp_substrate import SubstrateError

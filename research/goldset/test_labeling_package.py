@@ -16,10 +16,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from build_labeling_package import (  # noqa: E402
     ALLOWED_VALUES,
-    MIN_EFFECTIVE_CLUSTERS,
     CANNOT_JUDGE,
     HUMAN_JUDGED_FIELDS,
     INSUFFICIENT_CONTEXT,
+    MIN_EFFECTIVE_CLUSTERS,
     RATING_SCHEMA_VERSION,
     REQUIRED_RATERS_PER_ITEM,
     LabelItem,

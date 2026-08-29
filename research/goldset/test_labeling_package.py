@@ -20,6 +20,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import build_labeling_package as build_labeling_module
 from build_labeling_package import (  # noqa: E402
     ALLOWED_VALUES,
     BUNDLE_SCHEMA,
@@ -38,6 +39,7 @@ from build_labeling_package import (  # noqa: E402
     BundleVerificationError,
     LabelItem,
     LedgerError,
+    LedgerRecoverableError,
     OutputPathError,
     PairMismatchError,
     SourceRejectedError,
@@ -53,6 +55,7 @@ from build_labeling_package import (  # noqa: E402
     export_rater_bundle,
     label_item_from_dict,
     ledger_head,
+    load_intake,
     load_ledger,
     load_paired_artifacts,
     load_rater_registry,
@@ -68,10 +71,13 @@ from build_labeling_package import (  # noqa: E402
     verify_rating_signature,
     write_paired_outputs,
 )
+from build_labeling_package import _entry_hash as _entry_hash_for_test
+from build_labeling_package import _read_lock as _read_lock_for_test
+from build_labeling_package import _record_id as _record_id_for_test
 
 EXPECTED_ITEMS = 183  # distinct contexts; only byte-identical paths alias
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b"
+EXPECTED_DIGEST = "af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59"
 
 
 def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
@@ -1533,7 +1539,12 @@ def main() -> int:
             anchor_secret=ANCHOR_SECRET,
         )
         ri2 = rebuilt["readiness"]["rating_intake"]
-        check("intake detects the append-only ledger", ri2["intake_mode"] == "append_only_ledger")
+        check(
+            "intake is LEDGER-ONLY; no legacy glob mode exists",
+            ri2["intake_mode"] == "ledger"
+            and not hasattr(build_labeling_module, "load_rating_records")
+            and not hasattr(build_labeling_module, "is_ledger_dir"),
+        )
         check(
             "every genuine client rating is ACCEPTED end to end",
             ri2["records_accepted"] == expected_records and ri2["records_rejected"] == 0,
@@ -1761,6 +1772,287 @@ def main() -> int:
         check(
             "a ledger with records but NO head manifest fails closed",
             _raises(LedgerError, lambda: ledger_head(_headless(ledger4, Path(tmp) / "headless"))),
+        )
+
+    print("SEC-DOWNGRADE - there is no non-ledger intake to fall back to")
+    with tempfile.TemporaryDirectory() as tmp:
+        DC = "c" * 64
+        DCTX = {"i1": "d" * 64}
+        DKR = {f"r{n}": f"s{n}" for n in range(4)}
+        DVC: dict[str, Any] = {
+            "rating_contract_digest": DC,
+            "context_digests": DCTX,
+            "keyring": DKR,
+            "qualified_rater_ids": list(DKR),
+        }
+
+        def _drec(rater: str, supersedes: str | None = None) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": DC,
+                "item_id": "i1",
+                "item_context_digest": DCTX["i1"],
+                "rater_key_id": rater,
+                "supersedes": supersedes,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            body["signature"] = sign_rating(body, DKR[rater])
+            return body
+
+        dled = Path(tmp) / "l"
+        for n in range(4):
+            append_rating_record(dled, _drec(f"r{n}"), created_at=f"T{n}", **DVC)
+        check(
+            "an intact but UNANCHORED ledger yields nothing",
+            load_intake(dled, anchor_path=None, anchor_secret=None, **DVC)[0] == [],
+        )
+        # THE DOWNGRADE: remove every marker the old code sniffed for. Selecting an
+        # intake path by looking for markers is bypassable by deleting them, so the
+        # choice itself was removed rather than the heuristic improved.
+        (dled / "head.json").unlink()
+        (dled / "ledger.jsonl").unlink()
+        drecs, dmode, dprobs = load_intake(dled, anchor_path=None, anchor_secret=None, **DVC)
+        check(
+            "removing ALL ledger markers refuses instead of downgrading",
+            drecs == []
+            and dmode == "ledger"
+            and any(p.startswith("LEDGER_INCOMPLETE") for p in dprobs),
+        )
+        flat = Path(tmp) / "flat"
+        flat.mkdir()
+        for src in (dled / "records").glob("*.json"):
+            shutil.copy(src, flat / src.name)
+        frecs, fmode, fprobs = load_intake(flat, anchor_path=None, anchor_secret=None, **DVC)
+        check(
+            "a FLAT dump of record files is refused, not ingested",
+            frecs == []
+            and fmode == "ledger"
+            and any(p.startswith("LEDGER_INCOMPLETE") for p in fprobs),
+        )
+        check(
+            "no ratings_dir means zero ratings, not an alternative path",
+            load_intake(None, **DVC)[:2] == ([], "no_ratings_dir"),
+        )
+
+    print("SEC-CRASH - an interrupted append is recoverable, never bricking")
+    with tempfile.TemporaryDirectory() as tmp:
+        XC = "c" * 64
+        XCTX = {"i1": "d" * 64}
+        XKR = {f"r{n}": f"s{n}" for n in range(4)}
+        XVC: dict[str, Any] = {
+            "rating_contract_digest": XC,
+            "context_digests": XCTX,
+            "keyring": XKR,
+            "qualified_rater_ids": list(XKR),
+        }
+
+        def _xrec(rater: str) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": XC,
+                "item_id": "i1",
+                "item_context_digest": XCTX["i1"],
+                "rater_key_id": rater,
+                "supersedes": None,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+            }
+            body["signature"] = sign_rating(body, XKR[rater])
+            return body
+
+        def _xbuild(dst: Path) -> Path:
+            for n in range(3):
+                append_rating_record(dst, _xrec(f"r{n}"), created_at=f"T{n}", **XVC)
+            return dst
+
+        # WINDOW 2: the log entry landed, the head update did not.
+        w2 = _xbuild(Path(tmp) / "w2")
+        entries = (w2 / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
+        second = json.loads(entries[1])
+        (w2 / "head.json").write_text(
+            json.dumps(
+                {
+                    "schema": LEDGER_SCHEMA,
+                    "head_hash": second["entry_hash"],
+                    "count": 2,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        check(
+            "a head behind the log is TYPED recoverable, not fatal",
+            _raises(LedgerRecoverableError, lambda: load_ledger(w2)),
+        )
+        check(
+            "intake reports it as actionable rather than repairing silently",
+            any(
+                p.startswith("LEDGER_NEEDS_REPAIR")
+                for p in load_intake(w2, anchor_path=None, anchor_secret=None, **XVC)[2]
+            ),
+        )
+        check(
+            "explicit repair rolls the head forward and the ledger reloads clean",
+            len(load_ledger(w2, repair=True)) == 3 and len(load_ledger(w2)) == 3,
+        )
+
+        # WINDOW 1: the record file landed, the log entry did not.
+        w1 = _xbuild(Path(tmp) / "w1")
+        orphan = dict(_xrec("r3"))
+        orphan["created_at"] = "TX"
+        orphan["previous_entry_hash"] = ledger_head(w1)[0]
+        orphan_id = _record_id_for_test(orphan)
+        orphan["record_id"] = orphan_id
+        (w1 / "records" / f"{orphan_id}.json").write_text(
+            json.dumps(orphan, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        check(
+            "a verifiable uncommitted record is TYPED recoverable, not fatal",
+            _raises(LedgerRecoverableError, lambda: load_ledger(w1)),
+        )
+        check(
+            "explicit repair quarantines it and the ledger reloads clean",
+            len(load_ledger(w1, repair=True)) == 3
+            and (w1 / "uncommitted" / f"{orphan_id}.json").is_file()
+            and len(load_ledger(w1)) == 3,
+        )
+
+        # Corruption is NOT an interrupted append and must not be repaired.
+        junk = _xbuild(Path(tmp) / "junk")
+        (junk / "records" / "deadbeef.json").write_text('{"junk": true}', encoding="utf-8")
+        check(
+            "unverifiable junk fails hard even with repair requested",
+            _raises(LedgerError, lambda: load_ledger(junk, repair=True))
+            and not _raises(LedgerRecoverableError, lambda: load_ledger(junk, repair=True)),
+        )
+        clean = _xbuild(Path(tmp) / "clean")
+        with _read_lock_for_test(clean), _read_lock_for_test(clean):
+            check(
+                "concurrent SHARED readers coexist without blocking",
+                len(load_ledger(clean)) == 3,
+            )
+
+    print("SEC-GRAPH - resolution re-authorizes every edge it did not create")
+    with tempfile.TemporaryDirectory() as tmp:
+        GC = "c" * 64
+        GCTX = {"i1": "d" * 64, "i2": "e" * 64}
+        GKR = {f"r{n}": f"s{n}" for n in range(4)}
+        GVC: dict[str, Any] = {
+            "rating_contract_digest": GC,
+            "context_digests": GCTX,
+            "keyring": GKR,
+            "qualified_rater_ids": list(GKR),
+        }
+
+        def _grec(rater: str, item: str = "i1", sup: str | None = None, **over) -> dict:
+            body = {
+                "schema_version": RATING_SCHEMA_VERSION,
+                "rating_contract_digest": GC,
+                "item_id": item,
+                "item_context_digest": GCTX[item],
+                "rater_key_id": rater,
+                "supersedes": sup,
+                **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+                **over,
+            }
+            body["signature"] = sign_rating(body, GKR[rater])
+            return body
+
+        def _handcraft(dst: Path, bodies: list[dict]) -> Path:
+            """Write a STRUCTURALLY VALID ledger without ever calling append.
+
+            Append-time authorization cannot protect this path, which is the whole
+            point: a ledger may be handcrafted or migrated, and an anchored one.
+            """
+            (dst / "records").mkdir(parents=True)
+            previous = GENESIS_HASH
+            lines = []
+            for n, body in enumerate(bodies, start=1):
+                stored = dict(body)
+                stored["created_at"] = f"H{n}"
+                stored["previous_entry_hash"] = previous
+                rid = _record_id_for_test(stored)
+                stored["record_id"] = rid
+                (dst / "records" / f"{rid}.json").write_text(
+                    json.dumps(stored, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+                entry_hash = _entry_hash_for_test(previous, rid, f"H{n}")
+                lines.append(
+                    json.dumps(
+                        {
+                            "schema": LEDGER_SCHEMA,
+                            "seq": n,
+                            "record_id": rid,
+                            "created_at": f"H{n}",
+                            "previous_entry_hash": previous,
+                            "entry_hash": entry_hash,
+                            "supersedes": stored.get("supersedes"),
+                        },
+                        sort_keys=True,
+                    )
+                )
+                previous = entry_hash
+            (dst / "ledger.jsonl").write_text(
+                "".join(line + "\n" for line in lines), encoding="utf-8"
+            )
+            (dst / "head.json").write_text(
+                json.dumps(
+                    {"schema": LEDGER_SCHEMA, "head_hash": previous, "count": len(lines)},
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return dst
+
+        def _first_id(body: dict) -> str:
+            stored = dict(body)
+            stored["created_at"] = "H1"
+            stored["previous_entry_hash"] = GENESIS_HASH
+            return _record_id_for_test(stored)
+
+        victim = _grec("r0")
+        vid = _first_id(victim)
+        for label, bodies in (
+            ("cross-RATER", [victim, _grec("r1", sup=vid)]),
+            ("cross-ITEM", [victim, _grec("r0", item="i2", sup=vid)]),
+            ("DOUBLE supersede", [victim, _grec("r0", sup=vid), _grec("r1", sup=vid)]),
+        ):
+            ledger = _handcraft(Path(tmp) / label.replace(" ", "_"), bodies)
+            resolved = effective_ratings(load_ledger(ledger), **GVC)
+            check(
+                f"handcrafted {label} edge is rejected and the victim SURVIVES",
+                vid in {r["record_id"] for r in resolved} and len(resolved) == 1,
+            )
+        # And the legitimate cases must still resolve: a guard that rejects every
+        # edge would pass all three attacks above while breaking corrections.
+        legit = _handcraft(
+            Path(tmp) / "legit",
+            [victim, _grec("r0", sup=vid, step_contribution="HARMFUL")],
+        )
+        resolved = effective_ratings(load_ledger(legit), **GVC)
+        check(
+            "a legitimate handcrafted correction still WINS",
+            len(resolved) == 1 and resolved[0]["step_contribution"] == "HARMFUL",
+        )
+        step2 = _grec("r0", sup=vid, step_contribution="HARMFUL")
+        bid = _record_id_for_test(
+            {
+                **step2,
+                "created_at": "H2",
+                "previous_entry_hash": _entry_hash_for_test(GENESIS_HASH, vid, "H1"),
+            }
+        )
+        chain = _handcraft(
+            Path(tmp) / "chain",
+            [victim, step2, _grec("r0", sup=bid, step_contribution="NEUTRAL")],
+        )
+        resolved = effective_ratings(load_ledger(chain), **GVC)
+        check(
+            "a legitimate two-step correction chain resolves to the last link",
+            len(resolved) == 1 and resolved[0]["step_contribution"] == "NEUTRAL",
         )
 
     print("CLI-GATE - the shipped entry point enforces the anchor")

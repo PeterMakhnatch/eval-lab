@@ -14,9 +14,9 @@ collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-labeling_package_file_sha256: 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b
-package_digest_in_band: 5830c8cffc74a7bad48969263b058e42207a143a01a4a09c234da23724de7748
-build_id: 35a7ab66a78de1d9692e7aeb439fe7ca016f477f4a9753c17be893fa52b60ea5
+labeling_package_file_sha256: af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59
+package_digest_in_band: 8e9148d6a6949dbb8fdf173609e73fecc0f0cf77c23c2d451a3a446b62aad8ac
+build_id: b414467ffd3b32de438f214f1e6f6b2cf77d1fe2104ec64c094f9094c258f373
 revision: 10
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
@@ -76,9 +76,9 @@ Two families, and conflating them caused two separate review blockers.
 
 | Name | Covers | Value |
 |---|---|---|
-| `labeling_package_file_sha256` | sha256 of the file **bytes on disk** | `165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b` |
-| `package_digest` (in-band) | serialized package minus its own key | `5830c8cffc74a7bad48969263b058e42207a143a01a4a09c234da23724de7748` |
-| `build_id` | ser(pkg − {build_id, package_digest}) + ser(truth − {build_id}) | `35a7ab66a78de1d9692e7aeb439fe7ca016f477f4a9753c17be893fa52b60ea5` |
+| `labeling_package_file_sha256` | sha256 of the file **bytes on disk** | `af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59` |
+| `package_digest` (in-band) | serialized package minus its own key | `8e9148d6a6949dbb8fdf173609e73fecc0f0cf77c23c2d451a3a446b62aad8ac` |
+| `build_id` | ser(pkg − {build_id, package_digest}) + ser(truth − {build_id}) | `b414467ffd3b32de438f214f1e6f6b2cf77d1fe2104ec64c094f9094c258f373` |
 
 **Why the split is load-bearing.** Ratings previously had to bind `package_digest`,
 which covers readiness and rating summaries — so it **changes as ratings arrive**.
@@ -218,7 +218,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `labeling_package_file_sha256 165a3f78…`.
+byte-identical package, `labeling_package_file_sha256 af040dd0…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -595,10 +595,10 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 211 standalone checks + 24 pytest
+python3 research/goldset/test_labeling_package.py   # 227 standalone checks + 24 pytest
 ```
 
-Expect `labeling_package_file_sha256 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b`
+Expect `labeling_package_file_sha256 af040dd0471da40f5442e1b1bc3ee0c2efda5ddcad5dab429c90e8556f797d59`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

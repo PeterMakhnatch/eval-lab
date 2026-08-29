@@ -1061,11 +1061,6 @@ def verify_rating_signature(record: Mapping[str, Any], keyring: Mapping[str, str
     return hmac.compare_digest(sign_rating(record, secret), supplied)
 
 
-def is_ledger_dir(path: Path | None) -> bool:
-    """A ledger root is identified by its manifest, never by globbing JSON."""
-    return bool(path) and (path / "head.json").is_file() and (path / "ledger.jsonl").is_file()
-
-
 def load_intake(
     ratings_dir: Path | None,
     *,
@@ -1075,89 +1070,90 @@ def load_intake(
     qualified_rater_ids: Collection[str],
     anchor_path: Path | None = None,
     anchor_secret: str | None = None,
+    repair: bool = False,
 ) -> tuple[list[dict[str, Any]], str, list[str]]:
-    """Production intake. Prefers the append-only ledger over a loose glob.
+    """Production intake. LEDGER ONLY - there is no loose-JSON path.
 
     Returns (records, intake_mode, problems). Problems become readiness blockers
-    rather than exceptions, so a bad anchor refuses the package instead of
+    rather than exceptions, so a refused intake blocks the package instead of
     crashing the build.
 
-    Pointing the glob loader at a ledger root ingested head.json as a malformed
-    record and ignored records/ entirely; pointing it at records/ ingested
-    superseded records alongside their corrections and produced spurious
-    conflicts. Neither is a usable intake path, so the ledger is detected and its
-    EFFECTIVE view is used.
+    THE LEGACY GLOB PATH IS GONE, and its removal is the control. While it
+    existed, intake chose between paths by looking for `head.json` and
+    `ledger.jsonl`, so deleting those two markers downgraded a ledger to the glob
+    path and BYPASSED the mandatory anchor entirely: a flat directory of record
+    files was ingested with no anchor and no problem reported. Any
+    marker-sniffing heuristic is bypassable by removing the markers, so the
+    choice itself had to go rather than the heuristic be improved.
 
-    A NONEMPTY ledger intake REQUIRES a coordinator-signed external anchor, always
-    verified. Without one the ledger is only locally consistent: an operator can
-    roll it back to any earlier consistent state, so ratings could be silently
-    dropped between builds.
+    Supplying `ratings_dir` therefore means "here is a complete, anchored
+    ledger". Anything less is refused. No `ratings_dir` means zero ratings.
     """
     problems: list[str] = []
-    if is_ledger_dir(ratings_dir) and ratings_dir is not None:
-        try:
-            records = load_ledger(ratings_dir)
-        except LedgerError as exc:
-            return [], "append_only_ledger", [f"LEDGER_INVALID: {exc}"]
-        if records:
-            if anchor_path is None or anchor_secret is None:
-                problems.append(
-                    "LEDGER_ANCHOR_MISSING: a nonempty ledger intake requires a "
-                    "coordinator-signed external head anchor"
-                )
-            elif not anchor_path.is_file():
-                problems.append(f"LEDGER_ANCHOR_FILE_ABSENT: {anchor_path}")
-            else:
-                try:
-                    anchor = json.loads(anchor_path.read_text(encoding="utf-8"))
-                    verify_against_anchor(ratings_dir, anchor, anchor_secret=anchor_secret)
-                except (LedgerError, json.JSONDecodeError) as exc:
-                    problems.append(f"LEDGER_ANCHOR_REJECTED: {exc}")
-        if problems:
-            # Fail closed: an unanchored or forked ledger yields NO ratings.
-            return [], "append_only_ledger", problems
-        return (
-            effective_ratings(
-                records,
-                rating_contract_digest=rating_contract_digest,
-                context_digests=context_digests,
-                keyring=keyring,
-                qualified_rater_ids=qualified_rater_ids,
-            ),
-            "append_only_ledger",
-            problems,
+    if ratings_dir is None:
+        return [], "no_ratings_dir", problems
+    if not ratings_dir.is_dir():
+        return [], "ledger", [f"LEDGER_DIR_ABSENT: {ratings_dir}"]
+
+    # A complete ledger, demanded explicitly rather than sniffed. A missing part
+    # is a refusal, never a downgrade.
+    for required in ("head.json", "ledger.jsonl"):
+        if not (ratings_dir / required).is_file():
+            problems.append(
+                f"LEDGER_INCOMPLETE: {required} is absent; a ratings directory must "
+                f"be a complete append-only ledger. There is no loose-JSON intake."
+            )
+    if problems:
+        return [], "ledger", problems
+
+    try:
+        records = load_ledger(ratings_dir, repair=repair)
+    except LedgerRecoverableError as exc:
+        # Actionable, and never repaired implicitly: an interrupted append is a
+        # state an operator should acknowledge, not something a build silently
+        # rewrites underneath them.
+        return [], "ledger", [f"LEDGER_NEEDS_REPAIR: {exc}"]
+    except INTAKE_FAILURE_TYPES as exc:
+        return [], "ledger", [f"LEDGER_INVALID: {type(exc).__name__}: {exc}"]
+
+    if records:
+        if anchor_path is None or anchor_secret is None:
+            problems.append(
+                "LEDGER_ANCHOR_MISSING: a nonempty ledger intake requires a "
+                "coordinator-signed external head anchor"
+            )
+        elif not anchor_path.is_file():
+            problems.append(f"LEDGER_ANCHOR_FILE_ABSENT: {anchor_path}")
+        else:
+            try:
+                anchor = _read_ledger_json(anchor_path, "ANCHOR")
+                verify_against_anchor(ratings_dir, anchor, anchor_secret=anchor_secret)
+            except LedgerError as exc:
+                problems.append(f"LEDGER_ANCHOR_REJECTED: {exc}")
+    if problems:
+        # Fail closed: an unanchored or forked ledger yields NO ratings.
+        return [], "ledger", problems
+    try:
+        resolved = effective_ratings(
+            records,
+            rating_contract_digest=rating_contract_digest,
+            context_digests=context_digests,
+            keyring=keyring,
+            qualified_rater_ids=qualified_rater_ids,
         )
-    return load_rating_records(ratings_dir), "loose_json_glob", problems
-
-
-def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
-    """Load RatingRecord sidecars. Returns [] when the directory is absent."""
-    if ratings_dir is None or not ratings_dir.is_dir():
-        return []
-    records: list[dict[str, Any]] = []
-    for path in sorted(ratings_dir.glob("*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            records.append({"_invalid_file": str(path.name)})
-            continue
-        entries = payload if isinstance(payload, list) else [payload]
-        for index, entry in enumerate(entries):
-            if not isinstance(entry, dict):
-                # A scalar or list entry previously crashed dict(record) with a
-                # TypeError. Fail closed with a diagnostic instead.
-                records.append(
-                    {
-                        "_invalid_entry": (
-                            f"{path.name}[{index}]: expected object, got {type(entry).__name__}"
-                        )
-                    }
-                )
-                continue
-            record = dict(entry)
-            record["_source_file"] = path.name
-            records.append(record)
-    return records
+    except INTAKE_FAILURE_TYPES as exc:
+        # Intake is a trust boundary and must NEVER raise: a hostile or corrupt
+        # ledger has to produce a NOT_READY package, not a crashed build, or a
+        # single malformed record becomes a denial of service. Record content is
+        # arbitrary once it is not ours - a list where a rater id belongs makes a
+        # keyring lookup raise TypeError, for instance - so the exception type is
+        # named in the diagnostic rather than guessed at in advance.
+        return (
+            [],
+            "ledger",
+            [f"LEDGER_RESOLUTION_FAILED: {type(exc).__name__}: {exc}"],
+        )
+    return resolved, "ledger", problems
 
 
 def validate_rating(
@@ -1433,6 +1429,29 @@ LEDGER_ANCHOR_NOTE = (
 GENESIS_HASH = "0" * 64
 
 
+def _read_ledger_json(path: Path, what: str) -> Any:
+    """Read and parse JSON on the ledger path, FAIL-CLOSED as a LedgerError.
+
+    Every read failure mode is funnelled into one exception type so intake can
+    convert it into a readiness diagnostic. Previously a malformed head manifest
+    escaped as a raw JSONDecodeError and crashed the build instead of refusing
+    it, which turns a corrupt or deleted file into a denial of service rather
+    than a NOT_READY package.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise LedgerError(f"{what}_FILE_ABSENT: {path}") from exc
+    except UnicodeDecodeError as exc:
+        raise LedgerError(f"{what}_NOT_UTF8: {path}") from exc
+    except OSError as exc:
+        raise LedgerError(f"{what}_UNREADABLE: {path}: {exc.strerror}") from exc
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise LedgerError(f"{what}_MALFORMED_JSON: {path}: {exc.msg}") from exc
+
+
 def _is_sha256(value: object) -> bool:
     return (
         isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
@@ -1441,6 +1460,31 @@ def _is_sha256(value: object) -> bool:
 
 class LedgerError(RuntimeError):
     """Raised when the rating ledger is not append-only-consistent."""
+
+
+class LedgerRecoverableError(LedgerError):
+    """Raised for an interrupted append that is deterministically repairable.
+
+    The append sequence is: write the record file, append the log entry, update
+    the head manifest. A crash between those steps used to brick the ledger
+    permanently - an orphan record raised LEDGER_RECORDS_NOT_INCLUDED and a log
+    tail past the head raised LEDGER_HEAD_MISMATCH, with no way forward. Both
+    states are now classified, and repaired only on explicit request.
+    """
+
+
+# Everything intake converts into a readiness diagnostic instead of raising.
+# Listed explicitly rather than caught as bare Exception, so a genuine defect in
+# our own code still surfaces as a crash.
+INTAKE_FAILURE_TYPES = (
+    LedgerError,
+    OSError,
+    UnicodeDecodeError,
+    json.JSONDecodeError,
+    TypeError,
+    AttributeError,
+    ValueError,
+)
 
 
 def _record_id(record: Mapping[str, Any]) -> str:
@@ -1485,9 +1529,9 @@ def ledger_head(ledger_dir: Path) -> tuple[str, int]:
                 "absent; an empty ledger has no records and no log"
             )
         return GENESIS_HASH, 0
-    doc = json.loads(manifest.read_text(encoding="utf-8"))
+    doc = _read_ledger_json(manifest, "HEAD")
     if not isinstance(doc, dict):
-        raise LedgerError("HEAD_MANIFEST_NOT_AN_OBJECT")
+        raise LedgerError(f"HEAD_MANIFEST_NOT_AN_OBJECT: got {type(doc).__name__}")
     if doc.get("schema") != LEDGER_SCHEMA:
         raise LedgerError(f"HEAD_SCHEMA_UNSUPPORTED: {doc.get('schema')!r}")
     head = doc.get("head_hash")
@@ -1561,7 +1605,10 @@ def append_rating_record(
         # DIFFERENT record_id and O_EXCL never collides. Rating identity therefore
         # needs its own append-only-unique constraint, and a second submission for
         # one (item, rater) is admissible ONLY as an explicit correction.
-        existing = load_ledger(ledger_dir)
+        # Walk directly: the exclusive build lock is already held, and taking the
+        # shared read lock on the same lock file from a second descriptor would
+        # self-deadlock.
+        existing, _ = _walk_ledger(ledger_dir)
         identity = (str(record.get("item_id")), str(record.get("rater_key_id")))
         prior = [
             r for r in existing if (str(r.get("item_id")), str(r.get("rater_key_id"))) == identity
@@ -1651,7 +1698,9 @@ def append_rating_record(
         return stored
 
 
-def _walk_ledger(ledger_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+def _walk_ledger(
+    ledger_dir: Path, *, repair: bool = False
+) -> tuple[list[dict[str, Any]], list[str]]:
     """Verify the chain and return (records, per-position entry hashes).
 
     The entry hashes are what an external anchor is compared against, so the walk
@@ -1665,7 +1714,13 @@ def _walk_ledger(ledger_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
             )
         return [], []
     entries: list[dict[str, Any]] = []
-    for lineno, line in enumerate(log.read_text(encoding="utf-8").splitlines(), start=1):
+    try:
+        log_text = log.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise LedgerError(f"LEDGER_LOG_NOT_UTF8: {log}") from exc
+    except OSError as exc:
+        raise LedgerError(f"LEDGER_LOG_UNREADABLE: {log}: {exc.strerror}") from exc
+    for lineno, line in enumerate(log_text.splitlines(), start=1):
         if not line.strip():
             continue
         try:
@@ -1702,7 +1757,9 @@ def _walk_ledger(ledger_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
         path = ledger_dir / "records" / f"{rid}.json"
         if not path.is_file():
             raise LedgerError(f"LEDGER_RECORD_MISSING: {rid}")
-        stored = json.loads(path.read_text(encoding="utf-8"))
+        stored = _read_ledger_json(path, "LEDGER_RECORD")
+        if not isinstance(stored, dict):
+            raise LedgerError(f"LEDGER_RECORD_NOT_AN_OBJECT: {rid} is {type(stored).__name__}")
         if _record_id(stored) != rid:
             raise LedgerError(f"LEDGER_RECORD_TAMPERED: {rid}")
         records.append(stored)
@@ -1711,10 +1768,34 @@ def _walk_ledger(ledger_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
     head_hash, count = ledger_head(ledger_dir)
     if count != len(entries) or head_hash != previous:
-        raise LedgerError(
-            f"LEDGER_HEAD_MISMATCH: manifest {head_hash[:12]}…/{count} vs "
-            f"chain {previous[:12]}…/{len(entries)}"
-        )
+        # CRASH WINDOW 2: the log entry landed, the head update did not. The log
+        # is the commit point, so a head that names an EARLIER position whose
+        # hash matches exactly is a recoverable interrupted append, and rolling
+        # the head forward is deterministic. Rolling forward cannot hide a fork,
+        # because the anchor compares the entry at the anchored position.
+        recoverable = 0 < count < len(entries) and hashes[count - 1] == head_hash
+        if recoverable and repair:
+            _atomic_write(
+                ledger_dir / "head.json",
+                json.dumps(
+                    {"schema": LEDGER_SCHEMA, "head_hash": previous, "count": len(entries)},
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+            )
+        elif recoverable:
+            raise LedgerRecoverableError(
+                f"LEDGER_HEAD_BEHIND_LOG: manifest names entry {count} of "
+                f"{len(entries)} and its hash matches, so an append was "
+                f"interrupted after the log write. Re-run with repair=True "
+                f"(CLI: --repair-ledger) to roll the head forward."
+            )
+        else:
+            raise LedgerError(
+                f"LEDGER_HEAD_MISMATCH: manifest {head_hash[:12]}…/{count} vs "
+                f"chain {previous[:12]}…/{len(entries)}"
+            )
 
     on_disk = (
         {p.stem for p in (ledger_dir / "records").glob("*.json")}
@@ -1723,18 +1804,48 @@ def _walk_ledger(ledger_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
     )
     orphans = sorted(on_disk - seen)
     if orphans:
-        raise LedgerError(f"LEDGER_RECORDS_NOT_INCLUDED: {orphans}")
+        # CRASH WINDOW 1: the record file landed, the log entry did not. Such a
+        # record was never committed. It is deterministically discardable ONLY if
+        # it is fully verifiable - its content must hash to its own filename -
+        # because anything else is corruption rather than an interrupted append.
+        verifiable = []
+        for stem in orphans:
+            path = ledger_dir / "records" / f"{stem}.json"
+            try:
+                body = _read_ledger_json(path, "LEDGER_RECORD")
+            except LedgerError:
+                break
+            if not isinstance(body, dict) or _record_id(body) != stem:
+                break
+            verifiable.append(stem)
+        if len(verifiable) == len(orphans) and repair:
+            for stem in verifiable:
+                path = ledger_dir / "records" / f"{stem}.json"
+                path.chmod(0o644)
+                quarantine = ledger_dir / "uncommitted"
+                quarantine.mkdir(exist_ok=True)
+                path.rename(quarantine / path.name)
+        elif len(verifiable) == len(orphans):
+            raise LedgerRecoverableError(
+                f"LEDGER_UNCOMMITTED_RECORDS: {orphans} are fully verifiable but "
+                f"absent from the log, so an append was interrupted before the "
+                f"log write. They were never committed. Re-run with repair=True "
+                f"(CLI: --repair-ledger) to move them to uncommitted/."
+            )
+        else:
+            raise LedgerError(f"LEDGER_RECORDS_NOT_INCLUDED: {orphans}")
     return records, hashes
 
 
-def load_ledger(ledger_dir: Path) -> list[dict[str, Any]]:
+def load_ledger(ledger_dir: Path, *, repair: bool = False) -> list[dict[str, Any]]:
     """Verify the chain and every record's inclusion, then return the records.
 
     Raises on: broken chain, head/manifest mismatch, missing record file, a record
     whose content does not hash to its own record_id, a record file absent from
     the ledger, and any replayed record_id.
     """
-    return _walk_ledger(ledger_dir)[0]
+    with _read_lock(ledger_dir):
+        return _walk_ledger(ledger_dir, repair=repair)[0]
 
 
 def sign_ledger_anchor(head_hash: str, entry_count: int, secret: str) -> dict[str, Any]:
@@ -1787,7 +1898,8 @@ def verify_against_anchor(
     anchored head reveals it.
     """
     anchor_head, anchor_count = verify_ledger_anchor(anchor, anchor_secret)
-    _records, hashes = _walk_ledger(ledger_dir)
+    with _read_lock(ledger_dir):
+        _records, hashes = _walk_ledger(ledger_dir)
     if len(hashes) < anchor_count:
         raise LedgerError(
             f"LEDGER_ROLLBACK_DETECTED: local length {len(hashes)} < anchored {anchor_count}"
@@ -1802,6 +1914,70 @@ def verify_against_anchor(
         )
 
 
+def _authorized_edges(
+    valid: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, str], list[str]]:
+    """Accept only supersede edges that satisfy every graph invariant.
+
+    APPEND-TIME CHECKS DO NOT PROTECT THIS PATH. A ledger can arrive handcrafted
+    or migrated, having never passed through `append_rating_record`, and an
+    anchored one at that. Resolution therefore re-derives authorization from the
+    records themselves instead of trusting that some earlier writer checked.
+
+    Returns (target -> corrector, rejected corrector ids).
+    """
+    by_id = {str(r.get("record_id")): r for r in valid}
+    edges: dict[str, str] = {}
+    rejected: list[str] = []
+    claims: dict[str, list[str]] = {}
+    for record in valid:
+        raw = record.get("supersedes")
+        if not raw:
+            continue
+        claims.setdefault(str(raw), []).append(str(record.get("record_id")))
+
+    for target_id, correctors in claims.items():
+        target = by_id.get(target_id)
+        # ONE live correction per target. Two records claiming the same victim is
+        # a conflict, not a chain, so neither edge is honoured.
+        if target is None or len(correctors) != 1:
+            rejected.extend(correctors)
+            continue
+        corrector_id = correctors[0]
+        corrector = by_id[corrector_id]
+        same = (
+            str(corrector.get("item_id")) == str(target.get("item_id"))
+            and str(corrector.get("rater_key_id")) == str(target.get("rater_key_id"))
+            and str(corrector.get("rating_contract_digest"))
+            == str(target.get("rating_contract_digest"))
+        )
+        if not same:
+            rejected.append(corrector_id)
+            continue
+        edges[target_id] = corrector_id
+
+    # Acyclic: walk the superseded-by relation and drop every edge on a cycle.
+    #
+    # The walk must follow target -> corrector -> (corrector's own corrector).
+    # Following the corrector's `supersedes` field instead returns immediately to
+    # the target, so EVERY legitimate one-step correction looks like a cycle -
+    # which is exactly what the first version of this did, and what the
+    # legitimate-correction case caught.
+    for start in list(edges):
+        seen: set[str] = set()
+        cursor = start
+        while cursor in edges:
+            if cursor in seen:
+                for node in seen:
+                    corrector = edges.pop(node, None)
+                    if corrector is not None:
+                        rejected.append(corrector)
+                break
+            seen.add(cursor)
+            cursor = edges[cursor]
+    return edges, sorted(set(rejected))
+
+
 def effective_ratings(
     records: Sequence[Mapping[str, Any]],
     *,
@@ -1812,11 +1988,20 @@ def effective_ratings(
 ) -> list[dict[str, Any]]:
     """Latest non-superseded VALID record per (item_id, rater_key_id).
 
-    ORDER IS LOAD-BEARING: every record is validated and qualified FIRST, and only
-    then is supersession resolved among the survivors. Resolving first let an
-    invalid or unqualified correction delete a valid rating - the correction was
-    rejected downstream, but the victim was already gone, so a spoof suppressed
-    honest work before readiness ever saw it.
+    TWO independent gates, in this order:
+
+    1. ORDER IS LOAD-BEARING: every record is validated and qualified FIRST, and
+       only then is supersession resolved among the survivors. Resolving first let
+       an invalid or unqualified correction delete a valid rating - the correction
+       was rejected downstream, but the victim was already gone, so a spoof
+       suppressed honest work before readiness ever saw it.
+
+    2. EVERY SUPERSEDE EDGE IS RE-AUTHORIZED HERE. Append-time authorization does
+       not cover a ledger that was handcrafted or migrated rather than appended,
+       so same item/rater/contract, one-live-correction-per-target and acyclicity
+       are re-checked from the records. A record whose claimed edge is
+       unauthorized is DISCARDED, and its victim survives: fail closed in both
+       directions rather than trusting an upstream writer.
 
     The verifier context is required rather than optional for the same reason the
     supersedes parameter was removed: an optional guard is a guard someone omits.
@@ -1832,17 +2017,13 @@ def effective_ratings(
             qualified_rater_ids=qualified_rater_ids,
         )
     ]
-    valid_ids = {str(r.get("record_id")) for r in valid}
-    # Only a VALID record may supersede, and only a record that exists among the
-    # valid set may be superseded.
-    superseded = {
-        str(r["supersedes"])
-        for r in valid
-        if r.get("supersedes") and str(r["supersedes"]) in valid_ids
-    }
+    edges, rejected = _authorized_edges(valid)
+    superseded = set(edges)
+    dropped = set(rejected)
     out: dict[tuple[str, str], dict[str, Any]] = {}
     for record in valid:
-        if str(record.get("record_id")) in superseded:
+        rid = str(record.get("record_id"))
+        if rid in superseded or rid in dropped:
             continue
         key = (str(record.get("item_id")), str(record.get("rater_key_id")))
         out[key] = record
@@ -1887,6 +2068,7 @@ def build_package(
     keystore_path: Path | None = None,
     anchor_path: Path | None = None,
     anchor_secret: str | None = None,
+    repair_ledger: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     taxonomy_block = taxonomy_contract_block()
     universe, truths, census = enumerate_universe(runs_root)
@@ -1928,6 +2110,7 @@ def build_package(
         qualified_rater_ids=qualified,
         anchor_path=anchor_path,
         anchor_secret=anchor_secret,
+        repair=repair_ledger,
     )
     readiness = evaluate_readiness(
         deliverable,
@@ -2387,6 +2570,26 @@ def compute_build_id(package: Mapping[str, Any], truth: Mapping[str, Any]) -> st
 
 
 @contextmanager
+def _read_lock(directory: Path) -> Iterator[None]:
+    """SHARED reader lock. Concurrent readers coexist; an appender is excluded.
+
+    Readers previously took no lock at all, so a load could interleave with an
+    append and observe a record file that the log did not yet mention - a torn
+    read reported as corruption.
+    """
+    if not directory.is_dir():
+        yield
+        return
+    lock_path = directory / LOCK_NAME
+    with open(lock_path, "a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
 def _build_lock(directory: Path) -> Iterator[None]:
     directory.mkdir(parents=True, exist_ok=True)
     lock_path = directory / LOCK_NAME
@@ -2543,6 +2746,15 @@ def main() -> int:
         help="env var holding the anchor trust secret",
     )
     parser.add_argument(
+        "--repair-ledger",
+        action="store_true",
+        help=(
+            "repair a deterministically recoverable interrupted append: roll a "
+            "head that is behind the log forward, and quarantine fully verifiable "
+            "uncommitted records. Never implicit."
+        ),
+    )
+    parser.add_argument(
         "--export-rater-bundle",
         type=Path,
         default=None,
@@ -2557,6 +2769,7 @@ def main() -> int:
         ratings_dir=args.ratings_dir,
         anchor_path=args.ledger_anchor,
         anchor_secret=os.environ.get(args.anchor_secret_env),
+        repair_ledger=args.repair_ledger,
         registry_path=args.rater_registry,
         authority_secret=os.environ.get(args.registry_authority_secret_env),
         keystore_path=args.rater_keystore,

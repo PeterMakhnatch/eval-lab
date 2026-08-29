@@ -18,17 +18,63 @@ from evallab.task_workbench import CandidateSource, inspect_candidate
 ROOT = Path(__file__).resolve().parents[1] / "library" / "benchmarks" / "mcp-recovery-v1"
 
 
+def _benchmark_stem_names() -> set[str]:
+    """Top-level module names this benchmark can define (its ``.py`` files)."""
+    return {p.stem for p in ROOT.glob("*.py")}
+
+
+def _restore_benchmark_modules(saved: dict[str, object], stems: set[str]) -> None:
+    """Drop this benchmark's own bare imports, then restore the prior entries.
+
+    Sibling benchmark families share generic module names (``state``, ``source``,
+    ``envelope``, ``templates``, ...). To load this benchmark we temporarily evict
+    any module cached under those bare names so ``from state import ...`` resolves
+    to this benchmark's files through the scoped path. After the load we remove
+    the modules this benchmark created and restore the exact prior ``sys.modules``
+    entries (including absence), so a sibling's modules are never permanently
+    displaced.
+    """
+    root = ROOT.resolve()
+    for stem in stems:
+        module = sys.modules.get(stem)
+        if module is not None and getattr(module, "__file__", None):
+            path = Path(module.__file__).resolve()
+            if path.is_relative_to(root):
+                del sys.modules[stem]
+    for stem, prior in saved.items():
+        if prior is None:
+            sys.modules.pop(stem, None)
+        else:
+            sys.modules[stem] = prior  # type: ignore[assignment]
+
+
 def load(name: str):
     module_name = f"mcp_recovery_v1_{name}"
     if module_name in sys.modules:
         return sys.modules[module_name]
-    sys.path.insert(0, str(ROOT)) if str(ROOT) not in sys.path else None
-    spec = importlib.util.spec_from_file_location(module_name, ROOT / f"{name}.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    stems = _benchmark_stem_names()
+    # Snapshot prior bare-name entries (including absence) so a sibling's modules
+    # are restored after this scoped load rather than permanently displaced.
+    saved = {stem: sys.modules.get(stem) for stem in stems}
+    for stem in stems:
+        sys.modules.pop(stem, None)
+    orig_path = list(sys.path)
+    sys.path.insert(0, str(ROOT))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+    except BaseException:
+        # Never leave a partially-executed module cached under the unique name;
+        # a retry must start from a clean spec.
+        sys.modules.pop(module_name, None)
+        raise
+    finally:
+        sys.path[:] = orig_path
+        _restore_benchmark_modules(saved, stems)
 
 
 def test_envelope_cryptography_and_tamper_proofing():
@@ -555,3 +601,31 @@ def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatc
     for path in paths:
         inspection = inspect_candidate(repo_root=repo_root, task_path=path, source=source)
         assert inspection.static_passed is True, f"{path.name}: {inspection.diagnostics}"
+
+
+def test_runtime_state_module_not_shadowed_by_sibling_benchmark(monkeypatch):
+    """mcp-recovery-v1's `state` import must not be shadowed by loca-lean's `state`.
+
+    Mirrors the CI Python 3.12 cross-benchmark collision: once a sibling benchmark
+    has cached its own `state`/`source` modules under the shared bare names, the
+    mcp-recovery runtime (which imports `from state import ...`) must still resolve
+    this benchmark's modules.
+    """
+    loca_root = Path(__file__).resolve().parents[1] / "library" / "benchmarks" / "loca-lean-v1"
+    monkeypatch.syspath_prepend(str(loca_root))
+    state_spec = importlib.util.spec_from_file_location(
+        "loca_lean_state_probe", loca_root / "state.py"
+    )
+    assert state_spec is not None and state_spec.loader is not None
+    loca_state = importlib.util.module_from_spec(state_spec)
+    sys.modules["loca_lean_state_probe"] = loca_state
+    state_spec.loader.exec_module(loca_state)
+    # Deterministically cache loca-lean's state.py under the shared bare `state`.
+    sys.modules["state"] = loca_state
+    assert Path(sys.modules["state"].__file__).resolve() == loca_root.resolve() / "state.py"
+
+    runtime = load("runtime")
+    assert runtime.DatabaseState is not None
+    assert runtime.compute_digest is not None
+    # The displaced sibling `state` module is restored, not permanently clobbered.
+    assert sys.modules["state"] is loca_state

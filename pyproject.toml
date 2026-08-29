@@ -26,6 +26,15 @@ evallab = "evallab.cli:main"
 harbor-lab = "evallab.cli:legacy_main"
 
 [dependency-groups]
+# Dependencies required by the mcp-recovery-v1 benchmark family's certified runtime
+# and its focused tests (AES-GCM evidence envelopes and the FastMCP sidecar). They
+# are intentionally kept out of the base install: the benchmark provisions its own
+# trusted wheelhouse in the Harbor container. The CI test matrix syncs this group so
+# the contract tests can actually run.
+benchmarks = [
+    "cryptography>=41,<51",
+    "fastmcp==3.4.7",
+]
 dev = [
     "harbor-atif2otel>=0.1.0",
     "hypothesis>=6.100,<7",

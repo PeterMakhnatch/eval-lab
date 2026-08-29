@@ -6,17 +6,68 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "loca-lean-v1"
-sys.path.insert(0, str(ROOT))
+
+
+def _benchmark_stem_names() -> set[str]:
+    """Top-level module names this benchmark can define (its ``.py`` files)."""
+    return {p.stem for p in ROOT.glob("*.py")}
+
+
+def _restore_benchmark_modules(saved: dict[str, object], stems: set[str]) -> None:
+    """Drop this benchmark's own bare imports, then restore the prior entries.
+
+    Sibling benchmark families share generic module names (``state``, ``source``,
+    ``templates``, ``verifier``, ...). To load this benchmark we temporarily evict
+    any module cached under those bare names so ``from state import ...`` resolves
+    to this benchmark's files through the scoped path. After the load we remove
+    the modules this benchmark created and restore the exact prior ``sys.modules``
+    entries (including absence), so a sibling's modules are never permanently
+    displaced.
+    """
+    root = ROOT.resolve()
+    for stem in stems:
+        module = sys.modules.get(stem)
+        if module is not None and getattr(module, "__file__", None):
+            path = Path(module.__file__).resolve()
+            if path.is_relative_to(root):
+                del sys.modules[stem]
+    for stem, prior in saved.items():
+        if prior is None:
+            sys.modules.pop(stem, None)
+        else:
+            sys.modules[stem] = prior  # type: ignore[assignment]
 
 
 def load(name: str, filename: str | None = None):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"{filename or name}.py")
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+    module_name = f"loca_lean_{name}"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+    stems = _benchmark_stem_names()
+    # Snapshot prior bare-name entries (including absence) so a sibling's modules
+    # are restored after this scoped load rather than permanently displaced.
+    saved = {stem: sys.modules.get(stem) for stem in stems}
+    for stem in stems:
+        sys.modules.pop(stem, None)
+    orig_path = list(sys.path)
+    sys.path.insert(0, str(ROOT))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / f"{filename or name}.py")
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+    except BaseException:
+        # Never leave a partially-executed module cached under the unique name;
+        # a retry must start from a clean spec.
+        sys.modules.pop(module_name, None)
+        raise
+    finally:
+        sys.path[:] = orig_path
+        _restore_benchmark_modules(saved, stems)
 
 
 def test_pins_are_immutable_and_digest_addressed():
@@ -179,3 +230,64 @@ def test_verifier_robustness_and_reward_file_generation(tmp_path):
     assert "/app/task_state/agent_workspace/record.csv" in task_toml["artifacts"]
     assert task_toml["verifier"]["environment_mode"] == "separate"
     assert task_toml["task"]["authors"][0]["name"] == "LOCA-bench Contributors"
+
+
+def test_materializer_unaffected_by_sibling_benchmark_state_module(monkeypatch):
+    """A sibling benchmark's bare `state` module must not shadow loca-lean's materializer.
+
+    Regression for the CI Python 3.12 failure where mcp-recovery-v1's `state.py`
+    was cached under the shared bare name ``state`` and loca-lean's materializer
+    then raised ``ImportError: cannot import name 'CANARY' from 'state'``.
+    """
+    mcp_root = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-recovery-v1"
+    monkeypatch.syspath_prepend(str(mcp_root))
+    state_spec = importlib.util.spec_from_file_location(
+        "mcp_recovery_v1_state_probe", mcp_root / "state.py"
+    )
+    assert state_spec is not None and state_spec.loader is not None
+    mcp_state = importlib.util.module_from_spec(state_spec)
+    sys.modules["mcp_recovery_v1_state_probe"] = mcp_state
+    state_spec.loader.exec_module(mcp_state)
+    # Deterministically cache mcp-recovery-v1/state.py under the shared bare `state`.
+    sys.modules["state"] = mcp_state
+    assert Path(sys.modules["state"].__file__).resolve() == mcp_root.resolve() / "state.py"
+
+    # loca-lean's materializer must still resolve its own `state`/`source` modules.
+    materializer = load("materializer_after_mcp_state", "materializer")
+    assert callable(materializer.materialize)
+    assert set(materializer.SIZES) == {"8k", "64k", "128k"}
+    assert materializer.INSTRUCTION
+    # The displaced sibling `state` module is restored, not permanently clobbered.
+    assert sys.modules["state"] is mcp_state
+
+
+def test_failed_load_clears_partial_module_cache(monkeypatch):
+    """A load whose exec fails must not leave a partial module cached for retry.
+
+    If ``sys.modules[module_name]`` survived a failed ``exec_module``, a retry of
+    the same name would return the half-initialized module instead of reloading.
+    """
+    real_spec = importlib.util.spec_from_file_location
+
+    def failing_spec(name, path, *args, **kwargs):
+        spec = real_spec(name, path, *args, **kwargs)
+        loader = spec.loader
+
+        def boom(_module):
+            raise RuntimeError("synthetic import failure")
+
+        loader.exec_module = boom  # type: ignore[method-assign,assignment]
+        return spec
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", failing_spec)
+    module_name = "loca_lean_never_loaded_partial"
+    with pytest.raises(RuntimeError, match="synthetic import failure"):
+        load("never_loaded_partial", "source")
+    # The partial unique module was purged, so a retry reloads from scratch.
+    assert module_name not in sys.modules
+
+    # Disable the failure injection and confirm the same name now loads cleanly.
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", real_spec)
+    source = load("never_loaded_partial", "source")
+    assert callable(source.load_pins)
+    assert callable(source.fetch_pinned)

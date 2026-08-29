@@ -53,27 +53,40 @@ The evaluated corpus comprises **47 total attempts** (45 scored trials + 2 infra
 
 - **Easy (Wave 1, Flash, 3 trials):** 2/3 passed. One trial failed due to shell output format pollution: `Invalid JSON format: Extra data: line 2 column 1 (char 2)` where the agent printed a diagnostic number before emitting `/app/output/result.json`.
 - **Depth 5 (Wave 2, Flash, seeds 42, 101, 2024):** 3/3 passed. Both the single-task canary (`seed42__PBZKQYS`) and the matrix runs (`seed101__mJU4JQC`, `seed2024__gXLQWSh`) correctly discovered FastMCP tool endpoints, traversed prerequisite nodes, and wrote valid `/app/result.json` integer payloads.
-- **Depth 5 (Wave 2, Highspeed, seed 42):** 0/1 passed. Exited with `NonZeroAgentExitCodeError` before creating `/app/result.json`.
-- **Name Similarity High (Wave 2, Flash, seeds 42, 101, 2024):** Evaluated under distractor names with close edit distances.
+- **Depth 5 (Wave 2, Full GLM-5.3, seed 42):** 1/1 passed (`seed42__Ca9ToPk`).
+- **Depth 5 Highspeed Attempt:** The single planned Highspeed attempt (`mcp-funcdag-depth_5-seed42__q22U798`) threw `NonZeroAgentExitCodeError` before creating `/app/result.json` due to an upstream provider subscription entitlement error (HTTP 429: 'Your current subscription plan does not yet include access to GLM-5.3-Highspeed'). It is classified as an observed non-scored access failure, not an agent reasoning outcome.
+- **Name Similarity High (Wave 2, Flash, seeds 42, 101, 2024):** 2/3 passed (seeds 42 and 101 passed; seed 2024 failed value propagation).
 
 ### 2.2 Action Memory Context Dilation & Distraction
 
 - **4k Clean (Wave 1, Flash, 3 trials):** 3/3 passed.
 - **16k Neutral vs. Semantic (Wave 1, Flash, 3 pairs):** 3/3 passed on neutral padding; 2/3 passed on semantic distractor (one trial failed with 66 reads vs. expected 65 due to a duplicate chunk retrieval).
-- **64k Neutral vs. Semantic (Wave 2, Flash, seeds 42 & 1337):**
-  - `neutral_padding` seed 42 passed (1.0); seed 1337 scored 0.0.
-  - `semantic_distractor` seed 42 and seed 1337 both scored 0.0 with context retrieval diagnostic failures.
-- **64k Semantic Distractor (Wave 2, Highspeed, seed 42):** Scored 0.0 under context pressure.
+- **64k Seed 42 vs. Seed 1337 (Wave 2, Flash):**
+  - **Seed 42:** Both `neutral_padding` (1.0) and `semantic_distractor` (1.0) passed on Flash with complete 257/257 chunk retrieval and exact state binding.
+  - **Seed 1337:** Failed across unscaffolded neutral (0/3) and semantic (0/3) runs (matrix and repeats).
+- **64k Seed 1337 Handle-Level Failure Analysis (Wave 2, Flash, 6 trials):**
+  All six seed 1337 Action64 trials failed (0/3 neutral padding, 0/3 semantic distractor across the matrix and repeat runs). Detailed trajectory trace parsing reveals this is a **specific agent issuance, transcription, and long-sequence maintenance failure mode**, rather than complete coverage, simple reordering, or a pure token-capacity deficit:
+  1. **ATIF Issuance vs. Benchmark Events Alignment:** ATIF tool-call issuance order strictly equals the server `benchmark-events.jsonl` execution order across all six failures. This rules out server-side capture anomalies, transport dropouts, or async network reordering.
+  2. **Omitted Handle Invariant:** In all 6 trials, the agent omitted the valid listed chunk `ctx_2110473c018845ab0cc32bf4` (`...32bf4`).
+  3. **Near-Typo Hallucination:** In 5 of 6 trials (`xTVP9AZ`, `Qoz3nbU`, `wCHLZ4M`, `FLiG7jy`, `Pgukjp8`), the agent transcribed a 1-character hallucinated typo handle `ctx_2110473c018845ab0cc32bf6` (`...32bf6`). In 1 trial (`JvdEs9Y`), the agent transcribed `ctx_2110473c018845ab0cc32bf3` (`...32bf3`).
+  4. **Duplicate & Mismatch Dynamics:** In `Pgukjp8`, the agent issued 259 total calls including a duplicate typo call (`...32bf6` called twice) plus a duplicate final handle (`ctx_f4e8c2abe047ae311b1b587b`). Three trials deviated from listed order early (call index 2 or 10), whereas three trials preserved exact prefix order until encountering the omitted handle at call index 83.
+  5. **Event-Level Success:** 256/257 calls (99.6%) succeeded on the FastMCP server; the single unlisted typo handle returned a 404 error.
+- **64k Semantic Distractor (Wave 2, Full GLM-5.3, seed 42):** Scored 0.0 under context pressure.
 
 ### 2.3 Recovery Fault Detection & Autonomous Adaptation
 
 - **Transient HTTP 5xx, Persistence 1 (Wave 1, Flash, 3 pairs):** 3/3 passed on clean twin; 2/3 passed on fault arm. In the failing fault trial, the agent retried and wrote the record without executing the mandatory recovery mutation (`refresh_auth`), resulting in `causal_mutation=false` from the verifier.
-- **Persistent Signature Error & Silent Wrong Payload (Wave 2, Flash, seeds 42 & 1337):** Tested under non-transient error conditions and masked payload failures.
+- **Persistent Signature Error (Wave 2, Flash & Full GLM-5.3):** 4/4 passed on Flash (seeds 42 & 1337); 1/1 passed on Full GLM-5.3.
+- **Silent Wrong Payload (Wave 2, Flash):** 4/4 passed on Flash (seeds 42 & 1337).
+
 ### 2.4 Sequential Retrieval Scaffold Pacing & Infrastructure Timeout Feasibility
 
-- **Default Timeout Execution:** The initial sequential scaffold run (`zai-wave2-action64k-s1337-sequential-scaffold`) produced 2 `AgentTimeoutError` outcomes when cut off by Harbor's default agent timeout ceiling.
-- **Pacing Analysis:** At 64k context volume (257 discrete chunks), issuing sequential one-by-one tool calls requires 257 distinct tool-invocation round trips. At ~3.5–4.5s per turn, total execution requires ~15–20 minutes, exceeding the default 10–15 minute agent watchdog timeout.
-- **Feasibility & Pacing Evidence:** Container log inspection verified that the agent was actively and correctly issuing chunk retrieval calls (reaching chunks 75–180) until cut off. This is classified as an infrastructure/pacing budget constraint, excluded from scored model reasoning denominators, and mitigated in `zai-wave2-action64k-s1337-sequential-scaffold-t3` via `agent-timeout-multiplier=3`.
+- **Final Timeout×3 Execution (t3 Rerun):** The clean rerun with `agent-timeout-multiplier=3` (`zai-wave2-action64k-s1337-sequential-scaffold-t3`) completed 2 valid scored trials:
+  1. `action-64k-neutral_padding-s1337__u4CZxsA` **passed (reward 1.0)**, reading exact 257/257 chunks sequentially and executing the exact final state binding `f3e822e6_v2` for `entity_817.routing_key` (**6,683,558 prompt tokens**, 10,662 completion).
+  2. `action-64k-semantic_distractor-s__A67eDZ2` **scored 0.0**, reading 232/257 chunks before early mutation under semantic distractor pressure (**7,454,261 prompt tokens**, 13,526 completion).
+- **Prompt Token Expansion:** Total prompt tokens across t3: **14,137,819 prompt tokens** with a two-concurrent wall-clock duration of **23 minutes 50 seconds**. In comparison, the 9 unscaffolded Action 64k trials averaged **412,753 prompt tokens** (range 227,610 – 539,198), representing a **~16–18x prompt expansion** due to accumulating prompt history across 257 single-chunk turns.
+- **Policy & Non-Generalization:** While the sequential scaffold resolved the single-character transcription error on neutral padding, it failed on semantic distractors and imposed severe token and latency overhead. **No general effectiveness claim is made.**
+- **Default Timeout Execution (First Run):** The initial sequential scaffold run (`zai-wave2-action64k-s1337-sequential-scaffold`) produced 2 `AgentTimeoutError` outcomes when cut off by Harbor's default agent timeout ceiling while issuing chunk reads. These are classified as non-scored harness budget constraints (`reward = None`).
 
 ---
 
@@ -86,9 +99,9 @@ All comparisons are strictly blocked on matching task, seed, and perturbation pa
 | Action Memory 64k Neutral vs Semantic Distractor | context_dilation_distractor | 64k neutral padding (n=6) | 64k semantic distractor (n=6) | 0.400 | 0.200 | -0.200 | Neutral arm n=6, Semantic arm n=6; Seed-matched pairs for s42 and s1337. |
 | Recovery persistent_signature_error: Fault vs Clean Twin | fault_injection_effect | persistent_signature_error clean twin (n=2) | persistent_signature_error fault arm (n=2) | 1.000 | 1.000 | +0.000 | Clean twin n=2, Fault arm n=2; Tests whether unperturbed state passes vs causal recovery under perturbation. |
 | Recovery silent_wrong_payload: Fault vs Clean Twin | fault_injection_effect | silent_wrong_payload clean twin (n=2) | silent_wrong_payload fault arm (n=2) | 1.000 | 1.000 | +0.000 | Clean twin n=2, Fault arm n=2; Tests whether unperturbed state passes vs causal recovery under perturbation. |
-| Paired Model Contrast: funcdag_depth5_s42 | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=1, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
-| Paired Model Contrast: action_64k_semantic_s42 | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=1, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
-| Paired Model Contrast: recovery_persistent_s42 | model_variant_pairing | GLM-5.3-Flash (n=2) | GLM-5.3-Highspeed (n=0) | 1.000 | 0.000 | -1.000 | Flash n=2, Highspeed n=0; Direct paired comparison on identical task configuration. Not a general model ranking. |
+| Paired Model Contrast: funcdag_depth5_s42 | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3 Full (n=1) | 1.000 | 1.000 | +0.000 | Flash n=1, Full n=1; Direct paired comparison on identical task configuration. Not a general model ranking. |
+| Paired Model Contrast: action_64k_semantic_s42 | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3 Full (n=1) | 1.000 | 0.000 | -1.000 | Flash n=1, Full n=1; Direct paired comparison on identical task configuration. Not a general model ranking. |
+| Paired Model Contrast: recovery_persistent_s42_fault | model_variant_pairing | GLM-5.3-Flash (n=1) | GLM-5.3 Full (n=1) | 1.000 | 1.000 | +0.000 | Flash n=1, Full n=1; Direct paired comparison on identical task configuration. Not a general model ranking. |
 
 ---
 
@@ -142,7 +155,7 @@ The frozen Research-Engineer T1 analysis API suite was executed over the full co
 
 In accordance with repository epistemic governance standards, the following claims are explicitly **barred**:
 
-- **No General Model Ranking:** Flash vs. Highspeed differences are reported only for the three exact matched tasks, not as general capability claims.
+- **No General Model Ranking:** GLM-5.3 Full vs. Flash differences are reported only for the three exact matched tasks (Full 2/3 vs. Flash 3/3), not as general capability or ranking claims.
 - **No Parametric Dose-Response Scaling Law:** Action Memory context degradation is non-linear and confounded across wave seeds.
 - **No Cost / Throughput Extrapolations:** No per-token billing rates or latency guarantees are claimed.
 - **No Unchecked Causal Assertions:** Recovery pass rates are causal only when conditioned on verified verifier mutations (`causal_mutation=true`).

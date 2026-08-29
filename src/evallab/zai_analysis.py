@@ -507,25 +507,26 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
 
     rew_a = [float(t.reward) for t in action_64k_neutral if t.reward is not None]
     rew_b = [float(t.reward) for t in action_64k_semantic if t.reward is not None]
-    r_a = statistics.fmean(rew_a) if rew_a else 0.0
-    r_b = statistics.fmean(rew_b) if rew_b else 0.0
-    contrasts.append(
-        ContrastGroup(
-            contrast_name="Action Memory 64k Neutral vs Semantic Distractor",
-            dimension="context_dilation_distractor",
-            arm_a_label="64k neutral padding",
-            arm_b_label="64k semantic distractor",
-            trials_arm_a=action_64k_neutral,
-            trials_arm_b=action_64k_semantic,
-            mean_reward_a=r_a,
-            mean_reward_b=r_b,
-            reward_delta=r_b - r_a,
-            notes=[
-                f"Neutral arm n={len(action_64k_neutral)}, Semantic arm n={len(action_64k_semantic)}",
-                "Seed-matched pairs for s42 and s1337.",
-            ],
+    if rew_a and rew_b:
+        r_a = statistics.fmean(rew_a)
+        r_b = statistics.fmean(rew_b)
+        contrasts.append(
+            ContrastGroup(
+                contrast_name="Action Memory 64k Neutral vs Semantic Distractor",
+                dimension="context_dilation_distractor",
+                arm_a_label="64k neutral padding",
+                arm_b_label="64k semantic distractor",
+                trials_arm_a=action_64k_neutral,
+                trials_arm_b=action_64k_semantic,
+                mean_reward_a=r_a,
+                mean_reward_b=r_b,
+                reward_delta=r_b - r_a,
+                notes=[
+                    f"Neutral arm n={len(action_64k_neutral)}, Semantic arm n={len(action_64k_semantic)}",
+                    "Seed-matched pairs for s42 and s1337.",
+                ],
+            )
         )
-    )
 
     # 2. Recovery: Fault vs Clean Twin by Fault Class (Wave 1 + Wave 2)
     for factor_name in (
@@ -549,11 +550,11 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
             and t.arm == "clean_twin"
             and t.model_name == "glm-5.3-flash"
         ]
-        if rec_fault or rec_clean:
-            rew_f = [float(t.reward) for t in rec_fault if t.reward is not None]
-            rew_c = [float(t.reward) for t in rec_clean if t.reward is not None]
-            rf = statistics.fmean(rew_f) if rew_f else 0.0
-            rc = statistics.fmean(rew_c) if rew_c else 0.0
+        rew_f = [float(t.reward) for t in rec_fault if t.reward is not None]
+        rew_c = [float(t.reward) for t in rec_clean if t.reward is not None]
+        if rew_f and rew_c:
+            rf = statistics.fmean(rew_f)
+            rc = statistics.fmean(rew_c)
             contrasts.append(
                 ContrastGroup(
                     contrast_name=f"Recovery {factor_name}: Fault vs Clean Twin",
@@ -572,10 +573,14 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
                 )
             )
 
-    # 3. Flash vs Highspeed Paired Mini Contrasts (Wave 2 paired tasks)
-    for task_stem in ("funcdag_depth5_s42", "action_64k_semantic_s42", "recovery_persistent_s42"):
+    # 3. GLM-5.3 Full vs GLM-5.3-Flash Paired Mini Contrasts (Wave 2 paired tasks)
+    for task_stem in (
+        "funcdag_depth5_s42",
+        "action_64k_semantic_s42",
+        "recovery_persistent_s42_fault",
+    ):
         flash_trials = []
-        highspeed_trials = []
+        full_trials = []
         if task_stem == "funcdag_depth5_s42":
             flash_trials = [
                 t
@@ -584,14 +589,15 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
                 and t.dose == "depth_5"
                 and t.seed == 42
                 and t.model_name == "glm-5.3-flash"
+                and t.job_name == "zai-wave2-funcdag-depth5-s42"
             ]
-            highspeed_trials = [
+            full_trials = [
                 t
                 for t in all_trials
                 if t.benchmark_family == "funcdag"
                 and t.dose == "depth_5"
                 and t.seed == 42
-                and t.model_name == "glm-5.3-highspeed"
+                and t.model_name == "glm-5.3-full"
             ]
         elif task_stem == "action_64k_semantic_s42":
             flash_trials = [
@@ -602,52 +608,56 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
                 and t.arm == "semantic_distractor"
                 and t.seed == 42
                 and t.model_name == "glm-5.3-flash"
+                and t.job_name == "zai-wave2-flash-matrix"
             ]
-            highspeed_trials = [
+            full_trials = [
                 t
                 for t in all_trials
                 if t.benchmark_family == "action_memory"
                 and t.dose == "64k"
                 and t.arm == "semantic_distractor"
                 and t.seed == 42
-                and t.model_name == "glm-5.3-highspeed"
+                and t.model_name == "glm-5.3-full"
             ]
-        elif task_stem == "recovery_persistent_s42":
+        elif task_stem == "recovery_persistent_s42_fault":
             flash_trials = [
                 t
                 for t in all_trials
                 if t.benchmark_family == "recovery"
                 and t.factor == "persistent_signature_error"
+                and t.arm == "fault"
                 and t.seed == 42
                 and t.model_name == "glm-5.3-flash"
+                and t.job_name == "zai-wave2-flash-matrix"
             ]
-            highspeed_trials = [
+            full_trials = [
                 t
                 for t in all_trials
                 if t.benchmark_family == "recovery"
                 and t.factor == "persistent_signature_error"
+                and t.arm == "fault"
                 and t.seed == 42
-                and t.model_name == "glm-5.3-highspeed"
+                and t.model_name == "glm-5.3-full"
             ]
 
-        if flash_trials or highspeed_trials:
-            rew_flash = [float(t.reward) for t in flash_trials if t.reward is not None]
-            rew_hs = [float(t.reward) for t in highspeed_trials if t.reward is not None]
-            r_flash = statistics.fmean(rew_flash) if rew_flash else 0.0
-            r_hs = statistics.fmean(rew_hs) if rew_hs else 0.0
+        rew_flash = [float(t.reward) for t in flash_trials if t.reward is not None]
+        rew_full = [float(t.reward) for t in full_trials if t.reward is not None]
+        if rew_flash and rew_full:
+            r_flash = statistics.fmean(rew_flash)
+            r_full = statistics.fmean(rew_full)
             contrasts.append(
                 ContrastGroup(
                     contrast_name=f"Paired Model Contrast: {task_stem}",
                     dimension="model_variant_pairing",
                     arm_a_label="GLM-5.3-Flash",
-                    arm_b_label="GLM-5.3-Highspeed",
+                    arm_b_label="GLM-5.3 Full",
                     trials_arm_a=flash_trials,
-                    trials_arm_b=highspeed_trials,
+                    trials_arm_b=full_trials,
                     mean_reward_a=r_flash,
-                    mean_reward_b=r_hs,
-                    reward_delta=r_hs - r_flash,
+                    mean_reward_b=r_full,
+                    reward_delta=r_full - r_flash,
                     notes=[
-                        f"Flash n={len(flash_trials)}, Highspeed n={len(highspeed_trials)}",
+                        f"Flash n={len(flash_trials)}, Full n={len(full_trials)}",
                         "Direct paired comparison on identical task configuration. Not a general model ranking.",
                     ],
                 )

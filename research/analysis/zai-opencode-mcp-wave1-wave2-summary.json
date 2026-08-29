@@ -1413,16 +1413,16 @@
     },
     {
       "arm_a_label": "GLM-5.3-Flash",
-      "arm_b_label": "GLM-5.3-Highspeed",
+      "arm_b_label": "GLM-5.3 Full",
       "contrast_name": "Paired Model Contrast: funcdag_depth5_s42",
       "dimension": "model_variant_pairing",
       "mean_reward_a": 1.0,
-      "mean_reward_b": 0.0,
+      "mean_reward_b": 1.0,
       "notes": [
-        "Flash n=1, Highspeed n=0",
+        "Flash n=1, Full n=1",
         "Direct paired comparison on identical task configuration. Not a general model ranking."
       ],
-      "reward_delta": -1.0,
+      "reward_delta": 0.0,
       "trials_arm_a": [
         {
           "agent_name": "zai_opencode_adapter:ZaiOpenCode",
@@ -1473,17 +1473,66 @@
           "wave": "wave2"
         }
       ],
-      "trials_arm_b": []
+      "trials_arm_b": [
+        {
+          "agent_name": "zai_opencode_adapter:ZaiOpenCode",
+          "arm": null,
+          "benchmark_family": "funcdag",
+          "cached_tokens": 60672,
+          "causal_mutation": null,
+          "censor_step": 8,
+          "chunk_event_success_rate": null,
+          "completion_tokens": 395,
+          "dose": "depth_5",
+          "duplicate_handles": [],
+          "duration_seconds": 0.0,
+          "exception_class": null,
+          "exception_message": null,
+          "expected_handle_count": null,
+          "expected_reads": null,
+          "factor": "depth_5",
+          "first_error_step": 1,
+          "first_mismatch_call_index": null,
+          "first_mismatch_step_id": null,
+          "is_infra_exception": false,
+          "issued_handle_count": null,
+          "job_name": "zai-wave2-glm53-funcdag-canary",
+          "lock_event_observed": false,
+          "lock_evidence_ref": null,
+          "lock_predicate_id": null,
+          "lock_step": null,
+          "model_name": "glm-5.3-full",
+          "observed_reads": null,
+          "omitted_handles": [],
+          "passed": true,
+          "prompt_tokens": 68823,
+          "result_digest": "sha256:844c440b30ae032b13c0c3348325d9f5bf4a046393234a6350c89b1cc369594e",
+          "reward": 1.0,
+          "right_censored": true,
+          "seed": 42,
+          "step_count": 8,
+          "target_value_observed": null,
+          "task_name": "evallab/mcp-funcdag-depth_5-seed42",
+          "tool_call_count": 10,
+          "trajectory_digest": "sha256:15ff55ab35e3a368256e15d2854db96c021d6d159c8dbc542a92358a643ffd30",
+          "trial_dir": "research/evidence/runs/zai-wave2-glm53-funcdag-canary/mcp-funcdag-depth_5-seed42__Ca9ToPk",
+          "trial_name": "mcp-funcdag-depth_5-seed42__Ca9ToPk",
+          "unknown_handles": [],
+          "valid_chunk_call_count": null,
+          "verifier_reason": null,
+          "wave": "wave2"
+        }
+      ]
     },
     {
       "arm_a_label": "GLM-5.3-Flash",
-      "arm_b_label": "GLM-5.3-Highspeed",
+      "arm_b_label": "GLM-5.3 Full",
       "contrast_name": "Paired Model Contrast: action_64k_semantic_s42",
       "dimension": "model_variant_pairing",
       "mean_reward_a": 1.0,
       "mean_reward_b": 0.0,
       "notes": [
-        "Flash n=1, Highspeed n=0",
+        "Flash n=1, Full n=1",
         "Direct paired comparison on identical task configuration. Not a general model ranking."
       ],
       "reward_delta": -1.0,
@@ -1537,20 +1586,71 @@
           "wave": "wave2"
         }
       ],
-      "trials_arm_b": []
+      "trials_arm_b": [
+        {
+          "agent_name": "zai_opencode_adapter:ZaiOpenCode",
+          "arm": "semantic_distractor",
+          "benchmark_family": "action_memory",
+          "cached_tokens": 492672,
+          "causal_mutation": null,
+          "censor_step": 19,
+          "chunk_event_success_rate": 1.0,
+          "completion_tokens": 8640,
+          "dose": "64k",
+          "duplicate_handles": [
+            "ctx_07885d4e5dd4e2748872869d"
+          ],
+          "duration_seconds": 0.0,
+          "exception_class": null,
+          "exception_message": null,
+          "expected_handle_count": 257,
+          "expected_reads": 257,
+          "factor": null,
+          "first_error_step": 1,
+          "first_mismatch_call_index": 1,
+          "first_mismatch_step_id": 3,
+          "is_infra_exception": false,
+          "issued_handle_count": 258,
+          "job_name": "zai-wave2-glm53-paired-mini",
+          "lock_event_observed": false,
+          "lock_evidence_ref": null,
+          "lock_predicate_id": null,
+          "lock_step": null,
+          "model_name": "glm-5.3-full",
+          "observed_reads": 258,
+          "omitted_handles": [],
+          "passed": false,
+          "prompt_tokens": 539198,
+          "result_digest": "sha256:978878b41724ac501af5d15485ee2f1b485fec01ec45382016438cf8a91db7f2",
+          "reward": 0.0,
+          "right_censored": true,
+          "seed": 42,
+          "step_count": 19,
+          "target_value_observed": null,
+          "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s42-seed42",
+          "tool_call_count": 260,
+          "trajectory_digest": "sha256:e88fccd510d93f6f66218b6687ca3e27c44a4916657c76a733ca429ef1c27ec0",
+          "trial_dir": "research/evidence/runs/zai-wave2-glm53-paired-mini/action-64k-semantic_distractor-s__ZppWXWx",
+          "trial_name": "action-64k-semantic_distractor-s__ZppWXWx",
+          "unknown_handles": [],
+          "valid_chunk_call_count": 258,
+          "verifier_reason": "incomplete_or_reordered_context_retrieval",
+          "wave": "wave2"
+        }
+      ]
     },
     {
       "arm_a_label": "GLM-5.3-Flash",
-      "arm_b_label": "GLM-5.3-Highspeed",
-      "contrast_name": "Paired Model Contrast: recovery_persistent_s42",
+      "arm_b_label": "GLM-5.3 Full",
+      "contrast_name": "Paired Model Contrast: recovery_persistent_s42_fault",
       "dimension": "model_variant_pairing",
       "mean_reward_a": 1.0,
-      "mean_reward_b": 0.0,
+      "mean_reward_b": 1.0,
       "notes": [
-        "Flash n=2, Highspeed n=0",
+        "Flash n=1, Full n=1",
         "Direct paired comparison on identical task configuration. Not a general model ranking."
       ],
-      "reward_delta": -1.0,
+      "reward_delta": 0.0,
       "trials_arm_a": [
         {
           "agent_name": "zai_opencode_adapter:ZaiOpenCode",
@@ -1599,16 +1699,18 @@
           "valid_chunk_call_count": null,
           "verifier_reason": null,
           "wave": "wave2"
-        },
+        }
+      ],
+      "trials_arm_b": [
         {
           "agent_name": "zai_opencode_adapter:ZaiOpenCode",
-          "arm": "clean_twin",
+          "arm": "fault",
           "benchmark_family": "recovery",
-          "cached_tokens": 15360,
+          "cached_tokens": 33472,
           "causal_mutation": null,
-          "censor_step": null,
+          "censor_step": 6,
           "chunk_event_success_rate": null,
-          "completion_tokens": 161,
+          "completion_tokens": 200,
           "dose": null,
           "duplicate_handles": [],
           "duration_seconds": 0.0,
@@ -1617,39 +1719,38 @@
           "expected_handle_count": null,
           "expected_reads": null,
           "factor": "persistent_signature_error",
-          "first_error_step": null,
+          "first_error_step": 1,
           "first_mismatch_call_index": null,
           "first_mismatch_step_id": null,
           "is_infra_exception": false,
           "issued_handle_count": null,
-          "job_name": "zai-wave2-flash-matrix",
+          "job_name": "zai-wave2-glm53-paired-mini",
           "lock_event_observed": false,
           "lock_evidence_ref": null,
           "lock_predicate_id": null,
           "lock_step": null,
-          "model_name": "glm-5.3-flash",
+          "model_name": "glm-5.3-full",
           "observed_reads": null,
           "omitted_handles": [],
           "passed": true,
-          "prompt_tokens": 23337,
-          "result_digest": "sha256:af1f6f43db04ae800873e34bb41b50767d0424ecdb9f0f01910d5b836155cb72",
+          "prompt_tokens": 39201,
+          "result_digest": "sha256:8003296b155f303026139fbfda2736febdb80339bd63de98d171304f68da9978",
           "reward": 1.0,
-          "right_censored": false,
+          "right_censored": true,
           "seed": 42,
-          "step_count": 4,
+          "step_count": 6,
           "target_value_observed": null,
-          "task_name": "local-lab/mcp-rec-46a38fb8ef932c93",
-          "tool_call_count": 2,
-          "trajectory_digest": "sha256:64bec0c5e74d554c63645adec4b7cda8c312c73249d1e69d027179a4fca878a4",
-          "trial_dir": "research/evidence/runs/zai-wave2-flash-matrix/recovery-persistent-signature-er__mp4YbvW",
-          "trial_name": "recovery-persistent-signature-er__mp4YbvW",
+          "task_name": "local-lab/mcp-rec-bb6774473ea0055b",
+          "tool_call_count": 4,
+          "trajectory_digest": "sha256:0074d3f246327a761fd19489bf5b26cca7044c4d5798e8cc97759f93bb97b02a",
+          "trial_dir": "research/evidence/runs/zai-wave2-glm53-paired-mini/recovery-persistent-signature-er__pgAA5NR",
+          "trial_name": "recovery-persistent-signature-er__pgAA5NR",
           "unknown_handles": [],
           "valid_chunk_call_count": null,
           "verifier_reason": null,
           "wave": "wave2"
         }
-      ],
-      "trials_arm_b": []
+      ]
     }
   ],
   "families": {
@@ -1671,10 +1772,10 @@
   },
   "models": {
     "glm-5.3-flash": {
-      "failed": 13,
+      "failed": 11,
       "mean_reward": 0.7380952380952381,
       "passed": 31,
-      "total_trials": 44
+      "total_trials": 42
     },
     "glm-5.3-full": {
       "failed": 1,

@@ -1129,14 +1129,17 @@ class DirectoryQueue:
             )
             + "\n"
         ).encode()
-        with self._lease_guard(path):
-            try:
-                descriptor = os.open(
-                    path,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                    0o600,
-                )
-            except FileExistsError:
+        # Fast path: O_EXCL creation is itself atomic, so an uncontended claim
+        # needs no cross-executor lock. The lease guard is only required to
+        # serialize a stale-lease reclaim against concurrent claimants.
+        try:
+            descriptor = os.open(
+                path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+            )
+        except FileExistsError:
+            with self._lease_guard(path):
                 if not self.is_lease_stale(path, stale_seconds=stale_seconds):
                     return None
                 try:
@@ -1148,15 +1151,18 @@ class DirectoryQueue:
                     )
                 except (FileExistsError, OSError):
                     return None
-            except OSError:
-                return None
-            try:
-                with os.fdopen(descriptor, "wb", closefd=False) as destination:
-                    destination.write(payload)
-                    destination.flush()
-                    os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+        except OSError:
+            return None
+        # Advisory coordination record, not a recovery root: the strict
+        # generation reader fails closed on a torn write, and a stale lease is
+        # reclaimed by mtime. Skip the per-claim fsync so a wide tick does not
+        # pay a filesystem barrier for every lease (PERF budget).
+        try:
+            with os.fdopen(descriptor, "wb", closefd=False) as destination:
+                destination.write(payload)
+                destination.flush()
+        finally:
+            os.close(descriptor)
         return path
 
     def request_cancel(self, spec: ExperimentSpec) -> bool:

@@ -1,5 +1,5 @@
 {
-  "schema_note": "Analyst roadmap spec, not an execution authorization. allow_billable stays false and no PaidRunAuthorization is attached. Reviewed by a human before any run.",
+  "schema_note": "Analyst roadmap spec, REPORT ONLY - not an execution authorization and not an edit to any owned lane. allow_billable stays false, no PaidRunAuthorization attached. Matched/twin keys, denominator contracts and prompt_tokens_per_step/prompt_cache_hit_rate enforcement are owned by the C1 Agent Data lane (PR #303); the denominator_declaration block below is a REQUEST to that lane, not a local definition. C2 promotion is owned solely by wH:p9. No intervention recipe or C0/quality infrastructure is touched.",
   "campaign_id": "campaign-0-action-memory-dose-ladder",
   "roadmap_ref": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md#e3",
   "evidence_pin": "origin/main 53a3af58",
@@ -93,7 +93,22 @@
       "total_trials": 100,
       "rationale": "USER-REPORTED wave-2 repeats: seed 1337 at 64k is 0/3 neutral and 0/3 semantic with repeat-stable complete-257-read-but-reordered signatures across all six trials, while seed 42 is 2/2. Repeat-stability suggests, without establishing, that further within-seed reps at a failing high-dose seed add little. Observed variance was between seeds; within-seed variance was unobserved-but-stable, which is weaker than zero. Adopt provisionally and revisit once the scaffold arm and more seeds report.",
       "estimand_change": "IF high-dose outcomes are largely seed-determined, the informative quantity is the fraction of SEEDS that fail rather than a success rate pooled over trials. Contingent on the pattern holding; 3 seeds cannot estimate it at all.",
-      "status": "RECOMMENDATION, not an established optimum"
+      "status": "RECOMMENDATION requiring generator work - NOT runnable today. DOSE_LADDER_SEEDS defines only (42, 1337, 2026), so 8 seeds needs a generator change plus re-certification."
+    },
+    "runnable_now": {
+      "doses_permitted": [
+        4096,
+        16384,
+        65536,
+        131072
+      ],
+      "seeds_permitted": [
+        42,
+        1337,
+        2026
+      ],
+      "source": "library/benchmarks/action-memory-v1/dose_ladder.py:21-22; generate_matched_dose_arm raises ValueError for an unsupported dose at :79; dose_ladder_contract.json pins both lists",
+      "consequence": "The 8-seed high-dose recommendation and the 32k gap are BOTH outside the certified envelope. Only 3 seeds and 4 doses exist. Each requires a generator change plus re-certification in its own PR before any trial can run, so neither is the next runnable cell. The runnable version of this campaign is 4 doses x 2 arms x 3 seeds."
     }
   },
   "estimands": {
@@ -232,9 +247,15 @@
       }
     },
     "no_ranking_claim": "Lanes overlap on three cells at n=1 each; MDE is undefined below n=40 at these baselines.",
-    "characterisation": "At 64k the arm difference is 0 within the two seeds observed. This does NOT refute an all-dose semantic effect: wave-1 16k was neutral 3/3 vs semantic 2/3, pointing the other way on a one-trial difference. Seed changes generated content, entity IDs AND read order together, so a seed/order interaction is an inference, not isolated causality.",
+    "characterisation": "At 64k, outcomes differed by seed and not by arm within the two observed seeds. This does NOT refute an all-dose semantic effect: wave-1 16k was neutral 3/3 vs semantic 2/3, pointing the other way on a one-trial difference. Seed changes generated content, entity IDs AND read order together, so a seed/order interaction is an inference, not isolated causality.",
     "pending": "Sequential-retrieval scaffold still running; unscaffolded results only.",
-    "unrun_gap": "32k is unrun and is the interesting dose: 16k hints at an arm effect, 64k shows none."
+    "unrun_gap": "The interesting gap is between 16k and 64k. A 32k cell DOES NOT EXIST: dose_ladder.py permits only 4k/16k/64k/128k and rejects anything else. Adding it is a generator + certification PR, not a campaign cell.",
+    "recovery_repair_moves": {
+      "persistent_faults": "refresh_auth in both seeds",
+      "silent_wrong_payload": "fallback_query in both seeds, one also refresh_auth",
+      "reading": "Two distinct class-appropriate repair moves weaken a single-repair-move hypothesis but do not settle it: 2 of 5 classes ran, n=2 per cell."
+    },
+    "funcdag_axes": "Depth 5 produced no failures in four observed trials; high name-similarity produced one failure in three and is the current candidate difficulty axis. Four trials cannot establish a ceiling, so depth is not called saturated."
   },
   "sequential_scaffold": {
     "status": "USER-REPORTED: both default-timeout trials ended in AgentTimeoutError while still issuing one-by-one reads; timeout-multiplier=3 rerun in flight",

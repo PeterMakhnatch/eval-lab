@@ -741,3 +741,51 @@ which contradicted §5 recording those parameters as decided.
 7. Label
 
 Steps 1–3 are **prerequisites** for 6–7, not parallel to them.
+
+### 7.6 Known and deliberately deferred — recorded, not fixed
+
+Security review of `87e17176` approved merge under a critical-path scope. These
+were left open on purpose. They are written down here because an unrecorded
+deferral becomes an unknown defect at the next handover, and because every item
+below was found by review rather than by our own tests.
+
+**Correctness of resolution**
+
+| Item | Current behaviour | Why it matters |
+|---|---|---|
+| Self-superseding record | Dropped **silently** | Structurally impossible via append, so by the wrong-type rule (5b.3) it should refuse the whole intake, not degrade quietly |
+| Duplicate live `(item_id, rater_key_id)` | **Last-wins**, no diagnostic | Two live ratings for one rater on one item is a contradiction, not a preference |
+| Rejected graph edges | Computed, **not reported** | `_authorized_edges` knows exactly which edges it refused; readiness never sees them, so a hostile ledger looks merely sparse |
+| Correction targeting an invalid victim | Both records drop | A dead end: the correction is orphaned rather than diagnosed |
+
+**Durability and availability**
+
+| Item | Current behaviour | Why it matters |
+|---|---|---|
+| Torn final `ledger.jsonl` line | **Non-repairable** | The third crash window. The first two are classified and repairable; a partial final line should be too, given the prior chain verifies and the head matches the prior prefix |
+| `publish_anchor` serialization | No lock | Concurrent publication can interleave the log append and the atomic anchor write |
+| Anchor-root directory | Not `fsync`ed | Both of these fail closed and self-heal, but can refuse availability rather than corrupt state |
+
+**Anchor rollback — the residual is a process control**
+
+An actor holding the coordinator signing key **or** write access to the anchor
+root can publish a stale anchor together with a rewritten log. The monotonic
+`.anchor.log` raises the bar to two artifacts; it does not eliminate the class.
+Real defence needs an external append-only publication channel — **a VCS commit
+is sufficient** — which is a process control this code cannot enforce.
+
+### 7.7 Campaign preconditions — Tutor, 2026-08-29
+
+**Pooled AC1 only.** Per-stratum agreement is not reportable on the current cut:
+the non-tool strata carry $n = 1$, one item per cluster, so a per-stratum interval
+has no sampling basis. AC1 is computed **pooled** over the declared universe of
+$q = 12$ categories, exactly as 7.4 fixes it, until a re-cut gives the strata
+real mass.
+
+Three preconditions before labelling, beyond the cluster and context gates:
+
+1. The signed registry must carry **per-item expected submission counts**, so
+   missing coverage is detectable rather than inferred from silence.
+2. Resolution must publish an **accounting identity** — accepted + superseded +
+   rejected + dropped = seen — with rejected edges reported (7.6).
+3. The anchor head must be **externally published**; a VCS commit satisfies this.

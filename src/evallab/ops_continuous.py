@@ -527,8 +527,32 @@ def admission_reason(ctx: OperatorContext) -> str | None:
     return None
 
 
+def _fenced_mode(state_dir: Path) -> str | None:
+    mode = read_mode(state_dir)
+    if mode in {"KILLED", "DRAINING"}:
+        return mode
+    return None
+
+
+def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
+    path = state_dir / "inflight.json"
+    if not path.is_file():
+        return [], None
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, "malformed_inflight"
+    if not isinstance(loaded, list):
+        return None, "malformed_inflight"
+    if any(not isinstance(item, str) or not item.strip() for item in loaded):
+        return None, "malformed_inflight"
+    return loaded, None
+
+
 def cmd_validate(ctx: OperatorContext) -> OperatorVerdict:
-    write_mode(ctx.state_dir, DEFAULT_MODE)
+    fenced = _fenced_mode(ctx.state_dir)
+    if fenced is None:
+        write_mode(ctx.state_dir, DEFAULT_MODE)
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="control plane remains DISABLED")
@@ -537,12 +561,14 @@ def cmd_validate(ctx: OperatorContext) -> OperatorVerdict:
         ok=True,
         reason=None,
         detail="gates passed; unit remains disabled; no service started",
-        extra={"gates": "passed"},
+        extra={"gates": "passed", "fenced": fenced},
     )
 
 
 def cmd_start(ctx: OperatorContext) -> OperatorVerdict:
-    write_mode(ctx.state_dir, DEFAULT_MODE)
+    fenced = _fenced_mode(ctx.state_dir)
+    if fenced is None:
+        write_mode(ctx.state_dir, DEFAULT_MODE)
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="start refused; remains DISABLED")
@@ -620,32 +646,32 @@ def cmd_rollback(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
-    write_mode(ctx.state_dir, "DRAINING")
-    leases_path = ctx.state_dir / "inflight.json"
-    inflight = []
-    if leases_path.is_file():
-        loaded = json.loads(leases_path.read_text(encoding="utf-8"))
-        inflight = list(loaded) if isinstance(loaded, list) else []
+    if read_mode(ctx.state_dir) != "KILLED":
+        write_mode(ctx.state_dir, "DRAINING")
+    inflight, inflight_error = _load_inflight(ctx.state_dir)
     started_raw = _read_text(ctx.state_dir / "drain_started")
     if not started_raw:
         _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
-        started = ctx.now
-    else:
-        started = datetime.fromisoformat(started_raw.replace("Z", "+00:00"))
-        if started.tzinfo is None:
-            started = started.replace(tzinfo=UTC)
-    timeout = ctx.drain_timeout_seconds
-    if timeout is None and ctx.policy is not None:
-        timeout = float(ctx.policy.operational_limits.maintenance_drain_timeout_seconds)
-    if inflight and timeout is not None and (ctx.now - started) > timedelta(seconds=timeout):
-        drain = {"inflight": inflight, "complete": False}
-        _write_text(ctx.state_dir / "drain.json", json.dumps(drain, indent=2))
-        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="in-flight leases remain")
-    if inflight:
-        drain = {"inflight": inflight, "complete": False, "waiting": True}
-        _write_text(ctx.state_dir / "drain.json", json.dumps(drain, indent=2))
-        return _verdict(ctx, ok=True, reason=None, detail="drain waiting on in-flight leases")
-    write_mode(ctx.state_dir, DEFAULT_MODE)
+    kill_record = _load_json_mapping(ctx.state_dir / "kill.json") or {}
+    kill_unexecuted = kill_record.get("executed") is False
+    remaining = bool(inflight) or inflight_error is not None or kill_unexecuted
+    if remaining:
+        drain = {
+            "inflight": inflight if inflight is not None else [],
+            "complete": False,
+            "malformed": inflight_error,
+            "fenced_kill": kill_unexecuted,
+        }
+        _write_text(ctx.state_dir / "drain.json", json.dumps(drain, indent=2, sort_keys=True))
+        return _verdict(
+            ctx,
+            ok=False,
+            reason=REASON_DRAIN_INCOMPLETE,
+            detail="in-flight leases remain until settlement",
+            extra=drain,
+        )
+    if read_mode(ctx.state_dir) != "KILLED":
+        write_mode(ctx.state_dir, DEFAULT_MODE)
     drain = {"inflight": [], "complete": True}
     _write_text(ctx.state_dir / "drain.json", json.dumps(drain, indent=2))
     return _verdict(ctx, ok=True, reason=None, detail="drain complete; mode DISABLED")
@@ -653,16 +679,17 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
 
 def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
     write_mode(ctx.state_dir, "KILLED")
+    inflight, inflight_error = _load_inflight(ctx.state_dir)
     record = {
         "disposition": KILL_DISPOSITION,
         "at": ctx.now.isoformat(),
         "executed": False,
-        "note": "emergency kill recorded; no process signalled",
+        "signalled": False,
+        "fenced": inflight if inflight is not None else [],
+        "malformed_inflight": inflight_error,
+        "note": "emergency kill recorded; leases fenced until settlement; no process signalled",
     }
     _write_text(ctx.state_dir / "kill.json", json.dumps(record, indent=2, sort_keys=True))
-    leases_path = ctx.state_dir / "inflight.json"
-    if leases_path.is_file():
-        _write_text(ctx.state_dir / "inflight.json", "[]\n")
     return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
 
 

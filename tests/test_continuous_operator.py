@@ -346,7 +346,8 @@ def test_graceful_drain_then_timeout(tmp_path: Path) -> None:
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
     waiting = _run(tmp_path, "drain", policy=policy, now="2026-08-28T00:00:00+00:00")
-    assert waiting.returncode == 0
+    assert waiting.returncode == 2
+    assert _payload(waiting)["reason"] == REASON_DRAIN_INCOMPLETE
     assert json.loads((state / "drain.json").read_text())["complete"] is False
     timed = _run(tmp_path, "drain", policy=policy, now="2026-08-28T00:00:11+00:00")
     assert timed.returncode == 2
@@ -362,7 +363,47 @@ def test_kill_records_operator_kill(tmp_path: Path) -> None:
     record = json.loads((state / "kill.json").read_text())
     assert record["disposition"] == KILL_DISPOSITION
     assert record["executed"] is False
+    assert record["signalled"] is False
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
     assert (state / "mode").read_text().strip() == "KILLED"
+    drain = _run(tmp_path, "drain", now="2026-08-28T00:00:01+00:00")
+    assert drain.returncode == 2
+    assert _payload(drain)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
+
+
+def test_validate_does_not_clear_killed_or_draining(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    kill = _run(tmp_path, "kill", now=NOW.isoformat())
+    assert _payload(kill)["mode"] == "KILLED"
+    validated = _run(tmp_path, "validate", now=NOW.isoformat())
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert _payload(validated)["mode"] == "KILLED"
+    (state / "mode").write_text("DRAINING\n")
+    again = _run(tmp_path, "validate", now=NOW.isoformat())
+    assert (state / "mode").read_text().strip() == "DRAINING"
+    assert _payload(again)["mode"] == "DRAINING"
+
+
+def test_malformed_inflight_fails_closed(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps({"lease": 1}))
+    result = _run(tmp_path, "drain", now=NOW.isoformat())
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert (state / "mode").read_text().strip() == "DRAINING"
+
+
+def test_drain_without_timeout_still_incomplete(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    result = _run(tmp_path, "drain", now=NOW.isoformat())
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
 
 
 def test_empty_inflight_drain_disables(tmp_path: Path) -> None:

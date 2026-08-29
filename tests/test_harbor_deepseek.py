@@ -383,3 +383,14 @@ def test_run_harbor_process_redacts_executor_log(
     data = log_path.read_text()
     assert SECRET_SENTINEL not in data
     assert log_path.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
+
+
+def test_proxy_joins_workbench_internal_and_default_networks() -> None:
+    overlay = (Path(__file__).resolve().parents[1] / "containers/deepseek-v4-flash-secret.compose.yaml").read_text()
+    assert "deepseek-secret-proxy:" in overlay
+    assert "- workbench-internal" in overlay
+    assert "- default" in overlay
+    assert "internal: true" in overlay
+    # Overlay must not pull main onto default and undo an internal-only task network.
+    main_block = overlay.split("deepseek-secret-proxy:", 1)[0]
+    assert "networks:" not in main_block

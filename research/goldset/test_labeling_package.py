@@ -8,15 +8,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from build_labeling_package import (  # noqa: E402  # noqa: E402
+from build_labeling_package import (  # noqa: E402
     ALLOWED_VALUES,
+    BUNDLE_SCHEMA,
     CANNOT_JUDGE,
+    GENESIS_HASH,
     HUMAN_JUDGED_FIELDS,
     INSUFFICIENT_CONTEXT,
     KEYSTORE_SCHEMA_VERSION,
@@ -25,25 +29,34 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
     REGISTRY_SCHEMA_VERSION,
     REQUIRED_RATERS_PER_ITEM,
     BundleContaminationError,
+    BundleVerificationError,
     LabelItem,
+    LedgerError,
     OutputPathError,
     PairMismatchError,
     SourceRejectedError,
+    append_rating_record,
     build_package,
     compute_build_id,
+    compute_bundle_contract_digest,
     compute_item_context_digest,
     effective_clusters,
+    effective_ratings,
     evaluate_cluster_adequacy,
     evaluate_readiness,
     export_rater_bundle,
     label_item_from_dict,
+    ledger_head,
+    load_ledger,
     load_paired_artifacts,
     load_rater_registry,
     logical_trial_digest,
+    prepare_rating,
     read_source_once,
     sign_rating,
     sign_registry,
     validate_rating,
+    verify_bundle,
     verify_rating_signature,
     write_paired_outputs,
 )
@@ -118,6 +131,17 @@ PACKAGE = Path(__file__).parent / "labeling_package.json"
 TRUTH = Path(__file__).parent / "machine_truth_WITHHELD.json"
 
 FAILURES: list[str] = []
+
+
+def _raises(exc: type[BaseException], fn: Callable[[], object]) -> bool:
+    """True when fn() raises exc. Keeps the adversarial checks readable."""
+    try:
+        fn()
+    except exc:
+        return True
+    except Exception:
+        return False
+    return False
 
 
 def check(name: str, condition: bool, detail: str = "") -> None:
@@ -507,16 +531,22 @@ def main() -> int:
         check("bundle withholds degraded_reasons", "degraded_reasons" not in blob)
         check("bundle withholds context_completeness", "context_completeness" not in blob)
         check(
-            "bundle item exposes only id, context digest and context",
+            "bundle item exposes only id, digests, identity inputs and context",
             all(
-                set(i) == {"item_id", "item_context_digest", "rater_context"}
+                set(i)
+                == {
+                    "item_id",
+                    "item_context_digest",
+                    "cluster_id",
+                    "step_index",
+                    "rater_context",
+                }
                 for i in bundle["items"]
             ),
         )
         check(
-            "bundle binds the immutable rating contract digest",
-            bundle["rating_contract_digest"]
-            == package["readiness"]["authentication"]["rating_contract_digest"],
+            "bundle contract digest covers the FULL canonical bundle",
+            bundle["rating_contract_digest"] == compute_bundle_contract_digest(bundle),
         )
         check(
             "bundle labels package_digest informational-only, not signed",
@@ -1065,6 +1095,238 @@ def main() -> int:
             rogue, rating_contract_digest=real_contract, context_digests=ctx_map, keyring=qual_keys
         ),
     )
+
+    print("SEC-ISO - bundle physical isolation by exact allowlist")
+    with tempfile.TemporaryDirectory() as tmp:
+        # The withheld truth RENAMED to a benign nested filename. A pathname
+        # denylist passed this; an exact allowlist cannot.
+        dirty = Path(tmp) / "dirty"
+        (dirty / "deep").mkdir(parents=True)
+        (dirty / "deep" / "answers.json").write_text(
+            TRUTH.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        try:
+            export_rater_bundle(package, dirty)
+            check("renamed withheld truth is refused", False, "no raise")
+        except BundleContaminationError:
+            check("renamed withheld truth is refused", True)
+        check(
+            "no bundle is published into a contaminated destination",
+            not (dirty / "rater_bundle.json").exists(),
+        )
+
+        clean = Path(tmp) / "clean"
+        out = export_rater_bundle(package, clean)
+        check("clean destination publishes exactly one file", out.is_file())
+        check(
+            "published destination holds ONLY the allowlisted file",
+            sorted(p.name for p in clean.rglob("*")) == ["rater_bundle.json"],
+        )
+
+        linky = Path(tmp) / "linky"
+        linky.mkdir()
+        (linky / "sneak.json").symlink_to(TRUTH)
+        try:
+            export_rater_bundle(package, linky)
+            check("symlink in destination is refused", False, "no raise")
+        except BundleContaminationError:
+            check("symlink in destination is refused", True)
+
+    print("SEC-REG2 - registry raters field shape")
+    with tempfile.TemporaryDirectory() as tmp:
+        ks2 = Path(tmp) / "k.json"
+        ks2.write_text(
+            json.dumps({"schema_version": KEYSTORE_SCHEMA_VERSION, "keys": {"r1": "s1"}}),
+            encoding="utf-8",
+        )
+        for raters, expect in (
+            (5, "REGISTRY_RATERS_NOT_A_LIST"),
+            ({"a": 1}, "REGISTRY_RATERS_NOT_A_LIST"),
+            (["scalar"], "REGISTRY_ENTRY_NOT_AN_OBJECT"),
+            ([7], "REGISTRY_ENTRY_NOT_AN_OBJECT"),
+        ):
+            reg2 = {
+                "schema_version": REGISTRY_SCHEMA_VERSION,
+                "authority_key_id": "a",
+                "raters": raters,
+            }
+            reg2["signature"] = sign_registry(reg2, "AUTHORITY")
+            rp2 = Path(tmp) / "r.json"
+            rp2.write_text(json.dumps(reg2), encoding="utf-8")
+            problems = load_rater_registry(rp2, "AUTHORITY", ks2)[2]
+            check(
+                f"raters={raters!r} fails closed with {expect}",
+                any(p.startswith(expect) for p in problems),
+                f"got {problems}",
+            )
+
+    print("SEC-CONTRACT - bundle is independently verifiable")
+    DIST = "coordinator-distribution-key"
+    with tempfile.TemporaryDirectory() as tmp:
+        signed_out = export_rater_bundle(package, Path(tmp) / "signed", distribution_secret=DIST)
+        sb = json.loads(signed_out.read_text(encoding="utf-8"))
+        check("bundle is schema v2", sb["schema_version"] == BUNDLE_SCHEMA)
+        check("coordinator signature present", "coordinator_signature" in sb)
+        check(
+            "identity inputs are SIGNED bundle fields, so digests are recomputable",
+            all("cluster_id" in i and "step_index" in i for i in sb["items"]),
+        )
+        check("verify_bundle accepts the genuine bundle", bool(verify_bundle(sb, DIST)))
+        check(
+            "verification without a distribution key FAILS CLOSED",
+            _raises(BundleVerificationError, lambda: verify_bundle(sb, None)),
+        )
+        for name, mutate in (
+            ("poisoned taxonomy", lambda d: d.update({"taxonomy": {"hacked": True}})),
+            (
+                "poisoned item context",
+                lambda d: d["items"][0]["rater_context"].update({"instruction": {}}),
+            ),
+            (
+                "swapped contract digest",
+                lambda d: d.update({"rating_contract_digest": "0" * 64}),
+            ),
+            (
+                "tampered item_context_digest",
+                lambda d: d["items"][0].update({"item_context_digest": "f" * 64}),
+            ),
+            (
+                "tampered instructions",
+                lambda d: d["instructions_to_rater"].update({"required_fields": []}),
+            ),
+        ):
+            poisoned = json.loads(json.dumps(sb))
+            mutate(poisoned)
+            check(
+                f"{name} is refused",
+                _raises(BundleVerificationError, lambda p=poisoned: verify_bundle(p, DIST)),
+            )
+        check(
+            "wrong distribution key is refused",
+            _raises(BundleVerificationError, lambda: verify_bundle(sb, "WRONG")),
+        )
+
+        labels = {f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS}
+        rec = prepare_rating(
+            sb,
+            item_id=sb["items"][0]["item_id"],
+            labels=labels,
+            rater_key_id="r1",
+            rater_secret="s1",
+            distribution_secret=DIST,
+        )
+        check(
+            "client RECOMPUTES rather than copying supplied digests",
+            rec["rating_contract_digest"] == compute_bundle_contract_digest(sb)
+            and rec["item_context_digest"]
+            == compute_item_context_digest(
+                sb["items"][0]["rater_context"],
+                cluster_id=sb["items"][0]["cluster_id"],
+                step_index=sb["items"][0]["step_index"],
+            ),
+        )
+        bad = json.loads(json.dumps(sb))
+        bad["items"][0]["rater_context"]["prior_steps"] = []
+        check(
+            "client REFUSES to sign a poisoned bundle",
+            _raises(
+                BundleVerificationError,
+                lambda: prepare_rating(
+                    bad,
+                    item_id=bad["items"][0]["item_id"],
+                    labels=labels,
+                    rater_key_id="r1",
+                    rater_secret="s1",
+                    distribution_secret=DIST,
+                ),
+            ),
+        )
+
+    print("SEC-LEDGER - real append-only intake")
+    with tempfile.TemporaryDirectory() as tmp:
+        ledger = Path(tmp) / "ledger"
+        base = {
+            "schema_version": RATING_SCHEMA_VERSION,
+            "item_id": "i1",
+            "rater_key_id": "r1",
+            **{f: list(ALLOWED_VALUES[f])[0] for f in HUMAN_JUDGED_FIELDS},
+        }
+        first = append_rating_record(ledger, dict(base), created_at="T0")
+        append_rating_record(ledger, {**base, "rater_key_id": "r2"}, created_at="T1")
+        check("chain loads and verifies", len(load_ledger(ledger)) == 2)
+        check("record carries record_id", bool(first["record_id"]))
+        check("record carries created_at", first["created_at"] == "T0")
+        check(
+            "record carries previous_entry_hash",
+            first["previous_entry_hash"] == GENESIS_HASH,
+        )
+        head_hash, count = ledger_head(ledger)
+        check("head manifest tracks count", count == 2 and len(head_hash) == 64)
+        check(
+            "record files are written read-only",
+            (oct((ledger / "records" / f"{first['record_id']}.json").stat().st_mode)[-3:] == "444"),
+        )
+        check(
+            "replayed identical rating is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(ledger, dict(base), created_at="T0"),
+            ),
+        )
+        check(
+            "replay at a new timestamp is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(ledger, dict(base), created_at="T9"),
+            ),
+        )
+        check(
+            "supersede of an unknown record is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger, dict(base), created_at="T2", supersedes="f" * 64
+                ),
+            ),
+        )
+        correction = append_rating_record(
+            ledger,
+            {**base, "step_contribution": "HARMFUL"},
+            created_at="T3",
+            supersedes=first["record_id"],
+        )
+        check("correction APPENDS", len(load_ledger(ledger)) == 3)
+        check(
+            "superseded record is retained, never replaced",
+            (ledger / "records" / f"{first['record_id']}.json").is_file(),
+        )
+        check(
+            "effective view resolves to the correction",
+            any(
+                r["record_id"] == correction["record_id"]
+                for r in effective_ratings(load_ledger(ledger))
+            )
+            and len(effective_ratings(load_ledger(ledger))) == 2,
+        )
+        check(
+            "double-supersede is refused",
+            _raises(
+                LedgerError,
+                lambda: append_rating_record(
+                    ledger,
+                    dict(base),
+                    created_at="T4",
+                    supersedes=first["record_id"],
+                ),
+            ),
+        )
+        target = ledger / "records" / f"{correction['record_id']}.json"
+        os.chmod(target, 0o644)
+        target.write_text('{"tampered": true}', encoding="utf-8")
+        check(
+            "overwritten record is detected",
+            _raises(LedgerError, lambda: load_ledger(ledger)),
+        )
 
     print("SEC-CLONE - item-level logical dedup with lineage")
     logicals = [i["logical_step_digest"] for i in items]

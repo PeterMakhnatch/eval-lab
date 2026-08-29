@@ -278,6 +278,23 @@ def test_context_diagnostic_2x2_is_reported(package: dict) -> None:
     assert "builder_over_strict" in diag
 
 
+def test_doc_checker_self_test_covers_its_own_bypasses() -> None:
+    """The checker must reject a READY frontmatter and a NEW wrong census value.
+
+    Run as a subprocess so the assertion needs no dynamic import: the adversarial
+    cases live beside the code they guard.
+    """
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, str(GOLDSET / "check_doc_consistency.py"), "--self-test"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "self-test: clean" in result.stdout
+
+
 def test_protocol_doc_is_mechanically_consistent() -> None:
     """Broad doc-vs-artifact consistency check.
 

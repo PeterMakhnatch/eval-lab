@@ -35,6 +35,24 @@ HIST = "<!--hist-->"
 # Values from superseded revisions that must never appear unmarked.
 SUPERSEDED_TOKENS = ("167", "237", "13.84", "13.8 %", "13.8%", "149/183", "81.4")
 
+# Every field the document is GOVERNED on: it must publish a canonical census
+# block and each value must equal the live package. Token-searching for known
+# stale strings cannot catch a NEW wrong value - changing 26 to 27 passed.
+GOVERNED_CENSUS_FIELDS = (
+    "trajectory_files_seen",
+    "distinct_content_digests",
+    "duplicate_paths_dropped",
+    "agent_steps_unique",
+    "clusters_with_agent_steps",
+    "items_with_instruction_present",
+    "context_complete",
+    "raw_clusters",
+    "n_items",
+    "n_blockers",
+)
+
+CENSUS_BLOCK_RE = re.compile(r"<!--census-->\s*```(?:text)?\n(?P<body>.*?)```", re.DOTALL)
+
 
 def live_facts() -> dict[str, Any]:
     package = json.loads(PACKAGE.read_text(encoding="utf-8"))
@@ -58,6 +76,18 @@ def live_facts() -> dict[str, Any]:
         "n_blockers": len(readiness["blockers"]),
         "complete": census["context_completeness"].get("COMPLETE", 0),
         "blockers": list(readiness["blockers"]),
+        "census": {
+            "trajectory_files_seen": census["trajectory_files_seen"],
+            "distinct_content_digests": census["distinct_content_digests"],
+            "duplicate_paths_dropped": census["duplicate_paths_dropped"],
+            "agent_steps_unique": census["agent_steps_unique"],
+            "clusters_with_agent_steps": census["clusters_with_agent_steps"],
+            "items_with_instruction_present": census["items_with_instruction_present"],
+            "context_complete": census["context_completeness"].get("COMPLETE", 0),
+            "raw_clusters": adequacy["raw_clusters"],
+            "n_items": package["n_selected"],
+            "n_blockers": len(readiness["blockers"]),
+        },
     }
 
 
@@ -122,10 +152,49 @@ def check(doc: str, facts: dict[str, Any]) -> list[str]:
                     f"(live items={facts['n_items']}, K_eff={facts['k_eff']})"
                 )
 
-    if f"readiness: NOT_READY ({facts['n_blockers']} blockers)" not in doc:
+    # Frontmatter must be PARSED, not searched. A READY frontmatter beside a
+    # historical NOT_READY line passed the previous substring check.
+    front = re.match(r"(?:<!--.*?-->\s*)*---\n(?P<body>.*?)\n---", doc, re.DOTALL)
+    if front is None:
+        violations.append("frontmatter block not found or malformed")
+    else:
+        fields: dict[str, str] = {}
+        for row in front.group("body").split("\n"):
+            if ":" in row and not row.startswith((" ", "-", "#")):
+                key, _, value = row.partition(":")
+                fields[key.strip()] = value.strip()
+        expected = f"NOT_READY ({facts['n_blockers']} blockers)"
+        if fields.get("readiness") != expected:
+            violations.append(
+                f"frontmatter readiness field is {fields.get('readiness')!r}, must be {expected!r}"
+            )
+
+    # Governed census block: every field compared to the live package, so a NEW
+    # wrong value is caught rather than only a known-stale one.
+    block = CENSUS_BLOCK_RE.search(doc)
+    if block is None:
         violations.append(
-            f"frontmatter must state 'readiness: NOT_READY ({facts['n_blockers']} blockers)'"
+            "doc must publish a canonical census block: an HTML comment "
+            "<!--census--> followed by a fenced key: value block"
         )
+    else:
+        stated: dict[str, str] = {}
+        for row in block.group("body").split("\n"):
+            if ":" in row:
+                key, _, value = row.partition(":")
+                stated[key.strip()] = value.strip()
+        for field in GOVERNED_CENSUS_FIELDS:
+            want = facts["census"][field]
+            got = stated.get(field)
+            if got is None:
+                violations.append(f"census block missing governed field {field!r}")
+            elif got != str(want):
+                violations.append(f"census block {field}={got!r}, live value is {want!r}")
+        for extra in sorted(set(stated) - set(GOVERNED_CENSUS_FIELDS)):
+            violations.append(
+                f"census block states ungoverned field {extra!r}; add it to "
+                f"GOVERNED_CENSUS_FIELDS or remove it"
+            )
     for blocker in facts["blockers"]:
         if blocker not in doc:
             violations.append(f"live blocker text absent from doc: {blocker}")
@@ -138,7 +207,56 @@ def check(doc: str, facts: dict[str, Any]) -> list[str]:
     return sorted(set(violations))
 
 
+def self_test() -> int:
+    """Adversarial cases for the checker itself.
+
+    Two bypasses it previously admitted, both from searching instead of parsing:
+    a READY frontmatter beside a historical NOT_READY line, and a census value
+    changed to a NEW wrong number that no stale-token list could contain.
+    """
+    facts = live_facts()
+    blockers = "\n".join(facts["blockers"])
+    census = "\n".join(f"{k}: {facts['census'][k]}" for k in GOVERNED_CENSUS_FIELDS)
+    tail = f"{blockers}\nrating_contract_digest item_context_digest\n"
+    n = facts["n_blockers"]
+    good = (
+        f"---\nreadiness: NOT_READY ({n} blockers)\n---\n<!--census-->\n```\n{census}\n```\n{tail}"
+    )
+    live_digests = facts["census"]["distinct_content_digests"]
+    cases: list[tuple[str, str, bool]] = [
+        (
+            "READY frontmatter beside historical NOT_READY text",
+            f"---\nreadiness: READY\n---\nreadiness: NOT_READY ({n} blockers) {HIST}\n{tail}",
+            True,
+        ),
+        ("missing census block", f"---\nreadiness: NOT_READY ({n} blockers)\n---\n{tail}", True),
+        (
+            "census value changed to a NEW wrong number",
+            good.replace(
+                f"distinct_content_digests: {live_digests}",
+                f"distinct_content_digests: {live_digests + 1}",
+            ),
+            True,
+        ),
+        ("well-formed frontmatter and census", good, False),
+    ]
+    failures = 0
+    for name, doc, must_fail in cases:
+        violations = check(doc, facts)
+        rejected = bool(violations)
+        ok = rejected is must_fail
+        print(f"  {'PASS' if ok else 'FAIL'}  {name}")
+        if not ok:
+            failures += 1
+            for violation in violations[:3]:
+                print(f"        {violation}")
+    print("self-test: clean" if not failures else f"self-test: {failures} FAILED")
+    return 1 if failures else 0
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
     facts = live_facts()
     violations = check(DOC.read_text(encoding="utf-8"), facts)
     if violations:

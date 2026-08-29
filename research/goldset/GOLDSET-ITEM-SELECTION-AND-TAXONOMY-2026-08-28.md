@@ -96,6 +96,28 @@ python3 research/goldset/test_labeling_package.py     # verifies all four
 uv run pytest tests/test_goldset_labeling_package.py  # independent reimplementation
 ```
 
+## 0.2 Canonical census — machine-governed
+
+Every field below is compared to the live package by
+`research/goldset/check_doc_consistency.py`. A wrong value fails the check, not
+merely a *known-stale* value: token-searching for old strings could not catch a new
+wrong number, so changing `distinct_content_digests` from 26 to 27 previously
+passed.
+
+<!--census-->
+```
+trajectory_files_seen: 29
+distinct_content_digests: 26
+duplicate_paths_dropped: 3
+agent_steps_unique: 183
+clusters_with_agent_steps: 20
+items_with_instruction_present: 183
+context_complete: 183
+raw_clusters: 20
+n_items: 183
+n_blockers: 5
+```
+
 ## 1. Readiness — NOT_READY, fail-closed, 5 blockers
 
 ```

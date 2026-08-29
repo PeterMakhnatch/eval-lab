@@ -955,8 +955,15 @@ def load_rater_registry(
     qualified: list[str] = []
     keyring: dict[str, str] = {}
     seen: set[str] = set()
-    for entry in registry.get("raters") or []:
-        entry = entry or {}
+    raters = registry.get("raters")
+    if not isinstance(raters, list):
+        return [], {}, [*problems, f"REGISTRY_RATERS_NOT_A_LIST: got {type(raters).__name__}"]
+    for position, entry in enumerate(raters):
+        if not isinstance(entry, dict):
+            problems.append(
+                f"REGISTRY_ENTRY_NOT_AN_OBJECT: index {position} is {type(entry).__name__}"
+            )
+            continue
         if any(k in entry for k in ("shared_secret", "secret", "key", "private_key")):
             # A roster that carries secrets is not merely weak, it is wrong.
             return [], {}, [*problems, "REGISTRY_CONTAINS_SECRET_MATERIAL"]
@@ -1373,6 +1380,224 @@ def evaluate_readiness(
     }
 
 
+# ---------------------------------------------------------------------------
+# Append-only rating ledger
+#
+# Loose JSON files in a directory are not an append-only intake: they can be
+# overwritten, deleted, truncated or replayed with no trace. This is a real log -
+# immutable content-addressed records, a fsync'd hash chain, and a head manifest,
+# with load-time verification of both the chain and every record's inclusion.
+# Corrections APPEND a superseding record; nothing is ever replaced.
+# ---------------------------------------------------------------------------
+
+LEDGER_SCHEMA = "goldset-rating-ledger/v1"
+GENESIS_HASH = "0" * 64
+
+
+class LedgerError(RuntimeError):
+    """Raised when the rating ledger is not append-only-consistent."""
+
+
+def _record_id(record: Mapping[str, Any]) -> str:
+    body = {k: v for k, v in record.items() if k not in ("record_id",)}
+    return hashlib.sha256(
+        json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def _entry_hash(previous: str, record_id: str, created_at: str) -> str:
+    return hashlib.sha256(f"{previous}|{record_id}|{created_at}".encode()).hexdigest()
+
+
+def _fsync_path(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def ledger_head(ledger_dir: Path) -> tuple[str, int]:
+    """Current chain head and record count from the manifest."""
+    manifest = ledger_dir / "head.json"
+    if not manifest.is_file():
+        return GENESIS_HASH, 0
+    doc = json.loads(manifest.read_text(encoding="utf-8"))
+    if not isinstance(doc, dict):
+        raise LedgerError("HEAD_MANIFEST_NOT_AN_OBJECT")
+    return str(doc.get("head_hash") or GENESIS_HASH), int(doc.get("count") or 0)
+
+
+def append_rating_record(
+    ledger_dir: Path,
+    record: Mapping[str, Any],
+    *,
+    created_at: str,
+    supersedes: str | None = None,
+) -> dict[str, Any]:
+    """Append one immutable record. O_CREAT|O_EXCL, serialized under lock, fsync'd.
+
+    A correction supplies `supersedes` and is APPENDED; the superseded record is
+    never modified or removed, so the history remains auditable.
+    """
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    records_dir = ledger_dir / "records"
+    records_dir.mkdir(exist_ok=True)
+
+    with _build_lock(ledger_dir):
+        previous, count = ledger_head(ledger_dir)
+
+        # Content addressing alone cannot stop replay: previous_entry_hash is part
+        # of the record, so the same rating appended at a new chain position gets a
+        # DIFFERENT record_id and O_EXCL never collides. Rating identity therefore
+        # needs its own append-only-unique constraint, and a second submission for
+        # one (item, rater) is admissible ONLY as an explicit correction.
+        existing = load_ledger(ledger_dir)
+        identity = (str(record.get("item_id")), str(record.get("rater_key_id")))
+        prior = [
+            r for r in existing if (str(r.get("item_id")), str(r.get("rater_key_id"))) == identity
+        ]
+        superseded_ids = {str(r["supersedes"]) for r in existing if r.get("supersedes")}
+        live_prior = [r for r in prior if str(r.get("record_id")) not in superseded_ids]
+        if live_prior and not supersedes:
+            raise LedgerError(
+                f"RATING_ALREADY_PRESENT: {identity[0]}/{identity[1]} already has a "
+                f"live record; a correction must set supersedes"
+            )
+        if supersedes:
+            known = {str(r.get("record_id")) for r in existing}
+            if supersedes not in known:
+                raise LedgerError(f"SUPERSEDES_UNKNOWN_RECORD: {supersedes}")
+            if supersedes in superseded_ids:
+                raise LedgerError(f"SUPERSEDES_ALREADY_SUPERSEDED: {supersedes}")
+
+        stored = dict(record)
+        stored["created_at"] = created_at
+        stored["previous_entry_hash"] = previous
+        if supersedes:
+            stored["supersedes"] = supersedes
+        rid = _record_id(stored)
+        stored["record_id"] = rid
+
+        target = records_dir / f"{rid}.json"
+        payload = json.dumps(stored, indent=2, sort_keys=True) + "\n"
+        try:
+            fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+        except FileExistsError as exc:
+            raise LedgerError(f"RECORD_ALREADY_EXISTS: {rid}") from exc
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        entry_hash = _entry_hash(previous, rid, created_at)
+        entry = {
+            "schema": LEDGER_SCHEMA,
+            "seq": count + 1,
+            "record_id": rid,
+            "created_at": created_at,
+            "previous_entry_hash": previous,
+            "entry_hash": entry_hash,
+            "supersedes": supersedes,
+        }
+        with open(ledger_dir / "ledger.jsonl", "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        manifest = {
+            "schema": LEDGER_SCHEMA,
+            "head_hash": entry_hash,
+            "count": count + 1,
+        }
+        _atomic_write(
+            ledger_dir / "head.json",
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        )
+        _fsync_path(ledger_dir)
+        return stored
+
+
+def load_ledger(ledger_dir: Path) -> list[dict[str, Any]]:
+    """Verify the chain and every record's inclusion, then return the records.
+
+    Raises on: broken chain, head/manifest mismatch, missing record file, a record
+    whose content does not hash to its own record_id, a record file absent from
+    the ledger, and any replayed record_id.
+    """
+    log = ledger_dir / "ledger.jsonl"
+    if not log.is_file():
+        return []
+    entries: list[dict[str, Any]] = []
+    for lineno, line in enumerate(log.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise LedgerError(f"LEDGER_LINE_UNPARSEABLE: line {lineno}") from exc
+        if not isinstance(entry, dict):
+            raise LedgerError(f"LEDGER_ENTRY_NOT_AN_OBJECT: line {lineno}")
+        entries.append(entry)
+
+    previous = GENESIS_HASH
+    seen: set[str] = set()
+    records: list[dict[str, Any]] = []
+    for position, entry in enumerate(entries, start=1):
+        if int(entry.get("seq", -1)) != position:
+            raise LedgerError(f"LEDGER_SEQ_BROKEN at position {position}")
+        if entry.get("previous_entry_hash") != previous:
+            raise LedgerError(f"LEDGER_CHAIN_BROKEN at seq {position}")
+        rid = str(entry.get("record_id") or "")
+        if rid in seen:
+            raise LedgerError(f"LEDGER_REPLAYED_RECORD: {rid}")
+        seen.add(rid)
+        expected = _entry_hash(previous, rid, str(entry.get("created_at") or ""))
+        if entry.get("entry_hash") != expected:
+            raise LedgerError(f"LEDGER_ENTRY_HASH_INVALID at seq {position}")
+
+        path = ledger_dir / "records" / f"{rid}.json"
+        if not path.is_file():
+            raise LedgerError(f"LEDGER_RECORD_MISSING: {rid}")
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        if _record_id(stored) != rid:
+            raise LedgerError(f"LEDGER_RECORD_TAMPERED: {rid}")
+        records.append(stored)
+        previous = expected
+
+    head_hash, count = ledger_head(ledger_dir)
+    if count != len(entries) or head_hash != previous:
+        raise LedgerError(
+            f"LEDGER_HEAD_MISMATCH: manifest {head_hash[:12]}…/{count} vs "
+            f"chain {previous[:12]}…/{len(entries)}"
+        )
+
+    on_disk = (
+        {p.stem for p in (ledger_dir / "records").glob("*.json")}
+        if (ledger_dir / "records").is_dir()
+        else set()
+    )
+    orphans = sorted(on_disk - seen)
+    if orphans:
+        raise LedgerError(f"LEDGER_RECORDS_NOT_INCLUDED: {orphans}")
+    return records
+
+
+def effective_ratings(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Latest non-superseded record per (item_id, rater_key_id).
+
+    Corrections append, so the effective view is derived rather than stored.
+    """
+    superseded = {str(r["supersedes"]) for r in records if r.get("supersedes")}
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in records:
+        if str(record.get("record_id")) in superseded:
+            continue
+        key = (str(record.get("item_id")), str(record.get("rater_key_id")))
+        out[key] = dict(record)
+    return [out[k] for k in sorted(out)]
+
+
 def build_package(
     runs_root: Path,
     *,
@@ -1540,37 +1765,35 @@ def build_package(
 # truth and does not even name which field is the attention check.
 # ---------------------------------------------------------------------------
 
-FORBIDDEN_BUNDLE_PATTERNS = (
-    "*machine_truth*",
-    "*WITHHELD*",
-    "*truth*",
-    "*attention*",
-    "*labeling_package*",
-    "*registry*",
-    "*keystore*",
-    "*secret*",
-    "*.key",
-    "*.pem",
-)
+# The bundle is defined by an EXACT ALLOWLIST of owned files, not a pathname
+# denylist. A denylist can never be complete: renaming
+# machine_truth_WITHHELD.json to deep/answers.json defeated it entirely while the
+# full withheld truth sat in the destination. An allowlist makes the filename and
+# the content irrelevant - anything not owned by the bundle is rejected.
+BUNDLE_ALLOWLIST = frozenset({"rater_bundle.json"})
 
 
 class BundleContaminationError(RuntimeError):
-    """Raised when a rater bundle directory contains a forbidden artifact."""
+    """Raised when a rater bundle directory holds anything the bundle does not own."""
 
 
-def _assert_bundle_clean(bundle_dir: Path) -> None:
-    """Recursive scan. A forbidden file one level down is just as readable."""
-    offenders: set[str] = set()
-    for pattern in FORBIDDEN_BUNDLE_PATTERNS:
-        for path in bundle_dir.rglob(pattern):
-            offenders.add(str(path.relative_to(bundle_dir)))
-    # A symlink can point at a truth file outside the bundle entirely.
-    for path in bundle_dir.rglob("*"):
+def _assert_bundle_exact(bundle_dir: Path) -> None:
+    """Recursive EXACT allowlist. Every extra path and every symlink is rejected."""
+    offenders: list[str] = []
+    for path in sorted(bundle_dir.rglob("*")):
+        rel = str(path.relative_to(bundle_dir))
         if path.is_symlink():
-            offenders.add(f"SYMLINK:{path.relative_to(bundle_dir)}")
+            offenders.append(f"SYMLINK:{rel}")
+            continue
+        if path.is_dir():
+            offenders.append(f"UNOWNED_DIRECTORY:{rel}")
+            continue
+        if rel not in BUNDLE_ALLOWLIST:
+            offenders.append(f"UNOWNED_FILE:{rel}")
     if offenders:
         raise BundleContaminationError(
-            f"forbidden artifacts present in rater bundle {bundle_dir}: {sorted(offenders)}"
+            f"rater bundle {bundle_dir} contains paths the bundle does not own "
+            f"(allowlist={sorted(BUNDLE_ALLOWLIST)}): {offenders}"
         )
 
 
@@ -1596,7 +1819,7 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
     if semantics:
         taxonomy["missing_data_semantics"] = semantics
     return {
-        "schema_version": "goldset-rater-bundle/v1",
+        "schema_version": BUNDLE_SCHEMA,
         # INFORMATIONAL ONLY - not signed. The signed binding is
         # rating_contract_digest, which is immutable for the campaign.
         "package_digest_informational_only": package["package_digest"],
@@ -1626,6 +1849,11 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
             {
                 "item_id": item["item_id"],
                 "item_context_digest": item["item_context_digest"],
+                # Identity inputs to item_context_digest MUST be signed bundle
+                # fields, otherwise a rater cannot recompute the digest and is
+                # forced to copy a supplied value blindly.
+                "cluster_id": item["cluster_id"],
+                "step_index": item["step_index"],
                 # builder_verdict and degraded_reasons are WITHHELD. Telling a
                 # rater the builder already judged this context would prime
                 # INSUFFICIENT_CONTEXT and destroy the 2x2 diagnostic, whose
@@ -1638,15 +1866,155 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def export_rater_bundle(package: Mapping[str, Any], bundle_dir: Path) -> Path:
-    """Write the rater bundle, refusing if the directory is contaminated."""
-    bundle_dir.mkdir(parents=True, exist_ok=True)
-    _assert_bundle_clean(bundle_dir)
+BUNDLE_CONTRACT_EXCLUDED = ("rating_contract_digest", "coordinator_signature")
+BUNDLE_SCHEMA = "goldset-rater-bundle/v2"
+
+
+def compute_bundle_contract_digest(bundle: Mapping[str, Any]) -> str:
+    """Contract digest over the FULL canonical bundle, minus digest and signature.
+
+    Previously the digest covered only an ordered item list, so a rater could not
+    confirm that the taxonomy, codebook or instructions they were shown were the
+    ones under contract. Digesting the whole bundle makes the contract
+    independently verifiable from the artifact alone.
+    """
+    payload = {k: v for k, v in bundle.items() if k not in BUNDLE_CONTRACT_EXCLUDED}
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def sign_bundle(bundle: Mapping[str, Any], distribution_secret: str) -> str:
+    """Coordinator signature over the canonical contract digest."""
+    return hmac.new(
+        distribution_secret.encode("utf-8"),
+        compute_bundle_contract_digest(bundle).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+class BundleVerificationError(RuntimeError):
+    """Raised when a rater bundle fails independent verification."""
+
+
+def verify_bundle(bundle: Mapping[str, Any], distribution_secret: str | None) -> str:
+    """Recompute everything; trust nothing supplied. Used by CLIENT and SERVER.
+
+    Returns the recomputed contract digest. Raises on any mismatch:
+      - coordinator signature absent or invalid
+      - supplied rating_contract_digest disagrees with the recomputation
+      - any item_context_digest disagrees with recomputation from its own
+        signed inputs (rater_context + cluster_id + step_index)
+    """
+    if not distribution_secret:
+        raise BundleVerificationError("NO_DISTRIBUTION_KEY: cannot verify coordinator")
+    expected_signature = sign_bundle(bundle, distribution_secret)
+    supplied_signature = str(bundle.get("coordinator_signature") or "")
+    if not hmac.compare_digest(expected_signature, supplied_signature):
+        raise BundleVerificationError("COORDINATOR_SIGNATURE_INVALID")
+
+    recomputed = compute_bundle_contract_digest(bundle)
+    if bundle.get("rating_contract_digest") != recomputed:
+        raise BundleVerificationError(
+            f"CONTRACT_DIGEST_MISMATCH: supplied "
+            f"{bundle.get('rating_contract_digest')!r} != {recomputed!r}"
+        )
+
+    for item in bundle.get("items") or []:
+        expected_ctx = compute_item_context_digest(
+            item["rater_context"],
+            cluster_id=item["cluster_id"],
+            step_index=item["step_index"],
+        )
+        if item.get("item_context_digest") != expected_ctx:
+            raise BundleVerificationError(f"ITEM_CONTEXT_DIGEST_MISMATCH: {item.get('item_id')}")
+    return recomputed
+
+
+def prepare_rating(
+    bundle: Mapping[str, Any],
+    *,
+    item_id: str,
+    labels: Mapping[str, str],
+    rater_key_id: str,
+    rater_secret: str,
+    distribution_secret: str,
+) -> dict[str, Any]:
+    """Rater-client path. Verifies the bundle and RECOMPUTES before signing.
+
+    A client that copies supplied digests learns nothing about whether the
+    context it displayed is the context under contract. This helper refuses to
+    sign until it has independently reproduced both digests.
+    """
+    contract = verify_bundle(bundle, distribution_secret)
+    item = next((i for i in bundle["items"] if i["item_id"] == item_id), None)
+    if item is None:
+        raise BundleVerificationError(f"UNKNOWN_ITEM_IN_BUNDLE: {item_id}")
+    context_digest = compute_item_context_digest(
+        item["rater_context"],
+        cluster_id=item["cluster_id"],
+        step_index=item["step_index"],
+    )
+    record = {
+        "schema_version": RATING_SCHEMA_VERSION,
+        "rating_contract_digest": contract,
+        "item_id": item_id,
+        "item_context_digest": context_digest,
+        "rater_key_id": rater_key_id,
+        **{field: labels[field] for field in HUMAN_JUDGED_FIELDS},
+    }
+    record["signature"] = sign_rating(record, rater_secret)
+    return record
+
+
+def export_rater_bundle(
+    package: Mapping[str, Any],
+    bundle_dir: Path,
+    distribution_secret: str | None = None,
+) -> Path:
+    """Build into a FRESH temp dir, verify the exact allowlist, then publish.
+
+    Generating in place and scanning afterwards cannot work: whatever was already
+    in the destination is not the bundle's, and a pathname denylist stops
+    recognising it the moment it is renamed. Measured bypass: the withheld truth
+    copied to `deep/answers.json` exported cleanly. So the bundle is built
+    somewhere empty, verified to contain EXACTLY its owned files, and only then
+    published - and the destination must be empty or absent, never merged into.
+    """
     bundle = build_rater_bundle(package)
-    out = bundle_dir / "rater_bundle.json"
-    out.write_text(json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    _assert_bundle_clean(bundle_dir)  # re-assert after write
-    return out
+    # The contract digest is now over the FULL canonical bundle, and the
+    # coordinator signs it so a rater can verify provenance independently.
+    bundle["rating_contract_digest"] = compute_bundle_contract_digest(bundle)
+    if distribution_secret:
+        bundle["coordinator_signature"] = sign_bundle(bundle, distribution_secret)
+    staging = Path(tempfile.mkdtemp(prefix="goldset-bundle-"))
+    try:
+        _assert_bundle_exact(staging)  # empty staging passes trivially
+        staged = staging / "rater_bundle.json"
+        staged.write_text(json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _assert_bundle_exact(staging)
+
+        if bundle_dir.is_symlink():
+            raise BundleContaminationError(f"destination {bundle_dir} is a symlink")
+        if bundle_dir.exists():
+            existing = sorted(str(q.relative_to(bundle_dir)) for q in bundle_dir.rglob("*"))
+            if existing:
+                raise BundleContaminationError(
+                    f"destination {bundle_dir} is not empty; refusing to merge a "
+                    f"rater bundle into pre-existing paths: {existing}"
+                )
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        published = bundle_dir / "rater_bundle.json"
+        os.replace(staged, published)
+        _assert_bundle_exact(bundle_dir)  # verify AFTER publish
+        return published
+    finally:
+        for leftover in sorted(staging.rglob("*"), reverse=True):
+            if leftover.is_file() or leftover.is_symlink():
+                leftover.unlink(missing_ok=True)
+            else:
+                leftover.rmdir()
+        staging.rmdir()
 
 
 # ---------------------------------------------------------------------------

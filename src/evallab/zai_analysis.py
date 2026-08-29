@@ -137,8 +137,11 @@ def parse_trial_directory(trial_dir: Path, job_name: str, wave: str) -> TrialEvi
         metrics = verifier_result.get("metrics", {})
         reward = metrics.get("reward")
 
-    passed = (reward == 1.0) if reward is not None else False
-
+    if is_infra_exception:
+        reward = None
+        passed = False
+    else:
+        passed = (reward == 1.0) if reward is not None else False
     # Execution times and steps
     agent_exec = result_data.get("agent_execution") or {}
     duration_seconds = agent_exec.get("duration_seconds", 0.0) or 0.0

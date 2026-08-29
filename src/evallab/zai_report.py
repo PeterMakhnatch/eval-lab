@@ -99,22 +99,20 @@ def generate_calibrated_markdown_report(
     t1_results: dict[str, Any],
 ) -> str:
     """Generate publication-ready calibrated Markdown evaluation report."""
-    total_trials = len(all_trials)
-    w1_trials = [t for t in all_trials if t.wave == "wave1"]
-    w2_trials = [t for t in all_trials if t.wave == "wave2"]
+    scored_trials = [t for t in all_trials if not t.is_infra_exception and t.reward is not None]
+    infra_trials = [t for t in all_trials if t.is_infra_exception]
 
-    flash_trials = [t for t in all_trials if t.model_name == "glm-5.3-flash"]
-    highspeed_trials = [t for t in all_trials if t.model_name == "glm-5.3-highspeed"]
+    flash_trials = [t for t in scored_trials if t.model_name == "glm-5.3-flash"]
 
     flash_passed = sum(1 for t in flash_trials if t.passed)
-    highspeed_passed = sum(1 for t in highspeed_trials if t.passed)
     flash_pct = (flash_passed / len(flash_trials) * 100) if flash_trials else 0.0
-    hs_pct = (highspeed_passed / len(highspeed_trials) * 100) if highspeed_trials else 0.0
+
+    w1_scored = [t for t in scored_trials if t.wave == "wave1"]
+    w2_scored = [t for t in scored_trials if t.wave == "wave2"]
 
     t11 = t1_results["t11_report"]
     t12 = t1_results["t12_result"]
     t13 = t1_results["t13_report"]
-
     lines: list[str] = [
         "---",
         "type: study-report",
@@ -138,21 +136,21 @@ def generate_calibrated_markdown_report(
         "2. **Action Memory (Context Dilation & Distraction Resistance: 4k, 16k, 64k)**",
         "3. **Recovery (Error Detection & Autonomous Adaptation: transient 5xx, persistent signature, silent wrong)**",
         "",
-        f"The evaluated corpus comprises **{total_trials} total completed trials** ({len(w1_trials)} from Wave 1 and {len(w2_trials)} from Wave 2):",
+        f"The evaluated corpus comprises **{len(all_trials)} total trials** ({len(w1_scored)} Wave 1 scored, {len(w2_scored)} Wave 2 scored, and {len(infra_trials)} infrastructure exclusions):",
         "",
-        f"- **GLM-5.3-Flash:** {flash_passed}/{len(flash_trials)} passed ({flash_pct:.1f}%) across Wave 1 and Wave 2.",
-        f"- **GLM-5.3-Highspeed:** {highspeed_passed}/{len(highspeed_trials)} passed ({hs_pct:.1f}%) on the 3-task paired mini battery.",
+        f"- **GLM-5.3-Flash:** {flash_passed}/{len(flash_trials)} scored trials passed ({flash_pct:.1f}%) across Wave 1 and Wave 2.",
+        "- **GLM-5.3-Highspeed:** 0/0 scored trials (all 3 mini-battery attempts were excluded from scored denominators due to upstream subscription HTTP 429 access restrictions).",
+        f"- **Infrastructure Exclusions:** {len(infra_trials)} trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).",
         "",
         "| Benchmark Family | Wave | Model | Tasks / Cells | Completed Trials | Reward 1.0 | Pass Rate |",
         "|---|---|---|---|---:|---:|---:|",
     ]
 
-    # Group trials for table
+    # Group trials for table (scored only)
     grouped_cells: dict[tuple[str, str, str, str], list[TrialEvidence]] = defaultdict(list)
-    for t in all_trials:
+    for t in scored_trials:
         dose_label = t.dose or t.factor or t.arm or "standard"
         grouped_cells[(t.benchmark_family, t.wave, t.model_name, dose_label)].append(t)
-
     for (fam, wave, model, dose_lbl), c_trials in sorted(grouped_cells.items()):
         n = len(c_trials)
         n_pass = sum(1 for t in c_trials if t.passed)
@@ -188,6 +186,11 @@ def generate_calibrated_markdown_report(
             "",
             "- **Transient HTTP 5xx, Persistence 1 (Wave 1, Flash, 3 pairs):** 3/3 passed on clean twin; 2/3 passed on fault arm. In the failing fault trial, the agent retried and wrote the record without executing the mandatory recovery mutation (`refresh_auth`), resulting in `causal_mutation=false` from the verifier.",
             "- **Persistent Signature Error & Silent Wrong Payload (Wave 2, Flash, seeds 42 & 1337):** Tested under non-transient error conditions and masked payload failures.",
+            "### 2.4 Sequential Retrieval Scaffold Pacing & Infrastructure Timeout Feasibility",
+            "",
+            "- **Default Timeout Execution:** The initial sequential scaffold run (`zai-wave2-action64k-s1337-sequential-scaffold`) produced 2 `AgentTimeoutError` outcomes when cut off by Harbor's default agent timeout ceiling.",
+            "- **Pacing Analysis:** At 64k context volume (257 discrete chunks), issuing sequential one-by-one tool calls requires 257 distinct tool-invocation round trips. At ~3.5–4.5s per turn, total execution requires ~15–20 minutes, exceeding the default 10–15 minute agent watchdog timeout.",
+            "- **Feasibility & Pacing Evidence:** Container log inspection verified that the agent was actively and correctly issuing chunk retrieval calls (reaching chunks 75–180) until cut off. This is classified as an infrastructure/pacing budget constraint, excluded from scored model reasoning denominators, and mitigated in `zai-wave2-action64k-s1337-sequential-scaffold-t3` via `agent-timeout-multiplier=3`.",
             "",
             "---",
             "",

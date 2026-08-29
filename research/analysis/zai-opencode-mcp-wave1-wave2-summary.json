@@ -5,13 +5,13 @@
       "arm_b_label": "64k semantic distractor",
       "contrast_name": "Action Memory 64k Neutral vs Semantic Distractor",
       "dimension": "context_dilation_distractor",
-      "mean_reward_a": 0.25,
-      "mean_reward_b": 0.2,
+      "mean_reward_a": 0.2,
+      "mean_reward_b": 0.16666666666666666,
       "notes": [
-        "Neutral arm n=4, Semantic arm n=5",
+        "Neutral arm n=5, Semantic arm n=6",
         "Seed-matched pairs for s42 and s1337."
       ],
-      "reward_delta": -0.04999999999999999,
+      "reward_delta": -0.033333333333333354,
       "trials_arm_a": [
         {
           "agent_name": "zai_opencode_adapter:ZaiOpenCode",
@@ -89,6 +89,45 @@
           "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-neutral_padding-s1337__wCHLZ4M",
           "trial_name": "action-64k-neutral_padding-s1337__wCHLZ4M",
           "verifier_reason": "incomplete_or_reordered_context_retrieval",
+          "wave": "wave2"
+        },
+        {
+          "agent_name": "zai_opencode_adapter:ZaiOpenCode",
+          "arm": "neutral_padding",
+          "benchmark_family": "action_memory",
+          "cached_tokens": 0,
+          "causal_mutation": null,
+          "censor_step": 90,
+          "completion_tokens": 0,
+          "dose": "64k",
+          "duration_seconds": 0.0,
+          "exception_class": null,
+          "exception_message": "Agent execution timed out after 600.0 seconds",
+          "expected_reads": null,
+          "factor": null,
+          "first_error_step": 1,
+          "is_infra_exception": false,
+          "job_name": "zai-wave2-action64k-s1337-sequential-scaffold",
+          "lock_event_observed": false,
+          "lock_evidence_ref": null,
+          "lock_predicate_id": null,
+          "lock_step": null,
+          "model_name": "glm-5.3-flash",
+          "observed_reads": null,
+          "passed": false,
+          "prompt_tokens": 0,
+          "result_digest": "sha256:e459793a5d902682b429424f7c8029cde779a0c9672fe51f19b7cdf1eaeb20f8",
+          "reward": 0.0,
+          "right_censored": true,
+          "seed": 1337,
+          "step_count": 90,
+          "target_value_observed": null,
+          "task_name": "evallab/action-memory-dl-neutral-padding-65536-s1337-seed1337",
+          "tool_call_count": 89,
+          "trajectory_digest": "sha256:eda362728d6736401ebe3ed929c6e87dbbcee7746a655d703718c34c3028b0bf",
+          "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-neutral_padding-s1337__VxJbtpZ",
+          "trial_name": "action-64k-neutral_padding-s1337__VxJbtpZ",
+          "verifier_reason": "missing_final_state_evidence",
           "wave": "wave2"
         },
         {
@@ -247,6 +286,45 @@
           "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__Pgukjp8",
           "trial_name": "action-64k-semantic_distractor-s__Pgukjp8",
           "verifier_reason": "incomplete_or_reordered_context_retrieval",
+          "wave": "wave2"
+        },
+        {
+          "agent_name": "zai_opencode_adapter:ZaiOpenCode",
+          "arm": "semantic_distractor",
+          "benchmark_family": "action_memory",
+          "cached_tokens": 0,
+          "causal_mutation": null,
+          "censor_step": 86,
+          "completion_tokens": 0,
+          "dose": "64k",
+          "duration_seconds": 0.0,
+          "exception_class": null,
+          "exception_message": "Agent execution timed out after 600.0 seconds",
+          "expected_reads": null,
+          "factor": null,
+          "first_error_step": 1,
+          "is_infra_exception": false,
+          "job_name": "zai-wave2-action64k-s1337-sequential-scaffold",
+          "lock_event_observed": false,
+          "lock_evidence_ref": null,
+          "lock_predicate_id": null,
+          "lock_step": null,
+          "model_name": "glm-5.3-flash",
+          "observed_reads": null,
+          "passed": false,
+          "prompt_tokens": 0,
+          "result_digest": "sha256:5b3ef95123bbc4dde2bada5bdd04f0ab36c314c6972d99a9abc0f3dd778e691c",
+          "reward": 0.0,
+          "right_censored": true,
+          "seed": 1337,
+          "step_count": 86,
+          "target_value_observed": null,
+          "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s1337-seed1337",
+          "tool_call_count": 85,
+          "trajectory_digest": "sha256:fbc5c2c93a6ee29d8c618616e0c2ea1584b15d85ebfe84216d49e8b245822c2f",
+          "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
+          "trial_name": "action-64k-semantic_distractor-s__TyoghGd",
+          "verifier_reason": "missing_final_state_evidence",
           "wave": "wave2"
         },
         {
@@ -1117,9 +1195,9 @@
   ],
   "families": {
     "action_memory": {
-      "failed": 8,
+      "failed": 10,
       "passed": 10,
-      "total_trials": 18
+      "total_trials": 20
     },
     "funcdag": {
       "failed": 3,
@@ -1134,10 +1212,10 @@
   },
   "models": {
     "glm-5.3-flash": {
-      "failed": 11,
-      "mean_reward": 0.7441860465116279,
+      "failed": 13,
+      "mean_reward": 0.7111111111111111,
       "passed": 32,
-      "total_trials": 43
+      "total_trials": 45
     },
     "glm-5.3-highspeed": {
       "failed": 1,
@@ -1147,10 +1225,10 @@
     }
   },
   "program": "zai-opencode-mcp-wave1-wave2",
-  "snapshot_digest": "sha256:d1bbbd1ffb71bc17aeb84ddd0d134c5d981c8307274fa2ed6b1d90ab3761811f",
+  "snapshot_digest": "sha256:ae67795d906af52955616da3e9d5bd7c41c31b095f1d9600d3e51991c8d9c250",
   "t1_capabilities": {
     "t11_process_outcome": {
-      "report_digest": "sha256:0a8cbc6c0b5c3017e58590c0630de839074b2c3226cc3886ef2d0aaa4c637e62",
+      "report_digest": "sha256:c78863765b90329dce513cce7e492e2c29b5d2f767af6d977e21f859dbf603f4",
       "results": [
         {
           "basis": "REGISTRY_CONFIRMED",
@@ -1158,13 +1236,13 @@
           "empirical": {
             "auc_x_to_task_success": 1.0,
             "disagreement_rate": null,
-            "n_nonnull": 44,
+            "n_nonnull": 46,
             "refusal_code": null,
             "sample_degenerate": true,
             "strata": [
               {
                 "distinct_count": 1,
-                "n": 12,
+                "n": 14,
                 "task_success": false,
                 "variance": 0.0
               },
@@ -1190,13 +1268,13 @@
           "empirical": {
             "auc_x_to_task_success": 0.5,
             "disagreement_rate": null,
-            "n_nonnull": 44,
+            "n_nonnull": 46,
             "refusal_code": null,
             "sample_degenerate": true,
             "strata": [
               {
                 "distinct_count": 1,
-                "n": 12,
+                "n": 14,
                 "task_success": false,
                 "variance": 0.0
               },
@@ -1218,17 +1296,17 @@
           "basis": "EMPIRICAL_DIAGNOSTIC",
           "ci_disposition": "CLEAR",
           "empirical": {
-            "auc_x_to_task_success": 0.28515625,
+            "auc_x_to_task_success": 0.24441964285714285,
             "disagreement_rate": null,
-            "n_nonnull": 44,
+            "n_nonnull": 46,
             "refusal_code": null,
             "sample_degenerate": false,
             "strata": [
               {
-                "distinct_count": 10,
-                "n": 12,
+                "distinct_count": 12,
+                "n": 14,
                 "task_success": false,
-                "variance": 37.6875
+                "variance": 754.1683673469388
               },
               {
                 "distinct_count": 9,
@@ -1248,17 +1326,17 @@
           "basis": "EMPIRICAL_DIAGNOSTIC",
           "ci_disposition": "CLEAR",
           "empirical": {
-            "auc_x_to_task_success": 0.2565104166666667,
+            "auc_x_to_task_success": 0.22879464285714285,
             "disagreement_rate": null,
-            "n_nonnull": 44,
+            "n_nonnull": 46,
             "refusal_code": null,
             "sample_degenerate": false,
             "strata": [
               {
-                "distinct_count": 8,
-                "n": 12,
+                "distinct_count": 10,
+                "n": 14,
                 "task_success": false,
-                "variance": 14609.1875
+                "variance": 13144.352040816326
               },
               {
                 "distinct_count": 9,
@@ -1280,13 +1358,13 @@
           "empirical": {
             "auc_x_to_task_success": 1.0,
             "disagreement_rate": null,
-            "n_nonnull": 44,
+            "n_nonnull": 46,
             "refusal_code": null,
             "sample_degenerate": true,
             "strata": [
               {
                 "distinct_count": 1,
-                "n": 12,
+                "n": 14,
                 "task_success": false,
                 "variance": 0.0
               },
@@ -1316,14 +1394,14 @@
       "n_total": 8,
       "recovered_count": 7,
       "refusal_code": "REPEAT_INELIGIBLE",
-      "result_digest": "sha256:1dca0c70c30d129e92c7b9dc00ede2b60875a5dfbda48fddcb786d2dbfcd7c51",
+      "result_digest": "sha256:bee160facd458dc5272171a0d1aa1e02eefc2bd62b9f747d62cf133ac9a1c350",
       "status": "REFUSAL"
     },
     "t13_cascade_distance": {
-      "censored_count": 35,
+      "censored_count": 37,
       "observed_count": 0,
       "refused_count": 0,
-      "report_digest": "sha256:8cc12c7523d1c725f1928ad0cc394216894a9d3fe88ed0d030b2dffccb7e57d3",
+      "report_digest": "sha256:0f0da839ff718d713fe5a021dcc657279a0a0387a07cacbe01fb2fdf28f7ceed",
       "results": [
         {
           "cascade_distance": null,
@@ -1334,6 +1412,16 @@
           "source_digest": "sha256:e5a77a2240c2995e56f22d94329cb04774d2df3f6cdbe0ab651dd3078c994c8c",
           "status": "CENSORED",
           "trial_id": "action-64k-neutral_padding-s1337__JvdEs9Y"
+        },
+        {
+          "cascade_distance": null,
+          "censor_step": 90,
+          "first_error_step": 1,
+          "lock_step": null,
+          "refusal_code": null,
+          "source_digest": "sha256:e459793a5d902682b429424f7c8029cde779a0c9672fe51f19b7cdf1eaeb20f8",
+          "status": "CENSORED",
+          "trial_id": "action-64k-neutral_padding-s1337__VxJbtpZ"
         },
         {
           "cascade_distance": null,
@@ -1404,6 +1492,16 @@
           "source_digest": "sha256:7cbd50b6c07cdaee57daeb941f607b004bc1a36e5b6a3164de01ecd407907e30",
           "status": "CENSORED",
           "trial_id": "action-64k-semantic_distractor-s__Qoz3nbU"
+        },
+        {
+          "cascade_distance": null,
+          "censor_step": 86,
+          "first_error_step": 1,
+          "lock_step": null,
+          "refusal_code": null,
+          "source_digest": "sha256:5b3ef95123bbc4dde2bada5bdd04f0ab36c314c6972d99a9abc0f3dd778e691c",
+          "status": "CENSORED",
+          "trial_id": "action-64k-semantic_distractor-s__TyoghGd"
         },
         {
           "cascade_distance": null,
@@ -1676,10 +1774,10 @@
           "trial_id": "recovery__ozALVY2"
         }
       ],
-      "total_trajectories": 35
+      "total_trajectories": 37
     }
   },
-  "total_trials": 44,
+  "total_trials": 46,
   "trials": [
     {
       "agent_name": "zai_opencode_adapter:ZaiOpenCode",
@@ -2537,6 +2635,84 @@
       "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__Pgukjp8",
       "trial_name": "action-64k-semantic_distractor-s__Pgukjp8",
       "verifier_reason": "incomplete_or_reordered_context_retrieval",
+      "wave": "wave2"
+    },
+    {
+      "agent_name": "zai_opencode_adapter:ZaiOpenCode",
+      "arm": "neutral_padding",
+      "benchmark_family": "action_memory",
+      "cached_tokens": 0,
+      "causal_mutation": null,
+      "censor_step": 90,
+      "completion_tokens": 0,
+      "dose": "64k",
+      "duration_seconds": 0.0,
+      "exception_class": null,
+      "exception_message": "Agent execution timed out after 600.0 seconds",
+      "expected_reads": null,
+      "factor": null,
+      "first_error_step": 1,
+      "is_infra_exception": false,
+      "job_name": "zai-wave2-action64k-s1337-sequential-scaffold",
+      "lock_event_observed": false,
+      "lock_evidence_ref": null,
+      "lock_predicate_id": null,
+      "lock_step": null,
+      "model_name": "glm-5.3-flash",
+      "observed_reads": null,
+      "passed": false,
+      "prompt_tokens": 0,
+      "result_digest": "sha256:e459793a5d902682b429424f7c8029cde779a0c9672fe51f19b7cdf1eaeb20f8",
+      "reward": 0.0,
+      "right_censored": true,
+      "seed": 1337,
+      "step_count": 90,
+      "target_value_observed": null,
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s1337-seed1337",
+      "tool_call_count": 89,
+      "trajectory_digest": "sha256:eda362728d6736401ebe3ed929c6e87dbbcee7746a655d703718c34c3028b0bf",
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-neutral_padding-s1337__VxJbtpZ",
+      "trial_name": "action-64k-neutral_padding-s1337__VxJbtpZ",
+      "verifier_reason": "missing_final_state_evidence",
+      "wave": "wave2"
+    },
+    {
+      "agent_name": "zai_opencode_adapter:ZaiOpenCode",
+      "arm": "semantic_distractor",
+      "benchmark_family": "action_memory",
+      "cached_tokens": 0,
+      "causal_mutation": null,
+      "censor_step": 86,
+      "completion_tokens": 0,
+      "dose": "64k",
+      "duration_seconds": 0.0,
+      "exception_class": null,
+      "exception_message": "Agent execution timed out after 600.0 seconds",
+      "expected_reads": null,
+      "factor": null,
+      "first_error_step": 1,
+      "is_infra_exception": false,
+      "job_name": "zai-wave2-action64k-s1337-sequential-scaffold",
+      "lock_event_observed": false,
+      "lock_evidence_ref": null,
+      "lock_predicate_id": null,
+      "lock_step": null,
+      "model_name": "glm-5.3-flash",
+      "observed_reads": null,
+      "passed": false,
+      "prompt_tokens": 0,
+      "result_digest": "sha256:5b3ef95123bbc4dde2bada5bdd04f0ab36c314c6972d99a9abc0f3dd778e691c",
+      "reward": 0.0,
+      "right_censored": true,
+      "seed": 1337,
+      "step_count": 86,
+      "target_value_observed": null,
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s1337-seed1337",
+      "tool_call_count": 85,
+      "trajectory_digest": "sha256:fbc5c2c93a6ee29d8c618616e0c2ea1584b15d85ebfe84216d49e8b245822c2f",
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
+      "trial_name": "action-64k-semantic_distractor-s__TyoghGd",
+      "verifier_reason": "missing_final_state_evidence",
       "wave": "wave2"
     },
     {

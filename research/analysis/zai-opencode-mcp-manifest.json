@@ -266,6 +266,30 @@
     },
     {
       "benchmark_family": "action_memory",
+      "job_name": "zai-wave2-action64k-s1337-sequential-scaffold",
+      "model_name": "glm-5.3-flash",
+      "passed": false,
+      "result_digest": "sha256:e459793a5d902682b429424f7c8029cde779a0c9672fe51f19b7cdf1eaeb20f8",
+      "reward": 0.0,
+      "trajectory_digest": "sha256:eda362728d6736401ebe3ed929c6e87dbbcee7746a655d703718c34c3028b0bf",
+      "trial_name": "action-64k-neutral_padding-s1337__VxJbtpZ",
+      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-neutral_padding-s1337__VxJbtpZ",
+      "wave": "wave2"
+    },
+    {
+      "benchmark_family": "action_memory",
+      "job_name": "zai-wave2-action64k-s1337-sequential-scaffold",
+      "model_name": "glm-5.3-flash",
+      "passed": false,
+      "result_digest": "sha256:5b3ef95123bbc4dde2bada5bdd04f0ab36c314c6972d99a9abc0f3dd778e691c",
+      "reward": 0.0,
+      "trajectory_digest": "sha256:fbc5c2c93a6ee29d8c618616e0c2ea1584b15d85ebfe84216d49e8b245822c2f",
+      "trial_name": "action-64k-semantic_distractor-s__TyoghGd",
+      "trial_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold/action-64k-semantic_distractor-s__TyoghGd",
+      "wave": "wave2"
+    },
+    {
+      "benchmark_family": "action_memory",
       "job_name": "zai-wave2-flash-matrix",
       "model_name": "glm-5.3-flash",
       "passed": false,
@@ -529,7 +553,7 @@
       "wave": "wave2"
     }
   ],
-  "entry_count": 44,
+  "entry_count": 46,
   "manifest_version": "1.0.0",
   "program": "zai-opencode-mcp-wave1-wave2"
 }

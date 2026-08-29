@@ -84,13 +84,13 @@ def solve_direct(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
     evidence_events = []
     for idx, chunk in enumerate(scenario["chunks"], start=1):
         evidence_events.append({
-            "event_index": idx,
+            "event_ordinal": idx,
             "event_type": "read_chunk",
             "payload": {"chunk_id": chunk["chunk_id"], "byte_count": chunk["byte_count"]}
         })
 
     evidence_events.append({
-        "event_index": len(evidence_events) + 1,
+        "event_ordinal": len(evidence_events) + 1,
         "event_type": "execute_mutation",
         "payload": {
             "entity_id": target_entity,

@@ -19,13 +19,17 @@ PINNED_PYTHON_IMAGE = "python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165
 from evallab.benchmark_program_contracts import CellFactorsA, SyntheticFamilySpec, SyntheticFamilyType, compute_sha256
 from evallab.mcp_substrate import (
     DEFAULT_INTERNAL_NETWORK_NAME,
+    DEFAULT_PINNED_BASE_IMAGE,
     DEFAULT_SIDECAR_SERVICE,
     DEFAULT_VOLUME_MOUNT,
     DEFAULT_VOLUME_NAME,
     MCPToolDefinition,
     MCPToolParameter,
+    RuntimeAsset,
+    SubstrateError,
     materialize_mcp_sidecar_package,
     render_mcp_compose_document,
+    render_mcp_sidecar_dockerfile,
 )
 import yaml
 
@@ -68,6 +72,9 @@ def materialize(
     inversion_count: int = 1,
     padding_position: str | None = None,
     distractor_count: int = 4,
+    wheelhouse_source: Path | None = None,
+    resolver_provenance: Any | None = None,
+    plan_only: bool = True,
 ) -> dict[str, object]:
     state_mod = _get_state_module()
     generate_scenario = state_mod.generate_scenario
@@ -75,6 +82,10 @@ def materialize(
     safe_cell = cell_id.replace("_", "-")
     if output_dir is None:
         output_dir = output_path(safe_cell, seed)
+
+
+    if not plan_only and (wheelhouse_source is None or resolver_provenance is None):
+        raise SubstrateError("wheelhouse_source is mandatory for production sidecar materialization; pass plan_only=True to emit plan without container build artifacts")
 
     if output_dir.exists():
         shutil.rmtree(output_dir)
@@ -100,14 +111,13 @@ def materialize(
     evidence = output_dir / "evidence"
     mcp_sidecar_dir = environment / "mcp-server"
 
-    for d in (environment, solution, tests, verifier_dir, workbench, adversarial, task_state, evidence, mcp_sidecar_dir):
+    for d in (environment, solution, tests, verifier_dir, workbench, adversarial, task_state, evidence):
         d.mkdir(parents=True, exist_ok=True)
 
-    # Write scenario json to task_state and mcp-server (agent runtime)
+    # Write scenario json to task_state (agent runtime gets scenario.json canonically via RuntimeAsset)
     scenario_dict = asdict(spec)
     scenario_json_str = json.dumps(scenario_dict, indent=2, sort_keys=True) + "\n"
     (task_state / "scenario.json").write_text(scenario_json_str, encoding="utf-8")
-    (mcp_sidecar_dir / "scenario.json").write_text(scenario_json_str, encoding="utf-8")
 
     family_spec = SyntheticFamilySpec(
         family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
@@ -123,58 +133,47 @@ def materialize(
         seed=seed,
     )
 
-    # Target specification strictly for verifier under tests/fixtures to avoid golden leak scan
-    (tests / "fixtures").mkdir(parents=True, exist_ok=True)
-    (verifier_dir / "fixtures").mkdir(parents=True, exist_ok=True)
-    target_spec_dict = {
-        "spec_version": "1.0",
-        "target_entity": spec.target_entity,
-        "target_attribute": spec.target_attribute,
-        "expected_bound_value": spec.latest_value,
-        "dose_bytes": spec.dose_bytes,
-        "update_opportunity_count": spec.update_opportunity_count,
-        "read_opportunity_count": spec.read_opportunity_count,
-        "mutation_opportunity_count": spec.mutation_opportunity_count,
-    }
-    target_spec_str = json.dumps(target_spec_dict, indent=2, sort_keys=True) + "\n"
-    (tests / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")
-    (verifier_dir / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")
+    if not plan_only:
+        (tests / "fixtures").mkdir(parents=True, exist_ok=True)
+        (verifier_dir / "fixtures").mkdir(parents=True, exist_ok=True)
+        target_spec_dict = {
+            "spec_version": "1.0",
+            "target_entity": spec.target_entity,
+            "target_attribute": spec.target_attribute,
+            "expected_bound_value": spec.latest_value,
+            "dose_bytes": spec.dose_bytes,
+            "update_opportunity_count": spec.update_opportunity_count,
+            "read_opportunity_count": spec.read_opportunity_count,
+            "mutation_opportunity_count": spec.mutation_opportunity_count,
+        }
+        target_spec_str = json.dumps(target_spec_dict, indent=2, sort_keys=True) + "\n"
+        (tests / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")
+        (verifier_dir / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")
 
-    # Main Agent Container Dockerfile & entrypoint with explicit /app/output directory creation
-    (environment / "entrypoint.sh").write_text(
-        "#!/bin/sh\nset -eu\nmkdir -p /app/evidence /app/output\nif [ \"$#\" -gt 0 ]; then exec \"$@\"; fi\nexec sleep infinity\n",
-        encoding="utf-8",
-    )
-    (environment / "entrypoint.sh").chmod(0o755)
+        # Main Agent Container Dockerfile & entrypoint with explicit /app/output directory creation
+        (environment / "entrypoint.sh").write_text(
+            "#!/bin/sh\nset -eu\nmkdir -p /app/evidence /app/output\nif [ \"$#\" -gt 0 ]; then exec \"$@\"; fi\nexec sleep infinity\n",
+            encoding="utf-8",
+        )
+        (environment / "entrypoint.sh").chmod(0o755)
 
-    (environment / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/evidence /app/output\nCOPY entrypoint.sh /app/entrypoint.sh\nRUN chmod +x /app/entrypoint.sh\nENTRYPOINT [\"/app/entrypoint.sh\"]\n",
-        encoding="utf-8",
-    )
+        (environment / "Dockerfile").write_text(
+            f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/evidence /app/output\nCOPY entrypoint.sh /app/entrypoint.sh\nRUN chmod +x /app/entrypoint.sh\nENTRYPOINT [\"/app/entrypoint.sh\"]\n",
+            encoding="utf-8",
+        )
 
     tools = (
         MCPToolDefinition(
             name="list_context_chunks",
             description="List all available context log chunk IDs.",
             parameters=(),
-            execution_body=(
-                "scenario = json.loads(Path('/app/scenario.json').read_text())\n"
-                "res = {'chunk_ids': [c['chunk_id'] for c in scenario.get('chunks', [])]}\n"
-                "log_tool_event('list_context_chunks', args, res)\n"
-                "return res"
-            ),
+            metadata={"op_kind": "list_context_chunks"},
         ),
         MCPToolDefinition(
             name="get_context_chunk",
             description="Retrieve content and metadata for a specific chunk ID.",
             parameters=(MCPToolParameter(name="chunk_id", type_name="str", description="The ID of the chunk to read"),),
-            execution_body=(
-                "scenario = json.loads(Path('/app/scenario.json').read_text())\n"
-                "chunk = next((c for c in scenario.get('chunks', []) if c['chunk_id'] == chunk_id), None)\n"
-                "res = chunk or {'error': 'not_found'}\n"
-                "log_tool_event('get_context_chunk', args, res)\n"
-                "return res"
-            ),
+            metadata={"op_kind": "get_context_chunk"},
         ),
         MCPToolDefinition(
             name="execute_mutation",
@@ -184,248 +183,188 @@ def materialize(
                 MCPToolParameter(name="attribute", type_name="str", description="Target attribute key"),
                 MCPToolParameter(name="bound_value", type_name="str", description="Latest state value to bind"),
             ),
-            execution_body=(
-                "out = Path('/app/output')\n"
-                "out.mkdir(parents=True, exist_ok=True)\n"
-                "final_state = {'status': 'executed', 'target_entity': entity_id, 'target_attribute': attribute, 'bound_value': bound_value}\n"
-                "(out / 'final-state.json').write_text(json.dumps(final_state, indent=2, sort_keys=True))\n"
-                "log_tool_event('execute_mutation', args, final_state)\n"
-                "return final_state"
-            ),
+            metadata={"op_kind": "execute_mutation"},
         ),
     )
+
+    runtime_assets = (
+        RuntimeAsset("ops.py", source=ROOT / "ops.py"),
+        RuntimeAsset("scenario.json", content=scenario_json_str.encode("utf-8")),
+    )
+
     pkg = materialize_mcp_sidecar_package(
         target_dir=mcp_sidecar_dir,
         tools=tools,
         server_name="action-memory-mcp",
-        plan_only=True,
+        op_registry_module="ops",
+        wheelhouse_source=wheelhouse_source,
+        resolver_provenance=resolver_provenance,
+        plan_only=plan_only,
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
+        runtime_assets=runtime_assets,
     )
-    server_py = mcp_sidecar_dir / "server.py"
-    if server_py.exists():
-        server_py.write_text(
-            server_py.read_text(encoding="utf-8").replace('transport="sse"', 'transport="streamable-http"'),
+
+    if not plan_only:
+        assert pkg["compose_doc"] is not None
+        compose_doc = pkg["compose_doc"]
+        compose_doc["services"]["main"].pop("image", None)
+        compose_doc["services"]["main"]["build"] = "."
+        (environment / "docker-compose.yaml").write_text(
+            yaml.safe_dump(compose_doc, sort_keys=False),
             encoding="utf-8",
         )
-    shutil.copy2(ROOT / "runtime.py", mcp_sidecar_dir / "runtime.py")
-    (mcp_sidecar_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/output\nCOPY runtime.py /app/runtime.py\nCOPY scenario.json /app/scenario.json\nENTRYPOINT [\"python3\", \"/app/runtime.py\", \"--task-dir\", \"/app\", \"--evidence-dir\", \"/app/output\", \"--port\", \"8080\"]\n",
-        encoding="utf-8",
-    )
-    compose_doc = pkg["compose_doc"]
-    compose_doc["services"]["main"].pop("image", None)
-    compose_doc["services"]["main"]["build"] = "."
-    (environment / "docker-compose.yaml").write_text(
-        yaml.safe_dump(compose_doc, sort_keys=False),
-        encoding="utf-8",
-    )
 
-    # Solution script using http.client with readiness check
-    solution_solve_py = f'''#!/usr/bin/env python3
-import http.client
+        solution_solve_py = """#!/usr/bin/env python3
+from client import McpHttpSession
 import json
 import re
-import sys
-import time
-
-def wait_ready():
-    for _ in range(50):
-        try:
-            conn = http.client.HTTPConnection("mcp-service", 8080, timeout=1)
-            conn.request("GET", "/health")
-            if conn.getresponse().status == 200:
-                conn.close()
-                return
-            conn.close()
-        except Exception:
-            pass
-        time.sleep(0.1)
-
-def rpc_call(method, params):
-    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-    body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": method, "params": params}})
-    conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
-    res = json.loads(conn.getresponse().read().decode("utf-8"))
-    conn.close()
-    return res.get("result", {{}})
 
 def main():
-    wait_ready()
-    rpc_call("initialize", {{"protocolVersion": "2024-11-05"}})
-    chunks_res = rpc_call("tools/call", {{"name": "list_context_chunks", "arguments": {{}}}})
-    chunk_ids = json.loads(chunks_res["content"][0]["text"])["chunk_ids"]
-    target_entity = "{spec.target_entity}"
-    target_attr = "{spec.target_attribute}"
-    latest_val = None
-    for cid in chunk_ids:
-        c_res = rpc_call("tools/call", {{"name": "get_context_chunk", "arguments": {{"chunk_id": cid}}}})
-        text = c_res["content"][0]["text"]
-        if target_entity in text:
-            m = re.search(r"'(?P<val>[^']+)'", text)
-            if m:
-                latest_val = m.group("val")
-    rpc_call("tools/call", {{
-        "name": "execute_mutation",
-        "arguments": {{"entity_id": target_entity, "attribute": target_attr, "bound_value": latest_val}}
-    }})
+    session = McpHttpSession()
+    status, raw = session.initialize()
+    if status != 200:
+        raise RuntimeError(raw)
+    listed = session.call_tool("list_context_chunks", {})
+    if not isinstance(listed, dict) or "chunk_ids" not in listed:
+        raise RuntimeError(f"list_context_chunks returned {listed!r}")
+    target_entity = None
+    latest_value = None
+    b = chr(92) + "b"
+    for chunk_id in listed["chunk_ids"]:
+        chunk = session.call_tool("get_context_chunk", {"chunk_id": chunk_id})
+        text = json.dumps(chunk, sort_keys=True) if isinstance(chunk, dict) else str(chunk)
+        if target_entity is None:
+            match = re.search(r"for\\s+(entity_\\d+)", text)
+            if match:
+                target_entity = match.group(1)
+        if target_entity and re.search(b + re.escape(target_entity) + b, text):
+            match_value = re.search(r"'(?P<val>[^']+)'", text)
+            if match_value:
+                latest_value = match_value.group("val")
+    if not target_entity or not latest_value:
+        raise RuntimeError("could not resolve latest bound value from MCP chunks")
+    res = session.call_tool("execute_mutation", {"entity_id": target_entity, "attribute": "routing_key", "bound_value": latest_value})
+    if isinstance(res, dict) and res.get("status") != "executed":
+        raise RuntimeError(f"execute_mutation failed: {res!r}")
 
 if __name__ == "__main__":
     main()
-'''
-    (solution / "solve.py").write_text(solution_solve_py, encoding="utf-8")
-    (solution / "solve.sh").write_text(
-        "#!/bin/sh\nset -eu\npython3 /solution/solve.py\n",
-        encoding="utf-8",
-    )
-    (solution / "solve.sh").chmod(0o755)
+"""
+        shutil.copy2(ROOT / "client.py", solution / "client.py")
+        (solution / "solve.py").write_text(solution_solve_py, encoding="utf-8")
+        (solution / "solve.sh").write_text(
+            "#!/bin/sh\nset -eu\npython3 /solution/solve.py\n",
+            encoding="utf-8",
+        )
+        (solution / "solve.sh").chmod(0o755)
 
-    # Copy the canonical verifier.py directly into tests and verifier
-    shutil.copy2(ROOT / "verifier.py", tests / "verify.py")
-    shutil.copy2(ROOT / "verifier.py", verifier_dir / "verify.py")
+        shutil.copy2(ROOT / "verifier.py", tests / "verify.py")
+        shutil.copy2(ROOT / "verifier.py", verifier_dir / "verify.py")
 
-    # Tests / Verifier test.sh
-    test_sh_content = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py --task-dir /tests --evidence-dir /app/output --reward-dir /logs/verifier\n"
-    (tests / "test.sh").write_text(test_sh_content, encoding="utf-8")
-    (tests / "test.sh").chmod(0o755)
+        test_sh_content = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py --task-dir /tests --evidence-dir /app/output --reward-dir /logs/verifier\n"
+        (tests / "Dockerfile").write_text(f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /tests\nCOPY . /tests\n", encoding="utf-8")
+        (tests / "test.sh").write_text(test_sh_content, encoding="utf-8")
+        (tests / "test.sh").chmod(0o755)
 
-    verifier_test_sh = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /verifier/verify.py --task-dir /verifier --evidence-dir /app/output --reward-dir /logs/verifier\n"
-    (verifier_dir / "test.sh").write_text(verifier_test_sh, encoding="utf-8")
-    (verifier_dir / "test.sh").chmod(0o755)
+        verifier_test_sh = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /verifier/verify.py --task-dir /verifier --evidence-dir /app/output --reward-dir /logs/verifier\n"
+        (verifier_dir / "test.sh").write_text(verifier_test_sh, encoding="utf-8")
+        (verifier_dir / "test.sh").chmod(0o755)
 
-    # Tests / Verifier Dockerfile copying test.sh and verify.py
-    (tests / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /logs/verifier /app/output /tests\nCOPY verify.py /tests/verify.py\nCOPY test.sh /tests/test.sh\nCOPY fixtures /tests/fixtures\nRUN chmod +x /tests/test.sh /tests/verify.py\nCMD [\"sleep\", \"infinity\"]\n",
-        encoding="utf-8",
-    )
+        # Fair alternative is self-contained: only the instruction-visible streamable MCP contract is used.
+        client_source = (ROOT / "client.py").read_text(encoding="utf-8")
+        fair_python = """
+import json
+import re
 
-    (verifier_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /logs/verifier /app/output /verifier\nCOPY verify.py /verifier/verify.py\nCOPY test.sh /verifier/test.sh\nCOPY fixtures /verifier/fixtures\nRUN chmod +x /verifier/test.sh /verifier/verify.py\nCMD [\"sleep\", \"infinity\"]\n",
-        encoding="utf-8",
-    )
+client = McpHttpSession()
+status, response = client.initialize()
+if status != 200:
+    raise RuntimeError(response)
+catalog = client.call_tool("list_context_chunks", {})
+entity = None
+value = None
+b = chr(92) + "b"
+for chunk_id in catalog.get("chunk_ids", []):
+    visible = client.call_tool("get_context_chunk", {"chunk_id": chunk_id})
+    text = json.dumps(visible, sort_keys=True) if isinstance(visible, dict) else str(visible)
+    found = re.search(r"for\\s+(entity_\\d+)", text)
+    if entity is None and found:
+        entity = found.group(1)
+    if entity and re.search(b + re.escape(entity) + b, text):
+        candidates = re.findall(r"'([^']+)'", text)
+        if candidates:
+            value = candidates[-1]
+if not entity or not value:
+    raise RuntimeError("unable to derive public MCP mutation")
+res = client.call_tool("execute_mutation", {"entity_id": entity, "attribute": "routing_key", "bound_value": value})
+if isinstance(res, dict) and res.get("status") != "executed":
+    raise RuntimeError(f"execute_mutation failed: {res!r}")
+"""
+        fair_shell = "#!/bin/sh\nset -eu\npython3 - <<'PY'\n" + client_source + fair_python + "PY\n"
+        (workbench / "fair-alternative.sh").write_text(fair_shell, encoding="utf-8")
+        (workbench / "fair-alternative.sh").chmod(0o755)
 
-    # Workbench fair-alternative.sh
-    (workbench / "fair-alternative.sh").write_text(
-        f"""#!/bin/sh
-set -eu
-python3 -c '
-import http.client, json
-conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {{"name": "execute_mutation", "arguments": {{"entity_id": "{spec.target_entity}", "attribute": "{spec.target_attribute}", "bound_value": "{spec.latest_value}"}}}}}})
-conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
-conn.close()
-'
-""",
-        encoding="utf-8",
-    )
-    (workbench / "fair-alternative.sh").chmod(0o755)
+        (workbench / "please-hack.sh").write_text(
+            "#!/bin/sh\nmkdir -p /app/output\necho '{\"status\":\"hacked\"}' > /app/output/final-state.json\n",
+            encoding="utf-8",
+        )
+        (workbench / "please-hack.sh").chmod(0o755)
 
-    # Workbench please-hack.sh
-    (workbench / "please-hack.sh").write_text(
-        """#!/bin/sh
-set -eu
-mkdir -p /logs/verifier /app/output
-printf '1.0\n' > /logs/verifier/reward.txt
-printf '{"reward": 1.0, "hacked": true}\n' > /logs/verifier/result.json
-""",
-        encoding="utf-8",
-    )
-    (workbench / "please-hack.sh").chmod(0o755)
+        (adversarial / "stale-value.sh").write_text(
+            f"#!/bin/sh\nset -eu\npython3 -c 'from templates import stale_value_mutant; stale_value_mutant(Path(\"/app\"), Path(\"/app/output\"))'\n",
+            encoding="utf-8",
+        )
+        (adversarial / "stale-value.sh").chmod(0o755)
 
-    # Adversarial probes
-    (adversarial / "stale-value.sh").write_text(
-        f"""#!/bin/sh
-set -eu
-python3 -c '
-import http.client, json
-conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {{"name": "execute_mutation", "arguments": {{"entity_id": "{spec.target_entity}", "attribute": "{spec.target_attribute}", "bound_value": "{spec.initial_value}"}}}}}})
-conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
-conn.close()
-'
-""",
-        encoding="utf-8",
-    )
-    (adversarial / "stale-value.sh").chmod(0o755)
+        (adversarial / "wrong-entity.sh").write_text(
+            f"#!/bin/sh\nset -eu\npython3 -c 'from templates import wrong_entity_mutant; wrong_entity_mutant(Path(\"/app\"), Path(\"/app/output\"))'\n",
+            encoding="utf-8",
+        )
+        (adversarial / "wrong-entity.sh").chmod(0o755)
 
-    (adversarial / "wrong-entity.sh").write_text(
-        f"""#!/bin/sh
-set -eu
-python3 -c '
-import http.client, json
-conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {{"name": "execute_mutation", "arguments": {{"entity_id": "entity-invalid-000", "attribute": "{spec.target_attribute}", "bound_value": "{spec.latest_value}"}}}}}})
-conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
-conn.close()
-'
-""",
-        encoding="utf-8",
-    )
-    (adversarial / "wrong-entity.sh").chmod(0o755)
+        (adversarial / "empty-output.sh").write_text(
+            "#!/bin/sh\nmkdir -p /app/output\n",
+            encoding="utf-8",
+        )
+        (adversarial / "empty-output.sh").chmod(0o755)
 
-    (adversarial / "empty-output.sh").write_text(
-        "#!/bin/sh\nset -eu\nexit 0\n",
-        encoding="utf-8",
-    )
-    (adversarial / "empty-output.sh").chmod(0o755)
+        task_toml_content = f"""schema_version = "1.0"
 
-    # Harbor task.toml & instruction.md
-    task_toml_content = f'''schema_version = "1.4"
 artifacts = ["/app/output/benchmark-events.jsonl", "/app/output/final-state.json"]
 
 [task]
-version = "1.0.0"
-name = "evallab/action-memory-{safe_cell}-seed{seed}"
-description = "Actionable memory and dynamic state inversion benchmark task with streamable HTTP MCP server"
-keywords = ["action-memory", "mcp", "context-growth", "state-inversion", "synthetic"]
-
-[[task.authors]]
-name = "Eval Lab"
-email = "eval-lab@example.invalid"
+name = "action-memory/{safe_cell}"
+version = "1.0"
+authors = [{{ name = "Eval Lab" }}]
+description = "Two-session entity state update and memory retention task."
+keywords = ["action-memory", "mcp-sidecar", "state-inversion"]
 
 [metadata]
-difficulty = "easy"
 category = "synthetic"
-tags = ["action-memory", "mcp", "context-growth", "state-inversion"]
-construct_name = "actionable_entity_memory"
-cell_id = "{safe_cell}"
-arm = "{arm}"
-seed = {seed}
-dose_bytes = {spec.dose_bytes}
-inversion_count = {inversion_count}
-license = "Apache-2.0"
+difficulty = "easy"
+tags = ["action-memory", "mcp-sidecar", "state-inversion"]
 
 [agent]
 timeout_sec = 600.0
 
-[verifier]
-timeout_sec = 120.0
-environment_mode = "separate"
-
-[verifier.environment]
-network_mode = "no-network"
-
-[[verifier.collect]]
-service = "main"
-command = "if [ -f /app/output/benchmark-events.jsonl ]; then cp -f /app/output/benchmark-events.jsonl /app/output/benchmark-events.jsonl; fi"
-
-[[verifier.collect]]
-service = "main"
-command = "if [ -f /app/output/final-state.json ]; then cp -f /app/output/final-state.json /app/output/final-state.json; fi"
-
 [environment]
 network_mode = "no-network"
 build_timeout_sec = 120.0
-os = "linux"
 cpus = 1
-memory_mb = 512
+memory_mb = 2048
 storage_mb = 1024
 
 [[environment.mcp_servers]]
-name = "memory_mcp"
+name = "action-memory-mcp"
 transport = "streamable-http"
 url = "http://mcp-service:8080/mcp"
-'''
-    (output_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+network_mode = "no-network"
+"""
+        (output_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 
     instruction_md_content = f"""# Action Memory Task: Configuration State Mutation
 
@@ -457,11 +396,32 @@ You are operating an agent workflow against a stateful streamable HTTP MCP serve
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Action Memory benchmark materializer")
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--cell-id", type=str, default="clean-baseline-4k")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--wheelhouse-source", type=Path, default=None)
+    parser.add_argument("--provenance-file", type=Path, default=None)
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument("--plan-only", action="store_true", help="Generate task plan specification without container build artifacts")
+    mode_group.add_argument("--production", action="store_true", help="Generate complete production package requiring wheelhouse")
     args = parser.parse_args()
 
-    res = materialize(output_dir=args.output_dir, cell_id=args.cell_id, seed=args.seed)
+    provenance = None
+    if args.production:
+        if args.wheelhouse_source is None:
+            parser.error("--production requires --wheelhouse-source")
+        if args.provenance_file is None or not args.provenance_file.is_file():
+            parser.error("--production requires valid --provenance-file")
+        from evallab.mcp_substrate import ResolverProvenance
+        provenance = ResolverProvenance.from_json(json.loads(args.provenance_file.read_text(encoding="utf-8")))
+
+    res = materialize(
+        output_dir=args.output_dir,
+        cell_id=args.cell_id,
+        seed=args.seed,
+        wheelhouse_source=args.wheelhouse_source,
+        resolver_provenance=provenance,
+        plan_only=args.plan_only,
+    )
     print(json.dumps(res, indent=2))

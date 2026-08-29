@@ -59,26 +59,32 @@ def verify(
     read_events = 0
     mutation_events = 0
     if events_file.exists():
-        last_index = 0
+        last_ordinal = 0
         for line in events_file.read_text(encoding="utf-8").splitlines():
             line_str = line.strip()
             if not line_str:
                 continue
             try:
                 ev = json.loads(line_str)
-                event_count += 1
-                ev_idx = ev.get("event_index", 0)
-                if ev_idx <= last_index:
-                    res = {"reward": 0.0, "reason": "non_monotone_event_indices", "truth_digest": truth_digest}
-                    _record(reward_dir, res)
-                    return res
-                last_index = ev_idx
-                if ev.get("event_type") in {"read_chunk", "get_context_chunk"}:
-                    read_events += 1
-                elif ev.get("event_type") in {"execute_mutation", "mutation"}:
-                    mutation_events += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                res = {"reward": 0.0, "reason": f"invalid_event_json: {exc}", "truth_digest": truth_digest}
+                _record(reward_dir, res)
+                return res
+            if not isinstance(ev, dict):
+                res = {"reward": 0.0, "reason": "event_not_json_object", "truth_digest": truth_digest}
+                _record(reward_dir, res)
+                return res
+            event_count += 1
+            ev_ord = ev.get("event_ordinal")
+            if not isinstance(ev_ord, int) or ev_ord <= last_ordinal:
+                res = {"reward": 0.0, "reason": "non_monotone_event_ordinals", "truth_digest": truth_digest}
+                _record(reward_dir, res)
+                return res
+            last_ordinal = ev_ord
+            if ev.get("event_type") in {"read_chunk", "get_context_chunk", "tool_call_success"}:
+                read_events += 1
+            if ev.get("tool_name") == "execute_mutation" or ev.get("event_type") in {"execute_mutation", "mutation"}:
+                mutation_events += 1
 
     obs_entity = final_state.get("target_entity")
     obs_attr = final_state.get("target_attribute")

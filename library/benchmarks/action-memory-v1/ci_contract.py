@@ -37,9 +37,9 @@ def main() -> None:
     reject_committed_corpora()
 
     target = output_path("clean_baseline_4k", seed=42)
-    materialize(target, cell_id="clean_baseline_4k", seed=42)
+    materialize(target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     first = snapshot(target)
-    materialize(target, cell_id="clean_baseline_4k", seed=42)
+    materialize(target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     second = snapshot(target)
     if first != second:
         raise AssertionError("Deterministic canary regeneration mismatch")
@@ -55,7 +55,7 @@ def main() -> None:
         raise AssertionError(f"NOP candidate received reward {nop_res['reward']} != 0.0")
 
     # Test Oracle control
-    materialize(target, cell_id="clean_baseline_4k", seed=42)
+    materialize(target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
     oracle(task_dir, evidence_dir)
     oracle_res = verify(task_dir, evidence_dir, reward_dir=rewards / "oracle")
     if oracle_res["reward"] != 1.0:
@@ -63,7 +63,7 @@ def main() -> None:
 
     # Test Mutants
     for mutant_name, mutant_fn in mutants().items():
-        materialize(target, cell_id="clean_baseline_4k", seed=42)
+        materialize(target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
         mutant_fn(task_dir, evidence_dir)
         mutant_res = verify(task_dir, evidence_dir, reward_dir=rewards / mutant_name)
         if mutant_res["reward"] != 0.0:

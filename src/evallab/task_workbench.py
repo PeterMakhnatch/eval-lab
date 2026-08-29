@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import unicodedata
 import urllib.parse
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -1441,17 +1442,55 @@ def _is_exact_dependency_version(value: object) -> bool:
     )
 
 
+def _is_sha256_hex(val: Any) -> bool:
+    if not isinstance(val, str):
+        return False
+    raw = val.lower().removeprefix("sha256:")
+    return bool(re.fullmatch(r"[0-9a-f]{64}", raw))
+
+
+def _derive_all_build_contexts(
+    task_dir: Path, compose_topology: Mapping[str, Any] | None, diagnostics: list[Diagnostic]
+) -> tuple[tuple[str, str], ...]:
+    contexts = list(_BUILD_CONTEXTS)
+    seen_paths: dict[str, str] = {"environment": "the agent image", "tests": "the separate verifier image"}
+    if compose_topology and isinstance(compose_topology.get("services"), Mapping):
+        for s_name, s_info in compose_topology["services"].items():
+            if not isinstance(s_info, Mapping):
+                continue
+            ctx_rel = s_info.get("build_context")
+            if not ctx_rel or not isinstance(ctx_rel, str) or ctx_rel in ("environment", "."):
+                continue
+            clean_rel = ctx_rel.strip("/")
+            resolved = (task_dir / clean_rel).resolve()
+            if not _is_under(resolved, task_dir):
+                diagnostics.append(
+                    _diag("compose_build_path_escape", "environment/docker-compose.yaml", f"service {s_name!r} build context escapes task directory: {clean_rel}")
+                )
+                continue
+            if resolved.is_symlink():
+                diagnostics.append(
+                    _diag("compose_build_path_symlink", "environment/docker-compose.yaml", f"service {s_name!r} build context is a symlink: {clean_rel}")
+                )
+                continue
+            if clean_rel not in seen_paths:
+                seen_paths[clean_rel] = f"the sidecar service {s_name}"
+                contexts.append((clean_rel, f"the sidecar service {s_name}"))
+    return tuple(contexts)
+
+
 def _validate_offline_build_proofs(
-    task_dir: Path, diagnostics: list[Diagnostic]
+    task_dir: Path, diagnostics: list[Diagnostic], compose_topology: Mapping[str, Any] | None = None
 ) -> dict[str, dict[str, Any]]:
     proofs: dict[str, dict[str, Any]] = {}
-    for context, _image in _BUILD_CONTEXTS:
+    all_contexts = _derive_all_build_contexts(task_dir, compose_topology, diagnostics)
+    for context, _image in all_contexts:
         root = task_dir / context
-        if not root.is_dir():
+        if not root.is_dir() or root.is_symlink():
             continue
         for proof_name in ("build-proof.json", "offline-build-proof.json"):
             proof_path = root / proof_name
-            if not proof_path.is_file():
+            if not proof_path.is_file() or proof_path.is_symlink():
                 continue
             rel_proof = proof_path.relative_to(task_dir).as_posix()
             try:
@@ -1466,6 +1505,422 @@ def _validate_offline_build_proofs(
                     _diag("build_proof_invalid", rel_proof, "build proof must be a JSON object")
                 )
                 continue
+
+            # Check if canonical MCP substrate proof
+            if "substrate_version" in data or data.get("mode") in ("complete_offline_package", "plan_only"):
+                mode = data.get("mode")
+                if mode == "plan_only":
+                    if (root / "Dockerfile").exists():
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "plan-only proof cannot accompany an active Dockerfile build context")
+                        )
+                        continue
+                    proofs[context] = {
+                        "context": context,
+                        "proof_path": rel_proof,
+                        "mode": "plan_only",
+                        "substrate_version": data.get("substrate_version"),
+                        "proof_digest": _sha256_file(proof_path),
+                    }
+                    continue
+                if mode != "complete_offline_package":
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"unknown substrate proof mode: {mode!r}")
+                    )
+                    continue
+
+                # 1. Mandatory requirements.txt matching requirements_sha256
+                req_path = root / "requirements.txt"
+                if not req_path.is_file() or req_path.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_lockfile_missing", rel_proof, "requirements.txt missing or symlink for substrate build proof")
+                    )
+                    continue
+                declared_req_digest = data.get("requirements_sha256")
+                if not _is_sha256_hex(declared_req_digest):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires valid sha256 'requirements_sha256'")
+                    )
+                    continue
+                actual_req_digest = hashlib.sha256(req_path.read_bytes()).hexdigest()
+                if actual_req_digest != declared_req_digest.lower().removeprefix("sha256:"):
+                    diagnostics.append(
+                        _diag("build_proof_lockfile_mismatch", rel_proof, f"requirements.txt digest {actual_req_digest} does not match proof {declared_req_digest}")
+                    )
+                    continue
+
+                # 2. Mandatory Dockerfile matching dockerfile_sha256
+                df_path = root / "Dockerfile"
+                if not df_path.is_file() or df_path.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "Dockerfile missing or symlink for substrate build proof")
+                    )
+                    continue
+                declared_df_digest = data.get("dockerfile_sha256")
+                if not _is_sha256_hex(declared_df_digest):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires valid sha256 'dockerfile_sha256'")
+                    )
+                    continue
+                df_bytes = df_path.read_bytes()
+                actual_df_digest = hashlib.sha256(df_bytes).hexdigest()
+                if actual_df_digest != declared_df_digest.lower().removeprefix("sha256:"):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"Dockerfile digest {actual_df_digest} does not match proof {declared_df_digest}")
+                    )
+                    continue
+
+                # Parse all Dockerfile instructions; reject ADD, flags, and multi-source COPY
+                df_text = df_bytes.decode("utf-8", errors="replace")
+                dockerfile_copies: list[tuple[str, str]] = []
+                has_df_err = False
+                for line in _docker_logical_lines(df_text):
+                    clean = line.strip()
+                    if clean.startswith("#"):
+                        continue
+                    if re.match(r"(?i)^ADD\b", clean):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"ADD instructions are forbidden in canonical sidecar Dockerfile: {clean!r}")
+                        )
+                        has_df_err = True
+                        break
+                    if re.match(r"(?i)^COPY\b", clean):
+                        # Reject flags (--from, --chown, etc)
+                        if re.search(r"--[a-z0-9_-]+=", clean):
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, f"COPY flags are forbidden in canonical sidecar Dockerfile: {clean!r}")
+                            )
+                            has_df_err = True
+                            break
+                        # Handle JSON array form COPY ["src", "dst"] vs shell form COPY src dst
+                        if clean[4:].strip().startswith("["):
+                            try:
+                                json_arr = json.loads(clean[4:].strip())
+                                if not isinstance(json_arr, list) or len(json_arr) != 2 or not all(isinstance(x, str) for x in json_arr):
+                                    diagnostics.append(
+                                        _diag("build_proof_invalid", rel_proof, f"JSON COPY must contain exactly 2 string arguments: {clean!r}")
+                                    )
+                                    has_df_err = True
+                                    break
+                                src_token, dst_token = json_arr[0], json_arr[1]
+                            except Exception:
+                                diagnostics.append(
+                                    _diag("build_proof_invalid", rel_proof, f"malformed JSON COPY instruction: {clean!r}")
+                                )
+                                has_df_err = True
+                                break
+                        else:
+                            tokens = clean.split()[1:]
+                            if len(tokens) != 2:
+                                diagnostics.append(
+                                    _diag("build_proof_invalid", rel_proof, f"only exact 2-token COPY instructions are supported in canonical sidecar Dockerfile: {clean!r}")
+                                )
+                                has_df_err = True
+                                break
+                            src_token, dst_token = tokens[0], tokens[1]
+                        dockerfile_copies.append((src_token, dst_token))
+
+                if has_df_err:
+                    continue
+
+                # Verify canonical base copies
+                canonical_base_copies = [
+                    ("wheelhouse", "/wheelhouse"),
+                    ("requirements.txt", "/app/requirements.txt"),
+                    ("server.py", "/app/server.py"),
+                ]
+                if dockerfile_copies[:3] != canonical_base_copies:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"Dockerfile must begin with canonical base COPY instructions, got {dockerfile_copies[:3]}")
+                    )
+                    continue
+
+                asset_copies = dockerfile_copies[3:]
+                copy_sources = [src for src, _dst in asset_copies]
+                if len(copy_sources) != len(set(copy_sources)):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "Dockerfile contains duplicate asset COPY sources")
+                    )
+                    continue
+
+                copy_dests = [dst for _src, dst in asset_copies]
+                if len(copy_dests) != len(set(copy_dests)):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "Dockerfile contains duplicate asset COPY destinations")
+                    )
+                    continue
+
+                # 3. Mandatory runtime_assets verification and 1:1 mapping with Dockerfile COPY
+                has_asset_err = False
+                declared_asset_paths = set()
+                declared_asset_fold = set()
+                if "runtime_assets" not in data:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate build proof requires mandatory 'runtime_assets' list")
+                    )
+                    continue
+                raw_assets = data["runtime_assets"]
+                if not isinstance(raw_assets, Sequence) or isinstance(raw_assets, (str, bytes)):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "runtime_assets in substrate proof must be a list")
+                    )
+                    continue
+
+                for a in raw_assets:
+                    if (
+                        not isinstance(a, Mapping)
+                        or not isinstance(a.get("path"), str)
+                        or not isinstance(a.get("sha256"), str)
+                        or not isinstance(a.get("size_bytes"), int)
+                        or not _is_sha256_hex(a["sha256"])
+                    ):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "each runtime_asset entry must declare valid path (str), sha256 (hex), and size_bytes (int)")
+                        )
+                        has_asset_err = True
+                        break
+                    a_rel = a["path"]
+                    # NFC normalization check
+                    if unicodedata.normalize("NFC", a_rel) != a_rel:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"runtime asset path {a_rel!r} must be Unicode NFC normalized")
+                        )
+                        has_asset_err = True
+                        break
+                    if (
+                        not a_rel
+                        or a_rel != PurePosixPath(a_rel).as_posix()
+                        or "//" in a_rel
+                        or "\\" in a_rel
+                        or a_rel.startswith("/")
+                        or a_rel.endswith("/")
+                        or any(part in (".", "..") for part in PurePosixPath(a_rel).parts)
+                        or any(ord(c) < 32 or ord(c) == 127 for c in a_rel)
+                    ):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"runtime asset path {a_rel!r} is not a normalized confined POSIX relative path")
+                        )
+                        has_asset_err = True
+                        break
+                    a_fold = a_rel.casefold()
+                    a_first = a_fold.split("/", 1)[0]
+                    if (
+                        a_fold in {".dockerignore", "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml", "dockerfile", "dockerfile.dockerignore", "offline-build-proof.json", "requirements.txt", "server.py", "wheelhouse"}
+                        or a_first in {".dockerignore", "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml", "dockerfile", "dockerfile.dockerignore", "offline-build-proof.json", "requirements.txt", "server.py", "wheelhouse"}
+                        or a_fold.startswith("dockerfile.")
+                        or a_first.startswith("dockerfile.")
+                    ):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"runtime asset path {a_rel!r} is reserved")
+                        )
+                        has_asset_err = True
+                        break
+                    if a_fold in declared_asset_fold:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"duplicate runtime asset path in proof: {a_rel!r}")
+                        )
+                        has_asset_err = True
+                        break
+                    declared_asset_fold.add(a_fold)
+                    declared_asset_paths.add(a_rel)
+                    a_file = root / a_rel
+                    if not a_file.is_file() or a_file.is_symlink() or not _is_under(a_file.resolve(), root.resolve()):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} missing, symlink, or escapes root")
+                        )
+                        has_asset_err = True
+                        break
+                    a_bytes = a_file.read_bytes()
+                    if len(a_bytes) != a["size_bytes"]:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} size {len(a_bytes)} does not match proof {a['size_bytes']}")
+                        )
+                        has_asset_err = True
+                        break
+                    a_hash = hashlib.sha256(a_bytes).hexdigest()
+                    if a_hash != a["sha256"].lower().removeprefix("sha256:"):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} digest {a_hash} does not match proof {a['sha256']}")
+                        )
+                        has_asset_err = True
+                        break
+
+                if has_asset_err:
+                    continue
+
+                # Check for prefix / ancestor collisions among runtime assets
+                folded_sorted = sorted(declared_asset_fold)
+                has_prefix_err = False
+                for idx_f, left in enumerate(folded_sorted):
+                    prefix_check = f"{left}/"
+                    for right in folded_sorted[idx_f + 1:]:
+                        if right.startswith(prefix_check):
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, f"runtime asset path {right!r} conflicts with ancestor prefix {left!r}")
+                            )
+                            has_prefix_err = True
+                            break
+                    if has_prefix_err:
+                        break
+                if has_prefix_err:
+                    continue
+
+                expected_asset_copies = [
+                    (a["path"], f"/app/{a['path']}")
+                    for a in sorted(raw_assets, key=lambda x: x["path"])
+                ]
+                if asset_copies != expected_asset_copies:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "Dockerfile asset COPY lines do not match sorted proof runtime_assets exactly")
+                    )
+                    continue
+
+                # 4. Mandatory wheels verification strictly under root/wheelhouse/<basename>
+                if "wheels" not in data or not isinstance(data["wheels"], Sequence) or not data["wheels"]:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate build proof requires non-empty 'wheels' list")
+                    )
+                    continue
+                wheels = data["wheels"]
+
+                if "wheel_count" not in data or not isinstance(data["wheel_count"], int) or data["wheel_count"] != len(wheels):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"mandatory integer wheel_count missing or does not match wheels list length {len(wheels)}")
+                    )
+                    continue
+
+                wheelhouse_dir = root / "wheelhouse"
+                if not wheelhouse_dir.is_dir() or wheelhouse_dir.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "wheelhouse directory missing or symlink")
+                    )
+                    continue
+
+                # Strict directory inspection: reject symlinks, directories, non-.whl files, and hidden files
+                actual_wheel_files = []
+                has_dir_err = False
+                for p in wheelhouse_dir.iterdir():
+                    if p.is_symlink():
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheelhouse contains symlink entry {p.name!r}")
+                        )
+                        has_dir_err = True
+                        break
+                    if not p.is_file():
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheelhouse contains non-file directory {p.name!r}")
+                        )
+                        has_dir_err = True
+                        break
+                    if not p.name.endswith(".whl") or p.name.startswith("."):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheelhouse contains non-wheel or hidden file {p.name!r}")
+                        )
+                        has_dir_err = True
+                        break
+                    actual_wheel_files.append(p.name)
+
+                if has_dir_err:
+                    continue
+
+                if len(actual_wheel_files) != data["wheel_count"]:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"actual regular wheel count {len(actual_wheel_files)} does not match proof wheel_count {data['wheel_count']}")
+                    )
+                    continue
+
+                pinned_deps = []
+                has_wheel_err = False
+                declared_filenames = set()
+                seen_fold = set()
+                for w in wheels:
+                    if (
+                        not isinstance(w, Mapping)
+                        or not isinstance(w.get("filename"), str)
+                        or not isinstance(w.get("sha256"), str)
+                        or not isinstance(w.get("size_bytes"), int)
+                        or not _is_sha256_hex(w["sha256"])
+                    ):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "each wheel entry must declare valid filename (str), sha256 (hex), and size_bytes (int)")
+                        )
+                        has_wheel_err = True
+                        break
+                    w_name = w["filename"]
+                    if (
+                        Path(w_name).name != w_name
+                        or not w_name.endswith(".whl")
+                        or "/" in w_name
+                        or "\\" in w_name
+                        or any(ord(c) < 32 or ord(c) == 127 for c in w_name)
+                    ):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel filename {w_name!r} must be a normalized plain .whl basename")
+                        )
+                        has_wheel_err = True
+                        break
+                    w_fold = w_name.casefold()
+                    if w_fold in seen_fold:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"duplicate wheel filename in proof: {w_name!r}")
+                        )
+                        has_wheel_err = True
+                        break
+                    seen_fold.add(w_fold)
+                    declared_filenames.add(w_name)
+                    w_path = wheelhouse_dir / w_name
+                    if not w_path.is_file() or w_path.is_symlink() or not _is_under(w_path.resolve(), wheelhouse_dir.resolve()):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} missing, symlink, or escapes wheelhouse")
+                        )
+                        has_wheel_err = True
+                        break
+                    w_bytes = w_path.read_bytes()
+                    if len(w_bytes) != w["size_bytes"]:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} size {len(w_bytes)} does not match proof {w['size_bytes']}")
+                        )
+                        has_wheel_err = True
+                        break
+                    w_hash = hashlib.sha256(w_bytes).hexdigest()
+                    if w_hash != w["sha256"].lower().removeprefix("sha256:"):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} digest {w_hash} does not match proof {w['sha256']}")
+                        )
+                        has_wheel_err = True
+                        break
+                    pinned_deps.append({
+                        "name": w.get("name") or w_name.split("-")[0],
+                        "version": w.get("version") or "pinned",
+                        "sha256": w["sha256"],
+                        "wheel": w_name,
+                    })
+                if has_wheel_err:
+                    continue
+
+                # Exact inventory check
+                extra_wheels = set(actual_wheel_files) - declared_filenames
+                if extra_wheels:
+                    diagnostics.append(
+                        _diag("build_proof_unpinned_dependency", rel_proof, f"extra unapproved wheels in wheelhouse not in proof: {sorted(extra_wheels)}")
+                    )
+                    continue
+
+                proofs[context] = {
+                    "context": context,
+                    "proof_path": rel_proof,
+                    "lockfile": "requirements.txt",
+                    "lockfile_digest": actual_req_digest,
+                    "ecosystem": "pypi",
+                    "reviewed_by": "eval-lab-substrate",
+                    "pinned_dependencies": pinned_deps,
+                    "pinned_dependencies_count": len(pinned_deps),
+                    "runtime_asset_paths": tuple(sorted(declared_asset_paths)),
+                    "proof_digest": _sha256_file(proof_path),
+                }
+                continue
+
+            # Legacy / Tau2 offline build proof
             if data.get("kind") != "offline_build_proof":
                 diagnostics.append(
                     _diag(
@@ -2205,7 +2660,7 @@ def _validate_compose_topology(
                     )
                 )
             else:
-                build_context_rel = resolved_ctx.relative_to(task_dir).as_posix()
+                build_context_rel = resolved_ctx.relative_to(task_dir.resolve()).as_posix()
                 nested_dockerfile = resolved_ctx / "Dockerfile"
                 if not nested_dockerfile.is_file():
                     diagnostics.append(
@@ -2662,16 +3117,28 @@ def _validate_verifier_env(
 
 
 def _validate_build_context_contents(
-    task_dir: Path, diagnostics: list[Diagnostic], build_proofs: Mapping[str, Any] | None = None
+    task_dir: Path,
+    diagnostics: list[Diagnostic],
+    build_proofs: Mapping[str, Any] | None = None,
+    compose_topology: Mapping[str, Any] | None = None,
 ) -> None:
     """Refuse unmodelled configuration files, then content-scan the payload."""
-    for context, image in _BUILD_CONTEXTS:
+    all_contexts = _derive_all_build_contexts(task_dir, compose_topology, diagnostics)
+    nested_roots = [
+        (task_dir / ctx).resolve()
+        for ctx, _img in all_contexts
+        if ctx not in ("environment", "tests")
+    ]
+    for context, image in all_contexts:
         root = task_dir / context
-        if not root.is_dir():
+        if not root.is_dir() or root.is_symlink():
             continue
         dockerfile = f"{context}/Dockerfile"
         for path in sorted(root.rglob("*")):
             if path.is_symlink() or not path.is_file():
+                continue
+            resolved_path = path.resolve()
+            if context == "environment" and any(_is_under(resolved_path, n_root) for n_root in nested_roots):
                 continue
             relative = path.relative_to(task_dir).as_posix()
             if relative == dockerfile:
@@ -2680,7 +3147,13 @@ def _validate_build_context_contents(
                 continue
             if path.name in {"build-proof.json", "offline-build-proof.json"}:
                 continue
-            if path.suffix == ".whl":
+            proof_asset_paths = (
+                build_proofs.get(context, {}).get("runtime_asset_paths", frozenset())
+                if build_proofs
+                else frozenset()
+            )
+            context_relative = path.relative_to(root).as_posix()
+            if context_relative.startswith("wheelhouse/") and path.suffix == ".whl":
                 if build_proofs and context in build_proofs:
                     _verify_wheel_in_build_proof(path, root, build_proofs[context], diagnostics)
                     continue
@@ -2702,6 +3175,10 @@ def _validate_build_context_contents(
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
+                if context_relative in proof_asset_paths:
+                    # Exact proof has already bound this binary payload's path, bytes, size, and COPY mapping.
+                    # Text proof-bound assets still reach the normal content/network scan above.
+                    continue
                 diagnostics.append(
                     _diag(
                         "build_context_unreadable",
@@ -2728,8 +3205,8 @@ def _validate_build_context_contents(
                             "build_network_use",
                             relative,
                             f"files in the build context for {image} may not fetch from a network "
-                            "or invoke an online package manager; proof permits only exact offline "
-                            "frozen installs",
+                            "or invoke an online package manager; proof permits only exact "
+                            "offline frozen installs",
                         )
                     )
 
@@ -2774,7 +3251,7 @@ def _verify_wheel_in_build_proof(
         )
         return
     declared_hash = matched.get("hash") or matched.get("sha256")
-    if declared_hash and str(declared_hash).lower().replace("sha256:", "") != wheel_hash:
+    if declared_hash and str(declared_hash).lower().removeprefix("sha256:") != wheel_hash.removeprefix("sha256:"):
         diagnostics.append(
             _diag(
                 "build_proof_invalid",
@@ -3461,14 +3938,18 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     compose_topology, sidecar_name = _validate_compose_topology(
         task_dir, diagnostics, credentials=source.credentials
     )
-    build_proofs = _validate_offline_build_proofs(task_dir, diagnostics)
+    build_proofs = _validate_offline_build_proofs(
+        task_dir, diagnostics, compose_topology=compose_topology
+    )
     mcp_servers = _validate_mcp_servers(config, sidecar_name, diagnostics)
     collect_hooks = _validate_verifier_collect(config, artifacts, diagnostics)
     _validate_verifier_env(config, source, diagnostics)
     base_image = _validate_dockerfile(
         task_dir, diagnostics, has_proof=("environment" in build_proofs)
     )
-    _validate_build_context_contents(task_dir, diagnostics, build_proofs)
+    _validate_build_context_contents(
+        task_dir, diagnostics, build_proofs, compose_topology=compose_topology
+    )
     _validate_verifier_image(
         task_dir, diagnostics, has_proof=("tests" in build_proofs)
     )

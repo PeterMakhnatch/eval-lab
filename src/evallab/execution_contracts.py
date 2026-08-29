@@ -259,7 +259,7 @@ def _fstat_owner_secret(fd: int, *, allowed_modes: frozenset[int]) -> os.stat_re
     info = os.fstat(fd)
     if not stat.S_ISREG(info.st_mode):
         raise OSError("secret path is not a regular file")
-    if info.st_uid != os.geteuid():
+    if info.st_uid not in {0, os.geteuid()}:
         raise OSError("secret file owner mismatch")
     if (info.st_mode & 0o777) not in allowed_modes:
         raise OSError("secret file mode is not owner-only")
@@ -370,7 +370,7 @@ class RedactingBinaryWriter:
         self.path = path
         self._secrets = secrets
         longest = max((len(secret) for secret in secrets if secret), default=1)
-        self._holdback = min(_MAX_HOLDBACK, max(longest, _BEARER_HOLDBACK))
+        self._holdback = min(_MAX_HOLDBACK, max(longest * 2, _BEARER_HOLDBACK))
         self._pending = b""
         path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = path.open("wb")

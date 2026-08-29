@@ -7,6 +7,7 @@ ceilings fail closed even if a tool reads and replays its own capability.
 
 from __future__ import annotations
 
+import base64
 import hmac
 import http.client
 import json
@@ -63,7 +64,7 @@ def provider_key() -> str:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
             raise RuntimeError("DeepSeek secret file is unavailable")
-        if info.st_uid != os.geteuid():
+        if info.st_uid not in {0, os.geteuid()}:
             raise RuntimeError("DeepSeek secret file is unavailable")
         if (info.st_mode & 0o777) not in {0o400, 0o600}:
             raise RuntimeError("DeepSeek secret file is unavailable")
@@ -119,11 +120,57 @@ def _pinned_upstream_url() -> str:
     raise RuntimeError("upstream scheme is not pinned")
 
 
+def _key_needles(key: str) -> tuple[bytes, ...]:
+    utf8 = key.encode("utf-8")
+    if not utf8:
+        return ()
+    escaped = json.dumps(key, ensure_ascii=True)[1:-1].encode("ascii")
+    raw_escaped = json.dumps(key, ensure_ascii=False)[1:-1].encode("utf-8")
+    b64 = base64.b64encode(utf8)
+    needles = {
+        utf8,
+        escaped,
+        raw_escaped,
+        key.encode("unicode_escape"),
+        key.encode("utf-16le"),
+        key.encode("utf-16be"),
+        b64,
+        b64.rstrip(b"="),
+    }
+    return tuple(needle for needle in needles if needle)
+
+
 def _redact_key(data: bytes, key: str) -> bytes:
-    secret = key.encode("utf-8")
-    if not secret:
-        return data
-    return data.replace(secret, b"<redacted>")
+    redacted = data
+    for needle in _key_needles(key):
+        redacted = redacted.replace(needle, b"<redacted>")
+    return redacted
+
+
+def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
+    try:
+        payload = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("unsupported upstream body") from exc
+
+    def _scrub(value: object) -> object:
+        if isinstance(value, str):
+            return _redact_key(value.encode("utf-8"), key).decode("utf-8")
+        if isinstance(value, list):
+            return [_scrub(item) for item in value]
+        if isinstance(value, dict):
+            return {
+                _redact_key(str(name).encode("utf-8"), key).decode("utf-8"): _scrub(item)
+                for name, item in value.items()
+            }
+        return value
+
+    canonical = json.dumps(_scrub(payload), ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    sanitized = _redact_key(canonical, key)
+    for needle in _key_needles(key):
+        if needle in sanitized:
+            raise ValueError("reflected secret remains")
+    return sanitized
 
 
 def _response_encoding_ok(headers: http.client.HTTPMessage) -> bool:
@@ -133,8 +180,16 @@ def _response_encoding_ok(headers: http.client.HTTPMessage) -> bool:
         return False
     if transfer not in {"identity", "chunked", ""}:
         return False
-    content_type = (headers.get("Content-Type") or "").split(";", 1)[0].strip().casefold()
-    return content_type in {"application/json", "text/plain", ""}
+    content_type = headers.get("Content-Type") or ""
+    media, _, params = content_type.partition(";")
+    if media.strip().casefold() not in {"application/json"}:
+        return False
+    charset = "utf-8"
+    for part in params.split(";"):
+        name, _, value = part.strip().partition("=")
+        if name.casefold() == "charset" and value:
+            charset = value.strip().strip('"').casefold()
+    return charset in {"utf-8", "us-ascii", ""}
 
 
 def _int_env(name: str) -> int:
@@ -148,23 +203,14 @@ def _int_env(name: str) -> int:
 
 
 def _estimate_tokens(payload: dict[str, Any]) -> int:
-    chunks: list[str] = []
-
-    def _walk(value: object) -> None:
-        if isinstance(value, str):
-            chunks.append(value)
-        elif isinstance(value, dict):
-            for item in value.values():
-                _walk(item)
-        elif isinstance(value, list):
-            for item in value:
-                _walk(item)
-
-    _walk(payload.get("messages"))
-    _walk(payload.get("tools"))
-    _walk(payload.get("tool_choice"))
-    encoded = "".join(chunks).encode("utf-8")
-    return max(1, (len(encoded) + 3) // 4)
+    """Reserve a conservative upper bound. Never trust characters/4."""
+    billed = {
+        "messages": payload.get("messages"),
+        "tools": payload.get("tools"),
+        "tool_choice": payload.get("tool_choice"),
+    }
+    encoded = json.dumps(billed, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return max(1, len(encoded))
 
 
 class TrialBudget:
@@ -450,15 +496,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._reject(502, b"unsupported upstream body\n")
                 return
             try:
-                decoded = upstream_body.decode("utf-8")
-            except UnicodeDecodeError:
+                sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
+            except ValueError:
                 self._reject(502, b"unsupported upstream body\n")
                 return
-            del decoded
-            sanitized_body = _redact_key(upstream_body, key)
             used_input, used_output = input_tokens, output_tokens
             try:
-                upstream_payload = json.loads(sanitized_body.decode("utf-8"))
+                upstream_payload = json.loads(sanitized_body.decode("ascii"))
             except json.JSONDecodeError:
                 self._reject(502, b"unsupported upstream body\n")
                 return

@@ -425,6 +425,8 @@ def test_proxy_joins_workbench_internal_and_default_networks() -> None:
     # Overlay must not pull main onto default and undo an internal-only task network.
     main_block = overlay.split("deepseek-secret-proxy:", 1)[0]
     assert "networks:" not in main_block
+    assert "mode: 0400" in overlay
+    assert 'uid: "0"' in overlay
 
 
 def test_harbor_run_path_rewrites_none_api_key_and_exec_env(
@@ -537,7 +539,8 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         monkeypatch,
         EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
         EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
-        EVALLAB_DEEPSEEK_MAX_COST_MICROS="16",
+        EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="256",
+            EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
     )
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
@@ -573,7 +576,7 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         assert (
             post(
                 "/v1/chat/completions",
-                b'{"model":"deepseek-v4-flash","max_tokens":999999,"messages":[{"role":"user","content":"x"}]}',
+                b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"' + (b"x" * 200) + b'"}]}',
             )
             == 429
         )
@@ -583,7 +586,8 @@ def test_proxy_rejects_attacks_without_upstream_spend(
             EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT=str(time.time() - 1),
             EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
             EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
-            EVALLAB_DEEPSEEK_MAX_COST_MICROS="16",
+            EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="256",
+            EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
         )
         assert (
             post(
@@ -597,7 +601,8 @@ def test_proxy_rejects_attacks_without_upstream_spend(
             capability=capability,
             EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
             EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
-            EVALLAB_DEEPSEEK_MAX_COST_MICROS="16",
+            EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="256",
+            EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
             EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT=str(time.time() + 60),
         )
         ok_body = b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
@@ -891,3 +896,138 @@ def test_proxy_forwards_clamped_max_tokens_not_original_body(
     finally:
         proxy.shutdown()
         upstream.shutdown()
+
+
+def test_estimate_tokens_is_conservative_byte_upper_bound() -> None:
+    proxy_module = _load_proxy_module()
+    payload = {"messages": [{"role": "user", "content": "你好" * 20}]}
+    encoded = json.dumps(
+        {"messages": payload["messages"], "tools": None, "tool_choice": None},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    reserved = proxy_module._estimate_tokens(payload)
+    assert reserved >= len(encoded)
+    assert reserved > (len("你好" * 20) + 3) // 4
+
+
+def test_redacting_writer_every_split_and_repeated_overlap(tmp_path: Path) -> None:
+    secret = SECRET_SENTINEL.encode()
+    prefix = b"HEAD"
+    suffix = b"TAIL"
+    payload = prefix + secret + suffix
+    for index in range(len(payload) + 1):
+        path = tmp_path / f"every-{index}.log"
+        writer = RedactingBinaryWriter(path, (secret,))
+        writer.write(payload[:index])
+        writer.flush()
+        writer.write(payload[index:])
+        writer.close()
+        data = path.read_bytes()
+        assert secret not in data
+    overlap = tmp_path / "overlap.log"
+    writer = RedactingBinaryWriter(overlap, (secret,))
+    for size in range(1, len(payload) + 1):
+        writer.write(payload[:size])
+        writer.flush()
+        writer.write(payload)
+    writer.close()
+    data = overlap.read_bytes()
+    assert secret not in data
+    assert b"<redacted>" in data
+
+
+def test_proxy_redacts_json_escaped_and_base64_key_reflection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+
+    class Escaped(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            payload = json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(SECRET_SENTINEL),
+                                "b64": base64.b64encode(SECRET_SENTINEL.encode()).decode(),
+                            }
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    class Utf16(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            payload = json.dumps({"choices": [{"message": {"content": "ok"}}]}).encode("utf-16le")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-16")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    ok_body = b'{"model":"deepseek-v4-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+
+    def post(base: str, capability: str) -> tuple[int, bytes]:
+        request = urllib.request.Request(
+            f"{base}/v1/chat/completions",
+            data=ok_body,
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return int(response.status), response.read()
+        except urllib.error.HTTPError as exc:
+            return int(exc.code), exc.read()
+
+    proxy, upstream, capability = _proxy_client(tmp_path / "e", monkeypatch, Escaped)
+    try:
+        status, body = post(f"http://127.0.0.1:{proxy.server_address[1]}", capability)
+        assert status == 200
+        assert SECRET_SENTINEL.encode() not in body
+        assert base64.b64encode(SECRET_SENTINEL.encode()) not in body
+        assert json.dumps(SECRET_SENTINEL).encode() not in body
+        assert b"<redacted>" in body
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+    proxy, upstream, capability = _proxy_client(tmp_path / "u", monkeypatch, Utf16)
+    try:
+        status, body = post(f"http://127.0.0.1:{proxy.server_address[1]}", capability)
+        assert status == 502
+        assert SECRET_SENTINEL.encode() not in body
+        assert SECRET_SENTINEL.encode("utf-16le") not in body
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_secret_uid_allows_current_owner_and_rejects_symlink(tmp_path: Path) -> None:
+    from evallab.execution_contracts import read_owner_secret_file
+
+    path = tmp_path / "key"
+    path.write_text(SECRET_SENTINEL + "\n")
+    path.chmod(0o400)
+    assert read_owner_secret_file(path) == SECRET_SENTINEL
+    attacker = tmp_path / "attacker"
+    attacker.symlink_to(path)
+    with pytest.raises(OSError):
+        read_owner_secret_file(attacker)

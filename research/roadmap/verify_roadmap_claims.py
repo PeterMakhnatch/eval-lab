@@ -55,6 +55,33 @@ GOLDSET_BLOCKERS = 5
 KEYED_CALIBRATION_ITEMS = 44
 LABELS = {"total": 56, "attributed": 27, "legacy": 29}
 
+SPEC = REPO / "research/roadmap/specs/campaign-0-action-memory-dose-ladder.json"
+
+# Cross-file equality: the memo and the spec must agree, and the spec must not
+# advertise a provider ceiling below its own design. Independent review found the
+# spec claiming max_trials=72 against a 100-trial design while the prose alternated
+# 108 and 100, so this is asserted rather than trusted.
+CROSS_FILE = {
+    "wave2_scored_trials": 25,
+    "wave2_reward_1": 17,
+    "phase_a_trials": 36,
+    "phase_b_trials": 2,
+    "total_runnable_trials": 38,
+}
+BUDGETS = {
+    "phase_a_projected": 6_291_672,
+    "phase_a_ceiling": 7_000_000,
+    "phase_b_ceiling": 2_500_000,
+    "provider_token_budget": 9_500_000,
+    "provider_max_trials": 38,
+}
+# Per-trial input tokens. 4k/16k are recomputed from promoted bundles; 64k is
+# user-reported; 128k has never run and MUST stay null so it cannot be budgeted.
+# Measured per-trial input tokens. 128k is absent rather than None: an unmeasured
+# dose must be impossible to multiply into a budget, not merely awkward to.
+DOSE_COST_MEASURED: dict[str, int] = {"4096": 32056, "16384": 79497, "65536": 412753}
+DOSE_UNMEASURED = ("131072",)
+
 
 def _zai_cells() -> list[str]:
     return sorted(b for b in os.listdir(RUNS) if b.startswith("zai-flash-"))
@@ -216,6 +243,148 @@ def check_corpora(fail: list[str]) -> None:
         fail.append(f"trajectory-labels {measured}, memo says {LABELS}")
 
 
+def check_cross_file_counts(fail: list[str]) -> None:
+    """The memo and the spec must state the same counts, and both must be present."""
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    memo = MEMO.read_text(encoding="utf-8")
+    recon = spec.get("COUNT_RECONCILIATION") or {}
+    for key, expected in CROSS_FILE.items():
+        got = recon.get(key)
+        if got != expected:
+            fail.append(f"spec COUNT_RECONCILIATION.{key} = {got}, expected {expected}")
+    # the memo must not still carry the superseded totals
+    if "21 scored trials" in memo:
+        fail.append("memo still says '21 scored trials'; wave-2 total is 25")
+    for token in ("25 scored trials", "6,291,672", "9,500,000"):
+        if token not in memo:
+            fail.append(f"memo is missing the reconciled figure {token!r}")
+    # phases must sum
+    if recon.get("phase_a_trials", 0) + recon.get("phase_b_trials", 0) != recon.get(
+        "total_runnable_trials"
+    ):
+        fail.append("spec phase trials do not sum to total_runnable_trials")
+
+
+def check_budget_admission(fail: list[str]) -> None:
+    """Budgets must be derived, fail closed, and admit the design they carry."""
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    limits = spec.get("lane", {}).get("provider_limits", {})
+    if limits.get("max_trials") != BUDGETS["provider_max_trials"]:
+        fail.append(
+            f"provider max_trials {limits.get('max_trials')} != "
+            f"{BUDGETS['provider_max_trials']} runnable trials"
+        )
+    if limits.get("max_prompt_tokens_budget") != BUDGETS["provider_token_budget"]:
+        fail.append(
+            f"provider token budget {limits.get('max_prompt_tokens_budget')} != "
+            f"{BUDGETS['provider_token_budget']}"
+        )
+    phase_a = spec.get("phase_a_measured_doses") or {}
+    projected = (phase_a.get("projected_input_tokens") or {}).get("total")
+    ceiling = phase_a.get("ceiling_input_tokens")
+    if projected != BUDGETS["phase_a_projected"]:
+        fail.append(f"phase A projection {projected} != {BUDGETS['phase_a_projected']}")
+    if ceiling != BUDGETS["phase_a_ceiling"]:
+        fail.append(f"phase A ceiling {ceiling} != {BUDGETS['phase_a_ceiling']}")
+    if projected is not None and ceiling is not None and projected > ceiling:
+        fail.append("phase A projection exceeds its own ceiling — spec is not admissible")
+    # ceilings must sum into the provider budget
+    phase_b_ceiling = (spec.get("phase_b_128k_cost_canary") or {}).get("ceiling_input_tokens")
+    if (ceiling or 0) + (phase_b_ceiling or 0) != BUDGETS["provider_token_budget"]:
+        fail.append("phase ceilings do not sum to the provider token budget")
+    # the projection must be reproducible from the declared per-dose costs
+    trials_per_dose = 12  # 2 arms x 3 seeds x 2 reps
+    recomputed = sum(cost * trials_per_dose for cost in DOSE_COST_MEASURED.values())
+    if recomputed != BUDGETS["phase_a_projected"]:
+        fail.append(
+            f"phase A projection is not reproducible from per-dose costs: "
+            f"{recomputed} vs {BUDGETS['phase_a_projected']}"
+        )
+    # 128k must stay unmeasured so it cannot be silently budgeted
+    basis = (spec.get("measured_cost_basis") or {}).get("input_tokens_per_trial") or {}
+    for dose in DOSE_UNMEASURED:
+        if basis.get(dose) is not None:
+            fail.append(
+                f"{dose} per-trial cost is no longer null; an unmeasured dose must not be budgeted"
+            )
+    for dose, expected_cost in DOSE_COST_MEASURED.items():
+        if basis.get(dose) != expected_cost:
+            fail.append(f"spec dose cost {dose} = {basis.get(dose)}, measured {expected_cost}")
+    if (spec.get("broad_ladder_not_runnable") or {}).get("runnable") is not False:
+        fail.append("the broad ladder is marked runnable; its 128k cost cannot be projected")
+
+
+def _reconstruct_reads(events_path: Path) -> dict:
+    """Rebuild issued set, requested sequence and event order from RAW events.
+
+    Deliberately does not read `observed_reads`. The memo previously claimed intact
+    coverage because `observed_reads == expected_reads`, but a count matches while
+    the set is wrong: omit one handle, request one never issued, total unchanged.
+    """
+    issued: list[str] | None = None
+    requested: list[str] = []
+    ordinals: list[int] = []
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        value = (event.get("result") or {}).get("value") or {}
+        if issued is None and "chunk_ids" in value:
+            issued = list(value["chunk_ids"])
+        handle = (event.get("arguments") or {}).get("chunk_id")
+        if handle:
+            requested.append(str(handle))
+        if event.get("event_ordinal") is not None:
+            ordinals.append(int(event["event_ordinal"]))
+    issued_list = issued or []
+    issued_set, requested_set = set(issued_list), set(requested)
+    return {
+        "issued": len(issued_set),
+        "calls": len(requested),
+        "unique": len(requested_set),
+        "omitted": sorted(issued_set - requested_set),
+        "never_issued": sorted(requested_set - issued_set),
+        "duplicated": sorted({h for h in requested if requested.count(h) > 1}),
+        "prefix_order_matches": requested[: len(issued_list)] == issued_list,
+        "ordinals_monotonic": ordinals == sorted(ordinals),
+    }
+
+
+def check_handle_audit(fail: list[str]) -> None:
+    """Re-derive the 16k audit the memo publishes, from raw artifacts."""
+    bundle = RUNS / "zai-flash-action-semantic16k-r3-amd64-egress"
+    if not bundle.is_dir():
+        fail.append(f"missing bundle for the handle audit: {bundle}")
+        return
+    seen = 0
+    for trial in sorted(os.listdir(bundle)):
+        events = bundle / trial / "artifacts" / "app" / "output" / "benchmark-events.jsonl"
+        result = bundle / trial / "verifier" / "result.json"
+        if not events.is_file() or not result.is_file():
+            continue
+        seen += 1
+        audit = _reconstruct_reads(events)
+        reward = json.loads(result.read_text(encoding="utf-8")).get("reward")
+        if audit["omitted"] or audit["never_issued"]:
+            fail.append(
+                f"{trial}: 16k audit found omitted={len(audit['omitted'])} "
+                f"never_issued={len(audit['never_issued'])}; the memo reports zero of both"
+            )
+        if not audit["prefix_order_matches"]:
+            fail.append(f"{trial}: requested prefix order does not match issued order")
+        if not audit["ordinals_monotonic"]:
+            fail.append(f"{trial}: event ordinals are not monotonic")
+        if reward == 0.0 and not audit["duplicated"]:
+            fail.append(
+                f"{trial}: failing 16k trial shows no duplicate handle; the memo "
+                f"attributes the failure to a duplicate read"
+            )
+        if reward == 1.0 and audit["calls"] != audit["unique"]:
+            fail.append(f"{trial}: passing trial has duplicate requests")
+    if seen != 3:
+        fail.append(f"handle audit covered {seen} trials, expected 3")
+
+
 def main() -> int:
     if not MEMO.is_file():
         print(f"memo not found: {MEMO}")
@@ -230,6 +399,9 @@ def main() -> int:
         check_refusal_enum,
         check_goldset,
         check_corpora,
+        check_cross_file_counts,
+        check_budget_admission,
+        check_handle_audit,
     ):
         check(failures)
     if failures:

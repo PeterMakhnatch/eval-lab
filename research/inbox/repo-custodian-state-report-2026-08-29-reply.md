@@ -174,7 +174,8 @@ Help text now accurately says “lint, generated-index checks, and tests.”
 ### PR evidence
 
 - Branch: `hygiene/make-check-indexes`
-- Base: `origin/main` at `3fc3c33f`
-- PR: pending creation after focused validation
-- Expected focused validation: `docindex check`, `repomap check`, `make -n check`,
-  `make help`, `git diff --check`, and GitHub checks on the exact PR head.
+- Initial base: `origin/main` at `3fc3c33f`
+- PR: [#290](https://github.com/PeterMakhnatch/eval-lab/pull/290)
+- Initial cleanup head: `3a4dc82b`
+- Focused validation passed: `docindex check`, `repomap check`, `make -n check`,
+  `make help`, and `git diff --check`. GitHub exact-head checks are pending.

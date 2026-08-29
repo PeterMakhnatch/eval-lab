@@ -32,6 +32,17 @@ def _load_module(name: str):
                 del sys.modules[generic_name]
 
 
+def _load_ensure_wheelhouse_module():
+    spec = importlib.util.spec_from_file_location(
+        "mcp_funcdag_ensure_wheelhouse",
+        Path(__file__).parents[1] / "scripts" / "mcp_funcdag" / "ensure_wheelhouse.py",
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def test_dag_generator_determinism():
     dag_gen = _load_module("dag_generator")
     spec1 = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
@@ -216,13 +227,7 @@ def test_ensure_wheelhouse_uses_target_resolver_provenance_not_venv_pip(tmp_path
     )
     assert pip_probe.returncode != 0
 
-    spec = importlib.util.spec_from_file_location(
-        "mcp_funcdag_ensure_wheelhouse",
-        Path(__file__).parents[1] / "scripts" / "mcp_funcdag" / "ensure_wheelhouse.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_ensure_wheelhouse_module()
 
     dest = tmp_path / "wheels"
     target = mod.LINUX_CP312_X86_64
@@ -271,6 +276,138 @@ def test_ensure_wheelhouse_uses_target_resolver_provenance_not_venv_pip(tmp_path
     assert stored == provenance.to_dict()
     provenance_lock = render_provenance_lock(provenance)
     assert "fastmcp==3.4.7 --hash=sha256:" in provenance_lock
+
+
+def test_stage_command_pins_full_trusted_manifest_inventory():
+    """The trusted Linux download command must request every manifest name==version pin."""
+    from evallab.mcp_substrate import load_trusted_wheel_manifest
+
+    mod = _load_ensure_wheelhouse_module()
+    manifest = load_trusted_wheel_manifest()
+    expected = {f"{entry['name']}=={entry['version']}" for entry in manifest["wheels"]}
+    assert len(expected) == 68
+
+    cmd = mod.stage_command(Path("/tmp/nonexistent-wheels"), mod.LINUX_CP312_X86_64)
+    pins = cmd[cmd.index("--dest") + 2 :]
+    assert set(pins) == expected
+    # The exact reviewed transitive pins are present (not merely fastmcp), so
+    # resolver drift cannot silently upgrade a dependency.
+    assert "joserfc==1.7.4" in pins
+    assert "fastmcp==3.4.7" in pins
+    assert "cffi==2.1.1" in pins
+
+
+def test_stage_command_rejects_non_trusted_target():
+    """A non-trusted target with no reviewed manifest is refused explicitly."""
+    from evallab.mcp_substrate import SubstrateError
+
+    mod = _load_ensure_wheelhouse_module()
+    with pytest.raises(SubstrateError, match="no trusted wheel manifest"):
+        mod.stage_command(Path("/tmp/wheels"), mod.MACOS_CP312_ARM64)
+
+
+def test_ensure_wheelhouse_cache_reuse_fails_closed_when_provenance_does_not_verify(
+    tmp_path, monkeypatch
+):
+    """A cached wheelhouse whose provenance does not verify exactly is re-staged, not trusted."""
+    from evallab.mcp_substrate import (
+        ResolverProvenance,
+        trusted_wheel_manifest_digest,
+        trusted_wheel_manifest_source,
+    )
+
+    mod = _load_ensure_wheelhouse_module()
+    target = mod.LINUX_CP312_X86_64
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+    # Plant a stale provenance claiming the right target but a single bogus wheel
+    # that cannot match the 68-wheel trusted manifest.
+    stale = ResolverProvenance(
+        target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
+        wheels=(
+            {
+                "filename": "fastmcp-3.4.7-py3-none-any.whl",
+                "name": "fastmcp",
+                "version": "3.4.7",
+                "size_bytes": 8016,
+                "sha256": "a" * 64,
+            },
+        ),
+    )
+    (dest / mod.PROVENANCE_FILENAME).write_text(
+        json.dumps(stale.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (dest / "fastmcp-3.4.7-py3-none-any.whl").write_bytes(b"wheel")
+
+    fresh = ResolverProvenance(
+        target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
+        wheels=stale.wheels,
+    )
+    monkeypatch.setattr(mod, "record_prepackaging_provenance", lambda *_: fresh)
+    recorded: list[list[str]] = []
+
+    def fake_run(argv, check=False):
+        recorded.append(list(argv))
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "fastmcp-3.4.7-py3-none-any.whl").write_bytes(b"wheel")
+        return subprocess.CompletedProcess(argv, 0)
+
+    observed = mod.ensure_wheelhouse(dest, target=target, run=fake_run)
+    # The stale cache was discarded and staging re-run rather than trusted on the
+    # target tag alone.
+    assert recorded, "expected staging to re-run when cached provenance does not verify"
+    assert observed == fresh
+
+
+def test_ensure_wheelhouse_cache_reuse_keeps_verifying_provenance(tmp_path, monkeypatch):
+    """A cached wheelhouse that verifies exactly against the manifest is reused without re-run."""
+    mod = _load_ensure_wheelhouse_module()
+    target = mod.LINUX_CP312_X86_64
+    dest = tmp_path / "wheels"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    from evallab.mcp_substrate import (
+        ResolverProvenance,
+        trusted_wheel_manifest_digest,
+        trusted_wheel_manifest_source,
+    )
+
+    provenance = ResolverProvenance(
+        target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
+        wheels=(
+            {
+                "filename": "fastmcp-3.4.7-py3-none-any.whl",
+                "name": "fastmcp",
+                "version": "3.4.7",
+                "size_bytes": 8016,
+                "sha256": "a" * 64,
+            },
+        ),
+    )
+    (dest / mod.PROVENANCE_FILENAME).write_text(
+        json.dumps(provenance.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (dest / "fastmcp-3.4.7-py3-none-any.whl").write_bytes(b"wheel")
+
+    # Simulate a perfectly verified cache: verify_provenance_wheelhouse succeeds.
+    monkeypatch.setattr(mod, "verify_provenance_wheelhouse", lambda *_: [])
+    recorded: list[list[str]] = []
+
+    def fake_run(argv, check=False):
+        recorded.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0)
+
+    observed = mod.ensure_wheelhouse(dest, target=target, run=fake_run)
+    assert observed == provenance
+    assert not recorded, "a verified cached wheelhouse must not re-run staging"
 
 
 def test_materializer_main_image_environment(tmp_path):

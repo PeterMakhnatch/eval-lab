@@ -14,15 +14,15 @@ epistemic: audited repository state at a pinned commit; inference and forecast t
 collection: trajectory-analysis
 reviewed: 2026-08-29
 requested_by: Peter via /tmp/analyst-future-roadmap-brief.txt
-evidence_pin: origin/main bf186a4e (wave-2 evidence merged via PR #309)
+evidence_pin: origin/main 24763988 (wave-2 via #309, C2 gate via #310, C1 features via #303)
 ---
 
 # Eval Lab — Future Research and Experiment Roadmap
 
 - **Author:** Analyst
-- **Evidence pin:** `origin/main` @ `bf186a4e` (merge of PR #309, which promoted the wave-2 evidence this memo cites). The two state
+- **Evidence pin:** `origin/main` @ `24763988` — wave-2 evidence merged via PR #309, C2 gate via #310, and the C1 features this memo cites merged via PR #303. The two state
   reports this memo builds on are pinned to `3fc3c33f`; where a count has moved
-  since, this memo recomputes it at `bf186a4e` and says so.
+  since, this memo recomputes it at `24763988` and says so.
 - **Method:** direct re-derivation of every numeric claim from primary artifacts.
   No billable model call, no broad suite, no writes outside `research/roadmap/`.
 - **Convention:** `[OBSERVED]` is read from a cited path or recomputed here.
@@ -61,7 +61,7 @@ is ordered by that fact.
 
 ### 1.1 Audited facts — recomputed here, not transcribed
 
-Every figure below was re-derived from the promoted bundles at `bf186a4e` by
+Every figure below was re-derived from the promoted bundles at `24763988` by
 reading `verifier_result.rewards.reward` and `agent_result` per trial, and by
 walking `agent/trajectory.json`.
 
@@ -94,7 +94,7 @@ at `zai-opencode-mcp-pilot-2026-08-29.md:76`.
 
 ### 1.2 Two corrections to the pinned state reports
 
-| Claim | Source | Recomputed at `bf186a4e` |
+| Claim | Source | Recomputed at `24763988` |
 |---|---|---|
 | `RefusalCode` is a "closed 17-value enum" | tutor reply `:112` | **19 values.** Enumerated at `src/evallab/analysis_capability.py:72`. The two the report omits matter for this roadmap: `MISSING_NULL_ON_ZERO_DECLARATION` and `INVALID_DENOMINATOR_DECLARATION` are both declaration-contract refusals that a new campaign must satisfy before any rate is emitted. |
 | 38 files in `research/calibration/trajectory-labels/`, 9 attributed / 29 legacy | tutor reply `:189-196` | **85 files: 56 attributed / 29 legacy** after the wave-2 promotion. The attributed class grew 9 → 27 → **56**; the newest bind to the wave-2 trials. All 56 are `draft_pending_research_review`, and **39/56 carry `primary_category: "unknown"`** — with 2 now explicitly `harness_failure`, which is the non-scored class surfacing in the labels as well as the summary. |
@@ -178,7 +178,7 @@ them, and §3.2's expansion must lean on distractor count rather than depth.
 
 ### 1.6 Wave-2 outcomes — now promoted, and re-derived from the artifacts
 
-`[OBSERVED]` Wave 2 is **merged** at `origin/main` `bf186a4e` (PR #309), so
+`[OBSERVED]` Wave 2 is **merged** at `origin/main` `24763988` (PR #309), so
 everything below is read from committed files on `main` rather than reported. Sources:
 `research/evidence/zai-opencode-mcp-wave2-2026-08-29.md`,
 `research/evidence/zai-opencode-mcp-wave2-summary.json`,
@@ -827,7 +827,7 @@ or a refusal rate.
 
 This section uses the repository's own estimators. Every number below was
 computed by calling `evallab.cohort.minimum_detectable_effect` and
-`required_tasks_for_effect` at `bf186a4e`. Nothing is asserted from a formula
+`required_tasks_for_effect` at `24763988`. Nothing is asserted from a formula
 written here.
 
 ### 4.1 The hard gate: `clearance_n = 20` against 18 trials
@@ -1087,9 +1087,9 @@ against adversarial structure (credential symlinks) and it held.
 
 ## 7. Weak-area backlog, ranked by evidence impact
 
-### 7.0 What the C1 lane already landed (PR #303, final head `be254f1b`)
+### 7.0 What the C1 lane landed — PR #303, **merged** at `24763988`
 
-`[OBSERVED]` Verified read-only at that head. Two of this memo's requests are
+`[OBSERVED]` Verified read-only on `main` after the merge. Two of this memo's requests are
 satisfied, and the second is implemented more precisely than I asked for.
 
 **Denominator contracts — W3, satisfied.** Both token metrics carry the full
@@ -1111,11 +1111,11 @@ These two features can no longer trip that.
 `sql/traj_benchmark_views.sql`:
 
 **Read the producer, not only the registry.** `[OBSERVED]` The registry strings stayed
-constant across all three of #303's reviewed heads while the **producer semantics
+constant across #303's reviewed heads while the **producer semantics
 tightened**, and at the final head two of the four contracts were **extracted into
 shared helpers applied across all three benchmark producers**:
 
-| Contract | Where it lives at `be254f1b` |
+| Contract | Where it lives on `main` |
 |---|---|
 | application-error rejection | `is_application_error(payload)` — `src/evallab/interpretation/benchmark_events.py:81`, applied to the calls path **and** the events path (`action_memory.py:243,255`) |
 | token-weighted cache rate | `compute_prompt_cache_hit_rate(step_tokens, cached_step_tokens)` — `feature_registry.py`, fails closed on `None`/empty, misaligned lengths, negative elements, non-positive totals, or cached exceeding prompt |
@@ -1126,7 +1126,7 @@ diverge between the three producers. An earlier draft of this section quoted the
 registry formulas and was misleading about what the features compute; this one names
 the implementation site. Actual behaviour:
 
-| Feature | Implemented rule at `be254f1b` | Failure class it isolates |
+| Feature | Implemented rule on `main` | Failure class it isolates |
 |---|---|---|
 | `expected_handle_count` | `len(expected_set)` | — (denominator) |
 | `valid_handle_count` | `len(set(successful_valid_handles))` — **successful and expected only**; rejected on `call.is_error` or `is_application_error(payload)`, now on **both** the calls and events paths (`:243,255`) | — |
@@ -1188,7 +1188,7 @@ owned elsewhere, so they are tagged rather than actioned here:
 
 | Territory | Owner | Status of the items below |
 |---|---|---|
-| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303, final head `be254f1b`, rebased onto `origin/main` `56dba4ee`; repomap, docindex, ty and focused suite clean) | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
+| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** — PR #303 **merged** at `origin/main` `24763988` | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
 | C2 promotion | **wH:p9, solely** | none — this memo makes no promotion change |
 | Intervention recipes, C0 / quality infrastructure | not this lane | none — the sequential-retrieval scaffold is discussed as evidence only (§1.6), never modified |
 
@@ -1431,7 +1431,7 @@ falsifiable failure mode that none of the other five covers.
 ## 10. Verification appendix
 
 Every numeric claim in this memo, and how it was checked at `origin/main`
-`bf186a4e`.
+`24763988`.
 
 | Claim | Verification |
 |---|---|

@@ -2,7 +2,7 @@
   "schema_note": "Analyst roadmap spec, REPORT ONLY. Not an execution authorization and not an edit to any owned lane. allow_billable stays false and no PaidRunAuthorization is attached. Matched/twin keys, denominator contracts and prompt_tokens_per_step / prompt_cache_hit_rate registry-producer-view enforcement are owned by the C1 Agent Data lane (PR #303); the denominator_declaration block below is a REQUEST to that lane, not a local definition. C2 promotion is owned solely by wH:p9. No intervention recipe and no C0/quality infrastructure is touched.",
   "campaign_id": "campaign-0-action-memory",
   "roadmap_ref": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
-  "evidence_pin": "origin/main 56dba4ee (wave-2 via #309, C2 gate via #310); C1 features cited at PR #303 head be254f1b",
+  "evidence_pin": "origin/main 24763988 (wave-2 via #309, C2 gate via #310, C1 features via #303 - all merged)",
   "author": "analyst",
   "date": "2026-08-29",
   "status": "designed",
@@ -180,12 +180,12 @@
       "definition": "success as a function of dose_bytes within each arm. Shape, not rate."
     },
     "instrumentation_REQUEST_TO_C1_LANE": {
-      "note": "NOT implemented here. prompt_tokens_per_step and prompt_cache_hit_rate registry/producer/view enforcement is C1-lane owned (PR #303); raise there.",
+      "note": "SATISFIED: merged on main via PR #303 at 24763988. Retained for provenance; no further C1 request outstanding.",
       "retrieval_sequencing": "USER-REPORTED failure signatures: complete-257-read-but-reordered (count correct, order wrong) and 258/257 (one duplicate, matching the 16k pilot's 66/65). Every Action Memory failure observed so far is a sequencing fault, not a coverage fault. Duplication is detectable as tool_call_count > unique_tools_count; reordering needs observation_index compared against the verifier's expected sequence. No new schema required."
     }
   },
   "denominator_declaration_REQUEST_TO_C1_LANE": {
-    "note": "Denominator contracts are C1-lane owned (PR #303). Stated so downstream analysis is not refused on contract grounds; raise against that PR rather than defining it here.",
+    "note": "SATISFIED: denominator contracts merged on main via PR #303 at 24763988. Retained as the declaration this campaign relies on.",
     "denominator": "trials with a scored verifier outcome in the cell",
     "applicability": "per (dose_bytes, arm, seed) cell",
     "null_on_zero": true,

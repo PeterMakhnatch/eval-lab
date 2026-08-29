@@ -14,15 +14,15 @@ epistemic: audited repository state at a pinned commit; inference and forecast t
 collection: trajectory-analysis
 reviewed: 2026-08-29
 requested_by: Peter via /tmp/analyst-future-roadmap-brief.txt
-evidence_pin: origin/main 53a3af58
+evidence_pin: origin/main bf186a4e (wave-2 evidence merged via PR #309)
 ---
 
 # Eval Lab — Future Research and Experiment Roadmap
 
 - **Author:** Analyst
-- **Evidence pin:** `origin/main` @ `53a3af58` (merge of PR #299). The two state
+- **Evidence pin:** `origin/main` @ `bf186a4e` (merge of PR #309, which promoted the wave-2 evidence this memo cites). The two state
   reports this memo builds on are pinned to `3fc3c33f`; where a count has moved
-  since, this memo recomputes it at `53a3af58` and says so.
+  since, this memo recomputes it at `bf186a4e` and says so.
 - **Method:** direct re-derivation of every numeric claim from primary artifacts.
   No billable model call, no broad suite, no writes outside `research/roadmap/`.
 - **Convention:** `[OBSERVED]` is read from a cited path or recomputed here.
@@ -61,7 +61,7 @@ is ordered by that fact.
 
 ### 1.1 Audited facts — recomputed here, not transcribed
 
-Every figure below was re-derived from the promoted bundles at `53a3af58` by
+Every figure below was re-derived from the promoted bundles at `bf186a4e` by
 reading `verifier_result.rewards.reward` and `agent_result` per trial, and by
 walking `agent/trajectory.json`.
 
@@ -94,7 +94,7 @@ at `zai-opencode-mcp-pilot-2026-08-29.md:76`.
 
 ### 1.2 Two corrections to the pinned state reports
 
-| Claim | Source | Recomputed at `53a3af58` |
+| Claim | Source | Recomputed at `bf186a4e` |
 |---|---|---|
 | `RefusalCode` is a "closed 17-value enum" | tutor reply `:112` | **19 values.** Enumerated at `src/evallab/analysis_capability.py:72`. The two the report omits matter for this roadmap: `MISSING_NULL_ON_ZERO_DECLARATION` and `INVALID_DENOMINATOR_DECLARATION` are both declaration-contract refusals that a new campaign must satisfy before any rate is emitted. |
 | 38 files in `research/calibration/trajectory-labels/`, 9 attributed / 29 legacy | tutor reply `:189-196` | **85 files: 56 attributed / 29 legacy** after the wave-2 promotion. The attributed class grew 9 → 27 → **56**; the newest bind to the wave-2 trials. All 56 are `draft_pending_research_review`, and **39/56 carry `primary_category: "unknown"`** — with 2 now explicitly `harness_failure`, which is the non-scored class surfacing in the labels as well as the summary. |
@@ -178,8 +178,8 @@ them, and §3.2's expansion must lean on distractor count rather than depth.
 
 ### 1.6 Wave-2 outcomes — now promoted, and re-derived from the artifacts
 
-`[OBSERVED]` Wave 2 is promoted at `origin/pr/309` `b93f50a5`, so everything below
-is read from committed files rather than reported. Sources:
+`[OBSERVED]` Wave 2 is **merged** at `origin/main` `bf186a4e` (PR #309), so
+everything below is read from committed files on `main` rather than reported. Sources:
 `research/evidence/zai-opencode-mcp-wave2-2026-08-29.md`,
 `research/evidence/zai-opencode-mcp-wave2-summary.json`,
 `research/evidence/zai-wave2-action64-handle-audit.json`, and thirteen
@@ -815,7 +815,7 @@ or a refusal rate.
 
 This section uses the repository's own estimators. Every number below was
 computed by calling `evallab.cohort.minimum_detectable_effect` and
-`required_tasks_for_effect` at `53a3af58`. Nothing is asserted from a formula
+`required_tasks_for_effect` at `bf186a4e`. Nothing is asserted from a formula
 written here.
 
 ### 4.1 The hard gate: `clearance_n = 20` against 18 trials
@@ -1405,7 +1405,7 @@ falsifiable failure mode that none of the other five covers.
 ## 10. Verification appendix
 
 Every numeric claim in this memo, and how it was checked at `origin/main`
-`53a3af58`.
+`bf186a4e`.
 
 | Claim | Verification |
 |---|---|

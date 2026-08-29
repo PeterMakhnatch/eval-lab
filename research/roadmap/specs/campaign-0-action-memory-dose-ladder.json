@@ -2,7 +2,7 @@
   "schema_note": "Analyst roadmap spec, REPORT ONLY. Not an execution authorization and not an edit to any owned lane. allow_billable stays false and no PaidRunAuthorization is attached. Matched/twin keys, denominator contracts and prompt_tokens_per_step / prompt_cache_hit_rate registry-producer-view enforcement are owned by the C1 Agent Data lane (PR #303); the denominator_declaration block below is a REQUEST to that lane, not a local definition. C2 promotion is owned solely by wH:p9. No intervention recipe and no C0/quality infrastructure is touched.",
   "campaign_id": "campaign-0-action-memory",
   "roadmap_ref": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
-  "evidence_pin": "promoted wave-2 evidence at pr/309 b93f50a5 (roadmap rebased onto it)",
+  "evidence_pin": "origin/main bf186a4e (wave-2 evidence merged via PR #309)",
   "author": "analyst",
   "date": "2026-08-29",
   "status": "designed",
@@ -14,7 +14,7 @@
     "phase_b_trials": 2,
     "total_runnable_trials": 38,
     "broad_ladder_trials_NOT_RUNNABLE": 72,
-    "source": "research/evidence/zai-opencode-mcp-wave2-summary.json aggregate; 27 rows reconcile on count, passes and summed prompt_tokens"
+    "source": "research/evidence/zai-opencode-mcp-wave2-summary.json aggregate on merged main; 27 rows reconcile on count, passes and summed prompt_tokens"
   },
   "certified_envelope": {
     "doses_permitted": [
@@ -225,7 +225,7 @@
     "escalation": "if the whole measured range sits at ceiling, feeds claim C5"
   },
   "wave2_context": {
-    "status": "PROMOTED at pr/309 b93f50a5; no longer user-reported",
+    "status": "MERGED at origin/main bf186a4e via PR #309; cited from committed files",
     "totals": {
       "scored_trials": 27,
       "reward_1": 18,

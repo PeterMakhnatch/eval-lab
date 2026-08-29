@@ -1,0 +1,233 @@
+name: mcp-recovery-workbench-certification
+
+on:
+  pull_request:
+    paths:
+      - "library/benchmarks/mcp-recovery-v1/**"
+      - "scripts/mcp_recovery/**"
+      - "src/evallab/mcp_substrate.py"
+      - "src/evallab/benchmark_program_contracts.py"
+      - "tests/test_mcp_recovery_v1.py"
+      - ".github/workflows/mcp-recovery.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "library/benchmarks/mcp-recovery-v1/**"
+      - "scripts/mcp_recovery/**"
+      - "tests/test_mcp_recovery_v1.py"
+      - ".github/workflows/mcp-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    name: certify-mcp-recovery-pair-${{ matrix.fault_mode }}-p${{ matrix.persistence }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        fault_mode:
+          - transient-http-5xx
+          - transient-network-timeout
+          - persistent-schema-mismatch
+          - persistent-signature-error
+          - silent-wrong-payload
+        persistence: [1, 2]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install uv 0.9.24
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - name: Install Harbor 0.21.0
+        run: uv tool install "harbor==0.21.0"
+      - name: Resolve and record canonical target wheelhouse
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fastmcp3_wheelhouse
+          python3 -m pip download --only-binary=:all: --implementation cp --python-version 3.12 --abi cp312 --platform manylinux_2_17_x86_64 --dest /tmp/fastmcp3_wheelhouse fastmcp==3.4.7
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+          from evallab.mcp_substrate import WheelhouseTarget, record_prepackaging_provenance
+          provenance = record_prepackaging_provenance(
+              Path("/tmp/fastmcp3_wheelhouse"),
+              WheelhouseTarget("cp312", "manylinux_2_17_x86_64"),
+          )
+          Path("/tmp/fastmcp3-resolver-provenance.json").write_text(
+              json.dumps(provenance.to_dict(), sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+          echo "MCP_RECOVERY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse" >> "$GITHUB_ENV"
+          echo "MCP_RECOVERY_RESOLVER_PROVENANCE=/tmp/fastmcp3-resolver-provenance.json" >> "$GITHUB_ENV"
+      - name: Generate unlogged 0400 pair evidence key
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import os, secrets
+          key_path = "/tmp/mcp-recovery-pair-key.bin"
+          with open(key_path, "wb") as f:
+              f.write(secrets.token_bytes(32))
+          os.chmod(key_path, 0o400)
+          PY
+          echo "MCP_RECOVERY_EVIDENCE_KEY_FILE=/tmp/mcp-recovery-pair-key.bin" >> "$GITHUB_ENV"
+      - name: Materialize and certify matched fault and clean twin pair
+        env:
+          FAULT_MODE: ${{ matrix.fault_mode }}
+          PERSISTENCE: ${{ matrix.persistence }}
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path("library/benchmarks/mcp-recovery-v1").resolve()))
+          from materializer import materialize_task, output_path
+
+          fault_mode = os.environ["FAULT_MODE"]
+          persistence = int(os.environ["PERSISTENCE"])
+
+          fault_path = materialize_task(
+              output_path(seed=42, fault_mode=fault_mode, persistence=persistence, is_clean_twin=False),
+              seed=42,
+              fault_mode=fault_mode,
+              persistence=persistence,
+              is_clean_twin=False,
+          )
+          clean_path = materialize_task(
+              output_path(seed=42, fault_mode=fault_mode, persistence=persistence, is_clean_twin=True),
+              seed=42,
+              fault_mode=fault_mode,
+              persistence=persistence,
+              is_clean_twin=True,
+          )
+
+          fault_rec = json.loads((fault_path / "tests/fixtures/fault_record.json").read_text())
+          clean_rec = json.loads((clean_path / "tests/fixtures/fault_record.json").read_text())
+
+          assert fault_rec["task_id"] == clean_rec["twin_task_id"], f"Twin mismatch: {fault_rec['task_id']} != {clean_rec['twin_task_id']}"
+          assert clean_rec["task_id"] == fault_rec["twin_task_id"], f"Twin mismatch: {clean_rec['task_id']} != {fault_rec['twin_task_id']}"
+
+          print(f"Verified reciprocal pair: fault={fault_path.name} <-> clean={clean_path.name}")
+          Path("/tmp/mcp_pair_paths.json").write_text(json.dumps({"fault": str(fault_path), "clean": str(clean_path)}))
+          PY
+
+          fault_task=$(jq -r .fault /tmp/mcp_pair_paths.json)
+          clean_task=$(jq -r .clean /tmp/mcp_pair_paths.json)
+
+          for arm in fault clean_twin; do
+            task_p=$([ "$arm" = "fault" ] && echo "$fault_task" || echo "$clean_task")
+            source_uri="eval-lab/benchmarks/mcp-recovery/${arm}/${FAULT_MODE}-p${PERSISTENCE}"
+            source_ref="local/eval-lab/benchmarks/mcp-recovery@1.0.0"
+            mkdir -p "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}"
+
+            # 1. Plan
+            uv run python -m evallab.task_workbench plan "$task_p" \
+              --repo-root . \
+              --source-uri "$source_uri" \
+              --source-ref "$source_ref" \
+              --license MIT \
+              --zone 03-synthetic \
+              | tee "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/plan.json"
+            cid=$(jq -r '.candidate.candidate_id' "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/plan.json")
+
+            # 2. Check (Workbench fixed controls with true adversarial mutants)
+            uv run python -m evallab.task_workbench check "$task_p" \
+              --repo-root . \
+              --source-uri "$source_uri" \
+              --source-ref "$source_ref" \
+              --license MIT \
+              --zone 03-synthetic \
+              --run-controls \
+              | tee "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/check.json"
+
+            # 3. Packet
+            controls="runs/task-workbench/${cid}/controls.json"
+            packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/${arm}/${FAULT_MODE}-p${PERSISTENCE}"
+            uv run python -m evallab.task_workbench packet "$task_p" \
+              --repo-root . \
+              --source-uri "$source_uri" \
+              --source-ref "$source_ref" \
+              --license MIT \
+              --zone 03-synthetic \
+              --controls "$controls" \
+              --output-root "$packet_root" \
+              | tee "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/packet.json"
+            test "$(jq -r '.disposition' "artifacts/${arm}/${FAULT_MODE}-p${PERSISTENCE}/packet.json")" = "certified_for_review"
+
+            # 4. Bare Harbor oracle/nop durable controls
+            jobs="research/evidence/runs"
+            harbor run --path "$task_p" \
+              --agent oracle \
+              --env docker \
+              --job-name "mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-oracle-${GITHUB_RUN_ID}" \
+              --jobs-dir "$jobs" \
+              --n-concurrent 1 \
+              --n-attempts 1 \
+              --yes
+            harbor run --path "$task_p" \
+              --agent nop \
+              --env docker \
+              --job-name "mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-nop-${GITHUB_RUN_ID}" \
+              --jobs-dir "$jobs" \
+              --n-concurrent 1 \
+              --n-attempts 1 \
+              --yes
+            uv run python scripts/mcp_recovery/ci_pair.py controls "$task_p"
+
+            # 5. Real Harbor fixed-policy execution against staged task copy
+            staged_fixed="/tmp/harbor_staged_fixed_${arm}_${FAULT_MODE}_p${PERSISTENCE}"
+            rm -rf "$staged_fixed"
+            cp -r "$task_p" "$staged_fixed"
+
+            # Verify byte-identical fixed-policy probe across arms
+            uv run python scripts/mcp_recovery/ci_pair.py same-policy "$fault_task" "$clean_task"
+
+            cp "$task_p/controls/fixed-policy/blind-retry.sh" "$staged_fixed/solution/solve.sh"
+            chmod +x "$staged_fixed/solution/solve.sh"
+
+            harbor run --path "$staged_fixed" \
+              --agent oracle \
+              --env docker \
+              --job-name "mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-fixed-policy-${GITHUB_RUN_ID}" \
+              --jobs-dir "$jobs" \
+              --n-concurrent 1 \
+              --n-attempts 1 \
+              --yes
+
+            expected_fixed=$([ "$arm" = "fault" ] && echo "0.0" || echo "1.0")
+            job_name="mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-fixed-policy-${GITHUB_RUN_ID}"
+            uv run python scripts/mcp_recovery/ci_pair.py fixed "research/evidence/runs/${job_name}" "$staged_fixed" "$expected_fixed"
+          done
+      - name: Upload review packet and retained evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcp-recovery-pair-${{ matrix.fault_mode }}-p${{ matrix.persistence }}-workbench
+          path: |
+            artifacts/
+            runs/task-workbench/*/*.json
+            runs/task-workbench/*/jobs/**/result.json
+            runs/task-workbench/*/jobs/**/lock.json
+            runs/task-workbench/*/jobs/**/config.json
+            runs/task-workbench/*/jobs/**/lab-metadata.json
+            runs/task-workbench/*/jobs/**/job.log
+            runs/task-workbench/*/jobs/**/trial.log
+            runs/task-workbench/*/jobs/**/checks.json
+            research/registration/candidates/ci/${{ github.run_id }}/
+            research/evidence/runs/**/result.json
+            research/evidence/runs/**/lock.json
+            research/evidence/runs/**/config.json
+            research/evidence/runs/**/lab-metadata.json
+            research/evidence/runs/**/job.log
+            research/evidence/runs/**/trial.log
+            research/evidence/runs/**/reward.txt
+            research/evidence/runs/**/reward.json
+          if-no-files-found: error

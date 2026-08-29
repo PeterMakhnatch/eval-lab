@@ -1,0 +1,33 @@
+{
+  "name": "mcp-recovery",
+  "version": "v1.0.0",
+  "license": {
+    "spdx": "MIT",
+    "name": "MIT License",
+    "reference_repo": "https://github.com/laude-institute/harbor",
+    "notes": "Source-only certified FastMCP recovery family. MIT Recovery-Bench is cited as ecological replay fallback only; replay-drift is an explicit limitation and the repository is not vendored."
+  },
+  "benchmark": {
+    "family": "mcp-recovery-v1",
+    "construct": "Deterministic MCP error recovery across clean/fault twins, state certificates, and discrete persistence levels",
+    "campaign": "Campaign 0 calibration",
+    "synthetic_family": "family_c_fault_recovery",
+    "fault_classes": [
+      "transient_http_5xx",
+      "transient_network_timeout",
+      "persistent_schema_mismatch",
+      "persistent_signature_error",
+      "silent_wrong_payload"
+    ],
+    "persistence_levels": [1, 2],
+    "calibration_seeds": [42, 101, 2024],
+    "matched_arms": ["fault", "clean_twin"]
+  },
+  "runtime": {
+    "protocol": "streamable-http",
+    "mcp_spec_version": "2024-11-05",
+    "substrate": "evallab.mcp_substrate",
+    "sidecar_service": "mcp-service",
+    "sealed_envelope_path": "/app/output/sealed-evidence.json"
+  }
+}

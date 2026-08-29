@@ -2,7 +2,7 @@
 
 help:
 	@echo "sync       Install locked Python dependencies"
-	@echo "check      Run lint and tests"
+	@echo "check      Run lint, generated-index checks, and tests"
 	@echo "premerge   Mirror the complete CI gate on Python 3.12"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
 	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
@@ -18,6 +18,8 @@ sync:
 
 check:
 	uv run ruff check .
+	uv run python -m evallab.docindex check
+	uv run python -m evallab.repomap check
 	uv run pytest
 
 premerge:

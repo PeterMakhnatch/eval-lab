@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "recovery__HYxt7du",
+  "source": "research/evidence/runs/zai-flash-recovery-transient5xx-p1-r3-amd64-verifier/recovery__HYxt7du",
+  "primary_category": "tool_use",
+  "summary": "The agent eventually wrote and read the record, but the recovery verifier found no causal recovery mutation after the injected transient failure.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 6,
+      "supports": "ATIF step 6 records the agent action sequence tied to the verifier-diagnosed failure; the second evidence item records the exact verifier finding."
+    },
+    {
+      "path": "verifier/checks.json",
+      "step": null,
+      "supports": "The verifier records write_ok=true, read_confirmed=true, state_changed=true, causal_mutation=false, and reward=0.0."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Provisional deterministic taxonomy triage from verifier evidence; not a human gold label.",
+  "labelled_by": "Main, 2026-08-29, deterministic post-run taxonomy triage for PR #299",
+  "parent_trajectory_sha256": "sha256:0301588f657e790be128e66b066444f9278f9fa99ab1d09b1352a57b5e339284"
+}

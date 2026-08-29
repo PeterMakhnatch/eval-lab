@@ -1,0 +1,5 @@
+{
+  "expected_contract": "dependency-trace/v1",
+  "passed": false,
+  "reason": "Invalid JSON format: Extra data: line 2 column 1 (char 2)"
+}

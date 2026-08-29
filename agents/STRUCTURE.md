@@ -103,6 +103,8 @@ eval-lab/
 ├── Makefile                   operator command shortcuts
 ├── compose.yaml               local service composition
 ├── .github/                   CI workflows and gates (Integration lane)
+├── .omp/                      project-native OMP capabilities; scoped,
+│                              on-demand skills rather than sticky policy
 ├── .claude/                   checked-in Claude command configuration
 ├── .githooks/                 checked-in repository hook implementations
 ├── .env.example               environment-variable template
@@ -226,3 +228,7 @@ for today).
 - 2026-08-28 — `containers/continuous-operator/` added under existing
   `containers/` bucket for disabled continuous-loop operator image templates
   (Ops/Runner adapters). No new top-level entry.
+- 2026-08-27 — `.omp/` declared for project-native OMP capabilities. Bucket:
+  agent coordination and engineering workflow; the first entries are scoped
+  change-impact and repository-health skills that reference, rather than
+  duplicate, the binding repository contracts.

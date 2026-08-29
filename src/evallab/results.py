@@ -136,6 +136,25 @@ def _load_object(path: Path) -> JsonObject:
     return value if isinstance(value, dict) else {}
 
 
+def _try_load_object(path: Path) -> JsonObject:
+    """Best-effort object load used only by job *discovery*.
+
+    A candidate ``result.json`` that is not valid JSON is not a job-shaped
+    Harbor result, and discovery must skip it and keep scanning rather than
+    abort the whole tree. The canonical example is a faithfully-promoted failed
+    trial artifact: an agent wrote a diagnostic scalar before the JSON document
+    (``3\n{...}``), and that malformed file must stay as evidence while every
+    default scan (``status``, ``trajectories``, ``nightly``, ``cards``,
+    ``screen``, ``quota``, ``ingest``, ``analyst``, ``lance``) still finds the
+    real jobs around it. ``load_job``/``load_trial`` deliberately keep calling
+    ``_load_object`` and fail closed on malformed JSON for a *selected* job.
+    """
+    try:
+        return _load_object(path)
+    except (json.JSONDecodeError, UnicodeError):
+        return {}
+
+
 def _load_artifacts(trial_dir: Path) -> tuple[ArtifactRecord, ...]:
     manifest_path = trial_dir / "artifacts" / "manifest.json"
     if not manifest_path.is_file():
@@ -283,7 +302,7 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
     for raw_root in roots:
         root = raw_root.expanduser().resolve()
         if root.is_dir() and (root / "result.json").is_file():
-            result = _load_object(root / "result.json")
+            result = _try_load_object(root / "result.json")
             if "n_total_trials" in result and "stats" in result and result.get("finished_at"):
                 discovered[root] = None
                 continue
@@ -293,7 +312,10 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
             candidate = result_path.parent
             if _is_bookkeeping(candidate.relative_to(root)):
                 continue
-            result = _load_object(result_path)
+            # A candidate that fails to parse (e.g. a malformed trial artifact
+            # faithfully preserved as evidence) is not a job; skip it, never
+            # abort the scan.
+            result = _try_load_object(result_path)
             if "n_total_trials" in result and "stats" in result and result.get("finished_at"):
                 discovered[candidate] = None
     return sorted(discovered)

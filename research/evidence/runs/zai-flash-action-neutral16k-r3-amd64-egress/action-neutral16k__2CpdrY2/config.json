@@ -1,0 +1,24 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-tasks/action-neutral16k"
+    },
+    "trial_name": "action-neutral16k__2CpdrY2",
+    "trials_dir": "runs/zai-opencode/zai-flash-action-neutral16k-r3-amd64-egress",
+    "agent": {
+        "name": "zai_opencode_adapter:ZaiOpenCode",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 1
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "job_id": "9470736c-ef98-49eb-9f7a-5dc523f2529e"
+}

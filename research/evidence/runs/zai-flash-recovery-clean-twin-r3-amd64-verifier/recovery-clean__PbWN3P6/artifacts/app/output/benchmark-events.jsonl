@@ -1,0 +1,2 @@
+{"arguments":{"key":"recovery-check-2026","value":"operational-recovery-ok"},"event_ordinal":1,"event_type":"tool_call_success","is_error":false,"result":{"key":"recovery-check-2026","status":"success","value":"operational-recovery-ok"},"schema_version":"mcp-tool-event-v1","tool_name":"write_record"}
+{"arguments":{"key":"recovery-check-2026"},"event_ordinal":2,"event_type":"tool_call_success","is_error":false,"result":{"exists":true,"key":"recovery-check-2026","value":"operational-recovery-ok"},"schema_version":"mcp-tool-event-v1","tool_name":"read_record"}

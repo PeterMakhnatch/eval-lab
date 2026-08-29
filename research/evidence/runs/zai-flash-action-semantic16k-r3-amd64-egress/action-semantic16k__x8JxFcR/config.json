@@ -1,0 +1,24 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-tasks/action-semantic16k"
+    },
+    "trial_name": "action-semantic16k__x8JxFcR",
+    "trials_dir": "runs/zai-opencode/zai-flash-action-semantic16k-r3-amd64-egress",
+    "agent": {
+        "name": "zai_opencode_adapter:ZaiOpenCode",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 1
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "job_id": "b9e46245-b93a-4740-97d7-fff5d3d9b75c"
+}

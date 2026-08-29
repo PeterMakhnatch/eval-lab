@@ -58,9 +58,10 @@ Complementary statistics exist because the consumer schema requires all four:
 
 They do not replace Gwet AC1 as the primary statistic.
 
-Bootstrap unit: the **source trial cluster**, never the individual step.
-Percentile cluster bootstrap. `PrecisionPlan.bootstrap_unit` is pinned
-`source_trial_cluster`.
+Bootstrap unit: the **logical trial** (`logical_trial_id`), never the individual
+item and never `source_trial_id`. Percentile cluster bootstrap.
+`PrecisionPlan.bootstrap_unit` remains the declared bootstrap field; clustering
+itself is keyed by `logical_trial_id`.
 
 The +/-0.05 figure is a **precision specification**, not a pass criterion: the
 target is a 95% cluster-bootstrap CI half-width `<= 0.05` on the primary
@@ -75,13 +76,28 @@ Effective sample size under cluster sampling is bounded by
 n_eff <= K / ICC
 ```
 
-with `K` = number of source-trial clusters. Helper: `required_n_eff_ceiling`.
+with `K` = number of logical-trial clusters (`logical_trial_id`). Helper: `required_n_eff_ceiling`.
 Unequal cluster sizes further reduce information to Kish's effective cluster
 count. Helper: `effective_clusters_kish`; do not reimplement.
 
 ```text
 K_eff = (sum_i m_i)^2 / sum_i (m_i^2)
 ```
+
+### Clustering unit
+
+The bootstrap cluster is the `logical_trial_id`, never the item and never
+`source_trial_id`. Two items that share a `logical_trial_id` are not independent
+observations even when their `source_trial_id` strings differ: re-runs, re-cuts,
+and renamed jobs of the same underlying trajectory collapse to one logical trial.
+
+Duplicate trajectory items — the same `(logical_trial_id, step_index,
+source_sha256)` appearing more than once — are rejected at freeze because they
+inflate both $n$ and apparent $K$. A corpus containing the same trajectory step
+twice may not be frozen at all.
+
+$K_{eff}$ must be computed from `cluster_sizes_by_logical_trial`. That helper is
+the only sanctioned input to `effective_clusters_kish`.
 
 `assess_feasibility` precedence is fixed and ICC-independent on a measured
 floor breach:

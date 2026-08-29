@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from evallab.interpretation.trajectory_judgment import (
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
@@ -42,12 +42,28 @@ AUTHORIZATION_BOUNDARY = (
 if len(TRAJECTORY_ONTOLOGY_V1_CLASSES) != DECLARED_CATEGORY_UNIVERSE:
     raise RuntimeError("declared Gwet category universe must match the frozen ontology size")
 
+PROVENANCE_KEY_FIELDS = ("logical_trial_id", "step_index", "source_sha256")
 
-class GoldItemRef(ContractModel):
-    """Immutable reference to one gold item. Item selection itself is Analyst-owned."""
+
+class GoldContractModel(ContractModel):
+    """Frozen, strict base. Ratings are an append-only record stream, never mutated in place."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class GoldItemRef(GoldContractModel):
+    """Immutable reference to one gold item. Item selection itself is Analyst-owned.
+
+    ``logical_trial_id`` is the explicit cluster key, distinct from
+    ``source_trial_id``. Two items sharing a ``logical_trial_id`` are not
+    independent observations even when their ``source_trial_id`` strings differ:
+    re-runs, re-cuts, and renamed jobs of the same underlying trajectory collapse
+    to one logical trial.
+    """
 
     item_id: str
     source_trial_id: str
+    logical_trial_id: str
     step_index: int
     source_sha256: Digest
     selection_stratum: str
@@ -57,13 +73,14 @@ class GoldItemRef(ContractModel):
     redaction_digest: Digest
 
 
-class GoldCorpusLock(ContractModel):
+class GoldCorpusLock(GoldContractModel):
     corpus_id: str
     corpus_version: str
     ontology_version: Literal["traj.judge.ontology.v1"] = ONTOLOGY_VERSION
     rubric_digest: Digest
     item_count: int
     strata_counts: dict[str, int]
+    item_ids: list[str]
     item_digests: list[Digest]
     corpus_digest: Digest
     frozen_at: datetime
@@ -72,6 +89,10 @@ class GoldCorpusLock(ContractModel):
     def validate_lock_identity(self) -> GoldCorpusLock:
         if self.item_count != len(self.item_digests):
             raise ValueError("item_count must equal len(item_digests)")
+        if self.item_count != len(self.item_ids):
+            raise ValueError("item_count must equal len(item_ids)")
+        if len(set(self.item_ids)) != len(self.item_ids):
+            raise ValueError("item_ids must be unique")
         expected = canonical_json_digest([self.item_digests, self.rubric_digest])
         if self.corpus_digest != expected:
             raise ValueError(
@@ -80,7 +101,7 @@ class GoldCorpusLock(ContractModel):
         return self
 
 
-class RaterQualification(ContractModel):
+class RaterQualification(GoldContractModel):
     rater_id: str
     is_machine: Literal[False] = False
     qualification_status: Literal["qualified", "provisional", "revoked"]
@@ -102,7 +123,7 @@ class RaterQualification(ContractModel):
         return self
 
 
-class RatingRecord(ContractModel):
+class RatingRecord(GoldContractModel):
     record_schema_version: Literal["gold-rating-record-v1"] = RATING_RECORD_SCHEMA_VERSION
     corpus_digest: Digest
     rubric_digest: Digest
@@ -116,6 +137,7 @@ class RatingRecord(ContractModel):
             "out_of_scope",
             "rater_unavailable",
             "abstained",
+            "cannot_judge",
         ]
         | None
     ) = None
@@ -134,7 +156,7 @@ class RatingRecord(ContractModel):
         return self
 
 
-class ItemReadiness(ContractModel):
+class ItemReadiness(GoldContractModel):
     item_id: str
     distinct_qualified_rater_ids: list[str]
     n_qualified_independent_raters: int
@@ -144,7 +166,7 @@ class ItemReadiness(ContractModel):
     not_ready_reasons: list[str]
 
 
-class PrecisionPlan(ContractModel):
+class PrecisionPlan(GoldContractModel):
     primary_statistic: Literal["gwet_ac1_multirater"] = "gwet_ac1_multirater"
     declared_category_universe: Literal[12] = DECLARED_CATEGORY_UNIVERSE
     target_ci_half_width: float = Field(gt=0)
@@ -174,10 +196,6 @@ class PrecisionPlan(ContractModel):
 
     @model_validator(mode="after")
     def validate_icc_feasibility(self) -> PrecisionPlan:
-        breaches_floor = (
-            self.n_clusters_effective is not None
-            and self.n_clusters_effective < self.min_clusters_floor
-        )
         if self.feasibility == "INFEASIBLE_INSUFFICIENT_CLUSTERS":
             if self.n_clusters_effective is None:
                 raise ValueError(
@@ -186,7 +204,6 @@ class PrecisionPlan(ContractModel):
             return self
         if (
             self.measured_within_trial_icc is None
-            and not breaches_floor
             and self.feasibility != "UNDETERMINED_PENDING_ICC"
         ):
             raise ValueError(
@@ -195,7 +212,7 @@ class PrecisionPlan(ContractModel):
         return self
 
 
-class GoldSetReadinessReport(ContractModel):
+class GoldSetReadinessReport(GoldContractModel):
     corpus_digest: Digest
     rubric_digest: Digest
     required_independent_raters: int = Field(default=REQUIRED_INDEPENDENT_RATERS, ge=3)
@@ -210,7 +227,7 @@ class GoldSetReadinessReport(ContractModel):
     blocked_reasons: list[str]
 
 
-class AdjudicationRecord(ContractModel):
+class AdjudicationRecord(GoldContractModel):
     item_id: str
     adjudicator_rater_id: str | None
     original_rater_ids: list[str]
@@ -245,6 +262,12 @@ def freeze_corpus(
     item_ids = [item.item_id for item in ordered]
     if len(item_ids) != len(set(item_ids)):
         raise ValueError("gold items must have unique item_id values")
+    duplicates = detect_duplicate_items(ordered)
+    if duplicates:
+        raise ValueError(
+            "duplicate trajectory items inflate n and apparent cluster count; "
+            f"offending provenance keys: {duplicates}"
+        )
     item_digests = [canonical_json_digest(item) for item in ordered]
     return GoldCorpusLock(
         corpus_id=corpus_id,
@@ -255,10 +278,80 @@ def freeze_corpus(
         strata_counts=dict(
             sorted(Counter(item.selection_stratum for item in ordered).items())
         ),
+        item_ids=item_ids,
         item_digests=item_digests,
         corpus_digest=canonical_json_digest([item_digests, rubric_digest]),
         frozen_at=frozen_at,
     )
+
+
+def cluster_sizes_by_logical_trial(items: Sequence[GoldItemRef]) -> list[int]:
+    """Item counts grouped by ``logical_trial_id``, sorted descending.
+
+    This is the only sanctioned input to ``effective_clusters_kish``. Two items
+    sharing a ``logical_trial_id`` are not independent observations even when
+    their ``source_trial_id`` strings differ.
+    """
+    counts = Counter(item.logical_trial_id for item in items)
+    return sorted(counts.values(), reverse=True)
+
+
+def n_logical_trials(items: Sequence[GoldItemRef]) -> int:
+    """Count distinct ``logical_trial_id`` values in ``items``."""
+    return len({item.logical_trial_id for item in items})
+
+
+def detect_duplicate_items(items: Sequence[GoldItemRef]) -> list[tuple[str, int, str]]:
+    """Return sorted provenance keys that appear more than once.
+
+    A provenance key is ``(logical_trial_id, step_index, source_sha256)``.
+    """
+    keys = [
+        (item.logical_trial_id, item.step_index, item.source_sha256) for item in items
+    ]
+    counts = Counter(keys)
+    return sorted(key for key, n in counts.items() if n > 1)
+
+
+def intake_ratings(
+    raw: Sequence[Mapping[str, Any]], lock: GoldCorpusLock
+) -> list[RatingRecord]:
+    """Validate a rating batch against a frozen lock. Accept all or raise.
+
+    Intake never silently drops or coerces. A ``ValueError`` names the offending
+    index when a record fails schema validation, ``corpus_digest`` or
+    ``rubric_digest`` does not match ``lock``, ``item_id`` is not in the locked
+    corpus, or a ``(item_id, rater_id)`` pair repeats within the batch.
+    """
+    locked_item_ids = set(lock.item_ids)
+    accepted: list[RatingRecord] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for index, row in enumerate(raw):
+        try:
+            record = RatingRecord.model_validate(row)
+        except ValidationError as exc:
+            raise ValueError(f"intake rejected record at index {index}: {exc}") from exc
+        if record.corpus_digest != lock.corpus_digest:
+            raise ValueError(
+                f"intake rejected record at index {index}: corpus_digest does not match lock"
+            )
+        if record.rubric_digest != lock.rubric_digest:
+            raise ValueError(
+                f"intake rejected record at index {index}: rubric_digest does not match lock"
+            )
+        if record.item_id not in locked_item_ids:
+            raise ValueError(
+                f"intake rejected record at index {index}: item_id {record.item_id!r} "
+                "is not in the locked corpus"
+            )
+        pair = (record.item_id, record.rater_id)
+        if pair in seen_pairs:
+            raise ValueError(
+                f"intake rejected record at index {index}: repeated (item_id, rater_id) pair {pair}"
+            )
+        seen_pairs.add(pair)
+        accepted.append(record)
+    return accepted
 
 
 def evaluate_item_readiness(
@@ -431,7 +524,9 @@ def effective_clusters_kish(cluster_sizes: Sequence[int]) -> float:
 
     Equal cluster sizes return the nominal count; concentration lowers it. This is
     the single canonical implementation so unequal-cluster inflation is never
-    recomputed inline.
+    recomputed inline. The only sanctioned input is
+    ``cluster_sizes_by_logical_trial``; do not pass item-level counts or groups
+    keyed by ``source_trial_id``.
     """
     if not cluster_sizes:
         raise ValueError("cluster_sizes must be non-empty")

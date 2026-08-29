@@ -2919,17 +2919,14 @@ def _gold_readiness_command(
         GoldCorpusLock,
         PrecisionPlan,
         RaterQualification,
-        RatingRecord,
         evaluate_gold_set_readiness,
+        intake_ratings,
     )
 
     lock = GoldCorpusLock.model_validate(
         json.loads(_resolve(root, args.lock).read_text(encoding="utf-8"))
     )
-    ratings = [
-        RatingRecord.model_validate(row)
-        for row in _load_json_or_jsonl(_resolve(root, args.ratings))
-    ]
+    ratings = intake_ratings(_load_json_or_jsonl(_resolve(root, args.ratings)), lock)
     qualifications = [
         RaterQualification.model_validate(row)
         for row in _load_json_or_jsonl(_resolve(root, args.qualifications))

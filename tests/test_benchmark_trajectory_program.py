@@ -721,7 +721,9 @@ def test_prompt_cache_hit_rate_strict_token_weighting(action_memory_trial_dir: P
 def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
     """MCP FuncDAG producer computes dag conformance and cycle violations."""
     bundle = load_trial_bundle(mcp_funcdag_trial_dir)
-    features = extract_mcp_funcdag_features(bundle, step_tokens=[100, 150])
+    features = extract_mcp_funcdag_features(
+        bundle, step_tokens=[100, 150], cached_step_tokens=[50, 75]
+    )
 
     assert features.task_success is True
     assert features.required_dag_edges == 1
@@ -729,13 +731,16 @@ def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
     assert features.dag_edge_conformance_rate == 1.0
     assert features.redundant_tool_calls == 0
     assert features.cycle_violations == 0
+    assert features.prompt_cache_hit_rate == 0.5
     assert features.construct == "tool_call_dag_conformance"
 
 
 def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     """MCP Recovery producer computes autonomous recovery metrics."""
     bundle = load_trial_bundle(mcp_recovery_trial_dir)
-    features = extract_mcp_recovery_features(bundle, step_tokens=[100, 120])
+    features = extract_mcp_recovery_features(
+        bundle, step_tokens=[100, 100], cached_step_tokens=[20, 80]
+    )
 
     assert features.task_success is True
     assert features.injected_fault_count == 1
@@ -743,6 +748,7 @@ def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     assert features.autonomous_recovery_rate == 1.0
     assert features.fault_detection_rate == 1.0
     assert features.blind_retries == 0
+    assert features.prompt_cache_hit_rate == 0.5
     assert features.causal_grade == "C3"
 
 

@@ -232,9 +232,12 @@ def extract_mcp_funcdag_features(
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
     prompt_cache_hit_rate: float | None = None
-    if step_tokens and sum(step_tokens) > 0 and cache_hits and len(step_tokens) == len(cache_hits):
-        cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
-        prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
+    if step_tokens and sum(step_tokens) > 0:
+        if cached_step_tokens and len(cached_step_tokens) == len(step_tokens):
+            prompt_cache_hit_rate = float(sum(cached_step_tokens) / sum(step_tokens))
+        elif cache_hits and len(cache_hits) == len(step_tokens):
+            cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
+            prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

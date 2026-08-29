@@ -30,3 +30,39 @@ jobs:
           sha256sum /tmp/mcp-linux-cffi/cffi-2.1.1-*.whl | grep '^c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf'
       - name: Verify platform lock derives selected cffi hash
         run: uv run --no-sync pytest tests/test_mcp_substrate.py -k linux_cp312_manylinux_cffi_hash_is_selected_from_wheel_bytes -n0
+      - name: Download CPython 3.12 manylinux FastMCP wheelhouse
+        run: |
+          mkdir -p /tmp/fastmcp3_linux_wheelhouse
+          python3 -m pip download --only-binary=:all: --dest /tmp/fastmcp3_linux_wheelhouse --platform manylinux_2_17_x86_64 --python-version 312 fastmcp==3.4.7
+      - name: Stage selected lock via substrate APIs
+        run: |
+          uv run --no-sync python -c 'from pathlib import Path
+from evallab.mcp_substrate import DEFAULT_PINNED_BASE_IMAGE, DEFAULT_TARGET_PLATFORM_TAG, DEFAULT_TARGET_PYTHON_TAG, WheelhouseTarget, record_prepackaging_provenance, render_provenance_lock, stage_platform_wheelhouse, validate_target_base_runtime
+src = Path("/tmp/fastmcp3_linux_wheelhouse")
+dest = Path("/tmp/mcp-staged-wheelhouse")
+req_dir = Path("/tmp/mcp-req")
+target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+validate_target_base_runtime(target.python_tag, target.platform_tag, DEFAULT_PINNED_BASE_IMAGE)
+provenance = record_prepackaging_provenance(src, target)
+stage_platform_wheelhouse(src, dest, target)
+req_dir.mkdir(parents=True, exist_ok=True)
+(req_dir / "requirements.txt").write_text(render_provenance_lock(provenance), encoding="utf-8")
+print((req_dir / "requirements.txt").read_text(encoding="utf-8"))'
+      - name: Pull pinned Python 3.12.11-slim base and inspect
+        run: |
+          IMAGE='python@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f'
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format 'Id={{.Id}} Architecture={{.Architecture}} Os={{.Os}} RepoDigests={{json .RepoDigests}}'
+      - name: Offline install FastMCP in pinned 3.12 image
+        run: |
+          IMAGE='python@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f'
+          docker run --rm --network=none \
+            -v /tmp/mcp-staged-wheelhouse:/wheelhouse:ro \
+            -v /tmp/mcp-req:/req:ro \
+            "$IMAGE" \
+            python -c 'import sys, subprocess
+print(sys.version)
+assert sys.version_info[:2] == (3, 12), sys.version
+subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--no-index", "--find-links=/wheelhouse", "--require-hashes", "-r", "/req/requirements.txt"])
+import fastmcp
+print("fastmcp", getattr(fastmcp, "__version__", "imported"))'

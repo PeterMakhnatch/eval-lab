@@ -41,7 +41,7 @@ from evallab.benchmark_program_contracts import (
 
 logger = logging.getLogger(__name__)
 
-MCP_SUBSTRATE_VERSION = "0.2.0"
+MCP_SUBSTRATE_VERSION = "0.2.1"
 DEFAULT_PROTOCOL_VERSION = "2024-11-05"
 DEFAULT_SIDECAR_SERVICE = "mcp-service"
 DEFAULT_VOLUME_NAME = "evidence-volume"
@@ -49,8 +49,18 @@ DEFAULT_VOLUME_MOUNT = "/app/output"
 DEFAULT_INTERNAL_NETWORK_NAME = "workbench-internal"
 DEFAULT_MCP_PORT = 8080
 DEFAULT_PINNED_BASE_IMAGE = (
-    "python@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+    "python@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
+PINNED_BASE_IMAGE_INDEX_DIGEST = (
+    "sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
+)
+PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST = (
+    "sha256:0b29ab9e420820f53d1cd5ce0157dfe07bea8a7cff5b4754d6d95c07b0e5bc47"
+)
+DEFAULT_TARGET_PYTHON_TAG = "cp312"
+DEFAULT_TARGET_PLATFORM_TAG = "manylinux_2_17_x86_64"
+_PINNED_PYTHON_IMAGE_RE = re.compile(r"^python@sha256:[a-f0-9]{64}$")
+_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 # Pinned FastMCP 3.4.7 streamable-HTTP sidecar dependencies with strict hash locking
 FASTMCP_VERSION_CONSTRAINTS: tuple[str, ...] = ("fastmcp==3.4.7",)
@@ -58,6 +68,57 @@ FASTMCP_VERSION_CONSTRAINTS: tuple[str, ...] = ("fastmcp==3.4.7",)
 
 class SubstrateError(Exception):
     """Raised when substrate configuration, validation, or runtime fails."""
+
+
+def validate_target_base_runtime(
+    python_tag: str,
+    platform_tag: str,
+    base_image: str = DEFAULT_PINNED_BASE_IMAGE,
+    *,
+    base_image_index_digest: str = PINNED_BASE_IMAGE_INDEX_DIGEST,
+    base_image_amd64_manifest_digest: str = PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
+) -> dict[str, str]:
+    """Fail-closed compatibility check for Python tag, platform, and pinned base image."""
+    if not isinstance(base_image, str) or not _PINNED_PYTHON_IMAGE_RE.fullmatch(base_image):
+        raise SubstrateError(
+            f"base image must be pinned python@sha256:<digest>, got {base_image!r}"
+        )
+    if not isinstance(base_image_index_digest, str) or not _DIGEST_RE.fullmatch(
+        base_image_index_digest
+    ):
+        raise SubstrateError(f"base image index digest is invalid: {base_image_index_digest!r}")
+    if not isinstance(base_image_amd64_manifest_digest, str) or not _DIGEST_RE.fullmatch(
+        base_image_amd64_manifest_digest
+    ):
+        raise SubstrateError(
+            f"base image amd64 manifest digest is invalid: {base_image_amd64_manifest_digest!r}"
+        )
+    image_digest = base_image.split("@", 1)[1]
+    if image_digest != base_image_index_digest:
+        raise SubstrateError("base image reference digest does not match declared index digest")
+    if base_image_index_digest != PINNED_BASE_IMAGE_INDEX_DIGEST:
+        raise SubstrateError(
+            "base image index digest is not the pinned CPython 3.12.11-slim runtime"
+        )
+    if base_image_amd64_manifest_digest != PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST:
+        raise SubstrateError(
+            "base image amd64 manifest digest is not the pinned CPython 3.12.11-slim runtime"
+        )
+    if python_tag != DEFAULT_TARGET_PYTHON_TAG:
+        raise SubstrateError(
+            f"python tag {python_tag!r} is incompatible with pinned CPython 3.12 base runtime"
+        )
+    if platform_tag != DEFAULT_TARGET_PLATFORM_TAG:
+        raise SubstrateError(
+            f"platform tag {platform_tag!r} is incompatible with pinned manylinux CPython 3.12 base runtime"
+        )
+    return {
+        "base_image": base_image,
+        "base_image_index_digest": base_image_index_digest,
+        "base_image_amd64_manifest_digest": base_image_amd64_manifest_digest,
+        "target_python": python_tag,
+        "target_platform": platform_tag,
+    }
 
 
 def parse_requirements_hashes(requirements_text: str) -> dict[str, set[str]]:
@@ -403,7 +464,10 @@ def materialize_mcp_sidecar_package(
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
     target_dir.mkdir(parents=True, exist_ok=True)
     selected_target = target or WheelhouseTarget(
-        python_tag="cp312", platform_tag="macosx_11_0_arm64"
+        python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
+    )
+    runtime_meta = validate_target_base_runtime(
+        selected_target.python_tag, selected_target.platform_tag, base_image
     )
 
     # 1. server.py
@@ -425,7 +489,7 @@ def materialize_mcp_sidecar_package(
         proof_data = {
             "mode": "plan_only",
             "substrate_version": MCP_SUBSTRATE_VERSION,
-            "base_image": base_image,
+            **runtime_meta,
             "requirements_sha256": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
         }
         (target_dir / "offline-build-proof.json").write_text(
@@ -457,9 +521,7 @@ def materialize_mcp_sidecar_package(
         proof_data = {
             "mode": "complete_offline_package",
             "substrate_version": MCP_SUBSTRATE_VERSION,
-            "base_image": base_image,
-            "target_python": selected_target.python_tag,
-            "target_platform": selected_target.platform_tag,
+            **runtime_meta,
             "requirements_sha256": compute_sha256(requirements_lock),
             "wheel_count": len(wheel_inventory),
             "wheels": wheel_inventory,
@@ -497,12 +559,21 @@ def materialize_mcp_sidecar_package(
 def compute_mcp_substrate_digest(
     topology: dict[str, Any],
     tool_defs: Sequence[MCPToolDefinition] | None = None,
+    *,
+    target: WheelhouseTarget | None = None,
+    base_image: str = DEFAULT_PINNED_BASE_IMAGE,
 ) -> str:
     """Compute deterministic SHA-256 digest of the MCP substrate manifest, requirements, and full tool definitions."""
+    selected_target = target or WheelhouseTarget(
+        python_tag=DEFAULT_TARGET_PYTHON_TAG, platform_tag=DEFAULT_TARGET_PLATFORM_TAG
+    )
     payload: dict[str, Any] = {
         "substrate_version": MCP_SUBSTRATE_VERSION,
         "topology": topology,
         "requirements_hash": compute_sha256(canonical_json(FASTMCP_VERSION_CONSTRAINTS)),
+        "base_runtime": validate_target_base_runtime(
+            selected_target.python_tag, selected_target.platform_tag, base_image
+        ),
     }
     if tool_defs is not None:
         payload["tools"] = [

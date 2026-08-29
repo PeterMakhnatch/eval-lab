@@ -148,7 +148,9 @@ outside an R2 omission path is refused outright, and `--verify` rejects any
 symlink found in a promoted bundle and re-checks every recorded link-target
 digest. These manifests are `PROMOTION.json` schema v2: `verify` requires
 `entry_type` on every omission record and rejects deletion of the symlink
-fields or a version downgrade. Verify at any time with:
+fields or any version downgrade. v1 compatibility is immutable and closed to
+the three 2026-08-15 Codex canaries, whose manifests are pinned by exact-byte
+digest; every other bundle must be v2. Verify at any time with:
 
 ```bash
 uv run python scripts/promote_codex_bundle.py --verify

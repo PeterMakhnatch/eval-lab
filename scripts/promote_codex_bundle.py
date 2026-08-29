@@ -131,9 +131,30 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-#: Manifest schema. v2 requires ``entry_type`` on every R2 omission record and ``link_target``/length/hash on symlink omissions, so ``verify`` can reject deletion or version-downgrade of those fields. v1/absent-version manifests (the 2026-08-15 Codex canaries) predate ``entry_type`` and are verified on the legacy path.
+#: Manifest schema. v2 requires ``entry_type`` on every R2 omission record and
+#: ``link_target``/length/hash on symlink omissions, so ``verify`` can reject
+#: deletion or version-downgrade of those fields. v1/absent-version manifests
+#: (the 2026-08-15 Codex canaries) predate ``entry_type`` and are verified on
+#: the legacy path.
 SCHEMA_VERSION = 2
 VERIFIER_JSON_STRING_LIMIT = 1024
+
+#: v1 compatibility is immutable and closed: only these three 2026-08-15 Codex
+#: bundles may carry a non-v2 ``PROMOTION.json``, and only when its exact bytes
+#: match the pinned digest below. Every other bundle must be schema v2, so a
+#: combined downgrade (set schema_version=1 *and* strip the v2-only fields) on
+#: a newer bundle can never fall back to the lenient legacy path.
+LEGACY_V1_MANIFESTS: dict[str, str] = {
+    "canary-event-summary-codex-20260815": (
+        "sha256:471b94da2de8a532a21815dbb49fb8144f113d2506a5b3f87ebaca907563165f"
+    ),
+    "canary-transaction-reconciliation-codex-20260815": (
+        "sha256:49a9161354816adc6e9f1779165d0e155d07b1a7437fee5f83325250e43d05cb"
+    ),
+    "canary-terminal-bench-html-js-filter-codex-20260815": (
+        "sha256:9e3827dae5236c45e0006a1eb499fc8d65620d1ccc7b8ed7a66e6db1775aa2b2"
+    ),
+}
 VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
@@ -641,22 +662,25 @@ def verify(evidence_runs: Path) -> int:
         manifest = json.loads(manifest_path.read_text())
         bundle = manifest_path.parent
         manifest_v2 = manifest.get("schema_version") == SCHEMA_VERSION
-
-        # Reject a version downgrade: a manifest that is not v2 but still
-        # carries the v2-only omission schema (``entry_type``) is inconsistent
-        # and must not be allowed to fall back to the lenient legacy path.
-        has_v2_omission = any(
-            e.get("action") == "omitted"
-            and e.get("rule") == "R2"
-            and e.get("entry_type") is not None
-            for e in manifest["files"]
-        )
-        if not manifest_v2 and has_v2_omission:
-            print(
-                f"VERSION DOWNGRADE {bundle.name}: v2 omission records under a "
-                "non-v2 manifest schema"
-            )
-            failures += 1
+        if not manifest_v2:
+            # v1 compatibility is immutable and closed: only the three pinned
+            # 2026-08-15 Codex bundles may be non-v2, and only with byte-exact
+            # manifests. A combined downgrade (schema_version=1 plus stripping
+            # the v2-only omission fields) therefore cannot escape to the
+            # lenient legacy path on any other bundle.
+            pinned = LEGACY_V1_MANIFESTS.get(bundle.name)
+            if pinned is None:
+                print(
+                    f"NON-V2 MANIFEST {bundle.name}: only the pinned legacy "
+                    f"Codex bundles may be non-schema-v{SCHEMA_VERSION}"
+                )
+                failures += 1
+            elif sha256_bytes(manifest_path.read_bytes()) != pinned:
+                print(
+                    f"LEGACY MANIFEST MISMATCH {bundle.name}: bytes differ from "
+                    "the pinned v1 digest"
+                )
+                failures += 1
 
         # Promotion must never produce a symlink; reject any that appear.
         for path in bundle.rglob("*"):

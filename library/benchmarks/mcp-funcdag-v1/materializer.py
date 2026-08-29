@@ -267,7 +267,7 @@ Evaluate the root target node `{dag_spec.target_node_id}` by discovering and cal
 The local FastMCP streamable-HTTP server is available at: `http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp`.
 
 ## Deliverable:
-Save the final calculated integer result to `/logs/agent/result.json` in format:
+Save the final calculated integer result to `/app/result.json` in format:
 ```json
 {{
   "target_value": <INTEGER_VALUE>
@@ -341,7 +341,7 @@ Save the final calculated integer result to `/logs/agent/result.json` in format:
     (target_dir / "task.toml").write_text(
         f"""schema_version = "1.4"
 artifacts = [
-  "/app/output/result.json",
+  "/app/result.json",
   "/app/output/benchmark-events.jsonl",
 ]
 
@@ -365,10 +365,6 @@ timeout_sec = 180.0
 [verifier]
 timeout_sec = 60.0
 environment_mode = "separate"
-
-[[verifier.collect]]
-service = "main"
-command = "if [ ! -f /app/output/result.json ] && [ -f /logs/agent/result.json ]; then cp /logs/agent/result.json /app/output/result.json; fi"
 
 [verifier.environment]
 network_mode = "no-network"
@@ -444,7 +440,9 @@ def main():
     node_tool_map = truth["node_tool_map"]
     required_tools = [node_tool_map[nid] for nid in topological_order]
 
-    res_file = Path("/app/output/result.json")
+    res_file = Path("/app/result.json")
+    if not res_file.exists():
+        res_file = Path("/app/output/result.json")
     if not res_file.exists():
         res_file = Path("/app/result.json")
     agent_val = None

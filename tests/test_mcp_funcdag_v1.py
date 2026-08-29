@@ -126,10 +126,14 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     task_toml = (task_dir / "task.toml").read_text(encoding="utf-8")
     assert 'transport = "streamable-http"' in task_toml
     assert "http://mcp-service:8080/mcp" in task_toml
+    assert '"/app/result.json"' in task_toml
+    assert "[[verifier.collect]]" not in task_toml
+    verifier_eval = (task_dir / "tests" / "verifier_eval.py").read_text(encoding="utf-8")
+    assert 'res_file = Path("/app/result.json")' in verifier_eval
     instruction = (task_dir / "instruction.md").read_text(encoding="utf-8")
     assert "Dependency Graph Nodes:" in instruction
     assert "uses tool" in instruction
-    assert "/logs/agent/result.json" in instruction
+    assert "/app/result.json" in instruction
 
 
 def test_materializer_oracle_nop_mutants_and_answer_only(tmp_path):

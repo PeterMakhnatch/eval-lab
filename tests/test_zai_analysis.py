@@ -58,8 +58,8 @@ def test_build_seed_blocked_contrasts_action_memory_and_recovery() -> None:
         seed=42,
         arm="semantic_distractor",
         dose="64k",
-        reward=0.0,
-        passed=False,
+        reward=1.0,
+        passed=True,
     )
     t3 = TrialEvidence(
         job_name="job_rec",
@@ -95,11 +95,259 @@ def test_build_seed_blocked_contrasts_action_memory_and_recovery() -> None:
     contrasts = build_seed_blocked_contrasts([t1, t2, t3, t4])
     assert len(contrasts) >= 2
     action_contrast = next(
-        c for c in contrasts if "Action Memory 64k Neutral vs Semantic" in c.contrast_name
+        c for c in contrasts if "Action Memory 64k: Flash unscaffolded seed 42" in c.contrast_name
     )
     assert action_contrast.mean_reward_a == 1.0
-    assert action_contrast.mean_reward_b == 0.0
-    assert action_contrast.reward_delta == -1.0
+    assert action_contrast.mean_reward_b == 1.0
+    assert action_contrast.reward_delta == 0.0
+    assert len(action_contrast.trials_arm_a) == 1
+    assert len(action_contrast.trials_arm_b) == 1
+
+
+def test_build_seed_blocked_contrasts_exact_action64_rows_and_denominators() -> None:
+    # Create mock trials for all 3 Action 64k strata plus infra timeout exclusions
+    trials = [
+        # s42 Flash unscaffolded
+        TrialEvidence(
+            job_name="zai-wave2-flash-matrix",
+            trial_name="action-64k-neutral_padding-s42__5Udx2Ac",
+            trial_dir="/tmp/t1",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=42,
+            arm="neutral_padding",
+            dose="64k",
+            reward=1.0,
+            passed=True,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-flash-matrix",
+            trial_name="action-64k-semantic_distractor-s__CrxsJ57",
+            trial_dir="/tmp/t2",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=42,
+            arm="semantic_distractor",
+            dose="64k",
+            reward=1.0,
+            passed=True,
+        ),
+        # s1337 Flash unscaffolded matrix + repeats (3 neutral, 3 semantic)
+        TrialEvidence(
+            job_name="zai-wave2-flash-matrix",
+            trial_name="action-64k-neutral_padding-s1337__xTVP9AZ",
+            trial_dir="/tmp/t3",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="neutral_padding",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-repeats",
+            trial_name="action-64k-neutral_padding-s1337__JvdEs9Y",
+            trial_dir="/tmp/t4",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="neutral_padding",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-repeats",
+            trial_name="action-64k-neutral_padding-s1337__wCHLZ4M",
+            trial_dir="/tmp/t5",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="neutral_padding",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-flash-matrix",
+            trial_name="action-64k-semantic_distractor-s__Qoz3nbU",
+            trial_dir="/tmp/t6",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="semantic_distractor",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-repeats",
+            trial_name="action-64k-semantic_distractor-s__FLiG7jy",
+            trial_dir="/tmp/t7",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="semantic_distractor",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-repeats",
+            trial_name="action-64k-semantic_distractor-s__Pgukjp8",
+            trial_dir="/tmp/t8",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="semantic_distractor",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        # s1337 sequential scaffold t3 (1 neutral, 1 semantic)
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-sequential-scaffold-t3",
+            trial_name="action-64k-neutral_padding-s1337__u4CZxsA",
+            trial_dir="/tmp/t9",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="neutral_padding",
+            dose="64k",
+            reward=1.0,
+            passed=True,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-sequential-scaffold-t3",
+            trial_name="action-64k-semantic_distractor-s__A67eDZ2",
+            trial_dir="/tmp/t10",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="semantic_distractor",
+            dose="64k",
+            reward=0.0,
+            passed=False,
+        ),
+        # s1337 default timeout infrastructure exclusions (reward=None)
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-sequential-scaffold",
+            trial_name="action-64k-neutral_padding-s1337__VxJbtpZ",
+            trial_dir="/tmp/t11",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="neutral_padding",
+            dose="64k",
+            reward=None,
+            passed=False,
+            is_infra_exception=True,
+        ),
+        TrialEvidence(
+            job_name="zai-wave2-action64k-s1337-sequential-scaffold",
+            trial_name="action-64k-semantic_distractor-s__TyoghGd",
+            trial_dir="/tmp/t12",
+            task_name="action",
+            benchmark_family="action_memory",
+            model_name="glm-5.3-flash",
+            agent_name="opencode",
+            wave="wave2",
+            seed=1337,
+            arm="semantic_distractor",
+            dose="64k",
+            reward=None,
+            passed=False,
+            is_infra_exception=True,
+        ),
+    ]
+
+    contrasts = build_seed_blocked_contrasts(trials)
+    assert len(contrasts) == 3
+
+    # Row 1: Flash unscaffolded s42
+    c_s42 = next(c for c in contrasts if "Flash unscaffolded seed 42" in c.contrast_name)
+    assert len(c_s42.trials_arm_a) == 1
+    assert len(c_s42.trials_arm_b) == 1
+    assert c_s42.mean_reward_a == 1.0
+    assert c_s42.mean_reward_b == 1.0
+    assert c_s42.reward_delta == 0.0
+
+    # Row 2: Flash unscaffolded s1337
+    c_s1337 = next(c for c in contrasts if "Flash unscaffolded seed 1337" in c.contrast_name)
+    assert len(c_s1337.trials_arm_a) == 3
+    assert len(c_s1337.trials_arm_b) == 3
+    assert c_s1337.mean_reward_a == 0.0
+    assert c_s1337.mean_reward_b == 0.0
+    assert c_s1337.reward_delta == 0.0
+
+    # Row 3: Sequential scaffold t3 s1337
+    c_scaffold = next(c for c in contrasts if "Sequential scaffold t3 seed 1337" in c.contrast_name)
+    assert len(c_scaffold.trials_arm_a) == 1
+    assert len(c_scaffold.trials_arm_b) == 1
+    assert c_scaffold.mean_reward_a == 1.0
+    assert c_scaffold.mean_reward_b == 0.0
+    assert c_scaffold.reward_delta == -1.0
+
+    # Assert pairing fingerprints and denominator invariants across all contrast rows
+    for c in contrasts:
+        # 1. Denominator equals scored count
+        assert len(c.trials_arm_a) == len(
+            [t for t in c.trials_arm_a if t.reward is not None and not t.is_infra_exception]
+        )
+        assert len(c.trials_arm_b) == len(
+            [t for t in c.trials_arm_b if t.reward is not None and not t.is_infra_exception]
+        )
+        # 2. No timeouts included
+        assert all(t.reward is not None for t in c.trials_arm_a + c.trials_arm_b)
+        assert all(not t.is_infra_exception for t in c.trials_arm_a + c.trials_arm_b)
+        # 3. Model consistency in perturbation contrast
+        assert all(t.model_name == "glm-5.3-flash" for t in c.trials_arm_a + c.trials_arm_b)
+        # 4. Stratum consistency: scaffold trials never mixed with unscaffolded
+        is_scaffold_contrast = (
+            "sequential scaffold" in c.contrast_name.lower()
+            or "scaffold t3" in c.contrast_name.lower()
+        )
+        for t in c.trials_arm_a + c.trials_arm_b:
+            assert ("scaffold" in t.job_name.lower()) == is_scaffold_contrast
+        # 5. Seed consistency
+        if "seed 42" in c.contrast_name:
+            assert all(t.seed == 42 for t in c.trials_arm_a + c.trials_arm_b)
+        elif "seed 1337" in c.contrast_name:
+            assert all(t.seed == 1337 for t in c.trials_arm_a + c.trials_arm_b)
 
 
 def test_run_t1_analysis_integrations() -> None:

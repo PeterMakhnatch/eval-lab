@@ -487,43 +487,153 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
     """Build exact seed-blocked descriptive contrasts across Wave 1 and Wave 2."""
     contrasts: list[ContrastGroup] = []
 
-    # 1. Action Memory 64k: Neutral Padding vs Semantic Distractor (Wave 2)
-    action_64k_neutral = [
+    # 1. Action Memory 64k: Exact seed-blocked and stratum-separated contrasts
+    # 1a. Flash unscaffolded seed 42: neutral 1/1 vs semantic 1/1 (delta 0.0)
+    a64_flash_s42_neutral = [
         t
         for t in all_trials
         if t.benchmark_family == "action_memory"
         and t.dose == "64k"
         and t.arm == "neutral_padding"
+        and t.seed == 42
         and t.model_name == "glm-5.3-flash"
+        and "scaffold" not in t.job_name
+        and not t.is_infra_exception
+        and t.reward is not None
     ]
-    action_64k_semantic = [
+    a64_flash_s42_semantic = [
         t
         for t in all_trials
         if t.benchmark_family == "action_memory"
         and t.dose == "64k"
         and t.arm == "semantic_distractor"
+        and t.seed == 42
         and t.model_name == "glm-5.3-flash"
+        and "scaffold" not in t.job_name
+        and not t.is_infra_exception
+        and t.reward is not None
     ]
-
-    rew_a = [float(t.reward) for t in action_64k_neutral if t.reward is not None]
-    rew_b = [float(t.reward) for t in action_64k_semantic if t.reward is not None]
-    if rew_a and rew_b:
-        r_a = statistics.fmean(rew_a)
-        r_b = statistics.fmean(rew_b)
+    if a64_flash_s42_neutral and a64_flash_s42_semantic:
+        r_a = statistics.fmean(
+            float(t.reward) for t in a64_flash_s42_neutral if t.reward is not None
+        )
+        r_b = statistics.fmean(
+            float(t.reward) for t in a64_flash_s42_semantic if t.reward is not None
+        )
         contrasts.append(
             ContrastGroup(
-                contrast_name="Action Memory 64k Neutral vs Semantic Distractor",
+                contrast_name="Action Memory 64k: Flash unscaffolded seed 42",
                 dimension="context_dilation_distractor",
-                arm_a_label="64k neutral padding",
-                arm_b_label="64k semantic distractor",
-                trials_arm_a=action_64k_neutral,
-                trials_arm_b=action_64k_semantic,
+                arm_a_label="64k neutral padding (unscaffolded, s42)",
+                arm_b_label="64k semantic distractor (unscaffolded, s42)",
+                trials_arm_a=a64_flash_s42_neutral,
+                trials_arm_b=a64_flash_s42_semantic,
                 mean_reward_a=r_a,
                 mean_reward_b=r_b,
                 reward_delta=r_b - r_a,
                 notes=[
-                    f"Neutral arm n={len(action_64k_neutral)}, Semantic arm n={len(action_64k_semantic)}",
-                    "Seed-matched pairs for s42 and s1337.",
+                    f"Neutral arm n={len(a64_flash_s42_neutral)}, Semantic arm n={len(a64_flash_s42_semantic)}",
+                    "Flash unscaffolded seed 42 neutral 1/1 vs semantic 1/1 (delta 0.0).",
+                ],
+            )
+        )
+
+    # 1b. Flash unscaffolded seed 1337: neutral 0/3 vs semantic 0/3 (delta 0.0 across matrix + repeats)
+    a64_flash_s1337_neutral = [
+        t
+        for t in all_trials
+        if t.benchmark_family == "action_memory"
+        and t.dose == "64k"
+        and t.arm == "neutral_padding"
+        and t.seed == 1337
+        and t.model_name == "glm-5.3-flash"
+        and "scaffold" not in t.job_name
+        and not t.is_infra_exception
+        and t.reward is not None
+    ]
+    a64_flash_s1337_semantic = [
+        t
+        for t in all_trials
+        if t.benchmark_family == "action_memory"
+        and t.dose == "64k"
+        and t.arm == "semantic_distractor"
+        and t.seed == 1337
+        and t.model_name == "glm-5.3-flash"
+        and "scaffold" not in t.job_name
+        and not t.is_infra_exception
+        and t.reward is not None
+    ]
+    if a64_flash_s1337_neutral and a64_flash_s1337_semantic:
+        r_a = statistics.fmean(
+            float(t.reward) for t in a64_flash_s1337_neutral if t.reward is not None
+        )
+        r_b = statistics.fmean(
+            float(t.reward) for t in a64_flash_s1337_semantic if t.reward is not None
+        )
+        contrasts.append(
+            ContrastGroup(
+                contrast_name="Action Memory 64k: Flash unscaffolded seed 1337",
+                dimension="context_dilation_distractor",
+                arm_a_label="64k neutral padding (unscaffolded, s1337)",
+                arm_b_label="64k semantic distractor (unscaffolded, s1337)",
+                trials_arm_a=a64_flash_s1337_neutral,
+                trials_arm_b=a64_flash_s1337_semantic,
+                mean_reward_a=r_a,
+                mean_reward_b=r_b,
+                reward_delta=r_b - r_a,
+                notes=[
+                    f"Neutral arm n={len(a64_flash_s1337_neutral)}, Semantic arm n={len(a64_flash_s1337_semantic)}",
+                    "Flash unscaffolded seed 1337 neutral 0/3 vs semantic 0/3 (delta 0.0 across matrix + repeats).",
+                ],
+            )
+        )
+
+    # 1c. Sequential scaffold t3 seed 1337: neutral 1/1 vs semantic 0/1 (delta -1.0; explicitly 1 trial in distinct scaffold stratum)
+    a64_scaffold_t3_neutral = [
+        t
+        for t in all_trials
+        if t.benchmark_family == "action_memory"
+        and t.dose == "64k"
+        and t.arm == "neutral_padding"
+        and t.seed == 1337
+        and t.model_name == "glm-5.3-flash"
+        and t.job_name == "zai-wave2-action64k-s1337-sequential-scaffold-t3"
+        and not t.is_infra_exception
+        and t.reward is not None
+    ]
+    a64_scaffold_t3_semantic = [
+        t
+        for t in all_trials
+        if t.benchmark_family == "action_memory"
+        and t.dose == "64k"
+        and t.arm == "semantic_distractor"
+        and t.seed == 1337
+        and t.model_name == "glm-5.3-flash"
+        and t.job_name == "zai-wave2-action64k-s1337-sequential-scaffold-t3"
+        and not t.is_infra_exception
+        and t.reward is not None
+    ]
+    if a64_scaffold_t3_neutral and a64_scaffold_t3_semantic:
+        r_a = statistics.fmean(
+            float(t.reward) for t in a64_scaffold_t3_neutral if t.reward is not None
+        )
+        r_b = statistics.fmean(
+            float(t.reward) for t in a64_scaffold_t3_semantic if t.reward is not None
+        )
+        contrasts.append(
+            ContrastGroup(
+                contrast_name="Action Memory 64k: Sequential scaffold t3 seed 1337",
+                dimension="context_dilation_distractor",
+                arm_a_label="64k neutral padding (scaffold t3, s1337)",
+                arm_b_label="64k semantic distractor (scaffold t3, s1337)",
+                trials_arm_a=a64_scaffold_t3_neutral,
+                trials_arm_b=a64_scaffold_t3_semantic,
+                mean_reward_a=r_a,
+                mean_reward_b=r_b,
+                reward_delta=r_b - r_a,
+                notes=[
+                    f"Neutral arm n={len(a64_scaffold_t3_neutral)}, Semantic arm n={len(a64_scaffold_t3_semantic)}",
+                    "Sequential-scaffold-t3 seed 1337 neutral 1/1 vs semantic 0/1 (delta -1.0; explicitly 1 trial per arm in distinct scaffold stratum).",
                 ],
             )
         )
@@ -541,6 +651,8 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
             and t.factor == factor_name
             and t.arm == "fault"
             and t.model_name == "glm-5.3-flash"
+            and not t.is_infra_exception
+            and t.reward is not None
         ]
         rec_clean = [
             t
@@ -549,6 +661,8 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
             and t.factor == factor_name
             and t.arm == "clean_twin"
             and t.model_name == "glm-5.3-flash"
+            and not t.is_infra_exception
+            and t.reward is not None
         ]
         rew_f = [float(t.reward) for t in rec_fault if t.reward is not None]
         rew_c = [float(t.reward) for t in rec_clean if t.reward is not None]
@@ -640,9 +754,13 @@ def build_seed_blocked_contrasts(all_trials: Sequence[TrialEvidence]) -> list[Co
                 and t.model_name == "glm-5.3-full"
             ]
 
-        rew_flash = [float(t.reward) for t in flash_trials if t.reward is not None]
-        rew_full = [float(t.reward) for t in full_trials if t.reward is not None]
-        if rew_flash and rew_full:
+        flash_trials = [
+            t for t in flash_trials if not t.is_infra_exception and t.reward is not None
+        ]
+        full_trials = [t for t in full_trials if not t.is_infra_exception and t.reward is not None]
+        if flash_trials and full_trials:
+            rew_flash = [float(t.reward) for t in flash_trials if t.reward is not None]
+            rew_full = [float(t.reward) for t in full_trials if t.reward is not None]
             r_flash = statistics.fmean(rew_flash)
             r_full = statistics.fmean(rew_full)
             contrasts.append(

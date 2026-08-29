@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from evallab.zai_analysis import (
     TrialEvidence,
     build_seed_blocked_contrasts,
@@ -17,17 +19,17 @@ from evallab.zai_report import (
 def test_generate_report_and_summary_smoke() -> None:
     trials = [
         TrialEvidence(
-            job_name="job_wave1",
-            trial_name="action-neutral16k__abc",
+            job_name="job_wave2",
+            trial_name="action-64k-neutral_padding-s42__abc",
             trial_dir="/tmp/t1",
             task_name="action",
             benchmark_family="action_memory",
             model_name="glm-5.3-flash",
             agent_name="opencode",
-            wave="wave1",
+            wave="wave2",
             seed=42,
             arm="neutral_padding",
-            dose="16k",
+            dose="64k",
             reward=1.0,
             passed=True,
             step_count=8,
@@ -80,11 +82,20 @@ def test_generate_report_and_summary_smoke() -> None:
     assert "# Z.ai OpenCode MCP Experiment Program" in md_report
     assert "LINEAGE_VIOLATION" in md_report
     assert "GLM-5.3 Full vs. Flash" in md_report
+    assert "Highspeed is subscription access evidence only" in md_report
+    assert f"The promoted corpus comprises **{len(trials)} total attempts**" in md_report
+    assert "48 total executions" in md_report
+    assert "GLM-5.3-Highspeed:** 0 scored trials" in md_report
+    assert "Infrastructure Exclusions (Promoted):" in md_report
     assert "14,137,819 prompt tokens" in md_report
     assert "~16–18x prompt expansion" in md_report
     assert "23 minutes 50 seconds" in md_report
     assert "No general effectiveness claim is made." in md_report
-
+    assert "256 unique valid-content handles" in md_report
+    assert "application-level `{status: ok, value: {error: not_found}}`" in md_report
+    assert "issued 258 calls for 257 expected" in md_report
+    assert "duplicate final handle and reordered batches" in md_report
+    assert "Action Memory 64k: Flash unscaffolded seed 42" in md_report
     # Assert no contrast has n=0
     for c in contrasts:
         assert len(c.trials_arm_a) > 0
@@ -213,3 +224,57 @@ def test_full_vs_flash_paired_contrasts() -> None:
     assert t3_c.mean_reward_a == 1.0
     assert t3_c.mean_reward_b == 1.0
     assert t3_c.reward_delta == 0.0
+
+
+def test_full_corpus_generated_report_content() -> None:
+    report_path = Path("research/analysis/zai-opencode-mcp-wave1-wave2-analysis-2026-08-29.md")
+    if report_path.is_file():
+        text = report_path.read_text(encoding="utf-8")
+        assert (
+            "epistemic: observed outcomes across Flash and Full GLM-5.3 on MCP synthetic benchmarks; Highspeed is subscription access evidence only"
+            in text
+        )
+        assert (
+            "The promoted corpus comprises **47 total attempts** (45 scored trials + 2 default-timeout scaffold `AgentTimeoutError` infrastructure exclusions)"
+            in text
+        )
+        assert (
+            "If reporting all observed execution initiations, there were **48 total executions**"
+            in text
+        )
+        assert (
+            "- **GLM-5.3-Highspeed:** 0 scored trials (1 observed unpromoted HTTP 429 subscription access failure before job cancellation"
+            in text
+        )
+        assert (
+            "- **Infrastructure Exclusions (Promoted):** 2 trials (both default-timeout sequential scaffold `AgentTimeoutError` runs"
+            in text
+        )
+        assert (
+            "256 unique valid-content handles and one application-level `{status: ok, value: {error: not_found}}`"
+            in text
+        )
+        assert (
+            "issued 258 calls for 257 expected, retrieving all 257 unique valid handles plus a duplicate final handle and reordered batches"
+            in text
+        )
+        # Exact seed-blocked contrast rows present
+        assert (
+            "| Action Memory 64k: Flash unscaffolded seed 42 | context_dilation_distractor | 64k neutral padding (unscaffolded, s42) (n=1) | 64k semantic distractor (unscaffolded, s42) (n=1) | 1.000 | 1.000 | +0.000 |"
+            in text
+        )
+        assert (
+            "| Action Memory 64k: Flash unscaffolded seed 1337 | context_dilation_distractor | 64k neutral padding (unscaffolded, s1337) (n=3) | 64k semantic distractor (unscaffolded, s1337) (n=3) | 0.000 | 0.000 | +0.000 |"
+            in text
+        )
+        assert (
+            "| Action Memory 64k: Sequential scaffold t3 seed 1337 | context_dilation_distractor | 64k neutral padding (scaffold t3, s1337) (n=1) | 64k semantic distractor (scaffold t3, s1337) (n=1) | 1.000 | 0.000 | -1.000 |"
+            in text
+        )
+        # Old pooled row with n=6 is absent
+        assert "Action Memory 64k Neutral vs Semantic Distractor" not in text
+        # §4 repetition asymmetry
+        assert (
+            "2. **Repetition Asymmetry:** 4k and 16k have 3 repetitions per cell in Wave 1; in Wave 2 64k, seed 42 has 1 repetition per arm while seed 1337 has 3 unscaffolded repetitions per arm plus distinct sequential scaffold explorations."
+            in text
+        )

@@ -1,0 +1,70 @@
+{
+    "id": "c9ad1747-2466-409d-ac5a-5bfb49bc5f00",
+    "started_at": "2026-08-29T17:13:09.145308",
+    "updated_at": "2026-08-29T17:30:19.108508",
+    "finished_at": "2026-08-29T17:30:19.108508",
+    "n_total_trials": 17,
+    "stats": {
+        "n_completed_trials": 17,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "opencode__glm-5.3-flash__adhoc": {
+                "n_trials": 17,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "passed": 0.47058823529411764,
+                        "reward": 0.8235294117647058
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "action-64k-neutral_padding-s1337__xTVP9AZ",
+                            "action-64k-semantic_distractor-s__Qoz3nbU",
+                            "mcp-funcdag-name_similarity_high__DvpHJGh"
+                        ],
+                        "1.0": [
+                            "action-64k-neutral_padding-s42__5Udx2Ac",
+                            "action-64k-semantic_distractor-s__CrxsJ57",
+                            "mcp-funcdag-depth_5-seed101__mJU4JQC",
+                            "mcp-funcdag-depth_5-seed2024__gXLQWSh",
+                            "mcp-funcdag-name_similarity_high__sbQkE2R",
+                            "mcp-funcdag-name_similarity_high__TkhqHSN",
+                            "recovery-persistent-signature-er__QHaoyPA",
+                            "recovery-persistent-signature-er__YXTpcLZ",
+                            "recovery-persistent-signature-er__mp4YbvW",
+                            "recovery-persistent-signature-er__Lm9ohzb",
+                            "recovery-silent-wrong-payload-s1__UBdmtRU",
+                            "recovery-silent-wrong-payload-s1__fZmgR5y",
+                            "recovery-silent-wrong-payload-s4__PmKJB8T",
+                            "recovery-silent-wrong-payload-s4__cVZm97U"
+                        ]
+                    },
+                    "passed": {
+                        "1.0": [
+                            "recovery-persistent-signature-er__QHaoyPA",
+                            "recovery-persistent-signature-er__YXTpcLZ",
+                            "recovery-persistent-signature-er__mp4YbvW",
+                            "recovery-persistent-signature-er__Lm9ohzb",
+                            "recovery-silent-wrong-payload-s1__UBdmtRU",
+                            "recovery-silent-wrong-payload-s1__fZmgR5y",
+                            "recovery-silent-wrong-payload-s4__PmKJB8T",
+                            "recovery-silent-wrong-payload-s4__cVZm97U"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 2228318,
+        "n_cache_tokens": 1933376,
+        "n_output_tokens": 41722,
+        "cost_usd": null
+    }
+}

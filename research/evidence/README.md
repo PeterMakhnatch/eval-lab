@@ -16,8 +16,8 @@ These controls validate the task/harness boundary; they do not evaluate a model.
 ## Codex canary bundles, 2026-08-15
 
 Three redacted agent bundles, one per `policy/canary-suite.yaml` member, are the
-lab's only committed real-agent evidence. Selection rule: exactly the three jobs
-`STATUS.md` names as the scored 2026-08-15 set, one job per canary task, at
+lab's earliest committed real-agent evidence. Selection rule: exactly the three
+jobs `STATUS.md` names as the scored 2026-08-15 set, one job per canary task, at
 `k=3` with `exception_info` `null` on every trial. The 2026-08-14 waves are
 excluded because `PROGRAM.json` `EXP-S01-canary-codex-k3` places them outside the
 capability denominator, and the `-r2` re-runs are excluded because they carry
@@ -25,13 +25,13 @@ capability denominator, and the `-r2` re-runs are excluded because they carry
 
 | bundle | trials | reward | job `result.json` SHA-256 | promoted |
 | --- | --- | --- | --- | --- |
-| `canary-event-summary-codex-20260815` | 3 | 3/3 `1.0` | `d471db9c534aa7d5a12661b7832555778099d0d25604feb92ef837da3695863d` | 133,138 B |
-| `canary-transaction-reconciliation-codex-20260815` | 3 | 3/3 `1.0` | `cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198` | 123,894 B |
-| `canary-terminal-bench-html-js-filter-codex-20260815` | 3 | 0/3 `1.0` | `1b860cfe0e674675171a43727ffe776329f73f09c16a55982bbd9c025bf87b2c` | 415,778 B |
+| `canary-event-summary-codex-20260815` | 3 | 3/3 `1.0` | `d471db9c534aa7d5a12661b7832555778099d0d25604feb92ef837da3695863d` | 89,417 B |
+| `canary-transaction-reconciliation-codex-20260815` | 3 | 3/3 `1.0` | `cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198` | 80,793 B |
+| `canary-terminal-bench-html-js-filter-codex-20260815` | 3 | 0/3 `1.0` | `1b860cfe0e674675171a43727ffe776329f73f09c16a55982bbd9c025bf87b2c` | 325,642 B |
 
 Those three digests are the ones already recorded in
 `research/experiments/baselines/codex-canary-20260815.md`, so the promoted
-bundles verify against the pre-existing digest record. Total added: 672,810 B
+bundles verify against the pre-existing digest record. Total retained: 495,852 B
 from 1,967,393 B of source.
 
 All nine trajectories validate as ATIF through the shipped CLI, which is the
@@ -64,24 +64,23 @@ mechanism; its module docstring states rules R1, R2 and R3 in full.
   `steps[].message` to be text or content parts, so a nulled message would be
   invalid ATIF. `agent`-source messages, `tool_calls` and `observation` are agent
   output and environment response, not prompts, and are verbatim.
-- **R2** — `agent/sessions/**` Codex rollout JSONL, `agent/opencode.txt` and the
-  whole `agent/opencode/**` tree are omitted. Codex rollout JSONL holds the
-  untruncated request/response stream including `payload.encrypted_content`.
-  OpenCode's `agent/opencode.txt` is the same kind of raw stream, and
-  `agent/opencode/**` is its runtime state — `opencode.db`/`opencode.db-wal`/
-  `opencode.db-shm` SQLite store, `log/opencode.log`, `snapshot/**`, `repos/**`,
-  `locks/**` and the XDG `auth.json` link. None of these are evidence, and the
-  `auth.json` link points at a host credential store, so none may enter a
-  bundle. Each omitted file's SHA-256 is recorded.
+- **R2** — raw execution streams are omitted: `agent/sessions/**`,
+  `agent/codex.txt`, `agent/opencode.txt`, the whole `agent/opencode/**` tree,
+  root `job.log`, and per-trial `trial.log`. Codex/OpenCode streams contain
+  untruncated model and command events; Harbor logs repeat unredacted task
+  instructions; OpenCode runtime state includes SQLite/WAL/log/snapshot/repos/
+  locks and the XDG `auth.json` credential link. None are durable evidence.
+  Files are SHA-256 recorded as omissions; symlinks are never dereferenced and
+  are recorded by the digest/length of their link-target string.
 - **R3** — `verifier/*` oversize payloads become digest markers, because pytest
   echoes the whole rendered attack-vector batch on failure. Rewards, statuses,
   test names and timings are verbatim.
 
-`agent/codex.txt`, the raw `codex exec --json` stream, is promoted verbatim: it
-was checked and contains no vendor system prompt, no reasoning text and no
-encrypted payload. OpenCode's sibling raw stream is *not* treated the same way:
-it is omitted under R2 because its runtime tree already carries credential
-state, so there is no safe standalone read of it.
+`agent/codex.txt` and `agent/opencode.txt` are treated identically as raw model
+event streams and omitted under R2. `job.log` and `trial.log` are also omitted
+because they bypass ATIF prompt redaction by repeating the full task command.
+Every committed promotion manifest is schema v2 and source-free verification
+requires the typed omission record.
 
 Every bundle carries `PROMOTION.json`, which records for each source file its
 action, its unredacted parent SHA-256, and the SHA-256 of the promoted bytes.
@@ -102,14 +101,13 @@ reward 1.0 on 15/18) are promoted under `runs/`. The pilot report is
 
 | bundle | trials | reward | promoted |
 | --- | --- | --- | --- |
-| `zai-flash-funcdag-easy-r3-20260829` | 3 | 2/3 `1.0` | 76,512 B |
-| `zai-flash-action-clean4k-r3-amd64-egress` | 3 | 3/3 `1.0` | 101,735 B |
-| `zai-flash-action-neutral16k-r3-amd64-egress` | 3 | 3/3 `1.0` | 323,614 B |
-| `zai-flash-action-semantic16k-r3-amd64-egress` | 3 | 2/3 `1.0` | 331,521 B |
-| `zai-flash-recovery-transient5xx-p1-r3-amd64-verifier` | 3 | 2/3 `1.0` | 81,901 B |
-| `zai-flash-recovery-clean-twin-r3-amd64-verifier` | 3 | 3/3 `1.0` | 59,630 B |
+| `zai-flash-funcdag-easy-r3-20260829` | 3 | 2/3 `1.0` | 57,972 B |
+| `zai-flash-action-clean4k-r3-amd64-egress` | 3 | 3/3 `1.0` | 84,353 B |
+| `zai-flash-action-neutral16k-r3-amd64-egress` | 3 | 3/3 `1.0` | 306,148 B |
+| `zai-flash-action-semantic16k-r3-amd64-egress` | 3 | 2/3 `1.0` | 314,043 B |
+| `zai-flash-recovery-transient5xx-p1-r3-amd64-verifier` | 3 | 2/3 `1.0` | 69,433 B |
+| `zai-flash-recovery-clean-twin-r3-amd64-verifier` | 3 | 3/3 `1.0` | 47,156 B |
 
-For these OpenCode bundles R2 additionally omits `agent/opencode.txt` and the
-whole `agent/opencode/**` runtime tree (SQLite/WAL/log/snapshot/auth), each
-digest-recorded; no `opencode.txt`, `opencode/**`, auth link, `.db`,
-`.db-wal` or `.db-shm` survives in the bundles.
+For Z.ai/OpenCode bundles R2 omits the raw OpenCode stream/runtime tree and all
+prompt-bearing Harbor logs, each digest-recorded; no raw stream, `job.log`,
+`trial.log`, `opencode/**`, auth link, `.db`, `.db-wal` or `.db-shm` survives.

@@ -1,0 +1,216 @@
+{
+  "schema_version": 2,
+  "bundle": "zai-wave2-glm53-funcdag-canary",
+  "source_job_runtime_path": "runs/zai-wave2-glm53-funcdag-canary",
+  "source_job_result_sha256": "sha256:5b431f0b301bdd33e052eb4cb9371e380bd757d63abca60c3ce6982d6aca3226",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 20,
+    "promoted_files": 12,
+    "omitted_files": 8,
+    "quota_sidecars": 0,
+    "promoted_bytes": 24119,
+    "source_bytes": 3674194
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 775,
+      "source_sha256": "sha256:bfc29914cec974602312ba04e26df0e8e1bc58f3fd806ceea6b951327f46a7b9",
+      "promoted_bytes": 775,
+      "promoted_sha256": "sha256:bfc29914cec974602312ba04e26df0e8e1bc58f3fd806ceea6b951327f46a7b9"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 3371,
+      "source_sha256": "sha256:c3f5ede247d89688df2656ec34a0624d49dafd63a6fd3d8fe2f88232eaa9ed52"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2435,
+      "source_sha256": "sha256:21946a3a93956e3cb4a029100fb9ac477a3a8e8a8e3b6911262781bfe6029ed8",
+      "promoted_bytes": 2435,
+      "promoted_sha256": "sha256:21946a3a93956e3cb4a029100fb9ac477a3a8e8a8e3b6911262781bfe6029ed8"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 38816,
+      "source_sha256": "sha256:a6a4a3ba4ad9e442027181b8e0815b59987044a815f19bef1811f40316611282"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:ab72f1645666166cecb4585dcc01c54066630d6247d62f86750275a5f0938b3a"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 3551472,
+      "source_sha256": "sha256:d8bc2955b38dee564f44b1c61bcf6cfc458bc5409e1432c1d3abb0c0651883e8"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 15050,
+      "source_sha256": "sha256:3b1eba878a979551abcbc7734ce97ddad0425bef9070cef58d570c9db9ac2e58"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/trajectory.json",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 12051,
+      "source_sha256": "sha256:cda4bd2a2436b97df72363727e3cad1d9dc6b4e8e2b6025b03bed4482c439ceb",
+      "promoted_bytes": 10920,
+      "promoted_sha256": "sha256:15ff55ab35e3a368256e15d2854db96c021d6d159c8dbc542a92358a643ffd30"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/artifacts/app/output/benchmark-events.jsonl",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/artifacts/app/output/benchmark-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1814,
+      "source_sha256": "sha256:6290137aa5a9c9129102b4eac6d2a0434dac051f2186256239d38edbfeb4adf3",
+      "promoted_bytes": 1814,
+      "promoted_sha256": "sha256:6290137aa5a9c9129102b4eac6d2a0434dac051f2186256239d38edbfeb4adf3"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/artifacts/app/result.json",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/artifacts/app/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 25,
+      "source_sha256": "sha256:924340a16ef35af3497b5501feab29ee8834807f596e971a17ec3b9fd7c79d11",
+      "promoted_bytes": 25,
+      "promoted_sha256": "sha256:924340a16ef35af3497b5501feab29ee8834807f596e971a17ec3b9fd7c79d11"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/artifacts/manifest.json",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 497,
+      "source_sha256": "sha256:d9db784f746ac5ca9efa4fa5bf2e3f3e657b180bdcb67e9a7b4602f26e98163d",
+      "promoted_bytes": 497,
+      "promoted_sha256": "sha256:d9db784f746ac5ca9efa4fa5bf2e3f3e657b180bdcb67e9a7b4602f26e98163d"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/config.json",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 781,
+      "source_sha256": "sha256:65361428f2895754b51e95414a563e0688df821f7782c7a7803a798a598dd9da",
+      "promoted_bytes": 781,
+      "promoted_sha256": "sha256:65361428f2895754b51e95414a563e0688df821f7782c7a7803a798a598dd9da"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/lock.json",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1353,
+      "source_sha256": "sha256:92d35371fbc0ed5fc017c252e7281ea6eed585437c69d499c63f6ffbf9d2bb53",
+      "promoted_bytes": 1353,
+      "promoted_sha256": "sha256:92d35371fbc0ed5fc017c252e7281ea6eed585437c69d499c63f6ffbf9d2bb53"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/result.json",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4297,
+      "source_sha256": "sha256:844c440b30ae032b13c0c3348325d9f5bf4a046393234a6350c89b1cc369594e",
+      "promoted_bytes": 4297,
+      "promoted_sha256": "sha256:844c440b30ae032b13c0c3348325d9f5bf4a046393234a6350c89b1cc369594e"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 3371,
+      "source_sha256": "sha256:c3f5ede247d89688df2656ec34a0624d49dafd63a6fd3d8fe2f88232eaa9ed52"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/verifier/reward.txt",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4,
+      "source_sha256": "sha256:5717e7c840171019a4eeab5b79a7f894a4986eaff93d04ec5b12c9a189f594bf",
+      "promoted_bytes": 4,
+      "promoted_sha256": "sha256:5717e7c840171019a4eeab5b79a7f894a4986eaff93d04ec5b12c9a189f594bf"
+    },
+    {
+      "source_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/verifier/test-stdout.txt",
+      "promoted_path": "mcp-funcdag-depth_5-seed42__Ca9ToPk/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 89,
+      "source_sha256": "sha256:848e7211e21d8ce79c33bc2b5584a88ae53916d1e8e40d40d6b6d6ebece0c3a8",
+      "promoted_bytes": 89,
+      "promoted_sha256": "sha256:848e7211e21d8ce79c33bc2b5584a88ae53916d1e8e40d40d6b6d6ebece0c3a8"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1129,
+      "source_sha256": "sha256:5b431f0b301bdd33e052eb4cb9371e380bd757d63abca60c3ce6982d6aca3226",
+      "promoted_bytes": 1129,
+      "promoted_sha256": "sha256:5b431f0b301bdd33e052eb4cb9371e380bd757d63abca60c3ce6982d6aca3226"
+    }
+  ]
+}

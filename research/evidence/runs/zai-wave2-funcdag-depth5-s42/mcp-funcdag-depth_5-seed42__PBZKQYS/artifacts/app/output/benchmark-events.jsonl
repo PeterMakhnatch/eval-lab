@@ -1,0 +1,9 @@
+{"arguments":{"x":3,"y":2},"event_ordinal":1,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":5},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_1"}
+{"arguments":{"x":2,"y":3},"event_ordinal":2,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-1},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_2"}
+{"arguments":{"base":5,"factor":-1},"event_ordinal":3,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-2},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_3"}
+{"arguments":{"offset":5,"val":-1},"event_ordinal":4,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":8},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_4"}
+{"arguments":{"u":-2,"v":8},"event_ordinal":5,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":5},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_5"}
+{"arguments":{"x":8,"y":-2},"event_ordinal":6,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-16},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_6"}
+{"arguments":{"x":5,"y":-16},"event_ordinal":7,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":21},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_7"}
+{"arguments":{"a":-16,"b":5},"event_ordinal":8,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-22},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_8"}
+{"arguments":{"offset":-22,"val":21},"event_ordinal":9,"event_type":"tool_call_success","is_error":false,"result":{"status":"ok","value":-2},"schema_version":"mcp-tool-event-v1","tool_name":"compute_unit_9"}

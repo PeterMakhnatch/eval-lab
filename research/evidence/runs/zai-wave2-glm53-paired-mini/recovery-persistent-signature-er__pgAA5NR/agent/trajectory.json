@@ -1,0 +1,166 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb0963d76ffeLs5ANl9FRjprB9",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T21:25:35.224000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3",
+      "message": "",
+      "reasoning_content": "The task is to interact with the MCP service tools. Let me write a record first, then read it back. I'll pick a key and value.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_21871dafe9b042aabb930c8d",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-check-2026-08-29",
+            "value": "operational-recovery-probe-ok"
+          }
+        }
+      ],
+      "metrics": {
+        "prompt_tokens": 7677,
+        "completion_tokens": 36,
+        "cached_tokens": 2432,
+        "extra": {
+          "reasoning_tokens": 31
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T21:25:42.705000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3",
+      "message": "Write failed with 403 (expired credentials) — refreshing auth before retrying.",
+      "reasoning_content": "The write failed with 403 Forbidden — authentication signature invalid or credentials expired. Per the task instructions, I should diagnose and change strategy before retrying. There's a `refresh_auth` tool available. Let me refresh auth and then retry the write.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_297a684e6226486cbe9cd3e7",
+          "function_name": "mcp-service_refresh_auth",
+          "arguments": {
+            "scope": "mcp-service"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_297a684e6226486cbe9cd3e7",
+            "content": "{\"status\":\"authenticated\",\"scope\":\"mcp-service\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7758,
+        "completion_tokens": 34,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 51
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T21:25:49.642000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3",
+      "message": "",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_c9aed4bcc47e4621a5f1d70c",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-check-2026-08-29",
+            "value": "operational-recovery-probe-ok"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_c9aed4bcc47e4621a5f1d70c",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-check-2026-08-29\",\"value\":\"operational-recovery-probe-ok\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7858,
+        "completion_tokens": 36,
+        "cached_tokens": 7744
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-29T21:25:53.913000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3",
+      "message": "",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_6486d88df1864ca09f8d54b6",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-check-2026-08-29"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_6486d88df1864ca09f8d54b6",
+            "content": "{\"key\":\"recovery-check-2026-08-29\",\"value\":\"operational-recovery-probe-ok\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7926,
+        "completion_tokens": 24,
+        "cached_tokens": 7808
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 6,
+      "timestamp": "2026-08-29T21:25:58.332000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3",
+      "message": "Recovery complete:\n\n1. Initial `write_record` failed with **403** (invalid/expired credentials)\n2. Ran `refresh_auth` → authenticated\n3. Retry `write_record` → success\n4. Independent `read_record` → returned `operational-recovery-probe-ok`, **matching** the written value ✓",
+      "metrics": {
+        "prompt_tokens": 7982,
+        "completion_tokens": 70,
+        "cached_tokens": 7872
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 39201,
+    "total_completion_tokens": 200,
+    "total_cached_tokens": 33472,
+    "total_steps": 6
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

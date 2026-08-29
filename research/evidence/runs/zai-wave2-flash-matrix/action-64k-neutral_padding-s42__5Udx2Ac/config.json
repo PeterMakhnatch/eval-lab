@@ -1,0 +1,24 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s42"
+    },
+    "trial_name": "action-64k-neutral_padding-s42__5Udx2Ac",
+    "trials_dir": "runs/zai-opencode-wave2/zai-wave2-flash-matrix",
+    "agent": {
+        "name": "zai_opencode_adapter:ZaiOpenCode",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 3
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "job_id": "c9ad1747-2466-409d-ac5a-5bfb49bc5f00"
+}

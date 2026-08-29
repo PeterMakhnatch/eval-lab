@@ -1,0 +1,116 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb096cc1affecH7whKr1Iklgsf",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T21:25:02.952000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "I'll write a record with the `mcp-service_write_record` tool, then read it back to verify.",
+      "reasoning_content": "The user wants me to interact with an MCP endpoint at `http://mcp-service:8080/mcp`. However, looking at my available tools, I have MCP tools already connected: `mcp-service_write_record`, `mcp-service_read_record`, `mcp-service_refresh_auth`, and resource listing tools.\n\nLet me start by writing a record, then reading it back to confirm. The task says \"Create a non-empty record of your choice with `write_record`, then independently read it back with `read_record`\".\n\nLet me write a record first. I'll pick a sensible key like \"recovery-test\" and a non-empty value.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_9ebfff3f4d854de0976818ff",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-test-2026-08-29",
+            "value": "operational-recovery-check: MCP write/read roundtrip OK"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_9ebfff3f4d854de0976818ff",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-test-2026-08-29\",\"value\":\"operational-recovery-check: MCP write/read roundtrip OK\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 64,
+        "extra": {
+          "reasoning_tokens": 133
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T21:25:13.538000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write succeeded. Now reading it back independently:",
+      "reasoning_content": "The write returned success. Now read it back independently.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_6c4f6dd680b94c72b013647f",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-test-2026-08-29"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_6c4f6dd680b94c72b013647f",
+            "content": "{\"key\":\"recovery-test-2026-08-29\",\"value\":\"operational-recovery-check: MCP write/read roundtrip OK\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7913,
+        "completion_tokens": 33,
+        "cached_tokens": 64,
+        "extra": {
+          "reasoning_tokens": 11
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T21:25:19.998000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Roundtrip verified successfully — no recovery strategy change was needed:\n\n- **write_record**: key `recovery-test-2026-08-29`, value `operational-recovery-check: MCP write/read roundtrip OK` → `status: success`\n- **read_record**: returned `exists: true` with a value that matches the written value exactly\n\nThe MCP service is operational and read/write consistency is confirmed.",
+      "reasoning_content": "The read returned the same value I wrote:\n- Key: `recovery-test-2026-08-29`\n- Value: `operational-recovery-check: MCP write/read roundtrip OK`\n- `exists: true`\n\nThe values match exactly. Task complete. The first attempt worked — no need to diagnose or change strategy.",
+      "metrics": {
+        "prompt_tokens": 7994,
+        "completion_tokens": 86,
+        "cached_tokens": 7872,
+        "extra": {
+          "reasoning_tokens": 68
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 23586,
+    "total_completion_tokens": 183,
+    "total_cached_tokens": 7936,
+    "total_steps": 4
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

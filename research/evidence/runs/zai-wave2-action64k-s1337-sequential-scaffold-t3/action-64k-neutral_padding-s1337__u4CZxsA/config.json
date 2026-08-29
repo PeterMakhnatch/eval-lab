@@ -1,0 +1,28 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-wave2-tasks/action-64k-neutral_padding-s1337"
+    },
+    "trial_name": "action-64k-neutral_padding-s1337__u4CZxsA",
+    "trials_dir": "runs/zai-opencode-wave2/zai-wave2-action64k-s1337-sequential-scaffold-t3",
+    "agent_timeout_multiplier": 3.0,
+    "agent": {
+        "name": "zai_opencode_adapter:ZaiOpenCode",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 2
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-opencode-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "extra_instruction_paths": [
+        "/tmp/evallab-action-sequential-retrieval.txt"
+    ],
+    "job_id": "24a658ce-a1c2-4c48-91bd-f57ea10e12a2"
+}

@@ -1,0 +1,44 @@
+{
+    "id": "86c94a24-3e64-4aee-a523-f6703902d627",
+    "started_at": "2026-08-29T17:26:45.598617",
+    "updated_at": "2026-08-29T17:39:07.435579",
+    "finished_at": "2026-08-29T17:39:07.435579",
+    "n_total_trials": 4,
+    "stats": {
+        "n_completed_trials": 4,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "opencode__glm-5.3-flash__adhoc": {
+                "n_trials": 4,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {
+                    "2": 0.0
+                },
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "action-64k-neutral_padding-s1337__wCHLZ4M",
+                            "action-64k-semantic_distractor-s__FLiG7jy",
+                            "action-64k-neutral_padding-s1337__JvdEs9Y",
+                            "action-64k-semantic_distractor-s__Pgukjp8"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 1642356,
+        "n_cache_tokens": 1483136,
+        "n_output_tokens": 34400,
+        "cost_usd": null
+    }
+}

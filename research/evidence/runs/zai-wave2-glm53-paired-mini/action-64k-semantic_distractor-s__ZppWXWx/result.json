@@ -1,0 +1,122 @@
+{
+    "id": "6a197db6-8c66-42ee-a439-ba9b70d1977f",
+    "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s42-seed42",
+    "trial_name": "action-64k-semantic_distractor-s__ZppWXWx",
+    "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-wave2/zai-wave2-glm53-paired-mini/action-64k-semantic_distractor-s__ZppWXWx",
+    "task_id": {
+        "path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s42"
+    },
+    "source": null,
+    "task_checksum": "419800b8e0e182798bbc3c5e40dcfe2eecfb7ebacf38eb5fb234c2d684dd5854",
+    "config": {
+        "task": {
+            "path": "/tmp/evallab-zai-wave2-tasks/action-64k-semantic_distractor-s42",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "action-64k-semantic_distractor-s__ZppWXWx",
+        "trials_dir": "runs/zai-opencode-wave2/zai-wave2-glm53-paired-mini",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "zai_opencode_adapter:ZaiOpenCode",
+            "import_path": null,
+            "model_name": "zai-coding-plan/glm-5.3",
+            "n_concurrent": 1,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": [
+                {
+                    "type": "bind",
+                    "source": "/tmp/evallab-zai-opencode-auth.json",
+                    "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                    "read_only": true
+                }
+            ],
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "d2363a7a-5b60-4e56-a3d1-8100738e6a15",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_info": {
+            "name": "glm-5.3",
+            "provider": "zai-coding-plan"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 539198,
+        "n_cache_tokens": 492672,
+        "n_output_tokens": 8640,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "verifier_environment_mode": "separate",
+    "exception_info": null,
+    "started_at": "2026-08-29T21:21:03.418494Z",
+    "finished_at": "2026-08-29T21:24:19.450571Z",
+    "environment_setup": {
+        "started_at": "2026-08-29T21:21:03.457707Z",
+        "finished_at": "2026-08-29T21:21:05.496387Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-29T21:21:05.496491Z",
+        "finished_at": "2026-08-29T21:21:50.141589Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-29T21:21:50.144770Z",
+        "finished_at": "2026-08-29T21:24:09.807577Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-29T21:24:13.495199Z",
+        "finished_at": "2026-08-29T21:24:19.450458Z"
+    },
+    "step_results": null
+}

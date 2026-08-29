@@ -1,0 +1,117 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb0966b6cffelsARznGRIscZyZ",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T21:25:25.250000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The user wants me to interact with an MCP service. I have MCP tools available: `mcp-service_write_record`, `mcp-service_read_record`, and a fallback query tool. Let me start by writing a record, then reading it back to confirm.\n\nLet me write a record with a key and value.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_7ee574416b1f4c9787f210ac",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-check",
+            "value": "operational-recovery-test-value-001"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_7ee574416b1f4c9787f210ac",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-check\",\"value\":\"operational-recovery-test-value-001\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 30,
+        "cached_tokens": 64,
+        "extra": {
+          "reasoning_tokens": 63
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T21:25:37.364000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write succeeded. Now reading it back independently:",
+      "reasoning_content": "The write succeeded. Now read it back independently.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_d37d90efe24848bca866c595",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-check"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_d37d90efe24848bca866c595",
+            "content": "{\"key\":\"recovery-check\",\"value\":\"operational-recovery-test-value-001\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7798,
+        "completion_tokens": 26,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 10
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T21:25:52.656000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Recovery verified successfully:\n\n1. **write_record** → `{\"status\":\"success\",\"key\":\"recovery-check\",\"value\":\"operational-recovery-test-value-001\"}`\n2. **read_record** → `{\"exists\":true,\"key\":\"recovery-check\",\"value\":\"operational-recovery-test-value-001\"}`\n\nThe read-back value matches the written value exactly, and `exists: true` confirms the record persisted. No fallback strategy or retry was needed — the MCP endpoint is operational.",
+      "reasoning_content": "The read returned `exists: true` and the value matches exactly what I wrote: `operational-recovery-test-value-001`. Task complete.",
+      "metrics": {
+        "prompt_tokens": 7860,
+        "completion_tokens": 105,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 30
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 23337,
+    "total_completion_tokens": 161,
+    "total_cached_tokens": 15360,
+    "total_steps": 4
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

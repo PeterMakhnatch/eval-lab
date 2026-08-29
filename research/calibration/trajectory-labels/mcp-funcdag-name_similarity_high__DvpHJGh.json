@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "mcp-funcdag-name_similarity_high__DvpHJGh",
+  "source": "research/evidence/runs/zai-wave2-flash-matrix/mcp-funcdag-name_similarity_high__DvpHJGh",
+  "reward": 0.0,
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "primary_category": "tool_use",
+  "summary": "The high-name-similarity Function-DAG trial propagated the wrong value through the tool graph; the verifier recorded agent value 23 versus expected -39 and dag_conf=false.",
+  "review_status": "draft_pending_research_review",
+  "review_note": "Verifier-grounded deterministic taxonomy triage; not a human gold label.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 6,
+      "supports": "ATIF step 6 is the final captured agent step; the second evidence item records the outcome or infrastructure finding."
+    },
+    {
+      "path": "verifier/test-stdout.txt",
+      "step": null,
+      "supports": "Verifier output records reward=0, agent_val=23, exp_val=-39, dag_conf=False, val_prop=0.4."
+    }
+  ],
+  "labelled_by": "Main, 2026-08-29, deterministic wave-2 taxonomy triage",
+  "parent_trajectory_sha256": "sha256:94875c7d5ebeb90f28e95f03821d984a6899628612dec85782cdf1f75c3648bb"
+}

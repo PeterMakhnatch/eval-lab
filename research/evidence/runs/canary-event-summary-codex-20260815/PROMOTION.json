@@ -1,22 +1,22 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "bundle": "canary-event-summary-codex-20260815",
   "source_job_runtime_path": "runs/canary-event-summary-codex-20260815",
   "source_job_result_sha256": "sha256:d471db9c534aa7d5a12661b7832555778099d0d25604feb92ef837da3695863d",
   "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
-    "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
     "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
     "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 47,
-    "promoted_files": 44,
-    "omitted_files": 3,
+    "promoted_files": 37,
+    "omitted_files": 10,
     "quota_sidecars": 3,
-    "promoted_bytes": 122625,
+    "promoted_bytes": 89417,
     "source_bytes": 307696
   },
   "files": [
@@ -32,19 +32,19 @@
     },
     {
       "source_path": "event-summary__5E3btLv/agent/codex.txt",
-      "promoted_path": "event-summary__5E3btLv/agent/codex.txt",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 4624,
-      "source_sha256": "sha256:528bf59b05123b97e7c9211436b726914ec128c915dbf9dbc9db2efe36d67313",
-      "promoted_bytes": 4624,
-      "promoted_sha256": "sha256:528bf59b05123b97e7c9211436b726914ec128c915dbf9dbc9db2efe36d67313"
+      "source_sha256": "sha256:528bf59b05123b97e7c9211436b726914ec128c915dbf9dbc9db2efe36d67313"
     },
     {
       "source_path": "event-summary__5E3btLv/agent/sessions/2026/08/15/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.jsonl",
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 54698,
       "source_sha256": "sha256:b7164a790e900207402a278b44b05cdd090d6b81d7234260b6f49d3542c9d119",
       "quota_sidecar_path": "event-summary__5E3btLv/agent/quota/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.rate-limits.json"
@@ -132,13 +132,12 @@
     },
     {
       "source_path": "event-summary__5E3btLv/trial.log",
-      "promoted_path": "event-summary__5E3btLv/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2809,
-      "source_sha256": "sha256:b34e7748df82a10765a97a5baace988c948bd19173c512719b8bfd050acf0303",
-      "promoted_bytes": 2809,
-      "promoted_sha256": "sha256:b34e7748df82a10765a97a5baace988c948bd19173c512719b8bfd050acf0303"
+      "source_sha256": "sha256:b34e7748df82a10765a97a5baace988c948bd19173c512719b8bfd050acf0303"
     },
     {
       "source_path": "event-summary__5E3btLv/verifier/checks.json",
@@ -182,19 +181,19 @@
     },
     {
       "source_path": "event-summary__EKfePmM/agent/codex.txt",
-      "promoted_path": "event-summary__EKfePmM/agent/codex.txt",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 5411,
-      "source_sha256": "sha256:77c52d3a423fee06341df9d9a227406b9059bd3af520a07a2a4d1fcac02f59d5",
-      "promoted_bytes": 5411,
-      "promoted_sha256": "sha256:77c52d3a423fee06341df9d9a227406b9059bd3af520a07a2a4d1fcac02f59d5"
+      "source_sha256": "sha256:77c52d3a423fee06341df9d9a227406b9059bd3af520a07a2a4d1fcac02f59d5"
     },
     {
       "source_path": "event-summary__EKfePmM/agent/sessions/2026/08/15/rollout-2026-08-15T07-00-17-01a00438-ab3b-7562-88a9-00b51083d4b1.jsonl",
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 58129,
       "source_sha256": "sha256:fb195d34c9488921b2625d8327273402a901b731d434feebf8aaf339b625a8c5",
       "quota_sidecar_path": "event-summary__EKfePmM/agent/quota/rollout-2026-08-15T07-00-17-01a00438-ab3b-7562-88a9-00b51083d4b1.rate-limits.json"
@@ -282,13 +281,12 @@
     },
     {
       "source_path": "event-summary__EKfePmM/trial.log",
-      "promoted_path": "event-summary__EKfePmM/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2809,
-      "source_sha256": "sha256:6fc9046e100c8bcc768cef640760d546e9ac2cd6f6479b3ad4e53cc3d30855b3",
-      "promoted_bytes": 2809,
-      "promoted_sha256": "sha256:6fc9046e100c8bcc768cef640760d546e9ac2cd6f6479b3ad4e53cc3d30855b3"
+      "source_sha256": "sha256:6fc9046e100c8bcc768cef640760d546e9ac2cd6f6479b3ad4e53cc3d30855b3"
     },
     {
       "source_path": "event-summary__EKfePmM/verifier/checks.json",
@@ -332,19 +330,19 @@
     },
     {
       "source_path": "event-summary__h2D9f6f/agent/codex.txt",
-      "promoted_path": "event-summary__h2D9f6f/agent/codex.txt",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 6319,
-      "source_sha256": "sha256:d5c8e11ce9b5b145e1caa4e2e074e231a73450d0a87565960335927f358beca3",
-      "promoted_bytes": 6319,
-      "promoted_sha256": "sha256:d5c8e11ce9b5b145e1caa4e2e074e231a73450d0a87565960335927f358beca3"
+      "source_sha256": "sha256:d5c8e11ce9b5b145e1caa4e2e074e231a73450d0a87565960335927f358beca3"
     },
     {
       "source_path": "event-summary__h2D9f6f/agent/sessions/2026/08/15/rollout-2026-08-15T06-58-23-01a00436-eb1e-7573-a972-86c9f7fb0508.jsonl",
       "promoted_path": null,
       "action": "omitted",
       "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 56717,
       "source_sha256": "sha256:88b122bad54166ecd8378bb113d5c686cc93d28414b48bf45efd83964055c7fa",
       "quota_sidecar_path": "event-summary__h2D9f6f/agent/quota/rollout-2026-08-15T06-58-23-01a00436-eb1e-7573-a972-86c9f7fb0508.rate-limits.json"
@@ -432,13 +430,12 @@
     },
     {
       "source_path": "event-summary__h2D9f6f/trial.log",
-      "promoted_path": "event-summary__h2D9f6f/trial.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 2809,
-      "source_sha256": "sha256:88b02de86e19ab5d606b9451acd065ef88132578df1315e1a43af096343d8a77",
-      "promoted_bytes": 2809,
-      "promoted_sha256": "sha256:88b02de86e19ab5d606b9451acd065ef88132578df1315e1a43af096343d8a77"
+      "source_sha256": "sha256:88b02de86e19ab5d606b9451acd065ef88132578df1315e1a43af096343d8a77"
     },
     {
       "source_path": "event-summary__h2D9f6f/verifier/checks.json",
@@ -482,13 +479,12 @@
     },
     {
       "source_path": "job.log",
-      "promoted_path": "job.log",
-      "action": "verbatim",
-      "rule": null,
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
       "source_bytes": 8427,
-      "source_sha256": "sha256:1144e2be81a1e98cb99f89e09c6d71a6d184893c957486119741b66732e1bcab",
-      "promoted_bytes": 8427,
-      "promoted_sha256": "sha256:1144e2be81a1e98cb99f89e09c6d71a6d184893c957486119741b66732e1bcab"
+      "source_sha256": "sha256:1144e2be81a1e98cb99f89e09c6d71a6d184893c957486119741b66732e1bcab"
     },
     {
       "source_path": "lab-metadata.json",

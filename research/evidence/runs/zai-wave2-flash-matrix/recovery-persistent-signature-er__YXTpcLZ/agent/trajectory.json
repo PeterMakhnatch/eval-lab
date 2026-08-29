@@ -1,0 +1,174 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb096c989ffe6lQdbIgnCpXQPx",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T21:25:01.375000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The user wants me to interact with an MCP endpoint. I have MCP tools available: `mcp-service_write_record`, `mcp-service_read_record`, `mcp-service_fallback_query`, and `mcp-service_refresh_auth`.\n\nThe task: write a non-empty record, then read it back and confirm the value matches. If something unexpected happens, diagnose and change strategy.\n\nLet me start by writing a record. I'll pick a key like \"recovery-test\" and a value like \"hello-mcp-recovery\".\n\nThen I'll read it back with the same key and compare.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_f768224422b045eda96d6570",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-test",
+            "value": "hello-mcp-recovery"
+          }
+        }
+      ],
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 27,
+        "cached_tokens": 2304,
+        "extra": {
+          "reasoning_tokens": 119
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T21:25:12.445000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write failed with 403 (invalid/expired credentials). Refreshing auth and retrying.",
+      "reasoning_content": "The write failed with 403 Forbidden - authentication signature invalid or credentials expired. There's a `mcp-service_refresh_auth` tool. Let me use it to refresh credentials, then retry the write.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_ac80d104375e45fbb3624f7a",
+          "function_name": "mcp-service_refresh_auth",
+          "arguments": {
+            "scope": "mcp-service"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_ac80d104375e45fbb3624f7a",
+            "content": "{\"status\":\"authenticated\",\"scope\":\"mcp-service\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7839,
+        "completion_tokens": 36,
+        "cached_tokens": 2432,
+        "extra": {
+          "reasoning_tokens": 41
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T21:25:20.300000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_35a82823d73c40dc90162324",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-test",
+            "value": "hello-mcp-recovery"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_35a82823d73c40dc90162324",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-test\",\"value\":\"hello-mcp-recovery\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7931,
+        "completion_tokens": 27,
+        "cached_tokens": 7808
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-29T21:25:29.604000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write succeeded. Now reading back independently to verify.",
+      "reasoning_content": "Write succeeded. Now read it back independently with `read_record`.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_ff88d94f57164df1b9185ed5",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-test"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_ff88d94f57164df1b9185ed5",
+            "content": "{\"key\":\"recovery-test\",\"value\":\"hello-mcp-recovery\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7981,
+        "completion_tokens": 27,
+        "cached_tokens": 7872,
+        "extra": {
+          "reasoning_tokens": 13
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 6,
+      "timestamp": "2026-08-29T21:25:36.357000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Verification complete.\n\n- **Write**: First attempt returned `403 Forbidden` (expired credentials). Diagnosed and refreshed auth via `refresh_auth`, then retried — write succeeded.\n- **Read back**: `read_record` for key `recovery-test` returned `\"value\": \"hello-mcp-recovery\"` with `exists: true`.\n\nThe returned value matches the written value exactly, confirming the write persisted correctly.",
+      "reasoning_content": "The read returned `{\"key\":\"recovery-test\",\"value\":\"hello-mcp-recovery\",\"exists\":true}` which matches exactly what I wrote: `hello-mcp-recovery`. The task is complete.\n\nSummary:\n1. First write attempt failed with 403 Forbidden (expired credentials)\n2. Diagnosed: refreshed auth via `refresh_auth`\n3. Retried write: success\n4. Read back: value matches `hello-mcp-recovery`",
+      "metrics": {
+        "prompt_tokens": 8044,
+        "completion_tokens": 87,
+        "cached_tokens": 7936,
+        "extra": {
+          "reasoning_tokens": 94
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 39474,
+    "total_completion_tokens": 204,
+    "total_cached_tokens": 28352,
+    "total_steps": 6
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

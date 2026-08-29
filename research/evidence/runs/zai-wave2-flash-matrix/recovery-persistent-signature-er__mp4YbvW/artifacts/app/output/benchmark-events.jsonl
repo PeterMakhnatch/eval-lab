@@ -1,0 +1,2 @@
+{"arguments":{"key":"recovery-check","value":"operational-recovery-test-value-001"},"event_ordinal":1,"event_type":"tool_call_success","is_error":false,"result":{"key":"recovery-check","status":"success","value":"operational-recovery-test-value-001"},"schema_version":"mcp-tool-event-v1","tool_name":"write_record"}
+{"arguments":{"key":"recovery-check"},"event_ordinal":2,"event_type":"tool_call_success","is_error":false,"result":{"exists":true,"key":"recovery-check","value":"operational-recovery-test-value-001"},"schema_version":"mcp-tool-event-v1","tool_name":"read_record"}

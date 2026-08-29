@@ -452,15 +452,42 @@ def test_redacted_artifact_states_how_little_of_it_survived():
 
 
 def test_files_promotion_removed_entirely_are_still_reported():
-    """Rule R2 drops the raw rollout, so no artifact list can ever show it."""
-    omitted = promoted_trial().omitted_files
+    """Every R2 omission for the trial remains visible without retaining bytes."""
+    trial = promoted_trial()
+    omitted = trial.omitted_files
+    manifest = json.loads(
+        (
+            PROMOTED_RUNS
+            / "canary-terminal-bench-html-js-filter-codex-20260815"
+            / "PROMOTION.json"
+        ).read_text()
+    )
+    prefix = f"{trial.trial_name}/"
+    expected = [
+        entry
+        for entry in manifest["files"]
+        if entry.get("action") == "omitted"
+        and entry["source_path"].startswith(prefix)
+    ]
 
     assert omitted.provenance == "withheld"
-    assert omitted.value["withheld_bytes"] == 194005
-    (record,) = omitted.value["markers"]
-    assert record["path"].startswith("agent/sessions/")
-    assert record["rule"] == "R2"
-    assert record["digest"].startswith("sha256:")
+    assert omitted.value["withheld_bytes"] == sum(
+        entry["source_bytes"] for entry in expected
+    )
+    records = omitted.value["markers"]
+    assert len(records) == len(expected) == 3
+    relative_paths = {
+        record["path"].removeprefix(prefix) for record in records
+    }
+    assert {"agent/codex.txt", "trial.log"} <= relative_paths
+    session_paths = [
+        path
+        for path in relative_paths
+        if path.startswith("agent/sessions/") and path.endswith(".jsonl")
+    ]
+    assert len(session_paths) == 1
+    assert all(record["rule"] == "R2" for record in records)
+    assert all(record["digest"].startswith("sha256:") for record in records)
 
 
 def test_live_run_artifacts_are_not_labelled_redacted(tmp_path: Path):

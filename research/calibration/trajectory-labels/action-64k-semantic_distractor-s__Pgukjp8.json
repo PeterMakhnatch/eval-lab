@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "action-64k-semantic_distractor-s__Pgukjp8",
+  "source": "research/evidence/runs/zai-wave2-action64k-s1337-repeats/action-64k-semantic_distractor-s__Pgukjp8",
+  "reward": 0.0,
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "primary_category": "context_management",
+  "summary": "The Action Memory trial failed the required listed-handle retrieval contract through missing/invalid, duplicated, reordered, or incomplete handle issuance.",
+  "review_status": "draft_pending_research_review",
+  "review_note": "Verifier- and issuance-audit-grounded deterministic taxonomy triage; not a human gold label.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 18,
+      "supports": "ATIF step 18 is the final captured agent step; the second evidence item records the outcome or infrastructure finding."
+    },
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "Verifier records reason=incomplete_or_reordered_context_retrieval, expected_reads=257, observed_reads=259."
+    }
+  ],
+  "labelled_by": "Main, 2026-08-29, deterministic wave-2 taxonomy triage",
+  "parent_trajectory_sha256": "sha256:936551de38b7fdc92c371f9bef2e7a259f4ae2ca075daf4d43d8c3102320726c"
+}

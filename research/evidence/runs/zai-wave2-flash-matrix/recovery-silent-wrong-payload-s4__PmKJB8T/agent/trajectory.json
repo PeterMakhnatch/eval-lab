@@ -1,0 +1,117 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fb0932a22ffeOF0yP5ZcBpe7yv",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 451 bytes, sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319>>",
+      "message_sha256": "sha256:ee28aee8908b95c9cdac07805926f1eda501d7edb15233a2529b1260c9f54319",
+      "message_chars": 451
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-29T21:28:57.451000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "I'll write a record first, then read it back to verify.",
+      "reasoning_content": "The user wants me to interact with an MCP endpoint at http://mcp-service:8080/mcp. The tools available to me include mcp-service_write_record, mcp-service_read_record, mcp-service_fallback_query, and mcp-service_refresh_auth.\n\nThe task: create a non-empty record with write_record, then independently read it back with read_record and confirm the returned value matches.\n\nLet me start by writing a record. I'll pick a key like \"recovery-test\" and a value. Then read it back with read_record.\n\nNote the tools here are already connected MCP tools (mcp-service_*). Let me use them.\n\nFirst, write a record. Then read it back. These are dependent calls (read depends on write completing), so I must do them sequentially.\n\nIf read_record returns something unexpected, I should diagnose — maybe use fallback_query or refresh_auth.\n\nLet me proceed.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_445ec718b5684c94b39fb595",
+          "function_name": "mcp-service_write_record",
+          "arguments": {
+            "key": "recovery-test-2026-08-29",
+            "value": "operational-recovery-check"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_445ec718b5684c94b39fb595",
+            "content": "{\"status\":\"success\",\"key\":\"recovery-test-2026-08-29\",\"value\":\"operational-recovery-check\"}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7679,
+        "completion_tokens": 48,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 185
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-29T21:29:12.016000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Write succeeded. Now reading it back independently:",
+      "reasoning_content": "The write succeeded. Now read it back independently.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_d31b1493c74f461d844fc9e3",
+          "function_name": "mcp-service_read_record",
+          "arguments": {
+            "key": "recovery-test-2026-08-29"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_d31b1493c74f461d844fc9e3",
+            "content": "{\"key\":\"recovery-test-2026-08-29\",\"value\":\"operational-recovery-check\",\"exists\":true}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7942,
+        "completion_tokens": 33,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 10
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-29T21:29:17.765000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Task complete. The write/read round-trip succeeded:\n\n- **write_record**: `recovery-test-2026-08-29` → `operational-recovery-check` (status: success)\n- **read_record**: returned `exists: true` with the identical value `operational-recovery-check`\n\nThe value read back matches the value written, so the MCP endpoint is operating correctly and no fallback or re-auth strategy was needed.",
+      "reasoning_content": "The read returned the same value \"operational-recovery-check\" with exists:true. The values match. Task complete.",
+      "metrics": {
+        "prompt_tokens": 8015,
+        "completion_tokens": 91,
+        "cached_tokens": 7936,
+        "extra": {
+          "reasoning_tokens": 24
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 23636,
+    "total_completion_tokens": 172,
+    "total_cached_tokens": 23232,
+    "total_steps": 4
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

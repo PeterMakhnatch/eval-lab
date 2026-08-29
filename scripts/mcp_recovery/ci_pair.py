@@ -12,7 +12,7 @@ ROOT = REPO / "library" / "benchmarks" / "mcp-recovery-v1"
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(ROOT))
 
-from verifier import load_fixed_policy_evidence  # noqa: E402
+from fixed_policy import load_fixed_policy_evidence  # noqa: E402
 
 from evallab.registry import discover_control_evidence  # noqa: E402
 

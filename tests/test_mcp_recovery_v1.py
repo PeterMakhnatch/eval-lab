@@ -424,7 +424,6 @@ def test_live_fastmcp_clean_twin_recovery(tmp_path):
 
 def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
     materializer = load("materializer")
-    verifier = load("verifier")
     from evallab.registry import harbor_task_digest
 
     task = materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=os.urandom(32))
@@ -449,7 +448,8 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
         encoding="utf-8",
     )
 
-    evidence = verifier.load_fixed_policy_evidence(job, task)
+    fixed_policy = load("fixed_policy")
+    evidence = fixed_policy.load_fixed_policy_evidence(job, task)
     assert evidence.reward == 0.0
     assert evidence.task_digest == digest
     assert evidence.trial_dir == trial
@@ -468,7 +468,7 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="exactly one settled trial"):
-        verifier.load_fixed_policy_evidence(job, task)
+        fixed_policy.load_fixed_policy_evidence(job, task)
 
     # Missing/null finished_at cannot be treated as settled evidence.
     (job / "result.json").write_text(
@@ -476,7 +476,7 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Not a completed Harbor job"):
-        verifier.load_fixed_policy_evidence(job, task)
+        fixed_policy.load_fixed_policy_evidence(job, task)
 
     # Boolean is not an acceptable numeric reward.
     (job / "result.json").write_text(
@@ -490,12 +490,11 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
     trial_result = {"task_name": task.name, "trial_name": "trial-one", "verifier_result": {"rewards": {"reward": True}}}
     (trial / "result.json").write_text(json.dumps(trial_result), encoding="utf-8")
     with pytest.raises(ValueError, match="non-boolean numeric"):
-        verifier.load_fixed_policy_evidence(job, task)
+        fixed_policy.load_fixed_policy_evidence(job, task)
 
 
 def test_retained_evidence_archive_allows_canonical_reconstruction(tmp_path):
     materializer = load("materializer")
-    verifier = load("verifier")
     from evallab.registry import discover_control_evidence, harbor_task_digest
 
     task = materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=os.urandom(32))
@@ -533,7 +532,8 @@ def test_retained_evidence_archive_allows_canonical_reconstruction(tmp_path):
     assert control_evidence.nop.reward == 0.0
 
     # Fixed-policy loader also succeeds on retained trial
-    fp_evidence = verifier.load_fixed_policy_evidence(runs_dir / "job-oracle", task)
+    fixed_policy = load("fixed_policy")
+    fp_evidence = fixed_policy.load_fixed_policy_evidence(runs_dir / "job-oracle", task)
     assert fp_evidence.reward == 1.0
     assert fp_evidence.task_digest == digest
 

@@ -4293,6 +4293,20 @@
         "action": "_StoreAction",
         "choices": null,
         "default": null,
+        "dest": "task_family",
+        "flags": [
+          "--task-family"
+        ],
+        "help": "Immutable benchmark family (or declare task.family in task.toml)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
         "dest": "task_id",
         "flags": [
           "--task-id"

@@ -6,7 +6,6 @@
   "author": "analyst",
   "date": "2026-08-29",
   "status": "designed",
-
   "COUNT_RECONCILIATION": {
     "note": "One design, one set of numbers. Independent review found the previous revision advertising max_trials=72 against a 100-trial design, with cells=24 and prose alternating 108 and 100. Every count below is derived here and asserted by research/roadmap/verify_roadmap_claims.py, which fails if this file and the memo disagree.",
     "wave2_scored_trials": 25,
@@ -16,15 +15,25 @@
     "total_runnable_trials": 38,
     "broad_ladder_trials_NOT_RUNNABLE": 72
   },
-
   "certified_envelope": {
-    "doses_permitted": [4096, 16384, 65536, 131072],
-    "seeds_permitted": [42, 1337, 2026],
-    "arms_permitted": ["neutral_padding", "semantic_distractor"],
+    "doses_permitted": [
+      4096,
+      16384,
+      65536,
+      131072
+    ],
+    "seeds_permitted": [
+      42,
+      1337,
+      2026
+    ],
+    "arms_permitted": [
+      "neutral_padding",
+      "semantic_distractor"
+    ],
     "source": "library/benchmarks/action-memory-v1/dose_ladder.py:21-23; generate_matched_dose_arm raises ValueError for an unsupported dose at :79 and an unsupported arm at :77; dose_ladder_contract.json pins the same lists",
     "consequence": "Anything outside these lists needs a generator change plus re-certification in its own PR before a single trial can run. That applies to the 32k gap AND to the 8-seed high-dose recommendation, both of which are build items and not campaign cells."
   },
-
   "measured_cost_basis": {
     "note": "Per-trial input tokens. The 4k and 16k figures are recomputed from the promoted wave-1 bundles; the 64k figure is USER-REPORTED over nine scored trials. 128k has NEVER been run and its cost is unknown, which is why it is quarantined into phase B.",
     "input_tokens_per_trial": {
@@ -37,12 +46,22 @@
     },
     "why_the_old_cap_was_wrong": "The previous 5,000,000 ceiling was set from a wave-1 average of ~48,931 tokens/trial across all six pilot cells, which is dominated by cheap low-dose cells. At the measured 64k cost of 412,753 it admits only 5,000,000 / 412,753 = 12.1 trials at that dose, not the 64 high-dose trials the design assumed. Off by roughly 5x."
   },
-
   "phase_a_measured_doses": {
     "runnable": true,
-    "doses": [4096, 16384, 65536],
-    "arms": ["neutral_padding", "semantic_distractor"],
-    "seeds": [42, 1337, 2026],
+    "doses": [
+      4096,
+      16384,
+      65536
+    ],
+    "arms": [
+      "neutral_padding",
+      "semantic_distractor"
+    ],
+    "seeds": [
+      42,
+      1337,
+      2026
+    ],
     "n_attempts": 2,
     "cells": 18,
     "trials": 36,
@@ -57,13 +76,18 @@
     "admission_rule": "REFUSE the campaign if projected_input_tokens.total exceeds ceiling_input_tokens. 6,291,672 < 7,000,000, so phase A is admitted.",
     "reps_rationale": "2 rather than 3. At 64k the seed-1337 repeats were repeat-stable, so a third rep at a failing high-dose seed is the least informative trial in the design and the most expensive. This is a recommendation, not an established optimum."
   },
-
   "phase_b_128k_cost_canary": {
     "runnable": true,
     "purpose": "Measure the 128k per-trial cost before any 128k cell is admitted. No 128k trial has ever run, so its cost is unknown and cannot be projected.",
-    "doses": [131072],
-    "arms": ["neutral_padding"],
-    "seeds": [42],
+    "doses": [
+      131072
+    ],
+    "arms": [
+      "neutral_padding"
+    ],
+    "seeds": [
+      42
+    ],
     "n_attempts": 2,
     "trials": 2,
     "per_trial_ceiling_input_tokens": 1250000,
@@ -71,7 +95,6 @@
     "admission_rule": "ABORT the trial if a single 128k trial exceeds per_trial_ceiling_input_tokens. On completion, record the measured mean into measured_cost_basis and only then decide whether a full 128k arm is affordable.",
     "fail_closed": "Until this canary reports, NO 128k cell is admitted anywhere in this campaign. An unmeasured dose is not budgetable."
   },
-
   "broad_ladder_not_runnable": {
     "runnable": false,
     "shape": "4 doses x 2 arms x 3 seeds x 3 reps = 72 trials",
@@ -82,7 +105,6 @@
     ],
     "note": "This is why the memo does not call a 72- or 100-trial ladder the first runnable campaign. Phase A plus phase B is what the ceilings actually admit."
   },
-
   "preconditions": [
     {
       "id": "host-isolation",
@@ -113,7 +135,6 @@
       "note": "Asserted by verify_roadmap_claims.py so the spec cannot advertise a ceiling below its own design again."
     }
   ],
-
   "lane": {
     "model": "zai-coding-plan/glm-5.3-flash",
     "agent": "harbor native OpenCode adapter",
@@ -128,13 +149,16 @@
       "budget_basis": "phase A ceiling 7,000,000 plus phase B ceiling 2,500,000. cost_usd is null on this subscription lane, so trials and tokens are the only bounds that bind."
     }
   },
-
   "estimands": {
     "primary": {
       "name": "semantic_interference_at_matched_dose",
       "definition": "P(success | semantic_distractor, dose d, seed s) - P(success | neutral_padding, dose d, seed s), reported per dose level",
       "unit": "cell",
-      "pairing_key": ["task_block_id", "dose_bytes", "seed"],
+      "pairing_key": [
+        "task_block_id",
+        "dose_bytes",
+        "seed"
+      ],
       "blocking": "seed-blocked: paired WITHIN seed, never pooled across seeds",
       "owner_note": "matched/twin key definitions are C1-lane owned (PR #303); this states the pairing this campaign needs, it does not define it"
     },
@@ -147,7 +171,6 @@
       "retrieval_sequencing": "USER-REPORTED failure signatures: complete-257-read-but-reordered (count correct, order wrong) and 258/257 (one duplicate, matching the 16k pilot's 66/65). Every Action Memory failure observed so far is a sequencing fault, not a coverage fault. Duplication is detectable as tool_call_count > unique_tools_count; reordering needs observation_index compared against the verifier's expected sequence. No new schema required."
     }
   },
-
   "denominator_declaration_REQUEST_TO_C1_LANE": {
     "note": "Denominator contracts are C1-lane owned (PR #303). Stated so downstream analysis is not refused on contract grounds; raise against that PR rather than defining it here.",
     "denominator": "trials with a scored verifier outcome in the cell",
@@ -159,33 +182,65 @@
       "environment failures before a valid scored trial"
     ]
   },
-
   "controls": [
-    {"id": "within-dose-neutral", "kind": "matched_arm", "purpose": "isolates semantic interference from context length"},
-    {"id": "dose-zero", "kind": "baseline_anchor", "purpose": "anchors the ladder at the clean 4k cell"},
-    {"id": "unreachable-endpoint-canary", "kind": "falsification", "purpose": "one cell against a deliberately unreachable provider endpoint MUST fail; if it succeeds, egress is open by another path and the isolation flag is not measuring what it claims"}
+    {
+      "id": "within-dose-neutral",
+      "kind": "matched_arm",
+      "purpose": "isolates semantic interference from context length"
+    },
+    {
+      "id": "dose-zero",
+      "kind": "baseline_anchor",
+      "purpose": "anchors the ladder at the clean 4k cell"
+    },
+    {
+      "id": "unreachable-endpoint-canary",
+      "kind": "falsification",
+      "purpose": "one cell against a deliberately unreachable provider endpoint MUST fail; if it succeeds, egress is open by another path and the isolation flag is not measuring what it claims"
+    }
   ],
-
   "refusal_criteria": [
-    {"code": "SINGLE_OUTCOME_CLASS", "expected": true, "handling": "expected per cell at ceiling or floor doses; the estimand is the shape"},
-    {"code": "UNDERPOWERED", "expected": false, "handling": "36 phase-A trials clear clearance_n=20 pooled. A per-dose slice analysed alone will refuse, and that refusal must be reported rather than pooled away."},
-    {"ladder_refusal": "refuse the ladder if any dose level has fewer than two distinct seeds contributing a scored trial"},
-    {"reporting_rule": "v_benchmark_refusal_diagnostics is reported beside every result table"}
+    {
+      "code": "SINGLE_OUTCOME_CLASS",
+      "expected": true,
+      "handling": "expected per cell at ceiling or floor doses; the estimand is the shape"
+    },
+    {
+      "code": "UNDERPOWERED",
+      "expected": false,
+      "handling": "36 phase-A trials clear clearance_n=20 pooled. A per-dose slice analysed alone will refuse, and that refusal must be reported rather than pooled away."
+    },
+    {
+      "ladder_refusal": "refuse the ladder if any dose level has fewer than two distinct seeds contributing a scored trial"
+    },
+    {
+      "reporting_rule": "v_benchmark_refusal_diagnostics is reported beside every result table"
+    }
   ],
-
   "stop_go": {
     "go_condition": "any dose level shows a neutral-vs-semantic separation within seed, or within-arm spread away from ceiling",
     "stop_condition": "neutral and semantic indistinguishable at every measured dose within seed",
     "stop_action": "do not broaden the ladder. Route to the order/content pilot, which is the design that can actually separate sequence from content.",
     "escalation": "if the whole measured range sits at ceiling, feeds claim C5"
   },
-
   "wave2_context": {
     "status": "USER-REPORTED 2026-08-29, not yet promoted",
-    "totals": {"scored_trials": 25, "reward_1": 17, "flash": "22/15", "full": "3/2"},
+    "totals": {
+      "scored_trials": 25,
+      "reward_1": 17,
+      "flash": "22/15",
+      "full": "3/2"
+    },
     "action_64k": {
-      "seed42": {"neutral": "1/1 pass", "semantic": "1/1 pass (Flash); 0/1 fail (Full)"},
-      "seed1337": {"neutral": "0/3", "semantic": "0/3", "signature": "complete 257-read but reordered on all six, repeat-stable"}
+      "seed42": {
+        "neutral": "1/1 pass",
+        "semantic": "1/1 pass (Flash); 0/1 fail (Full)"
+      },
+      "seed1337": {
+        "neutral": "0/3",
+        "semantic": "0/3",
+        "signature": "complete 257-read but reordered on all six, repeat-stable"
+      }
     },
     "characterisation": "At 64k, outcomes differed by seed and not by arm within the two observed seeds. This does NOT refute an all-dose semantic effect: wave-1 16k was neutral 3/3 vs semantic 2/3, pointing the other way on a one-trial difference. Seed changes generated content, entity IDs AND read order together, so a seed/order interaction is an inference, not isolated causality.",
     "unrun_gap": "The interesting gap is between 16k and 64k. A 32k cell DOES NOT EXIST and is a generator + certification PR, not a campaign cell.",
@@ -196,19 +251,52 @@
     },
     "funcdag_axes": "Depth 5 produced no failures in four observed trials; high name-similarity produced one failure in three and is the current candidate difficulty axis. Four trials cannot establish a ceiling, so depth is not called saturated.",
     "sequential_scaffold": {
-      "status": "USER-REPORTED: both default-timeout trials ended in AgentTimeoutError while still issuing one-by-one reads; timeout-multiplier=3 rerun in flight",
-      "classification": "infrastructure/harness outcome, NOT a scored reward failure - excluded from every numerator, denominator and refusal rate",
-      "what_it_establishes": "feasibility and execution cost: a one-read-at-a-time strategy over a 257-read requirement does not fit the default agent time budget",
-      "design_consequence": "timeout multiplier becomes a DECLARED campaign parameter; comparing scaffolded and unscaffolded arms at different budgets is confounded by budget",
-      "effectiveness_claim": "NONE, in either direction, pending the rerun"
+      "status": "USER-REPORTED FINAL: timeout-multiplier=3 rerun produced 2 VALID SCORED trials. The earlier default-timeout attempts remain harness outcomes (AgentTimeoutError, no verdict) and stay out of every rate.",
+      "outcomes": {
+        "neutral": "pass, 257/257 exact, 6,683,558 prompt tokens",
+        "semantic": "FAIL, 232/257 reads - INCOMPLETE, 25 short, 7,454,261 prompt tokens",
+        "total_prompt_tokens": 14137819,
+        "wall": "23m50 with two concurrent"
+      },
+      "cost_multiplier_vs_unscaffolded_64k": {
+        "baseline_mean": 412753,
+        "baseline_n": 9,
+        "neutral": "16.19x",
+        "semantic": "18.06x"
+      },
+      "budget_impact": {
+        "one_trial_vs_phase_a_ceiling": "95% (neutral) / 106% (semantic) of 7,000,000",
+        "both_vs_provider_budget": "1.49x of 9,500,000",
+        "both_vs_phase_a_projection": "2.25x of 6,291,672",
+        "scaffold_trials_affordable_under_phase_a": 0
+      },
+      "verdict": "FALSIFIED as a general fix, not pending. One pass plus one NOVEL incomplete-coverage failure class, at 16-18x cost. Turn granularity is not the lever. Scaffolded arms are unbudgetable at any ceiling in this spec and would need their own authorization.",
+      "supersedes": "the earlier 'no effectiveness claim pending the rerun' status"
     }
   },
-
   "explicit_non_goals": [
     "No capability, reliability or ranking claim about any lane.",
     "No cost or throughput forecast; cost_usd is null on this lane.",
     "No claim requiring enforced no-network unless the host-isolation precondition passed.",
     "No reportable rate. This is a calibration ledger by construction.",
     "No edit to C1-lane surfaces, C2 promotion, intervention recipes or C0/quality infrastructure."
-  ]
+  ],
+  "paired_extension": {
+    "id": "E0b-handle-representation",
+    "note": "Replaces the order-permutation design as the first intervention. Not part of phase A/B.",
+    "manipulation": "hold generated content AND required read order fixed; vary only handle representation",
+    "arms": [
+      "opaque (control, current ctx_ 24-hex)",
+      "indexed (positional)",
+      "range (contiguous span)",
+      "batched (many handles per call)"
+    ],
+    "cells": 8,
+    "reps": 2,
+    "trials": 16,
+    "rationale": "The sequential scaffold falsified turn granularity. The suspected fault is opaque-handle transcription, so change how handles are ADDRESSED, not how many turns they span. Unlike the scaffold this should REDUCE tokens, since compact references replace long opaque identifiers.",
+    "cost_prediction": "FORECAST: range and batch arms below the 412,753 unscaffolded baseline. If not, that is itself informative.",
+    "blocking": "generator exposes neither handle representation nor read order as factors (dose_ladder.py:84-89); needs generator capability + re-certification. Matched/twin keys are C1-lane owned (PR #303).",
+    "demoted_variant": "pure order permutation at fixed content/IDs, worth running AFTER this to separate sequence from representation"
+  }
 }

@@ -82,6 +82,18 @@ BUDGETS = {
 DOSE_COST_MEASURED: dict[str, int] = {"4096": 32056, "16384": 79497, "65536": 412753}
 DOSE_UNMEASURED = ("131072",)
 
+# Sequential-scaffold final result. Asserted because it is the basis for calling the
+# intervention falsified and unbudgetable, and because a future editor lowering these
+# numbers would quietly revive a design the evidence rejected.
+SCAFFOLD = {
+    "neutral_tokens": 6_683_558,
+    "semantic_tokens": 7_454_261,
+    "total_tokens": 14_137_819,
+    "semantic_reads": 232,
+    "expected_reads": 257,
+    "baseline_64k": 412_753,
+}
+
 
 def _zai_cells() -> list[str]:
     return sorted(b for b in os.listdir(RUNS) if b.startswith("zai-flash-"))
@@ -385,6 +397,34 @@ def check_handle_audit(fail: list[str]) -> None:
         fail.append(f"handle audit covered {seen} trials, expected 3")
 
 
+def check_scaffold_falsification(fail: list[str]) -> None:
+    """The scaffold verdict must stay arithmetically supported."""
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    memo = MEMO.read_text(encoding="utf-8")
+    if SCAFFOLD["neutral_tokens"] + SCAFFOLD["semantic_tokens"] != SCAFFOLD["total_tokens"]:
+        fail.append("scaffold arm tokens do not sum to the reported total")
+    if SCAFFOLD["semantic_reads"] >= SCAFFOLD["expected_reads"]:
+        fail.append("scaffold semantic arm is not recorded as incomplete coverage")
+    # the falsified verdict depends on one trial exceeding most of phase A
+    ratio = SCAFFOLD["semantic_tokens"] / BUDGETS["phase_a_ceiling"]
+    if ratio < 1.0:
+        fail.append(
+            f"a scaffolded trial no longer exceeds the phase A ceiling (ratio {ratio:.2f}); "
+            f"the unbudgetable conclusion would need restating"
+        )
+    if SCAFFOLD["total_tokens"] <= BUDGETS["provider_token_budget"]:
+        fail.append("scaffold total no longer exceeds the provider budget")
+    scaffold = (spec.get("wave2_context") or {}).get("sequential_scaffold") or {}
+    verdict = str(scaffold.get("verdict", ""))
+    if "FALSIFIED" not in verdict:
+        fail.append("spec no longer records the scaffold as falsified")
+    if (scaffold.get("budget_impact") or {}).get("scaffold_trials_affordable_under_phase_a") != 0:
+        fail.append("spec no longer records zero affordable scaffold trials")
+    for token in ("14,137,819", "232/257"):
+        if token not in memo:
+            fail.append(f"memo is missing the scaffold figure {token!r}")
+
+
 def main() -> int:
     if not MEMO.is_file():
         print(f"memo not found: {MEMO}")
@@ -402,6 +442,7 @@ def main() -> int:
         check_cross_file_counts,
         check_budget_admission,
         check_handle_audit,
+        check_scaffold_falsification,
     ):
         check(failures)
     if failures:

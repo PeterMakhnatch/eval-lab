@@ -317,35 +317,50 @@ things into one mechanism.
 cannot serve as a general retrieval signal even if it were sufficient, which it is
 not.
 
-#### Sequential-retrieval scaffold: execution-cost evidence, no effectiveness claim
+#### Sequential-retrieval scaffold: a decisive NEGATIVE result
 
-`[USER-REPORTED 2026-08-29]` Both default-timeout scaffold trials ended in
-**`AgentTimeoutError` while still issuing one-by-one reads**. A
-`timeout-multiplier=3` rerun is in flight.
+`[USER-REPORTED 2026-08-29]` The `timeout-multiplier=3` rerun completed with **2
+valid scored trials**, so this is now scored evidence rather than a harness outcome:
 
-**These are infrastructure/harness outcomes, not scored reward failures.** They
-must not enter a reward numerator, denominator or refusal rate — the same rule
-§1.5 states for the Highspeed 429, and the same rule the pilot already applied to
-its own pre-scoling setup failures. Recorded as harness outcomes at n = 0 scored.
+| Arm | Outcome | Coverage | Prompt tokens |
+|---|---|---|---:|
+| neutral | **pass** | 257/257 exact | 6,683,558 |
+| semantic | **fail** | **232/257 — incomplete, 25 reads short** | 7,454,261 |
+| total | 1 pass / 1 fail | | **14,137,819** |
 
-`[INFERENCE]` What they *do* establish is **feasibility and execution cost**, which
-is real evidence and worth having:
+Wall time 23m50 with two concurrent. The earlier default-timeout attempts remain
+harness outcomes (`AgentTimeoutError`, no verdict) and stay out of every rate; these
+two are scored.
 
-- A one-read-at-a-time strategy over a 257-read requirement **does not fit the
-  default agent time budget**. The trials were not stuck; they were still making
-  progress when the budget expired.
-- So the scaffold trades a suspected accuracy gain for a large, measured latency
-  cost. `[INFERENCE]` If the multiplier-3 rerun succeeds, the honest framing is
-  *"sequential retrieval can pass 64k at roughly triple the time budget"* — an
-  accuracy/cost trade, not a free fix. If it fails, the mechanism hypothesis in
-  §1.6 survives but the intervention does not.
-- **Timeout budget therefore becomes a declared campaign parameter**, not a default
-  to inherit. Any E3 arm using sequential retrieval must state its multiplier, and
-  a comparison between scaffolded and unscaffolded arms at *different* budgets is
-  confounded by budget.
+**Cost, against the unscaffolded 64k mean of 412,753 over nine trials:**
 
-**No scaffold-effectiveness claim is made here, in either direction.** The rerun is
-pending, and every 64k statement elsewhere in this memo is unscaffolded.
+| Comparison | Result |
+|---|---|
+| per-trial multiplier | **16.2× (neutral), 18.1× (semantic)** |
+| one scaffolded trial vs the entire 36-trial phase A ceiling (7,000,000) | **95%** and **106%** |
+| both scaffolded trials vs the whole provider token budget (9,500,000) | **1.49×** |
+| both vs the entire 36-trial phase A projection (6,291,672) | **2.25×** |
+| scaffold trials affordable under the phase A ceiling | **zero** |
+
+`[INFERENCE]` **Sequential one-turn-per-handle is not an effective general fix, and
+the conclusion does not depend on the cost.** It produced one pass and one
+*incomplete* failure — the semantic arm stopped 25 reads short of the requirement,
+which is a **new failure class again**: not a typo substitution, not a duplicate,
+but truncated coverage under a 3× budget. An intervention that yields one pass and
+one novel failure mode has not fixed the mechanism.
+
+`[INFERENCE]` The cost then removes it from consideration entirely: **a single
+scaffolded trial consumes roughly the entire budget of the 36-trial phase A
+campaign**, so scaffolded arms cannot be budgeted at any ceiling in this memo. This
+is recorded as a **falsified intervention**, not a pending one.
+
+`[INFERENCE]` It also sharpens what to try next. If one-handle-per-turn does not fix
+retrieval and costs 16–18×, the problem is unlikely to be turn granularity. The
+suspected fault is **opaque-handle transcription** (§1.6), so the intervention that
+actually addresses it changes **how handles are represented** — indices, ranges, or
+batched references — rather than how many turns they are spread across. That should
+*reduce* tokens rather than multiply them, which makes it both a mechanism test and
+a cost improvement if it works.
 
 #### Recovery: two new fault classes passed clean and fault arms
 
@@ -480,30 +495,46 @@ this had not been done.
   typos are absent once re-derived independently, this parser and the reported one
   disagree, and that must be resolved before any design work proceeds.
 
-### E0b — Matched order/content intervention (after E0a, C1-coordinated)
+### E0b — Indexed/range/batch handle-representation pilot (after E0a, C1-coordinated)
 
-**Why after the audit.** `[INFERENCE]` The intervention has to hold fixed whatever
-the audit shows actually varies. Designing it now would be guessing at the
-manipulation.
+**Why this manipulation, and why it replaced the order-permutation design.**
+`[USER-REPORTED]` The sequential scaffold falsified turn granularity as the lever:
+one pass, one novel incomplete failure, at 16–18× tokens (§1.6). `[INFERENCE]` The
+suspected fault is opaque-handle transcription, so the intervention should change
+**handle representation** while holding content and required order fixed. Unlike the
+scaffold, this should *lower* token cost, because compact references replace long
+opaque identifiers.
 
-- **Manipulation:** hold generated content and entity IDs **fixed**, vary only the
-  **required read order** — the contrast that separates sequence from content and
-  identifier assignment.
-- **Cells:** 64k, known-passing seed 42 and known-failing seed 1337, × 2 order
-  permutations. **4 cells, 2 reps, 8 trials**, projected ≈ 8 × 412,753 = **3.30M**
-  input tokens.
-- **Blocking prerequisites:** `[OBSERVED]` the generator does **not** expose read
-  order independently of content and IDs — identity chunks derive from
+- **Manipulation:** hold generated content **and** required read order fixed; vary
+  only how handles are addressed:
+  1. **opaque** — current 24-hex `ctx_…` handles (control)
+  2. **indexed** — positional indices into the issued list
+  3. **range** — a single request covering a contiguous span
+  4. **batched** — one call carrying many handles
+- **Cells:** 64k, the known-passing seed 42 and known-failing seed 1337, × 4
+  representations. **8 cells, 2 reps, 16 trials.**
+- **Primary estimand:** success and coverage-completeness as a function of handle
+  representation, at fixed content and order.
+- **Why it is the sharpest available test:** `[INFERENCE]` if indexed or range
+  addressing eliminates the seed-1337 failure, transcription of long opaque
+  identifiers is the binding constraint — a concrete, fixable finding about the
+  benchmark's interface rather than about model capacity. If it does not, the
+  transcription hypothesis is wrong and the near-typos are a symptom of something
+  else.
+- **Cost expectation, stated as a prediction to be checked:** `[FORECAST]` range and
+  batch arms should come in **below** the 412,753 unscaffolded baseline, since they
+  reduce both turns and identifier bytes. If they do not, that itself is
+  informative.
+- **Blocking prerequisites:** `[OBSERVED]` the generator exposes neither handle
+  representation nor read order as factors — identity chunks derive from
   `f"{DOSE_AXIS_VERSION}:{seed}:{dose_bytes}"`
-  (`library/benchmarks/action-memory-v1/dose_ladder.py:84-89`) and arm plus dose are
-  the only declared deltas. So E0b needs a **small generator capability plus
+  (`library/benchmarks/action-memory-v1/dose_ladder.py:84-89`), and arm plus dose are
+  the only declared deltas. So this needs a **generator capability plus
   re-certification**, and matched/twin key definitions are **C1-lane owned
   (PR #303)**. A coordinated build item, not a runnable cell.
-- **Stop/go:** if permuting order alone reproduces the seed-1337 failure at fixed
-  content and IDs, sequence is isolated. If it does not, the failure is content- or
-  identifier-bound — which given the near-typo evidence is currently the **more
-  likely** outcome, and would redirect this vertical toward opaque-identifier
-  handling rather than context length.
+- **Demoted variant:** pure order permutation at fixed content and IDs remains
+  worth running *after* this, to separate sequence from representation. It is no
+  longer first because representation is the axis the evidence now points at.
 
 ### E3 — Action Memory, cost-bounded and two-phase
 
@@ -550,6 +581,11 @@ project to **9,437,496**, already 1.9× that cap.
   seed-1337 repeats did *not* turn out to be information-free — they revealed the
   variation that falsified my single-signature reading (§1.6) — so this tradeoff is
   genuinely open.
+- **Scaffolded arms are unbudgetable here.** `[USER-REPORTED]` §1.6: one scaffolded
+  64k trial cost 6,683,558–7,454,261 prompt tokens, i.e. **95–106% of this entire
+  36-trial phase A ceiling**, and the two scaffold trials together are **1.49× the
+  whole provider budget**. Zero scaffolded trials fit. Any future scaffold arm needs
+  its own authorization and ceiling, not a slot in this campaign.
 - **Ranked after E0a/E0b:** `[INFERENCE]` a broader ladder inherits the
   content/ID/order confound at every cell. Spend on isolation first.
 
@@ -628,7 +664,7 @@ floors.
 | E1 | Judge calibration | none | n/a (not a trial cohort) | yes — constructed keys |
 | E2 | Isolation replication | Linux host | no (18) | no — replication check |
 | **E0a** | **Offline handle audit** | **none — no runs** | n/a | yes — a measurement over existing artifacts |
-| **E0b** | **Matched order/content intervention** | E0a + generator capability + C1 coordination | no (8) | no — but it is the only design separating sequence from content |
+| **E0b** | **Handle-representation pilot** (indexed/range/batch) | E0a + generator capability + C1 coordination | no (16) | no — but it directly tests the transcription hypothesis, and should *reduce* cost |
 | E3 | Action Memory phase A + B | Linux host | yes (36 + 2) | calibration ledger only |
 | E4 | Recovery matrix | Linux host | yes (60) | calibration ledger only |
 | E5 | Full-vs-Flash mini-lane | E2 + E3/E4 discrimination | yes | only if MDE permits (§4.2) |

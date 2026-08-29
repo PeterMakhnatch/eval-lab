@@ -1,0 +1,129 @@
+name: action-memory-dose-ladder
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "library/benchmarks/action-memory-v1/**"
+      - "tests/test_action_memory_dose_ladder.py"
+      - ".github/workflows/action-memory-dose-ladder.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "library/benchmarks/action-memory-v1/**"
+      - "tests/test_action_memory_dose_ladder.py"
+      - ".github/workflows/action-memory-dose-ladder.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary-controls:
+    name: action-memory-dose-ladder-canary (${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [42, 1337, 2026]
+        dose_bytes: [4096, 16384, 65536, 131072]
+        arm: [neutral_padding, semantic_distractor]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Reject committed generated corpus
+        run: |
+          python3 -c 'import subprocess,sys; paths=subprocess.check_output(["git","ls-files"],text=True).splitlines(); forbidden=[path for path in paths if path.startswith(("library/benchmarks/action-memory-v1/tasks/","derived/harbor-tasks/action-memory-dose-ladder/"))]; print("forbidden tracked paths:", forbidden); sys.exit(bool(forbidden))'
+      - name: Install uv and Harbor
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv tool install "harbor==0.21.0"
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - name: Resolve and record Linux target wheelhouse provenance
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fastmcp3_wheelhouse
+          python3 -m pip download --only-binary=:all: --implementation cp --python-version 3.12 --abi cp312 --platform manylinux_2_17_x86_64 --dest /tmp/fastmcp3_wheelhouse fastmcp==3.4.7
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+          from evallab.mcp_substrate import (
+              DEFAULT_TARGET_PLATFORM_TAG,
+              DEFAULT_TARGET_PYTHON_TAG,
+              WheelhouseTarget,
+              record_prepackaging_provenance,
+          )
+          provenance = record_prepackaging_provenance(
+              Path("/tmp/fastmcp3_wheelhouse"),
+              WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG),
+          )
+          Path("/tmp/fastmcp3-resolver-provenance.json").write_text(
+              json.dumps(provenance.to_dict(), sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+          echo "ACTION_MEMORY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse" >> "$GITHUB_ENV"
+          echo "ACTION_MEMORY_RESOLVER_PROVENANCE=/tmp/fastmcp3-resolver-provenance.json" >> "$GITHUB_ENV"
+      - name: Focused dose-ladder tests
+        run: uv run pytest tests/test_action_memory_dose_ladder.py -v
+      - name: Materialize current matched cell
+        run: |
+          set -euo pipefail
+          mkdir -p derived/harbor-tasks/action-memory-dose-ladder artifacts/action-memory-dose-ladder
+          task_path="$(uv run python -c 'import sys; sys.path.insert(0, "library/benchmarks/action-memory-v1"); from materializer import materialize_dose_ladder_cell; print(materialize_dose_ladder_cell(seed=${{ matrix.seed }}, dose_bytes=${{ matrix.dose_bytes }}, arm="${{ matrix.arm }}")["output_path"])')"
+          test -d "$task_path"
+          echo "TASK_PATH=$task_path" >> "$GITHUB_ENV"
+          echo "SOURCE_URI=eval-lab/action-memory/dose-ladder-${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}" >> "$GITHUB_ENV"
+          echo "SOURCE_REF=local/eval-lab/action-memory-dose-ladder@1.1.0" >> "$GITHUB_ENV"
+      - name: Freeze workbench plan
+        id: plan
+        run: |
+          set -euo pipefail
+          uv run python -m evallab.task_workbench plan "$TASK_PATH" --repo-root . --source-uri "$SOURCE_URI" --source-ref "$SOURCE_REF" --license "Apache-2.0" --zone "03-synthetic" | tee artifacts/action-memory-dose-ladder/plan.json
+          candidate_id="$(jq -r '.candidate.candidate_id' artifacts/action-memory-dose-ladder/plan.json)"
+          test -n "$candidate_id"
+          test "$candidate_id" != null
+          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
+      - name: Run complete workbench controls
+        run: |
+          set -euo pipefail
+          uv run python -m evallab.task_workbench check "$TASK_PATH" --repo-root . --source-uri "$SOURCE_URI" --source-ref "$SOURCE_REF" --license "Apache-2.0" --zone "03-synthetic" --run-controls | tee artifacts/action-memory-dose-ladder/check.json
+          test "$(jq -r '.disposition' artifacts/action-memory-dose-ladder/check.json)" = "certified_for_review"
+      - name: Write workbench certification packet
+        env:
+          CANDIDATE_ID: ${{ steps.plan.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          controls="runs/task-workbench/${CANDIDATE_ID}/controls.json"
+          packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/action-memory-dose-ladder-${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}"
+          test -s "$controls"
+          uv run python -m evallab.task_workbench packet "$TASK_PATH" --repo-root . --source-uri "$SOURCE_URI" --source-ref "$SOURCE_REF" --license "Apache-2.0" --zone "03-synthetic" --controls "$controls" --output-root "$packet_root" | tee artifacts/action-memory-dose-ladder/packet.json
+          test "$(jq -r '.disposition' artifacts/action-memory-dose-ladder/packet.json)" = "certified_for_review"
+      - name: Produce exact-task Oracle and NOP controls
+        run: |
+          set -euo pipefail
+          jobs="research/evidence/runs"
+          cell="${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}"
+          oracle_job="action-memory-dl-oracle-${cell}-${GITHUB_RUN_ID}"
+          nop_job="action-memory-dl-nop-${cell}-${GITHUB_RUN_ID}"
+          harbor run --path "$TASK_PATH" --agent oracle --env docker --job-name "$oracle_job" --jobs-dir "$jobs" --n-concurrent 1 --n-attempts 1 --yes
+          harbor run --path "$TASK_PATH" --agent nop --env docker --job-name "$nop_job" --jobs-dir "$jobs" --n-concurrent 1 --n-attempts 1 --yes
+          uv run python library/benchmarks/action-memory-v1/ci_contract.py --assert-harbor-reward "$jobs/$oracle_job" 1.0
+          uv run python library/benchmarks/action-memory-v1/ci_contract.py --assert-harbor-reward "$jobs/$nop_job" 0.0
+          jq -n --arg cell "$cell" --arg candidate "${{ steps.plan.outputs.candidate_id }}" --arg oracle "$oracle_job" --arg nop "$nop_job" '{cell: $cell, candidate_id: $candidate, workbench_disposition: "certified_for_review", oracle_job: $oracle, oracle_reward: 1.0, nop_job: $nop, nop_reward: 0.0}' > artifacts/action-memory-dose-ladder/certification.json
+      - name: Upload cell review packet and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: action-memory-dose-ladder-${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}
+          path: |
+            artifacts/action-memory-dose-ladder/
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/controls.json
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/jobs/
+            research/registration/candidates/ci/${{ github.run_id }}/action-memory-dose-ladder-${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}/
+            research/evidence/runs/action-memory-dl-oracle-${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}-${{ github.run_id }}/
+            research/evidence/runs/action-memory-dl-nop-${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }}-${{ github.run_id }}/
+          if-no-files-found: error

@@ -2,134 +2,126 @@
 import argparse
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 
-def verify(
-    task_dir: Path,
-    evidence_dir: Path,
-    reward_dir: Path | None = None,
-) -> dict[str, Any]:
-    if reward_dir is None:
-        reward_dir = Path("/logs/verifier")
-    reward_dir.mkdir(parents=True, exist_ok=True)
-
-    # Resolve target spec / golden specification
-    spec_path = task_dir / "fixtures" / "target_spec.json"
-    if not spec_path.exists():
-        spec_path = task_dir / "target_spec.json"
-    if not spec_path.exists() and (task_dir / "scenario.json").exists():
-        scenario = json.loads((task_dir / "scenario.json").read_text(encoding="utf-8"))
-        spec_data = {
-            "target_entity": scenario["target_entity"],
-            "target_attribute": scenario["target_attribute"],
-            "expected_bound_value": scenario["latest_value"],
-            "dose_bytes": scenario.get("dose_bytes", 4096),
-        }
-        spec_bytes = (task_dir / "scenario.json").read_bytes()
-    elif spec_path.exists():
-        spec_bytes = spec_path.read_bytes()
-        spec_data = json.loads(spec_bytes.decode("utf-8"))
-    else:
-        res = {"reward": 0.0, "reason": "missing_target_spec_file"}
-        _record(reward_dir, res)
-        return res
-
-    # Compute and verify truth spec digest
-    truth_digest = f"sha256:{hashlib.sha256(spec_bytes).hexdigest()}"
-
-    final_state_file = evidence_dir / "final-state.json"
-    if not final_state_file.exists():
-        res = {"reward": 0.0, "reason": "missing_final_state_evidence", "truth_digest": truth_digest}
-        _record(reward_dir, res)
-        return res
-
-    try:
-        final_state = json.loads(final_state_file.read_text(encoding="utf-8"))
-    except Exception as exc:
-        res = {"reward": 0.0, "reason": f"corrupt_final_state: {exc}", "truth_digest": truth_digest}
-        _record(reward_dir, res)
-        return res
-
-    # Validate benchmark-events.jsonl for monotone event index and read/execute logs
-    events_file = evidence_dir / "benchmark-events.jsonl"
-    event_count = 0
-    read_events = 0
-    mutation_events = 0
-    if events_file.exists():
-        last_ordinal = 0
-        for line in events_file.read_text(encoding="utf-8").splitlines():
-            line_str = line.strip()
-            if not line_str:
-                continue
-            try:
-                ev = json.loads(line_str)
-            except Exception as exc:
-                res = {"reward": 0.0, "reason": f"invalid_event_json: {exc}", "truth_digest": truth_digest}
-                _record(reward_dir, res)
-                return res
-            if not isinstance(ev, dict):
-                res = {"reward": 0.0, "reason": "event_not_json_object", "truth_digest": truth_digest}
-                _record(reward_dir, res)
-                return res
-            event_count += 1
-            ev_ord = ev.get("event_ordinal")
-            if not isinstance(ev_ord, int) or ev_ord <= last_ordinal:
-                res = {"reward": 0.0, "reason": "non_monotone_event_ordinals", "truth_digest": truth_digest}
-                _record(reward_dir, res)
-                return res
-            last_ordinal = ev_ord
-            if ev.get("event_type") in {"read_chunk", "get_context_chunk", "tool_call_success"}:
-                read_events += 1
-            if ev.get("tool_name") == "execute_mutation" or ev.get("event_type") in {"execute_mutation", "mutation"}:
-                mutation_events += 1
-
-    obs_entity = final_state.get("target_entity")
-    obs_attr = final_state.get("target_attribute")
-    obs_val = final_state.get("bound_value")
-
-    exp_entity = spec_data.get("target_entity")
-    exp_attr = spec_data.get("target_attribute")
-    exp_val = spec_data.get("expected_bound_value")
-
-    if obs_entity == exp_entity and obs_attr == exp_attr and obs_val == exp_val:
-        res = {
-            "reward": 1.0,
-            "reason": "exact_latest_value_bound",
-            "target_entity": obs_entity,
-            "bound_value": obs_val,
-            "truth_digest": truth_digest,
-            "events_validated": event_count,
-            "read_events": read_events,
-            "mutation_events": mutation_events,
-        }
-    else:
-        res = {
-            "reward": 0.0,
-            "reason": "mismatch",
-            "expected": spec_data,
-            "observed": final_state,
-            "truth_digest": truth_digest,
-        }
-
-    _record(reward_dir, res)
-    return res
-
-
 def _record(reward_dir: Path, result: dict[str, Any]) -> None:
-    reward_str = "1.0\n" if result["reward"] == 1.0 else "0.0\n"
-    (reward_dir / "reward.txt").write_text(reward_str, encoding="utf-8")
+    (reward_dir / "reward.txt").write_text("1.0\n" if result["reward"] == 1.0 else "0.0\n", encoding="utf-8")
     (reward_dir / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-if __name__ == "__main__":
-    cli_parser = argparse.ArgumentParser(description="Action-memory verifier entrypoint")
-    cli_parser.add_argument("--task-dir", type=Path, default=Path("/tests"))
-    cli_parser.add_argument("--evidence-dir", type=Path, default=Path("/app/output"))
-    cli_parser.add_argument("--reward-dir", type=Path, default=Path("/logs/verifier"))
-    cli_args = cli_parser.parse_args()
+def _failure(reward_dir: Path, reason: str, truth_digest: str, **details: Any) -> dict[str, Any]:
+    result = {"reward": 0.0, "reason": reason, "truth_digest": truth_digest, **details}
+    _record(reward_dir, result)
+    return result
 
-    v_res = verify(cli_args.task_dir, cli_args.evidence_dir, cli_args.reward_dir)
-    sys.exit(0 if v_res["reward"] == 1.0 else 1)
+
+def _load_truth(task_dir: Path) -> tuple[dict[str, Any], bytes]:
+    spec_path = task_dir / "fixtures" / "target_spec.json"
+    if not spec_path.exists():
+        spec_path = task_dir / "target_spec.json"
+    if spec_path.exists():
+        raw = spec_path.read_bytes()
+        return json.loads(raw.decode("utf-8")), raw
+    scenario_path = task_dir / "scenario.json"
+    if not scenario_path.exists():
+        raise FileNotFoundError("missing_target_spec_file")
+    raw = scenario_path.read_bytes()
+    scenario = json.loads(raw.decode("utf-8"))
+    return {"target_entity": scenario["target_entity"], "target_attribute": scenario["target_attribute"], "expected_bound_value": scenario["latest_value"], "required_chunk_ids": [chunk["chunk_id"] for chunk in scenario["chunks"]]}, raw
+
+
+def _successful_value(event: dict[str, Any]) -> dict[str, Any] | None:
+    result = event.get("result")
+    if not isinstance(result, dict) or result.get("status") != "ok":
+        return None
+    value = result.get("value")
+    return value if isinstance(value, dict) else None
+
+
+def _load_runtime_events(events_file: Path, reward_dir: Path, truth_digest: str) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    if not events_file.exists():
+        return [], _failure(reward_dir, "missing_runtime_evidence", truth_digest)
+    events: list[dict[str, Any]] = []
+    allowed_tools = {"list_context_chunks", "get_context_chunk", "execute_mutation"}
+    for expected_ordinal, line in enumerate((line for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()), start=1):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return [], _failure(reward_dir, "corrupt_runtime_evidence", truth_digest)
+        if not isinstance(event, dict) or event.get("schema_version") != "mcp-tool-event-v1":
+            return [], _failure(reward_dir, "noncanonical_runtime_evidence", truth_digest)
+        if event.get("event_ordinal") != expected_ordinal:
+            return [], _failure(reward_dir, "non_contiguous_runtime_event_ordinals", truth_digest)
+        if event.get("tool_name") not in allowed_tools or not isinstance(event.get("arguments"), dict):
+            return [], _failure(reward_dir, "noncanonical_runtime_evidence", truth_digest)
+        if event.get("event_type") not in {"tool_call_success", "tool_call_error"} or not isinstance(event.get("is_error"), bool):
+            return [], _failure(reward_dir, "noncanonical_runtime_evidence", truth_digest)
+        if (event["event_type"] == "tool_call_success") != (event["is_error"] is False):
+            return [], _failure(reward_dir, "inconsistent_runtime_event_error_state", truth_digest)
+        events.append(event)
+    if not events:
+        return [], _failure(reward_dir, "missing_runtime_evidence", truth_digest)
+    return events, None
+
+
+def _validate_retrieval_path(events: list[dict[str, Any]], required_ids: list[str], reward_dir: Path, truth_digest: str) -> dict[str, Any] | None:
+    first = events[0]
+    if first["tool_name"] != "list_context_chunks" or first["arguments"] or _successful_value(first) is None or _successful_value(first).get("chunk_ids") != required_ids:
+        return _failure(reward_dir, "missing_initial_context_listing", truth_digest)
+    reads = [event for event in events if event["tool_name"] == "get_context_chunk"]
+    if [event["arguments"].get("chunk_id") for event in reads] != required_ids:
+        return _failure(reward_dir, "incomplete_or_reordered_context_retrieval", truth_digest, expected_reads=len(required_ids), observed_reads=len(reads))
+    for event, chunk_id in zip(reads, required_ids, strict=True):
+        value = _successful_value(event)
+        if value is None or value.get("chunk_id") != chunk_id or not isinstance(value.get("content"), str):
+            return _failure(reward_dir, "unsuccessful_or_malformed_context_read", truth_digest)
+    mutations = [event for event in events if event["tool_name"] == "execute_mutation"]
+    if len(mutations) != 1 or events[-1] is not mutations[0] or _successful_value(mutations[0]) is None:
+        return _failure(reward_dir, "mutation_not_after_complete_retrieval", truth_digest)
+    if any(event["is_error"] for event in events):
+        return _failure(reward_dir, "runtime_tool_error_observed", truth_digest)
+    return None
+
+
+def verify(task_dir: Path, evidence_dir: Path, reward_dir: Path | None = None) -> dict[str, Any]:
+    reward_dir = reward_dir or Path("/logs/verifier")
+    reward_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        spec, spec_bytes = _load_truth(task_dir)
+    except FileNotFoundError:
+        return _failure(reward_dir, "missing_target_spec_file", "sha256:missing")
+    truth_digest = f"sha256:{hashlib.sha256(spec_bytes).hexdigest()}"
+    required_ids = spec.get("required_chunk_ids")
+    if not isinstance(required_ids, list) or not required_ids or not all(isinstance(item, str) for item in required_ids):
+        return _failure(reward_dir, "missing_required_retrieval_manifest", truth_digest)
+    final_file = evidence_dir / "final-state.json"
+    if not final_file.exists():
+        return _failure(reward_dir, "missing_final_state_evidence", truth_digest)
+    try:
+        final_state = json.loads(final_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return _failure(reward_dir, f"corrupt_final_state: {exc}", truth_digest)
+    events, failure = _load_runtime_events(evidence_dir / "benchmark-events.jsonl", reward_dir, truth_digest)
+    if failure is not None:
+        return failure
+    failure = _validate_retrieval_path(events, required_ids, reward_dir, truth_digest)
+    if failure is not None:
+        return failure
+    expected = (spec.get("target_entity"), spec.get("target_attribute"), spec.get("expected_bound_value"))
+    observed = (final_state.get("target_entity"), final_state.get("target_attribute"), final_state.get("bound_value"))
+    if observed != expected:
+        return _failure(reward_dir, "mismatch", truth_digest)
+    result = {"reward": 1.0, "reason": "exact_latest_value_bound_after_complete_retrieval", "truth_digest": truth_digest, "events_validated": len(events), "read_events": len(required_ids), "mutation_events": 1}
+    _record(reward_dir, result)
+    return result
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Action-memory verifier entrypoint")
+    parser.add_argument("--task-dir", type=Path, required=True)
+    parser.add_argument("--evidence-dir", type=Path, required=True)
+    parser.add_argument("--reward-dir", type=Path, default=None)
+    args = parser.parse_args()
+    raise SystemExit(0 if verify(args.task_dir, args.evidence_dir, args.reward_dir)["reward"] == 1.0 else 1)

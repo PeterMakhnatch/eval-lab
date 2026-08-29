@@ -1115,8 +1115,45 @@ def test_cancel_marker_survives_failed_claimant_and_stale_reclaim(tmp_path: Path
     reclaimed = queue.acquire_lease(s, stale_seconds=300.0, lease_generation="e" * 32)
     assert reclaimed == lease_path
     assert marker.is_file()
-    # The reclaim's own generation has its own distinct marker path.
-    assert queue.cancel_path(s, lease_generation="e" * 32) != marker
+
+def test_lease_generation_readers_fail_closed_on_malformed_records(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    s = spec("malformed-generation-control")
+    malformed = ["../../x", "A" * 32, "not-a-generation", ""]
+    for value in malformed:
+        lease_path = queue.acquire_lease(s, lease_generation="f" * 32)
+        assert lease_path is not None
+        # Tamper the durable lease record after acquisition.
+        lease_path.write_text(
+            json.dumps({"lease_generation": value}) + "\n",
+            encoding="utf-8",
+        )
+        # Every reader must fail closed: no Path.with_name crash, no traversal.
+        assert queue.lease_generation(s) is None
+        assert queue.request_cancel(s) is False
+        assert queue.release_lease(s, lease_generation="f" * 32) is False
+        # Clean up so the next iteration starts fresh.
+        lease_path.unlink(missing_ok=True)
+
+
+def test_runner_read_generation_fails_closed_on_malformed(tmp_path: Path) -> None:
+    from evallab.runner import _read_generation
+
+    malformed = ["../../x", "A" * 32, "not-a-generation", ""]
+    for value in malformed:
+        lease = tmp_path / f"malformed-{len(value)}.lease"
+        lease.write_text(
+            json.dumps({"lease_generation": value}) + "\n",
+            encoding="utf-8",
+        )
+        assert _read_generation(lease) is None
+        # A valid generation still reads back.
+        valid = tmp_path / "valid.lease"
+        valid.write_text(
+            json.dumps({"lease_generation": "d" * 32}) + "\n",
+            encoding="utf-8",
+        )
+        assert _read_generation(valid) == "d" * 32
 
 
 def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:

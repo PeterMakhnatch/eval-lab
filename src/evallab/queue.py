@@ -33,6 +33,7 @@ from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,
+    is_lease_generation,
     load_policy,
     new_ulid,
 )
@@ -1056,7 +1057,9 @@ class DirectoryQueue:
     ) -> str | None:
         record = self._read_lease_record(self.lease_path(spec))
         generation = record.get("lease_generation") if record is not None else None
-        return generation if isinstance(generation, str) and generation else None
+        if not is_lease_generation(generation):
+            return None
+        return generation
 
     @contextmanager
     def _lease_guard(self, path: Path) -> Iterator[None]:

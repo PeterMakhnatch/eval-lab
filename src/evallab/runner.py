@@ -58,6 +58,7 @@ from evallab.execution_contracts import (
     TrialTimeoutFailure,
     build_command,
     collected_secret_values,
+    is_lease_generation,
     materialize_deepseek_secret_file,
     persist_private_bytes,
     proxy_runtime_identity,
@@ -467,7 +468,9 @@ def _read_generation(path: Path) -> str | None:
     if not isinstance(payload, dict):
         return None
     generation = payload.get("lease_generation")
-    return generation if isinstance(generation, str) and generation else None
+    if not is_lease_generation(generation):
+        return None
+    return generation
 
 
 def _lease_owned(lease_path: Path | None, lease_generation: str | None) -> bool:

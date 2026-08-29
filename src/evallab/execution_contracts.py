@@ -30,6 +30,12 @@ from evallab.schemas import (
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
+# Lease generations are immutable, 32-lowercase-hex identifiers produced by
+# secrets.token_hex(16). Every durable-record reader that later turns a stored
+# generation into a filesystem path MUST reject anything outside this contract,
+# so a tampered lease/cancel record cannot inject path separators or arbitrary
+# suffixes into a cancel-marker filename.
+LEASE_GENERATION_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
 MAX_TRIAL_TIMEOUT_SECONDS = 21_600
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
@@ -709,6 +715,11 @@ def transient_provider_reason(text: str) -> str | None:
     if _PROVIDER_5XX.search(text):
         return "transient_harness:provider_http_5xx"
     return None
+
+
+def is_lease_generation(value: object) -> bool:
+    """Return True only for a strict 32-lowercase-hex lease generation."""
+    return isinstance(value, str) and LEASE_GENERATION_PATTERN.fullmatch(value) is not None
 
 
 def transient_provider_exception(result: Mapping[str, Any]) -> str | None:

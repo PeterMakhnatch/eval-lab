@@ -195,3 +195,9 @@ def test_mcp_server_client_protocol_interaction(tmp_path: Path):
     final_state = json.loads((output_dir / "final-state.json").read_text(encoding="utf-8"))
     assert final_state["status"] == "executed"
     assert final_state["bound_value"] != ""
+
+    # Verify verifier passes with reward 1.0 on copied live MCP evidence
+    ver_mod = load("action_memory_ver_mcp", "verifier")
+    reward_dir = task_dir / "rewards"
+    ver_res = ver_mod.verify(task_dir / "task_state", evidence_dir, reward_dir)
+    assert ver_res["reward"] == 1.0, f"Live MCP trial verifier failed: {ver_res}"

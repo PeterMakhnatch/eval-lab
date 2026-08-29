@@ -25,7 +25,7 @@ class StreamableMCPHandler(BaseHTTPRequestHandler):
             StreamableMCPHandler.event_counter += 1
             idx = StreamableMCPHandler.event_counter
             record = {
-                "event_index": idx,
+                "event_ordinal": idx,
                 "event_type": event_type,
                 "payload": payload,
             }

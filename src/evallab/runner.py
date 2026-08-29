@@ -28,9 +28,11 @@ from evallab.execution_contracts import (
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
     DEEPSEEK_MODEL_SELECTOR,
     DEEPSEEK_PROXY_CAPABILITY_ENV,
+    DEEPSEEK_PROXY_GID_ENV,
     DEEPSEEK_PROXY_HOST,
     DEEPSEEK_PROXY_SCRIPT,
     DEEPSEEK_PROXY_SCRIPT_ENV,
+    DEEPSEEK_PROXY_UID_ENV,
     DEEPSEEK_SECRET_FILE_ENV,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
@@ -51,6 +53,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
     materialize_deepseek_secret_file,
     persist_private_bytes,
+    proxy_runtime_identity,
     read_owner_secret_file,
     redact_environment,
     resolve_harbor_agent,
@@ -422,6 +425,11 @@ def run_harbor_process(
                 materialize_deepseek_secret_file(owned_secret_path)
                 runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
             runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
+            proxy_uid, proxy_gid = proxy_runtime_identity(
+                Path(runtime_environment[DEEPSEEK_SECRET_FILE_ENV])
+            )
+            runtime_environment[DEEPSEEK_PROXY_UID_ENV] = str(proxy_uid)
+            runtime_environment[DEEPSEEK_PROXY_GID_ENV] = str(proxy_gid)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if any(import_path in command for import_path in repo_imports):
             source_root = cwd / "src"

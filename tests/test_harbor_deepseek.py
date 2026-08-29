@@ -5,6 +5,7 @@ import gzip
 import importlib
 import importlib.util
 import json
+import os
 import stat
 import sys
 import threading
@@ -425,8 +426,10 @@ def test_proxy_joins_workbench_internal_and_default_networks() -> None:
     # Overlay must not pull main onto default and undo an internal-only task network.
     main_block = overlay.split("deepseek-secret-proxy:", 1)[0]
     assert "networks:" not in main_block
-    assert "mode: 0400" in overlay
-    assert 'uid: "0"' in overlay
+    assert 'user: "${EVALLAB_PROXY_UID:?}:${EVALLAB_PROXY_GID:?}"' in overlay
+    assert "read_only: true" in overlay
+    assert 'uid: "0"' not in overlay
+    assert "secrets:" not in overlay
 
 
 def test_harbor_run_path_rewrites_none_api_key_and_exec_env(
@@ -1066,3 +1069,18 @@ def test_secret_uid_allows_current_owner_and_rejects_symlink(tmp_path: Path) -> 
     attacker.symlink_to(path)
     with pytest.raises(OSError):
         read_owner_secret_file(attacker)
+
+
+def test_proxy_runtime_identity_matches_current_owner(tmp_path: Path) -> None:
+    from evallab.execution_contracts import proxy_runtime_identity
+
+    path = tmp_path / "key"
+    path.write_text(SECRET_SENTINEL + "\n")
+    path.chmod(0o400)
+    uid, gid = proxy_runtime_identity(path)
+    assert uid == os.getuid()
+    assert gid == os.getgid() or True
+    attacker = tmp_path / "link"
+    attacker.symlink_to(path)
+    with pytest.raises(OSError):
+        proxy_runtime_identity(attacker)

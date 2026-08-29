@@ -100,6 +100,8 @@ DEEPSEEK_PROXY_SCRIPT = Path("containers/deepseek_secret_proxy.py")
 DEEPSEEK_SECRET_FILE_ENV = "EVALLAB_DEEPSEEK_SECRET_FILE"
 DEEPSEEK_PROXY_SCRIPT_ENV = "EVALLAB_DEEPSEEK_PROXY_SCRIPT"
 DEEPSEEK_UPSTREAM_ENV = "EVALLAB_DEEPSEEK_UPSTREAM"
+DEEPSEEK_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
+DEEPSEEK_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
 DEEPSEEK_PROXY_CAPABILITY_ENV = "EVALLAB_DEEPSEEK_PROXY_CAPABILITY"
 DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
 DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
@@ -114,6 +116,8 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         "EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT",
         "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
         "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+        DEEPSEEK_PROXY_UID_ENV,
+        DEEPSEEK_PROXY_GID_ENV,
     }
 )
 REDACTED_SECRET_VALUE = "<redacted>"
@@ -281,6 +285,22 @@ def read_owner_secret_file(path: Path) -> str:
     finally:
         os.close(fd)
     return b"".join(chunks).decode("utf-8").rstrip("\r\n")
+
+
+def proxy_runtime_identity(path: Path) -> tuple[int, int]:
+    """Return the numeric uid/gid the proxy must run as to read *path*.
+
+    The file must be a regular, owner-only secret owned by root or the
+    invoking euid. Compose must use these numbers as ``user:``, not secret
+    uid/gid remap metadata.
+    """
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    fd = os.open(path, flags)
+    try:
+        info = _fstat_owner_secret(fd, allowed_modes=frozenset({0o400, 0o600}))
+        return info.st_uid, info.st_gid
+    finally:
+        os.close(fd)
 
 
 def collected_secret_values(

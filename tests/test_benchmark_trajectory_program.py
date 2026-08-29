@@ -915,6 +915,8 @@ def _quality_pass_report(bundle) -> ComplianceIngestReport:
     return ComplianceIngestReport(
         record=record,
         gates=gates,
+        disposition="QUALITY_PASS",
+        reasons=[],
         lag_ms=1,
         bloat_clean=True,
         report_digest="sha256:" + "c" * 64,

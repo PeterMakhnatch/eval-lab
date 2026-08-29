@@ -217,12 +217,18 @@ jobs:
 
             expected_fixed=$([ "$arm" = "fault" ] && echo "0.0" || echo "1.0")
             uv run python - <<PY
-            import os
+            import sys
             from pathlib import Path
-            from evallab.registry import discover_control_evidence
-            evidence = discover_control_evidence(Path("${staged_fixed}"), Path.cwd())
+            sys.path.insert(0, str(Path("library/benchmarks/mcp-recovery-v1").resolve()))
+            from verifier import load_fixed_policy_evidence
+            job_name = "mcp-recovery-${arm}-${FAULT_MODE}-p${PERSISTENCE}-fixed-policy-${GITHUB_RUN_ID}"
+            evidence = load_fixed_policy_evidence(
+                Path("research/evidence/runs") / job_name,
+                Path("${staged_fixed}"),
+            )
             expected = float("${expected_fixed}")
-            assert evidence.oracle.reward == expected, f"Fixed policy reward {evidence.oracle.reward} != {expected}"
+            assert evidence.reward == expected, f"Fixed policy reward {evidence.reward} != {expected}"
+            print(f"Fixed policy settled trial={evidence.trial_dir} task_digest={evidence.task_digest} reward={evidence.reward}")
             PY
           done
       - name: Upload review packet and retained evidence

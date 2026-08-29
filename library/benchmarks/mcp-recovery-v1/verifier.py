@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from evallab.registry import harbor_task_digest
 
 from envelope import decrypt_envelope
 
@@ -237,3 +240,56 @@ def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = Non
         )
 
     return result
+
+
+@dataclass(frozen=True)
+class FixedPolicyEvidence:
+    """Typed evidence for one real Harbor fixed-policy run (not TaskControlEvidence)."""
+
+    job_dir: Path
+    trial_dir: Path
+    task_digest: str
+    reward: float
+
+
+def load_fixed_policy_evidence(job_dir: Path | str, staged_task: Path | str) -> FixedPolicyEvidence:
+    """Load exactly one settled fixed-policy trial bound to the staged task digest.
+
+    This intentionally does not use `discover_control_evidence`, which demands
+    an oracle+nop pair and is invalid for experimental fixed-policy probes.
+    """
+    job_path = Path(job_dir)
+    task_path = Path(staged_task)
+    if not job_path.is_dir() or not task_path.is_dir():
+        raise ValueError("fixed-policy job or staged task is missing")
+
+    expected_digest = harbor_task_digest(task_path)
+    trial_results = [
+        p for p in sorted(job_path.rglob("result.json"))
+        if p.parent != job_path and (p.parent / "lock.json").is_file()
+    ]
+    if len(trial_results) != 1:
+        raise ValueError(f"fixed-policy run requires exactly one trial result, got {len(trial_results)}")
+
+    result_path = trial_results[0]
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    lock = json.loads((result_path.parent / "lock.json").read_text(encoding="utf-8"))
+    if not isinstance(result, dict) or not isinstance(lock, dict):
+        raise ValueError("fixed-policy result or lock is malformed")
+
+    task_lock = lock.get("task")
+    if not isinstance(task_lock, dict) or task_lock.get("digest") != expected_digest:
+        raise ValueError("fixed-policy trial does not bind staged task digest")
+
+    verifier_result = result.get("verifier_result")
+    rewards = verifier_result.get("rewards") if isinstance(verifier_result, dict) else None
+    reward = rewards.get("reward") if isinstance(rewards, dict) else None
+    if not isinstance(reward, (int, float)):
+        raise ValueError("fixed-policy trial has no numeric verifier reward")
+
+    return FixedPolicyEvidence(
+        job_dir=job_path,
+        trial_dir=result_path.parent,
+        task_digest=expected_digest,
+        reward=float(reward),
+    )

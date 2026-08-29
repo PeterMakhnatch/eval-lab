@@ -410,6 +410,40 @@ def test_live_fastmcp_clean_twin_recovery(tmp_path):
         proc.wait(timeout=5)
 
 
+def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
+    materializer = load("materializer")
+    verifier = load("verifier")
+    from evallab.registry import harbor_task_digest
+
+    task = materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=os.urandom(32))
+    digest = harbor_task_digest(task)
+
+    job = tmp_path / "job"
+    trial = job / "trial-one"
+    trial.mkdir(parents=True)
+    (trial / "lock.json").write_text(json.dumps({"task": {"digest": digest}}), encoding="utf-8")
+    (trial / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+
+    evidence = verifier.load_fixed_policy_evidence(job, task)
+    assert evidence.reward == 0.0
+    assert evidence.task_digest == digest
+    assert evidence.trial_dir == trial
+
+    # A second trial is rejected rather than silently selecting arbitrary evidence.
+    duplicate = job / "trial-two"
+    duplicate.mkdir()
+    (duplicate / "lock.json").write_text(json.dumps({"task": {"digest": digest}}), encoding="utf-8")
+    (duplicate / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="exactly one trial"):
+        verifier.load_fixed_policy_evidence(job, task)
+
+
 def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatch):
     wheelhouse = Path("/tmp/mcp-recovery-linux-wheelhouse")
     prov_file = Path("/tmp/mcp-recovery-linux-resolver-provenance.json")

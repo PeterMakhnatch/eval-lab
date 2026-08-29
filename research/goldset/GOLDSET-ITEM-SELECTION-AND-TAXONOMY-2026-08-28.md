@@ -470,6 +470,94 @@ recorded per item so a future subsample stays valid for base-rate estimation, an
 the `rare_cell_boost` arm carries weight `0.0` and is excluded from prevalence
 arithmetic.
 
+## 5b. The rating contract and the append-only ledger
+
+### 5b.1 One canonical contract digest, recomputed by everyone
+
+A rater must be able to verify what they were asked to judge, and the coordinator
+must be able to verify what came back. That needs **one** value computed by **one**
+function on **both** sides.
+
+`compute_bundle_contract_digest` is that function. The canonical rater-visible
+contract payload — schema version, codebook version, taxonomy contract block,
+instructions, and the ordered deliverable items with their `item_context_digest` —
+is built once inside `build_package`, and the digest is derived from it. Package,
+export, client and server all recompute the same value from the same bytes.
+
+Two facts make this load-bearing rather than decorative:
+
+- The bundle carries **no artifact digest**. `package_digest` and `build_id`
+  identify a *build*; putting either inside the bundle made the contract digest
+  circular (the digest covered a field derived from the digest). Build identity is
+  not contract.
+- `export_rater_bundle` **refuses** when the package's declared digest and the
+  exported bundle's recomputed digest diverge.
+
+That second guard exists because they *did* diverge. Two digest functions
+coexisted: the server validated an item-only digest while the export overwrote the
+bundle with a full-bundle digest that the client signed. Every genuine client
+rating was rejected `RATING_CONTRACT_DIGEST_MISMATCH` — the distributed path had
+never once worked. Each half's tests passed against its own digest; **no test
+crossed the seam.** The acceptance E2E below exists specifically to cross it.
+
+### 5b.2 What a `RatingRecord` signs
+
+```
+schema_version, rating_contract_digest, item_id, item_context_digest,
+rater_key_id, step_contribution, error_response, abstention,
+repeats_prior_action, supersedes
+```
+
+`supersedes` is signed **whether null or set**, so its absence is signed too. It
+was previously attached after signing, which let a proxy inject or alter correction
+intent on a rater's behalf.
+
+A correction must name a live record with the **same `item_id` and the same
+`rater_key_id`**. Without that, `supersedes` was a deletion primitive: it could
+point at another rater's record, and the effective view would drop the victim.
+
+### 5b.3 Intake is an append-only ledger
+
+Records are content-addressed, written `O_CREAT|O_EXCL` at mode `0444`, carry
+`record_id` / `created_at` / `previous_entry_hash`, and are appended under lock to
+an fsync'd hash chain with a head manifest. Load verifies the chain, the head, and
+every record's inclusion and content hash.
+
+Rating identity is append-only-unique per `(item, rater)`. A second submission is
+admissible **only** as an explicit correction naming a live record; corrections
+append and the superseded record stays on disk. Replay needed this separate
+constraint: `previous_entry_hash` sits *inside* the record, so the same rating at a
+new chain position gets a different `record_id` and `O_EXCL` never collides.
+
+Production intake **detects** a ledger by its manifest and reads
+`effective_ratings(load_ledger(...))`. `readiness.intake_mode` reports which path
+ran, so it is observable rather than assumed. This matters: pointing the older glob
+loader at a ledger root read `head.json` as a malformed record and ignored
+`records/`, while pointing it at `records/` ingested superseded records alongside
+their corrections and manufactured conflicts.
+
+### 5b.4 Rollback — what the ledger does NOT defend against
+
+**The ledger is locally tamper-evident. It is not rollback-proof.**
+
+Detected locally: overwritten record, deleted record, tampered record, orphan
+record file, head/chain mismatch, replay, supersede of an unknown record,
+double-supersede.
+
+**Not** detected locally: an operator who truncates `ledger.jsonl` **and** rewrites
+`head.json` consistently. The result is a shorter, internally valid ledger, and no
+amount of local hashing can distinguish it from a ledger that was always short.
+
+An earlier revision of this document claimed truncation defense. That claim was
+overstated: the evidence behind it truncated the log without also rewriting the
+manifest. `verify_against_anchor(ledger, head, count)` closes the gap **only** when
+an externally published head — a signed release note or a VCS commit outside the
+operator's control — is anchored and compared. A test asserts the rewritten
+rollback passes local verification and is caught *only* by the anchor.
+
+If the campaign needs rollback resistance, the anchor must be published on every
+append batch. Until then the honest claim is the narrow one.
+
 ## 6. Reproduce
 
 ```bash
@@ -480,7 +568,7 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 123 standalone checks + 22 pytest
+python3 research/goldset/test_labeling_package.py   # 194 standalone checks + 24 pytest
 ```
 
 Expect `labeling_package_file_sha256 165a3f78ea80c8864c4598752350c2b9686730038a21329fe7658a3b49b2591b`

@@ -388,20 +388,34 @@ def build_traj_card_data(
         try:
             bundle = ingest_benchmark_trial(trial_dir)
             step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
+            cached_tokens = [
+                s.cached_tokens if s.cached_tokens is not None else 0
+                for s in outline.steps
+                if s.prompt_tokens is not None
+            ]
             benchmark_family = bundle.contract.family
             if benchmark_family == "action-memory-v1":
                 feat_obj = extract_action_memory_features(
-                    bundle, step_tokens=step_tokens, dimensions=projection_dimensions
+                    bundle,
+                    step_tokens=step_tokens,
+                    dimensions=projection_dimensions,
+                    cached_step_tokens=cached_tokens,
                 )
                 benchmark_feat_dict = asdict(feat_obj)
             elif benchmark_family == "mcp-funcdag-v1":
                 feat_obj = extract_mcp_funcdag_features(
-                    bundle, step_tokens=step_tokens, dimensions=projection_dimensions
+                    bundle,
+                    step_tokens=step_tokens,
+                    dimensions=projection_dimensions,
+                    cached_step_tokens=cached_tokens,
                 )
                 benchmark_feat_dict = asdict(feat_obj)
             elif benchmark_family == "mcp-recovery-v1":
                 feat_obj = extract_mcp_recovery_features(
-                    bundle, step_tokens=step_tokens, dimensions=projection_dimensions
+                    bundle,
+                    step_tokens=step_tokens,
+                    dimensions=projection_dimensions,
+                    cached_step_tokens=cached_tokens,
                 )
                 benchmark_feat_dict = asdict(feat_obj)
         except Exception:
@@ -791,26 +805,20 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
         lines.append("| Metric | Value | Role |")
         lines.append("|---|---|---|")
         lines.append(f"| `event_count` | `{c0['event_count']}` | mechanical fact |")
-        lines.append(
-            f"| `tool_call_count` | `{c0['tool_call_count']}` | denominator |"
-        )
+        lines.append(f"| `tool_call_count` | `{c0['tool_call_count']}` | denominator |")
         lines.append(
             f"| `opportunity_denominator` | `{c0.get('opportunity_denominator')}` | explicit |"
         )
         lines.append(
             f"| `opportunity_count` | `{c0.get('opportunity_count')}` | denominator value |"
         )
-        lines.append(
-            f"| `tool_error_count` | `{c0['tool_error_count']}` | mechanical fact |"
-        )
+        lines.append(f"| `tool_error_count` | `{c0['tool_error_count']}` | mechanical fact |")
         lines.append(
             "| `tool_error_rate_screening` | "
             f"`{c0['tool_error_rate_screening']}` | C0 screening ratio |"
         )
         lines.append(f"| `source_sha256` | `{c0.get('source_sha256') or 'n/a'}` | digest |")
-        lines.append(
-            f"| `trajectory_sha256` | `{c0.get('trajectory_sha256') or 'n/a'}` | digest |"
-        )
+        lines.append(f"| `trajectory_sha256` | `{c0.get('trajectory_sha256') or 'n/a'}` | digest |")
         lines.append(f"| `verifier_sha256` | `{c0.get('verifier_sha256') or 'n/a'}` | digest |")
         lines.append("")
 

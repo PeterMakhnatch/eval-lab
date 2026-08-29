@@ -696,6 +696,69 @@ def test_action_memory_expected_handle_application_error_rejected(tmp_path: Path
     assert features.handle_coverage_rate == 0.5
 
 
+def test_action_memory_nested_application_error_rejected(tmp_path: Path):
+    """Expected handle requested with a nested application error (status ok, value.error not_found) must be rejected."""
+    trial_dir = tmp_path / "action_nested_app_error"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "nested_err_task",
+        "opportunity_counts": {"read_opportunity_count": 2, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_executed",
+            "call_id": "c1",
+            "result": {"content": "data 1"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "tool_result",
+            "call_id": "c2",
+            "result": {"status": "ok", "value": {"error": "not_found"}},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 2
+    assert features.valid_handle_count == 1
+    assert features.unknown_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_coverage_rate == 0.5
+
+
 def test_prompt_cache_hit_rate_strict_token_weighting(action_memory_trial_dir: Path):
     """prompt_cache_hit_rate must compute strict token-weighted cached_tokens / prompt_tokens."""
     bundle = load_trial_bundle(action_memory_trial_dir)
@@ -709,13 +772,73 @@ def test_prompt_cache_hit_rate_strict_token_weighting(action_memory_trial_dir: P
     )
     assert f2.prompt_cache_hit_rate == 1.00
 
-    # Empty step tokens -> None (NULL)
-    f3 = extract_action_memory_features(bundle, step_tokens=[], cached_step_tokens=[])
-    assert f3.prompt_cache_hit_rate is None
 
-    # Length mismatch -> None (NULL)
-    f4 = extract_action_memory_features(bundle, step_tokens=[100, 150], cached_step_tokens=[100])
-    assert f4.prompt_cache_hit_rate is None
+def test_prompt_cache_hit_rate_fail_closed_negative_regressions(action_memory_trial_dir: Path):
+    """prompt_cache_hit_rate must strictly fail closed (return None/NULL) on absent, misaligned, negative, or excessive tokens."""
+    from evallab.interpretation.producers import compute_prompt_cache_hit_rate
+
+    bundle = load_trial_bundle(action_memory_trial_dir)
+
+    # 1. Absent / None / empty
+    assert compute_prompt_cache_hit_rate(None, None) is None
+    assert compute_prompt_cache_hit_rate([100], None) is None
+    assert compute_prompt_cache_hit_rate(None, [100]) is None
+    assert compute_prompt_cache_hit_rate([], []) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[], cached_step_tokens=[]
+        ).prompt_cache_hit_rate
+        is None
+    )
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100], cached_step_tokens=None
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 2. Length mismatch / misaligned
+    assert compute_prompt_cache_hit_rate([100, 200], [50]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100, 200], cached_step_tokens=[50]
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 3. Negative token counts
+    assert compute_prompt_cache_hit_rate([-100, 200], [0, 50]) is None
+    assert compute_prompt_cache_hit_rate([100, 200], [-10, 50]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[-100, 200], cached_step_tokens=[0, 50]
+        ).prompt_cache_hit_rate
+        is None
+    )
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100, 200], cached_step_tokens=[-10, 50]
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 4. Zero prompt tokens
+    assert compute_prompt_cache_hit_rate([0, 0], [0, 0]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[0, 0], cached_step_tokens=[0, 0]
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 5. Cached total exceeds prompt total (e.g. 300 > 250)
+    assert compute_prompt_cache_hit_rate([100, 150], [150, 150]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100, 150], cached_step_tokens=[150, 150]
+        ).prompt_cache_hit_rate
+        is None
+    )
 
 
 def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):

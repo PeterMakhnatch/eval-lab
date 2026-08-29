@@ -24,6 +24,7 @@ from evallab.interpretation.benchmark_projection import (
     build_projection_dimensions,
     projection_feature_fields,
 )
+from evallab.interpretation.feature_registry import compute_prompt_cache_hit_rate
 
 
 @dataclass(frozen=True)
@@ -96,7 +97,6 @@ class McpFuncDagFeatures:
 def extract_mcp_funcdag_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
-    cache_hits: Sequence[bool] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
 ) -> McpFuncDagFeatures:
@@ -231,13 +231,7 @@ def extract_mcp_funcdag_features(
     if step_tokens:
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
-    prompt_cache_hit_rate: float | None = None
-    if step_tokens and sum(step_tokens) > 0:
-        if cached_step_tokens and len(cached_step_tokens) == len(step_tokens):
-            prompt_cache_hit_rate = float(sum(cached_step_tokens) / sum(step_tokens))
-        elif cache_hits and len(cache_hits) == len(step_tokens):
-            cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
-            prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
+    prompt_cache_hit_rate = compute_prompt_cache_hit_rate(step_tokens, cached_step_tokens)
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

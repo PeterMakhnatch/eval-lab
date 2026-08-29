@@ -7,12 +7,43 @@ typed, documented, and declare its denominator sibling for null-on-zero invarian
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
 import pyarrow as pa
 
 from evallab.analysis_capability import FeatureContractRow
+
+
+def compute_prompt_cache_hit_rate(
+    step_tokens: Sequence[int] | None,
+    cached_step_tokens: Sequence[int] | None,
+) -> float | None:
+    """Strict token-weighted prompt cache hit rate.
+
+    Returns float(sum(cached_step_tokens) / sum(step_tokens)).
+    Strictly returns None (NULL) / fails closed when:
+    - step_tokens or cached_step_tokens is None or empty
+    - sequence lengths are misaligned (len(cached_step_tokens) != len(step_tokens))
+    - any element in step_tokens or cached_step_tokens is negative (< 0)
+    - total prompt tokens <= 0
+    - total cached tokens exceeds total prompt tokens (sum(cached_step_tokens) > sum(step_tokens))
+    """
+    if not step_tokens or not cached_step_tokens:
+        return None
+    if len(cached_step_tokens) != len(step_tokens):
+        return None
+    if any(s < 0 for s in step_tokens) or any(c < 0 for c in cached_step_tokens):
+        return None
+    total_prompt = sum(step_tokens)
+    total_cached = sum(cached_step_tokens)
+    if total_prompt <= 0:
+        return None
+    if total_cached > total_prompt:
+        return None
+    return float(total_cached / total_prompt)
+
 
 FeatureCategory = Literal[
     "identity",

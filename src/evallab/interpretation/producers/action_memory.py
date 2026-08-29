@@ -17,12 +17,14 @@ from typing import Any
 from evallab.interpretation.benchmark_events import (
     CorrelatedToolCall,
     TrialBundle,
+    is_application_error,
 )
 from evallab.interpretation.benchmark_projection import (
     BenchmarkProjectionDimensions,
     build_projection_dimensions,
     projection_feature_fields,
 )
+from evallab.interpretation.feature_registry import compute_prompt_cache_hit_rate
 
 
 @dataclass(frozen=True)
@@ -120,7 +122,6 @@ def _compute_cbv_slope(step_tokens: Sequence[int] | None) -> float | None:
 def extract_action_memory_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
-    cache_hits: Sequence[bool] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
 ) -> ActionMemoryFeatures:
@@ -239,18 +240,7 @@ def extract_action_memory_features(
                 if cid is not None:
                     cid_str = str(cid)
                     observed_handles.append(cid_str)
-                    call_error = bool(
-                        call.is_error
-                        or (
-                            isinstance(call.result_payload, dict)
-                            and (
-                                call.result_payload.get("error")
-                                or call.result_payload.get("is_error")
-                                or call.result_payload.get("status")
-                                in ("error", "not_found", "not-found")
-                            )
-                        )
-                    )
+                    call_error = bool(call.is_error or is_application_error(call.result_payload))
                     if not call_error and (not expected_set or cid_str in expected_set):
                         successful_valid_handles.append(cid_str)
     else:
@@ -262,9 +252,10 @@ def extract_action_memory_features(
             ):
                 cid_str = str(ev.payload["chunk_id"])
                 observed_handles.append(cid_str)
-                if not expected_set or cid_str in expected_set:
+                if not is_application_error(ev.payload) and (
+                    not expected_set or cid_str in expected_set
+                ):
                     successful_valid_handles.append(cid_str)
-
     valid_handle_count = len(set(successful_valid_handles))
     unknown_handles = [h for h in observed_handles if h not in expected_set] if expected_set else []
     unknown_handle_count = len(unknown_handles)
@@ -328,13 +319,7 @@ def extract_action_memory_features(
     if step_tokens:
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
-    prompt_cache_hit_rate: float | None = None
-    if step_tokens and sum(step_tokens) > 0:
-        if cached_step_tokens and len(cached_step_tokens) == len(step_tokens):
-            prompt_cache_hit_rate = float(sum(cached_step_tokens) / sum(step_tokens))
-        elif cache_hits and len(cache_hits) == len(step_tokens):
-            cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
-            prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
+    prompt_cache_hit_rate = compute_prompt_cache_hit_rate(step_tokens, cached_step_tokens)
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

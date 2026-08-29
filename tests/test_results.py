@@ -134,3 +134,44 @@ def test_partial_harbor_job_is_not_a_completed_job(tmp_path: Path) -> None:
     assert discover_job_dirs([tmp_path]) == []
     with pytest.raises(ValueError, match="Not a completed Harbor job"):
         load_job(job_dir)
+
+
+# ---- malformed result.json discovery (preserved failed-artifact evidence) ----
+
+
+def test_discovery_survives_a_malformed_nested_artifact_result(tmp_path: Path) -> None:
+    """A faithfully-preserved failed-trial artifact whose result.json is not
+    valid JSON (the agent wrote a scalar before the document) must not abort
+    discovery or hide the real job around it."""
+    job_dir = make_job(tmp_path)
+    malformed = job_dir / "sample-task__abc123/artifacts/app/output/result.json"
+    malformed.parent.mkdir(parents=True, exist_ok=True)
+    malformed.write_text("3\n{\n  \"target\": \"n_2_0\",\n  \"value\": 3\n}\n")
+
+    # Discovery still finds the real job and does not crash.
+    assert discover_job_dirs([tmp_path]) == [job_dir.resolve()]
+    # The job still loads; the malformed artifact is preserved, not dropped.
+    job = load_job(job_dir)
+    assert job.id == "00000000-0000-0000-0000-000000000001"
+    assert malformed.exists()
+
+
+def test_discovery_skips_a_malformed_job_level_result(tmp_path: Path) -> None:
+    """A job whose own result.json is malformed is not a completed Harbor job:
+    discovery must skip it (not crash), while explicit load stays fail-closed."""
+    job_dir = make_job(tmp_path)
+    (job_dir / "result.json").write_text("not-json", encoding="utf-8")
+
+    assert discover_job_dirs([tmp_path]) == []
+    with pytest.raises(Exception):
+        load_job(job_dir)
+
+
+def test_load_job_fails_closed_on_a_malformed_job_result(tmp_path: Path) -> None:
+    """Discovery is lenient, but selecting the job explicitly must not be: a
+    malformed job-level result raises rather than silently loading an empty job."""
+    job_dir = make_job(tmp_path)
+    (job_dir / "result.json").write_text("garbage", encoding="utf-8")
+
+    with pytest.raises(Exception):
+        load_job(job_dir)

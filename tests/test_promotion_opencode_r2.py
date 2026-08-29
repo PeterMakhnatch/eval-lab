@@ -17,6 +17,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 from evallab.evidence.atif import _validate_fallback
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,12 +71,15 @@ def atif_fixture() -> dict:
     }
 
 
-def make_job(tmp_path: Path) -> Path:
+def make_job(tmp_path: Path, *, broken_auth: bool = False, extra_symlink: Path | None = None) -> Path:
     """A synthetic OpenCode job: ATIF trajectory plus raw/runtime sentinel files.
 
     ``auth.json`` is a *symlink* to a host credential store, exactly as the
-    real runs produced it; it points at a real sentinel file so promotion must
-    classify it as R2 omission rather than skipping it silently.
+    real runs produced it. By default it points at a real sentinel file so
+    promotion must classify it as R2 omission rather than skipping it silently;
+    with ``broken_auth`` it points at a non-existent target (the real links are
+    broken once the secret is deleted). ``extra_symlink``, when given, adds a
+    symlink *outside* any R2 path whose target holds sentinel bytes.
     """
     job = tmp_path / "job"
     trial = job / "evallab-zai-syn-funcdag-easy__synthetic"
@@ -102,9 +107,17 @@ def make_job(tmp_path: Path) -> Path:
     snap.mkdir(parents=True)
     (snap / "exclude").write_bytes(SENTINELS[4])
     (agent / "opencode" / "xdg-state" / "opencode" / "locks").mkdir(parents=True)
-    secret = tmp_path / "host-secret.json"
-    secret.write_bytes(AUTH_SECRET.encode())
-    (oc / "auth.json").symlink_to(secret)
+    if broken_auth:
+        (oc / "auth.json").symlink_to("/run/secrets/evallab_zai_opencode_auth.json")
+    else:
+        secret = tmp_path / "host-secret.json"
+        secret.write_bytes(AUTH_SECRET.encode())
+        (oc / "auth.json").symlink_to(secret)
+    if extra_symlink is not None:
+        extra_symlink.parent.mkdir(parents=True, exist_ok=True)
+        outside_target = tmp_path / "outside-secret.json"
+        outside_target.write_bytes(b"opencode-outside-target-never-commit")
+        extra_symlink.symlink_to(outside_target)
     return job
 
 
@@ -206,11 +219,28 @@ def test_opencode_omissions_are_recorded_in_the_manifest(tmp_path: Path) -> None
         "evallab-zai-syn-funcdag-easy__synthetic/agent/opencode/xdg-data/opencode/snapshot/global/42099b4a/info/exclude",
     ):
         assert expected in paths, f"omission not recorded for {expected}"
+    by_path = {e["source_path"]: e for e in omitted}
     for entry in omitted:
         assert entry["promoted_path"] is None
         assert entry["action"] == "omitted"
+        assert entry["rule"] == "R2"
+        assert entry["entry_type"] in {"file", "symlink"}
         assert entry["source_sha256"].startswith("sha256:")
         assert entry["source_bytes"] > 0
+    # OpenCode runtime *files* are recorded as files.
+    txt = by_path["evallab-zai-syn-funcdag-easy__synthetic/agent/opencode.txt"]
+    assert txt["entry_type"] == "file"
+    assert "link_target" not in txt
+    # The credential link is recorded as a symlink by its link-target string,
+    # with the SHA-256/length of the string itself, never the target content.
+    link = by_path["evallab-zai-syn-funcdag-easy__synthetic/agent/opencode/xdg-data/opencode/auth.json"]
+    assert link["entry_type"] == "symlink"
+    assert isinstance(link["link_target"], str) and link["link_target"]
+    assert link["source_sha256"] == PROMOTE.sha256_bytes(link["link_target"].encode("utf-8"))
+    assert link["source_bytes"] == len(link["link_target"].encode("utf-8"))
+    # The live target's content must never have been digested.
+    secret = tmp_path / "host-secret.json"
+    assert link["source_sha256"] != PROMOTE.sha256_bytes(secret.read_bytes())
 
 
 def test_the_redacted_atif_trajectory_remains_valid(tmp_path: Path) -> None:
@@ -245,3 +275,79 @@ def test_promotion_verify_detects_tamper(tmp_path: Path) -> None:
     result = bundle / "result.json"
     result.write_text(result.read_text() + "\n# tampered\n", encoding="utf-8")
     assert PROMOTE.verify(evidence) != 0, "verify must flag a tampered promoted file"
+
+
+# ---- hardened symlink handling (R2) ------------------------------------------
+
+
+def test_a_broken_r2_symlink_is_recorded_not_dropped(tmp_path: Path) -> None:
+    """The real OpenCode auth links are broken (target deleted); they must be
+    enumerated and recorded, never silently skipped and never dereferenced."""
+    job = make_job(tmp_path, broken_auth=True)
+    bundle = tmp_path / "evidence" / job.name
+    manifest = PROMOTE.promote(job, bundle)
+
+    link = next(
+        e
+        for e in manifest["files"]
+        if e.get("entry_type") == "symlink"
+    )
+    assert link["link_target"] == "/run/secrets/evallab_zai_opencode_auth.json"
+    assert link["action"] == "omitted" and link["rule"] == "R2"
+    assert link["source_sha256"] == PROMOTE.sha256_bytes(
+        link["link_target"].encode("utf-8")
+    )
+    assert not any(p.is_symlink() for p in bundle.rglob("*"))
+
+
+def test_a_live_r2_symlink_target_is_never_read(tmp_path: Path) -> None:
+    """A live credential link must be recorded by its link-target string; its
+    target bytes must never be read, digested or written."""
+    job = make_job(tmp_path)  # live auth.json -> host-secret.json
+    bundle = tmp_path / "evidence" / job.name
+    manifest = PROMOTE.promote(job, bundle)
+
+    link = next(e for e in manifest["files"] if e.get("entry_type") == "symlink")
+    secret = tmp_path / "host-secret.json"
+    # Not the target content digest.
+    assert link["source_sha256"] != PROMOTE.sha256_bytes(secret.read_bytes())
+    assert link["source_sha256"] == PROMOTE.sha256_bytes(
+        link["link_target"].encode("utf-8")
+    )
+    # And the target content never reached any promoted file.
+    body = b"".join(b for _, b in promoted_bytes(bundle))
+    assert AUTH_SECRET.encode() not in body
+
+
+def test_a_non_r2_symlink_is_refused_and_never_disclosed(tmp_path: Path) -> None:
+    """Any symlink outside an explicit omission rule must fail closed: promotion
+    refuses to copy or dereference it, and its target content stays unread."""
+    job = make_job(tmp_path, extra_symlink=tmp_path / "job" / "extra" / "link")
+    bundle = tmp_path / "evidence" / job.name
+    with pytest.raises(SystemExit):
+        PROMOTE.promote(job, bundle)
+    # Refused means the target was never read or copied: its content must not
+    # appear anywhere, and no symlink may have been promoted.
+    if bundle.exists():
+        for name, body in promoted_bytes(bundle):
+            assert b"opencode-outside-target-never-commit" not in body, name
+        assert not any(p.is_symlink() for p in bundle.rglob("*"))
+
+
+def test_a_tampered_symlink_omission_record_is_refused(tmp_path: Path) -> None:
+    """verify() re-checks the symlink omission record source-free: a forged
+    link_target must break the recorded digest."""
+    job = make_job(tmp_path)
+    evidence = tmp_path / "evidence"
+    bundle = evidence / job.name
+    PROMOTE.promote(job, bundle)
+
+    manifest_path = bundle / "PROMOTION.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for entry in manifest["files"]:
+        if entry.get("entry_type") == "symlink":
+            entry["link_target"] = "/run/secrets/forged_target.json"
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    assert PROMOTE.verify(evidence) != 0, "verify must refuse a forged symlink record"

@@ -140,7 +140,13 @@ stays a valid ATIF-v1.7 document. OpenCode raw model I/O and runtime state —
 SQLite `opencode.db`/`opencode.db-wal`/`opencode.db-shm` store, `log/opencode.log`,
 `snapshot/**`, `repos/**`, `locks/**` and the XDG `auth.json` credential link —
 is omitted entirely and digest-recorded under R2; none of it survives in the
-bundles. Verify at any time with:
+bundles. Promotion enumerates symlinks explicitly and never dereferences them:
+each `auth.json` is a symlink to the host credential store, so it is recorded
+as an R2 omission with `entry_type: "symlink"` and the SHA-256/length of its
+*link-target string* (the link itself, never the target's content). Any symlink
+outside an R2 omission path is refused outright, and `--verify` rejects any
+symlink found in a promoted bundle and re-checks every recorded link-target
+digest. Verify at any time with:
 
 ```bash
 uv run python scripts/promote_codex_bundle.py --verify

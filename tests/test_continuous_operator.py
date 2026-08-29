@@ -22,6 +22,11 @@ from evallab.ops_continuous import (
     KILL_DISPOSITION,
     LAUNCHD_LOG_TOKEN,
     LAUNCHD_STATE_TOKEN,
+    PINNED_INIT_IMAGE,
+    PINNED_KEYCHAIN_REF,
+    PINNED_LINUX_REF,
+    PINNED_LINUX_SECRET_NAME,
+    PINNED_PREVIOUS_KEY_ID,
     REASON_BILLABLE_REFUSED,
     REASON_DEFAULT_DISABLED,
     REASON_DRAIN_INCOMPLETE,
@@ -38,6 +43,7 @@ from evallab.ops_continuous import (
     policy_complete,
     public_sha256_is_not_a_signature,
     put_trusted_record,
+    recovery_settlement_binding,
     trust_root_for,
 )
 
@@ -65,7 +71,8 @@ APPROVAL = "approval-key"
 BUDGET = "budget-key"
 RECOVERY = "recovery-key"
 MAC_KEY = b"eval-lab-operator-mac-key-32bytes!"
-FILE_REF = "file:/run/secrets/evallab-hmac"
+FILE_REF = PINNED_LINUX_REF
+PREV_KEY = b"eval-lab-operator-mac-key-prev32b!"
 RECOVERY_JTI = "recovery-jti-00000001"
 APPROVAL_NONCE = "approval-nonce-0001"
 BUDGET_NONCE = "budget-nonce-0000001"
@@ -153,11 +160,11 @@ def _policy(path: Path, *, stale_after: float = 60.0, drain_timeout: float = 5.0
 def _install_hmac(tmp_path: Path, *, key: bytes = MAC_KEY, previous: bytes | None = None) -> Path:
     root = tmp_path / "run-secrets"
     root.mkdir(exist_ok=True)
-    path = root / "evallab-hmac"
+    path = root / PINNED_LINUX_SECRET_NAME
     path.write_bytes(key)
     os.chmod(path, 0o400)
     if previous is not None:
-        prev = root / "evallab-hmac.previous"
+        prev = root / f"{PINNED_LINUX_SECRET_NAME}.previous"
         prev.write_bytes(previous)
         os.chmod(prev, 0o400)
     return root
@@ -186,15 +193,20 @@ def _write_auths(
     import hashlib
 
     state.mkdir(exist_ok=True)
-    if not (state.parent / "run-secrets" / "evallab-hmac").is_file():
+    if not (state.parent / "run-secrets" / PINNED_LINUX_SECRET_NAME).is_file():
         _install_hmac(state.parent, key=mac_key)
     root = trust_root_for(state, {})
     dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
     budget = {**_budget_fields(), "ceiling_usd": ceiling_usd}
     kill_digest = None
+    fenced_ids: list[str] = []
+    settlement_digests: list[str] = []
     kill_path = state / "kill.json"
     if kill_path.is_file():
         kill_digest = hashlib.sha256(kill_path.read_bytes()).hexdigest()
+        bound = recovery_settlement_binding(state)
+        if bound is not None:
+            fenced_ids, settlement_digests = bound
     if include_approval:
         put_trusted_record(
             root,
@@ -215,7 +227,13 @@ def _write_auths(
         put_trusted_record(
             root,
             mac_key,
-            _trust_record(kind="recovery", actor=recovery_actor, kill_digest=kill_digest),
+            _trust_record(
+                kind="recovery",
+                actor=recovery_actor,
+                kill_digest=kill_digest,
+                fenced_ids=fenced_ids,
+                settlement_digests=settlement_digests,
+            ),
             policy=dump,
             budget=budget,
             kill_digest=kill_digest,
@@ -224,9 +242,14 @@ def _write_auths(
 
 
 def _settle_kill(state: Path) -> None:
-    (state / "inflight.json").write_text("[]\n")
-    (state / "leases.json").write_text(json.dumps([{"id": "lease-1", "status": "settled"}]) + "\n")
     kill = json.loads((state / "kill.json").read_text())
+    fenced = [item for item in (kill.get("fenced") or []) if isinstance(item, str)]
+    leases = [
+        {"id": ident, "status": "settled", "evidence": {"settled_by": "test", "lease_id": ident}}
+        for ident in fenced
+    ]
+    (state / "inflight.json").write_text("[]\n")
+    (state / "leases.json").write_text(json.dumps(leases) + "\n")
     kill["executed"] = True
     (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
 
@@ -264,15 +287,16 @@ def _run(
     merged = {**os.environ, **(env or {})}
     buf = io.StringIO()
     clock = (lambda: now) if now is not None else None
-    with redirect_stdout(buf):
-        store = secret_store
-        if secrets_root is not None:
-            root = secrets_root
-        elif env and env.get("CREDENTIALS_DIRECTORY"):
-            root = None
-        else:
-            root = tmp_path / "run-secrets"
-        code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=root)
+    import evallab.ops_continuous as oc
+
+    original_path = oc.PINNED_LINUX_SECRET_PATH
+    oc.PINNED_LINUX_SECRET_PATH = tmp_path / "run-secrets" / PINNED_LINUX_SECRET_NAME
+    try:
+        with redirect_stdout(buf):
+            store = secret_store
+            code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=None)
+    finally:
+        oc.PINNED_LINUX_SECRET_PATH = original_path
     return SimpleNamespace(returncode=code, stdout=buf.getvalue())
 
 
@@ -634,7 +658,7 @@ def test_systemd_units_not_wanted() -> None:
     assert "Restart=no" in service
     assert "Persistent=false" in timer
     assert "DynamicUser=yes" in service
-    assert "LoadCredential=evallab-hmac:/root-managed/evallab-hmac" in service
+    assert "LoadCredential=evallab-approval-hmac:/root-managed/evallab-approval-hmac" in service
     assert not any(line.strip().startswith("LoadCredential=") for line in service.splitlines())
     assert "BindReadOnlyPaths=" not in service
     assert "NoNewPrivileges=yes" in service
@@ -846,7 +870,7 @@ def test_rendered_templates_confine_writable_state() -> None:
     assert service.count("/var/lib/evallab-operator") >= 1
     assert "--state-dir /var/lib/evallab-operator" in service
     assert "StateDirectory=evallab-operator" in service
-    assert "LoadCredential=evallab-hmac:/root-managed/evallab-hmac" in service
+    assert "LoadCredential=evallab-approval-hmac:/root-managed/evallab-approval-hmac" in service
     assert not any(line.strip().startswith("LoadCredential=") for line in service.splitlines())
     assert "read_only: true" in compose
     assert "evallab-operator-state:/var/lib/evallab-operator" in compose
@@ -875,7 +899,8 @@ def test_hmac_key_in_writable_state_is_ignored(tmp_path: Path) -> None:
     planted = state / "evallab-hmac"
     planted.write_bytes(MAC_KEY)
     os.chmod(planted, 0o400)
-    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, secrets_root=state)
+    (tmp_path / "run-secrets" / PINNED_LINUX_SECRET_NAME).unlink(missing_ok=True)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
@@ -916,10 +941,18 @@ def test_recovery_is_one_time_and_audited(tmp_path: Path) -> None:
     _settle_kill(state)
     dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
     kill_digest = __import__("hashlib").sha256((state / "kill.json").read_bytes()).hexdigest()
+    bound = recovery_settlement_binding(state) or ([], [])
     put_trusted_record(
         trust_root_for(state, {}),
         MAC_KEY,
-        _trust_record(kind="recovery", actor=RECOVERY, nonce=RECOVERY_JTI, kill_digest=kill_digest),
+        _trust_record(
+            kind="recovery",
+            actor=RECOVERY,
+            nonce=RECOVERY_JTI,
+            kill_digest=kill_digest,
+            fenced_ids=bound[0],
+            settlement_digests=bound[1],
+        ),
         policy=dump,
         budget=_budget_fields(),
         kill_digest=kill_digest,
@@ -999,7 +1032,7 @@ def test_budget_ceiling_above_standing_is_refused(tmp_path: Path) -> None:
 def test_previous_hmac_key_is_accepted_during_rotation(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    _install_hmac(tmp_path, key=b"eval-lab-operator-mac-key-active32", previous=MAC_KEY)
+    _install_hmac(tmp_path, key=PREV_KEY, previous=MAC_KEY)
     _write_auths(state, mac_key=MAC_KEY)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
@@ -1054,16 +1087,20 @@ def test_recover_refuses_inflight_without_consuming_nonce(tmp_path: Path) -> Non
     assert not (state / "nonces").exists() or not any((state / "nonces").iterdir())
 
 
-def test_credentials_directory_0440_key_is_accepted(tmp_path: Path) -> None:
+def test_credentials_directory_0440_key_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import evallab.ops_continuous as oc
+
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     creds = tmp_path / "credentials"
     creds.mkdir()
-    key = creds / "evallab-hmac"
+    key = creds / PINNED_LINUX_SECRET_NAME
     key.write_bytes(MAC_KEY)
     os.chmod(key, 0o440)
     _write_auths(state)
+    (tmp_path / "run-secrets" / PINNED_LINUX_SECRET_NAME).unlink(missing_ok=True)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    monkeypatch.setattr(oc, "_is_readonly_mount", lambda path: True)
     env = {**_gate_env(), "CREDENTIALS_DIRECTORY": str(creds)}
     result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
     assert result.returncode == 0
@@ -1072,14 +1109,15 @@ def test_credentials_directory_0440_key_is_accepted(tmp_path: Path) -> None:
 def test_euid_writable_hmac_file_is_rejected(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    root = tmp_path / "writable-secrets"
+    root = tmp_path / "run-secrets"
     root.mkdir()
-    path = root / "evallab-hmac"
+    path = root / PINNED_LINUX_SECRET_NAME
     path.write_bytes(MAC_KEY)
     os.chmod(path, 0o600)
     _write_auths(state)
+    os.chmod(path, 0o600)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
-    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, secrets_root=root)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
@@ -1147,4 +1185,66 @@ def test_drain_then_signed_recovery_clears_killed(tmp_path: Path) -> None:
     recovered = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert recovered.returncode == 0
     assert (state / "mode").read_text().strip() == "DISABLED"
+
+def test_caller_env_temp_key_and_arbitrary_credentials_path_are_ignored(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (tmp_path / "run-secrets" / PINNED_LINUX_SECRET_NAME).unlink()
+    other = tmp_path / "tmp-key"
+    other.write_bytes(MAC_KEY)
+    os.chmod(other, 0o400)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    env = {
+        **_gate_env(),
+        "EVAL_LAB_HMAC_KEY": MAC_KEY.decode(),
+        "CREDENTIALS_DIRECTORY": str(other),
+    }
+    result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_wrong_fingerprint_at_pinned_path_is_rejected(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _install_hmac(tmp_path, key=b"eval-lab-operator-mac-key-WRONG32b!")
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_recover_missing_fenced_lease_fails_without_spending_nonce(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-missing"]) + "\n")
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    kill = json.loads((state / "kill.json").read_text())
+    kill["executed"] = True
+    (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
+    (state / "inflight.json").write_text("[]\n")
+    (state / "leases.json").write_text(json.dumps([{"id": "other", "status": "settled", "evidence": "x"}]) + "\n")
+    _write_auths(state, recovery_actor=RECOVERY)
+    result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert not (state / "nonces").exists() or not any((state / "nonces").iterdir())
+
+
+def test_compose_init_image_is_digest_pinned() -> None:
+    compose = COMPOSE.read_text()
+    assert f"image: {PINNED_INIT_IMAGE}" in compose
+    assert "busybox" not in compose
+    assert compose.count("@sha256:") >= 1
+    assert "evallab-approval-hmac" in compose
+
+
+def test_policy_ref_must_equal_pinned_ref() -> None:
+    assert PINNED_LINUX_REF == "file:/run/secrets/evallab-approval-hmac"
+    assert PINNED_KEYCHAIN_REF.startswith("keychain:EvalLab/")
+    assert PINNED_PREVIOUS_KEY_ID in __import__("evallab.ops_continuous", fromlist=["PINNED_KEY_IDS"]).PINNED_KEY_IDS
 

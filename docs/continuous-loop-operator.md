@@ -71,14 +71,15 @@ plus `load_policy` of `standing-approvals.yaml`. Env presence flags
 and are refused. Enable identity, approval `actor`, and budget `actor` must
 be pairwise distinct. Parallel signed-manifest extra fields are rejected.
 `approval_digest` is an HMAC-SHA256 over canonical policy + budget + scope +
-`spec_id`. Policy `approval_signature_ref` names the allowlisted key source:
-`file:/run/secrets/<name>` resolved from Compose `/run/secrets` or systemd
-`$CREDENTIALS_DIRECTORY` (mode 0400/0440, not euid-writable, no symlink,
-outside writable state) or `keychain:<service>/<account>` via the macOS
-Keychain resolver in `main`. Active and previous keys are tried; records carry
-`issued_at` / `expires_at` / `nonce` / `key_id` / MAC. Env key bytes
-(`EVAL_LAB_APPROVAL_MAC_KEY`, `EVAL_LAB_HMAC_KEY_REF`, recovery tokens) are
-not trust roots. Unkeyed SHA-256 of public fields is not a signature.
+`spec_id`. Key reference and key_id fingerprints are compiled into the
+operator (active + previous). Policy `approval_signature_ref` must equal the
+pinned ref: Linux `file:/run/secrets/evallab-approval-hmac` (that exact path;
+systemd may expose the same basename under `$CREDENTIALS_DIRECTORY` after
+fstat regular, no symlink, fingerprint, and fstatvfs read-only mount) or
+macOS `keychain:EvalLab/evallab-approval-hmac`. Caller-selected paths, env
+key bytes, and unpinned fingerprints are not trust roots. Records carry
+`issued_at` / `expires_at` / `nonce` / `key_id` / MAC. Unkeyed SHA-256 of
+public fields is not a signature.
 Never put token material in git or argv logs. There is no production `--now`
 or `EVAL_LAB_OPERATOR_NOW` clock override. A heartbeat timestamp in the
 future is `stale_heartbeat`.
@@ -88,8 +89,8 @@ future is `stale_heartbeat`.
 | Enable token | `EVAL_LAB_ENABLE_TOKEN` + `EVAL_LAB_ENABLE_IDENTITY` |
 | Standing approval | MAC'd CAS record `kind=approval` with `issued_at`/`expires_at`/`nonce`/`key_id` (caller JSON is not the trust root) |
 | Budget | MAC'd CAS record `kind=budget`; `ceiling_usd` > 0 and not above `StandingApprovalsPolicy` |
-| MAC key | `approval_signature_ref` → `/run/secrets` or Keychain; never the writable state tree |
-| Recovery | One-time MAC'd record bound to `kill.json` digest + actor + expiry + nonce; audited then nonce consumed atomically |
+| MAC key | Compiled ref + key_id; Linux `/run/secrets/evallab-approval-hmac`; never caller path or writable state |
+| Recovery | One-time MAC bound to kill digest plus sorted fenced IDs and lease settlement digests; every fenced ID must exist in `leases.json` with terminal evidence |
 | Secret reference | `EVAL_LAB_SECRET_REF` closed grammar `keychain:<service>/<account>` (never logged) |
 | Secret presence probe | `EVAL_LAB_SECRET_PRESENT=1` or `$STATE/secret_present` (existence only) |
 | Policy | `--policy` full typed nested fields; nulls keep DISABLED |
@@ -112,14 +113,17 @@ policy fields also keep the operator DISABLED.
   directories mode 0700 with no symlink and log files 0600, and does not
   `launchctl bootstrap`. Template tokens stay in the committed plist.
 - systemd: `[Install]` has no `WantedBy=`. `DynamicUser=yes`,
-  `StateDirectory=evallab-operator`, `LoadCredential=evallab-hmac:/root-managed/evallab-hmac` is an optional enablement drop-in so disabled `validate` starts without the credential file.
-  The unit reads `$CREDENTIALS_DIRECTORY/evallab-hmac`, not a root-0400
-  `BindReadOnlyPaths=/run/secrets` mount. Do not `systemctl enable`.
+  `StateDirectory=evallab-operator`. Optional enablement drop-in:
+  `LoadCredential=evallab-approval-hmac:/root-managed/evallab-approval-hmac`
+  so disabled `validate` starts without the credential file. The operator
+  reads only `$CREDENTIALS_DIRECTORY/evallab-approval-hmac`. Do not
+  `systemctl enable`.
 - compose: `restart: "no"` and `profiles: ["manual"]`; `read_only: true`;
-  no-network root `operator-state-init` chowns the named volume to 65532
-  mode 0700; operator `depends_on` `service_completed_successfully`.
-  Docker secret uid/gid 65532 mode 0440 (readable, not writable).
-  tmpfs only `/tmp:mode=0700`. Image `uv sync --locked` then non-root `USER`.
+  no-network root `operator-state-init` uses pinned
+  `python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f`
+  (not a tag-only image) to chown the named volume to 65532 mode 0700;
+  operator `depends_on` `service_completed_successfully`. Docker secret
+  `evallab-approval-hmac` uid/gid 65532 mode 0440. tmpfs only `/tmp:mode=0700`.
   Do not `docker compose up`.
 - Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 

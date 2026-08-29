@@ -3,7 +3,7 @@ volumes:
 
 services:
   operator-state-init:
-    image: busybox:1.37
+    image: python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f
     user: "0:0"
     network_mode: none
     restart: "no"
@@ -12,9 +12,9 @@ services:
     volumes:
       - evallab-operator-state:/var/lib/evallab-operator
     command:
-      - sh
+      - python
       - -c
-      - mkdir -p /var/lib/evallab-operator && chown 65532:65532 /var/lib/evallab-operator && chmod 0700 /var/lib/evallab-operator
+      - import os, pathlib; p=pathlib.Path("/var/lib/evallab-operator"); p.mkdir(parents=True, exist_ok=True); os.chown(p, 65532, 65532); os.chmod(p, 0o700)
   continuous-operator:
     build:
       context: ../..
@@ -33,8 +33,8 @@ services:
       # Do not mount this volume over /run/secrets; the MAC key is outside writable state.
       - evallab-operator-state:/var/lib/evallab-operator
     secrets:
-      - source: evallab-hmac
-        target: evallab-hmac
+      - source: evallab-approval-hmac
+        target: evallab-approval-hmac
         uid: "65532"
         gid: "65532"
         mode: 0440
@@ -44,5 +44,5 @@ services:
     command: ["validate", "--state-dir", "/var/lib/evallab-operator"]
 
 secrets:
-  evallab-hmac:
+  evallab-approval-hmac:
     external: true

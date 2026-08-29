@@ -52,6 +52,18 @@ REASON_SAME_IDENTITY = "same_enable_and_approval_identity"
 REASON_BILLABLE_REFUSED = "billable_refused"
 REASON_RECOVERY_SPENT = "recovery_spent"
 FILE_SECRET_PREFIX = "file:/run/secrets/"
+PINNED_LINUX_SECRET_NAME = "evallab-approval-hmac"
+PINNED_LINUX_SECRET_PATH = Path("/run/secrets") / PINNED_LINUX_SECRET_NAME
+PINNED_LINUX_REF = FILE_SECRET_PREFIX + PINNED_LINUX_SECRET_NAME
+PINNED_KEYCHAIN_SERVICE = "EvalLab"
+PINNED_KEYCHAIN_ACCOUNT = "evallab-approval-hmac"
+PINNED_KEYCHAIN_REF = f"keychain:{PINNED_KEYCHAIN_SERVICE}/{PINNED_KEYCHAIN_ACCOUNT}"
+PINNED_ACTIVE_KEY_ID = "9d6d16707b5d953d71e986d26590be11e2d4d637fdd453eaebb014d9a2b96d9f"
+PINNED_PREVIOUS_KEY_ID = "93a4b0ce5d047de908aea646b3c21fdd10896bb3a56c6f338b34e7479ae34c00"
+PINNED_KEY_IDS = frozenset({PINNED_ACTIVE_KEY_ID, PINNED_PREVIOUS_KEY_ID})
+PINNED_INIT_IMAGE = (
+    "python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
+)
 ALLOWED_KEY_MODES = frozenset({0o400, 0o440})
 TERMINAL_LEASE_STATUSES = frozenset({"settled", "terminal", "complete", "cancelled", "failed"})
 MACOS_STATE_REL = Path("Library/Application Support/EvalLab")
@@ -217,9 +229,7 @@ class ContinuousLoopPolicy(ContractModel):
 
 
 def signature_ref_allowed(value: str) -> bool:
-    if value.startswith(FILE_SECRET_PREFIX):
-        return bool(FILE_SECRET_NAME.fullmatch(value[len(FILE_SECRET_PREFIX) :]))
-    return bool(SECRET_REF_GRAMMAR.fullmatch(value))
+    return value in {PINNED_LINUX_REF, PINNED_KEYCHAIN_REF}
 
 
 def canonical_binding_payload(
@@ -311,13 +321,24 @@ def _escapes_or_symlinks(root: Path, path: Path) -> bool:
     return False
 
 
+def _is_readonly_mount(path: Path) -> bool:
+    try:
+        vfs = os.statvfs(path)
+    except OSError:
+        return False
+    flag = getattr(os, "ST_RDONLY", 1)
+    return bool(vfs.f_flag & flag)
+
+
 def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
+    if path.name not in {PINNED_LINUX_SECRET_NAME, f"{PINNED_LINUX_SECRET_NAME}.previous"}:
+        return b""
     if path.is_symlink() or not path.is_file() or _escapes_or_symlinks(secrets_root, path):
         return b""
     if not _outside_state(path, state_dir):
         return b""
     try:
-        info = path.stat()
+        info = os.stat(path, follow_symlinks=False)
     except OSError:
         return b""
     if not stat.S_ISREG(info.st_mode):
@@ -336,22 +357,25 @@ def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
         data = path.read_bytes().strip()
     except OSError:
         return b""
-    return data if len(data) >= 32 else b""
+    if len(data) < 32:
+        return b""
+    if key_id_for(data) not in PINNED_KEY_IDS:
+        return b""
+    return data
 
 
 def load_macos_keychain_secret(ref: str) -> bytes | None:
-    candidate = ref[:-9] if ref.endswith(".previous") else ref
-    if not SECRET_REF_GRAMMAR.fullmatch(candidate):
+    allowed = {PINNED_KEYCHAIN_REF, PINNED_KEYCHAIN_REF + ".previous"}
+    if ref not in allowed:
         return None
     if sys.platform != "darwin" or not os.access("/usr/bin/security", os.X_OK):
         return None
-    body = candidate[len("keychain:") :]
-    service, _, account = body.partition("/")
-    if not service or not account:
-        return None
+    account = PINNED_KEYCHAIN_ACCOUNT
+    if ref.endswith(".previous"):
+        account = f"{PINNED_KEYCHAIN_ACCOUNT}.previous"
     try:
         completed = subprocess.run(
-            ["/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"],
+            ["/usr/bin/security", "find-generic-password", "-s", PINNED_KEYCHAIN_SERVICE, "-a", account, "-w"],
             check=False,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -362,7 +386,9 @@ def load_macos_keychain_secret(ref: str) -> bytes | None:
     if completed.returncode != 0:
         return None
     key = completed.stdout.strip()
-    return key if len(key) >= 32 else None
+    if len(key) < 32 or key_id_for(key) not in PINNED_KEY_IDS:
+        return None
+    return key
 
 
 def load_keychain_key(
@@ -370,6 +396,8 @@ def load_keychain_key(
     *,
     secret_store: Callable[[str], bytes | None] | None,
 ) -> bytes:
+    if ref not in {PINNED_KEYCHAIN_REF, PINNED_KEYCHAIN_REF + ".previous"}:
+        return b""
     resolver = secret_store if secret_store is not None else load_macos_keychain_secret
     try:
         data = resolver(ref)
@@ -378,7 +406,22 @@ def load_keychain_key(
     if not isinstance(data, (bytes, bytearray)):
         return b""
     key = bytes(data).strip()
-    return key if len(key) >= 32 else b""
+    if len(key) < 32 or key_id_for(key) not in PINNED_KEY_IDS:
+        return b""
+    return key
+
+
+def _linux_secret_candidates(environ: Mapping[str, str]) -> list[Path]:
+    cred = environ.get("CREDENTIALS_DIRECTORY", "")
+    paths: list[Path] = []
+    if cred:
+        root = Path(cred)
+        if root.is_absolute() and root.name and not root.is_symlink():
+            paths.append(root / PINNED_LINUX_SECRET_NAME)
+            paths.append(root / f"{PINNED_LINUX_SECRET_NAME}.previous")
+    paths.append(PINNED_LINUX_SECRET_PATH)
+    paths.append(Path(str(PINNED_LINUX_SECRET_PATH) + ".previous"))
+    return paths
 
 
 def load_keyring(
@@ -387,28 +430,41 @@ def load_keyring(
     state_dir: Path,
     secrets_root: Path | None,
     secret_store: Callable[[str], bytes | None] | None,
+    environ: Mapping[str, str] | None = None,
 ) -> dict[str, bytes]:
+    del secrets_root
     if not signature_ref_allowed(ref):
         return {}
     keys: list[bytes] = []
-    if ref.startswith(FILE_SECRET_PREFIX):
-        name = ref[len(FILE_SECRET_PREFIX) :]
-        root = secrets_root if secrets_root is not None else Path("/run/secrets")
-        if not _outside_state(root, state_dir):
-            return {}
-        for candidate in (name, f"{name}.previous"):
-            loaded = load_file_key(root / candidate, state_dir=state_dir, secrets_root=root)
+    env = environ or {}
+    if ref == PINNED_LINUX_REF:
+        seen: set[Path] = set()
+        for path in _linux_secret_candidates(env):
+            resolved = path if path in seen else path
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            root = resolved.parent
+            if env.get("CREDENTIALS_DIRECTORY") and str(root) == env.get("CREDENTIALS_DIRECTORY"):
+                if resolved.name != PINNED_LINUX_SECRET_NAME and resolved.name != f"{PINNED_LINUX_SECRET_NAME}.previous":
+                    continue
+                if resolved.is_symlink() or root.is_symlink():
+                    continue
+                if not _is_readonly_mount(root):
+                    continue
+            loaded = load_file_key(resolved, state_dir=state_dir, secrets_root=root)
             if loaded:
                 keys.append(loaded)
-    else:
-        keys.append(load_keychain_key(ref, secret_store=secret_store))
-        loaded = load_keychain_key(f"{ref}.previous", secret_store=secret_store)
+    elif ref == PINNED_KEYCHAIN_REF:
+        keys.append(load_keychain_key(PINNED_KEYCHAIN_REF, secret_store=secret_store))
+        loaded = load_keychain_key(PINNED_KEYCHAIN_REF + ".previous", secret_store=secret_store)
         if loaded:
             keys.append(loaded)
     ring: dict[str, bytes] = {}
     for key in keys:
-        if key:
-            ring[key_id_for(key)] = key
+        kid = key_id_for(key)
+        if kid in PINNED_KEY_IDS:
+            ring[kid] = key
     return ring
 
 
@@ -424,15 +480,14 @@ def load_mac_key(
         return {}
     if policy is None:
         return {}
-    resolved_root = secrets_root
-    if resolved_root is None:
-        cred = environ.get("CREDENTIALS_DIRECTORY", "")
-        resolved_root = Path(cred) if cred else Path("/run/secrets")
+    if policy.approval_signature_ref not in {PINNED_LINUX_REF, PINNED_KEYCHAIN_REF}:
+        return {}
     return load_keyring(
         ref=policy.approval_signature_ref,
         state_dir=state_dir,
-        secrets_root=resolved_root,
+        secrets_root=None,
         secret_store=secret_store,
+        environ=environ,
     )
 
 
@@ -534,7 +589,12 @@ def put_trusted_record(
     extra = None
     if kind == "recovery":
         signed["kill_digest"] = kill_digest or signed.get("kill_digest")
-        extra = {"kill_digest": signed.get("kill_digest"), "actor": signed.get("actor")}
+        extra = {
+            "kill_digest": signed.get("kill_digest"),
+            "actor": signed.get("actor"),
+            "fenced_ids": list(signed.get("fenced_ids") or []),
+            "settlement_digests": list(signed.get("settlement_digests") or []),
+        }
     bind_budget = dict(budget or {
         "ceiling_usd": signed.get("ceiling_usd"),
         "expires_at": signed.get("expires_at"),
@@ -631,7 +691,16 @@ def lookup_trusted_record(
             return None, {}
         if kill_digest is not None and not hmac.compare_digest(digest, kill_digest):
             return None, {}
-        extra = {"kill_digest": digest, "actor": loaded.get("actor")}
+        fenced_ids = loaded.get("fenced_ids") or []
+        settlement_digests = loaded.get("settlement_digests") or []
+        if not isinstance(fenced_ids, list) or not isinstance(settlement_digests, list):
+            return None, {}
+        extra = {
+            "kill_digest": digest,
+            "actor": loaded.get("actor"),
+            "fenced_ids": list(fenced_ids),
+            "settlement_digests": list(settlement_digests),
+        }
     bind_budget = loaded.get("binding_budget")
     if not isinstance(bind_budget, dict):
         bind_budget = {
@@ -686,6 +755,8 @@ def lookup_trusted_record(
     if kind == "recovery":
         out["jti"] = nonce
         out["kill_digest"] = loaded.get("kill_digest")
+        out["fenced_ids"] = list(loaded.get("fenced_ids") or [])
+        out["settlement_digests"] = list(loaded.get("settlement_digests") or [])
     return auth, out
 
 
@@ -810,6 +881,8 @@ class OperatorContext:
     recovery_jti: str
     recovery_nonce: str
     recovery_kill_digest: str
+    recovery_fenced_ids: list[str]
+    recovery_settlement_digests: list[str]
     log_dir: Path
 
 
@@ -1042,6 +1115,8 @@ def context_from_env(
         recovery_jti=str(recovery_extra.get("jti", "")),
         recovery_nonce=str(recovery_extra.get("nonce", "")),
         recovery_kill_digest=str(recovery_extra.get("kill_digest", "")),
+        recovery_fenced_ids=list(recovery_extra.get("fenced_ids") or []),
+        recovery_settlement_digests=list(recovery_extra.get("settlement_digests") or []),
         log_dir=log_dir,
     )
 
@@ -1197,14 +1272,65 @@ def _load_leases(state_dir: Path) -> tuple[list[dict[str, Any]] | None, str | No
 
 
 def _leases_unsettled(state_dir: Path) -> bool:
+    return fenced_leases_unsettled(state_dir) is not None
+
+
+def _lease_evidence(item: Mapping[str, Any]) -> bool:
+    evidence = item.get("evidence")
+    if isinstance(evidence, str):
+        return bool(evidence.strip())
+    if isinstance(evidence, dict):
+        return bool(evidence)
+    return False
+
+
+def lease_settlement_digest(item: Mapping[str, Any]) -> str:
+    payload = json.dumps(dict(item), sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def recovery_settlement_binding(state_dir: Path) -> tuple[list[str], list[str]] | None:
+    kill_record = _load_json_mapping(state_dir / "kill.json") or {}
+    fenced = kill_record.get("fenced")
+    if not isinstance(fenced, list):
+        return None
+    ids: list[str] = []
+    for item in fenced:
+        if not isinstance(item, str) or not item.strip():
+            return None
+        ids.append(item)
+    ids = sorted(ids)
+    if not ids:
+        return [], []
     leases, error = _load_leases(state_dir)
     if error is not None or leases is None:
-        return True
+        return None
+    if not leases:
+        return None
+    by_id: dict[str, dict[str, Any]] = {}
     for item in leases:
-        status = item.get("status")
+        ident = item.get("id")
+        if isinstance(ident, str) and ident.strip():
+            by_id[ident] = item
+    digests: list[str] = []
+    for ident in ids:
+        rec = by_id.get(ident)
+        if rec is None:
+            return None
+        status = rec.get("status")
         if not isinstance(status, str) or status not in TERMINAL_LEASE_STATUSES:
-            return True
-    return False
+            return None
+        if not _lease_evidence(rec):
+            return None
+        digests.append(lease_settlement_digest(rec))
+    return ids, digests
+
+
+def fenced_leases_unsettled(state_dir: Path) -> str | None:
+    bound = recovery_settlement_binding(state_dir)
+    if bound is None:
+        return "fenced_lease_missing"
+    return None
 
 
 def _reconcile_inflight_leases(state_dir: Path, inflight: list[Any]) -> list[dict[str, Any]] | None:
@@ -1224,6 +1350,7 @@ def _reconcile_inflight_leases(state_dir: Path, inflight: list[Any]) -> list[dic
         rec["status"] = "terminal"
         rec["terminated"] = True
         rec["settled"] = True
+        rec["evidence"] = rec.get("evidence") or {"settled_by": "drain", "lease_id": raw}
         by_id[raw] = rec
     for rec in list(by_id.values()):
         status = rec.get("status")
@@ -1231,6 +1358,8 @@ def _reconcile_inflight_leases(state_dir: Path, inflight: list[Any]) -> list[dic
             rec["status"] = "terminal"
             rec["terminated"] = True
             rec["settled"] = True
+        if not _lease_evidence(rec):
+            rec["evidence"] = {"settled_by": "drain", "lease_id": rec.get("id")}
     return list(by_id.values())
 
 
@@ -1256,8 +1385,9 @@ def _recovery_settled(state_dir: Path) -> str | None:
     inflight, inflight_error = _load_inflight(state_dir)
     if inflight_error is not None or inflight:
         return "inflight_remaining"
-    if _leases_unsettled(state_dir):
-        return "leases_unsettled"
+    missing = fenced_leases_unsettled(state_dir)
+    if missing is not None:
+        return missing
     return None
 
 
@@ -1438,6 +1568,12 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     expected_digest = digest_kill_record(ctx.state_dir)
     if not expected_digest or not hmac.compare_digest(ctx.recovery_kill_digest, expected_digest):
         return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to kill digest")
+    bound = recovery_settlement_binding(ctx.state_dir)
+    if bound is None:
+        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="fenced leases missing settlement evidence")
+    fenced_ids, settlement_digests = bound
+    if list(ctx.recovery_fenced_ids) != fenced_ids or list(ctx.recovery_settlement_digests) != settlement_digests:
+        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to fenced settlement")
     if nonce in recovery_spent(ctx.state_dir):
         return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
     audit = {

@@ -36,7 +36,7 @@
     "consequence": "Anything outside these lists needs a generator change plus re-certification in its own PR before a single trial can run. That applies to the 32k gap AND to the 8-seed high-dose recommendation, both of which are build items and not campaign cells."
   },
   "measured_cost_basis": {
-    "note": "Per-trial input tokens. The 4k and 16k figures are recomputed from the promoted wave-1 bundles; the 64k figure is USER-REPORTED over nine scored trials. 128k has NEVER been run and its cost is unknown, which is why it is quarantined into phase B.",
+    "note": "Per-trial input tokens. The 4k and 16k figures are recomputed from the promoted wave-1 bundles; the 64k figure is recomputed over nine unscaffolded scored rows in the promoted wave-2 summary. 128k has NEVER been run and its cost is unknown, which is why it is quarantined into phase B.",
     "input_tokens_per_trial": {
       "4096": 32056,
       "16384": 79497,
@@ -73,8 +73,8 @@
       "derivation": "12 trials per dose (2 arms x 3 seeds x 2 reps) times the measured per-trial cost"
     },
     "ceiling_input_tokens": 7000000,
-    "admission_rule": "REFUSE the campaign if projected_input_tokens.total exceeds ceiling_input_tokens. 6,291,672 < 7,000,000, so phase A is admitted.",
-    "reps_rationale": "2 rather than 3. At 64k the seed-1337 repeats were repeat-stable, so a third rep at a failing high-dose seed is the least informative trial in the design and the most expensive. This is a recommendation, not an established optimum.",
+    "admission_rule": "REFUSE the campaign if projected_input_tokens.total exceeds ceiling_input_tokens. 6,291,672 < 7,000,000, so phase A fits the post-E2 budget shape but remains conditionally admissible until the host and credential-proxy preconditions pass.",
+    "reps_rationale": "2 rather than 3 is a cost-driven recommendation, not an established optimum. The seed-1337 repeats revealed signature variation that falsified a single-signature interpretation, so an additional rep can be informative; it is deferred here because 64k is the most expensive measured dose.",
     "admissibility": "conditionally_runnable",
     "not_currently_admissible_because": [
       "host-isolation precondition unmet: network_isolation_enforced is False on the Darwin lane (harbor_network.py:53-70)",
@@ -156,7 +156,7 @@
     "harbor": "0.21",
     "trajectory_schema": "ATIF-v1.7",
     "allow_billable": false,
-    "access_note": "USER-REPORTED 2026-08-29: zai-coding-plan/glm-5.3 and glm-5.3-flash are both accessible. glm-5.3-highspeed is NOT in the subscription and returns HTTP 429 with no model outcome; recorded as an access-gated lane at n=0 with a stated reason, never as a scored trial or a refusal rate.",
+    "access_note": "The promoted wave-2 summary records zai-coding-plan/glm-5.3 and glm-5.3-flash as accessible. glm-5.3-highspeed is NOT in the subscription and returned HTTP 429 with no model outcome; it is an access-gated lane at n=0, never a scored trial or refusal rate.",
     "provider_limits": {
       "max_trials": 38,
       "max_cost_usd": null,
@@ -183,7 +183,7 @@
     },
     "instrumentation_REQUEST_TO_C1_LANE": {
       "note": "SATISFIED: merged on main via PR #303 at 24763988. Retained for provenance; no further C1 request outstanding.",
-      "retrieval_sequencing": "USER-REPORTED failure signatures: complete-257-read-but-reordered (count correct, order wrong) and 258/257 (one duplicate, matching the 16k pilot's 66/65). Every Action Memory failure observed so far is a sequencing fault, not a coverage fault. Duplication is detectable as tool_call_count > unique_tools_count; reordering needs observation_index compared against the verifier's expected sequence. No new schema required."
+      "retrieval_sequencing": "Promoted artifacts show three distinct faults. The wave-1 16k failure has complete unique coverage with one duplicate. Flash 64k seed 1337 omits one expected handle and substitutes a one-character near-typo, leaving 256/257 unique content handles; issued order matches benchmark-event order. Full 64k seed 42 covers all 257 handles but reorders the sequence and duplicates one handle. The landed C1 features must therefore expose unknown, omitted, duplicate, coverage, and order fidelity separately; no single sequencing-only mechanism is asserted."
     },
     "e1_judge_calibration_cost": {
       "grader_calls_per_arm": 132,
@@ -276,7 +276,7 @@
     },
     "funcdag_axes": "Depth 5 produced no failures in four observed trials; high name-similarity produced one failure in three and is the current candidate difficulty axis. Four trials cannot establish a ceiling, so depth is not called saturated.",
     "sequential_scaffold": {
-      "status": "USER-REPORTED FINAL: timeout-multiplier=3 rerun produced 2 VALID SCORED trials. The earlier default-timeout attempts remain harness outcomes (AgentTimeoutError, no verdict) and stay out of every rate.",
+      "status": "PROMOTED: the timeout-multiplier=3 rerun produced 2 valid scored trials. The earlier default-timeout attempts remain harness outcomes (AgentTimeoutError, no verdict) and stay out of every rate.",
       "outcomes": {
         "neutral": "pass, 257/257 exact, 6,683,558 prompt tokens",
         "semantic": "FAIL, 232/257 reads - INCOMPLETE, 25 short, 7,454,261 prompt tokens",

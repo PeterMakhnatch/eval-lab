@@ -30,6 +30,12 @@ from evallab.schemas import (
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
+# Lease generations are immutable, 32-lowercase-hex identifiers produced by
+# secrets.token_hex(16). Every durable-record reader that later turns a stored
+# generation into a filesystem path MUST reject anything outside this contract,
+# so a tampered lease/cancel record cannot inject path separators or arbitrary
+# suffixes into a cancel-marker filename.
+LEASE_GENERATION_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
 MAX_TRIAL_TIMEOUT_SECONDS = 21_600
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
@@ -103,16 +109,23 @@ DEEPSEEK_UPSTREAM_ENV = "EVALLAB_DEEPSEEK_UPSTREAM"
 DEEPSEEK_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
 DEEPSEEK_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
 DEEPSEEK_PROXY_CAPABILITY_ENV = "EVALLAB_DEEPSEEK_PROXY_CAPABILITY"
+DEEPSEEK_PROXY_USAGE_DIR_ENV = "EVALLAB_DEEPSEEK_USAGE_DIR"
+DEEPSEEK_PROXY_ATTEMPT_ID_ENV = "EVALLAB_DEEPSEEK_ATTEMPT_ID"
+DEEPSEEK_PROXY_USAGE_FILE_ENV = "EVALLAB_DEEPSEEK_USAGE_FILE"
 DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
 DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         DEEPSEEK_PROXY_CAPABILITY_ENV,
         DEEPSEEK_ALLOWED_MODEL_ENV,
+        DEEPSEEK_PROXY_ATTEMPT_ID_ENV,
+        DEEPSEEK_PROXY_USAGE_DIR_ENV,
+        DEEPSEEK_PROXY_USAGE_FILE_ENV,
         "EVALLAB_DEEPSEEK_MAX_REQUESTS",
         "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
         "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
         "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
+        "EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS",
         "EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT",
         "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
         "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
@@ -154,6 +167,17 @@ class ExecutionFailure(RuntimeError):
 
     reason_code = "execution_failed"
 
+    def __init__(
+        self,
+        reason_code_or_message: str,
+        message: str | None = None,
+    ) -> None:
+        if message is None:
+            super().__init__(reason_code_or_message)
+            return
+        self.reason_code = reason_code_or_message
+        super().__init__(message)
+
 
 class TrialTimeoutFailure(ExecutionFailure):
     """Raised when trial exceeds allowed wall-clock timeout."""
@@ -185,7 +209,13 @@ class RunRequest:
     allow_billable: bool = False
     provenance: RunProvenance | None = None
     lease_path: Path | None = None
+    lease_generation: str | None = None
     extra_instruction_path: Path | None = None
+    max_requests: int | None = None
+    max_input_tokens: int | None = None
+    max_output_tokens: int | None = None
+    max_total_tokens: int | None = None
+    cost_limit_usd: float | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -201,6 +231,30 @@ class HarborProcessResult:
     timed_out: bool
     log_path: Path
     timed_out_trial: str | None = None
+    proxy_usage: dict[str, Any] | None = None
+
+@dataclass(frozen=True)
+class ProxyTrialLimits:
+    """Explicit ceilings bound to one provider capability."""
+
+    max_requests: int
+    max_input_tokens: int
+    max_output_tokens: int
+    max_total_tokens: int
+    max_cost_micros: int
+
+    def __post_init__(self) -> None:
+        if min(
+            self.max_requests,
+            self.max_input_tokens,
+            self.max_output_tokens,
+            self.max_total_tokens,
+            self.max_cost_micros,
+        ) < 1:
+            raise ValueError("proxy trial ceilings must be positive")
+        if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
+            raise ValueError("proxy total-token ceiling exceeds component ceilings")
+
 
 
 @dataclass(frozen=True)
@@ -211,6 +265,9 @@ class PaidRunAuthorization:
     actor: str
     authorized_at: datetime
     quota_override: bool = False
+    approved_spec_digest: str | None = None
+    campaign_manifest_digest: str | None = None
+    campaign_spec_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -516,6 +573,42 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(
             "Concurrency and attempts must be positive; timeout must be 1-21600 seconds"
         )
+    proxy_limits = (
+        request.max_requests,
+        request.max_input_tokens,
+        request.max_output_tokens,
+        request.max_total_tokens,
+        request.cost_limit_usd,
+    )
+    if any(value is not None for value in proxy_limits):
+        if request.agent != "mini-swe-agent":
+            raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
+        if any(value is None for value in proxy_limits):
+            raise ValueError("mini-swe-agent requires every provider ceiling")
+        if (
+            request.max_requests is None
+            or request.max_input_tokens is None
+            or request.max_output_tokens is None
+            or request.max_total_tokens is None
+            or request.cost_limit_usd is None
+        ):
+            raise AssertionError("validated provider ceilings unexpectedly absent")
+        if min(
+            request.max_requests,
+            request.max_input_tokens,
+            request.max_output_tokens,
+            request.max_total_tokens,
+        ) < 1:
+            raise ValueError("provider request and token ceilings must be positive")
+        if request.cost_limit_usd <= 0:
+            raise ValueError("cost_limit_usd must be positive")
+        if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
+            raise ValueError("total-token ceiling exceeds input plus output ceilings")
+    if request.agent == "mini-swe-agent":
+        if any(value is None for value in proxy_limits):
+            raise ValueError("mini-swe-agent requires explicit provider ceilings")
+        if request.attempts != 1 or request.concurrency != 1:
+            raise ValueError("mini-swe-agent capabilities bind exactly one trial")
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
@@ -567,6 +660,8 @@ def build_command(request: RunRequest) -> list[str]:
     if request.agent == "mini-swe-agent":
         if harbor_model != DEEPSEEK_MODEL_SELECTOR:
             raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
+        cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
+        max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
         command.extend(
             [
                 "--n-concurrent-agents",
@@ -576,9 +671,9 @@ def build_command(request: RunRequest) -> list[str]:
                 "--max-retries",
                 "0",
                 "--agent-kwarg",
-                "cost_limit=2.5",
+                f"cost_limit={cost_limit}",
                 "--agent-kwarg",
-                "max_tokens=8192",
+                f"max_tokens={max_tokens}",
             ]
         )
     if request.extra_instruction_path is not None:
@@ -620,6 +715,11 @@ def transient_provider_reason(text: str) -> str | None:
     if _PROVIDER_5XX.search(text):
         return "transient_harness:provider_http_5xx"
     return None
+
+
+def is_lease_generation(value: object) -> bool:
+    """Return True only for a strict 32-lowercase-hex lease generation."""
+    return isinstance(value, str) and LEASE_GENERATION_PATTERN.fullmatch(value) is not None
 
 
 def transient_provider_exception(result: Mapping[str, Any]) -> str | None:

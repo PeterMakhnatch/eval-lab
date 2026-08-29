@@ -7,12 +7,11 @@ audience:
 
 # Continuous-loop operator (disabled by default)
 
-**No services or runs authorized.** This runbook covers operator validation
-and unit *templates* for the PR #271 control loop. It does not start launchd,
-systemd, Docker, Harbor, or billable model calls. Platform still owns
-`campaigns.py` / `continuous_control_plane.py` (not in this change). Data still
-owns `trajectory_compliance_ops.ingest_after_settlement` (documented hook
-name only).
+**No services or runs authorized.** This runbook covers operator validation,
+disabled unit templates, and the campaign-owned lease adapter. The adapter can
+fence active campaign leases and observe terminal queue/campaign evidence for
+drain recovery; the control-loop facade has no dispatch path. Data still owns
+`trajectory_compliance_ops.ingest_after_settlement`.
 
 ## Files
 
@@ -20,6 +19,7 @@ name only).
 |---|---|
 | `scripts/ops/continuous-operator` | Operator CLI |
 | `src/evallab/ops_continuous.py` | Gate stack and state-dir oracles |
+| `src/evallab/continuous_control_plane.py` | Campaign `WorkloadOwner` adapter and non-dispatching loop facade |
 | `scripts/ops/keychain-inject.sh` | Secret *reference* probe (no values) |
 | `scripts/ops/cloud-worker-bootstrap.sh` | Vendor-neutral worker template |
 | `scripts/ops/launchd/com.petermakhnatch.evallab.continuous-operator.plist` | Disabled launchd unit |
@@ -43,6 +43,8 @@ scripts/ops/continuous-operator start --state-dir /tmp/op-state
 scripts/ops/continuous-operator dry-run --agent oracle --state-dir /tmp/op-state
 scripts/ops/continuous-operator dry-run --agent nop --state-dir /tmp/op-state
 scripts/ops/continuous-operator status --state-dir /tmp/op-state --policy policy/continuous-loop-policy.example.yaml
+scripts/ops/continuous-operator status --state-dir /tmp/op-state \
+  --repo-root /path/to/eval-lab --campaign-id 01CAMPAIGNID
 scripts/ops/continuous-operator quota --state-dir /tmp/op-state
 scripts/ops/continuous-operator pause --state-dir /tmp/op-state
 scripts/ops/continuous-operator drain --state-dir /tmp/op-state
@@ -151,6 +153,11 @@ policy fields also keep the operator DISABLED.
   not alive, queue terminal state, settlement digest). Live, unknown, or
   missing leases return nonzero `drain_incomplete` and leave local leases
   unchanged.
+- `--repo-root` and `--campaign-id` must be supplied together. They bind the
+  operator to one frozen manifest. `kill` writes the repository queue `STOP`
+  fence and per-lease `.cancel` markers; the runner watchdog terminates the
+  corresponding process group before queue settlement. Neither option enables
+  the disabled service or introduces a dispatch call.
 - Every journal read-check-write is serialized with an `O_NOFOLLOW` state-dir
   lock file and `fcntl.flock(LOCK_EX)`. Inside the lock, the operator re-reads
   authoritative snapshot, revalidates transitions/latches, writes a unique

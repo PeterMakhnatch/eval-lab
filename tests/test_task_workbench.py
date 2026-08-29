@@ -360,6 +360,7 @@ def _bound_registry_record(
     )
     return TaskRegistryRecord(
         task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
         version="1.0.0",
         task_path=relative_task,
         digests=digests,

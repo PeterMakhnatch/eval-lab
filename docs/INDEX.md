@@ -51,7 +51,7 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
   - path: docs/continuous-loop-operator.md
-    digest: sha256:9746ef4fbf3540df1c26f47f1d843f23b60b96c845015efd1db3ada360ab8d4a
+    digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
     digest: sha256:dea76c2aaf874341239d2c3518a5dac7eeb5fbafbf26c72a109a1f711e950fbe
   - path: docs/craft.md
@@ -105,7 +105,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:95d5813c8edd69cc84b9101234219d4a73229b0305ce72bf96ba887e146f5e78
+    digest: sha256:af1af1ee3364b76ab7f3661c4817e424ae45a8d7cfe899376526c5b01b96d8ee
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

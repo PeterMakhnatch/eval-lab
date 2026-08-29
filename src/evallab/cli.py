@@ -502,7 +502,113 @@ def _approve_command(
                 "note: --despite-quota was recorded, but the reading "
                 "reports no exhaustion, so it overrode nothing."
             )
-    print("next: uv run evallab tick")
+    if authorized.campaign_ledger is not None:
+        from evallab.campaigns import CAMPAIGN_STATE_ROOT
+
+        manifest_path = CAMPAIGN_STATE_ROOT / authorized.campaign_ledger.ledger_id / "manifest.json"
+        print(f"next: uv run evallab campaign resume {manifest_path.as_posix()}")
+    else:
+        print("next: uv run evallab tick")
+    return 0
+
+
+def _print_campaign_status(status: Any, *, as_json: bool) -> None:
+    if as_json:
+        print(status.model_dump_json(indent=2))
+        return
+    print(f"campaign: {status.campaign_id}")
+    print(f"benchmark: {status.benchmark}")
+    print(f"manifest_digest: {status.manifest_digest}")
+    print(f"state: {status.state}")
+    print(f"attempts: {status.completed_attempts}/{status.total_attempts} completed")
+    print(
+        "usage: "
+        f"${status.cost_usd:.6f}, "
+        f"{status.input_tokens} input tokens, "
+        f"{status.output_tokens} output tokens, "
+        f"{status.wall_clock_seconds:.3f}s"
+    )
+    if status.circuit_reason:
+        print(f"circuit: {status.circuit_reason}")
+    if status.block_reason:
+        print(f"blocked: {status.block_reason}")
+    for attempt in status.attempts:
+        print(
+            f"- {attempt.attempt_id} {attempt.cell_id}/{attempt.task_id}"
+            f"#{attempt.attempt}: {attempt.queue_state}"
+        )
+        if attempt.approval_command:
+            print(f"  approve: {attempt.approval_command}")
+
+
+def _campaign_plan_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.campaigns import plan_campaign
+
+    manifest, path = plan_campaign(
+        _resolve(root, args.definition),
+        repo_root=root,
+    )
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "campaign_id": manifest.campaign_id,
+                    "benchmark": manifest.benchmark,
+                    "manifest_digest": manifest.manifest_digest,
+                    "manifest_path": path.relative_to(root).as_posix(),
+                    "attempts": len(manifest.attempts),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        print(f"campaign_id: {manifest.campaign_id}")
+        print(f"benchmark: {manifest.benchmark}")
+        print(f"manifest_digest: {manifest.manifest_digest}")
+        print(f"manifest: {path}")
+        print(f"attempts: {len(manifest.attempts)}")
+    return 0
+
+
+def _campaign_orchestrator(args: argparse.Namespace, root: Path) -> Any:
+    from evallab.campaigns import CAMPAIGN_STATE_ROOT, CampaignOrchestrator
+
+    return CampaignOrchestrator.from_path(
+        _resolve(root, args.manifest),
+        repo_root=root,
+        state_root=root / CAMPAIGN_STATE_ROOT,
+        requested_parallel=getattr(args, "parallel", None),
+    )
+
+
+def _campaign_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    status = _campaign_orchestrator(args, root).status()
+    _print_campaign_status(status, as_json=args.json)
+    return 0
+
+
+def _campaign_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    status = _campaign_orchestrator(args, root).run(dry_run=args.dry_run)
+    _print_campaign_status(status, as_json=args.json)
+    return 0
+
+
+def _campaign_resume_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    status = _campaign_orchestrator(args, root).resume(dry_run=args.dry_run)
+    _print_campaign_status(status, as_json=args.json)
     return 0
 
 
@@ -2300,6 +2406,7 @@ def _registry_promote_command(
             repo_root=root,
             registry_dir=registry_dir,
             task_id=args.task_id,
+            task_family=getattr(args, "task_family", None),
             version=args.version,
             source_uri=args.source_uri,
             source_ref=args.source_ref,
@@ -3119,6 +3226,54 @@ def parser() -> argparse.ArgumentParser:
 
     resume = commands.add_parser("resume", help="Remove the queue stop marker")
     resume.set_defaults(func=_resume_command)
+
+    campaign = commands.add_parser(
+        "campaign",
+        help="Plan and run immutable policy-gated billable campaigns",
+    )
+    campaign_commands = campaign.add_subparsers(
+        dest="campaign_command",
+        required=True,
+    )
+    campaign_plan = campaign_commands.add_parser(
+        "plan",
+        help="Validate a campaign definition and freeze its immutable manifest",
+    )
+    campaign_plan.add_argument("definition", type=Path)
+    campaign_plan.add_argument("--json", action="store_true")
+    campaign_plan.set_defaults(func=_campaign_plan_command)
+
+    campaign_status = campaign_commands.add_parser(
+        "status",
+        help="Report queue, budget, archive, and circuit state without mutation",
+    )
+    campaign_status.add_argument("manifest", type=Path)
+    campaign_status.add_argument("--json", action="store_true")
+    campaign_status.set_defaults(func=_campaign_status_command)
+
+    campaign_run = campaign_commands.add_parser(
+        "run",
+        help="Submit a new campaign through PolicyGate and dispatch only admitted specs",
+    )
+    campaign_resume = campaign_commands.add_parser(
+        "resume",
+        help="Resume exact-digest attempts without repeating completed work",
+    )
+    for campaign_execute in (campaign_run, campaign_resume):
+        campaign_execute.add_argument("manifest", type=Path)
+        campaign_execute.add_argument(
+            "--parallel",
+            type=int,
+            help="Dispatch workers; cannot exceed the frozen campaign ceiling",
+        )
+        campaign_execute.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Validate and report without queue, journal, or Harbor mutations",
+        )
+        campaign_execute.add_argument("--json", action="store_true")
+    campaign_run.set_defaults(func=_campaign_run_command)
+    campaign_resume.set_defaults(func=_campaign_resume_command)
 
     schedule = commands.add_parser("schedule", help="Manage unattended launchd schedules")
     schedule_commands = schedule.add_subparsers(dest="schedule_command", required=True)
@@ -3992,6 +4147,10 @@ def parser() -> argparse.ArgumentParser:
     registry_promote.add_argument(
         "--task-id",
         help="Explicit task identifier (defaults to task.toml name or directory name)",
+    )
+    registry_promote.add_argument(
+        "--task-family",
+        help="Immutable benchmark family (or declare task.family in task.toml)",
     )
     registry_promote.add_argument(
         "--version",

@@ -22,7 +22,7 @@ from typing import Any, Literal, Protocol
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.evidence_store import load_archive
+from evallab.evidence_store import open_archive
 from evallab.lineage import compute_file_digest
 from evallab.queue import new_ulid
 from evallab.schemas import (
@@ -374,10 +374,12 @@ def _normalized_archive_member(name: str) -> str:
 
 def _load_verified_cas_members(store_root: Path, uri: str) -> dict[str, bytes]:
     """Read and content-verify a CAS archive without extracting it."""
-    blob = load_archive(store_root, uri)
     expected_digest = f"sha256:{uri.removeprefix('cas://sha256/')}"
     members: dict[str, bytes] = {}
-    with tarfile.open(blob, mode="r:gz") as archive:
+    with open_archive(store_root, uri) as blob, tarfile.open(
+        fileobj=blob,
+        mode="r:gz",
+    ) as archive:
         entries: list[tuple[str, tarfile.TarInfo]] = []
         for member in archive.getmembers():
             if not member.isfile():

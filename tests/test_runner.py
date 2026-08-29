@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import pytest
 import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
+from evallab.execution_contracts import ProxyTrialLimits
 from evallab.harbor_network import HarborNetworkPolicy
 from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
@@ -151,6 +153,26 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
     assert "max_tokens=8192" in command
 
 
+def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
+    tmp_path: Path,
+) -> None:
+    command = build_command(
+        RunRequest(
+            task=task(tmp_path),
+            agent="mini-swe-agent",
+            model="deepseek/deepseek-v4-flash",
+            name="deepseek-campaign-bounds",
+            jobs_dir=tmp_path / "runs",
+            allow_billable=True,
+            max_output_tokens=1234,
+            cost_limit_usd=0.75,
+        )
+    )
+
+    assert "cost_limit=0.75" in command
+    assert "max_tokens=1234" in command
+
+
 def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
     source_root = tmp_path / "src"
     source_root.mkdir()
@@ -196,6 +218,14 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
         cwd=tmp_path,
         timeout_seconds=5,
         log_path=deepseek_log,
+        proxy_attempt_id="credential-routing-trial",
+        proxy_limits=ProxyTrialLimits(
+            max_requests=2,
+            max_input_tokens=256,
+            max_output_tokens=16,
+            max_total_tokens=272,
+            max_cost_micros=1_000_000,
+        ),
     )
     control_log = tmp_path / "control.log"
     control = run_harbor_process(
@@ -210,6 +240,45 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
     assert secret not in deepseek_log.read_text()
     assert control.returncode == 0
     assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
+
+def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "stream-boundary-secret"
+    monkeypatch.setenv("MSWEA_API_KEY", secret)
+    script = (
+        "import os,sys,time; "
+        "value=os.environ['MSWEA_API_KEY']; "
+        "sys.stdout.write(value[:7]); sys.stdout.flush(); "
+        "time.sleep(0.05); "
+        "sys.stdout.write(value[7:] + '\\n'); sys.stdout.flush()"
+    )
+    log_path = tmp_path / "redacted.log"
+
+    result = run_harbor_process(
+        [
+            sys.executable,
+            "-c",
+            script,
+            resolve_harbor_agent("mini-swe-agent"),
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=log_path,
+        proxy_attempt_id="stream-redaction-trial",
+        proxy_limits=ProxyTrialLimits(
+            max_requests=2,
+            max_input_tokens=256,
+            max_output_tokens=16,
+            max_total_tokens=272,
+            max_cost_micros=1_000_000,
+        ),
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8") == "<redacted>\n"
+    assert secret not in log_path.read_text(encoding="utf-8")
 
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:
@@ -249,6 +318,38 @@ def test_executor_process_enforces_wall_clock_timeout(tmp_path: Path) -> None:
     assert result.log_path.is_file()
 
 
+def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
+    generation = "a" * 32
+    lease = tmp_path / "campaign-spec.lease"
+    lease.write_text(
+        json.dumps({"lease_generation": generation}) + "\n",
+        encoding="utf-8",
+    )
+    marker = lease.with_name(f"{lease.name}.cancel.{generation}")
+    timer = threading.Timer(
+        0.05,
+        lambda: marker.write_text(
+            json.dumps({"lease_generation": generation}) + "\n",
+            encoding="utf-8",
+        ),
+    )
+    timer.start()
+    started = time.monotonic()
+
+    result = run_harbor_process(
+        [sys.executable, "-c", "import time; time.sleep(5)"],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=tmp_path / "cancelled.log",
+        lease_path=lease,
+        lease_generation=generation,
+        heartbeat_interval_seconds=0.01,
+    )
+    timer.join()
+
+    assert result.timed_out is False
+    assert result.returncode != 0
+    assert time.monotonic() - started < 2
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
     tmp_path: Path,
 ) -> None:
@@ -663,6 +764,52 @@ def test_completed_run_survives_evidence_archive_failure(
         assert not note.exists()
     else:
         assert note.read_text() == "OSError: evidence store unavailable\n"
+
+
+def test_secret_scan_precedes_generic_evidence_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "provider-key-must-not-reach-cas"
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="secret-before-archive",
+        jobs_dir=tmp_path / "runs",
+    )
+    archived: list[Path] = []
+
+    def completed(*_args, **kwargs) -> HarborProcessResult:
+        job_dir = kwargs["job_dir"]
+        job_dir.mkdir(parents=True)
+        (job_dir / "leak.txt").write_text(secret, encoding="utf-8")
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setenv("MSWEA_API_KEY", secret)
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence"))
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+    monkeypatch.setattr(
+        "evallab.evidence_store.archive_evidence",
+        lambda job_dir, *_args, **_kwargs: archived.append(job_dir),
+    )
+
+    with pytest.raises(ExecutionFailure, match="credential material reached"):
+        run_experiment(request, repo_root=tmp_path)
+
+    assert archived == []
+    assert not (request.jobs_dir / request.name / "leak.txt").exists()
 
 
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:

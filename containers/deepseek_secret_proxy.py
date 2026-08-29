@@ -8,6 +8,7 @@ ceilings fail closed even if a tool reads and replays its own capability.
 from __future__ import annotations
 
 import base64
+import hashlib
 import hmac
 import http.client
 import json
@@ -19,6 +20,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -217,15 +219,75 @@ def _estimate_tokens(payload: dict[str, Any]) -> int:
 
 
 class TrialBudget:
-    """Concurrency-safe reserved ceilings for one trial's proxy capability."""
+    """Concurrency-safe, durable accounting for one trial capability."""
 
     def __init__(self) -> None:
+        capability = os.environ.get("EVALLAB_DEEPSEEK_PROXY_CAPABILITY", "")
+        attempt_id = os.environ.get("EVALLAB_DEEPSEEK_ATTEMPT_ID", "")
+        usage_path = os.environ.get("EVALLAB_DEEPSEEK_USAGE_FILE", "")
+        if not capability or not attempt_id or not usage_path:
+            raise ValueError("proxy capability accounting is not configured")
         self._lock = threading.Lock()
         self._requests = 0
         self._input_tokens = 0
         self._output_tokens = 0
         self._cost_micros = 0
         self._nonces: set[bytes] = set()
+        self._calls: list[dict[str, int | str]] = []
+        self._sequence = 0
+        self._path = Path(usage_path)
+        self._attempt_id = attempt_id
+        self._capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+        self._limits = {
+            "max_requests": _int_env("EVALLAB_DEEPSEEK_MAX_REQUESTS"),
+            "max_input_tokens": _int_env("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS"),
+            "max_output_tokens": _int_env("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS"),
+            "max_total_tokens": _int_env("EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS"),
+            "max_cost_micros": _int_env("EVALLAB_DEEPSEEK_MAX_COST_MICROS"),
+        }
+        self._persist_locked()
+
+    def _persist_locked(self) -> None:
+        unresolved = sum(1 for call in self._calls if call["state"] != "reconciled")
+        payload = {
+            "schema_version": 1,
+            "capability_id": self._capability_id,
+            "attempt_id": self._attempt_id,
+            "sequence": self._sequence,
+            "limits": self._limits,
+            "totals": {
+                "requests": self._requests,
+                "input_tokens": self._input_tokens,
+                "output_tokens": self._output_tokens,
+                "total_tokens": self._input_tokens + self._output_tokens,
+                "cost_micros": self._cost_micros,
+            },
+            "unresolved_requests": unresolved,
+            "calls": self._calls,
+        }
+        encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._path.with_name(
+            f".{self._path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+        )
+        try:
+            view = memoryview(encoded)
+            while view:
+                written = os.write(descriptor, view)
+                view = view[written:]
+            os.fsync(descriptor)
+        except BaseException:
+            os.close(descriptor)
+            with suppress(OSError):
+                os.unlink(temporary)
+            raise
+        os.close(descriptor)
+        os.replace(temporary, self._path)
 
     def consume_nonce(self, nonce: bytes) -> bool:
         with self._lock:
@@ -240,51 +302,87 @@ class TrialBudget:
         input_tokens: int,
         output_tokens: int,
         cost_micros: int,
-    ) -> bool:
-        max_requests = _int_env("EVALLAB_DEEPSEEK_MAX_REQUESTS")
-        max_input = _int_env("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS")
-        max_output = _int_env("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS")
-        max_cost = _int_env("EVALLAB_DEEPSEEK_MAX_COST_MICROS")
+    ) -> int | None:
         with self._lock:
-            if self._requests + 1 > max_requests:
-                return False
-            if self._input_tokens + input_tokens > max_input:
-                return False
-            if self._output_tokens + output_tokens > max_output:
-                return False
-            if self._cost_micros + cost_micros > max_cost:
-                return False
+            if self._requests + 1 > self._limits["max_requests"]:
+                return None
+            if self._input_tokens + input_tokens > self._limits["max_input_tokens"]:
+                return None
+            if self._output_tokens + output_tokens > self._limits["max_output_tokens"]:
+                return None
+            if (
+                self._input_tokens
+                + self._output_tokens
+                + input_tokens
+                + output_tokens
+                > self._limits["max_total_tokens"]
+            ):
+                return None
+            if self._cost_micros + cost_micros > self._limits["max_cost_micros"]:
+                return None
+            call_id = self._requests + 1
             self._requests += 1
             self._input_tokens += input_tokens
             self._output_tokens += output_tokens
             self._cost_micros += cost_micros
-            return True
+            self._calls.append(
+                {
+                    "call_id": call_id,
+                    "state": "reserved",
+                    "reserved_input_tokens": input_tokens,
+                    "reserved_output_tokens": output_tokens,
+                    "reserved_cost_micros": cost_micros,
+                }
+            )
+            self._sequence += 1
+            self._persist_locked()
+            return call_id
 
     def reconcile(
         self,
         *,
-        reserved_input: int,
-        reserved_output: int,
-        reserved_cost: int,
+        call_id: int,
         used_input: int,
         used_output: int,
         used_cost: int,
+        status: int,
     ) -> None:
-        extra_input = max(0, used_input - reserved_input)
-        extra_output = max(0, used_output - reserved_output)
-        extra_cost = max(0, used_cost - reserved_cost)
-        released_input = max(0, reserved_input - used_input)
-        released_output = max(0, reserved_output - used_output)
-        released_cost = max(0, reserved_cost - used_cost)
+        if min(used_input, used_output, used_cost) < 0:
+            raise ValueError("negative provider usage")
         with self._lock:
-            self._input_tokens = max(0, self._input_tokens + extra_input - released_input)
-            self._output_tokens = max(0, self._output_tokens + extra_output - released_output)
-            self._cost_micros = max(0, self._cost_micros + extra_cost - released_cost)
+            call = self._calls[call_id - 1]
+            if call["call_id"] != call_id or call["state"] != "reserved":
+                raise ValueError("provider call accounting state is invalid")
+            reserved_input = int(call["reserved_input_tokens"])
+            reserved_output = int(call["reserved_output_tokens"])
+            reserved_cost = int(call["reserved_cost_micros"])
+            self._input_tokens = self._input_tokens - reserved_input + used_input
+            self._output_tokens = self._output_tokens - reserved_output + used_output
+            self._cost_micros = self._cost_micros - reserved_cost + used_cost
+            call.update(
+                {
+                    "state": "reconciled",
+                    "status": status,
+                    "input_tokens": used_input,
+                    "output_tokens": used_output,
+                    "cost_micros": used_cost,
+                }
+            )
+            self._sequence += 1
+            self._persist_locked()
+
+    def mark_unresolved(self, *, call_id: int, reason: str) -> None:
+        with self._lock:
+            call = self._calls[call_id - 1]
+            if call["call_id"] != call_id or call["state"] != "reserved":
+                raise ValueError("provider call accounting state is invalid")
+            call.update({"state": "unresolved", "reason": reason})
+            self._sequence += 1
+            self._persist_locked()
 
     def remaining_output(self) -> int:
-        max_output = _int_env("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS")
         with self._lock:
-            return max(0, max_output - self._output_tokens)
+            return max(0, self._limits["max_output_tokens"] - self._output_tokens)
 
 
 class ProxyServer(ThreadingHTTPServer):
@@ -317,7 +415,8 @@ def _expired() -> bool:
 def _cost_micros(input_tokens: int, output_tokens: int) -> int:
     input_rate = _int_env("EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION")
     output_rate = _int_env("EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION")
-    return (input_tokens * input_rate + output_tokens * output_rate) // 1_000_000
+    numerator = input_tokens * input_rate + output_tokens * output_rate
+    return (numerator + 999_999) // 1_000_000
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -412,20 +511,27 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(400, b"invalid budget fields\n")
             return
         try:
-            reserved = self._budget().reserve(
+            call_id = self._budget().reserve(
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_micros=cost,
             )
-        except ValueError:
-            self._reject(503, b"budget misconfigured\n")
+        except (OSError, ValueError):
+            self._reject(503, b"budget accounting unavailable\n")
             return
-        if not reserved:
+        if call_id is None:
             self._reject(429, b"trial budget exhausted\n")
             return
         try:
             key = provider_key()
         except RuntimeError:
+            self._budget().reconcile(
+                call_id=call_id,
+                used_input=0,
+                used_output=0,
+                used_cost=0,
+                status=0,
+            )
             self._reject(500, b"provider secret unavailable\n")
             return
         headers = {
@@ -460,6 +566,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             target = _pinned_upstream_url()
         except RuntimeError:
+            self._budget().reconcile(
+                call_id=call_id,
+                used_input=0,
+                used_output=0,
+                used_cost=0,
+                status=0,
+            )
             self._reject(502, b"provider unavailable\n")
             return
         request = urllib.request.Request(
@@ -479,50 +592,72 @@ class Handler(BaseHTTPRequestHandler):
             response = opener.open(request, timeout=120)
         except urllib.error.HTTPError as exc:
             if 300 <= int(exc.code) < 400:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="upstream_redirect",
+                )
                 self._reject(502, b"redirects disabled\n")
                 return
             response = exc
         except (OSError, urllib.error.URLError, http.client.HTTPException):
+            self._budget().mark_unresolved(
+                call_id=call_id,
+                reason="upstream_transport_error",
+            )
             self._reject(502, b"provider unavailable\n")
             return
         with response:
             raw_status = getattr(response, "status", 502)
             status = raw_status if isinstance(raw_status, int) else 502
             if 300 <= status < 400:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="upstream_redirect",
+                )
                 self._reject(502, b"redirects disabled\n")
                 return
             if not _response_encoding_ok(response.headers):  # ty: ignore[invalid-argument-type]
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unsupported_upstream_encoding",
+                )
                 self._reject(502, b"unsupported upstream encoding\n")
                 return
             upstream_body = response.read()
             if b"\x00" in upstream_body:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unsupported_upstream_body",
+                )
                 self._reject(502, b"unsupported upstream body\n")
                 return
             try:
                 sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
-            except ValueError:
-                self._reject(502, b"unsupported upstream body\n")
-                return
-            used_input, used_output = input_tokens, output_tokens
-            try:
                 upstream_payload = json.loads(sanitized_body.decode("ascii"))
-            except json.JSONDecodeError:
+                if not isinstance(upstream_payload, dict):
+                    raise ValueError("upstream payload is not an object")
+                usage = upstream_payload.get("usage")
+                if not isinstance(usage, dict):
+                    raise ValueError("upstream usage is missing")
+                used_input = int(usage["prompt_tokens"])
+                used_output = int(usage["completion_tokens"])
+                if min(used_input, used_output) < 0:
+                    raise ValueError("upstream usage is negative")
+                used_cost = _cost_micros(used_input, used_output)
+                self._budget().reconcile(
+                    call_id=call_id,
+                    used_input=used_input,
+                    used_output=used_output,
+                    used_cost=used_cost,
+                    status=status,
+                )
+            except (KeyError, TypeError, ValueError):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unreconciled_upstream_usage",
+                )
                 self._reject(502, b"unsupported upstream body\n")
                 return
-            if isinstance(upstream_payload, dict):
-                usage = upstream_payload.get("usage") or {}
-                if isinstance(usage, dict):
-                    used_input = int(usage.get("prompt_tokens") or used_input)
-                    used_output = int(usage.get("completion_tokens") or used_output)
-            used_cost = _cost_micros(used_input, used_output)
-            self._budget().reconcile(
-                reserved_input=input_tokens,
-                reserved_output=output_tokens,
-                reserved_cost=cost,
-                used_input=used_input,
-                used_output=used_output,
-                used_cost=used_cost,
-            )
             self.send_response(status)
             content_type = response.headers.get("Content-Type", "application/json")
             sanitized_type = _redact_key(content_type.encode("utf-8"), key).decode("utf-8")

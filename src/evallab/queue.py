@@ -6,11 +6,13 @@ import hashlib
 import json
 import os
 import platform
+import secrets
 import shutil
+import stat
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime, timedelta
@@ -27,11 +29,19 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
+from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,
+    is_lease_generation,
     load_policy,
     new_ulid,
+)
+from evallab.interpretation.trajectory_compliance import (
+    ComplianceDisposition,
+    PlatformSettlement,
+    TrialEvidenceBundle,
+    evaluate_trial_compliance,
 )
 from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
@@ -52,6 +62,7 @@ from evallab.registry import (
     TaskStateInvalidError,
     TaskUsageNotAllowedError,
     TaskVersionMismatchError,
+    compute_task_digests,
 )
 from evallab.results import load_job
 from evallab.runner import (
@@ -60,6 +71,8 @@ from evallab.runner import (
     ExecutionFailure,
     RunRequest,
     TransientHarnessFailure,
+    assert_no_secret_material,
+    collected_secret_values,
     database_url_from_environment,
     run_experiment,
     subscription_environment,
@@ -94,6 +107,12 @@ DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
 DEFAULT_LEASE_STALE_SECONDS = 300.0
 _TICK_THREAD_LOCK = threading.Lock()
+
+
+def approved_spec_digest(spec: ExperimentSpec) -> str:
+    payload = spec.model_dump(mode="json", exclude_none=True)
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
 
 
 def authorization_required_message(spec: ExperimentSpec) -> str:
@@ -673,6 +692,7 @@ class DirectoryQueue:
         *,
         events_max_bytes: int = DEFAULT_EVENTS_MAX_BYTES,
         event_backups: int = DEFAULT_EVENT_BACKUPS,
+        create: bool = True,
     ) -> None:
         if events_max_bytes < 1:
             raise ValueError("events_max_bytes must be positive")
@@ -682,8 +702,12 @@ class DirectoryQueue:
         self.events_max_bytes = events_max_bytes
         self.event_backups = event_backups
         self.reasons_dir = root / "reasons"
+        if create:
+            self.ensure_directories()
+
+    def ensure_directories(self) -> None:
         for state in QUEUE_STATES:
-            (root / state).mkdir(parents=True, exist_ok=True)
+            (self.root / state).mkdir(parents=True, exist_ok=True)
         self.reasons_dir.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -794,6 +818,9 @@ class DirectoryQueue:
         event: str,
         policy_rule: str | None = None,
         reason_code: str | None = None,
+        approved_spec_digest: str | None = None,
+        approved_campaign_manifest_digest: str | None = None,
+        approved_campaign_spec_digest: str | None = None,
     ) -> Path:
         source_state = source.parent.name
         if source_state not in QUEUE_STATES:
@@ -815,6 +842,9 @@ class DirectoryQueue:
                 policy_rule=policy_rule or spec.policy_rule,
                 reason_code=reason_code,
                 job_name=spec.name,
+                approved_spec_digest=approved_spec_digest,
+                approved_campaign_manifest_digest=approved_campaign_manifest_digest,
+                approved_campaign_spec_digest=approved_campaign_spec_digest,
             )
         )
         return destination
@@ -880,6 +910,9 @@ class DirectoryQueue:
                     actor=event.actor,
                     authorized_at=event.occurred_at,
                     quota_override=event.reason_code == QUOTA_OVERRIDE_REASON_CODE,
+                    approved_spec_digest=event.approved_spec_digest,
+                    campaign_manifest_digest=event.approved_campaign_manifest_digest,
+                    campaign_spec_digest=event.approved_campaign_spec_digest,
                 )
             elif event.event == "human_rejected":
                 granted.pop(event.spec_id, None)
@@ -908,6 +941,9 @@ class DirectoryQueue:
             event="human_approved",
             policy_rule="human-approval",
             reason_code=QUOTA_OVERRIDE_REASON_CODE if quota_override else None,
+            approved_spec_digest=approved_spec_digest(spec),
+            approved_campaign_manifest_digest=spec.campaign_manifest_digest,
+            approved_campaign_spec_digest=spec.campaign_spec_digest,
         )
 
     def reject(self, spec_id: str, *, actor: str, message: str) -> Path:
@@ -982,6 +1018,65 @@ class DirectoryQueue:
                     return self.state_dir("running") / f"{matches_json[0].stem}.lease"
                 filename = f"{spec_str}.lease"
         return self.state_dir("running") / filename
+    def cancel_path(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        lease_generation: str | None = None,
+    ) -> Path:
+        """Return the generation-bound cancellation marker for one lease."""
+        lease = self.lease_path(spec)
+        generation = lease_generation or self.lease_generation(lease)
+        suffix = generation or "unbound"
+        return lease.with_name(f"{lease.name}.cancel.{suffix}")
+
+    @staticmethod
+    def _read_lease_record(path: Path) -> dict[str, Any] | None:
+        try:
+            descriptor = os.open(
+                path,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+        except OSError:
+            return None
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                return None
+            with os.fdopen(descriptor, "rb", closefd=False) as source:
+                payload = json.load(source)
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+        finally:
+            os.close(descriptor)
+        return payload if isinstance(payload, dict) else None
+
+    def lease_generation(
+        self,
+        spec: ExperimentSpec | Path | str,
+    ) -> str | None:
+        record = self._read_lease_record(self.lease_path(spec))
+        generation = record.get("lease_generation") if record is not None else None
+        if not is_lease_generation(generation):
+            return None
+        return generation
+
+    @contextmanager
+    def _lease_guard(self, path: Path) -> Iterator[None]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = path.with_name(f".{path.name}.lock")
+        descriptor = os.open(
+            lock_path,
+            os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+        )
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
 
     def is_lease_stale(
         self,
@@ -1008,18 +1103,19 @@ class DirectoryQueue:
         owner_pid: int | None = None,
         stale_seconds: float = DEFAULT_LEASE_STALE_SECONDS,
         now: datetime | None = None,
+        lease_generation: str | None = None,
     ) -> Path | None:
-        """Atomically claim one spec via O_EXCL lease file in running/.
-
-        Returns the lease path on successful claim, or None if the spec is
-        actively claimed by another executor. A stale lease (> stale_seconds)
-        is reclaimed atomically rather than permanently blocking the spec.
-        """
+        """Atomically claim one spec with an immutable lease generation."""
         path = self.lease_path(spec)
-        path.parent.mkdir(parents=True, exist_ok=True)
         pid = owner_pid if owner_pid is not None else os.getpid()
         timestamp = now or datetime.now(UTC)
         spec_id = spec.spec_id if isinstance(spec, ExperimentSpec) else str(spec)
+        generation = lease_generation or secrets.token_hex(16)
+        if (
+            len(generation) != 32
+            or any(character not in "0123456789abcdef" for character in generation)
+        ):
+            raise ValueError("lease_generation must be 32 lowercase hexadecimal characters")
         payload = (
             json.dumps(
                 {
@@ -1027,54 +1123,149 @@ class DirectoryQueue:
                     "pid": pid,
                     "acquired_at": timestamp.isoformat(),
                     "host": platform.node(),
+                    "lease_generation": generation,
                 },
                 indent=2,
             )
             + "\n"
         ).encode()
-
-        try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            if self.is_lease_stale(path, stale_seconds=stale_seconds):
-                with suppress(OSError):
-                    path.unlink(missing_ok=True)
+        # The lease guard is held across O_EXCL creation AND generation write so
+        # a concurrent request_cancel/release/heartbeat (all of which take the
+        # same guard) can never observe a freshly-created but not-yet-initialized
+        # lease: an interleaved reader would otherwise see an empty/torn record,
+        # treat it as unowned, and drop a valid cancellation request. The guard
+        # also serializes a stale-lease reclaim against concurrent claimants.
+        # The record itself is advisory, not a recovery root: the strict
+        # generation reader fails closed on a torn write, and a stale lease is
+        # reclaimed by mtime. Skip the per-claim fsync so a wide tick does not
+        # pay a filesystem barrier for every lease (PERF budget).
+        with self._lease_guard(path):
+            try:
+                descriptor = os.open(
+                    path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                    0o600,
+                )
+            except FileExistsError:
+                if not self.is_lease_stale(path, stale_seconds=stale_seconds):
+                    return None
                 try:
-                    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    path.unlink()
+                    descriptor = os.open(
+                        path,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600,
+                    )
                 except (FileExistsError, OSError):
                     return None
-            else:
+            except OSError:
                 return None
-        except OSError:
-            return None
-
-        try:
-            os.write(fd, payload)
-        finally:
-            os.close(fd)
+            try:
+                with os.fdopen(descriptor, "wb", closefd=False) as destination:
+                    destination.write(payload)
+                    destination.flush()
+            finally:
+                os.close(descriptor)
         return path
 
-    def release_lease(self, spec: ExperimentSpec | Path | str) -> bool:
-        """Release a held lease by unlinking the lease file in running/."""
-        path = self.lease_path(spec)
-        if path.is_file():
+    def request_cancel(self, spec: ExperimentSpec) -> bool:
+        """Atomically bind a cancellation request to the currently active generation."""
+        lease = self.lease_path(spec)
+        with self._lease_guard(lease):
+            generation = self.lease_generation(lease)
+            if generation is None:
+                return False
+            marker = self.cancel_path(spec, lease_generation=generation)
+            payload = (
+                json.dumps(
+                    {
+                        "spec_id": spec.spec_id,
+                        "lease_generation": generation,
+                        "requested_at": datetime.now(UTC).isoformat(),
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode()
             try:
-                path.unlink()
-                return True
+                descriptor = os.open(
+                    marker,
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_EXCL
+                    | os.O_NOFOLLOW
+                    | os.O_CLOEXEC,
+                    0o600,
+                )
+            except FileExistsError:
+                record = self._read_lease_record(marker)
+                return (
+                    record is not None
+                    and record.get("lease_generation") == generation
+                    and record.get("spec_id") == spec.spec_id
+                )
             except OSError:
                 return False
-        return False
+            try:
+                with os.fdopen(descriptor, "wb", closefd=False) as destination:
+                    destination.write(payload)
+                    destination.flush()
+                    os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            return True
 
-    def heartbeat_lease(self, spec: ExperimentSpec | Path | str) -> bool:
-        """Touch the lease file to update its mtime heartbeat."""
+    def release_lease(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        lease_generation: str | None = None,
+    ) -> bool:
+        """Release only the matching generation and acknowledge its cancellation."""
         path = self.lease_path(spec)
-        if path.is_file():
+        with self._lease_guard(path):
+            generation = lease_generation or self.lease_generation(path)
+            if generation is None:
+                return False
+            current = self.lease_generation(path)
+            released = False
+            if current == generation:
+                try:
+                    path.unlink()
+                    released = True
+                except OSError:
+                    return False
+            marker = self.cancel_path(spec, lease_generation=generation)
+            with suppress(OSError):
+                if marker.is_file() and not marker.is_symlink():
+                    marker.unlink()
+            return released
+
+    def heartbeat_lease(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        lease_generation: str | None = None,
+    ) -> bool:
+        """Heartbeat only the currently matching lease generation."""
+        path = self.lease_path(spec)
+        with self._lease_guard(path):
+            if lease_generation is not None and self.lease_generation(path) != lease_generation:
+                return False
             try:
-                path.touch()
+                descriptor = os.open(
+                    path,
+                    os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                )
+            except OSError:
+                return False
+            try:
+                os.utime(descriptor)
                 return True
             except OSError:
                 return False
-        return False
+            finally:
+                os.close(descriptor)
 
     def list_leases(self) -> list[Path]:
         """Return all active lease files in running/."""
@@ -1103,6 +1294,10 @@ SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
 ProgressCallable = Callable[[str], None]
+ComplianceCallable = Callable[
+    [Path, ExperimentSpec, IngestProjectionResult | None, EvidenceArchive],
+    ComplianceDisposition,
+]
 
 MAX_TRANSIENT_RETRIES = 2
 TRANSIENT_BACKOFF_BASE_SECONDS = 5.0
@@ -1147,6 +1342,7 @@ class Executor:
         headroom: HeadroomReader | None = None,
         progress: ProgressCallable | None = None,
         sleeper: Sleeper = time.sleep,
+        compliance: ComplianceCallable | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
@@ -1160,6 +1356,7 @@ class Executor:
             headroom_by_agent=None if headroom is not None else self._repo_headroom,
         )
         self._runner = runner or self._run_harbor
+        self._compliance = compliance or self._evaluate_post_run_compliance
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
@@ -1193,14 +1390,17 @@ class Executor:
         parallel: int = 1,
         progress: ProgressCallable | None = None,
         capacity: DispatchCapacity | None = None,
+        max_transient_retries: int = MAX_TRANSIENT_RETRIES,
+        create_queue: bool = True,
     ) -> Executor:
         return cls(
             repo_root=root,
-            queue=DirectoryQueue(root / "queue"),
+            queue=DirectoryQueue(root / "queue", create=create_queue),
             policy=load_policy(root / "policy/standing-approvals.yaml"),
             parallel=parallel,
             capacity=capacity,
             progress=progress,
+            max_transient_retries=max_transient_retries,
         )
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
         return self.queue.submit(
@@ -1210,7 +1410,12 @@ class Executor:
             consecutive_harness_failures=self._consecutive_harness_failures(),
         )
 
-    def tick(self, parallel: int | None = None) -> int:
+    def tick(
+        self,
+        parallel: int | None = None,
+        *,
+        spec_ids: Sequence[str] | None = None,
+    ) -> int:
         effective_parallel = parallel if parallel is not None else self.parallel
         if effective_parallel < 1:
             raise ValueError("parallel must be at least 1")
@@ -1219,11 +1424,239 @@ class Executor:
                 self.last_tick_reason = "executor_busy"
                 return 0
             self.last_tick_reason = None
-            return self._tick_locked(parallel=effective_parallel)
+            return self._tick_locked(parallel=effective_parallel, spec_ids=spec_ids)
 
     def _report_progress(self, message: str) -> None:
         if self._progress is not None:
             self._progress(message)
+
+    def _archive_post_run(
+        self,
+        job_dir: Path,
+        spec: ExperimentSpec,
+    ) -> EvidenceArchive:
+        return archive_evidence(
+            job_dir,
+            self._safe_repo_path(
+                spec.campaign_evidence_store or "derived/evidence-cas"
+            ),
+            record_id=str(spec.campaign_attempt_id or spec.spec_id),
+            kind="post-run-compliance",
+        )
+
+
+    def _evaluate_post_run_compliance(
+        self,
+        job_dir: Path,
+        spec: ExperimentSpec,
+        ingest_result: IngestProjectionResult | None,
+        archive: EvidenceArchive,
+    ) -> ComplianceDisposition:
+        """Evaluate Data's merged contract over archived, catalog-settled evidence."""
+        job = load_job(job_dir)
+        if len(job.trials) != 1:
+            raise ValueError("post-run compliance requires exactly one trial")
+        trial = job.trials[0]
+        cataloged = bool(
+            ingest_result is not None
+            and ingest_result.cataloged_jobs > 0
+            and not ingest_result.failures
+        )
+        result = trial.result
+        bundle = TrialEvidenceBundle(
+            settlement=PlatformSettlement(
+                job_id=job.id,
+                trial_id=trial.id,
+                cas_uri=archive.uri,
+                cataloged=cataloged,
+                cas_settled=True,
+            ),
+            task_name=str(result.get("task_name") or spec.task_id or spec.task),
+            seed=str(spec.generator_seed) if spec.generator_seed is not None else None,
+            benchmark_family=(
+                spec.campaign_ledger.family.value if spec.campaign_ledger is not None else None
+            ),
+            model_name=spec.model,
+            agent_name=spec.agent,
+            task_success=(
+                trial.primary_reward == 1.0 if trial.primary_reward is not None else None
+            ),
+            result_present=True,
+            atif_present=any(
+                path.name in {"trajectory.json", "mini-swe-agent.trajectory.json"}
+                for path in trial.path.rglob("*.json")
+            ),
+            finished_at=(
+                str(result["finished_at"]) if result.get("finished_at") is not None else None
+            ),
+        )
+        report = evaluate_trial_compliance(bundle)
+        payload = (report.model_dump_json(indent=2) + "\n").encode()
+        report_dir = (
+            self._safe_repo_path(
+                spec.campaign_evidence_store or "derived/evidence-cas"
+            )
+            / "records/trial-compliance"
+        )
+        report_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        report_path = report_dir / f"{spec.campaign_attempt_id or spec.spec_id}.json"
+        try:
+            descriptor = os.open(
+                report_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+            )
+        except FileExistsError:
+            existing = report_path.read_bytes()
+            if existing != payload:
+                raise ValueError("post-run compliance report replay drift") from None
+        else:
+            try:
+                view = memoryview(payload)
+                while view:
+                    written = os.write(descriptor, view)
+                    if written <= 0:
+                        raise OSError("short compliance report write")
+                    view = view[written:]
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        return report.disposition
+
+    def _assert_persistent_artifacts_safe(
+        self,
+        spec: ExperimentSpec,
+        job_dir: Path,
+    ) -> None:
+        secrets = collected_secret_values()
+        jobs_root = self._safe_repo_path(spec.jobs_dir)
+        executor_root = jobs_root / ".executor"
+        paths = [
+            job_dir,
+            jobs_root / ".transient-attempts" / spec.name,
+            executor_root / f"{spec.name}.state.json",
+            *executor_root.glob(f"{spec.name}*.log"),
+        ]
+        assert_no_secret_material(tuple(paths), secrets=secrets)
+
+    def _settle_post_run(
+        self,
+        job_dir: Path,
+        spec: ExperimentSpec,
+        *,
+        actor: str,
+    ) -> PolicyDecision | None:
+        stage = "artifact_scan"
+        try:
+            self._assert_persistent_artifacts_safe(spec, job_dir)
+            archive: EvidenceArchive | None = None
+            if spec.campaign_ledger is not None:
+                stage = "post_run_archive"
+                archive = self._archive_post_run(job_dir, spec)
+            stage = "catalog_ingest"
+            ingest_result = self._ingester(job_dir)
+            if ingest_result is not None:
+                record_projection_failures(
+                    self.queue,
+                    ingest_result,
+                    actor=actor,
+                    spec_id=str(spec.spec_id),
+                )
+            if spec.campaign_ledger is not None:
+                stage = "post_run_compliance"
+                if archive is None:
+                    raise ValueError("post-run compliance archive is missing")
+                disposition = self._compliance(job_dir, spec, ingest_result, archive)
+                if disposition != "QUALITY_PASS":
+                    return PolicyDecision(
+                        admitted=False,
+                        reason_code=f"post_run_compliance_{disposition.casefold()}",
+                        message=(
+                            "post-run compliance refused queue completion: "
+                            f"{disposition}"
+                        ),
+                    )
+        except Exception as exc:
+            reason_code = (
+                exc.reason_code
+                if isinstance(exc, ExecutionFailure)
+                else f"{stage}_failed"
+            )
+            return PolicyDecision(
+                admitted=False,
+                reason_code=reason_code,
+                message=(
+                    f"{stage.replace('_', ' ')} failed closed before queue completion "
+                    f"({type(exc).__name__})"
+                ),
+            )
+        return None
+
+
+    def _validate_campaign_dispatch_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        source: Path,
+    ) -> None:
+        spec_id = str(spec.spec_id or "")
+        provenance_present = any(
+            value is not None
+            for value in (
+                spec.campaign_ledger,
+                spec.campaign_attempt_id,
+                spec.campaign_attempt_index,
+                spec.campaign_manifest_digest,
+                spec.campaign_spec_digest,
+                spec.campaign_evidence_store,
+            )
+        )
+        campaign_source = "campaign-" in source.name
+        if not provenance_present and not campaign_source and not spec_id.startswith("campaign-"):
+            return
+        if (
+            not spec_id.startswith("campaign-")
+            or spec.campaign_ledger is None
+            or spec.campaign_manifest_digest is None
+        ):
+            raise ExecutionFailure(
+                "campaign_binding_missing",
+                "campaign queue record lost its frozen manifest binding",
+            )
+        from evallab.campaigns import CampaignManifest, experiment_spec_digest
+
+        manifest_path = (
+            self.repo_root
+            / "runs/campaigns"
+            / spec.campaign_ledger.ledger_id
+            / "manifest.json"
+        )
+        try:
+            descriptor = os.open(manifest_path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(descriptor, "rb") as handle:
+                manifest = CampaignManifest.model_validate_json(handle.read())
+        except Exception as exc:
+            raise ExecutionFailure(
+                "campaign_manifest_unavailable",
+                "frozen campaign manifest cannot be validated at dispatch",
+            ) from exc
+        matches = [attempt for attempt in manifest.attempts if attempt.spec_id == spec_id]
+        if len(matches) != 1:
+            raise ExecutionFailure(
+                "campaign_attempt_unbound",
+                "queued campaign spec is not uniquely present in the frozen manifest",
+            )
+        attempt = matches[0]
+        if (
+            manifest.manifest_digest != spec.campaign_manifest_digest
+            or spec.campaign_spec_digest != attempt.spec_digest
+            or experiment_spec_digest(spec) != attempt.spec_digest
+        ):
+            raise ExecutionFailure(
+                "campaign_spec_drifted",
+                "queued campaign spec differs from its frozen attempt",
+            )
+
 
     def _dispatch_one(
         self,
@@ -1232,6 +1665,23 @@ class Executor:
         authorizations: dict[str, PaidRunAuthorization],
         credentials: frozenset[str],
     ) -> bool:
+        try:
+            self._validate_campaign_dispatch_spec(spec, source=path)
+        except ExecutionFailure as exc:
+            failure = PolicyDecision(
+                admitted=False,
+                reason_code=exc.reason_code,
+                message=str(exc),
+            )
+            failed = self.queue.transition(
+                path,
+                "failed",
+                actor="executor",
+                event="dispatch_refused",
+                reason_code=failure.reason_code,
+            )
+            self.queue.write_reason(self.queue.load(failed), failure)
+            return False
         if self.queue.stop_path.exists():
             return False
         missing = missing_credential_for(spec.agent, credentials)
@@ -1248,11 +1698,32 @@ class Executor:
                 )
             )
             return False
+        authorization = authorizations.get(str(spec.spec_id))
+        if authorization is not None and (
+            authorization.approved_spec_digest != approved_spec_digest(spec)
+            or authorization.campaign_manifest_digest
+            != spec.campaign_manifest_digest
+            or authorization.campaign_spec_digest != spec.campaign_spec_digest
+        ):
+            failure = PolicyDecision(
+                admitted=False,
+                reason_code="paid_run_authorization_stale",
+                message="queued spec no longer matches the recorded human authorization",
+            )
+            failed = self.queue.transition(
+                path,
+                "failed",
+                actor="executor",
+                event="dispatch_refused",
+                reason_code=failure.reason_code,
+            )
+            self.queue.write_reason(self.queue.load(failed), failure)
+            return False
         decision = self.gate.decide(
             spec,
             spent_today_usd=self._effective_spend_today(),
             consecutive_harness_failures=self._consecutive_harness_failures(),
-            authorization=authorizations.get(str(spec.spec_id)),
+            authorization=authorization,
         )
         if not decision.admitted:
             try:
@@ -1267,7 +1738,11 @@ class Executor:
             except (FileNotFoundError, FileExistsError, ValueError):
                 pass
             return False
-        lease_path = self.queue.acquire_lease(spec)
+        lease_generation = secrets.token_hex(16)
+        lease_path = self.queue.acquire_lease(
+            spec,
+            lease_generation=lease_generation,
+        )
         if lease_path is None:
             # Lost claim race or actively leased; tolerated vanished/claimed skip
             return False
@@ -1280,7 +1755,7 @@ class Executor:
                 policy_rule=decision.policy_rule,
             )
         except (FileNotFoundError, FileExistsError, ValueError):
-            self.queue.release_lease(spec)
+            self.queue.release_lease(spec, lease_generation=lease_generation)
             return False
         self._report_progress(
             f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})"
@@ -1291,11 +1766,20 @@ class Executor:
         )
         try:
             try:
-                job_dir = self.execute_spec(spec)
-            except Exception as exc:
+                job_dir = self.execute_spec(
+                    spec,
+                    lease_generation=lease_generation,
+                )
+            except Exception as execution_error:
+                failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
+                failure_error = execution_error
+                try:
+                    self._assert_persistent_artifacts_safe(spec, failed_job_dir)
+                except ExecutionFailure as scan_failure:
+                    failure_error = scan_failure
                 reason_code = (
-                    exc.reason_code
-                    if isinstance(exc, ExecutionFailure)
+                    failure_error.reason_code
+                    if isinstance(failure_error, ExecutionFailure)
                     else "execution_failed"
                 )
                 failure = PolicyDecision(
@@ -1303,7 +1787,7 @@ class Executor:
                     reason_code=reason_code,
                     message=(
                         "execution failed; inspect the immutable job evidence and logs "
-                        f"({type(exc).__name__})"
+                        f"({type(failure_error).__name__})"
                     ),
                 )
                 failed = self.queue.transition(
@@ -1318,36 +1802,29 @@ class Executor:
                     f"failed {spec.name} ({failure.reason_code}); state: failed"
                 )
             else:
-                try:
-                    ingest_result = self._ingester(job_dir)
-                except Exception as exc:
-                    failure = PolicyDecision(
-                        admitted=False,
-                        reason_code="catalog_ingest_failed",
-                        message=(
-                            "completed evidence could not be cataloged; retry ingestion "
-                            f"before interpreting the result ({type(exc).__name__})"
-                        ),
-                    )
+                failure = self._settle_post_run(
+                    job_dir,
+                    spec,
+                    actor="executor",
+                )
+                if failure is not None:
+                    failure_reason = failure.reason_code or "post_run_failed"
                     failed = self.queue.transition(
                         running,
                         "failed",
                         actor="executor",
-                        event="catalog_ingest_failed",
-                        reason_code=failure.reason_code,
+                        event=(
+                            "post_run_compliance_refused"
+                            if failure_reason.startswith("post_run_compliance_")
+                            else "post_run_refused"
+                        ),
+                        reason_code=failure_reason,
                     )
                     self.queue.write_reason(self.queue.load(failed), failure)
                     self._report_progress(
                         f"failed {spec.name} ({failure.reason_code}); state: failed"
                     )
                 else:
-                    if ingest_result is not None:
-                        record_projection_failures(
-                            self.queue,
-                            ingest_result,
-                            actor="executor",
-                            spec_id=str(spec.spec_id),
-                        )
                     self.queue.transition(
                         running,
                         "done",
@@ -1358,7 +1835,7 @@ class Executor:
                     self._report_progress(f"completed {spec.name}; state: done")
             return True
         finally:
-            self.queue.release_lease(spec)
+            self.queue.release_lease(spec, lease_generation=lease_generation)
 
     def _capacity_batch(
         self,
@@ -1390,7 +1867,11 @@ class Executor:
         return selected
 
 
-    def _tick_locked(self, parallel: int = 1) -> int:
+    def _tick_locked(
+        self,
+        parallel: int = 1,
+        spec_ids: Sequence[str] | None = None,
+    ) -> int:
         self.reconcile_running()
         if self.queue.stop_path.exists():
             return 0
@@ -1411,6 +1892,23 @@ class Executor:
             return 0
         credentials = self._credential_probe()
         approved_specs = self.queue.list_specs("approved")
+        if spec_ids is None:
+            campaign_specs_present = any(
+                spec.campaign_ledger is not None for _path, spec in approved_specs
+            )
+            approved_specs = [
+                (path, spec)
+                for path, spec in approved_specs
+                if spec.campaign_ledger is None
+            ]
+            if campaign_specs_present and not approved_specs:
+                self.last_tick_reason = "campaign_specs_require_campaign_resume"
+                return 0
+        else:
+            allowed = frozenset(spec_ids)
+            approved_specs = [
+                (path, spec) for path, spec in approved_specs if spec.spec_id in allowed
+            ]
         approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
             return 0
@@ -1435,7 +1933,12 @@ class Executor:
                     dispatched += 1
         return dispatched
 
-    def execute_spec(self, spec: ExperimentSpec) -> Path:
+    def execute_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        lease_generation: str | None = None,
+    ) -> Path:
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
@@ -1459,6 +1962,28 @@ class Executor:
             package_digest = resolved.digests.package
             task_id = resolved.task_id
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
+        elif spec.task_package_digest is not None:
+            digests = compute_task_digests(task_path)
+            if (
+                digests.package != spec.task_package_digest
+                or (
+                    spec.verifier_digest is not None
+                    and digests.verifier != spec.verifier_digest
+                )
+            ):
+                raise ExecutionFailure(
+                    "task_digest_mismatch",
+                    "local campaign task package differs from its frozen digest",
+                )
+            package_digest = digests.package
+        if (
+            spec.task_package_digest is not None
+            and package_digest != spec.task_package_digest
+        ):
+            raise ExecutionFailure(
+                "task_digest_mismatch",
+                "resolved task package differs from the frozen campaign digest",
+            )
         grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
         bound_values = (
             dict(grid_point["bindings"])
@@ -1595,7 +2120,13 @@ class Executor:
             attempts=spec.attempts,
             timeout_seconds=timeout_seconds,
             allow_billable=spec.billable,
+            max_requests=spec.max_requests,
+            max_input_tokens=spec.max_input_tokens,
+            max_output_tokens=spec.max_output_tokens,
+            max_total_tokens=spec.max_total_tokens,
+            cost_limit_usd=spec.cost_limit_usd,
             lease_path=self.queue.lease_path(spec),
+            lease_generation=lease_generation,
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
                 task=spec.task,
@@ -1621,9 +2152,17 @@ class Executor:
                 task_id=task_id,
                 task_instance_id=spec.task_instance_id,
                 generator_seed=spec.generator_seed,
+                campaign_ledger=spec.campaign_ledger,
+                campaign_cell_id=spec.campaign_cell_id,
+                campaign_attempt_id=spec.campaign_attempt_id,
+                campaign_attempt_index=spec.campaign_attempt_index,
+                campaign_manifest_digest=spec.campaign_manifest_digest,
+                campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
-        return self._run_with_transient_retries(spec, request)
+        job_dir = self._run_with_transient_retries(spec, request)
+        self._assert_persistent_artifacts_safe(spec, job_dir)
+        return job_dir
 
     def _run_with_transient_retries(
         self,
@@ -1639,7 +2178,11 @@ class Executor:
                     raise
                 if not self._retry_within_policy(spec):
                     raise
-                archived = self._archive_transient_attempt(request, retry_number + 1)
+                archived = self._archive_transient_attempt(
+                    spec,
+                    request,
+                    retry_number + 1,
+                )
                 delay = min(
                     TRANSIENT_BACKOFF_BASE_SECONDS * (2**retry_number),
                     TRANSIENT_BACKOFF_CAP_SECONDS,
@@ -1743,14 +2286,16 @@ class Executor:
     def _effective_spend_today(self) -> float:
         return self._spent_today() + self._reserved_attempt_spend_today()
 
-    @staticmethod
     def _archive_transient_attempt(
+        self,
+        spec: ExperimentSpec,
         request: RunRequest,
         retry_number: int,
     ) -> Path | None:
         job_dir = request.jobs_dir / request.name
         if not job_dir.exists():
             return None
+        self._assert_persistent_artifacts_safe(spec, job_dir)
         archive = (
             request.jobs_dir
             / ".transient-attempts"
@@ -1864,6 +2409,16 @@ class Executor:
 
     def reconcile_running(self) -> None:
         for path, spec in self.queue.list_specs("running"):
+            try:
+                self._validate_campaign_dispatch_spec(spec, source=path)
+            except ExecutionFailure as failure:
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code=failure.reason_code,
+                    message=str(failure),
+                )
+                continue
             if self._running_state_timed_out(spec):
                 self._fail_reconciled_running(
                     path,
@@ -1900,19 +2455,44 @@ class Executor:
                         ),
                     )
                 continue
+            result_path = job_dir / "result.json"
+            try:
+                result = json.loads(result_path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                continue
+            except (OSError, TypeError, json.JSONDecodeError):
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code="running_reconcile_incomplete_evidence",
+                    message="terminal job evidence is unreadable; refusing reconciliation",
+                )
+                continue
+            if not isinstance(result, dict) or result.get("finished_at") is None:
+                continue
             try:
                 job = load_job(job_dir)
             except Exception:
-                # Harbor creates the top-level result at job start with
-                # finished_at=null. It may still be running and billing, so a
-                # restart must never ingest or settle that partial evidence.
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code="running_reconcile_incomplete_evidence",
+                    message="terminal trial evidence is unreadable; refusing reconciliation",
+                )
+                continue
+            if not job.trials:
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code="running_reconcile_incomplete_evidence",
+                    message="terminal job has no trial evidence; refusing reconciliation",
+                )
                 continue
             transient_reason = next(
                 (
                     reason
                     for trial in job.trials
-                    if (reason := transient_provider_exception(trial.result))
-                    is not None
+                    if (reason := transient_provider_exception(trial.result)) is not None
                 ),
                 None,
             )
@@ -1927,17 +2507,20 @@ class Executor:
                     ),
                 )
                 continue
-            try:
-                ingest_result = self._ingester(job_dir)
-            except Exception:
-                continue
-            if ingest_result is not None:
-                record_projection_failures(
-                    self.queue,
-                    ingest_result,
-                    actor="executor-reconcile",
-                    spec_id=str(spec.spec_id),
+            failure = self._settle_post_run(
+                job_dir,
+                spec,
+                actor="executor-reconcile",
+            )
+            if failure is not None:
+                failure_reason = failure.reason_code or "post_run_failed"
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code=failure_reason,
+                    message=failure.message,
                 )
+                continue
             self.queue.transition(
                 path,
                 "done",

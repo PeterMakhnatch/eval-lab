@@ -23,7 +23,12 @@ import pyarrow.parquet as pq
 from pydantic import Field, ValidationError
 
 from evallab.database import ingest_interpretation_artifacts
-from evallab.evidence_store import archive_evidence, load_archive, restore_evidence
+from evallab.evidence_store import (
+    archive_evidence,
+    read_archive,
+    read_record,
+    restore_evidence,
+)
 from evallab.interpretation.evidence_pack import (
     DEFAULT_TOKEN_BUDGET,
     EvidencePack,
@@ -2232,11 +2237,17 @@ def _load_interpretation_archive_record(
     sidecar_dir: Path | None = None,
 ) -> tuple[str, str] | None:
     """Validate the record, archive bytes, restored content, and sidecar byte identity."""
-    record_path = store_root.resolve() / "records" / "interpretation" / f"{decision_id}.json"
-    if not record_path.is_file():
+    try:
+        record = json.loads(
+            read_record(
+                store_root,
+                kind="interpretation",
+                record_id=decision_id,
+            )
+        )
+    except FileNotFoundError:
         return None
     try:
-        record = json.loads(record_path.read_text(encoding="utf-8"))
         uri = str(record["uri"])
         content_digest = str(record["content_digest"])
         archive_digest = str(record["archive_digest"])
@@ -2246,8 +2257,8 @@ def _load_interpretation_archive_record(
             or uri != f"cas://sha256/{content_digest.removeprefix('sha256:')}"
         ):
             return None
-        blob = load_archive(store_root, uri)
-        actual_archive_digest = f"sha256:{hashlib.sha256(blob.read_bytes()).hexdigest()}"
+        archive_bytes = read_archive(store_root, uri)
+        actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
         if actual_archive_digest != archive_digest:
             return None
         if sidecar_dir is not None:

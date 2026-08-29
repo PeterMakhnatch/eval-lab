@@ -21,6 +21,7 @@ TOP_LEVEL_COMMANDS = (
     "reject",
     "stop",
     "resume",
+    "campaign",
     "schedule",
     "digest",
     "nightly",
@@ -58,6 +59,10 @@ TOP_LEVEL_COMMANDS = (
 )
 NESTED_COMMANDS = (
     ("claims", "pack"),
+    ("campaign", "plan"),
+    ("campaign", "status"),
+    ("campaign", "run"),
+    ("campaign", "resume"),
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
     ("curve", "validate"),

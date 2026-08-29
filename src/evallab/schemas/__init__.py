@@ -10,6 +10,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from evallab.benchmark_program_contracts import (
+    CampaignCalibrationLedger,
+    CampaignMeasurementLedger,
+)
+
 
 class ContractModel(BaseModel):
     """Strict base for durable lab contracts."""
@@ -266,6 +271,10 @@ class ExperimentSpec(ContractModel):
     expected_reward: float | None = None
     task_version: str | None = None
     verifier_digest: str | None = None
+    task_package_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
     submitted_at: datetime | None = None
     grid_id: str | None = None
     grid_point: dict[str, Any] | None = None
@@ -276,8 +285,58 @@ class ExperimentSpec(ContractModel):
         default=None,
         description=("task-generator seed only; model-sampling seed is uncontrolled and absent"),
     )
+    max_requests: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial provider request ceiling",
+    )
+    max_input_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial model input-token ceiling",
+    )
+    max_output_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial model output-token ceiling",
+    )
+    max_total_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial combined token ceiling",
+    )
+    cost_limit_usd: float | None = Field(
+        default=None,
+        gt=0,
+        description="enforced per-trial agent cost ceiling",
+    )
+    campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
+    campaign_cell_id: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    campaign_attempt_id: str | None = Field(
+        default=None,
+        pattern=r"^attempt-[0-9a-f]{24}$",
+    )
+    campaign_attempt_index: int | None = Field(default=None, ge=1)
+    campaign_manifest_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    campaign_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    campaign_evidence_store: str | None = None
 
-    @field_validator("task", "task_path", "jobs_dir", "extra_instruction_path")
+    @field_validator(
+        "task",
+        "task_path",
+        "jobs_dir",
+        "extra_instruction_path",
+        "campaign_evidence_store",
+    )
     @classmethod
     def paths_are_repo_relative(cls, value: str | None) -> str | None:
         if value is None:
@@ -292,11 +351,38 @@ class ExperimentSpec(ContractModel):
         return validated_jobs_dir(value)
 
     @model_validator(mode="after")
-    def controls_do_not_name_models(self) -> ExperimentSpec:
+    def controls_and_campaigns_are_bounded(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
+        campaign_fields = (
+            self.campaign_ledger,
+            self.campaign_cell_id,
+            self.campaign_attempt_id,
+            self.campaign_attempt_index,
+            self.campaign_manifest_digest,
+            self.campaign_spec_digest,
+            self.campaign_evidence_store,
+        )
+        if any(value is not None for value in campaign_fields):
+            if any(value is None for value in campaign_fields):
+                raise ValueError("campaign provenance fields must be declared together")
+            if self.attempts != 1 or self.concurrency != 1:
+                raise ValueError("campaign specs represent exactly one attempt")
+            if self.billable and any(
+                value is None
+                for value in (
+                    self.cost_limit_usd,
+                    self.max_requests,
+                    self.max_input_tokens,
+                    self.max_output_tokens,
+                    self.max_total_tokens,
+                )
+            ):
+                raise ValueError(
+                    "billable campaign specs require request, cost, and token ceilings"
+                )
         return self
 
     @property
@@ -318,10 +404,19 @@ class MatrixRun(ContractModel):
 
 
 class ExperimentMatrix(ContractModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
+    matrix_id: str = Field(pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
     name: str
     hypothesis: str
+    benchmark_family: str = Field(min_length=1)
+    task_id: str = Field(
+        min_length=3,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
     task: str
+    task_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
@@ -423,6 +518,18 @@ class QueueEvent(ContractModel):
     report_date: str | None = None
     attempt_number: int | None = Field(default=None, ge=1)
     estimated_cost_usd: float | None = Field(default=None, ge=0)
+    approved_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    approved_campaign_manifest_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    approved_campaign_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
 
 
 class QueueReason(ContractModel):
@@ -516,6 +623,18 @@ class RunProvenance(ContractModel):
     generator_seed: int | str | None = Field(
         default=None,
         description=("task-generator seed only; model-sampling seed is uncontrolled and absent"),
+    )
+    campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
+    campaign_cell_id: str | None = None
+    campaign_attempt_id: str | None = None
+    campaign_attempt_index: int | None = Field(default=None, ge=1)
+    campaign_manifest_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    campaign_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
     )
 
 
@@ -1359,11 +1478,15 @@ ContaminationRecord = TaskContamination
 
 
 class TaskRegistryRecord(ContractModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     task_id: str = Field(
         min_length=3,
         max_length=80,
         pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    task_family: str = Field(
+        min_length=1,
+        pattern=r"^[a-z0-9][a-z0-9_-]+$",
     )
     version: str = Field(min_length=1)
     task_path: str = Field(min_length=1)

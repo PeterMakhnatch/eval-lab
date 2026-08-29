@@ -852,6 +852,7 @@ def promote_task(
     *,
     registry_dir: Path | None = None,
     task_id: str | None = None,
+    task_family: str | None = None,
     version: str | None = None,
     source_uri: str | None = None,
     source_ref: str | None = None,
@@ -939,6 +940,16 @@ def promote_task(
 
     if not task_id:
         task_id = target_path.name
+    declared_task_family = (
+        task_family
+        or task_table.get("family")
+        or meta_table.get("task_family")
+    )
+    if not isinstance(declared_task_family, str) or not declared_task_family.strip():
+        raise ValueError(
+            "task promotion requires an explicit task_family or task.family declaration"
+        )
+    task_family = declared_task_family.strip()
 
     if version is None:
         version = str(
@@ -1043,6 +1054,11 @@ def promote_task(
                     f"{existing_record.digests.package}, current {digests.package}); "
                     "bump --version to register a new version"
                 )
+            if existing_record.task_family != task_family:
+                raise ValueError(
+                    f"registered task family {existing_record.task_family!r} does not match "
+                    f"requested family {task_family!r}"
+                )
 
             if existing_record.state == "candidate":
                 try:
@@ -1115,8 +1131,9 @@ def promote_task(
         approved_by = None
         approved_timestamp = None
     record = TaskRegistryRecord(
-        schema_version=1,
+        schema_version=2,
         task_id=task_id,
+        task_family=task_family,
         version=version,
         task_path=rel_task_path,
         digests=digests,

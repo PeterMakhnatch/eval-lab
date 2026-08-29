@@ -662,7 +662,7 @@ class GuardedTick:
         self.doctor = doctor
         self.executor = executor
 
-    def run(self) -> GuardedTickResult:
+    def run(self, spec_ids: Sequence[str] | None = None) -> GuardedTickResult:
         report = self.doctor.run()
         if not report.healthy:
             record_quarantine(
@@ -672,7 +672,7 @@ class GuardedTick:
                 actor="scheduled-tick",
             )
             return GuardedTickResult(report=report, dispatched=0)
-        dispatched = self.executor.tick()
+        dispatched = self.executor.tick(spec_ids=spec_ids)
         if dispatched:
             event = "tick_dispatched"
             reason = f"dispatched:{dispatched}"
@@ -682,12 +682,17 @@ class GuardedTick:
         elif self.executor.queue.stop_path.exists():
             event = "tick_deferred"
             reason = "stop_file_present"
-        elif self.executor.queue.list_specs("approved"):
-            event = "tick_deferred"
-            reason = "approved_specs_deferred"
         else:
-            event = "tick_deferred"
-            reason = "no_approved_specs"
+            approved = self.executor.queue.list_specs("approved")
+            if spec_ids is not None:
+                allowed = frozenset(spec_ids)
+                approved = [(path, spec) for path, spec in approved if spec.spec_id in allowed]
+            if approved:
+                event = "tick_deferred"
+                reason = "approved_specs_deferred"
+            else:
+                event = "tick_deferred"
+                reason = "no_approved_specs"
         self.executor.queue.append_event(
             QueueEvent(
                 event_id=new_ulid(),
@@ -817,9 +822,7 @@ class NightlyCycle:
         for step in self.steps:
             if context.aborted and step.name not in SURFACE_STEP_NAMES:
                 reason = (
-                    "quarantined_by_prior_step"
-                    if context.quarantined
-                    else "aborted_by_prior_step"
+                    "quarantined_by_prior_step" if context.quarantined else "aborted_by_prior_step"
                 )
                 context.step_outcomes.append(
                     StepOutcome(
@@ -952,7 +955,7 @@ class ScheduleInstaller:
                     "/usr/sbin",
                     "/sbin",
                 ]
-            )
+            ),
         }
         return {
             self.TICK_LABEL: {

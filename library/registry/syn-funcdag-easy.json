@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "syn-funcdag-easy",
+  "task_family": "family_b_funcdag_v2",
   "version": "1.0.0",
   "task_path": "library/tasks/experimental/syn-funcdag-easy",
   "digests": {

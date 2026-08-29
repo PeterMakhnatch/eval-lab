@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import platform
 import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -27,12 +30,15 @@ from evallab.execution_contracts import (
     DEEPSEEK_ALLOWED_MODEL_ENV,
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
     DEEPSEEK_MODEL_SELECTOR,
+    DEEPSEEK_PROXY_ATTEMPT_ID_ENV,
     DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_GID_ENV,
     DEEPSEEK_PROXY_HOST,
     DEEPSEEK_PROXY_SCRIPT,
     DEEPSEEK_PROXY_SCRIPT_ENV,
     DEEPSEEK_PROXY_UID_ENV,
+    DEEPSEEK_PROXY_USAGE_DIR_ENV,
+    DEEPSEEK_PROXY_USAGE_FILE_ENV,
     DEEPSEEK_SECRET_FILE_ENV,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
@@ -45,12 +51,14 @@ from evallab.execution_contracts import (
     WATCHDOG_POLL_SECONDS,
     ExecutionFailure,
     HarborProcessResult,
+    ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
     TransientHarnessFailure,
     TrialTimeoutFailure,
     build_command,
     collected_secret_values,
+    is_lease_generation,
     materialize_deepseek_secret_file,
     persist_private_bytes,
     proxy_runtime_identity,
@@ -339,6 +347,275 @@ def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None
     if directory is not None:
         with suppress(OSError):
             shutil.rmtree(directory)
+class _StreamingRedactor:
+    """Redact exact secret bytes before any child output reaches disk."""
+
+    def __init__(self, secrets: frozenset[str]) -> None:
+        self.secrets = tuple(
+            sorted(
+                (secret.encode() for secret in secrets if secret),
+                key=len,
+                reverse=True,
+            )
+        )
+        self.pending = b""
+        self.max_secret_length = max((len(secret) for secret in self.secrets), default=0)
+
+    def feed(self, chunk: bytes) -> bytes:
+        if not self.secrets:
+            return chunk
+        combined = self.pending + chunk
+        cut = max(0, len(combined) - self.max_secret_length + 1)
+        for secret in self.secrets:
+            search_from = max(0, cut - len(secret) + 1)
+            start = combined.find(secret, search_from)
+            while start >= 0:
+                if start < cut < start + len(secret):
+                    cut = start
+                start = combined.find(secret, start + 1)
+        safe = combined[:cut]
+        self.pending = combined[cut:]
+        for secret in self.secrets:
+            safe = safe.replace(secret, b"<redacted>")
+        return safe
+
+    def finish(self) -> bytes:
+        safe = self.pending
+        self.pending = b""
+        for secret in self.secrets:
+            safe = safe.replace(secret, b"<redacted>")
+        return safe
+
+
+def _drain_redacted_output(
+    source: Any,
+    destination: Any,
+    secrets: frozenset[str],
+) -> None:
+    redactor = _StreamingRedactor(secrets)
+    while chunk := source.read(64 * 1024):
+        destination.write(redactor.feed(chunk))
+        destination.flush()
+    destination.write(redactor.finish())
+    destination.flush()
+
+
+def assert_no_secret_material(
+    paths: tuple[Path, ...],
+    *,
+    secrets: frozenset[str],
+) -> None:
+    """Fail closed if provider credential bytes reached a persistent artifact."""
+    encoded = tuple(secret.encode() for secret in secrets if secret)
+    if not encoded:
+        return
+    leaks: list[Path] = []
+    for root in paths:
+        candidates = (root,) if root.is_file() or root.is_symlink() else tuple(root.rglob("*"))
+        for path in candidates:
+            if path.is_symlink():
+                raise ExecutionFailure(
+                    "unsafe_artifact_symlink",
+                    f"persistent artifact contains a symlink: {path}",
+                )
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_bytes()
+            except OSError as exc:
+                raise ExecutionFailure(
+                    "artifact_scan_failed",
+                    f"persistent artifact cannot be scanned: {path}",
+                ) from exc
+            if any(secret in content for secret in encoded):
+                leaks.append(path)
+    if leaks:
+        labels = ", ".join(str(path) for path in leaks)
+        removal_failures: list[str] = []
+        for path in leaks:
+            try:
+                path.unlink()
+            except OSError:
+                removal_failures.append(str(path))
+        disposition = (
+            "removal failed for: " + ", ".join(removal_failures)
+            if removal_failures
+            else "contaminated files were removed"
+        )
+        raise ExecutionFailure(
+            "credential_material_detected",
+            f"credential material reached persistent artifacts ({disposition}): {labels}",
+        )
+
+
+def _read_generation(path: Path) -> str | None:
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return None
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            payload = json.load(source)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    finally:
+        os.close(descriptor)
+    if not isinstance(payload, dict):
+        return None
+    generation = payload.get("lease_generation")
+    if not is_lease_generation(generation):
+        return None
+    return generation
+
+
+def _lease_owned(lease_path: Path | None, lease_generation: str | None) -> bool:
+    if lease_path is None:
+        return True
+    return lease_generation is not None and _read_generation(lease_path) == lease_generation
+
+
+def _cancel_requested(
+    lease_path: Path | None,
+    lease_generation: str | None,
+) -> bool:
+    if lease_path is None or lease_generation is None:
+        return False
+    marker = lease_path.with_name(f"{lease_path.name}.cancel.{lease_generation}")
+    return _read_generation(marker) == lease_generation
+
+
+def _heartbeat_lease(lease_path: Path, lease_generation: str) -> bool:
+    try:
+        descriptor = os.open(
+            lease_path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+    except OSError:
+        return False
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return False
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            payload = json.load(source)
+        if not isinstance(payload, dict) or payload.get("lease_generation") != lease_generation:
+            return False
+        os.utime(descriptor)
+        return True
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    finally:
+        os.close(descriptor)
+
+
+def _lease_cancelled_or_lost(
+    lease_path: Path | None,
+    lease_generation: str | None,
+) -> bool:
+    return _cancel_requested(lease_path, lease_generation) or not _lease_owned(
+        lease_path,
+        lease_generation,
+    )
+
+
+def _read_proxy_usage(
+    path: Path,
+    *,
+    capability_id: str,
+    attempt_id: str,
+    limits: ProxyTrialLimits,
+) -> dict[str, Any]:
+    try:
+        payload = json.loads(read_owner_secret_file(path))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            "DeepSeek proxy usage report is unreadable",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+
+    def integer(value: object, label: str) -> int:
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 0
+            or value > 2**63 - 1
+        ):
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                f"DeepSeek proxy usage field {label} is invalid",
+            )
+        return value
+
+    expected_limits = asdict(limits)
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("capability_id") != capability_id
+        or payload.get("attempt_id") != attempt_id
+        or payload.get("limits") != expected_limits
+    ):
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            "DeepSeek proxy usage binding does not match this trial",
+        )
+    calls = payload.get("calls")
+    totals = payload.get("totals")
+    if not isinstance(calls, list) or not isinstance(totals, dict):
+        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+    computed = {
+        "requests": len(calls),
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_micros": 0,
+    }
+    unresolved = 0
+    expected_sequence = 0
+    for index, raw_call in enumerate(calls, start=1):
+        if not isinstance(raw_call, dict) or integer(raw_call.get("call_id"), "call_id") != index:
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                "DeepSeek proxy call sequence is invalid",
+            )
+        state = raw_call.get("state")
+        if state == "reconciled":
+            source_fields = ("input_tokens", "output_tokens", "cost_micros")
+            expected_sequence += 2
+        elif state in {"reserved", "unresolved"}:
+            source_fields = (
+                "reserved_input_tokens",
+                "reserved_output_tokens",
+                "reserved_cost_micros",
+            )
+            unresolved += 1
+            expected_sequence += 1 if state == "reserved" else 2
+        else:
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                "DeepSeek proxy call state is invalid",
+            )
+        computed["input_tokens"] += integer(raw_call.get(source_fields[0]), source_fields[0])
+        computed["output_tokens"] += integer(raw_call.get(source_fields[1]), source_fields[1])
+        computed["cost_micros"] += integer(raw_call.get(source_fields[2]), source_fields[2])
+    expected_totals = {
+        **computed,
+        "total_tokens": computed["input_tokens"] + computed["output_tokens"],
+    }
+    if (
+        {name: integer(totals.get(name), name) for name in expected_totals}
+        != expected_totals
+        or integer(payload.get("unresolved_requests"), "unresolved_requests") != unresolved
+        or integer(payload.get("sequence"), "sequence") != expected_sequence
+    ):
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            "DeepSeek proxy totals do not reconcile with provider calls",
+        )
+    return payload
 
 
 def run_harbor_process(
@@ -350,9 +627,19 @@ def run_harbor_process(
     job_dir: Path | None = None,
     trial_timeout_seconds: float | None = None,
     lease_path: Path | None = None,
+    lease_generation: str | None = None,
+    proxy_attempt_id: str | None = None,
+    proxy_limits: ProxyTrialLimits | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
-    """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
+    """Run Harbor while redacting provider credentials before log persistence."""
+    if lease_path is not None and lease_generation is None:
+        raise ValueError("lease_generation is required when lease_path is set")
+    if _lease_cancelled_or_lost(lease_path, lease_generation):
+        raise ExecutionFailure(
+            "execution_cancelled",
+            "campaign owner cancelled the active queue lease before Harbor launch",
+        )
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
     deepseek_lane = deepseek_adapter in command
@@ -360,38 +647,58 @@ def run_harbor_process(
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
+    owned_usage_dir: Path | None = None
+    owned_usage_path: Path | None = None
+    capability_id: str | None = None
     try:
         if deepseek_lane:
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError("DeepSeek execution requires a bound trial capability")
             capability = secrets.token_urlsafe(32)
+            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+            owned_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-deepseek-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_usage_dir, 0o700)
+            owned_usage_path = owned_usage_dir / "deepseek-proxy-usage.json"
             runtime_environment[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment[DEEPSEEK_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
+            runtime_environment[DEEPSEEK_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
+            runtime_environment[DEEPSEEK_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
             runtime_environment["DEEPSEEK_API_KEY"] = capability
             runtime_environment["MSWEA_API_KEY"] = capability
             runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
                 DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_REQUESTS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_REQUESTS", "8"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(
+                proxy_limits.max_requests
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS", "32768"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS"] = str(
+                proxy_limits.max_input_tokens
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS", "4096"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS"] = str(
+                proxy_limits.max_output_tokens
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_COST_MICROS", "500000"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS"] = str(
+                proxy_limits.max_total_tokens
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-                os.environ.get("EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION", "280000"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_COST_MICROS"] = str(
+                proxy_limits.max_cost_micros
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
-                os.environ.get("EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION", "420000"),
+            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = (
+                os.environ.get(
+                    "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+                    "280000",
+                )
+            )
+            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = (
+                os.environ.get(
+                    "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+                    "420000",
+                )
             )
             runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
                 time.time() + float(timeout_seconds) + 60.0
@@ -439,6 +746,35 @@ def run_harbor_process(
                     str(path) for path in (source_root, inherited_pythonpath) if path
                 )
         secret_bytes = tuple(value.encode() for value in secret_values)
+
+        def _result(
+            *,
+            returncode: int,
+            timed_out: bool,
+            timed_out_trial: str | None = None,
+        ) -> HarborProcessResult:
+            proxy_usage = None
+            if (
+                deepseek_lane
+                and owned_usage_path is not None
+                and owned_usage_path.is_file()
+                and capability_id is not None
+                and proxy_attempt_id is not None
+                and proxy_limits is not None
+            ):
+                proxy_usage = _read_proxy_usage(
+                    owned_usage_path,
+                    capability_id=capability_id,
+                    attempt_id=proxy_attempt_id,
+                    limits=proxy_limits,
+                )
+            return HarborProcessResult(
+                returncode=returncode,
+                timed_out=timed_out,
+                log_path=log_path,
+                timed_out_trial=timed_out_trial,
+                proxy_usage=proxy_usage,
+            )
         read_fd, write_fd = os.pipe()
         writer = RedactingBinaryWriter(log_path, secret_bytes)
 
@@ -473,25 +809,44 @@ def run_harbor_process(
         pump.start()
         try:
             started = time.monotonic()
-            if lease_path is not None:
-                try:
-                    if lease_path.is_file():
-                        lease_path.touch()
-                except OSError:
-                    pass
+            if (
+                lease_path is not None
+                and lease_generation is not None
+                and not _heartbeat_lease(lease_path, lease_generation)
+            ):
+                _terminate_process_group(process)
+                pump.join(timeout=5)
+                return _result(returncode=-1, timed_out=False)
             last_heartbeat = started
             first_seen: dict[Path, float] = {}
             while True:
+                if _lease_cancelled_or_lost(lease_path, lease_generation):
+                    _terminate_process_group(process)
+                    pump.join(timeout=5)
+                    return _result(
+                        returncode=(
+                            process.returncode if process.returncode is not None else -1
+                        ),
+                        timed_out=False,
+                    )
                 returncode = process.poll()
                 if returncode is not None:
                     break
                 now = time.monotonic()
-                if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
-                    try:
-                        if lease_path.is_file():
-                            lease_path.touch()
-                    except OSError:
-                        pass
+                if (
+                    lease_path is not None
+                    and lease_generation is not None
+                    and now - last_heartbeat >= heartbeat_interval_seconds
+                ):
+                    if not _heartbeat_lease(lease_path, lease_generation):
+                        _terminate_process_group(process)
+                        pump.join(timeout=5)
+                        return _result(
+                            returncode=(
+                                process.returncode if process.returncode is not None else -1
+                            ),
+                            timed_out=False,
+                        )
                     last_heartbeat = now
                 timed_out_trial: str | None = None
                 if job_dir is not None and trial_timeout_seconds is not None:
@@ -507,10 +862,11 @@ def run_harbor_process(
                 if timed_out_trial is not None or now - started >= timeout_seconds:
                     _terminate_process_group(process)
                     pump.join(timeout=5)
-                    return HarborProcessResult(
-                        returncode=(process.returncode if process.returncode is not None else -1),
+                    return _result(
+                        returncode=(
+                            process.returncode if process.returncode is not None else -1
+                        ),
                         timed_out=True,
-                        log_path=log_path,
                         timed_out_trial=timed_out_trial,
                     )
                 try:
@@ -518,16 +874,17 @@ def run_harbor_process(
                 except subprocess.TimeoutExpired:
                     continue
             pump.join(timeout=5)
-            return HarborProcessResult(
+            return _result(
                 returncode=returncode,
                 timed_out=False,
-                log_path=log_path,
             )
 
         finally:
             _unlink_secret_dir(owned_secret_dir, owned_secret_path)
+            _unlink_secret_dir(owned_usage_dir, owned_usage_path)
     finally:
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
+        _unlink_secret_dir(owned_usage_dir, owned_usage_path)
 
 
 def _tail_text(path: Path, *, limit_bytes: int = 1_000_000) -> str:
@@ -669,11 +1026,14 @@ def _write_run_metadata(
     }
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
+    if process.proxy_usage is not None:
+        metadata["provider_usage"] = process.proxy_usage
     if network_adaptation is not None:
         metadata["network_adaptation"] = asdict(network_adaptation)
-    (job_dir / "lab-metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    persist_private_bytes(
+        job_dir / "lab-metadata.json",
+        (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
+        secrets=tuple(value.encode() for value in collected_secret_values()),
     )
 
 
@@ -729,30 +1089,41 @@ def _stage_task_for_host(
     staging_dir: Path,
     *,
     agent_allowed_hosts: tuple[str, ...] = (),
-) -> tuple[Path | None, NetworkAdaptation | None]:
-    """Create a host-compatible, agent-policy execution copy of a task package.
+    expected_package_digest: str | None = None,
+) -> tuple[Path, NetworkAdaptation | None]:
+    """Create and verify a private immutable-input snapshot before adaptation."""
+    from evallab.registry import compute_task_digests
 
-    The source package is never modified. ``task.toml`` is rewritten only for
-    host network compatibility and an explicit agent allowlist. Returns
-    ``(None, None)`` when no execution-only rewrite is required.
-    """
     task_toml_path = source / "task.toml"
     if not task_toml_path.is_file():
         raise ValueError(f"task.toml missing in {source}")
-    original_text = task_toml_path.read_text(encoding="utf-8")
-    adapted_text, adaptation = adapt_task_toml_for_host(original_text)
-    staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
-    if staged_text == original_text:
-        return None, None
+    if any(path.is_symlink() for path in source.rglob("*")):
+        raise ValueError("task package snapshots reject symlinks")
+    source_digest_before = compute_task_digests(source).package
+    if (
+        expected_package_digest is not None
+        and source_digest_before != expected_package_digest
+    ):
+        raise ValueError("task package differs from its frozen digest before staging")
 
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, staging_dir)
-    (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
+    shutil.copytree(source, staging_dir, symlinks=True)
+    if any(path.is_symlink() for path in staging_dir.rglob("*")):
+        raise ValueError("staged task snapshot contains a symlink")
+    staged_digest = compute_task_digests(staging_dir).package
+    source_digest_after = compute_task_digests(source).package
+    if staged_digest != source_digest_before or source_digest_after != source_digest_before:
+        raise ValueError("task package changed while its execution snapshot was created")
 
+    original_text = (staging_dir / "task.toml").read_text(encoding="utf-8")
+    adapted_text, adaptation = adapt_task_toml_for_host(original_text)
+    staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
+    (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
     manifest: dict[str, Any] = {
         "schema_version": "1.0",
+        "source_package_digest": source_digest_before,
         "agent_allowed_hosts": list(agent_allowed_hosts),
     }
     if adaptation is not None:
@@ -778,6 +1149,38 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
         except OSError:
             continue
         persist_private_bytes(path, data, secrets=secrets)
+
+
+def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
+    if request.agent != "mini-swe-agent":
+        return None
+    if (
+        request.max_requests is None
+        or request.max_input_tokens is None
+        or request.max_output_tokens is None
+        or request.max_total_tokens is None
+        or request.cost_limit_usd is None
+    ):
+        raise ValueError("DeepSeek execution requires explicit provider ceilings")
+    return ProxyTrialLimits(
+        max_requests=request.max_requests,
+        max_input_tokens=request.max_input_tokens,
+        max_output_tokens=request.max_output_tokens,
+        max_total_tokens=request.max_total_tokens,
+        max_cost_micros=math.ceil(request.cost_limit_usd * 1_000_000),
+    )
+
+
+def _proxy_attempt_id(request: RunRequest) -> str | None:
+    if request.agent != "mini-swe-agent":
+        return None
+    if request.provenance is not None:
+        return (
+            request.provenance.campaign_attempt_id
+            or request.provenance.spec_id
+            or request.name
+        )
+    return request.name
 
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
@@ -806,11 +1209,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             agent_allowed_hosts=(
                 (DEEPSEEK_PROXY_HOST,) if request.agent == "mini-swe-agent" else ()
             ),
+            expected_package_digest=(
+                request.provenance.package_digest
+                if request.provenance is not None
+                else None
+            ),
         )
-        if staged_task is not None:
-            staged_request: RunRequest = replace(request, task=staged_task)
-        else:
-            staged_request = request
+        staged_request: RunRequest = replace(request, task=staged_task)
 
         _write_network_adaptation(request, adaptation)
 
@@ -832,6 +1237,9 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 job_dir=job_dir,
                 trial_timeout_seconds=request.timeout_seconds,
                 lease_path=request.lease_path,
+                lease_generation=request.lease_generation,
+                proxy_attempt_id=_proxy_attempt_id(request),
+                proxy_limits=_proxy_trial_limits(request),
             )
         except BaseException:
             _write_executor_state(
@@ -843,10 +1251,18 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
             raise
         finished = datetime.now(UTC)
+        cancelled = _lease_cancelled_or_lost(
+            request.lease_path,
+            request.lease_generation,
+        )
         _write_executor_state(
             request,
             started_at=started,
-            status="failed" if process.timed_out or process.returncode != 0 else "running",
+            status=(
+                "failed"
+                if cancelled or process.timed_out or process.returncode != 0
+                else "running"
+            ),
             log_path=executor_log,
             finished_at=finished,
             process=process,
@@ -860,6 +1276,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             process=process,
             network_adaptation=adaptation,
         )
+        if cancelled:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            raise ExecutionFailure(
+                "execution_cancelled",
+                f"campaign owner cancelled the active queue lease{cleanup_detail}",
+            )
 
         if process.timed_out:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
@@ -870,7 +1293,12 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
             raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
-        _sanitize_persisted_job_tree(job_dir, tuple(value.encode() for value in collected_secret_values()))
+        secret_values = collected_secret_values()
+        assert_no_secret_material((job_dir,), secrets=secret_values)
+        _sanitize_persisted_job_tree(
+            job_dir,
+            tuple(value.encode() for value in secret_values),
+        )
         transient_reason = _transient_reason_from_job(job_dir)
         if process.returncode != 0:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
@@ -883,6 +1311,21 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
+        if request.agent == "mini-swe-agent":
+            if process.proxy_usage is None:
+                cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                raise ExecutionFailure(
+                    "proxy_usage_missing",
+                    f"DeepSeek proxy usage report is missing{cleanup_detail}",
+                )
+            if process.proxy_usage.get("unresolved_requests") != 0:
+                cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                raise ExecutionFailure(
+                    "proxy_usage_unreconciled",
+                    f"DeepSeek proxy has unreconciled provider calls{cleanup_detail}",
+                )
         job = load_job(job_dir)
         _write_executor_state(
             request,

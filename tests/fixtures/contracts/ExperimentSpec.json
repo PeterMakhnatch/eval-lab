@@ -1,5 +1,132 @@
 {
   "$defs": {
+    "CampaignCalibrationLedger": {
+      "additionalProperties": false,
+      "description": "Discriminated ledger wrapper for Campaign 0; mechanically bars reportable rates.",
+      "properties": {
+        "campaign_phase": {
+          "const": "campaign_0_pilot",
+          "default": "campaign_0_pilot",
+          "title": "Campaign Phase",
+          "type": "string"
+        },
+        "completed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Completed Trials",
+          "type": "integer"
+        },
+        "dispatched_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Dispatched Trials",
+          "type": "integer"
+        },
+        "family": {
+          "$ref": "#/$defs/SyntheticFamilyType"
+        },
+        "ledger_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Ledger Id",
+          "type": "string"
+        },
+        "matrix_ref": {
+          "description": "Reference to canonical ExperimentMatrix",
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Matrix Ref",
+          "type": "string"
+        },
+        "reportable_rates": {
+          "const": false,
+          "default": false,
+          "title": "Reportable Rates",
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "active",
+            "gated_passed",
+            "gated_refused"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ledger_id",
+        "matrix_ref",
+        "family",
+        "status"
+      ],
+      "title": "CampaignCalibrationLedger",
+      "type": "object"
+    },
+    "CampaignMeasurementLedger": {
+      "additionalProperties": false,
+      "description": "Discriminated ledger wrapper for billable measurement and replication campaigns.",
+      "properties": {
+        "campaign_phase": {
+          "enum": [
+            "billable_cohort",
+            "replication_arm"
+          ],
+          "title": "Campaign Phase",
+          "type": "string"
+        },
+        "completed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Completed Trials",
+          "type": "integer"
+        },
+        "dispatched_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Dispatched Trials",
+          "type": "integer"
+        },
+        "family": {
+          "$ref": "#/$defs/SyntheticFamilyType"
+        },
+        "ledger_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Ledger Id",
+          "type": "string"
+        },
+        "matrix_ref": {
+          "description": "Reference to canonical ExperimentMatrix",
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Matrix Ref",
+          "type": "string"
+        },
+        "reportable_rates": {
+          "const": true,
+          "default": true,
+          "title": "Reportable Rates",
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "active",
+            "completed",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ledger_id",
+        "matrix_ref",
+        "campaign_phase",
+        "family",
+        "status"
+      ],
+      "title": "CampaignMeasurementLedger",
+      "type": "object"
+    },
     "ElicitationSpec": {
       "additionalProperties": false,
       "description": "\u00a72.1 / \u00a74 Elicitation tuple describing agent prompt and environment conditions.\n\nA spec with purpose=elicitation must differ from its reference spec in exactly\none elicitation field.",
@@ -97,6 +224,15 @@
       ],
       "title": "PreregSpec",
       "type": "object"
+    },
+    "SyntheticFamilyType": {
+      "enum": [
+        "family_a_state_inversion",
+        "family_b_funcdag_v2",
+        "family_c_fault_recovery"
+      ],
+      "title": "SyntheticFamilyType",
+      "type": "string"
     }
   },
   "additionalProperties": false,
@@ -112,11 +248,117 @@
       "title": "Attempts",
       "type": "integer"
     },
+    "campaign_attempt_id": {
+      "anyOf": [
+        {
+          "pattern": "^attempt-[0-9a-f]{24}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Attempt Id"
+    },
+    "campaign_attempt_index": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Attempt Index"
+    },
+    "campaign_cell_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Cell Id"
+    },
+    "campaign_evidence_store": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Evidence Store"
+    },
+    "campaign_ledger": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CampaignCalibrationLedger"
+        },
+        {
+          "$ref": "#/$defs/CampaignMeasurementLedger"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Ledger"
+    },
+    "campaign_manifest_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Manifest Digest"
+    },
+    "campaign_spec_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Spec Digest"
+    },
     "concurrency": {
       "default": 1,
       "minimum": 1,
       "title": "Concurrency",
       "type": "integer"
+    },
+    "cost_limit_usd": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "enforced per-trial agent cost ceiling",
+      "title": "Cost Limit Usd"
     },
     "elicitation": {
       "anyOf": [
@@ -230,6 +472,62 @@
       "default": "runs",
       "title": "Jobs Dir",
       "type": "string"
+    },
+    "max_input_tokens": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "enforced per-trial model input-token ceiling",
+      "title": "Max Input Tokens"
+    },
+    "max_output_tokens": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "enforced per-trial model output-token ceiling",
+      "title": "Max Output Tokens"
+    },
+    "max_requests": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "enforced per-trial provider request ceiling",
+      "title": "Max Requests"
+    },
+    "max_total_tokens": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "enforced per-trial combined token ceiling",
+      "title": "Max Total Tokens"
     },
     "model": {
       "anyOf": [
@@ -402,6 +700,19 @@
       ],
       "default": null,
       "title": "Task Instance Id"
+    },
+    "task_package_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Package Digest"
     },
     "task_path": {
       "anyOf": [

@@ -18,6 +18,7 @@ auth.json
 # Generated experiment state
 /runs/
 /exports/
+/operator-state/
 /queue/
 /derived/
 /backups/

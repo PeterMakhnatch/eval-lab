@@ -1,0 +1,46 @@
+[Unit]
+Description=Eval Lab continuous operator (disabled by default)
+Documentation=docs/continuous-loop-operator.md
+After=network-online.target
+# Do not pull in docker or postgres. No services or runs authorized.
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+ExecStart=/usr/local/libexec/evallab/.venv/bin/python -m evallab.ops_continuous validate --state-dir /var/lib/evallab-operator
+WorkingDirectory=/usr/local/libexec/evallab
+RemainAfterExit=no
+Restart=no
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+# HMAC is optional so disabled validate starts without the credential file.
+# Enablement drop-in (not required for default disabled units):
+# LoadCredential=evallab-approval-hmac:/root-managed/evallab-approval-hmac
+# Then the operator reads $CREDENTIALS_DIRECTORY/evallab-approval-hmac only
+# (exact basename, no symlink, fingerprint-checked, fstatvfs read-only).
+LogsDirectory=evallab
+StateDirectory=evallab-operator
+StateDirectoryMode=0700
+LogsDirectoryMode=0750
+
+[Install]
+# Intentionally empty Install section. Do not enable on boot.
+# Enable only after an explicit operator token, standing approval, and budget.

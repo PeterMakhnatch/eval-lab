@@ -223,3 +223,6 @@ for today).
   filenames preserved; `docs/prompts/` compacted to living mission prompts;
   `agents/missions/ACTIVE.md` archived at `agents/archive/2026-08-27-mission-board-pre-hygiene.md`
   and compacted to active long-lived role lanes (ADR-031) and current gates.
+- 2026-08-28 — `containers/continuous-operator/` added under existing
+  `containers/` bucket for disabled continuous-loop operator image templates
+  (Ops/Runner adapters). No new top-level entry.

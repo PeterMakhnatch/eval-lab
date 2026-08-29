@@ -1,0 +1,58 @@
+volumes:
+  evallab-operator-state:
+
+services:
+  operator-state-init:
+    image: python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f
+    user: "0:0"
+    network_mode: none
+    restart: "no"
+    profiles: ["manual"]
+    read_only: true
+    volumes:
+      - evallab-operator-state:/var/lib/evallab-operator
+    command:
+      - python
+      - -c
+      - import os, pathlib; p=pathlib.Path("/var/lib/evallab-operator"); p.mkdir(parents=True, exist_ok=True); os.chown(p, 65532, 65532); os.chmod(p, 0o700)
+  continuous-operator:
+    build:
+      context: ../..
+      dockerfile: containers/continuous-operator/Dockerfile
+    restart: "no"
+    profiles: ["manual"]
+    user: "65532:65532"
+    read_only: true
+    depends_on:
+      operator-state-init:
+        condition: service_completed_successfully
+    environment:
+      EVAL_LAB_OPERATOR_STATE: /var/lib/evallab-operator
+    volumes:
+      # Confined named volume: kill latch, leases, budget, and audit survive restart.
+      # Do not mount this volume over /run/secrets; the MAC key is outside writable state.
+      - evallab-operator-state:/var/lib/evallab-operator
+    configs:
+      - source: evallab-trusted-approval-keys
+        target: /etc/evallab/trusted-approval-keys.json
+        uid: "65532"
+        gid: "65532"
+        mode: 0440
+    secrets:
+      - source: evallab-approval-hmac
+        target: evallab-approval-hmac
+        uid: "65532"
+        gid: "65532"
+        mode: 0440
+    tmpfs:
+      # Scratch only. Operator state must not live on tmpfs.
+      - /tmp:mode=0700
+    command: ["validate", "--state-dir", "/var/lib/evallab-operator"]
+
+configs:
+  evallab-trusted-approval-keys:
+    external: true
+
+secrets:
+  evallab-approval-hmac:
+    external: true

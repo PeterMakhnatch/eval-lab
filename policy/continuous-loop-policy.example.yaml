@@ -1,0 +1,39 @@
+# Example continuous-loop policy. Missing or empty required fields keep the
+# operator DISABLED. Do not copy numeric values into production without a
+# signed approval. No services or runs authorized.
+#
+# Dry-run-only sample values below are for operator tests and local validate
+# fixtures. They are not standing approvals and are not enable tokens.
+continuous_loop_policy:
+  policy_schema_version: "1"
+  spec_id: ""
+  approval_signature_ref: ""
+  approval_digest: ""
+  slo_freshness:
+    max_queue_admission_lag_seconds: null
+    max_dispatch_latency_seconds: null
+    max_oldest_postrun_lag_seconds: null
+    max_oldest_catalog_settle_lag_seconds: null
+    max_oldest_quality_lag_seconds: null
+    max_oldest_projection_lag_seconds: null
+    max_oldest_analysis_lag_seconds: null
+    status_snapshot_max_age_seconds: null
+  operational_limits:
+    scheduler_heartbeat_interval_seconds: null
+    scheduler_stale_after_seconds: null
+    worker_heartbeat_interval_seconds: null
+    lease_ttl_seconds: null
+    fencing_grace_seconds: null
+    max_concurrent_workers: null
+    postrun_hook_timeout_seconds: null
+    maintenance_drain_timeout_seconds: null
+    maintenance_disk_threshold_bytes: null
+  quality_and_quarantine:
+    quarantine_rolling_window_size: null
+    min_window_attempts_for_calculation: null
+    max_quarantine_fraction: null
+    max_warn_fraction: null
+    catalog_ingestion_warn_after_seconds: null
+    catalog_ingestion_pause_after_seconds: null
+    max_consecutive_quiet_failures: null
+    auto_acceptance_enabled: false

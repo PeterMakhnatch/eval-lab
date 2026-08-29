@@ -504,6 +504,41 @@ def test_run_harbor_process_does_not_leave_provider_key_under_executor(
             assert SECRET_SENTINEL not in path.read_text(errors="ignore")
 
 
+def test_run_harbor_process_unlinks_secret_on_keyboardinterrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import runner as runner_module
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+    (tmp_path / "tmp").mkdir()
+    log_path = tmp_path / ".executor" / "job.log"
+    log_path.parent.mkdir()
+
+    def _raise(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner_module.subprocess, "Popen", _raise)
+    with pytest.raises(KeyboardInterrupt):
+        runner_module.run_harbor_process(
+            [
+                sys.executable,
+                "-c",
+                "pass",
+                "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+            ],
+            cwd=Path(__file__).resolve().parents[1],
+            timeout_seconds=10,
+            log_path=log_path,
+        )
+    leftover = list((tmp_path / "tmp").glob("evallab-deepseek-secret.*"))
+    assert leftover == []
+    for path in (tmp_path / "tmp").rglob("*"):
+        if path.is_file():
+            assert SECRET_SENTINEL not in path.read_text(errors="ignore")
+
+
 def test_redacting_writer_every_split_of_key_and_header(tmp_path: Path) -> None:
     secret = SECRET_SENTINEL.encode()
     payloads = (

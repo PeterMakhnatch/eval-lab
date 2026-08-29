@@ -357,165 +357,167 @@ def run_harbor_process(
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
-    if deepseek_lane:
-        capability = secrets.token_urlsafe(32)
-        runtime_environment[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
-        runtime_environment["DEEPSEEK_API_KEY"] = capability
-        runtime_environment["MSWEA_API_KEY"] = capability
-        runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
-            DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
-        )
-        runtime_environment.setdefault(
-            "EVALLAB_DEEPSEEK_MAX_REQUESTS",
-            os.environ.get("EVALLAB_DEEPSEEK_MAX_REQUESTS", "8"),
-        )
-        runtime_environment.setdefault(
-            "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
-            os.environ.get("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS", "32768"),
-        )
-        runtime_environment.setdefault(
-            "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
-            os.environ.get("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS", "4096"),
-        )
-        runtime_environment.setdefault(
-            "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
-            os.environ.get("EVALLAB_DEEPSEEK_MAX_COST_MICROS", "500000"),
-        )
-        runtime_environment.setdefault(
-            "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-            os.environ.get("EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION", "280000"),
-        )
-        runtime_environment.setdefault(
-            "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
-            os.environ.get("EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION", "420000"),
-        )
-        runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
-            time.time() + float(timeout_seconds) + 60.0
-        )
-        existing_secret = runtime_environment.get(DEEPSEEK_SECRET_FILE_ENV) or os.environ.get(
-            DEEPSEEK_SECRET_FILE_ENV
-        )
-        log_root = log_path.resolve()
-        if existing_secret:
-            try:
-                read_owner_secret_file(Path(existing_secret))
-                existing_path = Path(existing_secret).resolve()
-            except OSError:
-                existing_secret = None
-            else:
-                if log_root.parent in existing_path.parents or (
-                    job_dir is not None and job_dir.resolve() in existing_path.parents
-                ):
+    try:
+        if deepseek_lane:
+            capability = secrets.token_urlsafe(32)
+            runtime_environment[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment["DEEPSEEK_API_KEY"] = capability
+            runtime_environment["MSWEA_API_KEY"] = capability
+            runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
+                DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
+            )
+            runtime_environment.setdefault(
+                "EVALLAB_DEEPSEEK_MAX_REQUESTS",
+                os.environ.get("EVALLAB_DEEPSEEK_MAX_REQUESTS", "8"),
+            )
+            runtime_environment.setdefault(
+                "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
+                os.environ.get("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS", "32768"),
+            )
+            runtime_environment.setdefault(
+                "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
+                os.environ.get("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS", "4096"),
+            )
+            runtime_environment.setdefault(
+                "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
+                os.environ.get("EVALLAB_DEEPSEEK_MAX_COST_MICROS", "500000"),
+            )
+            runtime_environment.setdefault(
+                "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+                os.environ.get("EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION", "280000"),
+            )
+            runtime_environment.setdefault(
+                "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+                os.environ.get("EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION", "420000"),
+            )
+            runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
+                time.time() + float(timeout_seconds) + 60.0
+            )
+            existing_secret = runtime_environment.get(DEEPSEEK_SECRET_FILE_ENV) or os.environ.get(
+                DEEPSEEK_SECRET_FILE_ENV
+            )
+            log_root = log_path.resolve()
+            if existing_secret:
+                try:
+                    read_owner_secret_file(Path(existing_secret))
+                    existing_path = Path(existing_secret).resolve()
+                except OSError:
                     existing_secret = None
-        if existing_secret:
-            runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = existing_secret
-        else:
-            owned_secret_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="evallab-deepseek-secret.",
-                    dir=os.environ.get("TMPDIR") or None,
+                else:
+                    if log_root.parent in existing_path.parents or (
+                        job_dir is not None and job_dir.resolve() in existing_path.parents
+                    ):
+                        existing_secret = None
+            if existing_secret:
+                runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = existing_secret
+            else:
+                owned_secret_dir = Path(
+                    tempfile.mkdtemp(
+                        prefix="evallab-deepseek-secret.",
+                        dir=os.environ.get("TMPDIR") or None,
+                    )
                 )
-            )
-            os.chmod(owned_secret_dir, 0o700)
-            owned_secret_path = owned_secret_dir / "key"
-            materialize_deepseek_secret_file(owned_secret_path)
-            runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
-        runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
-        secret_values = collected_secret_values({**os.environ, **runtime_environment})
-    if any(import_path in command for import_path in repo_imports):
-        source_root = cwd / "src"
-        if source_root.is_dir():
-            inherited_pythonpath = os.environ.get("PYTHONPATH")
-            runtime_environment["PYTHONPATH"] = os.pathsep.join(
-                str(path) for path in (source_root, inherited_pythonpath) if path
-            )
-    secret_bytes = tuple(value.encode() for value in secret_values)
-    read_fd, write_fd = os.pipe()
-    writer = RedactingBinaryWriter(log_path, secret_bytes)
+                os.chmod(owned_secret_dir, 0o700)
+                owned_secret_path = owned_secret_dir / "key"
+                materialize_deepseek_secret_file(owned_secret_path)
+                runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
+            runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if any(import_path in command for import_path in repo_imports):
+            source_root = cwd / "src"
+            if source_root.is_dir():
+                inherited_pythonpath = os.environ.get("PYTHONPATH")
+                runtime_environment["PYTHONPATH"] = os.pathsep.join(
+                    str(path) for path in (source_root, inherited_pythonpath) if path
+                )
+        secret_bytes = tuple(value.encode() for value in secret_values)
+        read_fd, write_fd = os.pipe()
+        writer = RedactingBinaryWriter(log_path, secret_bytes)
 
-    def _pump_redacted_output() -> None:
-        try:
-            with os.fdopen(read_fd, "rb", closefd=True) as source:
-                while True:
-                    chunk = source.read(8192)
-                    if not chunk:
-                        break
-                    writer.write(chunk)
-        finally:
-            writer.close()
-
-    pump = threading.Thread(target=_pump_redacted_output, name="harbor-log-redact", daemon=True)
-    try:
-        process = subprocess.Popen(
-            command,
-            cwd=cwd,
-            stdin=subprocess.DEVNULL,
-            stdout=write_fd,
-            stderr=subprocess.STDOUT,
-            env=runtime_environment,
-            start_new_session=True,
-        )
-    except Exception:
-        os.close(write_fd)
-        os.close(read_fd)
-        writer.close()
-        _unlink_secret_dir(owned_secret_dir, owned_secret_path)
-        raise
-    os.close(write_fd)
-    pump.start()
-    try:
-        started = time.monotonic()
-        if lease_path is not None:
+        def _pump_redacted_output() -> None:
             try:
-                if lease_path.is_file():
-                    lease_path.touch()
-            except OSError:
-                pass
-        last_heartbeat = started
-        first_seen: dict[Path, float] = {}
-        while True:
-            returncode = process.poll()
-            if returncode is not None:
-                break
-            now = time.monotonic()
-            if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
+                with os.fdopen(read_fd, "rb", closefd=True) as source:
+                    while True:
+                        chunk = source.read(8192)
+                        if not chunk:
+                            break
+                        writer.write(chunk)
+            finally:
+                writer.close()
+
+        pump = threading.Thread(target=_pump_redacted_output, name="harbor-log-redact", daemon=True)
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=write_fd,
+                stderr=subprocess.STDOUT,
+                env=runtime_environment,
+                start_new_session=True,
+            )
+        except BaseException:
+            os.close(write_fd)
+            os.close(read_fd)
+            writer.close()
+            raise
+        os.close(write_fd)
+        pump.start()
+        try:
+            started = time.monotonic()
+            if lease_path is not None:
                 try:
                     if lease_path.is_file():
                         lease_path.touch()
                 except OSError:
                     pass
-                last_heartbeat = now
-            timed_out_trial: str | None = None
-            if job_dir is not None and trial_timeout_seconds is not None:
-                active = set(_active_trial_directories(job_dir))
-                first_seen = {
-                    path: observed for path, observed in first_seen.items() if path in active
-                }
-                for path in active:
-                    first_seen.setdefault(path, now)
-                    if now - first_seen[path] >= trial_timeout_seconds:
-                        timed_out_trial = path.name
-                        break
-            if timed_out_trial is not None or now - started >= timeout_seconds:
-                _terminate_process_group(process)
-                pump.join(timeout=5)
-                return HarborProcessResult(
-                    returncode=(process.returncode if process.returncode is not None else -1),
-                    timed_out=True,
-                    log_path=log_path,
-                    timed_out_trial=timed_out_trial,
-                )
-            try:
-                process.wait(timeout=WATCHDOG_POLL_SECONDS)
-            except subprocess.TimeoutExpired:
-                continue
-        pump.join(timeout=5)
-        return HarborProcessResult(
-            returncode=returncode,
-            timed_out=False,
-            log_path=log_path,
-        )
+            last_heartbeat = started
+            first_seen: dict[Path, float] = {}
+            while True:
+                returncode = process.poll()
+                if returncode is not None:
+                    break
+                now = time.monotonic()
+                if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
+                    try:
+                        if lease_path.is_file():
+                            lease_path.touch()
+                    except OSError:
+                        pass
+                    last_heartbeat = now
+                timed_out_trial: str | None = None
+                if job_dir is not None and trial_timeout_seconds is not None:
+                    active = set(_active_trial_directories(job_dir))
+                    first_seen = {
+                        path: observed for path, observed in first_seen.items() if path in active
+                    }
+                    for path in active:
+                        first_seen.setdefault(path, now)
+                        if now - first_seen[path] >= trial_timeout_seconds:
+                            timed_out_trial = path.name
+                            break
+                if timed_out_trial is not None or now - started >= timeout_seconds:
+                    _terminate_process_group(process)
+                    pump.join(timeout=5)
+                    return HarborProcessResult(
+                        returncode=(process.returncode if process.returncode is not None else -1),
+                        timed_out=True,
+                        log_path=log_path,
+                        timed_out_trial=timed_out_trial,
+                    )
+                try:
+                    process.wait(timeout=WATCHDOG_POLL_SECONDS)
+                except subprocess.TimeoutExpired:
+                    continue
+            pump.join(timeout=5)
+            return HarborProcessResult(
+                returncode=returncode,
+                timed_out=False,
+                log_path=log_path,
+            )
 
+        finally:
+            _unlink_secret_dir(owned_secret_dir, owned_secret_path)
     finally:
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
 

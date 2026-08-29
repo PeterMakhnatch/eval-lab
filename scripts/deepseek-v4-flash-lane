@@ -126,6 +126,7 @@ with_canonical_deepseek_credential() {
             exit 1
         fi
         secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/evallab-deepseek-secret.XXXXXX")"
+        trap 'rm -rf "$secret_dir"' EXIT
         chmod 700 "$secret_dir"
         secret_file="$secret_dir/key"
         python3 - "$secret_file" "$DEEPSEEK_API_KEY" <<'SECRETWRITE'
@@ -146,7 +147,6 @@ try:
 finally:
     os.close(fd)
 SECRETWRITE
-        trap 'rm -rf "$secret_dir"' EXIT
         capability="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
         export EVALLAB_DEEPSEEK_SECRET_FILE="$secret_file"
         export EVALLAB_DEEPSEEK_PROXY_SCRIPT="$repo_root/containers/deepseek_secret_proxy.py"

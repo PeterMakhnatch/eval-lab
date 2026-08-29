@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 from evallab.interpretation.benchmark_events import TrialBundle
 from evallab.interpretation.benchmark_projection import BenchmarkProjectionDimensions
+from evallab.interpretation.feature_registry import compute_prompt_cache_hit_rate
 from evallab.interpretation.producers.action_memory import (
     ActionMemoryFeatures,
     extract_action_memory_features,
@@ -23,6 +24,7 @@ __all__ = [
     "ActionMemoryFeatures",
     "McpFuncDagFeatures",
     "McpRecoveryFeatures",
+    "compute_prompt_cache_hit_rate",
     "extract_action_memory_features",
     "extract_mcp_funcdag_features",
     "extract_mcp_recovery_features",
@@ -33,22 +35,31 @@ __all__ = [
 def extract_benchmark_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
-    cache_hits: Sequence[bool] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
+    cached_step_tokens: Sequence[int] | None = None,
 ) -> ActionMemoryFeatures | McpFuncDagFeatures | McpRecoveryFeatures:
     """Extract benchmark-specific features according to the trial bundle's family."""
     family = bundle.contract.family
     if family == "action-memory-v1":
         return extract_action_memory_features(
-            bundle, step_tokens=step_tokens, cache_hits=cache_hits, dimensions=dimensions
+            bundle,
+            step_tokens=step_tokens,
+            dimensions=dimensions,
+            cached_step_tokens=cached_step_tokens,
         )
     elif family == "mcp-funcdag-v1":
         return extract_mcp_funcdag_features(
-            bundle, step_tokens=step_tokens, cache_hits=cache_hits, dimensions=dimensions
+            bundle,
+            step_tokens=step_tokens,
+            dimensions=dimensions,
+            cached_step_tokens=cached_step_tokens,
         )
     elif family == "mcp-recovery-v1":
         return extract_mcp_recovery_features(
-            bundle, step_tokens=step_tokens, cache_hits=cache_hits, dimensions=dimensions
+            bundle,
+            step_tokens=step_tokens,
+            dimensions=dimensions,
+            cached_step_tokens=cached_step_tokens,
         )
     else:
         raise ValueError(f"Unsupported benchmark family: '{family}'")

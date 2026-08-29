@@ -33,6 +33,9 @@ from evallab.interpretation.benchmark_projection import (
 )
 from evallab.interpretation.feature_registry import (
     TRAJECTORY_FEATURE_REGISTRY,
+    audit_denominator_policy,
+    audit_registry_denominator_policies,
+    feature_contract_row,
     verify_feature_registry,
 )
 from evallab.interpretation.producers.action_memory import (
@@ -426,12 +429,424 @@ def test_action_memory_feature_extraction(action_memory_trial_dir: Path):
     assert features.stale_value_bound is False
     assert features.binding_survival_rate == 1.0
     assert features.construct == "actionable_entity_memory_and_value_binding"
+    assert features.expected_handle_count == 7
+    assert features.valid_handle_count == 2
+    assert features.handle_set_match is False
+    assert features.handle_coverage_rate == 2.0 / 7.0
+
+
+def test_action_memory_retrieval_handle_fidelity_checks(tmp_path: Path):
+    """C1 retrieval handle checks must discriminate missing, duplicate, unknown, and reordered handles."""
+    trial_dir = tmp_path / "action_handle_fidelity"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002", "chunk_003"],
+            "target_entity": "entity_42",
+            "latest_value": "target_val",
+        },
+        "task_id": "handle_fidelity_task",
+        "opportunity_counts": {"read_opportunity_count": 3, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    # Emits: chunk_001, chunk_001 (duplicate), chunk_999 (unknown), chunk_002. Missing chunk_003!
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_999"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "mcp_call",
+            "call_id": "c4",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 4,
+            "event_type": "execute_mutation",
+            "payload": {
+                "entity_id": "entity_42",
+                "attribute": "routing_key",
+                "bound_value": "target_val",
+            },
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 3
+    assert features.valid_handle_count == 2
+    assert features.unknown_handle_count == 1
+    assert features.duplicate_handle_count == 1
+    assert features.handle_set_match is False
+    assert features.handle_order_match is False
+    assert features.handle_coverage_rate == 2.0 / 3.0
+
+
+def test_action_memory_near_typo_unknown_handle_only(tmp_path: Path):
+    """A near-typo unknown handle must increment unknown_handle_count without falsely reporting duplicates."""
+    trial_dir = tmp_path / "action_typo"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002", "chunk_003"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "typo_task",
+        "opportunity_counts": {"read_opportunity_count": 3, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_003_typo"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 3
+    assert features.valid_handle_count == 2
+    assert features.unknown_handle_count == 1
+    assert features.duplicate_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_order_match is False
+    assert features.handle_coverage_rate == 2.0 / 3.0
+
+
+def test_action_memory_all_expected_plus_extra_unknown_handle_fails_set_match(tmp_path: Path):
+    """Requesting all expected handles plus an extra unknown handle must fail exact set match."""
+    trial_dir = tmp_path / "action_extra_handle"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "extra_handle_task",
+        "opportunity_counts": {"read_opportunity_count": 2, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_unknown_extra"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 2
+    assert features.valid_handle_count == 2
+    assert features.unknown_handle_count == 1
+    assert features.duplicate_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_order_match is False
+    assert features.handle_coverage_rate == 1.0
+
+
+def test_action_memory_expected_handle_application_error_rejected(tmp_path: Path):
+    """Expected handle requested with an application not_found/error payload must not increment valid_handle_count."""
+    trial_dir = tmp_path / "action_app_error"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "app_err_task",
+        "opportunity_counts": {"read_opportunity_count": 2, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_executed",
+            "call_id": "c1",
+            "result": {"content": "data 1"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "tool_result",
+            "call_id": "c2",
+            "result": {"status": "not_found", "error": "Chunk missing"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 2
+    assert features.valid_handle_count == 1
+    assert features.unknown_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_coverage_rate == 0.5
+
+
+def test_action_memory_nested_application_error_rejected(tmp_path: Path):
+    """Expected handle requested with a nested application error (status ok, value.error not_found) must be rejected."""
+    trial_dir = tmp_path / "action_nested_app_error"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seed": 42,
+        "cell_factors": {
+            "expected_chunk_ids": ["chunk_001", "chunk_002"],
+            "target_entity": "entity_42",
+        },
+        "task_id": "nested_err_task",
+        "opportunity_counts": {"read_opportunity_count": 2, "mutation_opportunity_count": 1},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_001"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_executed",
+            "call_id": "c1",
+            "result": {"content": "data 1"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_002"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "tool_result",
+            "call_id": "c2",
+            "result": {"status": "ok", "value": {"error": "not_found"}},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.expected_handle_count == 2
+    assert features.valid_handle_count == 1
+    assert features.unknown_handle_count == 0
+    assert features.handle_set_match is False
+    assert features.handle_coverage_rate == 0.5
+
+
+def test_prompt_cache_hit_rate_strict_token_weighting(action_memory_trial_dir: Path):
+    """prompt_cache_hit_rate must compute strict token-weighted cached_tokens / prompt_tokens."""
+    bundle = load_trial_bundle(action_memory_trial_dir)
+    # Step tokens [100, 150] with cached [100, 0] -> 100 / 250 = 0.40
+    f1 = extract_action_memory_features(bundle, step_tokens=[100, 150], cached_step_tokens=[100, 0])
+    assert f1.prompt_cache_hit_rate == 0.40
+
+    # Step tokens [100, 150] with cached [100, 150] -> 250 / 250 = 1.00
+    f2 = extract_action_memory_features(
+        bundle, step_tokens=[100, 150], cached_step_tokens=[100, 150]
+    )
+    assert f2.prompt_cache_hit_rate == 1.00
+
+
+def test_prompt_cache_hit_rate_fail_closed_negative_regressions(action_memory_trial_dir: Path):
+    """prompt_cache_hit_rate must strictly fail closed (return None/NULL) on absent, misaligned, negative, or excessive tokens."""
+    from evallab.interpretation.producers import compute_prompt_cache_hit_rate
+
+    bundle = load_trial_bundle(action_memory_trial_dir)
+
+    # 1. Absent / None / empty
+    assert compute_prompt_cache_hit_rate(None, None) is None
+    assert compute_prompt_cache_hit_rate([100], None) is None
+    assert compute_prompt_cache_hit_rate(None, [100]) is None
+    assert compute_prompt_cache_hit_rate([], []) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[], cached_step_tokens=[]
+        ).prompt_cache_hit_rate
+        is None
+    )
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100], cached_step_tokens=None
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 2. Length mismatch / misaligned
+    assert compute_prompt_cache_hit_rate([100, 200], [50]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100, 200], cached_step_tokens=[50]
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 3. Negative token counts
+    assert compute_prompt_cache_hit_rate([-100, 200], [0, 50]) is None
+    assert compute_prompt_cache_hit_rate([100, 200], [-10, 50]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[-100, 200], cached_step_tokens=[0, 50]
+        ).prompt_cache_hit_rate
+        is None
+    )
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100, 200], cached_step_tokens=[-10, 50]
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 4. Zero prompt tokens
+    assert compute_prompt_cache_hit_rate([0, 0], [0, 0]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[0, 0], cached_step_tokens=[0, 0]
+        ).prompt_cache_hit_rate
+        is None
+    )
+
+    # 5. Cached total exceeds prompt total (e.g. 300 > 250)
+    assert compute_prompt_cache_hit_rate([100, 150], [150, 150]) is None
+    assert (
+        extract_action_memory_features(
+            bundle, step_tokens=[100, 150], cached_step_tokens=[150, 150]
+        ).prompt_cache_hit_rate
+        is None
+    )
 
 
 def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
     """MCP FuncDAG producer computes dag conformance and cycle violations."""
     bundle = load_trial_bundle(mcp_funcdag_trial_dir)
-    features = extract_mcp_funcdag_features(bundle, step_tokens=[100, 150])
+    features = extract_mcp_funcdag_features(
+        bundle, step_tokens=[100, 150], cached_step_tokens=[50, 75]
+    )
 
     assert features.task_success is True
     assert features.required_dag_edges == 1
@@ -439,13 +854,16 @@ def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
     assert features.dag_edge_conformance_rate == 1.0
     assert features.redundant_tool_calls == 0
     assert features.cycle_violations == 0
+    assert features.prompt_cache_hit_rate == 0.5
     assert features.construct == "tool_call_dag_conformance"
 
 
 def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     """MCP Recovery producer computes autonomous recovery metrics."""
     bundle = load_trial_bundle(mcp_recovery_trial_dir)
-    features = extract_mcp_recovery_features(bundle, step_tokens=[100, 120])
+    features = extract_mcp_recovery_features(
+        bundle, step_tokens=[100, 100], cached_step_tokens=[20, 80]
+    )
 
     assert features.task_success is True
     assert features.injected_fault_count == 1
@@ -453,6 +871,7 @@ def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     assert features.autonomous_recovery_rate == 1.0
     assert features.fault_detection_rate == 1.0
     assert features.blind_retries == 0
+    assert features.prompt_cache_hit_rate == 0.5
     assert features.causal_grade == "C3"
 
 
@@ -1095,14 +1514,16 @@ def test_benchmark_contrasts_do_not_cross_model_dimensions():
             trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
             causal_grade, task_success, total_tool_calls, model_call_count,
             raw_binding_opportunities, raw_conflicting_opportunities, binding_matched,
-            stale_value_bound, citation, verifier_truth_digest, model_name, agent_name,
+            stale_value_bound, expected_handle_count, valid_handle_count, unknown_handle_count,
+            duplicate_handle_count, handle_set_match, handle_order_match, handle_coverage_rate,
+            citation, verifier_truth_digest, model_name, agent_name,
             task_name, harness_version, scaffold_version, repeat_group_id, dose_axis,
             dose_value, dose_unit, alphabet_id, alphabet_version, quality_status,
             report_digest, source_digest, producer_version, projection_identity,
             dimension_digest, projection_status, analysis_ready, projection_refusals
         ) VALUES (
             ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
-            'C1', true, 1, 1, 1, 1, true, false, 'cas:trial', 'sha256:truth',
+            'C1', true, 1, 1, 1, 1, true, false, 3, 3, 0, 0, true, true, 1.0, 'cas:trial', 'sha256:truth',
             ?, 'agent-a', 'task-name', 'harness-v1', 'scaffold-v1', ?, 'context_bytes',
             4096, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
             ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''
@@ -1175,3 +1596,141 @@ def test_recovery_contrasts_require_same_native_persistence_level():
         "WHERE family = 'mcp-recovery-v1'"
     ).fetchall()
     assert rows == [("clean-p1", "fault-p1")]
+
+
+def test_feature_registry_registers_manipulation_checks():
+    """prompt_tokens_per_step and prompt_cache_hit_rate must be registered C0/C1 manipulation checks with valid required denominators."""
+    ptps = TRAJECTORY_FEATURE_REGISTRY.get("prompt_tokens_per_step")
+    assert ptps is not None
+    assert ptps.category == "benchmark_l2_metric"
+    assert ptps.causal_grade == "C0"
+    assert ptps.data_type == "DOUBLE"
+    assert ptps.denominator_sibling == "step_count"
+    assert ptps.null_on_zero_denominator is True
+    assert ptps.denominator_policy == "required"
+    assert ptps.declared_inputs == ("prompt_tokens", "step_count")
+    assert audit_denominator_policy(ptps) is None
+
+    row_ptps = feature_contract_row(ptps)
+    assert row_ptps.denominator_policy == "required"
+    assert row_ptps.denominator_sibling == "step_count"
+    assert row_ptps.null_on_zero_denominator is True
+
+    pchr = TRAJECTORY_FEATURE_REGISTRY.get("prompt_cache_hit_rate")
+    assert pchr is not None
+    assert pchr.category == "benchmark_l2_metric"
+    assert pchr.causal_grade == "C1"
+    assert pchr.data_type == "DOUBLE"
+    assert pchr.denominator_sibling == "prompt_tokens"
+    assert pchr.null_on_zero_denominator is True
+    assert pchr.denominator_policy == "required"
+    assert pchr.declared_inputs == ("cached_tokens", "prompt_tokens")
+    assert audit_denominator_policy(pchr) is None
+
+    row_pchr = feature_contract_row(pchr)
+    assert row_pchr.denominator_policy == "required"
+    assert row_pchr.denominator_sibling == "prompt_tokens"
+    assert row_pchr.null_on_zero_denominator is True
+
+    # Verify C1 retrieval handle fidelity features are also registered
+    for handle_feat in (
+        "expected_handle_count",
+        "valid_handle_count",
+        "unknown_handle_count",
+        "duplicate_handle_count",
+        "handle_set_match",
+        "handle_order_match",
+        "handle_coverage_rate",
+    ):
+        f_def = TRAJECTORY_FEATURE_REGISTRY.get(handle_feat)
+        assert f_def is not None
+        assert audit_denominator_policy(f_def) is None
+
+    # Verify neither manipulation check nor handle rate is flagged in registry policy debt
+    debt = audit_registry_denominator_policies()
+    assert "prompt_tokens_per_step" not in debt
+    assert "prompt_cache_hit_rate" not in debt
+    assert "handle_coverage_rate" not in debt
+
+
+def test_c1_matched_contrasts_reject_mismatched_harness_or_dose_strata():
+    """C1 matched contrasts must reject pairs with mismatched harness_version or mismatched dose_value."""
+    con = duckdb.connect()
+    con.execute(Path("sql/traj_benchmark_views.sql").read_text(encoding="utf-8"))
+    statement = """
+        INSERT INTO action_memory_features (
+            trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
+            causal_grade, task_success, total_tool_calls, model_call_count,
+            raw_binding_opportunities, raw_conflicting_opportunities, binding_matched,
+            stale_value_bound, expected_handle_count, valid_handle_count, unknown_handle_count,
+            duplicate_handle_count, handle_set_match, handle_order_match, handle_coverage_rate,
+            citation, verifier_truth_digest, model_name, agent_name,
+            task_name, harness_version, scaffold_version, repeat_group_id, dose_axis,
+            dose_value, dose_unit, alphabet_id, alphabet_version, quality_status,
+            report_digest, source_digest, producer_version, projection_identity,
+            dimension_digest, projection_status, analysis_ready, projection_refusals
+        ) VALUES (
+            ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
+            'C1', true, 1, 1, 1, 1, true, false, 3, 3, 0, 0, true, true, 1.0, 'cas:trial', 'sha256:truth',
+            'model-a', 'agent-a', 'task-name', ?, 'scaffold-v1', 'repeat-a', 'context_bytes',
+            ?, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
+            ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''
+        )
+    """
+    # Insert control clean: harness v1, dose 4096
+    con.execute(
+        statement,
+        [
+            "clean-ctrl",
+            "clean",
+            "harness-v1",
+            4096,
+            "sha256:ctrl-src",
+            "sha256:ctrl-proj",
+            "sha256:ctrl-dim",
+        ],
+    )
+    # Insert treatment 1: harness v2 (mismatched harness -> must not pair)
+    con.execute(
+        statement,
+        [
+            "treat-diff-harness",
+            "treatment",
+            "harness-v2",
+            4096,
+            "sha256:t1-src",
+            "sha256:t1-proj",
+            "sha256:t1-dim",
+        ],
+    )
+    # Insert treatment 2: dose 16384 (mismatched dose_value on non-varying arm -> must not pair)
+    con.execute(
+        statement,
+        [
+            "treat-diff-dose",
+            "treatment",
+            "harness-v1",
+            16384,
+            "sha256:t2-src",
+            "sha256:t2-proj",
+            "sha256:t2-dim",
+        ],
+    )
+    # Insert treatment 3: harness v1, dose 4096 (exact match -> must pair)
+    con.execute(
+        statement,
+        [
+            "treat-valid",
+            "treatment",
+            "harness-v1",
+            4096,
+            "sha256:t3-src",
+            "sha256:t3-proj",
+            "sha256:t3-dim",
+        ],
+    )
+
+    rows = con.execute(
+        "SELECT control_trial_id, treatment_trial_id FROM v_benchmark_contrasts WHERE family = 'action-memory-v1'"
+    ).fetchall()
+    assert rows == [("clean-ctrl", "treat-valid")]

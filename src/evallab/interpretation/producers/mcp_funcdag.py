@@ -24,6 +24,7 @@ from evallab.interpretation.benchmark_projection import (
     build_projection_dimensions,
     projection_feature_fields,
 )
+from evallab.interpretation.feature_registry import compute_prompt_cache_hit_rate
 
 
 @dataclass(frozen=True)
@@ -96,8 +97,8 @@ class McpFuncDagFeatures:
 def extract_mcp_funcdag_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
-    cache_hits: Sequence[bool] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
+    cached_step_tokens: Sequence[int] | None = None,
 ) -> McpFuncDagFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an mcp-funcdag trial bundle."""
     contract = bundle.contract
@@ -230,10 +231,7 @@ def extract_mcp_funcdag_features(
     if step_tokens:
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
-    prompt_cache_hit_rate: float | None = None
-    if cache_hits and len(cache_hits) > 0:
-        prompt_cache_hit_rate = float(sum(1 for h in cache_hits if h) / len(cache_hits))
-
+    prompt_cache_hit_rate = compute_prompt_cache_hit_rate(step_tokens, cached_step_tokens)
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

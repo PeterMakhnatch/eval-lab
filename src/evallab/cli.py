@@ -2975,20 +2975,19 @@ def _traj_benchmark_command(
                 print(f"  Source:         {c0.mechanical_source}")
                 print("  Causal Claims:  PROHIBITED")
                 print("  Recipe Eligible: false")
-                print(
-                    "  Refusals:       "
-                    + (", ".join(c0.projection_refusals) or "none")
-                )
+                print("  Refusals:       " + (", ".join(c0.projection_refusals) or "none"))
                 print(f"  tool_call_count (denominator): {c0.tool_call_count}")
                 print(f"  tool_error_count: {c0.tool_error_count}")
-                print(
-                    "  tool_error_rate_screening: "
-                    f"{c0.tool_error_rate_screening}"
-                )
+                print(f"  tool_error_rate_screening: {c0.tool_error_rate_screening}")
                 print(f"  projection_digest: {c0.projection_digest}")
             return 0
         bundle = ingest_benchmark_trial(trial_dir)
         step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
+        cached_tokens = [
+            s.cached_tokens if s.cached_tokens is not None else 0
+            for s in outline.steps
+            if s.prompt_tokens is not None
+        ]
         report = (
             load_compliance_report(_resolve(root, args.compliance_report))
             if getattr(args, "compliance_report", None)
@@ -3004,15 +3003,24 @@ def _traj_benchmark_command(
         dimensions = build_projection_dimensions(bundle, report, metadata=metadata)
         if bundle.contract.family == "action-memory-v1":
             feat_obj = extract_action_memory_features(
-                bundle, step_tokens=step_tokens, dimensions=dimensions
+                bundle,
+                step_tokens=step_tokens,
+                dimensions=dimensions,
+                cached_step_tokens=cached_tokens,
             )
         elif bundle.contract.family == "mcp-funcdag-v1":
             feat_obj = extract_mcp_funcdag_features(
-                bundle, step_tokens=step_tokens, dimensions=dimensions
+                bundle,
+                step_tokens=step_tokens,
+                dimensions=dimensions,
+                cached_step_tokens=cached_tokens,
             )
         elif bundle.contract.family == "mcp-recovery-v1":
             feat_obj = extract_mcp_recovery_features(
-                bundle, step_tokens=step_tokens, dimensions=dimensions
+                bundle,
+                step_tokens=step_tokens,
+                dimensions=dimensions,
+                cached_step_tokens=cached_tokens,
             )
         else:
             raise ValueError(f"Unknown benchmark family: {bundle.contract.family}")
@@ -3067,13 +3075,10 @@ def _traj_c0_status_command(
     runs_roots = [_resolve(root, r) for r in args.runs_dir] if args.runs_dir else []
     if not runs_roots:
         runs_roots = [_resolve(root, Path("research/evidence/runs"))]
-    def _atif_counts(
-        trial_dir: Path, runs_root: Path
-    ) -> tuple[int, int, float | None] | None:
+
+    def _atif_counts(trial_dir: Path, runs_root: Path) -> tuple[int, int, float | None] | None:
         try:
-            outline = outline_trajectory(
-                trial_dir, repo_root=root, explicit_runs_root=runs_root
-            )
+            outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=runs_root)
             baseline = compute_trace_baseline(outline)
             return (
                 baseline.tool_call_count,
@@ -3123,7 +3128,11 @@ def _traj_c0_status_command(
         print("|---|---|---|---|---|---|---|---|")
         for p in projections:
             refs = ", ".join(p.projection_refusals) if p.projection_refusals else "-"
-            denom = f"{p.opportunity_count} ({p.opportunity_denominator})" if p.opportunity_count is not None else "-"
+            denom = (
+                f"{p.opportunity_count} ({p.opportunity_denominator})"
+                if p.opportunity_count is not None
+                else "-"
+            )
             print(
                 f"| {p.trial_id} | {p.task_name} | {p.causal_grade} | "
                 f"{p.projection_status} | {p.mechanical_source} | {denom} | "

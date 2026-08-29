@@ -7,12 +7,43 @@ typed, documented, and declare its denominator sibling for null-on-zero invarian
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
 import pyarrow as pa
 
 from evallab.analysis_capability import FeatureContractRow
+
+
+def compute_prompt_cache_hit_rate(
+    step_tokens: Sequence[int] | None,
+    cached_step_tokens: Sequence[int] | None,
+) -> float | None:
+    """Strict token-weighted prompt cache hit rate.
+
+    Returns float(sum(cached_step_tokens) / sum(step_tokens)).
+    Strictly returns None (NULL) / fails closed when:
+    - step_tokens or cached_step_tokens is None or empty
+    - sequence lengths are misaligned (len(cached_step_tokens) != len(step_tokens))
+    - any element in step_tokens or cached_step_tokens is negative (< 0)
+    - total prompt tokens <= 0
+    - total cached tokens exceeds total prompt tokens (sum(cached_step_tokens) > sum(step_tokens))
+    """
+    if not step_tokens or not cached_step_tokens:
+        return None
+    if len(cached_step_tokens) != len(step_tokens):
+        return None
+    if any(s < 0 for s in step_tokens) or any(c < 0 for c in cached_step_tokens):
+        return None
+    total_prompt = sum(step_tokens)
+    total_cached = sum(cached_step_tokens)
+    if total_prompt <= 0:
+        return None
+    if total_cached > total_prompt:
+        return None
+    return float(total_cached / total_prompt)
+
 
 FeatureCategory = Literal[
     "identity",
@@ -987,6 +1018,46 @@ register_trajectory_feature(
     metric_order=1,
 )
 register_trajectory_feature(
+    "prompt_tokens_per_step",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="prompt_tokens / step_count",
+    null_condition="NULL when step_count == 0",
+    description="Average prompt tokens consumed per execution step (C0 manipulation check).",
+    denominator_sibling="step_count",
+    null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("prompt_tokens", "step_count"),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers",
+    construct="Benchmark Observables",
+    causal_grade="C0",
+    evidence_grade="Grade A",
+    metric_order=1,
+)
+register_trajectory_feature(
+    "prompt_cache_hit_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="cached_tokens / prompt_tokens",
+    null_condition="NULL when prompt_tokens == 0 or prompt_tokens is NULL",
+    description="Fraction of prompt tokens served from prefix cache (C1 manipulation check for matched padding arms).",
+    denominator_sibling="prompt_tokens",
+    null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("cached_tokens", "prompt_tokens"),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers",
+    construct="Benchmark Observables",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+)
+register_trajectory_feature(
     "raw_binding_opportunities",
     data_type="BIGINT",
     category="benchmark_l1_fact",
@@ -1089,6 +1160,142 @@ register_trajectory_feature(
     construct="Context & Actionable Memory",
     causal_grade="C1",
     metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "expected_handle_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of expected context retrieval handles declared in contract",
+    null_condition="0 by default",
+    description="Count of expected context retrieval handles declared in benchmark contract.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "valid_handle_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of requested retrieval handles matching expected contract handle universe",
+    null_condition="0 by default",
+    description="Count of requested context retrieval handles matching expected contract handle universe.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "unknown_handle_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of requested retrieval handles not present in declared contract universe",
+    null_condition="0 by default",
+    description="Count of requested context retrieval handles not present in declared contract universe (hallucination/corruption check).",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "duplicate_handle_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="total_handle_requests - distinct_valid_handles",
+    null_condition="0 by default",
+    description="Count of repeated redundant requests for identical retrieval handles.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "handle_set_match",
+    data_type="BOOLEAN",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="expected_handle_universe <= set(observed_handles)",
+    null_condition="False if unfulfilled",
+    description="Boolean indicating whether all expected contract retrieval handles were requested.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "handle_order_match",
+    data_type="BOOLEAN",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="observed_handles == expected_handle_sequence",
+    null_condition="False if unfulfilled",
+    description="Boolean indicating whether retrieval handles appeared in strictly conformed canonical chronological order.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "handle_coverage_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="valid_handle_count / expected_handle_count",
+    null_condition="NULL when expected_handle_count == 0",
+    description="Fraction of expected contract retrieval handles successfully requested without omission.",
+    denominator_sibling="expected_handle_count",
+    null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("valid_handle_count", "expected_handle_count"),
+    available_before_verdict=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="expected_handle_count > 0",
     family="action-memory-v1",
 )
 register_trajectory_feature(

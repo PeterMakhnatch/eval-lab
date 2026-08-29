@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS action_memory_features (
     bound_target_value VARCHAR,
     binding_matched BOOLEAN NOT NULL,
     stale_value_bound BOOLEAN NOT NULL,
+    expected_handle_count BIGINT NOT NULL,
+    valid_handle_count BIGINT NOT NULL,
+    unknown_handle_count BIGINT NOT NULL,
+    duplicate_handle_count BIGINT NOT NULL,
+    handle_set_match BOOLEAN NOT NULL,
+    handle_order_match BOOLEAN NOT NULL,
+    handle_coverage_rate DOUBLE,
     schema_conformance_rate DOUBLE,
     binding_survival_rate DOUBLE,
     stale_value_override_rate DOUBLE,
@@ -125,6 +132,13 @@ ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS dimension_digest VAR
 ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS projection_status VARCHAR;
 ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS analysis_ready BOOLEAN;
 ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS projection_refusals VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS expected_handle_count BIGINT;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS valid_handle_count BIGINT;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS unknown_handle_count BIGINT;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS duplicate_handle_count BIGINT;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_set_match BOOLEAN;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_order_match BOOLEAN;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_coverage_rate DOUBLE;
 
 ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS job_id VARCHAR;
 ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS cas_uri VARCHAR;

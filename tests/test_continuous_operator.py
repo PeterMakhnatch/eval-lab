@@ -37,13 +37,12 @@ from evallab.ops_continuous import (
     REASON_MISSING_STANDING_APPROVAL,
     REASON_SAME_IDENTITY,
     REASON_STALE_HEARTBEAT,
+    ClosedWorkloadOwner,
     ContinuousLoopPolicy,
-    DeploymentTrustStore,
     bind_policy_digest,
     key_id_for,
     lease_settlement_digest,
     load_macos_keychain_secret,
-    ClosedWorkloadOwner,
     main,
     policy_complete,
     public_sha256_is_not_a_signature,
@@ -1071,10 +1070,10 @@ def test_forged_recovery_template_without_jti_is_rejected(tmp_path: Path) -> Non
     record = _trust_record(kind="recovery", actor=RECOVERY)
     record.pop("nonce", None)
     dump = _policy_dump_for(state)
-    try:
+    import contextlib
+
+    with contextlib.suppress(ValueError):
         put_trusted_record(trust_root_for(state, {}), MAC_KEY, record, policy=dump, budget=_budget_fields())
-    except ValueError:
-        pass
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
     result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
@@ -1349,7 +1348,7 @@ def test_compose_init_image_is_digest_pinned() -> None:
 def test_policy_ref_must_equal_pinned_ref() -> None:
     assert PINNED_LINUX_REF == "file:/run/secrets/evallab-approval-hmac"
     assert PINNED_KEYCHAIN_REF.startswith("keychain:EvalLab/")
-    assert LINUX_TRUST_MANIFEST_PATH == Path("/etc/evallab/trusted-approval-keys.json")
+    assert Path("/etc/evallab/trusted-approval-keys.json") == LINUX_TRUST_MANIFEST_PATH
 
 def test_drain_unknown_and_missing_leases_refuse(tmp_path: Path) -> None:
     state = tmp_path / "state"
@@ -1641,7 +1640,6 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(tmp
 
 def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_path: Path) -> None:
     import time
-    import threading
 
     state = tmp_path / "state"
     state.mkdir()
@@ -1675,8 +1673,8 @@ def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_pa
 
 
 def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_thread_leak(tmp_path: Path) -> None:
-    import time
     import threading
+    import time
 
     state = tmp_path / "state"
     state.mkdir()

@@ -7,16 +7,19 @@ Harbor, or billable runs. Writes only to an explicit operator state directory.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import hmac
 import json
 import os
+import queue
 import re
-import fcntl
 import stat
 import subprocess
 import sys
+import threading
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -872,14 +875,18 @@ def consume_trusted_record(
     if kind not in TRUST_KINDS or not spec_id or not store_key:
         return False
     entries = load_trust_index(root, store_key)
-    index_key = store_key if isinstance(store_key, (bytes, bytearray)) else next(iter(store_key.values()), b"")
+    index_bytes: bytes = (
+        bytes(store_key)
+        if isinstance(store_key, (bytes, bytearray))
+        else next(iter(store_key.values()), b"")
+    )
     key = f"{kind}:{spec_id}"
     if key not in entries:
         return False
     del entries[key]
-    if not index_key:
+    if not index_bytes:
         return False
-    index = {"entries": entries, "mac": _index_mac(entries, index_key)}
+    index = {"entries": entries, "mac": _index_mac(entries, index_bytes)}
     _write_text(root / "index.json", json.dumps(index, indent=2, sort_keys=True))
     return True
 
@@ -1083,9 +1090,6 @@ def _fsync_write(path: Path, data: bytes) -> None:
     finally:
         os.close(fd)
     os.chmod(path, STATE_FILE_MODE)
-
-
-from contextlib import contextmanager
 
 
 @contextmanager
@@ -1603,9 +1607,7 @@ def observation_is_terminal(obs: Mapping[str, Any] | None) -> bool:
     digest = obs.get("settlement_digest")
     if not isinstance(digest, str) or len(digest) != SHA256_HEX:
         return False
-    if not _lease_evidence(obs) and not _lease_evidence({"evidence": obs.get("evidence")}):
-        return False
-    return True
+    return bool(_lease_evidence(obs) or _lease_evidence({"evidence": obs.get("evidence")}))
 
 
 def _call_with_deadline(fn: Callable[[], Any], timeout_seconds: float) -> tuple[Any, bool]:
@@ -1614,9 +1616,6 @@ def _call_with_deadline(fn: Callable[[], Any], timeout_seconds: float) -> tuple[
     Never blocks on executor shutdown or thread termination if fn hangs.
     Returns (result, timed_out).
     """
-    import threading
-    import queue
-
     q: queue.Queue[tuple[Any, Exception | None]] = queue.Queue(maxsize=1)
 
     def worker():

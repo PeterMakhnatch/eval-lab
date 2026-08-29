@@ -473,3 +473,88 @@ def test_generated_server_is_canonical_regardless_of_tool_order():
     ba = generate_fastmcp_server_script([b, a])
     assert ab == ba, "generated server must be byte-identical regardless of tool order"
     assert ab.index("def a_tool(") < ab.index("def b_tool(")
+
+
+def test_candidate_digest_detects_tool_payload_drift(tmp_path: Path):
+    """A changed tool execution_body changes candidate_record_digest (registration
+    mismatch detection): the immutable frozen candidate/package digest anchors the
+    tool definitions, so a drifted payload/server is detected at registration."""
+    import yaml
+
+    from evallab.task_workbench import inspect_candidate
+
+    wheelhouse = _real_wheelhouse_or_skip()
+    prov = record_prepackaging_provenance(wheelhouse, TARGET)
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    from evallab.mcp_substrate import DEFAULT_PINNED_BASE_IMAGE
+
+    (env_dir / "Dockerfile").write_text(
+        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8"
+    )
+    tool = MCPToolDefinition(
+        name="compute",
+        description="Compute",
+        parameters=(MCPToolParameter(name="a", type_name="int", description="a"),),
+        execution_body="return {'status': 'ok', 'value': a}",
+    )
+    sidecar = env_dir / "mcp-server"
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar,
+        tools=[tool],
+        wheelhouse_source=wheelhouse,
+        resolver_provenance=prov,
+        plan_only=False,
+    )
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg["compose_doc"]))
+    (tmp_path / "task.toml").write_text(
+        'schema_version = "1.0"\nartifacts = ["/app/output/benchmark-events.jsonl"]\n'
+        "\n[task]\nname = \"test/compute\"\nversion = \"1.0.0\"\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "instruction.md").write_text("Solve it.\n", encoding="utf-8")
+    (tmp_path / "solution").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "solution" / "solve.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (tmp_path / "tests" / "test.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (tmp_path / "verifier").mkdir()
+    (tmp_path / "verifier" / "verify.py").write_text("print('ok')\n", encoding="utf-8")
+
+    from evallab.task_workbench import CandidateSource
+
+    _src = CandidateSource(
+        source_uri="local/supply-chain-drift",
+        source_ref="local/supply-chain-drift@1.0.0",
+        license="Apache-2.0",
+        provenance_zone="03-synthetic",
+    )
+    insp1 = inspect_candidate(repo_root=tmp_path, task_path=tmp_path, source=_src)
+    # The candidate record (frozen package identity) must bind the proof digest
+    # which covers tool_definitions_sha256; the digest is what registration
+    # checks, regardless of unrelated static-probe completeness.
+    assert "offline_build_proofs" in insp1.candidate
+    digest1 = insp1.candidate["candidate_record_digest"]
+
+    # Drift: change the tool execution_body and materialize to a fresh sidecar dir
+    tool2 = MCPToolDefinition(
+        name="compute",
+        description="Compute",
+        parameters=(MCPToolParameter(name="a", type_name="int", description="a"),),
+        execution_body="return {'status': 'ok', 'value': a + 999}",
+    )
+    sidecar2 = env_dir / "mcp-server"
+    sidecar2.rename(env_dir / "mcp-server-orig")
+    pkg2 = materialize_mcp_sidecar_package(
+        target_dir=sidecar2,
+        tools=[tool2],
+        wheelhouse_source=wheelhouse,
+        resolver_provenance=prov,
+        plan_only=False,
+    )
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg2["compose_doc"]))
+    insp2 = inspect_candidate(repo_root=tmp_path, task_path=tmp_path, source=_src)
+    digest2 = insp2.candidate["candidate_record_digest"]
+    assert digest1 != digest2, (
+        "tool payload drift must change candidate_record_digest so registration "
+        "detects the changed definitions/server"
+    )

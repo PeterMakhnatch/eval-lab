@@ -1689,9 +1689,12 @@ def _validate_offline_build_proofs(
                         break
                     if (
                         not a_rel
+                        or a_rel != PurePosixPath(a_rel).as_posix()
+                        or "//" in a_rel
                         or "\\" in a_rel
                         or a_rel.startswith("/")
-                        or any(part in (".", "..") for part in Path(a_rel).parts)
+                        or a_rel.endswith("/")
+                        or any(part in (".", "..") for part in PurePosixPath(a_rel).parts)
                         or any(ord(c) < 32 or ord(c) == 127 for c in a_rel)
                     ):
                         diagnostics.append(
@@ -1912,6 +1915,7 @@ def _validate_offline_build_proofs(
                     "reviewed_by": "eval-lab-substrate",
                     "pinned_dependencies": pinned_deps,
                     "pinned_dependencies_count": len(pinned_deps),
+                    "runtime_asset_paths": frozenset(declared_asset_paths),
                     "proof_digest": _sha256_file(proof_path),
                 }
                 continue
@@ -3143,6 +3147,12 @@ def _validate_build_context_contents(
                 continue
             if path.name in {"build-proof.json", "offline-build-proof.json"}:
                 continue
+            proof_asset_paths = (
+                build_proofs.get(context, {}).get("runtime_asset_paths", frozenset())
+                if build_proofs
+                else frozenset()
+            )
+            context_relative = path.relative_to(root).as_posix()
             if path.suffix == ".whl":
                 if build_proofs and context in build_proofs:
                     _verify_wheel_in_build_proof(path, root, build_proofs[context], diagnostics)
@@ -3165,6 +3175,10 @@ def _validate_build_context_contents(
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
+                if context_relative in proof_asset_paths:
+                    # Exact proof has already bound this binary payload's path, bytes, size, and COPY mapping.
+                    # Text proof-bound assets still reach the normal content/network scan above.
+                    continue
                 diagnostics.append(
                     _diag(
                         "build_context_unreadable",

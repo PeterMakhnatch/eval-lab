@@ -974,12 +974,15 @@ def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
     target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
     prov = record_prepackaging_provenance(wh, target)
 
+    sealed = tmp_path / "sealed.bin"
+    sealed.write_bytes(b"\x00sealed-evidence\xff")
     tool = _runtime_asset_tool()
     pkg = materialize_mcp_sidecar_package(
         target_dir=sidecar_dir,
         tools=[tool],
         wheelhouse_source=wh,
         resolver_provenance=prov,
+        runtime_assets=(RuntimeAsset("evidence/sealed.bin", sealed),),
         plan_only=False,
     )
     compose_doc = pkg["compose_doc"]

@@ -339,6 +339,7 @@ artifacts = ["/app/output/benchmark-events.jsonl", "/app/output/final-state.json
 name = "action-memory/{safe_cell}"
 version = "1.0"
 authors = [{{ name = "Eval Lab" }}]
+description = "Two-session entity state update and memory retention task."
 keywords = ["action-memory", "mcp-sidecar", "state-inversion"]
 
 [metadata]

@@ -20,6 +20,8 @@ import yaml
 from evallab.ops_continuous import (
     HEARTBEAT_SKEW_SECONDS,
     KILL_DISPOSITION,
+    LAUNCHD_LOG_TOKEN,
+    LAUNCHD_STATE_TOKEN,
     REASON_BILLABLE_REFUSED,
     REASON_DEFAULT_DISABLED,
     REASON_DRAIN_INCOMPLETE,
@@ -31,6 +33,7 @@ from evallab.ops_continuous import (
     REASON_STALE_HEARTBEAT,
     ContinuousLoopPolicy,
     bind_policy_digest,
+    load_macos_keychain_secret,
     main,
     policy_complete,
     public_sha256_is_not_a_signature,
@@ -42,6 +45,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/ops/continuous-operator"
 KEYCHAIN = ROOT / "scripts/ops/keychain-inject.sh"
 PLIST = ROOT / "scripts/ops/launchd/com.petermakhnatch.evallab.continuous-operator.plist"
+INSTALLER = ROOT / "scripts/ops/launchd/install-continuous-operator.sh"
 SERVICE = ROOT / "scripts/ops/systemd/evallab-continuous-operator.service"
 TIMER = ROOT / "scripts/ops/systemd/evallab-continuous-operator.timer"
 COMPOSE = ROOT / "containers/continuous-operator/compose.yaml"
@@ -219,6 +223,14 @@ def _write_auths(
     shutil.copy2(STANDING, state / "standing-approvals.yaml")
 
 
+def _settle_kill(state: Path) -> None:
+    (state / "inflight.json").write_text("[]\n")
+    (state / "leases.json").write_text(json.dumps([{"id": "lease-1", "status": "settled"}]) + "\n")
+    kill = json.loads((state / "kill.json").read_text())
+    kill["executed"] = True
+    (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
+
+
 def _gate_env() -> dict[str, str]:
     return {
         "EVAL_LAB_ENABLE_TOKEN": "enable-1",
@@ -254,7 +266,12 @@ def _run(
     clock = (lambda: now) if now is not None else None
     with redirect_stdout(buf):
         store = secret_store
-        root = secrets_root if secrets_root is not None else tmp_path / "run-secrets"
+        if secrets_root is not None:
+            root = secrets_root
+        elif env and env.get("CREDENTIALS_DIRECTORY"):
+            root = None
+        else:
+            root = tmp_path / "run-secrets"
         code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=root)
     return SimpleNamespace(returncode=code, stdout=buf.getvalue())
 
@@ -592,11 +609,11 @@ def test_launchd_plist_disabled() -> None:
     assert "/usr/bin/env" not in loaded["ProgramArguments"]
     assert "/opt/" not in loaded["ProgramArguments"][0]
     assert loaded["LimitLoadToSessionType"] == "Aqua"
-    assert loaded["StandardOutPath"] == "/var/tmp/evallab-operator/logs/continuous-operator.out"
-    assert loaded["StandardErrorPath"] == "/var/tmp/evallab-operator/logs/continuous-operator.err"
-    assert loaded["ProgramArguments"][-1] == "/var/tmp/evallab-operator/state"
+    assert loaded["StandardOutPath"] == f"{LAUNCHD_LOG_TOKEN}/continuous-operator.out"
+    assert loaded["StandardErrorPath"] == f"{LAUNCHD_LOG_TOKEN}/continuous-operator.err"
+    assert loaded["ProgramArguments"][-1] == LAUNCHD_STATE_TOKEN
     assert loaded["Umask"] == 63
-    assert loaded["EnvironmentVariables"]["EVAL_LAB_OPERATOR_LOG_DIR"] == "/var/tmp/evallab-operator/logs"
+    assert loaded["EnvironmentVariables"]["EVAL_LAB_OPERATOR_LOG_DIR"] == LAUNCHD_LOG_TOKEN
     assert "/dev/null" not in loaded["StandardOutPath"]
     assert "/dev/null" not in loaded["StandardErrorPath"]
     plist_text = PLIST.read_text()
@@ -612,7 +629,9 @@ def test_systemd_units_not_wanted() -> None:
     assert "WantedBy=" not in timer
     assert "Restart=no" in service
     assert "Persistent=false" in timer
-    assert "User=evallab" in service
+    assert "DynamicUser=yes" in service
+    assert "LoadCredential=evallab-hmac:/root-managed/evallab-hmac" in service
+    assert "BindReadOnlyPaths=" not in service
     assert "NoNewPrivileges=yes" in service
     assert "ProtectSystem=strict" in service
     assert "ProtectHome=yes" in service
@@ -622,7 +641,6 @@ def test_systemd_units_not_wanted() -> None:
     assert "ExecStart=/usr/local/libexec/evallab/.venv/bin/python" in service
     assert "--state-dir /var/lib/evallab-operator" in service
     assert "StateDirectory=evallab-operator" in service
-    assert "ReadWritePaths=/var/lib/evallab-operator" in service
     assert "/usr/bin/env" not in service
     assert "StateDirectoryMode=0700" in service
 
@@ -634,6 +652,13 @@ def test_compose_restart_no() -> None:
     assert "profiles:" in compose
     assert 'command: ["validate", "--state-dir", "/var/lib/evallab-operator"]' in compose
     assert "evallab-operator-state:/var/lib/evallab-operator" in compose
+    assert "operator-state-init:" in compose
+    assert "network_mode: none" in compose
+    assert 'user: "0:0"' in compose
+    assert "service_completed_successfully" in compose
+    assert 'uid: "65532"' in compose
+    assert 'gid: "65532"' in compose
+    assert "mode: 0440" in compose
     assert "read_only: true" in compose
     assert "volumes:" in compose
     assert "/tmp:mode=0700" in compose
@@ -723,6 +748,7 @@ def test_recover_requires_distinct_recovery_token(tmp_path: Path) -> None:
     same = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
     assert same.returncode == 2
     assert (state / "mode").read_text().strip() == "KILLED"
+    _settle_kill(state)
     _write_auths(state, recovery_actor=RECOVERY)
     recovered = _run(tmp_path, "recover", policy=policy, env=env, now=NOW)
     assert recovered.returncode == 0
@@ -812,14 +838,14 @@ def test_rendered_templates_confine_writable_state() -> None:
     service = SERVICE.read_text()
     compose = COMPOSE.read_text()
     plist = plistlib.loads(PLIST.read_bytes())
-    assert service.count("/var/lib/evallab-operator") >= 2
+    assert service.count("/var/lib/evallab-operator") >= 1
     assert "--state-dir /var/lib/evallab-operator" in service
-    assert "ReadWritePaths=/var/lib/evallab-operator" in service
     assert "StateDirectory=evallab-operator" in service
+    assert "LoadCredential=evallab-hmac:/root-managed/evallab-hmac" in service
     assert "read_only: true" in compose
     assert "evallab-operator-state:/var/lib/evallab-operator" in compose
-    assert plist["ProgramArguments"][-1] == "/var/tmp/evallab-operator/state"
-    assert plist["StandardOutPath"].startswith("/var/tmp/evallab-operator/logs/")
+    assert plist["ProgramArguments"][-1] == LAUNCHD_STATE_TOKEN
+    assert plist["StandardOutPath"].startswith(LAUNCHD_LOG_TOKEN)
     assert "~" not in PLIST.read_text()
 
 
@@ -870,6 +896,7 @@ def test_recovery_is_one_time_and_audited(tmp_path: Path) -> None:
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
+    _settle_kill(state)
     _write_auths(state, recovery_actor=RECOVERY)
     first = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert first.returncode == 0
@@ -880,6 +907,7 @@ def test_recovery_is_one_time_and_audited(tmp_path: Path) -> None:
     assert RECOVERY_JTI in spent
     assert (state / "mode").read_text().strip() == "DISABLED"
     _run(tmp_path, "kill", now=NOW)
+    _settle_kill(state)
     dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
     kill_digest = __import__("hashlib").sha256((state / "kill.json").read_bytes()).hexdigest()
     put_trusted_record(
@@ -980,3 +1008,105 @@ def test_eval_lab_approval_mac_key_env_is_not_trust_root(tmp_path: Path) -> None
     env = {**_gate_env(), "EVAL_LAB_APPROVAL_MAC_KEY": MAC_KEY.decode()}
     result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+def test_recover_refuses_unexecuted_kill_without_consuming_nonce(tmp_path: Path) -> None:
+    from evallab.ops_continuous import REASON_DRAIN_INCOMPLETE
+
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state, recovery_actor=RECOVERY)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    _write_auths(state, recovery_actor=RECOVERY)
+    result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert not (state / "nonces").exists() or not any((state / "nonces").iterdir())
+
+
+def test_recover_refuses_inflight_without_consuming_nonce(tmp_path: Path) -> None:
+    from evallab.ops_continuous import REASON_DRAIN_INCOMPLETE
+
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "inflight.json").write_text(json.dumps(["lease-open"]) + "\n")
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    _run(tmp_path, "kill", now=NOW)
+    kill = json.loads((state / "kill.json").read_text())
+    kill["executed"] = True
+    (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
+    (state / "inflight.json").write_text(json.dumps(["lease-open"]) + "\n")
+    (state / "leases.json").write_text(json.dumps([{"id": "lease-open", "status": "settled"}]) + "\n")
+    _write_auths(state, recovery_actor=RECOVERY)
+    result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
+    assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert (state / "mode").read_text().strip() == "KILLED"
+    assert not (state / "nonces").exists() or not any((state / "nonces").iterdir())
+
+
+def test_credentials_directory_0440_key_is_accepted(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    creds = tmp_path / "credentials"
+    creds.mkdir()
+    key = creds / "evallab-hmac"
+    key.write_bytes(MAC_KEY)
+    os.chmod(key, 0o440)
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    env = {**_gate_env(), "CREDENTIALS_DIRECTORY": str(creds)}
+    result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
+    assert result.returncode == 0
+
+
+def test_euid_writable_hmac_file_is_rejected(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    root = tmp_path / "writable-secrets"
+    root.mkdir()
+    path = root / "evallab-hmac"
+    path.write_bytes(MAC_KEY)
+    os.chmod(path, 0o600)
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, secrets_root=root)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_main_wires_keychain_resolver_when_store_omitted() -> None:
+    import inspect
+
+    source = inspect.getsource(main)
+    assert "load_macos_keychain_secret" in source
+    assert load_macos_keychain_secret("not-a-ref") is None
+
+
+def test_launchd_installer_renders_absolute_macos_paths(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    dest = tmp_path / "rendered.plist"
+    completed = subprocess.run(
+        [str(INSTALLER), str(dest)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "EVAL_LAB_OPERATOR_HOME": str(home)},
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "launchctl=skipped" in completed.stdout
+    loaded = plistlib.loads(dest.read_bytes())
+    state = (home / "Library/Application Support/EvalLab").resolve()
+    logs = (home / "Library/Logs/EvalLab").resolve()
+    assert loaded["ProgramArguments"][-1] == str(state)
+    assert loaded["StandardOutPath"] == str(logs / "continuous-operator.out")
+    assert oct(state.stat().st_mode & 0o777) == "0o700"
+    assert oct(logs.stat().st_mode & 0o777) == "0o700"
+    assert oct((logs / "continuous-operator.out").stat().st_mode & 0o777) == "0o600"
+    assert not state.is_symlink()
+    assert "~" not in dest.read_text()
+    assert "/var/tmp/evallab-operator" not in dest.read_text()
+    assert "KeepAlive" not in loaded
+

@@ -6,8 +6,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=evallab
-Group=evallab
+DynamicUser=yes
 ExecStart=/usr/local/libexec/evallab/.venv/bin/python -m evallab.ops_continuous validate --state-dir /var/lib/evallab-operator
 WorkingDirectory=/usr/local/libexec/evallab
 RemainAfterExit=no
@@ -32,8 +31,7 @@ SystemCallArchitectures=native
 CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX
-ReadWritePaths=/var/lib/evallab-operator
-BindReadOnlyPaths=/run/secrets
+LoadCredential=evallab-hmac:/root-managed/evallab-hmac
 LogsDirectory=evallab
 StateDirectory=evallab-operator
 StateDirectoryMode=0700

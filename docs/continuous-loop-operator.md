@@ -72,9 +72,10 @@ and are refused. Enable identity, approval `actor`, and budget `actor` must
 be pairwise distinct. Parallel signed-manifest extra fields are rejected.
 `approval_digest` is an HMAC-SHA256 over canonical policy + budget + scope +
 `spec_id`. Policy `approval_signature_ref` names the allowlisted key source:
-`file:/run/secrets/<name>` (Compose/systemd credentials, mode 0400, no symlink,
-outside writable state) or `keychain:<service>/<account>` resolved by helper
-without printing. Active and previous keys are tried; records carry
+`file:/run/secrets/<name>` resolved from Compose `/run/secrets` or systemd
+`$CREDENTIALS_DIRECTORY` (mode 0400/0440, not euid-writable, no symlink,
+outside writable state) or `keychain:<service>/<account>` via the macOS
+Keychain resolver in `main`. Active and previous keys are tried; records carry
 `issued_at` / `expires_at` / `nonce` / `key_id` / MAC. Env key bytes
 (`EVAL_LAB_APPROVAL_MAC_KEY`, `EVAL_LAB_HMAC_KEY_REF`, recovery tokens) are
 not trust roots. Unkeyed SHA-256 of public fields is not a signature.
@@ -105,18 +106,21 @@ policy fields also keep the operator DISABLED.
 
 - launchd: `Disabled=true`, `RunAtLoad=false`, no `KeepAlive`, user-session
   `Aqua`, interpreter `/usr/local/libexec/evallab/.venv/bin/python`,
-  `Umask=63` (077), state `/var/tmp/evallab-operator/state` (0700), logs
-  `/var/tmp/evallab-operator/logs/continuous-operator.{out,err}` (0600 after
-  `rotate-logs`). Never `/dev/null`. Do not `launchctl bootstrap`.
-- systemd: `[Install]` has no `WantedBy=`. `User=evallab`, `NoNewPrivileges`,
-  `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, empty
-  `CapabilityBoundingSet`, `RestrictAddressFamilies=AF_UNIX`.
-  `StateDirectory=evallab-operator` matches `--state-dir /var/lib/evallab-operator`.
-  Do not `systemctl enable`.
+  `Umask=63` (077). Production paths are installer-rendered absolute
+  `$HOME/Library/Application Support/EvalLab` (state) and
+  `$HOME/Library/Logs/EvalLab` (logs). The installer precreates those
+  directories mode 0700 with no symlink and log files 0600, and does not
+  `launchctl bootstrap`. Template tokens stay in the committed plist.
+- systemd: `[Install]` has no `WantedBy=`. `DynamicUser=yes`,
+  `StateDirectory=evallab-operator`, `LoadCredential=evallab-hmac:/root-managed/evallab-hmac`.
+  The unit reads `$CREDENTIALS_DIRECTORY/evallab-hmac`, not a root-0400
+  `BindReadOnlyPaths=/run/secrets` mount. Do not `systemctl enable`.
 - compose: `restart: "no"` and `profiles: ["manual"]`; `read_only: true`;
-  named volume `evallab-operator-state:/var/lib/evallab-operator` (RW) so
-  kill latch/leases/budget/audit survive restart; tmpfs only `/tmp:mode=0700`.
-  Image `uv sync --locked` then non-root `USER`. Do not `docker compose up`.
+  no-network root `operator-state-init` chowns the named volume to 65532
+  mode 0700; operator `depends_on` `service_completed_successfully`.
+  Docker secret uid/gid 65532 mode 0440 (readable, not writable).
+  tmpfs only `/tmp:mode=0700`. Image `uv sync --locked` then non-root `USER`.
+  Do not `docker compose up`.
 - Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 
 ## Drain vs kill
@@ -127,9 +131,11 @@ policy fields also keep the operator DISABLED.
 - `kill` writes `$STATE/kill.json` with `FAILED_OPERATOR_KILL`,
   `executed: false`, and **does not wipe** inflight leases.
 - `KILLED` is a latch: `pause`, `maintenance`, `restart`, `upgrade`, and
-  `rollback` refuse and leave the latch set. Only `recover` with a distinct
-  one-time recovery authorization (and passing gates) clears it. Replay of a
-  spent nonce is `recovery_spent`.
+  `rollback` refuse and leave the latch set. `recover` requires
+  `kill.json` `executed: true`, empty `inflight.json`, and every lease in
+  `leases.json` terminal/settled **before** consuming the one-time recovery
+  authorization. Otherwise the latch stays `KILLED` and the nonce is not
+  spent. Replay of a spent nonce is `recovery_spent`.
 
 ## Health / CAS rotation
 

@@ -21,18 +21,18 @@
 		<string>evallab.ops_continuous</string>
 		<string>validate</string>
 		<string>--state-dir</string>
-		<string>/var/tmp/evallab-operator/state</string>
+		<string>__EVAL_LAB_STATE_DIR__</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>EVAL_LAB_OPERATOR_LOG_DIR</key>
-		<string>/var/tmp/evallab-operator/logs</string>
+		<string>__EVAL_LAB_LOG_DIR__</string>
 	</dict>
 	<key>Umask</key>
 	<integer>63</integer>
 	<key>StandardOutPath</key>
-	<string>/var/tmp/evallab-operator/logs/continuous-operator.out</string>
+	<string>__EVAL_LAB_LOG_DIR__/continuous-operator.out</string>
 	<key>StandardErrorPath</key>
-	<string>/var/tmp/evallab-operator/logs/continuous-operator.err</string>
+	<string>__EVAL_LAB_LOG_DIR__/continuous-operator.err</string>
 </dict>
 </plist>

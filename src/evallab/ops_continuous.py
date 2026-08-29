@@ -13,6 +13,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -51,6 +52,12 @@ REASON_SAME_IDENTITY = "same_enable_and_approval_identity"
 REASON_BILLABLE_REFUSED = "billable_refused"
 REASON_RECOVERY_SPENT = "recovery_spent"
 FILE_SECRET_PREFIX = "file:/run/secrets/"
+ALLOWED_KEY_MODES = frozenset({0o400, 0o440})
+TERMINAL_LEASE_STATUSES = frozenset({"settled", "terminal", "complete", "cancelled", "failed"})
+MACOS_STATE_REL = Path("Library/Application Support/EvalLab")
+MACOS_LOG_REL = Path("Library/Logs/EvalLab")
+LAUNCHD_STATE_TOKEN = "__EVAL_LAB_STATE_DIR__"
+LAUNCHD_LOG_TOKEN = "__EVAL_LAB_LOG_DIR__"
 FORBIDDEN_KEY_ENVS = frozenset(
     "EVAL_LAB_" + suffix
     for suffix in (
@@ -315,9 +322,15 @@ def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
         return b""
     if not stat.S_ISREG(info.st_mode):
         return b""
-    if (info.st_mode & 0o777) != 0o400:
+    mode = info.st_mode & 0o777
+    if mode not in ALLOWED_KEY_MODES:
         return b""
-    if info.st_uid not in {0, os.geteuid()}:
+    if info.st_mode & 0o222:
+        return b""
+    try:
+        if os.access(path, os.W_OK):
+            return b""
+    except OSError:
         return b""
     try:
         data = path.read_bytes().strip()
@@ -326,15 +339,40 @@ def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
     return data if len(data) >= 32 else b""
 
 
+def load_macos_keychain_secret(ref: str) -> bytes | None:
+    candidate = ref[:-9] if ref.endswith(".previous") else ref
+    if not SECRET_REF_GRAMMAR.fullmatch(candidate):
+        return None
+    if sys.platform != "darwin" or not os.access("/usr/bin/security", os.X_OK):
+        return None
+    body = candidate[len("keychain:") :]
+    service, _, account = body.partition("/")
+    if not service or not account:
+        return None
+    try:
+        completed = subprocess.run(
+            ["/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    key = completed.stdout.strip()
+    return key if len(key) >= 32 else None
+
+
 def load_keychain_key(
     ref: str,
     *,
     secret_store: Callable[[str], bytes | None] | None,
 ) -> bytes:
-    if secret_store is None:
-        return b""
+    resolver = secret_store if secret_store is not None else load_macos_keychain_secret
     try:
-        data = secret_store(ref)
+        data = resolver(ref)
     except OSError:
         return b""
     if not isinstance(data, (bytes, bytearray)):
@@ -386,10 +424,14 @@ def load_mac_key(
         return {}
     if policy is None:
         return {}
+    resolved_root = secrets_root
+    if resolved_root is None:
+        cred = environ.get("CREDENTIALS_DIRECTORY", "")
+        resolved_root = Path(cred) if cred else Path("/run/secrets")
     return load_keyring(
         ref=policy.approval_signature_ref,
         state_dir=state_dir,
-        secrets_root=secrets_root,
+        secrets_root=resolved_root,
         secret_store=secret_store,
     )
 
@@ -1091,6 +1133,73 @@ def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
     return loaded, None
 
 
+def _leases_unsettled(state_dir: Path) -> bool:
+    path = state_dir / "leases.json"
+    if not path.is_file():
+        return False
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return True
+    if not isinstance(loaded, list):
+        return True
+    for item in loaded:
+        if not isinstance(item, dict):
+            return True
+        status = item.get("status")
+        if not isinstance(status, str) or status not in TERMINAL_LEASE_STATUSES:
+            return True
+    return False
+
+
+def _recovery_settled(state_dir: Path) -> str | None:
+    kill_record = _load_json_mapping(state_dir / "kill.json") or {}
+    if kill_record.get("executed") is not True:
+        return "kill_not_executed"
+    inflight, inflight_error = _load_inflight(state_dir)
+    if inflight_error is not None or inflight:
+        return "inflight_remaining"
+    if _leases_unsettled(state_dir):
+        return "leases_unsettled"
+    return None
+
+
+def macos_operator_paths(home: Path) -> tuple[Path, Path]:
+    return (home / MACOS_STATE_REL).expanduser(), (home / MACOS_LOG_REL).expanduser()
+
+
+def _reject_symlink(path: Path) -> None:
+    if path.is_symlink() or path.parent.is_symlink():
+        raise OSError("symlink rejected")
+
+
+def prepare_macos_operator_dirs(home: Path) -> tuple[Path, Path]:
+    state_dir, log_dir = macos_operator_paths(home)
+    for directory in (state_dir, log_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+        _reject_symlink(directory)
+        os.chmod(directory, STATE_DIR_MODE)
+    for name in ("continuous-operator.out", "continuous-operator.err"):
+        path = log_dir / name
+        _reject_symlink(path)
+        if not path.exists():
+            path.write_text("", encoding="utf-8")
+        os.chmod(path, STATE_FILE_MODE)
+    return state_dir, log_dir
+
+
+def render_launchd_plist(template: Path, dest: Path, *, home: Path) -> Path:
+    state_dir, log_dir = prepare_macos_operator_dirs(home)
+    text = template.read_text(encoding="utf-8")
+    rendered = text.replace(LAUNCHD_STATE_TOKEN, str(state_dir.resolve())).replace(
+        LAUNCHD_LOG_TOKEN, str(log_dir.resolve())
+    )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(rendered, encoding="utf-8")
+    os.chmod(dest, STATE_FILE_MODE)
+    return dest
+
+
 def cmd_validate(ctx: OperatorContext) -> OperatorVerdict:
     fenced = _fenced_mode(ctx.state_dir)
     if fenced is None:
@@ -1205,6 +1314,15 @@ def cmd_rollback(ctx: OperatorContext) -> OperatorVerdict:
 def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     if not _latched_kill(ctx.state_dir):
         return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover requires KILLED latch")
+    unsettled = _recovery_settled(ctx.state_dir)
+    if unsettled is not None:
+        return _verdict(
+            ctx,
+            ok=False,
+            reason=REASON_DRAIN_INCOMPLETE,
+            detail="recover refused until kill executed, inflight empty, and leases settled",
+            extra={"blocker": unsettled, "latched": True},
+        )
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
@@ -1363,6 +1481,7 @@ def main(
     if not (state_dir / "mode").exists():
         write_mode(state_dir, DEFAULT_MODE)
     now = clock() if clock is not None else datetime.now(UTC)
+    resolved_store = secret_store if secret_store is not None else load_macos_keychain_secret
     ctx = context_from_env(
         state_dir=state_dir,
         policy_path=args.policy,
@@ -1370,7 +1489,7 @@ def main(
         agent=args.agent,
         drain_timeout_seconds=args.drain_timeout_seconds,
         environ=env,
-        secret_store=secret_store,
+        secret_store=resolved_store,
         secrets_root=secrets_root,
     )
     if read_mode(state_dir) == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:

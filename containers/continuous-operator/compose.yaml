@@ -2,6 +2,19 @@ volumes:
   evallab-operator-state:
 
 services:
+  operator-state-init:
+    image: busybox:1.37
+    user: "0:0"
+    network_mode: none
+    restart: "no"
+    profiles: ["manual"]
+    read_only: true
+    volumes:
+      - evallab-operator-state:/var/lib/evallab-operator
+    command:
+      - sh
+      - -c
+      - mkdir -p /var/lib/evallab-operator && chown 65532:65532 /var/lib/evallab-operator && chmod 0700 /var/lib/evallab-operator
   continuous-operator:
     build:
       context: ../..
@@ -10,6 +23,9 @@ services:
     profiles: ["manual"]
     user: "65532:65532"
     read_only: true
+    depends_on:
+      operator-state-init:
+        condition: service_completed_successfully
     environment:
       EVAL_LAB_OPERATOR_STATE: /var/lib/evallab-operator
     volumes:
@@ -19,9 +35,9 @@ services:
     secrets:
       - source: evallab-hmac
         target: evallab-hmac
-        uid: "0"
-        gid: "0"
-        mode: 0400
+        uid: "65532"
+        gid: "65532"
+        mode: 0440
     tmpfs:
       # Scratch only. Operator state must not live on tmpfs.
       - /tmp:mode=0700

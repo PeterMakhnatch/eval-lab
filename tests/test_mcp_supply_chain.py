@@ -58,7 +58,10 @@ def test_trusted_manifest_integrity():
     assert manifest["target"]["platform_tag"] == "manylinux_2_17_x86_64"
     assert manifest["source"] == "https://pypi.org/simple"
     assert manifest["fastmcp_version"] == "3.4.7"
-    assert len(manifest["wheels"]) == 66
+    assert len(manifest["wheels"]) == 68
+    filenames = {entry["filename"] for entry in manifest["wheels"]}
+    assert "jeepney-0.9.0-py3-none-any.whl" in filenames
+    assert "secretstorage-3.5.0-py3-none-any.whl" in filenames
     for entry in manifest["wheels"]:
         assert set(entry) == {"filename", "name", "version", "size_bytes", "sha256"}
         assert len(entry["sha256"]) == 64

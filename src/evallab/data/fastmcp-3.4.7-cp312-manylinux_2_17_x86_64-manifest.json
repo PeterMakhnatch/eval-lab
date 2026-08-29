@@ -1,1 +1,487 @@
-{"schema_version":"1.0","target":{"python_tag":"cp312","platform_tag":"manylinux_2_17_x86_64"},"source":"https://pypi.org/simple","fastmcp_version":"3.4.7","wheels":[{"filename":"aiofile-3.12.3-py3-none-any.whl","name":"aiofile","version":"3.12.3","size_bytes":22122,"sha256":"5c1bcc9e929c50834608e8cc1a4cc1d7503eb60c15a535b779fd39e2f372c017"},{"filename":"annotated_types-0.8.0-py3-none-any.whl","name":"annotated-types","version":"0.8.0","size_bytes":13427,"sha256":"f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0"},{"filename":"anyio-4.14.2-py3-none-any.whl","name":"anyio","version":"4.14.2","size_bytes":125813,"sha256":"9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494"},{"filename":"attrs-26.1.0-py3-none-any.whl","name":"attrs","version":"26.1.0","size_bytes":67548,"sha256":"c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"},{"filename":"authlib-1.7.2-py2.py3-none-any.whl","name":"authlib","version":"1.7.2","size_bytes":259548,"sha256":"3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f"},{"filename":"beartype-0.22.9-py3-none-any.whl","name":"beartype","version":"0.22.9","size_bytes":1333658,"sha256":"d16c9bbc61ea14637596c5f6fbff2ee99cbe3573e46a716401734ef50c3060c2"},{"filename":"cachetools-7.1.7-py3-none-any.whl","name":"cachetools","version":"7.1.7","size_bytes":16830,"sha256":"ef98ef375ad188819ef2f9b3645e3987f4b8c5b7550e436ad998c2de78296df0"},{"filename":"caio-0.12.2-py3-none-any.whl","name":"caio","version":"0.12.2","size_bytes":62548,"sha256":"5233e797c9fe2b541914b1bc2e2df82677e2206b537e44e252188f3c2cbb0ea9"},{"filename":"certifi-2026.7.22-py3-none-any.whl","name":"certifi","version":"2026.7.22","size_bytes":136983,"sha256":"62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"},{"filename":"cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl","name":"cffi","version":"2.1.1","size_bytes":221822,"sha256":"c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf"},{"filename":"click-8.5.0-py3-none-any.whl","name":"click","version":"8.5.0","size_bytes":125251,"sha256":"255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360"},{"filename":"cryptography-50.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl","name":"cryptography","version":"50.0.1","size_bytes":4712478,"sha256":"ff838d62ec1bfce4f9ba7fa16f4a7b554cd8d0c299e6be37502161a660c84eef"},{"filename":"cyclopts-4.23.3-py3-none-any.whl","name":"cyclopts","version":"4.23.3","size_bytes":237180,"sha256":"b3a65872942afb08f3ab5ca3d65b0b3ecfc872c9ccbea9d6a74ec11aa8a0215e"},{"filename":"dnspython-2.8.0-py3-none-any.whl","name":"dnspython","version":"2.8.0","size_bytes":331094,"sha256":"01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af"},{"filename":"docstring_parser-0.18.0-py3-none-any.whl","name":"docstring-parser","version":"0.18.0","size_bytes":22484,"sha256":"b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b"},{"filename":"email_validator-2.3.0-py3-none-any.whl","name":"email-validator","version":"2.3.0","size_bytes":35604,"sha256":"80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4"},{"filename":"exceptiongroup-1.3.1-py3-none-any.whl","name":"exceptiongroup","version":"1.3.1","size_bytes":16740,"sha256":"a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598"},{"filename":"fastmcp-3.4.7-py3-none-any.whl","name":"fastmcp","version":"3.4.7","size_bytes":8016,"sha256":"e4e7698cb4af5bc667b1901685261fa2f3526dc73d243a461fca42500c8dbe56"},{"filename":"fastmcp_slim-3.4.7-py3-none-any.whl","name":"fastmcp-slim","version":"3.4.7","size_bytes":769370,"sha256":"6c931a0089705f3f2935428ef9b2bc74ad94140adc64aab84d116d103e694b3a"},{"filename":"griffelib-2.2.0-py3-none-any.whl","name":"griffelib","version":"2.2.0","size_bytes":166779,"sha256":"d71c3bc2bbed9f958488634fe788b843a9f705d6d2838ca32cd6c25eeb64dfc4"},{"filename":"h11-0.16.0-py3-none-any.whl","name":"h11","version":"0.16.0","size_bytes":37515,"sha256":"63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"},{"filename":"httpcore-1.0.9-py3-none-any.whl","name":"httpcore","version":"1.0.9","size_bytes":78784,"sha256":"2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55"},{"filename":"httpx-0.28.1-py3-none-any.whl","name":"httpx","version":"0.28.1","size_bytes":73517,"sha256":"d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad"},{"filename":"httpx_sse-0.4.3-py3-none-any.whl","name":"httpx-sse","version":"0.4.3","size_bytes":8960,"sha256":"0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc"},{"filename":"idna-3.19-py3-none-any.whl","name":"idna","version":"3.19","size_bytes":68550,"sha256":"815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4"},{"filename":"jaraco.classes-3.4.0-py3-none-any.whl","name":"jaraco.classes","version":"3.4.0","size_bytes":6777,"sha256":"f662826b6bed8cace05e7ff873ce0f9283b5c924470fe664fff1c2f00f581790"},{"filename":"jaraco_context-6.1.2-py3-none-any.whl","name":"jaraco.context","version":"6.1.2","size_bytes":7871,"sha256":"bf8150b79a2d5d91ae48629d8b427a8f7ba0e1097dd6202a9059f29a36379535"},{"filename":"jaraco_functools-4.6.0-py3-none-any.whl","name":"jaraco.functools","version":"4.6.0","size_bytes":11677,"sha256":"99e3dc0060c5cbe8fcd1cdb36258e2a65ca40f1566b2033b12abb1bb44dd3c30"},{"filename":"joserfc-1.7.4-py3-none-any.whl","name":"joserfc","version":"1.7.4","size_bytes":71000,"sha256":"32d46c2cd5e3203c13e87a6c61333cab310b1ba80cd54b4c4f386a848a122463"},{"filename":"jsonref-1.1.0-py3-none-any.whl","name":"jsonref","version":"1.1.0","size_bytes":9425,"sha256":"590dc7773df6c21cbf948b5dac07a72a251db28b0238ceecce0a2abfa8ec30a9"},{"filename":"jsonschema-4.26.0-py3-none-any.whl","name":"jsonschema","version":"4.26.0","size_bytes":90630,"sha256":"d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"},{"filename":"jsonschema_path-0.5.0-py3-none-any.whl","name":"jsonschema-path","version":"0.5.0","size_bytes":24077,"sha256":"2790a070bc7abb08ea3dbe4d340ece4efadf639223001f020c7503229ba068e2"},{"filename":"jsonschema_specifications-2025.9.1-py3-none-any.whl","name":"jsonschema-specifications","version":"2025.9.1","size_bytes":18437,"sha256":"98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"},{"filename":"keyring-25.7.0-py3-none-any.whl","name":"keyring","version":"25.7.0","size_bytes":39160,"sha256":"be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f"},{"filename":"markdown_it_py-4.2.0-py3-none-any.whl","name":"markdown-it-py","version":"4.2.0","size_bytes":91687,"sha256":"9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a"},{"filename":"mcp-1.29.1-py3-none-any.whl","name":"mcp","version":"1.29.1","size_bytes":224653,"sha256":"b6310eeb59153300c4ab8b9aec4c52f4819a2d6a8e429eb43d908bed7c783648"},{"filename":"mdurl-0.1.2-py3-none-any.whl","name":"mdurl","version":"0.1.2","size_bytes":9979,"sha256":"84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},{"filename":"more_itertools-11.1.0-py3-none-any.whl","name":"more-itertools","version":"11.1.0","size_bytes":72226,"sha256":"4b65538ae22f6fed0ce4874efd317463a7489796a0939fa66824dd542125a192"},{"filename":"openapi_pydantic-0.5.1-py3-none-any.whl","name":"openapi-pydantic","version":"0.5.1","size_bytes":96381,"sha256":"a3a09ef4586f5bd760a8df7f43028b60cafb6d9f61de2acba9574766255ab146"},{"filename":"opentelemetry_api-1.44.0-py3-none-any.whl","name":"opentelemetry-api","version":"1.44.0","size_bytes":60018,"sha256":"94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef"},{"filename":"packaging-26.3-py3-none-any.whl","name":"packaging","version":"26.3","size_bytes":129956,"sha256":"d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"},{"filename":"pathable-0.6.0-py3-none-any.whl","name":"pathable","version":"0.6.0","size_bytes":18983,"sha256":"82c4ca6c98c502ad12e0d4e9779b6210afee93c38990988c8c5d1b49bdcdf566"},{"filename":"platformdirs-4.11.5-py3-none-any.whl","name":"platformdirs","version":"4.11.5","size_bytes":23900,"sha256":"89f8d42695853b89c7170bd49bc3dc593f98a71e695ede88e06a3b247bc4563b"},{"filename":"py_key_value_aio-0.4.5-py3-none-any.whl","name":"py-key-value-aio","version":"0.4.5","size_bytes":170005,"sha256":"ab862adbcb8c72547d1c57821f22cbbb71ab86509039c96f36e914e0336c8dd7"},{"filename":"pycparser-3.0-py3-none-any.whl","name":"pycparser","version":"3.0","size_bytes":48172,"sha256":"b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},{"filename":"pydantic-2.13.5-py3-none-any.whl","name":"pydantic","version":"2.13.5","size_bytes":472589,"sha256":"346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73"},{"filename":"pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl","name":"pydantic-core","version":"2.46.5","size_bytes":2066284,"sha256":"0fc5be0abd4a407e200d844b404e33639a554e7bd0d448e7b9ae181be4789ac2"},{"filename":"pydantic_settings-2.15.0-py3-none-any.whl","name":"pydantic-settings","version":"2.15.0","size_bytes":69413,"sha256":"0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42"},{"filename":"pygments-2.21.0-py3-none-any.whl","name":"pygments","version":"2.21.0","size_bytes":1250147,"sha256":"2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"},{"filename":"pyjwt-2.13.0-py3-none-any.whl","name":"pyjwt","version":"2.13.0","size_bytes":31274,"sha256":"66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728"},{"filename":"pyperclip-1.11.0-py3-none-any.whl","name":"pyperclip","version":"1.11.0","size_bytes":11063,"sha256":"299403e9ff44581cb9ba2ffeed69c7aa96a008622ad0c46cb575ca75b5b84273"},{"filename":"python_dotenv-1.2.3-py3-none-any.whl","name":"python-dotenv","version":"1.2.3","size_bytes":22780,"sha256":"904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9"},{"filename":"python_multipart-0.0.32-py3-none-any.whl","name":"python-multipart","version":"0.0.32","size_bytes":30042,"sha256":"ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23"},{"filename":"pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl","name":"pyyaml","version":"6.0.3","size_bytes":807870,"sha256":"ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc"},{"filename":"referencing-0.37.0-py3-none-any.whl","name":"referencing","version":"0.37.0","size_bytes":26766,"sha256":"381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"},{"filename":"rich-15.0.0-py3-none-any.whl","name":"rich","version":"15.0.0","size_bytes":310654,"sha256":"33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb"},{"filename":"rich_rst-2.1.0-py3-none-any.whl","name":"rich-rst","version":"2.1.0","size_bytes":272987,"sha256":"7ecd1343ee12c879d0e7ae74c3eb6d263b023d2929c6d114212eb1fd91057255"},{"filename":"rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl","name":"rpds-py","version":"2026.6.3","size_bytes":366189,"sha256":"ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6"},{"filename":"sse_starlette-3.4.8-py3-none-any.whl","name":"sse-starlette","version":"3.4.8","size_bytes":16516,"sha256":"6e82314c786709a3cd9520f2285cf9fff90e181e598e8a357b0cf80f66afba0d"},{"filename":"starlette-1.6.0-py3-none-any.whl","name":"starlette","version":"1.6.0","size_bytes":75969,"sha256":"a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c"},{"filename":"typing_extensions-4.16.0-py3-none-any.whl","name":"typing-extensions","version":"4.16.0","size_bytes":45571,"sha256":"481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"},{"filename":"typing_inspection-0.4.4-py3-none-any.whl","name":"typing-inspection","version":"0.4.4","size_bytes":14750,"sha256":"65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147"},{"filename":"uncalled_for-0.4.0-py3-none-any.whl","name":"uncalled-for","version":"0.4.0","size_bytes":15502,"sha256":"16c4bb3337532e4bd5569adc192285976f3ad5305402256d34c67a12b5c968bd"},{"filename":"uvicorn-0.52.4-py3-none-any.whl","name":"uvicorn","version":"0.52.4","size_bytes":79871,"sha256":"f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1"},{"filename":"watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl","name":"watchfiles","version":"1.2.0","size_bytes":456398,"sha256":"e53a384f76b631c3ae5334ce6a52f0baa3a911eb94a4eac7f160079868b716d5"},{"filename":"websockets-17.1-py3-none-any.whl","name":"websockets","version":"17.1","size_bytes":211134,"sha256":"f221081107b8c48184d99f7019604486376e7ef826037e70aad6b02540732c23"}]}
+{
+  "schema_version": "1.0",
+  "target": {
+    "python_tag": "cp312",
+    "platform_tag": "manylinux_2_17_x86_64"
+  },
+  "source": "https://pypi.org/simple",
+  "fastmcp_version": "3.4.7",
+  "wheels": [
+    {
+      "filename": "aiofile-3.12.3-py3-none-any.whl",
+      "name": "aiofile",
+      "version": "3.12.3",
+      "size_bytes": 22122,
+      "sha256": "5c1bcc9e929c50834608e8cc1a4cc1d7503eb60c15a535b779fd39e2f372c017"
+    },
+    {
+      "filename": "annotated_types-0.8.0-py3-none-any.whl",
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "size_bytes": 13427,
+      "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0"
+    },
+    {
+      "filename": "anyio-4.14.2-py3-none-any.whl",
+      "name": "anyio",
+      "version": "4.14.2",
+      "size_bytes": 125813,
+      "sha256": "9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494"
+    },
+    {
+      "filename": "attrs-26.1.0-py3-none-any.whl",
+      "name": "attrs",
+      "version": "26.1.0",
+      "size_bytes": 67548,
+      "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"
+    },
+    {
+      "filename": "authlib-1.7.2-py2.py3-none-any.whl",
+      "name": "authlib",
+      "version": "1.7.2",
+      "size_bytes": 259548,
+      "sha256": "3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f"
+    },
+    {
+      "filename": "beartype-0.22.9-py3-none-any.whl",
+      "name": "beartype",
+      "version": "0.22.9",
+      "size_bytes": 1333658,
+      "sha256": "d16c9bbc61ea14637596c5f6fbff2ee99cbe3573e46a716401734ef50c3060c2"
+    },
+    {
+      "filename": "cachetools-7.1.7-py3-none-any.whl",
+      "name": "cachetools",
+      "version": "7.1.7",
+      "size_bytes": 16830,
+      "sha256": "ef98ef375ad188819ef2f9b3645e3987f4b8c5b7550e436ad998c2de78296df0"
+    },
+    {
+      "filename": "caio-0.12.2-py3-none-any.whl",
+      "name": "caio",
+      "version": "0.12.2",
+      "size_bytes": 62548,
+      "sha256": "5233e797c9fe2b541914b1bc2e2df82677e2206b537e44e252188f3c2cbb0ea9"
+    },
+    {
+      "filename": "certifi-2026.7.22-py3-none-any.whl",
+      "name": "certifi",
+      "version": "2026.7.22",
+      "size_bytes": 136983,
+      "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"
+    },
+    {
+      "filename": "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "name": "cffi",
+      "version": "2.1.1",
+      "size_bytes": 221822,
+      "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf"
+    },
+    {
+      "filename": "click-8.5.0-py3-none-any.whl",
+      "name": "click",
+      "version": "8.5.0",
+      "size_bytes": 125251,
+      "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360"
+    },
+    {
+      "filename": "cryptography-50.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "name": "cryptography",
+      "version": "50.0.1",
+      "size_bytes": 4712478,
+      "sha256": "ff838d62ec1bfce4f9ba7fa16f4a7b554cd8d0c299e6be37502161a660c84eef"
+    },
+    {
+      "filename": "cyclopts-4.23.3-py3-none-any.whl",
+      "name": "cyclopts",
+      "version": "4.23.3",
+      "size_bytes": 237180,
+      "sha256": "b3a65872942afb08f3ab5ca3d65b0b3ecfc872c9ccbea9d6a74ec11aa8a0215e"
+    },
+    {
+      "filename": "dnspython-2.8.0-py3-none-any.whl",
+      "name": "dnspython",
+      "version": "2.8.0",
+      "size_bytes": 331094,
+      "sha256": "01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af"
+    },
+    {
+      "filename": "docstring_parser-0.18.0-py3-none-any.whl",
+      "name": "docstring-parser",
+      "version": "0.18.0",
+      "size_bytes": 22484,
+      "sha256": "b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b"
+    },
+    {
+      "filename": "email_validator-2.3.0-py3-none-any.whl",
+      "name": "email-validator",
+      "version": "2.3.0",
+      "size_bytes": 35604,
+      "sha256": "80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4"
+    },
+    {
+      "filename": "exceptiongroup-1.3.1-py3-none-any.whl",
+      "name": "exceptiongroup",
+      "version": "1.3.1",
+      "size_bytes": 16740,
+      "sha256": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598"
+    },
+    {
+      "filename": "fastmcp-3.4.7-py3-none-any.whl",
+      "name": "fastmcp",
+      "version": "3.4.7",
+      "size_bytes": 8016,
+      "sha256": "e4e7698cb4af5bc667b1901685261fa2f3526dc73d243a461fca42500c8dbe56"
+    },
+    {
+      "filename": "fastmcp_slim-3.4.7-py3-none-any.whl",
+      "name": "fastmcp-slim",
+      "version": "3.4.7",
+      "size_bytes": 769370,
+      "sha256": "6c931a0089705f3f2935428ef9b2bc74ad94140adc64aab84d116d103e694b3a"
+    },
+    {
+      "filename": "griffelib-2.2.0-py3-none-any.whl",
+      "name": "griffelib",
+      "version": "2.2.0",
+      "size_bytes": 166779,
+      "sha256": "d71c3bc2bbed9f958488634fe788b843a9f705d6d2838ca32cd6c25eeb64dfc4"
+    },
+    {
+      "filename": "h11-0.16.0-py3-none-any.whl",
+      "name": "h11",
+      "version": "0.16.0",
+      "size_bytes": 37515,
+      "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"
+    },
+    {
+      "filename": "httpcore-1.0.9-py3-none-any.whl",
+      "name": "httpcore",
+      "version": "1.0.9",
+      "size_bytes": 78784,
+      "sha256": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55"
+    },
+    {
+      "filename": "httpx-0.28.1-py3-none-any.whl",
+      "name": "httpx",
+      "version": "0.28.1",
+      "size_bytes": 73517,
+      "sha256": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad"
+    },
+    {
+      "filename": "httpx_sse-0.4.3-py3-none-any.whl",
+      "name": "httpx-sse",
+      "version": "0.4.3",
+      "size_bytes": 8960,
+      "sha256": "0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc"
+    },
+    {
+      "filename": "idna-3.19-py3-none-any.whl",
+      "name": "idna",
+      "version": "3.19",
+      "size_bytes": 68550,
+      "sha256": "815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4"
+    },
+    {
+      "filename": "jaraco.classes-3.4.0-py3-none-any.whl",
+      "name": "jaraco.classes",
+      "version": "3.4.0",
+      "size_bytes": 6777,
+      "sha256": "f662826b6bed8cace05e7ff873ce0f9283b5c924470fe664fff1c2f00f581790"
+    },
+    {
+      "filename": "jaraco_context-6.1.2-py3-none-any.whl",
+      "name": "jaraco.context",
+      "version": "6.1.2",
+      "size_bytes": 7871,
+      "sha256": "bf8150b79a2d5d91ae48629d8b427a8f7ba0e1097dd6202a9059f29a36379535"
+    },
+    {
+      "filename": "jaraco_functools-4.6.0-py3-none-any.whl",
+      "name": "jaraco.functools",
+      "version": "4.6.0",
+      "size_bytes": 11677,
+      "sha256": "99e3dc0060c5cbe8fcd1cdb36258e2a65ca40f1566b2033b12abb1bb44dd3c30"
+    },
+    {
+      "filename": "jeepney-0.9.0-py3-none-any.whl",
+      "name": "jeepney",
+      "version": "0.9.0",
+      "size_bytes": 49010,
+      "sha256": "97e5714520c16fc0a45695e5365a2e11b81ea79bba796e26f9f1d178cb182683"
+    },
+    {
+      "filename": "joserfc-1.7.4-py3-none-any.whl",
+      "name": "joserfc",
+      "version": "1.7.4",
+      "size_bytes": 71000,
+      "sha256": "32d46c2cd5e3203c13e87a6c61333cab310b1ba80cd54b4c4f386a848a122463"
+    },
+    {
+      "filename": "jsonref-1.1.0-py3-none-any.whl",
+      "name": "jsonref",
+      "version": "1.1.0",
+      "size_bytes": 9425,
+      "sha256": "590dc7773df6c21cbf948b5dac07a72a251db28b0238ceecce0a2abfa8ec30a9"
+    },
+    {
+      "filename": "jsonschema-4.26.0-py3-none-any.whl",
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "size_bytes": 90630,
+      "sha256": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"
+    },
+    {
+      "filename": "jsonschema_path-0.5.0-py3-none-any.whl",
+      "name": "jsonschema-path",
+      "version": "0.5.0",
+      "size_bytes": 24077,
+      "sha256": "2790a070bc7abb08ea3dbe4d340ece4efadf639223001f020c7503229ba068e2"
+    },
+    {
+      "filename": "jsonschema_specifications-2025.9.1-py3-none-any.whl",
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "size_bytes": 18437,
+      "sha256": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"
+    },
+    {
+      "filename": "keyring-25.7.0-py3-none-any.whl",
+      "name": "keyring",
+      "version": "25.7.0",
+      "size_bytes": 39160,
+      "sha256": "be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f"
+    },
+    {
+      "filename": "markdown_it_py-4.2.0-py3-none-any.whl",
+      "name": "markdown-it-py",
+      "version": "4.2.0",
+      "size_bytes": 91687,
+      "sha256": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a"
+    },
+    {
+      "filename": "mcp-1.29.1-py3-none-any.whl",
+      "name": "mcp",
+      "version": "1.29.1",
+      "size_bytes": 224653,
+      "sha256": "b6310eeb59153300c4ab8b9aec4c52f4819a2d6a8e429eb43d908bed7c783648"
+    },
+    {
+      "filename": "mdurl-0.1.2-py3-none-any.whl",
+      "name": "mdurl",
+      "version": "0.1.2",
+      "size_bytes": 9979,
+      "sha256": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"
+    },
+    {
+      "filename": "more_itertools-11.1.0-py3-none-any.whl",
+      "name": "more-itertools",
+      "version": "11.1.0",
+      "size_bytes": 72226,
+      "sha256": "4b65538ae22f6fed0ce4874efd317463a7489796a0939fa66824dd542125a192"
+    },
+    {
+      "filename": "openapi_pydantic-0.5.1-py3-none-any.whl",
+      "name": "openapi-pydantic",
+      "version": "0.5.1",
+      "size_bytes": 96381,
+      "sha256": "a3a09ef4586f5bd760a8df7f43028b60cafb6d9f61de2acba9574766255ab146"
+    },
+    {
+      "filename": "opentelemetry_api-1.44.0-py3-none-any.whl",
+      "name": "opentelemetry-api",
+      "version": "1.44.0",
+      "size_bytes": 60018,
+      "sha256": "94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef"
+    },
+    {
+      "filename": "packaging-26.3-py3-none-any.whl",
+      "name": "packaging",
+      "version": "26.3",
+      "size_bytes": 129956,
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+    },
+    {
+      "filename": "pathable-0.6.0-py3-none-any.whl",
+      "name": "pathable",
+      "version": "0.6.0",
+      "size_bytes": 18983,
+      "sha256": "82c4ca6c98c502ad12e0d4e9779b6210afee93c38990988c8c5d1b49bdcdf566"
+    },
+    {
+      "filename": "platformdirs-4.11.5-py3-none-any.whl",
+      "name": "platformdirs",
+      "version": "4.11.5",
+      "size_bytes": 23900,
+      "sha256": "89f8d42695853b89c7170bd49bc3dc593f98a71e695ede88e06a3b247bc4563b"
+    },
+    {
+      "filename": "py_key_value_aio-0.4.5-py3-none-any.whl",
+      "name": "py-key-value-aio",
+      "version": "0.4.5",
+      "size_bytes": 170005,
+      "sha256": "ab862adbcb8c72547d1c57821f22cbbb71ab86509039c96f36e914e0336c8dd7"
+    },
+    {
+      "filename": "pycparser-3.0-py3-none-any.whl",
+      "name": "pycparser",
+      "version": "3.0",
+      "size_bytes": 48172,
+      "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"
+    },
+    {
+      "filename": "pydantic-2.13.5-py3-none-any.whl",
+      "name": "pydantic",
+      "version": "2.13.5",
+      "size_bytes": 472589,
+      "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73"
+    },
+    {
+      "filename": "pydantic_core-2.46.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "name": "pydantic-core",
+      "version": "2.46.5",
+      "size_bytes": 2066284,
+      "sha256": "0fc5be0abd4a407e200d844b404e33639a554e7bd0d448e7b9ae181be4789ac2"
+    },
+    {
+      "filename": "pydantic_settings-2.15.0-py3-none-any.whl",
+      "name": "pydantic-settings",
+      "version": "2.15.0",
+      "size_bytes": 69413,
+      "sha256": "0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42"
+    },
+    {
+      "filename": "pygments-2.21.0-py3-none-any.whl",
+      "name": "pygments",
+      "version": "2.21.0",
+      "size_bytes": 1250147,
+      "sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+    },
+    {
+      "filename": "pyjwt-2.13.0-py3-none-any.whl",
+      "name": "pyjwt",
+      "version": "2.13.0",
+      "size_bytes": 31274,
+      "sha256": "66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728"
+    },
+    {
+      "filename": "pyperclip-1.11.0-py3-none-any.whl",
+      "name": "pyperclip",
+      "version": "1.11.0",
+      "size_bytes": 11063,
+      "sha256": "299403e9ff44581cb9ba2ffeed69c7aa96a008622ad0c46cb575ca75b5b84273"
+    },
+    {
+      "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+      "name": "python-dotenv",
+      "version": "1.2.3",
+      "size_bytes": 22780,
+      "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9"
+    },
+    {
+      "filename": "python_multipart-0.0.32-py3-none-any.whl",
+      "name": "python-multipart",
+      "version": "0.0.32",
+      "size_bytes": 30042,
+      "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23"
+    },
+    {
+      "filename": "pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "size_bytes": 807870,
+      "sha256": "ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc"
+    },
+    {
+      "filename": "referencing-0.37.0-py3-none-any.whl",
+      "name": "referencing",
+      "version": "0.37.0",
+      "size_bytes": 26766,
+      "sha256": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"
+    },
+    {
+      "filename": "rich-15.0.0-py3-none-any.whl",
+      "name": "rich",
+      "version": "15.0.0",
+      "size_bytes": 310654,
+      "sha256": "33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb"
+    },
+    {
+      "filename": "rich_rst-2.1.0-py3-none-any.whl",
+      "name": "rich-rst",
+      "version": "2.1.0",
+      "size_bytes": 272987,
+      "sha256": "7ecd1343ee12c879d0e7ae74c3eb6d263b023d2929c6d114212eb1fd91057255"
+    },
+    {
+      "filename": "rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "name": "rpds-py",
+      "version": "2026.6.3",
+      "size_bytes": 366189,
+      "sha256": "ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6"
+    },
+    {
+      "filename": "secretstorage-3.5.0-py3-none-any.whl",
+      "name": "secretstorage",
+      "version": "3.5.0",
+      "size_bytes": 15554,
+      "sha256": "0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137"
+    },
+    {
+      "filename": "sse_starlette-3.4.8-py3-none-any.whl",
+      "name": "sse-starlette",
+      "version": "3.4.8",
+      "size_bytes": 16516,
+      "sha256": "6e82314c786709a3cd9520f2285cf9fff90e181e598e8a357b0cf80f66afba0d"
+    },
+    {
+      "filename": "starlette-1.6.0-py3-none-any.whl",
+      "name": "starlette",
+      "version": "1.6.0",
+      "size_bytes": 75969,
+      "sha256": "a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c"
+    },
+    {
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "size_bytes": 45571,
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    },
+    {
+      "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "size_bytes": 14750,
+      "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147"
+    },
+    {
+      "filename": "uncalled_for-0.4.0-py3-none-any.whl",
+      "name": "uncalled-for",
+      "version": "0.4.0",
+      "size_bytes": 15502,
+      "sha256": "16c4bb3337532e4bd5569adc192285976f3ad5305402256d34c67a12b5c968bd"
+    },
+    {
+      "filename": "uvicorn-0.52.4-py3-none-any.whl",
+      "name": "uvicorn",
+      "version": "0.52.4",
+      "size_bytes": 79871,
+      "sha256": "f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1"
+    },
+    {
+      "filename": "watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "name": "watchfiles",
+      "version": "1.2.0",
+      "size_bytes": 456398,
+      "sha256": "e53a384f76b631c3ae5334ce6a52f0baa3a911eb94a4eac7f160079868b716d5"
+    },
+    {
+      "filename": "websockets-17.1-py3-none-any.whl",
+      "name": "websockets",
+      "version": "17.1",
+      "size_bytes": 211134,
+      "sha256": "f221081107b8c48184d99f7019604486376e7ef826037e70aad6b02540732c23"
+    }
+  ]
+}

@@ -45,10 +45,16 @@ REVISION 2 - five blockers found by independent review, all fixed at root:
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
+import hmac
 import json
+import os
 import random
-from collections.abc import Iterable, Sequence
+import re
+import tempfile
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -170,6 +176,118 @@ EXCLUDED_LABELS = {
 }
 
 
+VOLATILE_KEYS = frozenset(
+    {
+        "timestamp",
+        "step_id",
+        "tool_call_id",
+        "source_call_id",
+        "session_id",
+        "created_at",
+        "started_at",
+        "finished_at",
+        "duration",
+        "wall_time",
+        "latency",
+        "metrics",
+        "extra",
+        "id",
+    }
+)
+
+_WS = re.compile(r"\s+")
+
+
+def _canonicalize(value: Any) -> Any:
+    """Strip volatile metadata and normalise whitespace for logical identity.
+
+    Raw-byte SHA is NOT a logical identity: two trajectories differing only in
+    timestamps, ids, or whitespace get different digests, which inflates the
+    cluster count and therefore K_eff. Since K_eff is a readiness GATE, an
+    inflatable digest is a validity hole - semantic clones could clear a floor
+    they should not.
+    """
+    if isinstance(value, dict):
+        return {k: _canonicalize(v) for k, v in sorted(value.items()) if k not in VOLATILE_KEYS}
+    if isinstance(value, list):
+        return [_canonicalize(v) for v in value]
+    if isinstance(value, str):
+        return _WS.sub(" ", value).strip()
+    return value
+
+
+def logical_step_digest(step: dict[str, Any]) -> str:
+    """Digest of a step's LOGICAL content: message, action, observation."""
+    payload = _canonicalize(
+        {
+            "source": step.get("source"),
+            "message": step.get("message"),
+            "tool_calls": step.get("tool_calls"),
+            "observation": step.get("observation"),
+        }
+    )
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def logical_trial_digest(steps: Sequence[dict[str, Any]]) -> str:
+    """Digest of a whole trajectory's logical content - the cluster identity."""
+    return hashlib.sha256(
+        "".join(logical_step_digest(s) for s in steps).encode("utf-8")
+    ).hexdigest()
+
+
+class SourceRejectedError(RuntimeError):
+    """Raised when a source path is unsafe or its bytes cannot be trusted."""
+
+
+@dataclass(frozen=True)
+class SourceBuffer:
+    """One immutable read. The digest describes EXACTLY these parsed bytes.
+
+    Revision 4 hashed with path.read_bytes() and parsed with path.read_text() -
+    two separate reads. Between them the file could change, so the recorded
+    digest need not describe the parsed content (TOCTOU). Both now derive from a
+    single buffer.
+    """
+
+    relpath: str
+    raw: bytes
+    digest: str
+    doc: dict[str, Any]
+
+
+def read_source_once(path: Path, runs_root: Path) -> SourceBuffer:
+    """Read a trajectory exactly once; hash and parse the same buffer."""
+    resolved_root = runs_root.resolve()
+    if path.is_symlink():
+        raise SourceRejectedError(f"SYMLINK_REJECTED: {path}")
+    resolved = path.resolve()
+    try:
+        relative = resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise SourceRejectedError(f"ROOT_ESCAPE_REJECTED: {path}") from exc
+    for parent in path.parents:
+        if parent in (runs_root, resolved_root):
+            break
+        if parent.is_symlink():
+            raise SourceRejectedError(f"SYMLINK_PARENT_REJECTED: {parent}")
+    if not resolved.is_file():
+        raise SourceRejectedError(f"NOT_A_REGULAR_FILE: {path}")
+
+    with open(resolved, "rb") as handle:
+        raw = handle.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SourceRejectedError(f"UNPARSEABLE: {path}: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise SourceRejectedError(f"NOT_AN_OBJECT: {path}")
+    return SourceBuffer(str(relative), raw, digest, doc)
+
+
 def _truncate(text: str, limit: int) -> tuple[str, bool]:
     if len(text) <= limit:
         return text, False
@@ -212,6 +330,7 @@ class LabelItem:
     sampling_weight: float
     selection_arm: SelectionArm
     cluster_id: str
+    logical_step_digest: str
     context_completeness: dict[str, Any]
     rater_context: dict[str, Any]
 
@@ -294,32 +413,54 @@ def _extract_instruction(steps: Sequence[dict[str, Any]], upto: int) -> dict[str
 
 
 def _completeness(steps: Sequence[dict[str, Any]], index: int) -> dict[str, Any]:
-    """Builder-declared context completeness.
+    """Builder-declared context completeness, evaluated over PRIOR steps too.
 
-    A rater choosing INSUFFICIENT_CONTEXT can be cross-checked against this. If
-    the builder says context is complete and raters disagree, the package has a
-    defect the builder did not detect - which is exactly the signal we want.
+    Revision 3 examined only the item's own truncation and whether any user step
+    existed. It therefore reported COMPLETE for 124 items whose PRIOR steps were
+    truncated - the verdict was simply false. COMPLETE now requires that nothing
+    anywhere in the rendered context is truncated and every prior step carries
+    renderable content.
     """
-    step = steps[index]
+    item_view = _step_view(steps[index], index)
+    prior_views = [_step_view(s, i) for i, s in enumerate(steps[:index])]
     has_user = any(s.get("source") == "user" for s in steps[:index])
-    item_view = _step_view(step, index)
-    any_trunc = (
-        item_view["message_truncated"]
-        or any(c["arguments_truncated"] for c in item_view["tool_calls"])
-        or any(o["content_truncated"] for o in item_view["observation"])
-    )
-    judgeable = (
-        bool(item_view["tool_calls"] or item_view["observation"])
-        or not item_view["message_is_empty"]
-    )
+
+    def _trunc(view: dict[str, Any]) -> bool:
+        return bool(
+            view["message_truncated"]
+            or any(c["arguments_truncated"] for c in view["tool_calls"])
+            or any(o["content_truncated"] for o in view["observation"])
+        )
+
+    def _contentful(view: dict[str, Any]) -> bool:
+        return bool(view["message"].strip() or view["tool_calls"] or view["observation"])
+
+    item_truncated = _trunc(item_view)
+    prior_truncated = sum(1 for v in prior_views if _trunc(v))
+    prior_contentless = sum(1 for v in prior_views if not _contentful(v))
+    item_judgeable = _contentful(item_view)
+
+    reasons: list[str] = []
+    if not has_user:
+        reasons.append("NO_TASK_STATEMENT")
+    if not item_judgeable:
+        reasons.append("ITEM_HAS_NO_CONTENT")
+    if item_truncated:
+        reasons.append("ITEM_TRUNCATED")
+    if prior_truncated:
+        reasons.append(f"PRIOR_TRUNCATED:{prior_truncated}")
+    if prior_contentless:
+        reasons.append(f"PRIOR_CONTENTLESS:{prior_contentless}")
+
     return {
         "instruction_present": has_user,
-        "prior_steps_rendered": index,
-        "item_has_judgeable_content": judgeable,
-        "any_content_truncated": any_trunc,
-        "builder_verdict": (
-            "COMPLETE" if (has_user and judgeable and not any_trunc) else "DEGRADED"
-        ),
+        "prior_steps_rendered": len(prior_views),
+        "item_has_judgeable_content": item_judgeable,
+        "item_truncated": item_truncated,
+        "prior_steps_truncated": prior_truncated,
+        "prior_steps_contentless": prior_contentless,
+        "degraded_reasons": reasons,
+        "builder_verdict": "COMPLETE" if not reasons else "INCOMPLETE",
     }
 
 
@@ -355,13 +496,19 @@ def enumerate_universe(
     paths = sorted(runs_root.glob("**/agent/trajectory.json"))
 
     # B3: group by content digest first, so identical files collapse.
-    by_sha: dict[str, list[Path]] = {}
+    # Each file is read EXACTLY ONCE; digest and parse share one buffer.
+    by_sha: dict[str, list[SourceBuffer]] = {}
+    rejected: list[str] = []
     for path in paths:
         try:
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        except OSError:
+            buffer = read_source_once(path, runs_root)
+        except SourceRejectedError as exc:
+            rejected.append(str(exc))
             continue
-        by_sha.setdefault(digest, []).append(path)
+        except OSError as exc:
+            rejected.append(f"IO_ERROR: {path}: {exc}")
+            continue
+        by_sha.setdefault(buffer.digest, []).append(buffer)
 
     items: list[LabelItem] = []
     truths: list[MachineTruth] = []
@@ -369,18 +516,15 @@ def enumerate_universe(
     duplicate_paths_dropped = 0
 
     for digest in sorted(by_sha):
-        group = sorted(by_sha[digest])
+        group = sorted(by_sha[digest], key=lambda b: b.relpath)
         duplicate_paths_dropped += len(group) - 1
-        canonical = group[0]
-        try:
-            doc = json.loads(canonical.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
+        doc = group[0].doc  # already parsed from the hashed buffer
         steps = doc.get("steps") or []
         if not steps:
             continue
         agent_meta = doc.get("agent") or {}
-        aliases = tuple(str(p.relative_to(runs_root)) for p in group)
+        aliases = tuple(b.relpath for b in group)
+        logical_trial = logical_trial_digest(steps)
 
         for index, step in enumerate(steps):
             if step.get("source") != "agent":
@@ -402,7 +546,8 @@ def enumerate_universe(
                     stratum=_stratum_of(step, index, len(steps)),
                     sampling_weight=1.0,
                     selection_arm="prevalence_core",
-                    cluster_id=digest,  # B3: cluster is the trajectory content
+                    cluster_id=logical_trial,  # logical, not raw-byte (sec fix 2)
+                    logical_step_digest=logical_step_digest(step),
                     context_completeness=_completeness(steps, index),
                     rater_context={
                         "instruction": _extract_instruction(steps, index),
@@ -427,8 +572,8 @@ def enumerate_universe(
 
     alias_manifest = {
         digest: {
-            "canonical_relpath": str(sorted(group)[0].relative_to(runs_root)),
-            "all_relpaths": [str(p.relative_to(runs_root)) for p in sorted(group)],
+            "canonical_relpath": sorted(b.relpath for b in group)[0],
+            "all_relpaths": sorted(b.relpath for b in group),
             "duplicate_count": len(group) - 1,
         }
         for digest, group in sorted(by_sha.items())
@@ -437,6 +582,8 @@ def enumerate_universe(
     empty_msg = sum(1 for i in items if i.rater_context["item_step"]["message_is_empty"])
     census = {
         "trajectory_files_seen": len(paths),
+        "sources_rejected": len(rejected),
+        "rejection_reasons": sorted(rejected),
         "distinct_content_digests": len(by_sha),
         "duplicate_paths_dropped": duplicate_paths_dropped,
         "agent_steps_unique": len(items),
@@ -506,6 +653,7 @@ def _rearm(item: LabelItem, weight: float, arm: SelectionArm) -> LabelItem:
         sampling_weight=weight,
         selection_arm=arm,
         cluster_id=item.cluster_id,
+        logical_step_digest=item.logical_step_digest,
         context_completeness=item.context_completeness,
         rater_context=item.rater_context,
     )
@@ -557,6 +705,116 @@ def evaluate_cluster_adequacy(cluster_sizes: Sequence[int]) -> dict[str, Any]:
     }
 
 
+REGISTRY_SCHEMA_VERSION = "goldset-rater-registry/v1"
+
+
+class RegistryRejectedError(RuntimeError):
+    """Raised when the qualified-rater registry cannot be trusted."""
+
+
+def registry_signing_payload(registry: Mapping[str, Any]) -> str:
+    """Canonical bytes the registry authority signs."""
+    return json.dumps(
+        {
+            "schema_version": registry.get("schema_version"),
+            "authority_key_id": registry.get("authority_key_id"),
+            "raters": registry.get("raters"),
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+
+
+def sign_registry(registry: Mapping[str, Any], secret: str) -> str:
+    return hmac.new(
+        secret.encode("utf-8"),
+        registry_signing_payload(registry).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def load_rater_registry(
+    registry_path: Path | None, authority_secret: str | None
+) -> tuple[list[str], dict[str, str], list[str]]:
+    """Load an AUTHENTICATED qualified-rater registry.
+
+    Returns (qualified_key_ids, keyring, problems). The pool is no longer a
+    hard-coded empty tuple: it comes from a signed registry file, and an
+    unsigned or unverifiable registry yields an EMPTY pool plus an explicit
+    problem rather than silently trusting its contents.
+    """
+    if registry_path is None:
+        return [], {}, ["REGISTRY_ABSENT"]
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [], {}, [f"REGISTRY_UNREADABLE: {exc}"]
+    if registry.get("schema_version") != REGISTRY_SCHEMA_VERSION:
+        return [], {}, ["REGISTRY_BAD_SCHEMA_VERSION"]
+    if authority_secret is None:
+        return [], {}, ["REGISTRY_AUTHORITY_SECRET_NOT_SUPPLIED"]
+    expected = sign_registry(registry, authority_secret)
+    if not hmac.compare_digest(expected, str(registry.get("signature") or "")):
+        return [], {}, ["REGISTRY_SIGNATURE_INVALID"]
+
+    problems: list[str] = []
+    qualified: list[str] = []
+    keyring: dict[str, str] = {}
+    for entry in registry.get("raters") or []:
+        key_id = str((entry or {}).get("key_id") or "").strip()
+        secret = str((entry or {}).get("shared_secret") or "").strip()
+        if not key_id or not secret:
+            problems.append("REGISTRY_ENTRY_INCOMPLETE")
+            continue
+        if not (entry or {}).get("qualified"):
+            problems.append(f"REGISTRY_ENTRY_NOT_QUALIFIED: {key_id}")
+            continue
+        if key_id in keyring:
+            problems.append(f"REGISTRY_DUPLICATE_KEY_ID: {key_id}")
+            continue
+        qualified.append(key_id)
+        keyring[key_id] = secret
+    return qualified, keyring, problems
+
+
+RATING_SIGNED_FIELDS = (
+    "schema_version",
+    "package_digest",
+    "item_id",
+    "item_digest",
+    "rater_key_id",
+    *HUMAN_JUDGED_FIELDS,
+)
+
+
+def rating_signing_payload(record: Mapping[str, Any]) -> str:
+    """Canonical bytes a rater signs. Excludes the signature itself."""
+    return json.dumps(
+        {k: record.get(k) for k in RATING_SIGNED_FIELDS},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+
+
+def sign_rating(record: Mapping[str, Any], secret: str) -> str:
+    """HMAC-SHA256 over the canonical payload. Used by the ingest tool and tests."""
+    return hmac.new(
+        secret.encode("utf-8"),
+        rating_signing_payload(record).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def verify_rating_signature(record: Mapping[str, Any], keyring: Mapping[str, str]) -> bool:
+    """Verify against a registered key. Absent key ID or bad MAC -> False."""
+    key_id = record.get("rater_key_id")
+    secret = keyring.get(str(key_id)) if key_id else None
+    if not secret:
+        return False
+    supplied = str(record.get("signature") or "")
+    return hmac.compare_digest(sign_rating(record, secret), supplied)
+
+
 def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
     """Load RatingRecord sidecars. Returns [] when the directory is absent."""
     if ratings_dir is None or not ratings_dir.is_dir():
@@ -575,23 +833,48 @@ def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
     return records
 
 
-def validate_rating(record: dict[str, Any]) -> list[str]:
-    """Validate one RatingRecord. Enum and completeness checked (B4)."""
+def validate_rating(
+    record: dict[str, Any],
+    *,
+    package_digest: str | None = None,
+    item_digests: Mapping[str, str] | None = None,
+    keyring: Mapping[str, str] | None = None,
+) -> list[str]:
+    """Validate one RatingRecord.
+
+    A rater_id is NOT self-asserting evidence (security fix 3). A record must
+    bind the package digest and the item's logical digest, and carry a signature
+    verifiable against a registered qualified-rater key.
+    """
     errors: list[str] = []
     if record.get("_invalid_file"):
         return [f"UNPARSEABLE_FILE:{record['_invalid_file']}"]
     if record.get("schema_version") != RATING_SCHEMA_VERSION:
         errors.append("BAD_SCHEMA_VERSION")
-    if not str(record.get("item_id") or "").strip():
+    item_id = str(record.get("item_id") or "").strip()
+    if not item_id:
         errors.append("MISSING_ITEM_ID")
-    if not str(record.get("rater_id") or "").strip():
-        errors.append("MISSING_RATER_ID")
+    if not str(record.get("rater_key_id") or "").strip():
+        errors.append("MISSING_RATER_KEY_ID")
+
+    if package_digest is not None and record.get("package_digest") != package_digest:
+        errors.append("PACKAGE_DIGEST_MISMATCH")
+    if item_digests is not None and item_id:
+        expected = item_digests.get(item_id)
+        if expected is None:
+            errors.append("UNKNOWN_ITEM")
+        elif record.get("item_digest") != expected:
+            errors.append("ITEM_DIGEST_MISMATCH")
+
     for field_name in HUMAN_JUDGED_FIELDS:
         value = record.get(field_name)
         if value is None:
             errors.append(f"MISSING_LABEL:{field_name}")
         elif value not in ALLOWED_VALUES[field_name]:
             errors.append(f"OUT_OF_ENUM:{field_name}={value!r}")
+
+    if keyring is not None and not verify_rating_signature(record, keyring):
+        errors.append("SIGNATURE_INVALID_OR_UNREGISTERED_KEY")
     return errors
 
 
@@ -599,6 +882,9 @@ def evaluate_readiness(
     items: Sequence[LabelItem],
     records: Sequence[dict[str, Any]],
     qualified_rater_ids: Sequence[str],
+    *,
+    package_digest: str | None = None,
+    keyring: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Fail-closed. Validates labels, not merely the presence of rater IDs (B4).
 
@@ -616,16 +902,36 @@ def evaluate_readiness(
 
     invalid = 0
     unknown_item = 0
+    duplicate_submissions = 0
+    conflicting_submissions = 0
     by_item: dict[str, set[str]] = {}
+    seen: dict[tuple[str, str], str] = {}
+    item_digests = {i.item_id: i.logical_step_digest for i in items}
     for record in records:
-        errors = validate_rating(record)
+        errors = validate_rating(
+            record,
+            package_digest=package_digest,
+            item_digests=item_digests,
+            keyring=keyring,
+        )
         if errors:
             invalid += 1
             continue
         if record["item_id"] not in item_ids:
             unknown_item += 1
             continue
-        by_item.setdefault(record["item_id"], set()).add(record["rater_id"])
+        key = (record["item_id"], record["rater_key_id"])
+        fingerprint = rating_signing_payload(record)
+        if key in seen:
+            # Append-only: one submission per (item, rater). A byte-identical
+            # resubmission is a duplicate; a differing one is a conflict.
+            if seen[key] == fingerprint:
+                duplicate_submissions += 1
+            else:
+                conflicting_submissions += 1
+            continue
+        seen[key] = fingerprint
+        by_item.setdefault(record["item_id"], set()).add(record["rater_key_id"])
 
     if len(qualified) < REQUIRED_RATERS_PER_ITEM:
         blockers.append(
@@ -636,6 +942,10 @@ def evaluate_readiness(
         blockers.append(f"INVALID_RATING_RECORDS: {invalid}")
     if unknown_item:
         blockers.append(f"RATINGS_FOR_UNKNOWN_ITEM: {unknown_item}")
+    if duplicate_submissions:
+        blockers.append(f"DUPLICATE_SUBMISSIONS: {duplicate_submissions}")
+    if conflicting_submissions:
+        blockers.append(f"CONFLICTING_SUBMISSIONS: {conflicting_submissions}")
 
     zero = sum(1 for i in items if not by_item.get(i.item_id))
     under = sum(
@@ -657,6 +967,16 @@ def evaluate_readiness(
         "required_unique_raters_per_item": REQUIRED_RATERS_PER_ITEM,
         "qualified_rater_pool_size": len(qualified),
         "valid_rating_records": sum(len(v) for v in by_item.values()),
+        "authentication": {
+            "rater_id_is_self_asserting": False,
+            "requires": [
+                "package_digest",
+                "item_digest",
+                "rater_key_id",
+                "signature",
+            ],
+            "append_only_unique_key": "(item_id, rater_key_id)",
+        },
         "blockers": blockers,
     }
 
@@ -667,12 +987,31 @@ def build_package(
     core_n: int | None,
     boost_per_stratum: int,
     ratings_dir: Path | None,
+    registry_path: Path | None = None,
+    authority_secret: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     universe, truths, census = enumerate_universe(runs_root)
     selected = select_items(universe, core_n=core_n, boost_per_stratum=boost_per_stratum)
     keep = {i.item_id for i in selected}
     records = load_rating_records(ratings_dir)
-    readiness = evaluate_readiness(selected, records, qualified_rater_ids=())
+    qualified, keyring, registry_problems = load_rater_registry(registry_path, authority_secret)
+    readiness = evaluate_readiness(
+        selected,
+        records,
+        qualified_rater_ids=qualified,
+        keyring=keyring or None,
+    )
+    readiness["registry"] = {
+        "source": str(registry_path) if registry_path else None,
+        "qualified_key_ids": len(qualified),
+        "problems": registry_problems,
+    }
+    if registry_problems:
+        readiness["blockers"] = [
+            *readiness["blockers"],
+            *(f"REGISTRY: {p}" for p in registry_problems),
+        ]
+        readiness["readiness"] = "NOT_READY"
 
     n_clusters = census["clusters_with_agent_steps"]
     package = {
@@ -760,6 +1099,201 @@ def build_package(
     return package, machine_truth
 
 
+# ---------------------------------------------------------------------------
+# Rater export bundle (security fix 1)
+#
+# "Withheld" was previously asserted by FILENAME while the truth file sat in the
+# same directory and tests loaded both. Anyone handed the directory got the
+# answers. The bundle below is a physically separate artifact that contains no
+# truth and does not even name which field is the attention check.
+# ---------------------------------------------------------------------------
+
+FORBIDDEN_BUNDLE_PATTERNS = ("*machine_truth*", "*WITHHELD*", "*truth*", "*attention*")
+
+
+class BundleContaminationError(RuntimeError):
+    """Raised when a rater bundle directory contains a forbidden artifact."""
+
+
+def _assert_bundle_clean(bundle_dir: Path) -> None:
+    offenders = sorted(
+        str(path.name) for pattern in FORBIDDEN_BUNDLE_PATTERNS for path in bundle_dir.glob(pattern)
+    )
+    if offenders:
+        raise BundleContaminationError(
+            f"forbidden artifacts present in rater bundle {bundle_dir}: {offenders}"
+        )
+
+
+def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
+    """Strip everything a rater must not see.
+
+    Removes the attention-check field identity: telling raters which field is the
+    check is itself a leak, even without its per-item answer.
+    """
+    # Strip the attention-check identity AND any prose revealing the
+    # machine-truth mechanism. Telling raters a withheld truth exists, or which
+    # field is cross-checked against it, is itself a leak.
+    semantics = {
+        k: v
+        for k, v in package["taxonomy"].get("missing_data_semantics", {}).items()
+        if k != "note"
+    }
+    taxonomy = {
+        k: v
+        for k, v in package["taxonomy"].items()
+        if k not in ("attention_check_field", "missing_data_semantics")
+    }
+    if semantics:
+        taxonomy["missing_data_semantics"] = semantics
+    return {
+        "schema_version": "goldset-rater-bundle/v1",
+        "package_digest": package["package_digest"],
+        "taxonomy_version": package["taxonomy_version"],
+        "rating_schema_version": package["rating_schema_version"],
+        "taxonomy": taxonomy,
+        "instructions_to_rater": {
+            "required_fields": list(HUMAN_JUDGED_FIELDS),
+            "every_field_offers": [CANNOT_JUDGE, INSUFFICIENT_CONTEXT],
+            "cannot_judge_vs_insufficient_context": (
+                f"{CANNOT_JUDGE}: you HAVE the context and the step is genuinely "
+                f"ambiguous. {INSUFFICIENT_CONTEXT}: the context you need is absent "
+                "or truncated in this bundle. Neither is penalised."
+            ),
+            "submission_binding": (
+                "Each submission must carry package_digest, the item's item_digest, "
+                "your rater_key_id, and a signature over the canonical payload. A "
+                "rater_id alone is not accepted."
+            ),
+        },
+        "items": [
+            {
+                "item_id": item["item_id"],
+                "item_digest": item["logical_step_digest"],
+                "context_completeness": {
+                    "builder_verdict": item["context_completeness"]["builder_verdict"],
+                    "degraded_reasons": item["context_completeness"]["degraded_reasons"],
+                },
+                "rater_context": item["rater_context"],
+            }
+            for item in package["items"]
+        ],
+    }
+
+
+def export_rater_bundle(package: Mapping[str, Any], bundle_dir: Path) -> Path:
+    """Write the rater bundle, refusing if the directory is contaminated."""
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    _assert_bundle_clean(bundle_dir)
+    bundle = build_rater_bundle(package)
+    out = bundle_dir / "rater_bundle.json"
+    out.write_text(json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _assert_bundle_clean(bundle_dir)  # re-assert after write
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Paired atomic output (security fix 5)
+#
+# Revision 4 wrote the package and the truth file in a plain loop with no lock,
+# no atomicity and no shared generation ID, so a concurrent reader could pair a
+# NEW package with an OLD truth file and never detect it. Both artifacts now
+# carry the same build_id and are renamed into place under one lock.
+# ---------------------------------------------------------------------------
+
+LOCK_NAME = ".goldset-build.lock"
+
+
+class OutputPathError(RuntimeError):
+    """Raised when output paths collide or a lock cannot be taken."""
+
+
+class PairMismatchError(RuntimeError):
+    """Raised when a package and truth file do not share a build_id."""
+
+
+def _serialize(payload: Mapping[str, Any]) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def compute_build_id(package: Mapping[str, Any], truth: Mapping[str, Any]) -> str:
+    """Generation ID over BOTH artifacts, excluding the build_id fields."""
+    stripped_pkg = {k: v for k, v in package.items() if k != "build_id"}
+    stripped_truth = {k: v for k, v in truth.items() if k != "build_id"}
+    return hashlib.sha256(
+        (_serialize(stripped_pkg) + _serialize(stripped_truth)).encode("utf-8")
+    ).hexdigest()
+
+
+@contextmanager
+def _build_lock(directory: Path) -> Iterator[None]:
+    directory.mkdir(parents=True, exist_ok=True)
+    lock_path = directory / LOCK_NAME
+    with open(lock_path, "w", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise OutputPathError(f"CONCURRENT_BUILD_IN_PROGRESS: {lock_path} is held") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Write to a distinct temp file in the same directory, then rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def write_paired_outputs(
+    package: dict[str, Any],
+    truth: dict[str, Any],
+    package_path: Path,
+    truth_path: Path,
+) -> str:
+    """Stamp a shared build_id and rename both artifacts into place atomically."""
+    resolved = [package_path.resolve(strict=False), truth_path.resolve(strict=False)]
+    if resolved[0] == resolved[1]:
+        raise OutputPathError(f"IDENTICAL_OUTPUT_PATHS: {package_path}")
+
+    build_id = compute_build_id(package, truth)
+    package["build_id"] = build_id
+    truth["build_id"] = build_id
+    package["package_digest"] = hashlib.sha256(
+        _serialize({k: v for k, v in package.items() if k != "package_digest"}).encode("utf-8")
+    ).hexdigest()
+
+    with _build_lock(package_path.parent):
+        _atomic_write(package_path, _serialize(package))
+        _atomic_write(truth_path, _serialize(truth))
+    return build_id
+
+
+def load_paired_artifacts(package_path: Path, truth_path: Path) -> tuple[dict, dict]:
+    """Consumer-side loader. REFUSES a mismatched pair (security fix 5)."""
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    if package.get("build_id") != truth.get("build_id"):
+        raise PairMismatchError(
+            f"BUILD_ID_MISMATCH: package={package.get('build_id')!r} "
+            f"truth={truth.get('build_id')!r}"
+        )
+    if not package.get("build_id"):
+        raise PairMismatchError("BUILD_ID_ABSENT")
+    return package, truth
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build the frozen ready-for-human-labeling gold-set package"
@@ -768,8 +1302,25 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--machine-truth-out", type=Path, required=True)
     parser.add_argument("--ratings-dir", type=Path, default=None)
+    parser.add_argument(
+        "--rater-registry",
+        type=Path,
+        default=None,
+        help="signed qualified-rater registry (goldset-rater-registry/v1)",
+    )
+    parser.add_argument(
+        "--registry-authority-secret-env",
+        default="GOLDSET_REGISTRY_AUTHORITY_SECRET",
+        help="env var holding the registry authority secret",
+    )
     parser.add_argument("--core-n", type=int, default=None)
     parser.add_argument("--boost-per-stratum", type=int, default=0)
+    parser.add_argument(
+        "--export-rater-bundle",
+        type=Path,
+        default=None,
+        help="directory to write the rater-safe bundle into (no truth artifacts)",
+    )
     args = parser.parse_args()
 
     package, truth = build_package(
@@ -777,15 +1328,28 @@ def main() -> int:
         core_n=args.core_n,
         boost_per_stratum=args.boost_per_stratum,
         ratings_dir=args.ratings_dir,
+        registry_path=args.rater_registry,
+        authority_secret=os.environ.get(args.registry_authority_secret_env),
     )
-    for path, payload in ((args.out, package), (args.machine_truth_out, truth)):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        build_id = write_paired_outputs(package, truth, args.out, args.machine_truth_out)
+    except OutputPathError as exc:
+        print(f"REFUSED {exc}")
+        return 2
+
+    if args.export_rater_bundle is not None:
+        try:
+            bundle_path = export_rater_bundle(package, args.export_rater_bundle)
+        except BundleContaminationError as exc:
+            print(f"REFUSED {exc}")
+            return 2
+        print(f"wrote {bundle_path} (RATER-SAFE, no truth artifacts)")
 
     digest = hashlib.sha256(args.out.read_bytes()).hexdigest()
     census = package["census"]
     print(f"wrote {args.out}")
     print(f"wrote {args.machine_truth_out} (WITHHELD)")
+    print(f"build_id {build_id}")
     print(f"package_sha256 {digest}")
     print(
         f"unique_agent_steps {census['agent_steps_unique']} "

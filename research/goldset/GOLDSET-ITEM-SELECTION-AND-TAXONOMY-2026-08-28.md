@@ -7,15 +7,15 @@ type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-3-after-exact-head-review
+status: revision-5-after-security-review
 readiness: NOT_READY (raters AND cluster adequacy)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: 4790e490d09fa84882f012840df65302bd1ff5ff65f8df6126c07181181895e8
-revision: 3
+package_sha256: 5e7fef50980e852abfc7570b3da9b863b2b3e50e1958b98eec84c223792467c6
+revision: 5
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -234,83 +234,78 @@ An agreement interval must still come from a **cluster bootstrap resampling
 `cluster_id`** (the content digest) even once the floor is met. The floor makes the
 bootstrap possible; it does not make item-level independence true.
 
-## 4. Label taxonomy — grounded in what a rater can actually see
+## 4. Label codebook
 
-A rater sees the task instruction, all prior steps, and this step's message, tool
-calls, and observation. **Every label below is answerable from exactly that.**
+**Every human-judged field carries BOTH escape values.** They are different
+failures and must never be pooled:
 
-### 4.1 Primary label — `step_contribution`
+| Value | Meaning | Its rate measures |
+|---|---|---|
+| `CANNOT_JUDGE` | The rater **has** the context; the step is **genuinely ambiguous** | **Taxonomy** ambiguity |
+| `INSUFFICIENT_CONTEXT` | The context needed is **missing or truncated in the package** | **Package** completeness — a builder-fixable defect |
+
+Neither is penalised. Conflating them hides package defects inside a
+taxonomy-ambiguity number: a rising `CANNOT_JUDGE` rate says the label set needs
+work; a rising `INSUFFICIENT_CONTEXT` rate says the builder does.
+
+### 4.1 Complete value lists
+
+| Field | Allowed values |
+|---|---|
+| `abstention` | `ACTED` · `DECLINED_WITH_REASON` · `DECLINED_NO_REASON` · `CANNOT_JUDGE` · `INSUFFICIENT_CONTEXT` |
+| `error_response` | `NO_PRIOR_ERROR` · `ACKNOWLEDGED_AND_CHANGED` · `ACKNOWLEDGED_NOT_CHANGED` · `IGNORED_PRIOR_ERROR` · `CANNOT_JUDGE` · `INSUFFICIENT_CONTEXT` |
+| `repeats_prior_action` | `YES` · `NO` · `CANNOT_JUDGE` · `INSUFFICIENT_CONTEXT` |
+| `step_contribution` | `PROGRESS` · `NEUTRAL` · `HARMFUL` · `CANNOT_JUDGE` · `INSUFFICIENT_CONTEXT` |
+
+### 4.2 Primary label — `step_contribution`
 
 | Value | Definition |
 |---|---|
 | `PROGRESS` | Moves the task closer to the stated goal: acquires information the agent lacked, or changes state in a direction the goal requires. |
 | `NEUTRAL` | Neither advances nor sets back. Valid exploration, re-reading held information, no-op confirmations. |
 | `HARMFUL` | Sets the task back: destroys needed state, introduces an error to be undone, or commits to an excluded path. |
-| `CANNOT_JUDGE` | Not classifiable from the available context. |
+| `CANNOT_JUDGE` | Context present; step genuinely ambiguous. |
+| `INSUFFICIENT_CONTEXT` | Context missing or truncated in the package. |
 
-`CANNOT_JUDGE` is a **first-class answer and is not penalised.** Its rate measures
-protocol coverage, not rater failure. A taxonomy without this escape hatch forces
-raters to guess and converts missing coverage into false agreement.
-
-### 4.2 Orthogonal facets — kept separate deliberately
-
-Collapsing these into the primary ordinal would destroy the distinctions the
-analysis needs.
+### 4.3 Facets — each with both escapes
 
 **`error_response`** — `NO_PRIOR_ERROR`, `ACKNOWLEDGED_AND_CHANGED`,
-`ACKNOWLEDGED_NOT_CHANGED`, `IGNORED_PRIOR_ERROR`.
+`ACKNOWLEDGED_NOT_CHANGED`, `IGNORED_PRIOR_ERROR`, `CANNOT_JUDGE`,
+`INSUFFICIENT_CONTEXT`.
 
-This facet is the human counterpart to the blind-retry-versus-divergence
-distinction now implemented in `mcp_recovery.py`. `ACKNOWLEDGED_NOT_CHANGED` is
-precisely the blind retry that a machine gate can miss when an environment event
-reports recovery.
+`ACKNOWLEDGED_NOT_CHANGED` is the blind retry a machine gate can miss when an
+environment event reports recovery.
 
-**`abstention`** — `ACTED`, `DECLINED_WITH_REASON`, `DECLINED_NO_REASON`.
+**`abstention`** — `ACTED`, `DECLINED_WITH_REASON`, `DECLINED_NO_REASON`,
+`CANNOT_JUDGE`, `INSUFFICIENT_CONTEXT`.
 
-Separating the two declines matters: the existing keyword-based abstention screen
-cannot distinguish them, and reasoned abstention is the behaviour we want to
-reward.
+**`repeats_prior_action`** — `YES`, `NO`, `CANNOT_JUDGE`, `INSUFFICIENT_CONTEXT`.
 
-### 4.3 Attention check — not a gold label
+### 4.4 Attention check — identity withheld from the bundle
 
-`repeats_prior_action` is **mechanically decidable** and its machine ground truth
-ships in the **separate withheld artifact** `machine_truth_WITHHELD.json` — never on
-the item. Rater disagreement with it measures **rater attention**, not item
+`repeats_prior_action` is mechanically decidable and its machine ground truth lives
+in the **separate withheld artifact**, never on the item. **The rater bundle does
+not name which field is the check** — naming it is itself a leak, so
+`attention_check_field` is stripped from the bundle along with any prose revealing
+that a withheld truth exists. Rater disagreement measures **attention**, not item
 ambiguity, and must never be pooled into taxonomy agreement.
 
-Revision 1 shipped this truth inside the rater-facing item under `machine_facts`,
-which showed raters the answer. Asserted absent by test.
+### 4.5 Withdrawn machine truth — `prior_error_visible`
 
-### 4.4 Withdrawn machine truth — `prior_error_visible`
+Computed by substring matching for `traceback` / `error` / `exit code 1`, **audited
+at 88 % false positives** (38 of 43 hits) — it fired on `'Script completed / Wall
+time 0.1 seconds'`. ATIF observations carry **no structured exit codes**, so no
+deterministic implementation exists. **Withdrawn, not tightened.** The
+`error_response` facet remains — a human can read the observation — but no machine
+truth is claimed.
 
-Revision 2 shipped a `prior_error_visible` machine fact computed by substring
-matching for `traceback` / `error` / `exit code 1` in observation text. **Audited at
-88 % false positives** (38 of 43 hits) — it fired on
-`'Script completed / Wall time 0.1 seconds'`.
-
-ATIF observations carry **no structured exit codes**, so no deterministic
-implementation is available. The fact is therefore **withdrawn, not tightened**: an
-88 %-wrong "truth" is worse than none. The `error_response` *facet* remains — a
-human can read the observation — but no machine truth is claimed, and
-`prior_error_truth_available` is `False` on every row with the reason recorded.
-
-This is the third substring-heuristic-as-fact error in this workstream: I objected
-to `"distractor" in tool_name` as a Grade-A input on PR #267, had a `_rate` suffix
-heuristic vetoed as a structural gate, and then shipped this one. The rule holds and
-I keep breaching it: **a heuristic may generate candidates, never a fact.**
-
-### 4.4 Excluded labels, with reasons
+### 4.6 Excluded labels
 
 | Excluded | Reason |
 |---|---|
-| `step_necessity` | Requires an oracle optimal path. None exists, so any label encodes the rater's guess at optimality. |
-| `step_efficiency` | Same defect, plus it presumes a cost model the instruction never states. |
-| `unrecoverability` | Counterfactual — quantifies over all continuations. Blocked on a preregistered predicate with a declared false-positive rate against later success. Not a human-labelable property. |
-
-Recording exclusions is load-bearing. `unrecoverability` is exactly the label a
-protocol would reach for to unblock T1.3's $t_{lock}$, and it is exactly the one a
-human cannot supply. Asking for it would produce confident labels for an
-unobservable quantity.
+| `step_necessity` | Requires an oracle optimal path. None exists. |
+| `step_efficiency` | Same defect, plus it presumes an unstated cost model. |
+| `unrecoverability` | Counterfactual — quantifies over all continuations. Exactly the label one would reach for to unblock T1.3 `t_lock`, and exactly the one a human cannot supply. |
 
 ## 5. Parameters left null — Tutor's, not guessed
 
@@ -340,26 +335,63 @@ python3 research/goldset/build_labeling_package.py \
   --runs-root runs \
   --out research/goldset/labeling_package.json \
   --machine-truth-out research/goldset/machine_truth_WITHHELD.json \
-  --boost-per-stratum 3
+  --boost-per-stratum 3 \
+  --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 57 checks
+python3 research/goldset/test_labeling_package.py   # 92 checks
 ```
 
-Expect `package_sha256 4790e490d09fa84882f012840df65302bd1ff5ff65f8df6126c07181181895e8`
+Expect `package_sha256 5e7fef50980e852abfc7570b3da9b863b2b3e50e1958b98eec84c223792467c6`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 
-## 7. Blockers
+## 7. Blockers — labeling must NOT start
 
-**External — the only one requiring people rather than code:**
+**Five blockers. Recruiting raters clears only two of them.**
 
-> **Three qualified independent human rater IDs per item.** Zero exist. 183 items
-> await ratings. No substitute is permitted: not LLM judges, not the Analyst, not
-> synthetic labels. Readiness cannot clear on rater IDs alone — labels must be
-> present and in-enum, and the three raters must be distinct and qualified.
+```
+EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0
+CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%
+QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
+ITEMS_WITH_ZERO_VALID_RATINGS: 183
+REGISTRY: REGISTRY_ABSENT
+```
 
-**Internal, pending Tutor:** the five null parameters in §5.
+### 7.1 Design blockers — a data campaign, not recruitment
 
-**Contingent:** if Tutor's power argument needs more than $n \approx 20$ independent
-trials, the blocker escalates from a protocol gap to a data campaign, and this
-package should be re-cut after that campaign rather than labelled now.
+$K_{\text{eff}} = 13.33$ against a floor of 20, concentration 16.9 % against a 5 %
+target. **Even a perfectly balanced 20-cluster split reaches only 19.97**, so the
+present corpus cannot clear the floor at any concentration.
+
+**No amount of rater recruitment fixes this.** Labelling must not begin before new
+data exists. Campaign target: **~35–50 new distinct logical trajectory digests,
+$\le$ 5 % concentration, $K = \max(30,\; 96\rho)$ after an ICC pilot.**
+
+### 7.2 Rater blockers — external, and second in order
+
+Three qualified independent rater key IDs per item, supplied through a **signed
+registry** (`goldset-rater-registry/v1`) verified against an authority secret. An
+absent, unsigned, or tampered registry yields an **empty pool plus an explicit
+problem**, never a silent pass. Duplicate or conflicting submissions from one
+`(item, rater)` **fail** rather than collapsing into a set.
+
+No substitute is permitted: not LLM judges, not the Analyst, not synthetic labels.
+
+### 7.3 Internal, pending Tutor — honestly null
+
+`agreement_statistic`, `acceptance_threshold`, `required_interval_width`,
+`adjudication_rule`, `rater_qualification_criteria` all remain `null`. **No
+published floor was imported**, because none is quotable: 20 of 31 asserted arXiv
+IDs were fabricated placeholders, and the $\kappa$ / $\alpha$ figures are attached to
+papers whose bodies were never read.
+
+### 7.4 Correct order
+
+1. Run the data campaign (§7.1)
+2. Re-cut the package; confirm the cluster gate clears
+3. Tutor sets the agreement statistic and threshold
+4. Publish the signed rater registry
+5. Recruit and qualify three raters
+6. Label
+
+Steps 1–2 are **prerequisites** for 5–6, not parallel to them.

@@ -9,6 +9,7 @@
       "repeats_prior_action"
     ]
   },
+  "build_id": "b3ea7249755293c9a3ede8cc8722462c7829a9fe66a322a1fa96fdc2b04a9f59",
   "census": {
     "agent_steps_per_cluster": {
       "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781": 9,
@@ -222,8 +223,8 @@
     },
     "clusters_with_agent_steps": 20,
     "context_completeness": {
-      "COMPLETE": 158,
-      "DEGRADED": 25
+      "COMPLETE": 34,
+      "INCOMPLETE": 149
     },
     "distinct_content_digests": 26,
     "duplicate_paths_dropped": 3,
@@ -234,6 +235,8 @@
       "gpt-5.6-luna": 54,
       "gpt-5.6-terra": 129
     },
+    "rejection_reasons": [],
+    "sources_rejected": 0,
     "strata": {
       "notool:early": 1,
       "notool:terminal": 20,
@@ -251,15 +254,19 @@
   "items": [
     {
       "agent_name": "codex",
-      "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "cluster_id": "2976f330e2b4b4c78e43c8856fd3d70a19669ab49da668497c6fa784cb51eb32",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 0
       },
       "item_id": "00341202dbcb5229",
+      "logical_step_digest": "826c85b4d7896210e0081e7d52f24f824cb3f926f113d912015c20509b044bdc",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -423,15 +430,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "cluster_id": "0850293adcdf85268421897da3e524717dc6f57790c17d14afe39879dacab1f4",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "02cc58f5cd9dcca1",
+      "logical_step_digest": "e32d99868b7ad853baca49309ab507c51dbba4f5f00d374ccb7089cabf9671a8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -595,15 +608,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "cluster_id": "8ad7bea7dc0b557b91820db52cc7900a5f21af5092f0f32c780fe42ffc83c957",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "04283e5fa5faf7c2",
+      "logical_step_digest": "93a18dddb990a9f00afd56e38f9551b63a4f6d54a53b783f1e118f7f02264da8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -707,15 +724,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 2
       },
       "item_id": "065b4ebf9eb8af33",
+      "logical_step_digest": "e5d750e863270b046806db9e14458d1d76734444c2e64b57860035228d1c363f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -910,15 +934,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "cluster_id": "c67a31b874560729f475c5c9d8507a60e3f4b38c35dd7425c2241676e7e61270",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "06d4b90ad33f0329",
+      "logical_step_digest": "078764f9b62ca769c353c1ad6d723c623ca951d709a4d8faff8502280ae024af",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -1073,15 +1103,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 17
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 17,
+        "prior_steps_truncated": 3
       },
       "item_id": "0ada5b15f912272c",
+      "logical_step_digest": "038ea6479bf8ce664d73d1358b6339da7d97846cca4c05207d1cf7ecd6f652e5",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -1448,15 +1484,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "0af861f3ce663c85",
+      "logical_step_digest": "10d91044b180ef9ca4470a258bf147543c819c76bc55a70dbcb26fc2328cb176",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -1571,15 +1611,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 33
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 33,
+        "prior_steps_truncated": 3
       },
       "item_id": "0cf8d9b1eba88c8b",
+      "logical_step_digest": "71edb3cc59cb1620cd5011960ee82c1df4aa86dd376b27258499271e3c9473f8",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -2266,15 +2312,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "0da3154186e2de06",
+      "logical_step_digest": "06d2e6a86b7a464999b538a93802ad4c3e540ba33ddd7ad6f4bd237881c838e5",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -2421,15 +2474,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 2
       },
       "item_id": "0f77a253611c7f57",
+      "logical_step_digest": "68f6c62bf5c18883762bf4066ca91139711de0060f1961366d3cb07a5ffc1edc",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -2693,15 +2752,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 1
       },
       "item_id": "10a7bed3e15c6380",
+      "logical_step_digest": "639cfb0c7c0aaa12b2759b704cb54fe41378185d1be878a024c383e68046ab9d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -2985,15 +3051,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "cluster_id": "b680878b8642b6d10a712cbd120e1624cbfd7353ac82c7802a3cd4ef4e449acc",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 0
       },
       "item_id": "123e6f1149c2c6a7",
+      "logical_step_digest": "43472c95ad973ae483c1632cb0e5072c20de4eb40f7e9b1e30bf70e41c0b781c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -3186,15 +3256,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 2
       },
       "item_id": "12cc61c358915797",
+      "logical_step_digest": "2b303fb522b43ebb42070928fda2cd2b18445cd942a4eb12631be0861f8e60e2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -3467,15 +3543,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 16
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 16,
+        "prior_steps_truncated": 3
       },
       "item_id": "175a7ffb01e63fdb",
+      "logical_step_digest": "e84c9f5ce31b6bcfd024161697dee5d1bee70c40c819a5a054a3541d9468ee05",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -3810,15 +3892,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "cluster_id": "f31af8cae0492e2c45aeec4091e456104a7e000ef2dc8df59653c39cfbc3a3f6",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 0
       },
       "item_id": "17a731f255325e25",
+      "logical_step_digest": "b83a4a372e987ee9afd9404da00b01374a650e8d2dd806f9691f646be573e8dc",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -3991,15 +4077,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "cluster_id": "2e1be9a27cc6b2dc76229730bf13a6bb5199d9ada673348be4951b83edefb8a8",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 0
       },
       "item_id": "19226064d4c63d08",
+      "logical_step_digest": "2a1e4d2c77a7ce7a435b144cf98f06afdee510f1fccf17682852048dde45009a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -4163,15 +4253,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 18
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 18,
+        "prior_steps_truncated": 3
       },
       "item_id": "19c6ae673884f3a0",
+      "logical_step_digest": "1fad5059189fe816bdd1560d30386c83e9ef7119c52790a4ee67b1cf9436a9c8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -4546,15 +4642,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "cluster_id": "8ad7bea7dc0b557b91820db52cc7900a5f21af5092f0f32c780fe42ffc83c957",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 0
       },
       "item_id": "1cf801f8117a3ebd",
+      "logical_step_digest": "1c8814e50eb4e93b1a0324676899e6d7b3eb22ea35cab318ceea2c0d7e6c341c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -4727,15 +4827,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 3
       },
       "item_id": "203db369d93255aa",
+      "logical_step_digest": "ddd968ae5f0311760168f67799af9476808bc0aaf5eb671ecc1e5bbd5c81371e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -5010,15 +5117,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "2067fbcbc0194478",
+      "logical_step_digest": "5d0f50d8b751438b3711157219a1da4079c799cfe05e75950fcdfff3d59d93c9",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -5153,15 +5267,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "cluster_id": "0850293adcdf85268421897da3e524717dc6f57790c17d14afe39879dacab1f4",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "228a7b38e9c8f5bc",
+      "logical_step_digest": "1dd79c19c5207af70cffac3d13700012b1b4b1988a8fef82d7749b8c22f837b7",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -5296,15 +5416,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 3
       },
       "item_id": "2376868635cbd4eb",
+      "logical_step_digest": "f73813fcf77be2ee7d58382ed6af24f821cef8778c64f0fd3a4be0f90b070706",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -5551,15 +5677,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "2680d722f97eb6d1",
+      "logical_step_digest": "e25e57b94a2c1a1014bff6ced61789aa24bf0662dd761bd2a1f149e1d872e72a",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -5726,15 +5859,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "cluster_id": "c67a31b874560729f475c5c9d8507a60e3f4b38c35dd7425c2241676e7e61270",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "291f486babc82c0f",
+      "logical_step_digest": "a779eb692d42674a046bdb31a80739a2e1e59102e42f05e5057f66ae8159b974",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -5849,15 +5988,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:4"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 4
       },
       "item_id": "2a4821b0bdacbe1c",
+      "logical_step_digest": "1b423f7a31f1ea4236baad3c501976322f667b3bd8a889a5178b46ce430b4541",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -6055,15 +6201,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 3
       },
       "item_id": "2abe980feebb7964",
+      "logical_step_digest": "bd404948586c39b964d38268e8dab4805852b510458d625fdb80eec7882af0dd",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -6338,15 +6490,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 3
       },
       "item_id": "2ad346b61745be2b",
+      "logical_step_digest": "e098b6f61ad88c50f42c629d1b4835f795b0b6ce9a283131375aa3f075ef0873",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -6561,15 +6719,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "cluster_id": "0850293adcdf85268421897da3e524717dc6f57790c17d14afe39879dacab1f4",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "2b5cb88941f7f131",
+      "logical_step_digest": "747339a1c4ed1ab22299685dde464010e7532b2c71e2cc02b26b40fc9ad2d01b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -6684,15 +6848,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "2bed50c9133895a3",
+      "logical_step_digest": "c494130ffcdebf9c7b6af998e08ab0ab8ba7e5d6c38ab18a18e2efada04cd97a",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -6819,15 +6989,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 1
       },
       "item_id": "2df8c3a86ff29354",
+      "logical_step_digest": "f38d967ce1be9ab0ab18d19a79b919d78e9a384b2752c3b2a228190a00d2a60d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -7031,15 +7207,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 3
       },
       "item_id": "2f4099f45a268742",
+      "logical_step_digest": "d5bbb90a9c48c8b2971c56dbdd3c96ce8d5e64cb7d57330265c2b8a076859025",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -7326,15 +7508,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 20
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 20,
+        "prior_steps_truncated": 3
       },
       "item_id": "307899db4d4fbe51",
+      "logical_step_digest": "5979e534a72b49ca994826c651949b6a5b8389307cf4ff40262db67c74ee1afd",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -7761,15 +7949,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "cluster_id": "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 0
       },
       "item_id": "30f1cf8679eb0e27",
+      "logical_step_digest": "2a1e4d2c77a7ce7a435b144cf98f06afdee510f1fccf17682852048dde45009a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -7953,15 +8145,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "343ab4cde2a2aa2d",
+      "logical_step_digest": "5a74c7231bd9ccef02b49359cbf0fe941cbb234bc09ed8048b9af3e6a0750b4b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -8076,15 +8274,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 17
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 17,
+        "prior_steps_truncated": 3
       },
       "item_id": "36288e280b41b0a6",
+      "logical_step_digest": "b4348d97cffd0546f03909d716b2f03b92faec3d4a4d138352f912587f67503e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -8439,15 +8643,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 19
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 19,
+        "prior_steps_truncated": 3
       },
       "item_id": "370ead1365158875",
+      "logical_step_digest": "64b264288d900809aa368b63b06de6ebb30911faab05a6319f20861decff1930",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -8854,15 +9064,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "cluster_id": "b680878b8642b6d10a712cbd120e1624cbfd7353ac82c7802a3cd4ef4e449acc",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "37ceff7b74699517",
+      "logical_step_digest": "4459e7f54ccc7121214aec7314bf2f9fdf52d2d6c1db9fc2c138ca05927cf636",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -8977,15 +9191,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "cluster_id": "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 0
       },
       "item_id": "384d785f24ccb77a",
+      "logical_step_digest": "43472c95ad973ae483c1632cb0e5072c20de4eb40f7e9b1e30bf70e41c0b781c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -9198,15 +9416,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 2
       },
       "item_id": "38ba3e956a320739",
+      "logical_step_digest": "36ba6124591374849c0cf85265e1ae288074cdd52c148e529ef404ad423fdb0c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -9450,15 +9674,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "cluster_id": "8ad7bea7dc0b557b91820db52cc7900a5f21af5092f0f32c780fe42ffc83c957",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 0
       },
       "item_id": "3a5423b8f02d45a2",
+      "logical_step_digest": "5e788bc68007f67115845654042144ad44bcc03caa082e39a41fb7278bf76f6e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -9611,15 +9839,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "cluster_id": "f31af8cae0492e2c45aeec4091e456104a7e000ef2dc8df59653c39cfbc3a3f6",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "3b393feef2a79760",
+      "logical_step_digest": "70036927f584632f708e70a42e22215cc62183452aa752262b4bc45fd549ebd3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -9763,15 +9995,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 2
       },
       "item_id": "4141ffa340a3b336",
+      "logical_step_digest": "7dc3c7c29fadf2c8fa4a7e600c5d5f84e6efab19701fb1b993b016d225af3ddb",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -9986,15 +10224,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "42ecb5ae40938b68",
+      "logical_step_digest": "7469b4a3ffaca2d6da2b903e176c95d498b539bf8bca75e2328ef4da3bc86100",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -10109,15 +10351,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:4"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 15
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 15,
+        "prior_steps_truncated": 4
       },
       "item_id": "437bf216c241af7a",
+      "logical_step_digest": "81676be3b760f5020a5a4816b4cfbbd560aae7947c506a79656a64c674912ed8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -10432,15 +10680,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "cluster_id": "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "44130a9fd7ad8a81",
+      "logical_step_digest": "6bfb5d2ab0ef775c54571f81b57727f088f4a7c4c35a53c8b22dc8c6295c8b97",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -10555,15 +10807,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "452ecee9a6491d45",
+      "logical_step_digest": "1f9e2e73e72ff591042a3b54ba4c6488842f574713945eb109d116ef7448c206",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -10678,15 +10934,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "cluster_id": "b680878b8642b6d10a712cbd120e1624cbfd7353ac82c7802a3cd4ef4e449acc",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 0
       },
       "item_id": "48dd02d079c45f2f",
+      "logical_step_digest": "2a1e4d2c77a7ce7a435b144cf98f06afdee510f1fccf17682852048dde45009a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -10850,15 +11110,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:4"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 17
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 17,
+        "prior_steps_truncated": 4
       },
       "item_id": "4e89c0d9d345ac14",
+      "logical_step_digest": "aceb5d46b387c151ca1b9c790db06bfb158ad1ec94f58647ed492a5d42f072b8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -11202,15 +11468,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 2
       },
       "item_id": "4f773d11ce4e063e",
+      "logical_step_digest": "7c9f9427d2c7c00aec14e21a234c7fd49cd6daf036c070f956ce2544466022b5",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -11385,15 +11657,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 3
       },
       "item_id": "50053d0cd0694dea",
+      "logical_step_digest": "71ce5fbcec0a20a18557a1b39e4b651de034da5029211ae8d0719ad7cafe0a4f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -11648,15 +11926,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 2
       },
       "item_id": "506771ce99d5a9e7",
+      "logical_step_digest": "00975aca169c4448c50d116f93fdf20930476fe206cac472a3c43b1f50ffb6b2",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -11814,15 +12099,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "cluster_id": "f31af8cae0492e2c45aeec4091e456104a7e000ef2dc8df59653c39cfbc3a3f6",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 0
       },
       "item_id": "506a444b84bf0af9",
+      "logical_step_digest": "b396f3e3c56c64a3f6c9f3b0c4b2da894a19c404d4f98fd5193decf229d8f59d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -11986,15 +12275,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "50b366b7b36cc0b2",
+      "logical_step_digest": "4659755ec50648a9e13f57189b1258acc516ead426ec381e3b6627314a3706dd",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -12158,15 +12454,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 3
       },
       "item_id": "50ddbdeb5b96cc0d",
+      "logical_step_digest": "fa3c6dc200006bc998f171455a22c83a8007b6bd7e407169a87a54a81402b7c0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -12461,15 +12763,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "cluster_id": "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 1
       },
       "item_id": "52684ed0d951a3ca",
+      "logical_step_digest": "5f6ad1ebfc3e81a15f522e1d1a391307e75f4da1ec24a69127e80714db69ede9",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -12664,15 +12972,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "cluster_id": "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "558f49d489f26d2f",
+      "logical_step_digest": "fd42d0c90e214526d9671e285a04a1d9ebdb25c11b152e3813e65e02306c3520",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -12807,15 +13121,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "cluster_id": "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "55977797c87f673a",
+      "logical_step_digest": "e4219804d7b029454034e8e19e7f90b81758bd9a37b5faea39621a1077d50a79",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -12990,15 +13310,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "cluster_id": "2e1be9a27cc6b2dc76229730bf13a6bb5199d9ada673348be4951b83edefb8a8",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "577ae23ecf3107ba",
+      "logical_step_digest": "1db62712d1ed3947c29f9db5a625de43b388db4a52e4db49e62de0f39ccb03c7",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -13113,15 +13437,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 23
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 23,
+        "prior_steps_truncated": 3
       },
       "item_id": "57bd0e0fb02ab089",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -13608,15 +13938,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "5a02fcfc6a680dff",
+      "logical_step_digest": "adfa2e7a43d3afbe21491046fb1a4e1c9d468c007a0f1f086d2ee72cd9b3e3e3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -13763,15 +14099,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "cluster_id": "451eac4ee5a34ad5dff837438727a3ffe8fd6d288a1a6ea2fb2126bf2f8652f5",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "5a8c4427bf6d36d0",
+      "logical_step_digest": "1a75fafef7135a96a64616b20b21c1161445e76a9a5b7e4c7a629b6175b5b41b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -13935,15 +14277,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "cluster_id": "8ad7bea7dc0b557b91820db52cc7900a5f21af5092f0f32c780fe42ffc83c957",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 0
       },
       "item_id": "5aa360cc45739a53",
+      "logical_step_digest": "34e5dfaea03a05ca7643efbed69dab17d3243861032f72acd2f0d0505c1d1af3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -14125,15 +14471,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 15
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 15,
+        "prior_steps_truncated": 3
       },
       "item_id": "5c82cf7cb2791d25",
+      "logical_step_digest": "b3b57ff03bee96276ce532aa53085edb13611732459ce5d5ab8fff4bb16950d7",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -14448,15 +14800,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+      "cluster_id": "0850293adcdf85268421897da3e524717dc6f57790c17d14afe39879dacab1f4",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "5d7a6a23b07ea66e",
+      "logical_step_digest": "2413020c72da3730ff445a3306b7acf405067b6d63b844e7231dd4f841fe10d3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -14611,15 +14969,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 15
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 15,
+        "prior_steps_truncated": 3
       },
       "item_id": "5e3f0b12dfa5a1f4",
+      "logical_step_digest": "0576430f1d17217614ab746de7ab3bf7ab7706cf74a0851468a4308d75497552",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -14946,15 +15310,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 1
       },
       "item_id": "632c9b0c094a4a13",
+      "logical_step_digest": "882c18e0949073dbdc957e1290e33a0b82a7922fb81beb0fed25095b555631e8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -15178,15 +15549,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 3
       },
       "item_id": "636563ac27761267",
+      "logical_step_digest": "02b59289d7c0b364b3c6baf7d6ec72e298ae3c45d2904901a46a9783dcc1bef7",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -15421,15 +15798,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 34
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 34,
+        "prior_steps_truncated": 3
       },
       "item_id": "6734b3e98537bf66",
+      "logical_step_digest": "e1275f176272ac1b70f6fe9d4153312d993f621561ee0865dafe01817a39b6e8",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -16125,15 +16508,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 22
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 22,
+        "prior_steps_truncated": 3
       },
       "item_id": "6768cb5c604216d8",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -16600,15 +16989,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 3
       },
       "item_id": "688ac547d264b113",
+      "logical_step_digest": "05ac9b8fed718db9a23db5915f8848baae9c74f4ba9a3a2de96ac15af212cb8c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -16875,15 +17270,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 4
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 4,
+        "prior_steps_truncated": 1
       },
       "item_id": "68d8dbf14addd394",
+      "logical_step_digest": "15dd2c72b898b4c07ef72ab637b0f7be81c1d0ab14e9c81e5387f15795b874fb",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -17001,15 +17402,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 20
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 20,
+        "prior_steps_truncated": 2
       },
       "item_id": "6b2369ea683d04a3",
+      "logical_step_digest": "99c1e44f7f34e062a5063c2e6111abcafa832924359a0e0d0c57684b88fa3728",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -17413,15 +17820,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "cluster_id": "2e1be9a27cc6b2dc76229730bf13a6bb5199d9ada673348be4951b83edefb8a8",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 0
       },
       "item_id": "6d03e0df32df8f08",
+      "logical_step_digest": "86e5e296052a7ec47e09210cbcd90c38e5144339ee33c4752cdca863cff98dc6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -17605,15 +18016,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "6db922d72aee349c",
+      "logical_step_digest": "3a4c9eca60d044bfbaf9fdf6b2fdc36f0882214717457a633bade79b56fb1253",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -17777,15 +18194,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "cluster_id": "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "6e170f771535afbd",
+      "logical_step_digest": "a0b6fb81cdd01dc3d204e6df12e0f486d036d998c1fbaccfddf8113473e6316b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -17900,15 +18323,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "cluster_id": "451eac4ee5a34ad5dff837438727a3ffe8fd6d288a1a6ea2fb2126bf2f8652f5",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "6f834c24fc1b9b8c",
+      "logical_step_digest": "332a072a4c8374c28592b04774adc27735f5597a5120e49a8b40c9780e4bb482",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -18023,15 +18452,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 32
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 32,
+        "prior_steps_truncated": 3
       },
       "item_id": "7039fdae053ed27c",
+      "logical_step_digest": "ea0bf66805e153165d7ddf345d249077557b51d0e323470b3ceb9e4ee67774f3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -18698,15 +19133,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 25
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 25,
+        "prior_steps_truncated": 3
       },
       "item_id": "74597b65c25c34ad",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -19233,15 +19674,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "cluster_id": "2976f330e2b4b4c78e43c8856fd3d70a19669ab49da668497c6fa784cb51eb32",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "74bad812d4e33cb0",
+      "logical_step_digest": "9630bcacfaa492289946c11dec2046655403b72a51a794a447cf2fc1e3be6225",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -19356,15 +19801,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:4"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 16
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 16,
+        "prior_steps_truncated": 4
       },
       "item_id": "78b0e39a13cabce8",
+      "logical_step_digest": "2088d64125583a0b07d951e918f2c4daf70a1cb014caab39b527436a7ea113af",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -19699,15 +20150,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 2
       },
       "item_id": "79cf181cecacdb15",
+      "logical_step_digest": "cf71b76ef9d730138dfd1b154c92170f22848ee8b15ccf2305a3d96df1dcca80",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -19942,15 +20400,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "cluster_id": "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 0
       },
       "item_id": "7aaa23988cefcd7c",
+      "logical_step_digest": "9456b62ea98e1fd71948dd296f9dd259c47ee055214d736a0f509c26f2b959bf",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -20114,15 +20576,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 20
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 20,
+        "prior_steps_truncated": 3
       },
       "item_id": "7b971ea3191bc3b2",
+      "logical_step_digest": "48ae3c35fe9cf3f7aadae772678c82a0bb7b614c9ab6ef797d35ec9eab24a437",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -20526,15 +20994,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+      "cluster_id": "8ad7bea7dc0b557b91820db52cc7900a5f21af5092f0f32c780fe42ffc83c957",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 0
       },
       "item_id": "7c42ce5b90ab866a",
+      "logical_step_digest": "17cdb19f00443454a96668c237f6cc0ee23a075ee09c9c05a210c218d726c54e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -20658,15 +21130,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:5"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 5
       },
       "item_id": "8346e4a897b2843a",
+      "logical_step_digest": "e8257a4cbfcee90852ebdf7749d11653967d02913f3a9bca00302d31c5ad7233",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -20913,15 +21391,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 30
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 30,
+        "prior_steps_truncated": 3
       },
       "item_id": "834c72a46ed803d8",
+      "logical_step_digest": "80dcee135411c568801abda5d4217880b6a41dd7b53dae6c4bbfb05da53501b2",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -21548,15 +22032,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 3
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 3,
+        "prior_steps_truncated": 0
       },
       "item_id": "850237636997c0f3",
+      "logical_step_digest": "686e61650842570cf2a76732429c9c7db17898d1638a161630d32ee2e228b259",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -21654,15 +22142,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 15
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 15,
+        "prior_steps_truncated": 3
       },
       "item_id": "854003ed88ab9a68",
+      "logical_step_digest": "df2a48300fcda2d586429336e08d4706d20f852f8fc7262209f08453e3daa082",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -21977,15 +22471,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 1
       },
       "item_id": "85ea504d3517b584",
+      "logical_step_digest": "a2573baea1c639041c899321cfbadd4747bcb4acecc6d62d7e11da03665654e4",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -22209,15 +22709,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 3
       },
       "item_id": "871bae603b06671c",
+      "logical_step_digest": "c59073d0bae79241c6027d4f1f2b414b1cedfb98bb5268fbb33405ede131fbbf",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -22395,15 +22902,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "8791d0d8378c739f",
+      "logical_step_digest": "8940934e2c6939d1641bccba05c2980563bb3348cb4a6e665eddd15848b5a4fc",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -22541,15 +23055,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 3
       },
       "item_id": "8885a9d41633dda5",
+      "logical_step_digest": "a02c2d8573773cf9ef77b6452d5341ad936ac0099524b33e7ef02e47df3b4ea3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -22776,15 +23296,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 19
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 19,
+        "prior_steps_truncated": 3
       },
       "item_id": "89ff7bc85d3e3916",
+      "logical_step_digest": "da1c63d22e0f5012eca162deaa88787f64459c3ac9c4d22c5f792d391eaab1b1",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -23179,15 +23705,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "8ad20be95900a73d",
+      "logical_step_digest": "bb08bf84191cdb14d0a12107cfb66e97bbf03ff9ed1ddef0ac70d16f04abe605",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -23331,15 +23863,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 19
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 19,
+        "prior_steps_truncated": 2
       },
       "item_id": "8ad93b8540e80a02",
+      "logical_step_digest": "85cd49e5d867ba8c0c3344a26229963b415ff5016d27cd0bf2a85bb49d3d7b6c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -23723,15 +24261,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "cluster_id": "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "8bf73f34bf4ae2b0",
+      "logical_step_digest": "d3856692f3e142b99926546ee933421eed7aaedd0b8d543d99de601fdaf7e9a8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -23886,15 +24430,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 2
       },
       "item_id": "8d3cdd5e5074561b",
+      "logical_step_digest": "61f1777081e76932048581f366e1fb84585956b95a0c82c3c089a690baeea1b1",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -24069,15 +24619,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "cluster_id": "2976f330e2b4b4c78e43c8856fd3d70a19669ab49da668497c6fa784cb51eb32",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 0
       },
       "item_id": "9012394d495a9cd4",
+      "logical_step_digest": "71f07a8091fe9aaf8f6f99ac4bf5f66f049ac8e5ea47b7873b36fc56a67f5466",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -24250,15 +24804,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 3
       },
       "item_id": "909ae9ca02b757e0",
+      "logical_step_digest": "aea22b23727fb4b5631cf9314de2ed7057fd934cae56e2d4f1ffb5b6edc394e2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -24553,15 +25113,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 28
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 28,
+        "prior_steps_truncated": 3
       },
       "item_id": "90aa274914dea9c9",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -25148,15 +25714,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 2
       },
       "item_id": "92b915c05aba8bb1",
+      "logical_step_digest": "cbbae7288e43d023a28ab675da42cb1c13f8cd08918fc0f5b52c2a0f7635699d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -25331,15 +25903,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "9330017a7f840628",
+      "logical_step_digest": "4125286a504056325665bebecd51fe04a35fb0444362840ce793a33ad92810aa",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -25454,15 +26032,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "cluster_id": "b680878b8642b6d10a712cbd120e1624cbfd7353ac82c7802a3cd4ef4e449acc",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 0
       },
       "item_id": "942a20f330553eb3",
+      "logical_step_digest": "bb3ce8b4569ab9a53f442d66231f18f24a53aed2eb62e5d007f90964019d33ee",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -25646,15 +26228,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 15
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 15,
+        "prior_steps_truncated": 2
       },
       "item_id": "96a095da9161deda",
+      "logical_step_digest": "d2452b78d9fce302ce68708d6942792449d00eadc844eabc2f8541cff195fee2",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -25958,15 +26546,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "cluster_id": "c67a31b874560729f475c5c9d8507a60e3f4b38c35dd7425c2241676e7e61270",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "96a4d075d51c64a8",
+      "logical_step_digest": "43472c95ad973ae483c1632cb0e5072c20de4eb40f7e9b1e30bf70e41c0b781c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -26130,15 +26724,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 15
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 15,
+        "prior_steps_truncated": 3
       },
       "item_id": "987046167a9aa156",
+      "logical_step_digest": "bba3cf30bedc942e90b5010524a0a18c8a76b8b4e738f2c0ee09ced7067de4f8",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -26465,15 +27065,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 2
       },
       "item_id": "98b7e51450e5b316",
+      "logical_step_digest": "7e0260ddfcf5403f86b539b1ae80c2c6e744104de4f03ffc18bb1b12eda2b16d",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -26660,15 +27266,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 2
       },
       "item_id": "98d788f031a2bd66",
+      "logical_step_digest": "319596cb1fd6e93866aea25ff74265df51470554e361f1cc0adede235fbf904b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -26852,15 +27464,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 3
       },
       "item_id": "991ccd6411bada48",
+      "logical_step_digest": "6af6742a0579ba40431e010ed375bb73f353d2392aec8193aeefe554cd3cf203",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -27133,15 +27751,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 2
       },
       "item_id": "9d5affbb61804a82",
+      "logical_step_digest": "0374e6d1c347fcf2e9d5f38797a1bc84acb9bed025ee5f5c4271e0c0d2c44a6f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -27365,15 +27990,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 3
       },
       "item_id": "9d72a72a6734eb4f",
+      "logical_step_digest": "6b609ca6e82ba09744cb818c6d3fe4ec0a69e86ef68f4e4be82e34ac84fa9ec8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -27648,15 +28279,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "9e39fbb562cb03dd",
+      "logical_step_digest": "80aa24011b493ef1d4b77b419e5ae6d81ad280cfb0ca58961810a57d1bbe4da3",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -27783,15 +28420,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 1
       },
       "item_id": "a03c7829d27b27e9",
+      "logical_step_digest": "156392e10bd483b82f2636f479c8b5a2764ca54f78d91b6868d4e2314a09105e",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -27975,15 +28618,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 27
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 27,
+        "prior_steps_truncated": 3
       },
       "item_id": "a14946c6d063442c",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -28550,15 +29199,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 3
       },
       "item_id": "a1f9ac58c6ded3ce",
+      "logical_step_digest": "3f2e09bbb9d8a052fe8fbb209bde0dc682f96a8f0e4d2ba73aa866f3405c68e3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -28822,15 +29477,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 3
       },
       "item_id": "a23b611c6c2e4d5d",
+      "logical_step_digest": "77bdb27695447edd708a82e9ca9d9b89a38210acdf22eb860bd8dbff6af2836f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -29085,15 +29746,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 16
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 16,
+        "prior_steps_truncated": 2
       },
       "item_id": "a717c1269990e8e2",
+      "logical_step_digest": "3a3055d62680ad643be662a02eb67830260c6bf4134c80db2065d5d09f8bb9e3",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -29417,15 +30084,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 1
       },
       "item_id": "a8309c9b8c62dda7",
+      "logical_step_digest": "7caf034b37111508911e03f854ba8651b251e5e7a2628ffb64712a85b27afa7f",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -29629,15 +30302,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 1
       },
       "item_id": "ab9524db802cd13a",
+      "logical_step_digest": "14f685a7d5006e95892c77d758c522b0dc5819beed6803dffa42e6fe1bcff388",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -29881,15 +30560,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 18
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 18,
+        "prior_steps_truncated": 3
       },
       "item_id": "ae752ecb8c4dc44d",
+      "logical_step_digest": "038ea6479bf8ce664d73d1358b6339da7d97846cca4c05207d1cf7ecd6f652e5",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -30276,15 +30961,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 2
       },
       "item_id": "b1d5188f9912a3d2",
+      "logical_step_digest": "deb23f528194d12171e627ef0cc53af613dda3f7e43fa09497cc1a05662f15f8",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -30488,15 +31179,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "b1f4006fcae5f90f",
+      "logical_step_digest": "c0cc859f16e6ec24849568f0a8a253aa1c23da687c08e0658c90809f5cfe4c20",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -30660,15 +31357,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "b46cb164ab2aadfe",
+      "logical_step_digest": "54bc07b14da15696427fad22405e2b3325431a91ddb474224bed2d6190726dad",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -30783,15 +31486,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 2
       },
       "item_id": "b51b975aa2a7d023",
+      "logical_step_digest": "83d6b5260d74664e696c12907cd73996e2d5442d634ac1416a5c0390eeab7852",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -30946,15 +31655,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 26
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 26,
+        "prior_steps_truncated": 3
       },
       "item_id": "bbe2fc6b68fcbb18",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -31501,15 +32216,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 2
       },
       "item_id": "bd63e5f596373e72",
+      "logical_step_digest": "65387a409941343b35bcd52151695a0214b289f034bb40e9e5c01678f27d4cd6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -31704,15 +32425,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 3
       },
       "item_id": "bd94e3317022fd18",
+      "logical_step_digest": "1eb49f55202081f3faf37079a62af04be0c68ea896ebca1a1dc5b0a7e29d9379",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -31999,15 +32726,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 21
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 21,
+        "prior_steps_truncated": 2
       },
       "item_id": "bdd78d81e0642593",
+      "logical_step_digest": "1fa8a29c52dd1a37b5275a44087c244fb788a5bdd31d09f9f499c4fb5d19a082",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -32420,15 +33153,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 3
       },
       "item_id": "c058f28dffa7552b",
+      "logical_step_digest": "c9179624fd2b182963a40e4644be108f12cf432d5cc2c1bc787dd17028b2acf6",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -32735,15 +33474,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 31
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 31,
+        "prior_steps_truncated": 3
       },
       "item_id": "c07b59fd9953ae3a",
+      "logical_step_digest": "9c89862900d33510c940318d1d5d25f2a62b8640727dbaa6587e9da296c0672b",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -33390,15 +34135,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 16
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 16,
+        "prior_steps_truncated": 3
       },
       "item_id": "c0cdc8f60f9ec2f8",
+      "logical_step_digest": "048382ce7afa664501ea13fb2bd4846007d17b1e4a0cdaed9c5755d1a73188c5",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -33745,15 +34496,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 13
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 13,
+        "prior_steps_truncated": 1
       },
       "item_id": "c0da265a055b84e3",
+      "logical_step_digest": "5e389ac9fff5677448e4d35739a92a18eb175fa966afb653c4669e7525c1deb6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -34017,15 +34774,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+      "cluster_id": "64b6134c9e3ac822b73dac1697e62ad98ebca7084a32eed256e6e59f2ee8f41a",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "c17538461e594e38",
+      "logical_step_digest": "bee75f597ca640a4c985ddd8827e96a3603fe51e69f82fe92de99aa69508144c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -34169,15 +34932,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "cluster_id": "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 1
       },
       "item_id": "c1fecb3f9c6c67b1",
+      "logical_step_digest": "2a1e4d2c77a7ce7a435b144cf98f06afdee510f1fccf17682852048dde45009a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -34352,15 +35121,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:5"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 5
       },
       "item_id": "c3409231736302c3",
+      "logical_step_digest": "5dae19b3c2604cc7c41a4162fad28bf8ede1c480fb41d27e34215b8c64ea164c",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -34598,15 +35373,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 3
       },
       "item_id": "c77fee60a4f6c81e",
+      "logical_step_digest": "65a8ca7d3f7f22fe6eaa2f474d2b0c5f3c76eeb194a73fe467d925439a80a0c6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -34841,15 +35622,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 8
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 8,
+        "prior_steps_truncated": 2
       },
       "item_id": "c822d9223cf44495",
+      "logical_step_digest": "12f3fbc1e97d669f1977b4693424ca98eef5efe376332baf515875aaee9513d1",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -35036,15 +35823,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 3
       },
       "item_id": "c892253a220c5a89",
+      "logical_step_digest": "621168d377cca91e63a1a179840386c49f0af0b0cebd14b4dc6a49a5fff48980",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -35311,15 +36104,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 17
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 17,
+        "prior_steps_truncated": 3
       },
       "item_id": "cb5c1ba9df74129b",
+      "logical_step_digest": "b9bd3f81d623904b26ddb0ddae1d905115e01e9845112da1ae9b324f242ee470",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -35663,15 +36462,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 3
       },
       "item_id": "cd64d82a88971d27",
+      "logical_step_digest": "7d7458d6347f7f3c813e4c469c8d56266c06e9eec3e02eb4c89ae1a8104fb96d",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -35978,15 +36783,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "cluster_id": "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "cd790e386e3bf854",
+      "logical_step_digest": "47ddd20d9cb4a522894132c54beab7ef98cefefee81b3db41dc052c9c6a03d02",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -36141,15 +36952,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+      "cluster_id": "b680878b8642b6d10a712cbd120e1624cbfd7353ac82c7802a3cd4ef4e449acc",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "d100f893d8163eb0",
+      "logical_step_digest": "f261a78230fbfe87deef13471ec6c01dbbc85fef53c38777fb1d41259176c366",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -36293,15 +37108,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "d169c754558d5e87",
+      "logical_step_digest": "c9c3104e554754a201dff12a8bba70f8286d3813fdcb80a111a23990c9c7289b",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -36445,15 +37266,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 16
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 16,
+        "prior_steps_truncated": 3
       },
       "item_id": "d274cfd3e37c10da",
+      "logical_step_digest": "3993f1d0d2bfbc27b68769e8c43ae6459c3f20e38c27c7319cce5dc06ec22578",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -36800,15 +37628,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:5"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 5
       },
       "item_id": "d32a4b733e55b6ef",
+      "logical_step_digest": "83026ea647ca716311acc31bafc001fd8d0c96350179bae0dad2a8e4e1afe46e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -37026,15 +37860,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "cluster_id": "f31af8cae0492e2c45aeec4091e456104a7e000ef2dc8df59653c39cfbc3a3f6",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 0
       },
       "item_id": "d5844b67d99511f5",
+      "logical_step_digest": "517e7b2660e4cb30fdbd4664027be507add2dc009b03aeadbac0797769f30800",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -37149,15 +37987,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 2
       },
       "item_id": "d5cb867f7d7dbfe6",
+      "logical_step_digest": "a9c609225662daf40acdab5fd7a5fd8463c4ff199b95767b08fcac6ef65e7cfe",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -37324,15 +38168,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:4"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 17
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 17,
+        "prior_steps_truncated": 4
       },
       "item_id": "d707e6468fb38dbe",
+      "logical_step_digest": "b3b8bce0af5061c036d362581be269b2d43f03e1d6f6f64507de5a95118151f1",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -37688,15 +38538,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "cluster_id": "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 1
       },
       "item_id": "d7e5ad9c0ee51c2c",
+      "logical_step_digest": "43472c95ad973ae483c1632cb0e5072c20de4eb40f7e9b1e30bf70e41c0b781c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -37900,15 +38756,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "cluster_id": "451eac4ee5a34ad5dff837438727a3ffe8fd6d288a1a6ea2fb2126bf2f8652f5",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "d8de91041d4911a2",
+      "logical_step_digest": "287c4ccd08de08d54852ad506eb2459fba9e3efc9fc32b8976b499448096ae7d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -38043,15 +38905,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 11
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 11,
+        "prior_steps_truncated": 3
       },
       "item_id": "d98bd71f7394eb86",
+      "logical_step_digest": "11b66887c771057da57f0c688c828b26474f0ed7aa3dd23db68cf72932f43364",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -38298,15 +39166,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 3
       },
       "item_id": "db0288b7b7a2be7f",
+      "logical_step_digest": "a14676528098bb5211396f2aeff2bd636cabfddf1801f2cd0a8f9bfc41392b43",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -38533,15 +39407,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "cluster_id": "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 1
       },
       "item_id": "db7dbaf0c2ef0555",
+      "logical_step_digest": "43472c95ad973ae483c1632cb0e5072c20de4eb40f7e9b1e30bf70e41c0b781c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -38745,15 +39625,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+      "cluster_id": "c67a31b874560729f475c5c9d8507a60e3f4b38c35dd7425c2241676e7e61270",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "de1f43177f96a391",
+      "logical_step_digest": "2a1e4d2c77a7ce7a435b144cf98f06afdee510f1fccf17682852048dde45009a",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -38888,15 +39774,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 16
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 16,
+        "prior_steps_truncated": 3
       },
       "item_id": "de55bb1b52067f55",
+      "logical_step_digest": "0ba9b06951d178481253cb609c699ca379efb843679e3200d807ab6997df3dbf",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -39231,15 +40123,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 2
       },
       "item_id": "e06226c533471c3e",
+      "logical_step_digest": "4cfb0f50a25a0cdde91c69a43ee2ff3f3c419d40168da9be41e3ad83229f2464",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -39434,15 +40332,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "cluster_id": "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "e187c385e096958f",
+      "logical_step_digest": "da3e28bbdab9367ed62dace4bf9a7ae98ee88df3ff66f81309b5d47c0acf0071",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -39586,15 +40488,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "cluster_id": "2e1be9a27cc6b2dc76229730bf13a6bb5199d9ada673348be4951b83edefb8a8",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 0
       },
       "item_id": "e255009cd9fb1121",
+      "logical_step_digest": "43472c95ad973ae483c1632cb0e5072c20de4eb40f7e9b1e30bf70e41c0b781c",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -39787,15 +40693,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 3
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 3,
+        "prior_steps_truncated": 0
       },
       "item_id": "e3ad3a1b9d1883a6",
+      "logical_step_digest": "49b6dfd7f033c9b4c6f612cf4fd54193ef490f80ff3b0a5faaec44d264a68553",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -39893,15 +40803,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 21
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 21,
+        "prior_steps_truncated": 3
       },
       "item_id": "e6b38f725a6395fb",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -40348,15 +41264,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "e6f53b3bb3b1ee2a",
+      "logical_step_digest": "ea0d592cefcc8b624a7a8238bebd954fd999d5893ee69ec13f2e11283b6d8c40",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -40511,15 +41434,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 3
       },
       "item_id": "e8e76145b918f54f",
+      "logical_step_digest": "1115973edaf9f34728ddf1ff49242a53a5d4604e2aa40dd7f930c026e7b51f1d",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -40774,15 +41703,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "6219b480884692e6d63de6516c155340c7bedc12cd4a568a5b3564d36297ce40",
+      "cluster_id": "f774658fa34ea4eecc8146c2e9b9fead6306d4ee4096ae2238a81de03c93756e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 2
       },
       "item_id": "ec74367b9483aa5b",
+      "logical_step_digest": "f66a93e5061d1eceb5ae71a697519f0003910616943f979ff1a669b6eb09986b",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -40989,15 +41925,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 2
       },
       "item_id": "ec8dc96750ef6ca7",
+      "logical_step_digest": "7d4e0b11d56f4ced3a5d7d16c3d1b8d795d2a294baa9a4a179ec77f055cfcc1a",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -41204,15 +42147,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+      "cluster_id": "f5dcca24b8994342492a941ca893556ed4cfc0c8248e05f05f25dadd8117c003",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "ee56a87078f4d633",
+      "logical_step_digest": "2b77697da2b087a8d86e7d1072337bd445f336f08f298485b9e602614be36021",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -41347,15 +42296,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "cluster_id": "2976f330e2b4b4c78e43c8856fd3d70a19669ab49da668497c6fa784cb51eb32",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "ee6917f9dce224a6",
+      "logical_step_digest": "bfc7dfeb0e68d201d54c69f7eed4345dfff059e5e3f7c2a3fe56d2a3d41ca4d6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -41499,15 +42452,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "cluster_id": "451eac4ee5a34ad5dff837438727a3ffe8fd6d288a1a6ea2fb2126bf2f8652f5",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 1
       },
       "item_id": "f0ef55b8cb5b37fe",
+      "logical_step_digest": "1b89306324591e10d8d8d689ba181c85ec34f01a0e91c01d36c696239b802757",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -41662,15 +42621,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 17
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 17,
+        "prior_steps_truncated": 2
       },
       "item_id": "f2fc4ef35d569c35",
+      "logical_step_digest": "ee4f3a1a70b11e2a6062c9bfc76b72356e903cb32566321a978b3e3977e082df",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -42014,15 +42979,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 2
       },
       "item_id": "f489abf0dfe3dd8b",
+      "logical_step_digest": "7431a13391bfcbfada4eb3828b3f9d8873c094397d93c05f1de745b1faca18e1",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -42237,15 +43209,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+      "cluster_id": "c20a4b80967393d83be0132eef3d217bf63a0d0cf95a0a4f141ee4538a529511",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "f5e1ca44e660685a",
+      "logical_step_digest": "fec892c7cf6b5a516f97bae529fc755fe5e3515f56741a08f616502a131029c4",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -42380,15 +43358,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 1
       },
       "item_id": "f65b69b5725bf50d",
+      "logical_step_digest": "b2de522c9122a5c87b62dfa249a4ec19e327c0f1d7439dc3bab79682c5d90735",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -42572,15 +43556,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 2
       },
       "item_id": "f68d9754d93868f4",
+      "logical_step_digest": "8b038fa20d81d6aaf993b3b6e79e2b85cdda249fa059afb54bb049675745b7a6",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -42735,15 +43725,22 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+      "cluster_id": "effa4953b057fb217b491eba886fa008dd44388fbd2a1ed79c2e38a4d5b64458",
       "context_completeness": {
-        "any_content_truncated": true,
-        "builder_verdict": "DEGRADED",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "ITEM_TRUNCATED",
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 6
+        "item_truncated": true,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 6,
+        "prior_steps_truncated": 1
       },
       "item_id": "f7bf3d866fdca5dd",
+      "logical_step_digest": "b83a7b12ef1c01f16879a83800b186dc189bcbb29971f003377c827935971910",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -42878,15 +43875,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+      "cluster_id": "fdb09c9a8ace2342831111c48c7f4f777c0c4e70547bbb3b74a3b832130c3c5b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 12
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 12,
+        "prior_steps_truncated": 3
       },
       "item_id": "f7dc3e7ee88e69fd",
+      "logical_step_digest": "1881c8f9d0b6aa9872024ff43776439a919e2160f8d4ba32c687f393b5933292",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -43130,15 +44133,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+      "cluster_id": "37b4319daab1ae5c9458e79a3fd39b4a24ceb475f3fb0bc6f42d7541d47cf3d5",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 10
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 10,
+        "prior_steps_truncated": 0
       },
       "item_id": "f8f7d49d95ad646a",
+      "logical_step_digest": "b603a426c1932b946fdcda938363325702c278ea9a440b92eceb25b002a8e332",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -43342,15 +44349,19 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+      "cluster_id": "2e1be9a27cc6b2dc76229730bf13a6bb5199d9ada673348be4951b83edefb8a8",
       "context_completeness": {
-        "any_content_truncated": false,
         "builder_verdict": "COMPLETE",
+        "degraded_reasons": [],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 7
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 7,
+        "prior_steps_truncated": 0
       },
       "item_id": "faa3195d51891ff2",
+      "logical_step_digest": "f9bf662d89d5f18b6d8ca347546d0188d858a58e4f72a458b5c02b8030c17b89",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -43494,15 +44505,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+      "cluster_id": "36eef6249a7957945f97ca889d985b9e89bad477079e14a3ec87a677fcf32150",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:2"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 18
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 18,
+        "prior_steps_truncated": 2
       },
       "item_id": "fb713ee5656ee997",
+      "logical_step_digest": "56d58af61103795bb593d00919456c5d7166548d7236b550cec295cf42ba0c26",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -43866,15 +44883,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 29
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 29,
+        "prior_steps_truncated": 3
       },
       "item_id": "fba489dfe2678a2f",
+      "logical_step_digest": "657bae91a5e118dc41d472accabd7e6fde25723bc7c354ec579b6f06397e1dd0",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -44481,15 +45504,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+      "cluster_id": "62e914cf8d3d35fd31a937f92433cd75f81b9016a303f85cbdebc52e8e54221e",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:4"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 14
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 14,
+        "prior_steps_truncated": 4
       },
       "item_id": "fd1b9ad5856cb527",
+      "logical_step_digest": "b5d66d77943bad9487158ff3922a22e73b04fb830b69bc775cb2cdcf8ad92dfa",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -44784,15 +45813,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "cluster_id": "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 9
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 9,
+        "prior_steps_truncated": 1
       },
       "item_id": "fd8af0902e04b4a4",
+      "logical_step_digest": "ec19a87e0d6b30e58337668892f06997cd82f275cb34b5109d8511bfd4d45da0",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -44987,15 +46022,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "a626dacda8ba99517acf8303b82bceae2ca5e51a2949705a965d6d99bc727e9c",
+      "cluster_id": "38845b4387842ae3a23904fa086865eca5192cbab93f504b3d0b20ba5ad3ccdc",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:3"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 24
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 24,
+        "prior_steps_truncated": 3
       },
       "item_id": "fdfc258303e5082a",
+      "logical_step_digest": "3e72f3596c65af057067328e2cd6f03ca0d65199693e106b01533aa41b5a482e",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -45502,15 +46543,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+      "cluster_id": "afcab3234432bd7921f1e4063d92558e47bb2486a4dd98daef13d2fd5b13f52b",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 5
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 5,
+        "prior_steps_truncated": 1
       },
       "item_id": "fe5200a4b2e61e19",
+      "logical_step_digest": "21a73f84233a584d043a1130ee15eaf5846d4ab462a959dd37c619aee4a6a1d4",
       "model_name": "gpt-5.6-terra",
       "rater_context": {
         "instruction": {
@@ -45625,15 +46672,21 @@
     },
     {
       "agent_name": "codex",
-      "cluster_id": "8a2b0186e2cda1e45762c4bc638903e673eadec504455741c64f8e7b04b937db",
+      "cluster_id": "e9eed51fff29487014e1f89ada301a0117807743527857e7698d07c511f3dd16",
       "context_completeness": {
-        "any_content_truncated": false,
-        "builder_verdict": "COMPLETE",
+        "builder_verdict": "INCOMPLETE",
+        "degraded_reasons": [
+          "PRIOR_TRUNCATED:1"
+        ],
         "instruction_present": true,
         "item_has_judgeable_content": true,
-        "prior_steps_rendered": 3
+        "item_truncated": false,
+        "prior_steps_contentless": 0,
+        "prior_steps_rendered": 3,
+        "prior_steps_truncated": 1
       },
       "item_id": "fe9351fc6ceade07",
+      "logical_step_digest": "930b847e92fb26a4500b1b10767c6fd28ee2c6c6e87eb9370b5b0bb273b956a1",
       "model_name": "gpt-5.6-luna",
       "rater_context": {
         "instruction": {
@@ -45745,13 +46798,25 @@
       "power_argument"
     ]
   },
+  "package_digest": "8faf00e407bd76c8b478c49dd1b1ff3c93c6d9cc6ad4d51f9148edde35ec0131",
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
+    "authentication": {
+      "append_only_unique_key": "(item_id, rater_key_id)",
+      "rater_id_is_self_asserting": false,
+      "requires": [
+        "package_digest",
+        "item_digest",
+        "rater_key_id",
+        "signature"
+      ]
+    },
     "blockers": [
       "EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.33 < 20.0",
       "CLUSTER_CONCENTRATION_TOO_HIGH: 16.9% > 5%",
       "QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3",
-      "ITEMS_WITH_ZERO_VALID_RATINGS: 183"
+      "ITEMS_WITH_ZERO_VALID_RATINGS: 183",
+      "REGISTRY: REGISTRY_ABSENT"
     ],
     "cluster_adequacy": {
       "blockers": [
@@ -45767,6 +46832,13 @@
     },
     "qualified_rater_pool_size": 0,
     "readiness": "NOT_READY",
+    "registry": {
+      "problems": [
+        "REGISTRY_ABSENT"
+      ],
+      "qualified_key_ids": 0,
+      "source": null
+    },
     "required_unique_raters_per_item": 3,
     "valid_rating_records": 0
   },

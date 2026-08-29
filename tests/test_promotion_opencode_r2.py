@@ -351,3 +351,57 @@ def test_a_tampered_symlink_omission_record_is_refused(tmp_path: Path) -> None:
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     assert PROMOTE.verify(evidence) != 0, "verify must refuse a forged symlink record"
+
+
+# ---- v2 omission-schema tamper (delete / downgrade) ---------------------------
+
+
+def _promote_bundle(tmp_path: Path) -> tuple[Path, Path]:
+    job = make_job(tmp_path)
+    evidence = tmp_path / "evidence"
+    bundle = evidence / job.name
+    PROMOTE.promote(job, bundle)
+    return evidence, bundle
+
+
+def test_v2_manifest_deleting_entry_type_is_refused(tmp_path: Path) -> None:
+    """Source-free verify must not fall back to the legacy path when a v2
+    manifest's omission record loses its entry_type: v2 requires it."""
+    evidence, bundle = _promote_bundle(tmp_path)
+    manifest_path = bundle / "PROMOTION.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 2
+    symlink = next(e for e in manifest["files"] if e.get("entry_type") == "symlink")
+    del symlink["entry_type"]
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    assert PROMOTE.verify(evidence) != 0, "verify must refuse a deleted entry_type"
+
+
+def test_v2_manifest_deleting_link_target_is_refused(tmp_path: Path) -> None:
+    """Deleting link_target from a v2 symlink omission must be caught."""
+    evidence, bundle = _promote_bundle(tmp_path)
+    manifest_path = bundle / "PROMOTION.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 2
+    symlink = next(e for e in manifest["files"] if e.get("entry_type") == "symlink")
+    del symlink["link_target"]
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    assert PROMOTE.verify(evidence) != 0, "verify must refuse a deleted link_target"
+
+
+def test_v2_manifest_version_downgrade_is_refused(tmp_path: Path) -> None:
+    """Rewriting a v2 manifest's schema_version to v1 while keeping its v2
+    omission records is a downgrade attempt and must be rejected."""
+    evidence, bundle = _promote_bundle(tmp_path)
+    manifest_path = bundle / "PROMOTION.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 2
+    manifest["schema_version"] = 1
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    assert PROMOTE.verify(evidence) != 0, "verify must refuse a version downgrade"

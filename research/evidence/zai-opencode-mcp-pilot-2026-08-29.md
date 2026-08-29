@@ -146,7 +146,9 @@ as an R2 omission with `entry_type: "symlink"` and the SHA-256/length of its
 *link-target string* (the link itself, never the target's content). Any symlink
 outside an R2 omission path is refused outright, and `--verify` rejects any
 symlink found in a promoted bundle and re-checks every recorded link-target
-digest. Verify at any time with:
+digest. These manifests are `PROMOTION.json` schema v2: `verify` requires
+`entry_type` on every omission record and rejects deletion of the symlink
+fields or a version downgrade. Verify at any time with:
 
 ```bash
 uv run python scripts/promote_codex_bundle.py --verify

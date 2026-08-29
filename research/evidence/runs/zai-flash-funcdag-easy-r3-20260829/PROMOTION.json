@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "bundle": "zai-flash-funcdag-easy-r3-20260829",
   "source_job_runtime_path": "runs/zai-flash-funcdag-easy-r3-20260829",
   "source_job_result_sha256": "sha256:414107cd05955c5795a8412c6e1e0ef211f7df202d77c1d63bda4e024eda5595",

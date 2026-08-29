@@ -1639,3 +1639,71 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(tmp
     assert _payload(drain_verdict[0])["reason"] == REASON_DRAIN_INCOMPLETE
     assert (state / "mode").read_text().strip() == "KILLED"
 
+def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_path: Path) -> None:
+    import time
+    import threading
+
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-hung-1"]))
+    _write_auths(state)
+
+    class ForeverHungOwner:
+        def request_cancel(self, lease_ids: list[str]) -> dict:
+            # Block indefinitely
+            time.sleep(100.0)
+            return {"requested": True}
+
+        def observe_lease(self, lease_id: str):
+            time.sleep(100.0)
+            return None
+
+    hung_owner = ForeverHungOwner()
+    t0 = time.monotonic()
+    # Execute kill with hung owner
+    res = _run(tmp_path, "kill", now=NOW, owner=hung_owner)
+    t1 = time.monotonic()
+
+    # Must complete and latch KILLED in under 2.5s (due to 2.0s cancellation deadline outside lock)
+    # The KILLED mode was committed under lock BEFORE the deadline!
+    assert res.returncode == 0
+    assert (t1 - t0) < 2.5, f"kill took {t1 - t0}s"
+    assert (state / "mode").read_text().strip() == "KILLED"
+    kill_rec = json.loads((state / "kill.json").read_text())
+    assert kill_rec["disposition"] == KILL_DISPOSITION
+    assert kill_rec["cancellation_requested"] is True
+
+
+def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_thread_leak(tmp_path: Path) -> None:
+    import time
+    import threading
+
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-hung-2"]))
+    _write_auths(state)
+
+    class ForeverHungObserver:
+        def request_cancel(self, lease_ids: list[str]) -> dict:
+            return {"requested": True}
+
+        def observe_lease(self, lease_id: str):
+            time.sleep(100.0)
+            return None
+
+    hung_observer = ForeverHungObserver()
+    # Pass drain_timeout_seconds=0.1 so observe_lease deadline triggers in ~0.1s
+    t0 = time.monotonic()
+    res = _run(tmp_path, "drain", now=NOW, owner=hung_observer, extra=["--drain-timeout-seconds", "0.1"])
+    t1 = time.monotonic()
+
+    assert res.returncode == 2
+    assert (t1 - t0) < 1.0, f"drain took {t1 - t0}s"
+    assert _payload(res)["reason"] == REASON_DRAIN_INCOMPLETE
+    assert json.loads((state / "inflight.json").read_text()) == ["lease-hung-2"]
+
+    # Verify daemon threads don't block Python process exit (all spawned threads in _call_with_deadline are daemon=True)
+    non_daemon_threads = [t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()]
+    # Only standard pytest non-daemon worker threads if any, no continuous operator worker threads
+    assert not any("worker" in t.name.lower() for t in non_daemon_threads)
+

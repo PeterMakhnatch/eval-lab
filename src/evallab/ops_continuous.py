@@ -1608,22 +1608,59 @@ def observation_is_terminal(obs: Mapping[str, Any] | None) -> bool:
     return True
 
 
+def _call_with_deadline(fn: Callable[[], Any], timeout_seconds: float) -> tuple[Any, bool]:
+    """Execute fn in a daemon worker thread with a hard timeout.
+
+    Never blocks on executor shutdown or thread termination if fn hangs.
+    Returns (result, timed_out).
+    """
+    import threading
+    import queue
+
+    q: queue.Queue[tuple[Any, Exception | None]] = queue.Queue(maxsize=1)
+
+    def worker():
+        try:
+            res = fn()
+            q.put((res, None))
+        except Exception as exc:
+            q.put((None, exc))
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    try:
+        res, exc = q.get(timeout=max(0.001, timeout_seconds))
+        if exc is not None:
+            return None, False
+        return res, False
+    except queue.Empty:
+        return None, True
+
+
 def observe_fenced_leases(
     owner: WorkloadOwner,
     lease_ids: list[str],
     *,
     timeout_seconds: float | None = None,
+    per_lease_timeout_seconds: float | None = None,
 ) -> tuple[list[dict[str, Any]] | None, str | None, list[str]]:
     observed: list[dict[str, Any]] = []
     blockers: list[str] = []
     import time
     start_time = time.monotonic()
-    limit = timeout_seconds if timeout_seconds is not None else 30.0
+    overall_limit = timeout_seconds if timeout_seconds is not None else 30.0
+    per_lease_limit = per_lease_timeout_seconds if per_lease_timeout_seconds is not None else min(5.0, overall_limit)
+
     for lease_id in lease_ids:
-        if time.monotonic() - start_time > limit:
+        remaining = overall_limit - (time.monotonic() - start_time)
+        if remaining <= 0:
             blockers.append(f"timeout:{lease_id}")
             break
-        obs = owner.observe_lease(lease_id)
+        call_timeout = min(per_lease_limit, remaining)
+        obs, timed_out = _call_with_deadline(lambda lid=lease_id: owner.observe_lease(lid), call_timeout)
+        if timed_out:
+            blockers.append(f"timeout:{lease_id}")
+            continue
         if obs is None:
             blockers.append(f"missing:{lease_id}")
             continue
@@ -2019,21 +2056,21 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
+    # Phase 1: Under short lock, atomically commit KILLED + executed=false FIRST
     with state_lock(ctx.state_dir):
         inflight, inflight_error = _load_inflight(ctx.state_dir)
         fenced = inflight if inflight is not None else []
-        ack = dict(ctx.owner.request_cancel([item for item in fenced if isinstance(item, str)]))
         record = {
             "disposition": KILL_DISPOSITION,
             "at": ctx.now.isoformat(),
             "executed": False,
             "signalled": False,
-            "cancellation_requested": bool(ack.get("requested")),
-            "owner": ack.get("owner", "campaign-queue"),
-            "owner_ack": ack,
+            "cancellation_requested": True,
+            "owner": "campaign-queue",
+            "owner_ack": {"requested": True, "pending": True},
             "fenced": fenced,
             "malformed_inflight": inflight_error,
-            "note": "emergency kill requested through campaign/queue owner; executed remains false until observed drain",
+            "note": "emergency kill latched KILLED; cancellation requested through campaign/queue owner; executed remains false until observed drain",
         }
         leases, _lease_error = _load_leases(ctx.state_dir)
         snapshot: dict[str, Any] = {
@@ -2044,8 +2081,28 @@ def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
         }
         if inflight is not None:
             snapshot["inflight"] = fenced
-        commit_operator_snapshot(ctx.state_dir, snapshot)
-        return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
+        snap_res = commit_operator_snapshot(ctx.state_dir, snapshot)
+        kill_generation = snap_res.get("generation")
+
+    # Phase 2: Outside lock, invoke owner.request_cancel with bounded deadline
+    fenced_ids = [item for item in fenced if isinstance(item, str)]
+    cancel_res, timed_out = _call_with_deadline(
+        lambda: ctx.owner.request_cancel(fenced_ids),
+        timeout_seconds=2.0,
+    )
+    if not timed_out and isinstance(cancel_res, dict):
+        # Phase 3: Optional CAS update of owner_ack if same generation under lock
+        with state_lock(ctx.state_dir):
+            curr_snap = load_operator_snapshot(ctx.state_dir) or {}
+            if curr_snap.get("generation") == kill_generation and isinstance(curr_snap.get("kill"), dict):
+                curr_kill = dict(curr_snap["kill"])
+                curr_kill["owner_ack"] = cancel_res
+                curr_kill["owner"] = cancel_res.get("owner", "campaign-queue")
+                curr_snap["kill"] = curr_kill
+                commit_operator_snapshot(ctx.state_dir, curr_snap)
+                record = curr_kill
+
+    return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
 
 
 def cmd_rotate(ctx: OperatorContext, kind: Literal["logs", "cas"]) -> OperatorVerdict:

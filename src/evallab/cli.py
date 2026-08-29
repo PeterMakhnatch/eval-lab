@@ -2612,8 +2612,15 @@ def _traj_report_command(
 def _traj_card_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+    from evallab.interpretation.benchmark_projection import (
+        agent_readable_projection_provenance,
+        build_projection_dimensions,
+        load_compliance_report,
+    )
     from evallab.interpretation.traj_card import generate_traj_card
     from evallab.interpretation.trajectory_hydration import RedactionPolicy
+    from evallab.traj import resolve_trial_target
 
     runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
     output_path = _resolve(root, args.output) if args.output else None
@@ -2621,13 +2628,36 @@ def _traj_card_command(
     policy = RedactionPolicy(redact_secrets=not args.no_redact)
 
     try:
-        rendered, card = generate_traj_card(
+        projection_provenance = None
+        projection_dimensions = None
+        if getattr(args, "compliance_report", None):
+            report = load_compliance_report(_resolve(root, args.compliance_report))
+            metadata = (
+                json.loads(_resolve(root, args.projection_metadata).read_text(encoding="utf-8"))
+                if getattr(args, "projection_metadata", None)
+                else {}
+            )
+            if not isinstance(metadata, dict):
+                raise ValueError("projection metadata must be a JSON object")
+            trial_dir, _, _ = resolve_trial_target(
+                args.trial, repo_root=root, explicit_runs_root=runs_roots[0] if runs_roots else None
+            )
+            projection_dimensions = build_projection_dimensions(
+                ingest_benchmark_trial(trial_dir), report, metadata=metadata
+            )
+            projection_provenance = agent_readable_projection_provenance(
+                report, projection_dimensions
+            )
+
+        rendered, _card = generate_traj_card(
             target=args.trial,
             repo_root=root,
             runs_roots=runs_roots,
             output_path=output_path,
             output_format=fmt,
             policy=policy,
+            projection_provenance=projection_provenance,
+            projection_dimensions=projection_dimensions,
         )
         print(rendered)
         return 0
@@ -2784,6 +2814,11 @@ def _traj_benchmark_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+    from evallab.interpretation.benchmark_projection import (
+        agent_readable_projection_provenance,
+        build_projection_dimensions,
+        load_compliance_report,
+    )
     from evallab.interpretation.producers.action_memory import extract_action_memory_features
     from evallab.interpretation.producers.mcp_funcdag import extract_mcp_funcdag_features
     from evallab.interpretation.producers.mcp_recovery import extract_mcp_recovery_features
@@ -2806,18 +2841,36 @@ def _traj_benchmark_command(
         bundle = ingest_benchmark_trial(trial_dir)
         outline = outline_trajectory(args.trial, repo_root=root, explicit_runs_root=explicit_root)
         step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
-
-        feat_obj: Any = None
+        report = (
+            load_compliance_report(_resolve(root, args.compliance_report))
+            if getattr(args, "compliance_report", None)
+            else None
+        )
+        metadata = (
+            json.loads(_resolve(root, args.projection_metadata).read_text(encoding="utf-8"))
+            if getattr(args, "projection_metadata", None)
+            else {}
+        )
+        if not isinstance(metadata, dict):
+            raise ValueError("projection metadata must be a JSON object")
+        dimensions = build_projection_dimensions(bundle, report, metadata=metadata)
         if bundle.contract.family == "action-memory-v1":
-            feat_obj = extract_action_memory_features(bundle, step_tokens=step_tokens)
+            feat_obj = extract_action_memory_features(
+                bundle, step_tokens=step_tokens, dimensions=dimensions
+            )
         elif bundle.contract.family == "mcp-funcdag-v1":
-            feat_obj = extract_mcp_funcdag_features(bundle, step_tokens=step_tokens)
+            feat_obj = extract_mcp_funcdag_features(
+                bundle, step_tokens=step_tokens, dimensions=dimensions
+            )
         elif bundle.contract.family == "mcp-recovery-v1":
-            feat_obj = extract_mcp_recovery_features(bundle, step_tokens=step_tokens)
+            feat_obj = extract_mcp_recovery_features(
+                bundle, step_tokens=step_tokens, dimensions=dimensions
+            )
         else:
             raise ValueError(f"Unknown benchmark family: {bundle.contract.family}")
 
         data = asdict(feat_obj)
+        data["projection_provenance"] = agent_readable_projection_provenance(report, dimensions)
         if getattr(args, "json", False):
             print(json.dumps(data, indent=2, default=str))
         else:
@@ -4171,6 +4224,16 @@ def parser() -> argparse.ArgumentParser:
     traj_card.add_argument(
         "--no-redact", action="store_true", help="Disable on-read secret redaction"
     )
+    traj_card.add_argument(
+        "--compliance-report",
+        type=Path,
+        help="Materialized Data ComplianceIngestReport JSON; never invokes the compliance hook",
+    )
+    traj_card.add_argument(
+        "--projection-metadata",
+        type=Path,
+        help="Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
+    )
     traj_card.set_defaults(func=_traj_card_command)
 
     traj_ir = traj_commands.add_parser(
@@ -4213,6 +4276,16 @@ def parser() -> argparse.ArgumentParser:
     traj_bm.add_argument("trial", help="Trial identifier, directory, or result.json")
     traj_bm.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
     traj_bm.add_argument("--json", action="store_true", help="Emit observables as JSON")
+    traj_bm.add_argument(
+        "--compliance-report",
+        type=Path,
+        help="Materialized Data ComplianceIngestReport JSON; never invokes the compliance hook",
+    )
+    traj_bm.add_argument(
+        "--projection-metadata",
+        type=Path,
+        help="Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
+    )
     traj_bm.set_defaults(func=_traj_benchmark_command)
     return root
 

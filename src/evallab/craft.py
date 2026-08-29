@@ -28,9 +28,11 @@ here. Classify submits through the queue and must carry `purpose="craft"` once
 classify for several facets. See `docs/craft.md` for the facet-by-facet split
 between what this module determines and what genuinely needs the model.
 
-Entry point: `python -m evallab.craft scan --tb3`. CLI wiring into
-`evallab craft ...` is described in `docs/craft.md` and left undone here
-because `cli.py` is leased to another mission this round.
+Entry point: `python -m evallab.craft scan --tb3` (or `--tb4` for the pinned
+v4.0.0 lane) and `python -m evallab.craft plan --tb4` for the read-only
+migration inventory. CLI wiring into `evallab craft ...` is described in
+`docs/craft.md` and left undone here because `cli.py` is leased to another
+mission this round.
 """
 
 from __future__ import annotations
@@ -42,9 +44,10 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 import tomllib
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -81,6 +84,48 @@ DEFAULT_TB3_ROOT = Path("~/Developer/agent-evals/terminal-bench/tasks")
 #: its own `dataset.toml`, falling back to this shape when that file is absent.
 LIBRARY_SOURCE_REPO = "eval-lab/library"
 TB3_FALLBACK_SOURCE_REPO = "terminal-bench/terminal-bench"
+
+#: Where the TB4 corpus lives on this workstation. Injectable (env var, then
+#: `--tb4-root`), exactly like the TB3 lane, but pointed at a checkout pinned
+#: to the `v4.0.0` release tag (commit ``452bf30``). The on-disk TB3 checkout at
+#: `~/Developer/agent-evals/terminal-bench/tasks` stays untouched: dual-version
+#: coexistence is intentional, and a TB3 scan must keep producing the 74-task
+#: `terminal-bench-3` corpus unchanged.
+TB4_ROOT_ENV = "EVALLAB_TB4_ROOT"
+DEFAULT_TB4_ROOT = Path("~/Developer/agent-evals/terminal-bench-4/tasks")
+
+#: Pinned TB4 release identity. `v4.0.0` is an immutable release tag (commit
+#: ``452bf30``); the Eval Lab registry contract forbids floating refs, so the
+#: pin never moves and `@latest` is never used.
+TB4_VERSION = "4.0.0"
+TB4_PIN_TAG = "v4.0.0"
+TB4_PIN_COMMIT = "452bf30"
+
+#: The dataset name TB4's own `dataset.toml` reports. TB3 reports the *same*
+#: name, so the dataset name alone is not a distinguishing source identity.
+TB4_DATASET_NAME = "terminal-bench/terminal-bench"
+
+#: TB4's `source_repo`. Forced to the version-suffixed ref rather than read from
+#: `dataset.toml`, because craft rows are keyed by `(source_repo, task_ref)` and
+#: a TB3 and a TB4 row for the same task must never share that key. The version
+#: suffix is what makes the identity distinct and the pin explicit.
+TB4_FALLBACK_SOURCE_REPO = "terminal-bench/terminal-bench@4.0.0"
+
+#: The full pinned dataset ref, for validation and reporting.
+TB4_DATASET_REF = "terminal-bench/terminal-bench@4.0.0"
+
+#: Ref tokens the registry contract treats as floating and therefore refuses.
+#: A floating ref names a moving target (`@latest`, `@head`, `@main`) and cannot
+#: be re-pinned, so the TB4 plan and source lanes refuse them outright.
+FLOATING_REF_TOKENS = frozenset({"latest", "head", "main", "master"})
+
+#: Machine-readable migration record for the v3 -> v4 release: removed/fixed
+#: task lists, the pinned release identity, and the expected 66-task inventory.
+#: `plan` reads it so the expected inventory is authoritative even without a TB3
+#: checkout on disk.
+MIGRATION_RECORD = (
+    Path(__file__).resolve().parent / "data" / "terminal-bench-4-migration.json"
+)
 
 #: A task directory is one that carries both files. Harbor's own layout adds
 #: `environment/`, `tests/`, and `solution/`, but those are checked per facet
@@ -1014,14 +1059,34 @@ def scan(
 # --------------------------------------------------------------------------- #
 
 
-def tb3_root(explicit: Path | None = None, environ: dict[str, str] | None = None) -> Path:
+def _root_from_config(
+    *,
+    explicit: Path | None,
+    environ: Mapping[str, str] | None,
+    env_var: str,
+    default: Path,
+) -> Path:
     environment = os.environ if environ is None else environ
     if explicit is not None:
         return explicit.expanduser().resolve()
-    configured = environment.get(TB3_ROOT_ENV)
+    configured = environment.get(env_var)
     if configured:
         return Path(configured).expanduser().resolve()
-    return DEFAULT_TB3_ROOT.expanduser().resolve()
+    return default.expanduser().resolve()
+
+
+def tb3_root(explicit: Path | None = None, environ: Mapping[str, str] | None = None) -> Path:
+    """The TB3 corpus root: explicit path, then `EVALLAB_TB3_ROOT`, then default."""
+    return _root_from_config(
+        explicit=explicit, environ=environ, env_var=TB3_ROOT_ENV, default=DEFAULT_TB3_ROOT
+    )
+
+
+def tb4_root(explicit: Path | None = None, environ: Mapping[str, str] | None = None) -> Path:
+    """The TB4 corpus root: explicit path, then `EVALLAB_TB4_ROOT`, then default."""
+    return _root_from_config(
+        explicit=explicit, environ=environ, env_var=TB4_ROOT_ENV, default=DEFAULT_TB4_ROOT
+    )
 
 
 def tb3_source(root: Path) -> TaskSource:
@@ -1039,6 +1104,18 @@ def tb3_source(root: Path) -> TaskSource:
     return TaskSource(root=root, source_repo=source_repo, label="tb3")
 
 
+def tb4_source(root: Path) -> TaskSource:
+    """The TB4 corpus, with a source identity distinct from TB3's.
+
+    TB4's `dataset.toml` reports the same dataset name TB3 does
+    (`terminal-bench/terminal-bench`), so reading the name would let a TB3 and a
+    TB4 row for the same task share a `(source_repo, task_ref)` key. The
+    `source_repo` is therefore forced to the pinned `@4.0.0` ref, which is both
+    the distinct identity and the explicit pin.
+    """
+    return TaskSource(root=root, source_repo=TB4_FALLBACK_SOURCE_REPO, label="tb4")
+
+
 def library_source(repo_root: Path) -> TaskSource:
     return TaskSource(
         root=(repo_root / "library").resolve(),
@@ -1049,6 +1126,211 @@ def library_source(repo_root: Path) -> TaskSource:
 
 def repository_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+# --------------------------------------------------------------------------- #
+# TB4 pin validation and migration planning
+# --------------------------------------------------------------------------- #
+
+
+def load_migration_record(path: Path | None = None) -> dict[str, Any]:
+    """Load the machine-readable v3 -> v4 migration record."""
+    record_path = path or MIGRATION_RECORD
+    try:
+        with record_path.open(encoding="utf-8") as handle:
+            record = json.load(handle)
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f"cannot read TB4 migration record {record_path}: {error}") from error
+    if not isinstance(record, dict):
+        raise RuntimeError(f"TB4 migration record {record_path} is not a JSON object")
+    return record
+
+
+def _dataset_identity(root: Path) -> dict[str, str]:
+    """The `[dataset]` name/version a root declares, or empty when absent."""
+    manifest = root / "dataset.toml"
+    if not manifest.is_file():
+        return {}
+    try:
+        document = tomllib.loads(manifest.read_bytes().decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeError, OSError):
+        return {}
+    dataset = document.get("dataset")
+    if not isinstance(dataset, dict):
+        return {}
+    identity: dict[str, str] = {}
+    if isinstance(dataset.get("name"), str):
+        identity["name"] = dataset["name"]
+    if isinstance(dataset.get("version"), str):
+        identity["version"] = dataset["version"]
+    return identity
+
+
+def _is_floating_ref(ref: str) -> bool:
+    """Whether a dataset ref names a moving target rather than a release."""
+    base = ref.split("@", 1)[0].rstrip("/")
+    token = base.rsplit("/", 1)[-1] if "/" in base else base
+    return token.lower() in FLOATING_REF_TOKENS or "@latest" in ref or "@head" in ref
+
+
+def _version_from_ref(ref: str) -> str | None:
+    """The `@version` suffix of a dataset ref, if any."""
+    if "@" not in ref:
+        return None
+    return ref.split("@", 1)[1].strip()
+
+
+def _git_pin_ref(root: Path) -> str | None:
+    """The pinned ref a checkout's git state proves, if it is the v4.0.0 release."""
+    try:
+        described = subprocess.run(
+            ["git", "-C", str(root), "describe", "--tags", "--exact-match", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if described.returncode == 0 and described.stdout.strip() == TB4_PIN_TAG:
+            return TB4_DATASET_REF
+        head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if head.returncode == 0 and head.stdout.strip() == TB4_PIN_COMMIT:
+            return TB4_DATASET_REF
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def resolve_tb4_ref(root: Path, ref: str | None = None) -> str:
+    """Resolve the effective pinned dataset ref for a TB4 root.
+
+    Refuses a wrong dataset, a floating ref, and a wrong version. Resolution
+    order: an explicit `ref`, then `[dataset].version` in `dataset.toml`, then
+    the checkout's git state (v4.0.0 tag / 452bf30 commit), else "unpinned".
+    """
+    identity = _dataset_identity(root)
+    name = identity.get("name")
+    if not name:
+        raise ValueError(f"not a Terminal-Bench checkout: {root} declares no dataset name")
+    if name != TB4_DATASET_NAME:
+        raise ValueError(
+            f"wrong dataset: expected {TB4_DATASET_NAME!r}, got {name!r} at {root}"
+        )
+    effective = ref
+    if effective is None and identity.get("version"):
+        effective = f"{name}@{identity['version']}"
+    if effective is None:
+        effective = _git_pin_ref(root)
+    if effective is None:
+        raise ValueError(
+            f"unpinned Terminal-Bench checkout at {root}: no version declared and no "
+            f"v4.0.0 tag; pass --ref {TB4_DATASET_REF}"
+        )
+    if _is_floating_ref(effective):
+        raise ValueError(f"floating ref refused: {effective!r} (must pin {TB4_DATASET_REF})")
+    version = _version_from_ref(effective)
+    if version != TB4_VERSION:
+        raise ValueError(
+            f"wrong version: expected {TB4_VERSION}, got {version or effective!r} ({effective!r})"
+        )
+    return effective
+
+
+def plan_tb4(
+    tb4_path: Path,
+    *,
+    ref: str | None = None,
+    tb3_path: Path | None = None,
+) -> dict[str, Any]:
+    """Read-only migration plan for a pinned TB4 checkout.
+
+    Scans the TB4 root (never writes a Parquet row), validates the pin, and
+    reports the expected 66-task inventory and the exact 74 -> 66 delta. When a
+    TB3 root is supplied, the removed tasks are detected live against it; the
+    authoritative removed/fixed lists come from the migration record either way.
+    """
+    if not tb4_path.is_dir():
+        raise FileNotFoundError(f"TB4 corpus root not found: {tb4_path}")
+    effective_ref = resolve_tb4_ref(tb4_path, ref=ref)
+    record = load_migration_record()
+
+    result = scan([tb4_source(tb4_path)])
+    actual_refs = [r.task_ref for r in result.records]
+    expected_refs = list(record["expected_inventory"])
+
+    discrepancies: list[str] = []
+    if len(actual_refs) != len(expected_refs):
+        discrepancies.append(f"task count {len(actual_refs)} != expected {len(expected_refs)}")
+    actual_set = set(actual_refs)
+    expected_set = set(expected_refs)
+    missing = sorted(expected_set - actual_set)
+    unexpected = sorted(actual_set - expected_set)
+    if missing:
+        discrepancies.append(f"{len(missing)} expected task(s) missing: {missing}")
+    if unexpected:
+        discrepancies.append(f"{len(unexpected)} unexpected task(s): {unexpected}")
+
+    removed_record = list(record["removed_tasks"])
+    fixed_record = list(record["fixed_tasks"])
+
+    live: dict[str, Any] = {}
+    if tb3_path is not None and tb3_path.is_dir():
+        tb3_refs = {r.task_ref for r in scan([tb3_source(tb3_path)]).records}
+        removed_detected = sorted(tb3_refs - actual_set)
+        added_in_tb4 = sorted(actual_set - tb3_refs)
+        live = {
+            "tb3_tasks": len(tb3_refs),
+            "removed_detected": removed_detected,
+            "removed_matches_record": set(removed_detected) == set(removed_record),
+            "added_in_tb4": added_in_tb4,
+        }
+
+    return {
+        "command": "craft plan",
+        "dataset_ref": effective_ref,
+        "pin": {
+            "tag": TB4_PIN_TAG,
+            "commit": TB4_PIN_COMMIT,
+            "license": record.get("license"),
+            "schema_unchanged": record.get("schema_unchanged"),
+        },
+        "expected_tasks": len(expected_refs),
+        "actual_tasks": len(actual_refs),
+        "expected_inventory": expected_refs,
+        "actual_inventory": actual_refs,
+        "removed_tasks": removed_record,
+        "fixed_tasks": fixed_record,
+        "v3_non_comparable": record.get("v3_non_comparable", False),
+        "live": live,
+        "discrepancies": discrepancies,
+    }
+
+
+def _render_plan(plan: dict[str, Any]) -> str:
+    lines = [
+        f"craft plan {FACETS_SCHEMA_VERSION}",
+        f"  dataset_ref: {plan['dataset_ref']}",
+        f"  pin: tag={plan['pin']['tag']} commit={plan['pin']['commit']} "
+        f"license={plan['pin']['license']}",
+        f"  tasks: expected={plan['expected_tasks']} actual={plan['actual_tasks']}",
+    ]
+    live = plan["live"]
+    if live:
+        lines.append(f"  tb3: {live['tb3_tasks']} tasks")
+        removed = ", ".join(live["removed_detected"]) or "none"
+        lines.append(f"  removed (detected live): {removed}")
+        if live.get("added_in_tb4"):
+            lines.append(f"  added in tb4: {', '.join(live['added_in_tb4'])}")
+        lines.append(f"  removed matches record: {live['removed_matches_record']}")
+    lines.append(f"  removed (record): {', '.join(plan['removed_tasks'])}")
+    lines.append(f"  fixed (record): {', '.join(plan['fixed_tasks'])}")
+    lines.append(f"  v3 non-comparable: {plan['v3_non_comparable']}")
+    for discrepancy in plan["discrepancies"]:
+        lines.append(f"  discrepancy: {discrepancy}")
+    return "\n".join(lines)
 
 
 # --------------------------------------------------------------------------- #
@@ -1267,6 +1549,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan_parser.add_argument("--library", action="store_true", help="scan in-repo library/")
     scan_parser.add_argument("--tb3-root", type=Path, default=None, help="override the TB3 root")
+    scan_parser.add_argument("--tb4", action="store_true", help="scan the pinned TB4 corpus")
+    scan_parser.add_argument(
+        "--tb4-root", type=Path, default=None, help="override the TB4 root"
+    )
     scan_parser.add_argument(
         "--batch-size",
         type=int,
@@ -1277,6 +1563,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=None, help="derived Parquet root (default: derived/parquet)"
     )
     scan_parser.add_argument("--json", action="store_true", help="emit the summary as JSON")
+
+    plan_parser = subparsers.add_parser(
+        "plan", help="read-only v3 -> v4 migration inventory (no Parquet write)"
+    )
+    plan_parser.add_argument("--tb4-root", type=Path, default=None, help="override the TB4 root")
+    plan_parser.add_argument(
+        "--tb3-root",
+        type=Path,
+        default=None,
+        help="TB3 root, when present, to detect the removed tasks live",
+    )
+    plan_parser.add_argument(
+        "--ref",
+        type=str,
+        default=None,
+        help=f"pinned dataset ref (default: {TB4_DATASET_REF} or from dataset.toml)",
+    )
+    plan_parser.add_argument("--json", action="store_true", help="emit the plan as JSON")
     return parser
 
 
@@ -1284,6 +1588,8 @@ def _sources_from_args(args: argparse.Namespace, repo_root: Path) -> list[TaskSo
     sources: list[TaskSource] = []
     if args.tb3 or args.all_local:
         sources.append(tb3_source(tb3_root(args.tb3_root)))
+    if args.tb4:
+        sources.append(tb4_source(tb4_root(args.tb4_root)))
     if args.library or args.all_local:
         sources.append(library_source(repo_root))
     for directory in args.directories:
@@ -1294,13 +1600,33 @@ def _sources_from_args(args: argparse.Namespace, repo_root: Path) -> list[TaskSo
     return sources
 
 
+def _main_plan(args: argparse.Namespace) -> int:
+    tb4 = tb4_root(args.tb4_root)
+    if not tb4.is_dir():
+        print(f"craft plan: TB4 corpus root not found: {tb4}", file=sys.stderr)
+        return 2
+    tb3 = tb3_root(args.tb3_root) if args.tb3_root is not None else None
+    try:
+        plan = plan_tb4(tb4, ref=args.ref, tb3_path=tb3)
+    except (ValueError, FileNotFoundError) as error:
+        print(f"craft plan: {error}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+    else:
+        print(_render_plan(plan))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "plan":
+        return _main_plan(args)
     repo_root = repository_root()
     sources = _sources_from_args(args, repo_root)
     if not sources:
         print(
-            "craft scan: nothing to scan — pass --tb3, --library, --all-local, or a directory",
+            "craft scan: nothing to scan — pass --tb3, --tb4, --library, --all-local, or a directory",
             file=sys.stderr,
         )
         return 2

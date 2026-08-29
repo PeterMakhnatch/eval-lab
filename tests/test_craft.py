@@ -1087,3 +1087,185 @@ def test_partial_mutation_isolation_property(
     assert w.churn.added == ()
     assert w.churn.removed == ()
     assert w.churn.facets_changed == ()
+
+# --------------------------------------------------------------------------- #
+# Terminal-Bench 4 versioned lanes and migration plan
+# --------------------------------------------------------------------------- #
+
+
+def _tb_task(root: Path, short: str) -> Path:
+    """A discoverable Harbor task whose declared name is `terminal-bench/<short>`.
+
+    Distinct from `make_task` (which declares a bare short name): the v4
+    fixture must produce task_refs that match the migration record's expected
+    inventory (`terminal-bench/<short>`).
+    """
+    d = root / short
+    d.mkdir(parents=True)
+    (d / "task.toml").write_text(
+        'schema_version = "1.0"\n\n'
+        f'[task]\nname = "terminal-bench/{short}"\n\n'
+        '[verifier]\nenvironment_mode = "separate"\n',
+        encoding="utf-8",
+    )
+    (d / "instruction.md").write_text("Do the thing.\n", encoding="utf-8")
+    return d
+
+
+def _v4_fixture(root: Path, *, dataset: str = 'name = "terminal-bench/terminal-bench"') -> Path:
+    """A pinned TB4-shaped fixture: every expected task, a pinned dataset.toml."""
+    root.mkdir(parents=True)
+    (root / "dataset.toml").write_text(
+        f'[dataset]\n{dataset}\nversion = "4.0.0"\n', encoding="utf-8"
+    )
+    for ref in craft.load_migration_record()["expected_inventory"]:
+        _tb_task(root, ref.split("/", 1)[1])
+    return root
+
+
+def _v3_fixture(root: Path) -> Path:
+    """A TB3-shaped fixture with all 74 tasks (the 66 kept plus the 8 removed)."""
+    root.mkdir(parents=True)
+    (root / "dataset.toml").write_text(
+        '[dataset]\nname = "terminal-bench/terminal-bench"\n', encoding="utf-8"
+    )
+    record = craft.load_migration_record()
+    refs = set(record["expected_inventory"]) | set(record["removed_tasks"])
+    for ref in sorted(refs):
+        _tb_task(root, ref.split("/", 1)[1])
+    return root
+
+
+def test_tb4_root_is_injectable(tmp_path: Path) -> None:
+    assert craft.tb4_root(environ={craft.TB4_ROOT_ENV: str(tmp_path)}) == tmp_path.resolve()
+    assert craft.tb4_root(tmp_path, environ={}) == tmp_path.resolve()
+
+
+def test_tb4_source_has_a_distinct_identity(tmp_path: Path) -> None:
+    """TB4 rows must carry a `source_repo` that can never collide with TB3's."""
+    root = _v4_fixture(tmp_path / "v4")
+    tb4 = craft.tb4_source(root)
+    assert tb4.source_repo == craft.TB4_FALLBACK_SOURCE_REPO
+    assert tb4.source_repo == "terminal-bench/terminal-bench@4.0.0"
+    assert tb4.label == "tb4"
+    # even though the fixture's dataset.toml reports the same dataset name TB3
+    # does, the source identity stays version-suffixed
+    assert tb4.source_repo != craft.TB3_FALLBACK_SOURCE_REPO
+
+
+def test_tb4_and_tb3_rows_never_share_a_key(tmp_path: Path) -> None:
+    """Scanning both lanes yields disjoint `(source_repo, task_ref)` keys."""
+    v3 = _v3_fixture(tmp_path / "v3")
+    v4 = _v4_fixture(tmp_path / "v4")
+    result = craft.scan([craft.tb3_source(v3), craft.tb4_source(v4)])
+    keys = {(r.source_repo, r.task_ref) for r in result.records}
+    assert len(keys) == len(result.records)  # no duplicate keys at all
+    assert any(sr == "terminal-bench/terminal-bench" for sr, _ in keys)  # tb3 lane
+    assert any(sr == "terminal-bench/terminal-bench@4.0.0" for sr, _ in keys)  # tb4 lane
+    tb3_keys = {k for k in keys if k[0] == "terminal-bench/terminal-bench"}
+    tb4_keys = {k for k in keys if k[0] == "terminal-bench/terminal-bench@4.0.0"}
+    assert tb3_keys.isdisjoint(tb4_keys)
+
+
+def test_plan_reports_the_66_task_v4_inventory(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    plan = craft.plan_tb4(v4)
+    assert plan["dataset_ref"] == "terminal-bench/terminal-bench@4.0.0"
+    assert plan["pin"]["commit"] == "452bf30"
+    assert plan["pin"]["tag"] == "v4.0.0"
+    assert plan["expected_tasks"] == 66
+    assert plan["actual_tasks"] == 66
+    assert plan["discrepancies"] == []
+    assert len(plan["removed_tasks"]) == 8
+    assert len(plan["fixed_tasks"]) == 19
+    assert plan["v3_non_comparable"] is True
+    assert plan["expected_inventory"] == craft.load_migration_record()["expected_inventory"]
+
+
+def test_plan_detects_the_removed_tasks_live_against_tb3(tmp_path: Path) -> None:
+    v3 = _v3_fixture(tmp_path / "v3")
+    v4 = _v4_fixture(tmp_path / "v4")
+    plan = craft.plan_tb4(v4, tb3_path=v3)
+    assert plan["live"]["tb3_tasks"] == 74
+    assert set(plan["live"]["removed_detected"]) == set(craft.load_migration_record()["removed_tasks"])
+    assert plan["live"]["removed_matches_record"] is True
+    assert plan["live"]["added_in_tb4"] == []
+    assert (plan["live"]["tb3_tasks"] - plan["actual_tasks"]) == 8
+
+
+def test_plan_does_not_write_anything(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    before = {p.as_posix(): p.read_bytes() for p in v4.rglob("*") if p.is_file()}
+    craft.plan_tb4(v4, tb3_path=_v3_fixture(tmp_path / "v3"))
+    after = {p.as_posix(): p.read_bytes() for p in v4.rglob("*") if p.is_file()}
+    assert before == after
+    assert not (tmp_path / "craft.parquet").exists()
+
+
+def test_plan_refuses_a_wrong_dataset(tmp_path: Path) -> None:
+    v4 = _v4_fixture(
+        tmp_path / "v4", dataset='name = "somewhere/else"'
+    )
+    with pytest.raises(ValueError, match="wrong dataset"):
+        craft.plan_tb4(v4)
+
+
+def test_plan_refuses_a_wrong_version(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    with pytest.raises(ValueError, match="wrong version"):
+        craft.plan_tb4(v4, ref="terminal-bench/terminal-bench@3.0.0")
+
+
+def test_plan_refuses_floating_refs(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    for floating in ("terminal-bench/terminal-bench@latest", "latest", "@head"):
+        with pytest.raises(ValueError, match="floating"):
+            craft.plan_tb4(v4, ref=floating)
+
+
+def test_plan_refuses_an_unpinned_checkout(tmp_path: Path) -> None:
+    """A checkout with no declared version and no git v4.0.0 tag is unpinned."""
+    v4 = _v4_fixture(tmp_path / "v4")
+    (v4 / "dataset.toml").write_text(
+        '[dataset]\nname = "terminal-bench/terminal-bench"\n', encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="unpinned"):
+        craft.plan_tb4(v4)
+
+
+def test_plan_cli_reports_66_and_delta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    v3 = _v3_fixture(tmp_path / "v3")
+    v4 = _v4_fixture(tmp_path / "v4")
+    code = craft.main(
+        ["plan", "--tb4-root", str(v4), "--tb3-root", str(v3), "--json"]
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["actual_tasks"] == 66
+    assert payload["expected_tasks"] == 66
+    assert payload["live"]["removed_matches_record"] is True
+
+
+def test_plan_cli_refuses_a_floating_ref(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    code = craft.main(
+        ["plan", "--tb4-root", str(v4), "--ref", "terminal-bench/terminal-bench@latest"]
+    )
+    assert code == 2
+    assert "floating" in capsys.readouterr().err
+
+
+def test_scan_tb4_writes_distinct_rows(tmp_path: Path) -> None:
+    """`craft scan --tb4` writes TB4 rows under a distinct source_repo."""
+    v4 = _v4_fixture(tmp_path / "v4")
+    out = tmp_path / "out"
+    code = craft.main(
+        ["scan", "--tb4", "--tb4-root", str(v4), "--out", str(out), "--json"]
+    )
+    assert code == 0
+    table = pq.read_table(out / craft.PARQUET_NAME)
+    repos = set(table.column("source_repo").to_pylist())
+    assert repos == {"terminal-bench/terminal-bench@4.0.0"}

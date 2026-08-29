@@ -25,8 +25,10 @@ model. That table is the specification for the deferred half.
 
 ```bash
 python -m evallab.craft scan --tb3                    # TB3 corpus only
+python -m evallab.craft scan --tb4                    # pinned TB4 corpus only
 python -m evallab.craft scan --all-local              # TB3 + in-repo library/
 python -m evallab.craft scan path/to/corpus --json    # any corpus root
+python -m evallab.craft plan --tb4 --tb4-root <v4>    # read-only 74→66 migration plan
 ```
 
 Corpus roots and the output root are both injectable:
@@ -34,7 +36,18 @@ Corpus roots and the output root are both injectable:
 | Knob | Default | Why |
 |---|---|---|
 | `--tb3-root`, `$EVALLAB_TB3_ROOT` | `~/Developer/agent-evals/terminal-bench/tasks` | The TB3 corpus is outside this repository; tests must not depend on a developer's host layout (`agents/CHECKS.md`). |
+| `--tb4-root`, `$EVALLAB_TB4_ROOT` | `~/Developer/agent-evals/terminal-bench-4/tasks` | The pinned TB4 lane (`v4.0.0`, commit `452bf30`). A TB4 `source_repo` is forced to `terminal-bench/terminal-bench@4.0.0` so its craft rows never share a `(source_repo, task_ref)` key with the TB3 lane. |
 | `--out`, `$EVALLAB_DERIVED_ROOT` | `<primary checkout>/derived/parquet/craft` | `paths.derived_root_from_environment`: one derived store per machine, announced when a linked worktree inherits another checkout's. |
+
+The two Terminal-Bench lanes are intentional historical coexistence, not a
+compatibility shim. TB3 keeps its existing 74-task `terminal-bench/terminal-bench`
+identity untouched; TB4 is pinned to the immutable `v4.0.0` release and reports
+the distinct `terminal-bench/terminal-bench@4.0.0` identity. A `craft plan
+--tb4` validates the pin (refusing wrong dataset, floating refs, and wrong
+versions), scans the 66-task v4 inventory read-only (no Parquet write), and
+reports the exact 74→66 delta against the migration record at
+`src/evallab/data/terminal-bench-4-migration.json`. TB3 and TB4 scores are
+**not** comparable.
 
 `scan` refuses to write into any root it is scanning (`ValueError`), so a
 mistyped `--out` cannot mutate a read-only corpus.

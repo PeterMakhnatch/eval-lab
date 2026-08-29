@@ -179,3 +179,70 @@ def test_report_output_byte_identical_across_runs_even_with_root_status(
         cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
     )
     assert result1.stdout == result2.stdout
+
+# --------------------------------------------------------------------------- #
+# Terminal-Bench 4 lane classification
+# --------------------------------------------------------------------------- #
+
+
+def test_tb4_lane_classifies_as_terminal_bench_4():
+    with tempfile.TemporaryDirectory() as tmp:
+        tb4 = Path(tmp) / "tb4"
+        _make_task(tb4, "t4", "terminal-bench/t4")
+        rec = classify_task("terminal-bench/t4", tb4_explicit=tb4, environ={})
+        assert rec.origin == Origin.HARBOR_NATIVE
+        assert rec.family == "terminal-bench-4"
+        assert rec.confidence == Confidence.CERTAIN
+
+
+def test_shared_task_across_tb3_and_tb4_is_not_a_collision():
+    """A task present in both version lanes resolves to the v4 lane, not HARBOR_DERIVED."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tb3 = Path(tmp) / "tb3"
+        tb4 = Path(tmp) / "tb4"
+        _make_task(tb3, "shared", "terminal-bench/shared")
+        _make_task(tb4, "shared", "terminal-bench/shared")
+        rec = classify_task(
+            "terminal-bench/shared", tb3_explicit=tb3, tb4_explicit=tb4, environ={}
+        )
+        assert rec.origin == Origin.HARBOR_NATIVE
+        assert rec.family == "terminal-bench-4"
+        assert rec.confidence == Confidence.CERTAIN
+        assert "multi-corpus" not in rec.evidence
+
+
+def test_discover_all_emits_one_record_per_version_lane():
+    with tempfile.TemporaryDirectory() as tmp:
+        tb3 = Path(tmp) / "tb3"
+        tb4 = Path(tmp) / "tb4"
+        _make_task(tb3, "shared", "terminal-bench/shared")
+        _make_task(tb4, "shared", "terminal-bench/shared")
+        _make_task(tb4, "only4", "terminal-bench/only4")
+        records = discover_all(tb3_explicit=tb3, tb4_explicit=tb4, environ={})
+        shared = [r for r in records if r.task_ref == "terminal-bench/shared"]
+        assert len(shared) == 2
+        assert {r.family for r in shared} == {"terminal-bench-3", "terminal-bench-4"}
+        assert all(r.origin == Origin.HARBOR_NATIVE for r in shared)
+        only4 = [r for r in records if r.task_ref == "terminal-bench/only4"]
+        assert len(only4) == 1
+        assert only4[0].family == "terminal-bench-4"
+
+
+def test_report_names_tb4_root_status(tmp_path: Path):
+    missing_root = tmp_path / "no-tb4-here"
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "evallab.provenance",
+        "report",
+        "--tb4-root",
+        str(missing_root),
+    ]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+    )
+    assert result.returncode == 0
+    assert "tb4_root\tunavailable" in result.stdout
+    assert "no-tb4-here" in result.stdout

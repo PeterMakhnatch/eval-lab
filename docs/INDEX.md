@@ -55,7 +55,7 @@ inputs:
   - path: docs/contracts.md
     digest: sha256:dea76c2aaf874341239d2c3518a5dac7eeb5fbafbf26c72a109a1f711e950fbe
   - path: docs/craft.md
-    digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
+    digest: sha256:9fa45506143bc8832b7927bbb6cc8a155db7f324147716ffac0341bcf362dd9c
   - path: docs/dashboard.md
     digest: sha256:75394bae07ac0b085b1385189c6b17d4764a30e31fc5fe086a5d9e215910de4c
   - path: docs/data-architecture.md
@@ -105,7 +105,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:6bd757911672359b5414f979cd4ef9eee54d6e31d675a924f0501bea2592ec29
+    digest: sha256:3027050aabc7e551148a4e14fbd96a0390452bfe1a556990636223644feed6c5
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -115,7 +115,7 @@ inputs:
   - path: docs/research/external-datasets.md
     digest: sha256:58d428f613cf5cab9258c4e5ce2f057b79d16d803251b62c556b3d18f24a88a3
   - path: docs/research/literature-survey.md
-    digest: sha256:defe24e8f6d6316425f3fd67aa677c61cf3b41f1c9466ccbf45fe8583f76f9cb
+    digest: sha256:8dd8e6aebe4aa36c02157da5519c9469308be13377bf67b564fc386bcc0bd27e
   - path: docs/research/synthetic-tasks.md
     digest: sha256:991d90264398946e24fe9370bd6a48f05ab73924976f4ccd9eacc0a44eb840c0
   - path: docs/research/trajectory-intelligence.md

@@ -36,14 +36,22 @@ class EventRecorder:
         extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._lock:
+            normalized_type = "tool_call_success" if event_type == "tool_call_success" else "tool_call_error"
+            normalized_error = None
+            if normalized_type == "tool_call_error":
+                normalized_error = error if isinstance(error, dict) else {
+                    "type": "runtime_error",
+                    "message": str(error or event_type),
+                }
             event = {
-                "event_index": self.event_index,
-                "event_type": event_type,
+                "schema_version": "mcp-tool-event-v1",
+                "event_ordinal": self.event_index + 1,
+                "event_type": normalized_type,
                 "tool_name": tool_name,
-                "arguments": arguments,
-                "result": result,
-                "error": error,
-                "schema_conforming": schema_conforming,
+                "arguments": arguments or {},
+                "result": ({"value": result} if normalized_type == "tool_call_success" and not isinstance(result, dict) else result) if normalized_type == "tool_call_success" else None,
+                "error": normalized_error,
+                "is_error": normalized_type == "tool_call_error",
             }
             if extra:
                 event.update(extra)

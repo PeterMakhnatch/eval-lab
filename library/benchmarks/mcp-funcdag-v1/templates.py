@@ -122,6 +122,45 @@ def run_answer_only_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], works
     (workspace / "result.json").write_text(json.dumps({"target_value": 42}) + "\n", encoding="utf-8")
 
 
+
+def _call_successful_distractor(runtime: MCPRuntime, spec_data: dict[str, Any]) -> None:
+    distractor = next((tool for tool in spec_data["tools"] if tool.get("is_distractor")), None)
+    if distractor is None:
+        # Baseline controls always include distractors; this preserves a deterministic fallback for custom specs.
+        return
+    runtime.call_tool(distractor["name"], {"input_payload": "probe", "flag": True})
+
+
+def run_extra_success_before_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
+    """Adds an allowed successful probe before an otherwise exact DAG trace."""
+    _call_successful_distractor(runtime, spec_data)
+    run_oracle_solve(runtime, spec_data, workspace)
+
+
+def run_extra_success_after_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
+    """Adds an allowed successful probe after an otherwise exact DAG trace."""
+    run_oracle_solve(runtime, spec_data, workspace)
+    _call_successful_distractor(runtime, spec_data)
+
+
+def run_extra_success_between_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
+    """Adds an allowed successful probe between two required DAG calls."""
+    nodes = {n["node_id"]: n for n in spec_data["nodes"]}
+    values = dict(spec_data["initial_inputs"])
+    order = spec_data["topological_order"]
+    for index, node_id in enumerate(order):
+        node = nodes[node_id]
+        args = {param: values[src] for param, src in node["input_bindings"].items()}
+        call_out = runtime.call_tool(node["tool_name"], args)
+        values[node_id] = call_out["result"]["value"]
+        if index == 0:
+            _call_successful_distractor(runtime, spec_data)
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "result.json").write_text(
+        json.dumps({"target_value": values[spec_data["target_node_id"]]}) + "\n",
+        encoding="utf-8",
+    )
+
 def get_mutants() -> dict[str, Callable[[MCPRuntime, dict[str, Any], Path], None]]:
     return {
         "wrong_order": run_wrong_order_mutant,
@@ -129,4 +168,7 @@ def get_mutants() -> dict[str, Callable[[MCPRuntime, dict[str, Any], Path], None
         "no_propagation": run_no_propagation_mutant,
         "distractor_trace": run_distractor_trace_mutant,
         "answer_only": run_answer_only_mutant,
+        "extra_success_before": run_extra_success_before_mutant,
+        "extra_success_between": run_extra_success_between_mutant,
+        "extra_success_after": run_extra_success_after_mutant,
     }

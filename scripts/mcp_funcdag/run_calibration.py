@@ -4,26 +4,35 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH_ROOT = ROOT / "library" / "benchmarks" / "mcp-funcdag-v1"
 
 
-def _load_module(name: str, filename: str):
-    spec = importlib.util.spec_from_file_location(name, BENCH_ROOT / f"{filename}.py")
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {name} from {filename}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+def _load_module(name: str):
+    module_name = f"mcp_funcdag_{name}"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+    orig_path = list(sys.path)
+    sys.path.insert(0, str(BENCH_ROOT))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, BENCH_ROOT / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
+        spec.loader.exec_module(mod)
+        return mod
+    finally:
+        sys.path[:] = orig_path
 
 
-contract_mod = _load_module("mcp_funcdag_contract", "contract")
-materializer_mod = _load_module("mcp_funcdag_materializer", "materializer")
-runtime_mod = _load_module("mcp_funcdag_runtime", "runtime")
-templates_mod = _load_module("mcp_funcdag_templates", "templates")
-verifier_mod = _load_module("mcp_funcdag_verifier", "verifier")
+contract_mod = _load_module("contract")
+materializer_mod = _load_module("materializer")
+runtime_mod = _load_module("runtime")
+templates_mod = _load_module("templates")
+verifier_mod = _load_module("verifier")
 
 
 def main():

@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 from collections.abc import Callable
 from pathlib import Path
 

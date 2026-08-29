@@ -480,9 +480,10 @@ def solve() -> None:
         node = node_map[nid]
         tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
         res = session.call_tool(node["tool_name"], tool_args)
-        if not isinstance(res, dict) or "value" not in res:
+        val = res.get("value") if isinstance(res, dict) else res
+        if val is None or not isinstance(val, int):
             raise RuntimeError(f"Tool {{node['tool_name']}} returned no integer value: {{res!r}}")
-        node_values[nid] = res["value"]
+        node_values[nid] = val
 
     target_val = node_values[target_node_id]
     result_path = Path("/app/result.json")

@@ -455,46 +455,49 @@ if __name__ == "__main__":
 
 def _oracle_solve_py(dag_spec: DAGSpec) -> str:
     client_src = (ROOT / "client.py").read_text(encoding="utf-8")
-    return f"""#!/usr/bin/env python3
-import json
-from pathlib import Path
-
-{client_src}
-
-initial_inputs = {json.dumps(dag_spec.initial_inputs)}
-nodes = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings": n.input_bindings} for n in dag_spec.nodes])}
-topological_order = {json.dumps(dag_spec.topological_order)}
-target_node_id = {json.dumps(dag_spec.target_node_id)}
-PORT = {DEFAULT_MCP_PORT}
-MCP_HOST = "mcp-service"
-
-def solve() -> None:
+    header = (
+        "#!/usr/bin/env python3\n"
+        "import json\n"
+        "from pathlib import Path\n\n"
+        f"{client_src}\n\n"
+        f"initial_inputs = {json.dumps(dag_spec.initial_inputs)}\n"
+        f"nodes = {json.dumps([{'node_id': n.node_id, 'tool_name': n.tool_name, 'bindings': n.input_bindings} for n in dag_spec.nodes])}\n"
+        f"topological_order = {json.dumps(dag_spec.topological_order)}\n"
+        f"target_node_id = {json.dumps(dag_spec.target_node_id)}\n"
+        f"PORT = {DEFAULT_MCP_PORT}\n"
+        'MCP_HOST = "mcp-service"\n\n'
+    )
+    body = '''def solve() -> None:
     session = McpHttpSession(host=MCP_HOST, port=PORT)
     status, raw = session.initialize()
     if status != 200:
-        raise RuntimeError(f"Failed to initialize MCP session: {{raw}}")
+        raise RuntimeError(f"Failed to initialize MCP session: {raw}")
 
-    node_map = {{n["node_id"]: n for n in nodes}}
+    node_map = {n["node_id"]: n for n in nodes}
     node_values = dict(initial_inputs)
     for nid in topological_order:
         node = node_map[nid]
-        tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
+        tool_args = {param: node_values[src] for param, src in node["bindings"].items()}
         res = session.call_tool(node["tool_name"], tool_args)
         val = res.get("value") if isinstance(res, dict) else res
         if val is None or not isinstance(val, int):
-            raise RuntimeError(f"Tool {{node['tool_name']}} returned no integer value: {{res!r}}")
+            raise RuntimeError(f"Tool {node['tool_name']} returned no integer value: {res!r}")
         node_values[nid] = val
 
     target_val = node_values[target_node_id]
     result_path = Path("/app/result.json")
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(
-        json.dumps({{"target_value": target_val}}, indent=2) + "\n", encoding="utf-8"
+        json.dumps({"target_value": target_val}, indent=2) + "\\n", encoding="utf-8"
     )
-    print(f"Oracle solved with target_value: {{target_val}}")
+    print(f"Oracle solved with target_value: {target_val}")
 
 solve()
-"""
+'''
+    return header + body
+
+
+
 def _oracle_solve_sh_wrap(dag_spec: DAGSpec) -> str:
     py = _oracle_solve_py(dag_spec)
     return "#!/bin/bash\nset -euo pipefail\npython3 - <<'PYEOF'\n" + py.split("#!/usr/bin/env python3\n", 1)[-1] + "\nPYEOF\n"

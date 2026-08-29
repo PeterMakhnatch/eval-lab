@@ -256,22 +256,26 @@ def extract_action_memory_features(
     unknown_handle_count = len(unknown_handles)
     duplicate_handle_count = max(len(observed_handles) - len(set(valid_handles)), 0)
 
-    if expected_handle_count > 0:
-        if not expected_set and valid_handle_count > 0:
+    if expected_set:
+        handle_set_match = expected_set.issubset(set(observed_handles))
+        expected_handle_count = len(expected_set)
+    elif expected_handle_count > 0:
+        if valid_handle_count > 0:
             valid_handle_count = min(valid_handle_count, expected_handle_count)
         handle_set_match = valid_handle_count >= expected_handle_count
     else:
         handle_set_match = len(observed_handles) == 0
+
     if isinstance(expected_chunk_ids, list) and expected_chunk_ids:
         handle_order_match = observed_handles == expected_chunk_ids
     else:
         handle_order_match = (
             handle_set_match and duplicate_handle_count == 0 and unknown_handle_count == 0
         )
+
     handle_coverage_rate: float | None = None
     if expected_handle_count > 0:
-        handle_coverage_rate = float(valid_handle_count / expected_handle_count)
-
+        handle_coverage_rate = float(min(valid_handle_count, expected_handle_count) / expected_handle_count)
     # Also inspect final state mutations if no tool calls were explicitly parsed
     if not mutation_calls and final_state.mutations:
         for mut in final_state.mutations:

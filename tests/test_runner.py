@@ -343,6 +343,8 @@ def test_subscription_command_routes_credential_transports(tmp_path: Path) -> No
     overlay = repo / "containers/deepseek-v4-flash-secret.compose.yaml"
     overlay.parent.mkdir(parents=True)
     overlay.write_text("services: {}\n")
+    proxy_script = repo / "containers/deepseek_secret_proxy.py"
+    proxy_script.write_text("#!/usr/bin/env python3\n")
     harbor_command = ["harbor", "run"]
     claude = RunRequest(
         task=task(tmp_path),
@@ -379,6 +381,23 @@ def test_subscription_command_routes_credential_transports(tmp_path: Path) -> No
         "--extra-docker-compose",
         str(overlay.resolve()),
     ]
+
+
+def test_subscription_command_refuses_when_deepseek_proxy_is_missing(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    overlay = repo / "containers/deepseek-v4-flash-secret.compose.yaml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text("services: {}\n")
+    deepseek = RunRequest(
+        task=task(tmp_path),
+        agent="mini-swe-agent",
+        model="deepseek/deepseek-v4-flash",
+        name="deepseek-api",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+    with pytest.raises(RuntimeError, match="DeepSeek secret proxy is missing"):
+        subscription_command(deepseek, ["harbor", "run"], repo_root=repo)
 
 
 def test_local_env_loader_ignores_model_api_keys(

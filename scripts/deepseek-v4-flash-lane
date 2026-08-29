@@ -121,9 +121,77 @@ with_canonical_deepseek_credential() {
         if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -n "${MSWEA_API_KEY:-}" ]; then
             export DEEPSEEK_API_KEY="$MSWEA_API_KEY"
         fi
-        unset MSWEA_API_KEY
-        unset DEEPSEEK_BASE_URL DEEPSEEK_API_BASE OPENAI_BASE_URL OPENAI_API_BASE
+        if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
+            printf 'refusing model execution: provider key missing\n' >&2
+            exit 1
+        fi
+        secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/evallab-deepseek-secret.XXXXXX")"
+        trap 'rm -rf "$secret_dir"' EXIT
+        chmod 700 "$secret_dir"
+        secret_file="$secret_dir/key"
+        python3 - "$secret_file" "$DEEPSEEK_API_KEY" <<'SECRETWRITE'
+import os
+import sys
+
+path, value = sys.argv[1], sys.argv[2]
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+fd = os.open(path, flags, 0o600)
+try:
+    os.fchmod(fd, 0o400)
+    payload = (value + chr(10)).encode()
+    view = memoryview(payload)
+    while view:
+        written = os.write(fd, view)
+        view = view[written:]
+    os.fsync(fd)
+finally:
+    os.close(fd)
+SECRETWRITE
+        identity="$(python3 - "$secret_file" <<'SECRETIDENT'
+import os
+import stat
+import sys
+
+path = sys.argv[1]
+fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+try:
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode):
+        raise SystemExit("secret is not a regular file")
+    if info.st_uid not in {0, os.geteuid()}:
+        raise SystemExit("secret owner mismatch")
+    if (info.st_mode & 0o777) not in {0o400, 0o600}:
+        raise SystemExit("secret mode is not owner-only")
+    print(f"{info.st_uid}:{info.st_gid}")
+finally:
+    os.close(fd)
+SECRETIDENT
+)"
+        export EVALLAB_PROXY_UID="${identity%%:*}"
+        export EVALLAB_PROXY_GID="${identity#*:}"
+        capability="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+        export EVALLAB_DEEPSEEK_SECRET_FILE="$secret_file"
+        export EVALLAB_DEEPSEEK_PROXY_SCRIPT="$repo_root/containers/deepseek_secret_proxy.py"
+        export EVALLAB_DEEPSEEK_PROXY_CAPABILITY="$capability"
+        export EVALLAB_DEEPSEEK_ALLOWED_MODEL="${EVALLAB_DEEPSEEK_ALLOWED_MODEL:-deepseek-v4-flash}"
+        export EVALLAB_DEEPSEEK_MAX_REQUESTS="${EVALLAB_DEEPSEEK_MAX_REQUESTS:-8}"
+        export EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="${EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS:-32768}"
+        export EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="${EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS:-4096}"
+        export EVALLAB_DEEPSEEK_MAX_COST_MICROS="${EVALLAB_DEEPSEEK_MAX_COST_MICROS:-500000}"
+        export EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION="${EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION:-280000}"
+        export EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION="${EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION:-420000}"
+        export EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT="$(python3 -c 'import time; print(time.time()+86400)')"
+        unset DEEPSEEK_API_KEY MSWEA_API_KEY
+        export DEEPSEEK_API_KEY="$capability"
+        export MSWEA_API_KEY="$capability"
+        export DEEPSEEK_BASE_URL="http://deepseek-secret-proxy:8080"
+        export OPENAI_BASE_URL="http://deepseek-secret-proxy:8080"
+        export OPENAI_API_BASE="http://deepseek-secret-proxy:8080"
         "$@"
+        status=$?
+        trap - EXIT
+        rm -rf "$secret_dir"
+        exit "$status"
     )
 }
 
@@ -141,13 +209,15 @@ import json
 from pathlib import Path
 import sys
 
+from evallab.execution_contracts import DEEPSEEK_PROXY_HOST
 from evallab.harbor_network import adapt_task_toml_for_host, with_agent_network_allowlist
 
 path = Path(sys.argv[1])
 manifest_path = Path(sys.argv[2])
 text, adaptation = adapt_task_toml_for_host(path.read_text())
-if sys.argv[3] != "Darwin":
-    text = with_agent_network_allowlist(text, ("api.deepseek.com",))
+if sys.argv[3] != "Linux":
+    raise SystemExit("refusing model execution: proxy-only egress cannot be enforced")
+text = with_agent_network_allowlist(text, (DEEPSEEK_PROXY_HOST,))
 path.write_text(text)
 if adaptation is not None:
     manifest_path.write_text(
@@ -236,7 +306,7 @@ common_args() {
         --jobs-dir "$JOBS_DIR" \
         --yes
     if [ "$guarded" = "true" ] && [ "$(uname -s)" != "Darwin" ]; then
-        printf '%s\n' --allow-agent-host api.deepseek.com
+        printf '%s\n' --allow-agent-host deepseek-secret-proxy
     fi
 }
 
@@ -291,7 +361,15 @@ plan_funcdag_easy() {
         --print-config
 }
 
+require_proxy_only_egress() {
+    if [ "$(uname -s)" != "Linux" ]; then
+        printf 'refusing model execution: proxy-only egress cannot be enforced on %s\n' "$(uname -s)" >&2
+        return 1
+    fi
+}
+
 require_fresh_key() {
+    require_proxy_only_egress
     if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -z "${MSWEA_API_KEY:-}" ]; then
         printf 'refusing model execution: DEEPSEEK_API_KEY and MSWEA_API_KEY are unset\n' >&2
         return 1

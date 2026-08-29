@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+from evallab.interpretation.benchmark_projection import BenchmarkProjectionDimensions
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.interpretation.producers.action_memory import extract_action_memory_features
 from evallab.interpretation.producers.mcp_funcdag import extract_mcp_funcdag_features
@@ -273,6 +274,7 @@ def build_traj_card_data(
     runs_roots: Sequence[Path] | None = None,
     policy: RedactionPolicy | None = None,
     projection_provenance: dict[str, Any] | None = None,
+    projection_dimensions: BenchmarkProjectionDimensions | None = None,
 ) -> TrajectoryCardData:
     """Build the complete structured data payload for a Trajectory Interpretation Card."""
     if policy is None:
@@ -373,13 +375,19 @@ def build_traj_card_data(
             step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
             benchmark_family = bundle.contract.family
             if benchmark_family == "action-memory-v1":
-                feat_obj = extract_action_memory_features(bundle, step_tokens=step_tokens)
+                feat_obj = extract_action_memory_features(
+                    bundle, step_tokens=step_tokens, dimensions=projection_dimensions
+                )
                 benchmark_feat_dict = asdict(feat_obj)
             elif benchmark_family == "mcp-funcdag-v1":
-                feat_obj = extract_mcp_funcdag_features(bundle, step_tokens=step_tokens)
+                feat_obj = extract_mcp_funcdag_features(
+                    bundle, step_tokens=step_tokens, dimensions=projection_dimensions
+                )
                 benchmark_feat_dict = asdict(feat_obj)
             elif benchmark_family == "mcp-recovery-v1":
-                feat_obj = extract_mcp_recovery_features(bundle, step_tokens=step_tokens)
+                feat_obj = extract_mcp_recovery_features(
+                    bundle, step_tokens=step_tokens, dimensions=projection_dimensions
+                )
                 benchmark_feat_dict = asdict(feat_obj)
         except Exception:
             benchmark_family = None
@@ -749,6 +757,7 @@ def generate_traj_card(
     output_format: str = "markdown",
     policy: RedactionPolicy | None = None,
     projection_provenance: dict[str, Any] | None = None,
+    projection_dimensions: BenchmarkProjectionDimensions | None = None,
 ) -> tuple[str, TrajectoryCardData]:
     """Generate a Trajectory Interpretation Card, optionally write it to disk, and return formatted content."""
     card_data = build_traj_card_data(
@@ -757,6 +766,7 @@ def generate_traj_card(
         runs_roots=runs_roots,
         policy=policy,
         projection_provenance=projection_provenance,
+        projection_dimensions=projection_dimensions,
     )
 
     if output_format == "json":

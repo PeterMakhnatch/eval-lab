@@ -230,6 +230,7 @@ WITH mem_pairs AS (
      AND c.scaffold_version = t.scaffold_version
      AND c.repeat_group_id = t.repeat_group_id
      AND c.dose_axis = t.dose_axis
+     AND c.dose_value = t.dose_value
      AND c.dose_unit = t.dose_unit
      AND c.alphabet_id = t.alphabet_id
      AND c.alphabet_version = t.alphabet_version
@@ -272,6 +273,7 @@ rec_pairs AS (
      AND c.scaffold_version = t.scaffold_version
      AND c.repeat_group_id = t.repeat_group_id
      AND c.dose_axis = t.dose_axis
+     AND c.dose_value = t.dose_value
      AND c.dose_unit = t.dose_unit
      AND c.alphabet_id = t.alphabet_id
      AND c.alphabet_version = t.alphabet_version

@@ -27,6 +27,7 @@ from evallab.interpretation.benchmark_events import (
     parse_benchmark_events,
 )
 from evallab.interpretation.benchmark_projection import (
+    agent_readable_projection_provenance,
     backfill_benchmark_projection_rows,
     build_projection_dimensions,
 )
@@ -954,6 +955,47 @@ def test_projection_dimensions_fail_closed_and_are_idempotent(action_memory_tria
     assert backfilled[0]["analysis_ready"] is True
     assert backfilled[0]["model_name"] == "model-a"
 
+    research_gate_report = report.model_copy(
+        update={
+            "gates": report.gates.model_copy(
+                update={"refusals": ["gold_set_three_rater_not_ready"]}
+            )
+        }
+    )
+    assert (
+        build_projection_dimensions(bundle, research_gate_report, metadata=metadata).analysis_ready
+        is True
+    )
+
+
+def test_card_uses_same_projection_dimensions_as_provenance(
+    action_memory_trial_dir: Path, tmp_path: Path
+):
+    """Card facts must not disagree with the materialized compliance provenance."""
+    bundle = load_trial_bundle(action_memory_trial_dir)
+    report = _quality_pass_report(bundle)
+    metadata = {
+        "harness_version": "harbor-v1",
+        "scaffold_version": "scaffold-v1",
+        "repeat_group_id": "repeat-a",
+        "dose_axis": "context_bytes",
+        "dose_value": 4096,
+        "dose_unit": "bytes",
+        "alphabet_id": "atif-actions",
+        "alphabet_version": "v1",
+    }
+    dimensions = build_projection_dimensions(bundle, report, metadata=metadata)
+    _rendered, card = generate_traj_card(
+        action_memory_trial_dir,
+        repo_root=tmp_path,
+        runs_roots=[tmp_path],
+        projection_dimensions=dimensions,
+        projection_provenance=agent_readable_projection_provenance(report, dimensions),
+    )
+    assert card.benchmark_features is not None
+    assert card.benchmark_features["analysis_ready"] is True
+    assert card.benchmark_features["model_name"] == "model-a"
+
 
 def test_benchmark_contrasts_do_not_cross_model_dimensions():
     """Matched contrasts must never join clean/treatment trials from different model strata."""
@@ -991,7 +1033,7 @@ def test_benchmark_contrasts_do_not_cross_model_dimensions():
                 arm,
                 model,
                 f"repeat-{model}",
-                4096 if arm == "clean" else 16384,
+                4096,
                 f"sha256:source-{trial}",
                 f"sha256:projection-{trial}",
                 f"sha256:dimension-{trial}",

@@ -2629,6 +2629,7 @@ def _traj_card_command(
 
     try:
         projection_provenance = None
+        projection_dimensions = None
         if getattr(args, "compliance_report", None):
             report = load_compliance_report(_resolve(root, args.compliance_report))
             metadata = (
@@ -2641,10 +2642,12 @@ def _traj_card_command(
             trial_dir, _, _ = resolve_trial_target(
                 args.trial, repo_root=root, explicit_runs_root=runs_roots[0] if runs_roots else None
             )
-            dimensions = build_projection_dimensions(
+            projection_dimensions = build_projection_dimensions(
                 ingest_benchmark_trial(trial_dir), report, metadata=metadata
             )
-            projection_provenance = agent_readable_projection_provenance(report, dimensions)
+            projection_provenance = agent_readable_projection_provenance(
+                report, projection_dimensions
+            )
 
         rendered, _card = generate_traj_card(
             target=args.trial,
@@ -2654,6 +2657,7 @@ def _traj_card_command(
             output_format=fmt,
             policy=policy,
             projection_provenance=projection_provenance,
+            projection_dimensions=projection_dimensions,
         )
         print(rendered)
         return 0

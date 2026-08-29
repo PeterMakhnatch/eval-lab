@@ -139,7 +139,6 @@ def build_projection_dimensions(
             refusals.append("QUALITY_NOT_PROJECTABLE")
         if not join_ready:
             refusals.append("JOIN_IDENTITY_MISSING")
-        refusals.extend(gates.refusals)
 
     harness_version = _text(metadata, "harness_version")
     scaffold_version = _text(metadata, "scaffold_version")
@@ -253,6 +252,7 @@ def agent_readable_projection_provenance(
         "analysis_ready": dimensions.analysis_ready,
         "projection_identity": dimensions.projection_identity,
         "projection_refusals": list(dimensions.refusals),
+        "data_readiness_refusals": list(report.gates.refusals) if report is not None else [],
         "catalog": agent_readable_catalog(report.catalog_entries) if report is not None else [],
     }
 
@@ -283,7 +283,6 @@ def backfill_benchmark_projection_rows(
                 }
             )
         else:
-            result.update(dimension.to_dict())
-            result["projection_refusals"] = ",".join(dimension.refusals)
+            result.update(projection_feature_fields(dimension))
         backfilled.append(result)
     return backfilled

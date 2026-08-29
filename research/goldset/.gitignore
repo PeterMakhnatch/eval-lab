@@ -1,0 +1,2 @@
+# Build lock is runtime state, never an artifact.
+.goldset-build.lock

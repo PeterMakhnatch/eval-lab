@@ -7,15 +7,17 @@ type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-8-after-security-review-3
-readiness: NOT_READY (6 blockers)
+status: revision-9-merge-corrections
+readiness: NOT_READY (5 blockers)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: 6bb6a7b05785a26e11b4f5f27ff155cab7736bdbb9662bdfa2d140f95bd4ef44
-revision: 8
+labeling_package_file_sha256: 804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550
+package_digest_in_band: 739f56aef2fe8189d61122fa584158a6bfb34965ff13b4a6eefb36deb240dd29
+build_id: 4a41c64347c370676e620d9769e0ac2f46b3f7cde8fddf2fde49b66b7e07e5a2
+revision: 9
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -58,6 +60,31 @@ Two further corrections to revision 1's own claims, found while fixing B1:
 - `model_name` **is** present at `doc["agent"]["model_name"]` (e.g. `gpt-5.6-terra`).
   Revision 1 claimed it was absent and that stratification needed a `traj_features`
   join. Wrong; it is in the trajectory.
+
+## 0.1 Three digests, named apart
+
+An earlier review recomputed a file SHA and compared it to a value labelled
+`package_sha256`, which I had used for the **file bytes** while an **in-band** field
+was separately called `package_digest`. Two different quantities, confusingly
+similar names. Named explicitly from here:
+
+| Name | Covers | Value at this revision |
+|---|---|---|
+| `labeling_package_file_sha256` | sha256 of `labeling_package.json` **bytes on disk** | `804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550` |
+| `package_digest` (in-band) | sha256 of the serialized package **minus its own `package_digest` key** | `739f56aef2fe8189d61122fa584158a6bfb34965ff13b4a6eefb36deb240dd29` |
+| `build_id` | sha256 of `serialize(package − {build_id, package_digest}) + serialize(truth − {build_id})` | `4a41c64347c370676e620d9769e0ac2f46b3f7cde8fddf2fde49b66b7e07e5a2` |
+
+Recompute:
+
+```bash
+sha256sum research/goldset/labeling_package.json          # file SHA
+python3 research/goldset/test_labeling_package.py         # verifies all three
+uv run pytest tests/test_goldset_labeling_package.py      # recomputes from disk
+```
+
+`package_digest` and `build_id` are **recomputed, never trusted**, by
+`load_paired_artifacts`. The file SHA is not stored in-band, because a file cannot
+contain its own hash.
 
 ## 1. Readiness — NOT_READY, fail-closed, 5 blockers
 
@@ -152,7 +179,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `sha256 6bb6a7b0…`.
+byte-identical package, `labeling_package_file_sha256 804672ab…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -285,6 +312,9 @@ balanced 40-cluster design clears it. Current output:
 ```
 blocker EFFECTIVE_CLUSTERS_BELOW_FLOOR: K_eff=13.84 < 20.0
 blocker CLUSTER_CONCENTRATION_TOO_HIGH: 13.8% > 5%
+blocker QUALIFIED_RATER_POOL_TOO_SMALL: have 0, need >= 3
+blocker ITEMS_WITH_ZERO_VALID_RATINGS: 167
+blocker REGISTRY: REGISTRY_ABSENT
 ```
 
 An agreement interval must still come from a **cluster bootstrap resampling
@@ -364,26 +394,33 @@ truth is claimed.
 | `step_efficiency` | Same defect, plus it presumes an unstated cost model. |
 | `unrecoverability` | Counterfactual — quantifies over all continuations. Exactly the label one would reach for to unblock T1.3 `t_lock`, and exactly the one a human cannot supply. |
 
-## 5. Parameters left null — Tutor's, not guessed
+## 5. Statistical parameters — Tutor decided 2026-08-28
 
-```json
-"unset_parameters_owned_by_tutor": {
-  "agreement_statistic": null,
-  "acceptance_threshold": null,
-  "required_interval_width": null,
-  "adjudication_rule": null,
-  "rater_qualification_criteria": null
-}
-```
+| Parameter | Value |
+|---|---|
+| Primary statistic | **`gwet_ac1_multirater_nominal`** |
+| Declared universe $q$ | **12** |
+| Interval method | **percentile_cluster_bootstrap**, 4000 resamples |
+| Target 95 % CI half-width | **0.05** |
+| Cluster unit | cluster_id (canonical logical trajectory digest) |
+| Complementary | `krippendorff_alpha_nominal`, `fleiss_kappa`, `pairwise_cohen_kappa` |
+| Prevalence-valid core | **required**, with sampling weights |
 
-**No published floor was imported**, because none is quotable. The Librarian's
-audit found 20 of 31 asserted arXiv IDs were fabricated placeholders, and the
-$\kappa = 0.87/0.90/0.93$ and $\alpha = 0.78$ figures are attached to papers whose
-bodies were never read. AgentProcessBench's real ID is `2603.14465` and its abstract
-does carry "agreement", but body extraction is queued and undelivered.
+**`acceptance_threshold` is EXPLICITLY null by Tutor's decision, not an oversight.**
+An interval will be reported without a pass/fail verdict until a threshold is
+justified. `adjudication_rule` and `rater_qualification_criteria` also remain null.
 
-An unset parameter is honest. A guessed threshold would be the defect this lab has
-spent the week correcting.
+Gwet's AC1 over a declared universe of $q = 12$ categories is the right
+primary here: it is far less sensitive than $\kappa$ to the skewed marginals this
+taxonomy will produce, and the declared universe makes the chance-correction
+explicit rather than estimated from observed marginals. The complementary
+statistics are reported alongside, never instead.
+
+The **prevalence-valid random core** requirement is satisfied at present by taking
+the entire universe as the core (a census, `sampling_weight = 1.0`); weights are
+recorded per item so a future subsample stays valid for base-rate estimation, and
+the `rare_cell_boost` arm carries weight `0.0` and is excluded from prevalence
+arithmetic.
 
 ## 6. Reproduce
 
@@ -398,7 +435,7 @@ python3 research/goldset/build_labeling_package.py \
 python3 research/goldset/test_labeling_package.py   # 116 standalone checks + 16 pytest
 ```
 
-Expect `package_sha256 6bb6a7b05785a26e11b4f5f27ff155cab7736bdbb9662bdfa2d140f95bd4ef44`
+Expect `labeling_package_file_sha256 804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

@@ -49,7 +49,7 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
 
 EXPECTED_ITEMS = 167  # 183 raw agent steps minus 16 semantic clones
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "6bb6a7b05785a26e11b4f5f27ff155cab7736bdbb9662bdfa2d140f95bd4ef44"
+EXPECTED_DIGEST = "804672ab6c551220ff4e1bbb1129f65b2819107bc1cf9194e4b658c66255d550"
 
 
 def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
@@ -506,6 +506,17 @@ def main() -> int:
             "attention_check_field" not in bundle["taxonomy"],
         )
         check("bundle carries no truths key", "truths" not in bundle)
+        blob = json.dumps(bundle)
+        check("bundle withholds builder_verdict", "builder_verdict" not in blob)
+        check("bundle withholds degraded_reasons", "degraded_reasons" not in blob)
+        check("bundle withholds context_completeness", "context_completeness" not in blob)
+        check(
+            "bundle item exposes only id, context digest and context",
+            all(
+                set(i) == {"item_id", "item_context_digest", "rater_context"}
+                for i in bundle["items"]
+            ),
+        )
         check(
             "bundle binds package_digest",
             bundle["package_digest"] == package["package_digest"],

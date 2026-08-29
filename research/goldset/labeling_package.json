@@ -9,7 +9,7 @@
       "repeats_prior_action"
     ]
   },
-  "build_id": "19f8dd56012c7988365c873e815c8b4f14e795063c200e6e3bc4232aba242eba",
+  "build_id": "4a41c64347c370676e620d9769e0ac2f46b3f7cde8fddf2fde49b66b7e07e5a2",
   "census": {
     "agent_steps_per_cluster": {
       "06adc723e66a2e5cd2b337439bb309cabf352c8b9f0cc108375e3f20bfc9e21f": 9,
@@ -41646,7 +41646,7 @@
       "power_argument"
     ]
   },
-  "package_digest": "edcdaabe3a16d6050a47f9c563eed88d30f3fd9a6b0c3b426d9bb78770e1082f",
+  "package_digest": "739f56aef2fe8189d61122fa584158a6bfb34965ff13b4a6eefb36deb240dd29",
   "rating_schema_version": "goldset-rating-record/v1",
   "readiness": {
     "authentication": {
@@ -41686,6 +41686,17 @@
       "items_total": 167,
       "max_incomplete_fraction": 0.2
     },
+    "context_diagnostic_2x2": {
+      "builder_missed_a_defect": 0,
+      "builder_over_strict": 0,
+      "counts": {
+        "COMPLETE|INSUFFICIENT_CONTEXT": 0,
+        "COMPLETE|sufficient": 0,
+        "INCOMPLETE|INSUFFICIENT_CONTEXT": 0,
+        "INCOMPLETE|sufficient": 0
+      },
+      "interpretation": "COMPLETE x INSUFFICIENT_CONTEXT means the builder missed a defect it believed it had detected. INCOMPLETE x sufficient means the builder was over-strict. Valid ONLY because builder_verdict is withheld from the rater bundle."
+    },
     "qualified_rater_pool_size": 0,
     "readiness": "NOT_READY",
     "registry": {
@@ -41699,6 +41710,29 @@
     "valid_rating_records": 0
   },
   "schema_version": "goldset-labeling-package/v2",
+  "statistical_parameters_owned_by_tutor": {
+    "decided_2026_08_28": {
+      "bootstrap_resamples": 4000,
+      "cluster_unit": "cluster_id (canonical logical trajectory digest)",
+      "complementary_statistics": [
+        "krippendorff_alpha_nominal",
+        "fleiss_kappa",
+        "pairwise_cohen_kappa"
+      ],
+      "declared_universe_q": 12,
+      "interval_method": "percentile_cluster_bootstrap",
+      "prevalence_valid_core_required": true,
+      "primary_statistic": "gwet_ac1_multirater_nominal",
+      "sampling_weights_required": true,
+      "target_ci_half_width_95": 0.05
+    },
+    "note": "acceptance_threshold is EXPLICITLY null by Tutor's decision, not an oversight. An interval will be reported without a pass/fail verdict until a threshold is justified.",
+    "still_null": {
+      "acceptance_threshold": null,
+      "adjudication_rule": null,
+      "rater_qualification_criteria": null
+    }
+  },
   "taxonomy": {
     "allowed_values": {
       "abstention": [
@@ -41779,12 +41813,5 @@
     },
     "primary_label": "step_contribution"
   },
-  "taxonomy_version": "analyst-step-taxonomy/v2",
-  "unset_parameters_owned_by_tutor": {
-    "acceptance_threshold": null,
-    "adjudication_rule": null,
-    "agreement_statistic": null,
-    "rater_qualification_criteria": null,
-    "required_interval_width": null
-  }
+  "taxonomy_version": "analyst-step-taxonomy/v2"
 }

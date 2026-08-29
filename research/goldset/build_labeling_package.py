@@ -1200,6 +1200,7 @@ def build_package(
         item_set_digest=item_set_digest,
         keyring=keyring or None,
     )
+    readiness["context_diagnostic_2x2"] = context_diagnostic_2x2(deliverable, records)
     readiness["registry"] = {
         "source": str(registry_path) if registry_path else None,
         "qualified_key_ids": len(qualified),
@@ -1268,12 +1269,32 @@ def build_package(
             },
             "excluded_labels": EXCLUDED_LABELS,
         },
-        "unset_parameters_owned_by_tutor": {
-            "agreement_statistic": None,
-            "acceptance_threshold": None,
-            "required_interval_width": None,
-            "adjudication_rule": None,
-            "rater_qualification_criteria": None,
+        "statistical_parameters_owned_by_tutor": {
+            "decided_2026_08_28": {
+                "primary_statistic": "gwet_ac1_multirater_nominal",
+                "declared_universe_q": 12,
+                "interval_method": "percentile_cluster_bootstrap",
+                "bootstrap_resamples": 4000,
+                "target_ci_half_width_95": 0.05,
+                "complementary_statistics": [
+                    "krippendorff_alpha_nominal",
+                    "fleiss_kappa",
+                    "pairwise_cohen_kappa",
+                ],
+                "cluster_unit": "cluster_id (canonical logical trajectory digest)",
+                "prevalence_valid_core_required": True,
+                "sampling_weights_required": True,
+            },
+            "still_null": {
+                "acceptance_threshold": None,
+                "adjudication_rule": None,
+                "rater_qualification_criteria": None,
+            },
+            "note": (
+                "acceptance_threshold is EXPLICITLY null by Tutor's decision, not "
+                "an oversight. An interval will be reported without a pass/fail "
+                "verdict until a threshold is justified."
+            ),
         },
         "census": census,
         "clustering_warning": {
@@ -1344,6 +1365,49 @@ def _assert_bundle_clean(bundle_dir: Path) -> None:
         )
 
 
+def context_diagnostic_2x2(
+    items: Sequence[LabelItem], records: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Post-hoc builder verdict x rater sufficiency cross-tabulation.
+
+    Only computable because the two signals are INDEPENDENT: the builder verdict
+    is withheld from the bundle, so a rater choosing INSUFFICIENT_CONTEXT did so
+    without being told what the builder concluded.
+
+    The off-diagonal cells are the informative ones:
+      COMPLETE   x INSUFFICIENT_CONTEXT -> the builder MISSED a defect
+      INCOMPLETE x sufficient           -> the builder was over-strict
+    """
+    verdict_of = {i.item_id: i.context_completeness.get("builder_verdict") for i in items}
+    cells = {
+        ("COMPLETE", "sufficient"): 0,
+        ("COMPLETE", "INSUFFICIENT_CONTEXT"): 0,
+        ("INCOMPLETE", "sufficient"): 0,
+        ("INCOMPLETE", "INSUFFICIENT_CONTEXT"): 0,
+    }
+    for record in records:
+        builder = verdict_of.get(str(record.get("item_id")))
+        if builder not in ("COMPLETE", "INCOMPLETE"):
+            continue
+        rater = (
+            INSUFFICIENT_CONTEXT
+            if any(record.get(field) == INSUFFICIENT_CONTEXT for field in HUMAN_JUDGED_FIELDS)
+            else "sufficient"
+        )
+        cells[(builder, rater)] += 1
+    return {
+        "counts": {f"{b}|{r}": n for (b, r), n in sorted(cells.items())},
+        "builder_missed_a_defect": cells[("COMPLETE", INSUFFICIENT_CONTEXT)],
+        "builder_over_strict": cells[("INCOMPLETE", "sufficient")],
+        "interpretation": (
+            "COMPLETE x INSUFFICIENT_CONTEXT means the builder missed a defect it "
+            "believed it had detected. INCOMPLETE x sufficient means the builder "
+            "was over-strict. Valid ONLY because builder_verdict is withheld from "
+            "the rater bundle."
+        ),
+    }
+
+
 def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
     """Strip everything a rater must not see.
 
@@ -1394,10 +1458,10 @@ def build_rater_bundle(package: Mapping[str, Any]) -> dict[str, Any]:
             {
                 "item_id": item["item_id"],
                 "item_context_digest": item["item_context_digest"],
-                "context_completeness": {
-                    "builder_verdict": item["context_completeness"]["builder_verdict"],
-                    "degraded_reasons": item["context_completeness"]["degraded_reasons"],
-                },
+                # builder_verdict and degraded_reasons are WITHHELD. Telling a
+                # rater the builder already judged this context would prime
+                # INSUFFICIENT_CONTEXT and destroy the 2x2 diagnostic, whose
+                # whole value rests on the two signals being independent.
                 "rater_context": item["rater_context"],
             }
             for item in package["items"]
@@ -1624,12 +1688,13 @@ def main() -> int:
             return 2
         print(f"wrote {bundle_path} (RATER-SAFE, no truth artifacts)")
 
-    digest = hashlib.sha256(args.out.read_bytes()).hexdigest()
+    file_sha256 = hashlib.sha256(args.out.read_bytes()).hexdigest()
     census = package["census"]
     print(f"wrote {args.out}")
     print(f"wrote {args.machine_truth_out} (WITHHELD)")
     print(f"build_id {build_id}")
-    print(f"package_sha256 {digest}")
+    print(f"labeling_package_file_sha256 {file_sha256}")
+    print(f"package_digest (in-band)     {package['package_digest']}")
     print(
         f"unique_agent_steps {census['agent_steps_unique']} "
         f"clusters {census['clusters_with_agent_steps']} "

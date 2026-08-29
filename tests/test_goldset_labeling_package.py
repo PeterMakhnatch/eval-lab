@@ -174,5 +174,59 @@ def test_every_human_field_offers_both_escapes(package: dict) -> None:
         assert "INSUFFICIENT_CONTEXT" in values
 
 
-def test_tutor_parameters_remain_null(package: dict) -> None:
-    assert all(value is None for value in package["unset_parameters_owned_by_tutor"].values())
+def test_tutor_decided_parameters_are_recorded(package: dict) -> None:
+    """Tutor's 2026-08-28 decisions, with acceptance_threshold explicitly null."""
+    params = package["statistical_parameters_owned_by_tutor"]
+    decided = params["decided_2026_08_28"]
+    assert decided["primary_statistic"] == "gwet_ac1_multirater_nominal"
+    assert decided["declared_universe_q"] == 12
+    assert decided["interval_method"] == "percentile_cluster_bootstrap"
+    assert decided["bootstrap_resamples"] == 4000
+    assert decided["target_ci_half_width_95"] == 0.05
+    assert decided["prevalence_valid_core_required"] is True
+    assert decided["sampling_weights_required"] is True
+    # Explicitly null BY DECISION, not oversight.
+    assert params["still_null"]["acceptance_threshold"] is None
+
+
+def test_prevalence_core_carries_weights(package: dict) -> None:
+    """Core arm is prevalence-valid; boost arm excluded from that arithmetic."""
+    for item in package["items"]:
+        if item["selection_arm"] == "prevalence_core":
+            assert item["sampling_weight"] > 0
+        else:
+            assert item["sampling_weight"] == 0.0
+
+
+def test_three_digests_are_distinct_and_named(package: dict) -> None:
+    """File SHA, in-band package_digest and build_id are different quantities."""
+    file_sha = hashlib.sha256(PACKAGE.read_bytes()).hexdigest()
+    assert file_sha != package["package_digest"]
+    assert package["package_digest"] != package["build_id"]
+    assert file_sha != package["build_id"]
+
+
+def test_build_lock_is_not_committed() -> None:
+    assert not (GOLDSET / ".goldset-build.lock").exists()
+
+
+def test_context_diagnostic_2x2_is_reported(package: dict) -> None:
+    """The 2x2 requires builder verdict and rater judgement to be independent."""
+    diag = package["readiness"]["context_diagnostic_2x2"]
+    assert set(diag["counts"]) == {
+        "COMPLETE|sufficient",
+        "COMPLETE|INSUFFICIENT_CONTEXT",
+        "INCOMPLETE|sufficient",
+        "INCOMPLETE|INSUFFICIENT_CONTEXT",
+    }
+    assert "builder_missed_a_defect" in diag
+    assert "builder_over_strict" in diag
+
+
+def test_frontmatter_blocker_count_matches_readiness(package: dict) -> None:
+    """Protocol frontmatter must not advertise a stale blocker count."""
+    doc = (GOLDSET / "GOLDSET-ITEM-SELECTION-AND-TAXONOMY-2026-08-28.md").read_text(
+        encoding="utf-8"
+    )
+    n = len(package["readiness"]["blockers"])
+    assert f"readiness: NOT_READY ({n} blockers)" in doc

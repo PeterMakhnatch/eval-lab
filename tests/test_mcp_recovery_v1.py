@@ -419,11 +419,21 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
     digest = harbor_task_digest(task)
 
     job = tmp_path / "job"
+    job.mkdir()
+    (job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-29T00:00:00Z"}),
+        encoding="utf-8",
+    )
+    (job / "lock.json").write_text("{}", encoding="utf-8")
+    (job / "config.json").write_text("{}", encoding="utf-8")
+    (job / "lab-metadata.json").write_text("{}", encoding="utf-8")
+
     trial = job / "trial-one"
     trial.mkdir(parents=True)
     (trial / "lock.json").write_text(json.dumps({"task": {"digest": digest}}), encoding="utf-8")
+    (trial / "config.json").write_text("{}", encoding="utf-8")
     (trial / "result.json").write_text(
-        json.dumps({"verifier_result": {"rewards": {"reward": 0.0}}}),
+        json.dumps({"task_name": task.name, "trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 0.0}}}),
         encoding="utf-8",
     )
 
@@ -436,11 +446,38 @@ def test_fixed_policy_evidence_loader_requires_one_bound_trial(tmp_path):
     duplicate = job / "trial-two"
     duplicate.mkdir()
     (duplicate / "lock.json").write_text(json.dumps({"task": {"digest": digest}}), encoding="utf-8")
+    (duplicate / "config.json").write_text("{}", encoding="utf-8")
     (duplicate / "result.json").write_text(
-        json.dumps({"verifier_result": {"rewards": {"reward": 0.0}}}),
+        json.dumps({"task_name": task.name, "trial_name": "trial-two", "verifier_result": {"rewards": {"reward": 0.0}}}),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="exactly one trial"):
+    (job / "result.json").write_text(
+        json.dumps({"n_total_trials": 2, "stats": {}, "finished_at": "2026-08-29T00:00:00Z"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="exactly one settled trial"):
+        verifier.load_fixed_policy_evidence(job, task)
+
+    # Missing/null finished_at cannot be treated as settled evidence.
+    (job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": None}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Not a completed Harbor job"):
+        verifier.load_fixed_policy_evidence(job, task)
+
+    # Boolean is not an acceptable numeric reward.
+    (job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-29T00:00:00Z"}),
+        encoding="utf-8",
+    )
+    (duplicate / "lock.json").unlink()
+    (duplicate / "config.json").unlink()
+    (duplicate / "result.json").unlink()
+    duplicate.rmdir()
+    trial_result = {"task_name": task.name, "trial_name": "trial-one", "verifier_result": {"rewards": {"reward": True}}}
+    (trial / "result.json").write_text(json.dumps(trial_result), encoding="utf-8")
+    with pytest.raises(ValueError, match="non-boolean numeric"):
         verifier.load_fixed_policy_evidence(job, task)
 
 

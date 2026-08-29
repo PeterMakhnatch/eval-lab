@@ -19,6 +19,7 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
     CANNOT_JUDGE,
     HUMAN_JUDGED_FIELDS,
     INSUFFICIENT_CONTEXT,
+    KEYSTORE_SCHEMA_VERSION,
     MIN_EFFECTIVE_CLUSTERS,
     RATING_SCHEMA_VERSION,
     REGISTRY_SCHEMA_VERSION,
@@ -46,7 +47,22 @@ from build_labeling_package import (  # noqa: E402  # noqa: E402
 
 EXPECTED_ITEMS = 183
 EXPECTED_CLUSTERS = 20
-EXPECTED_DIGEST = "77317e371b7203344f1539cf17dce19aa8b531098b34a0f305067c62699bff6f"
+EXPECTED_DIGEST = "1196a6c80bd54ad78ee05592dac8c711af0c3f850a282354ad8dd9d8a0c272d8"
+
+
+def _write_signed_roster(root: Path, *, with_secret: bool) -> Path:
+    raters = [{"key_id": "r1", "qualified": True}]
+    if with_secret:
+        raters[0]["shared_secret"] = "leaked"
+    reg = {
+        "schema_version": REGISTRY_SCHEMA_VERSION,
+        "authority_key_id": "auth-1",
+        "raters": raters,
+    }
+    reg["signature"] = sign_registry(reg, "AUTHORITY")
+    path = root / f"roster-{'secret' if with_secret else 'clean'}.json"
+    path.write_text(json.dumps(reg), encoding="utf-8")
+    return path
 
 
 def _synthetic_runs(root: Path) -> Path:
@@ -210,7 +226,7 @@ def main() -> int:
     def _signed(item_id: str, key_id: str, **over: object) -> dict:
         rec = {
             "schema_version": RATING_SCHEMA_VERSION,
-            "package_digest": "pkg",
+            "item_set_digest": "iset",
             "item_id": item_id,
             "item_digest": None,
             "rater_key_id": key_id,
@@ -225,7 +241,7 @@ def main() -> int:
             fake,
             recs,
             list(b4_keyring),
-            package_digest="pkg",
+            item_set_digest="iset",
             keyring=b4_keyring,
         )["readiness"]
 
@@ -234,7 +250,7 @@ def main() -> int:
         "valid record passes validation",
         validate_rating(
             good,
-            package_digest="pkg",
+            item_set_digest="iset",
             item_digests={"item000": f"{0:064x}"},
             keyring=b4_keyring,
         )
@@ -277,7 +293,7 @@ def main() -> int:
     check(
         "unqualified rater does NOT clear readiness",
         evaluate_readiness(
-            fake, three, ["r1", "r2", "rX"], package_digest="pkg", keyring=b4_keyring
+            fake, three, ["r1", "r2", "rX"], item_set_digest="iset", keyring=b4_keyring
         )["readiness"]
         == "NOT_READY",
     )
@@ -305,7 +321,7 @@ def main() -> int:
                 fake,
                 three + three,
                 list(b4_keyring),
-                package_digest="pkg",
+                item_set_digest="iset",
                 keyring=b4_keyring,
             )["blockers"]
         ),
@@ -327,7 +343,7 @@ def main() -> int:
                     for i in fake
                 ],
                 list(b4_keyring),
-                package_digest="pkg",
+                item_set_digest="iset",
                 keyring=b4_keyring,
             )["blockers"]
         ),
@@ -496,21 +512,41 @@ def main() -> int:
         except BundleContaminationError:
             check("contaminated bundle dir is refused", True)
 
-    print("SEC2 - logical clone digest")
+    print("SEC2 - logical clone digest, BOUNDED stripping")
     a_steps = [{"source": "agent", "message": "hi", "tool_calls": [], "observation": {}}]
-    b_steps = [
+    # Metadata-only differences MUST collapse.
+    meta_clone = [
         {
-            "source": "agent",
-            "message": " hi  ",
-            "tool_calls": [],
-            "observation": {},
+            **a_steps[0],
             "timestamp": "2026-01-01T00:00:00Z",
             "step_id": "xyz",
+            "metrics": {"cost": 1},
+            "extra": {"anything": True},
         }
     ]
     check(
-        "whitespace/metadata clones share a logical digest",
-        logical_trial_digest(a_steps) == logical_trial_digest(b_steps),
+        "metadata-only clones share a logical digest",
+        logical_trial_digest(a_steps) == logical_trial_digest(meta_clone),
+    )
+    # Payload whitespace MUST NOT collapse: two code blocks differing only in
+    # indentation are not the same program (P2 - collision risk).
+    check(
+        "payload whitespace does NOT collapse",
+        logical_trial_digest(a_steps) != logical_trial_digest([{**a_steps[0], "message": " hi  "}]),
+    )
+    check(
+        "indentation-differing code payloads stay distinct",
+        logical_trial_digest([{**a_steps[0], "message": "def f():\n    return 1"}])
+        != logical_trial_digest([{**a_steps[0], "message": "def f():\n        return 1"}]),
+    )
+    check(
+        "per-call volatile ids are stripped at their known depth",
+        logical_trial_digest(
+            [{**a_steps[0], "tool_calls": [{"function_name": "x", "tool_call_id": "a"}]}]
+        )
+        == logical_trial_digest(
+            [{**a_steps[0], "tool_calls": [{"function_name": "x", "tool_call_id": "b"}]}]
+        ),
     )
     check(
         "different content yields a different logical digest",
@@ -526,7 +562,7 @@ def main() -> int:
     keyring = {"key-1": "s3cret", "key-2": "s3cret2", "key-3": "s3cret3"}
     base = {
         "schema_version": RATING_SCHEMA_VERSION,
-        "package_digest": "pkgdigest",
+        "item_set_digest": "iset",
         "item_id": "item000",
         "item_digest": f"{0:064x}",
         "rater_key_id": "key-1",
@@ -536,35 +572,35 @@ def main() -> int:
     digests = {"item000": f"{0:064x}"}
     check(
         "correctly signed record validates",
-        validate_rating(signed, package_digest="pkgdigest", item_digests=digests, keyring=keyring)
+        validate_rating(signed, item_set_digest="iset", item_digests=digests, keyring=keyring)
         == [],
     )
     check(
         "self-asserted record with no signature is rejected",
         "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
-        in validate_rating(base, package_digest="pkgdigest", item_digests=digests, keyring=keyring),
+        in validate_rating(base, item_set_digest="iset", item_digests=digests, keyring=keyring),
     )
     check(
         "unregistered key is rejected",
         "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
         in validate_rating(
             {**signed, "rater_key_id": "rogue"},
-            package_digest="pkgdigest",
+            item_set_digest="iset",
             item_digests=digests,
             keyring=keyring,
         ),
     )
     check(
-        "package_digest mismatch is rejected",
-        "PACKAGE_DIGEST_MISMATCH"
-        in validate_rating(signed, package_digest="OTHER", item_digests=digests, keyring=keyring),
+        "item_set_digest mismatch is rejected (replay defence)",
+        "ITEM_SET_DIGEST_MISMATCH"
+        in validate_rating(signed, item_set_digest="OTHER", item_digests=digests, keyring=keyring),
     )
     check(
         "item_digest mismatch is rejected",
         "ITEM_DIGEST_MISMATCH"
         in validate_rating(
             {**signed, "item_digest": "f" * 64},
-            package_digest="pkgdigest",
+            item_set_digest="iset",
             item_digests=digests,
             keyring=keyring,
         ),
@@ -574,7 +610,7 @@ def main() -> int:
         "SIGNATURE_INVALID_OR_UNREGISTERED_KEY"
         in validate_rating(
             {**signed, "step_contribution": "HARMFUL"},
-            package_digest="pkgdigest",
+            item_set_digest="iset",
             item_digests=digests,
             keyring=keyring,
         ),
@@ -649,35 +685,67 @@ def main() -> int:
             not list(pkg_path.parent.glob(".*.tmp")),
         )
 
-    print("SEC-REG - authenticated qualified-rater registry")
+    print("SEC-REG - signed roster + SEPARATE keystore")
     reg = {
         "schema_version": REGISTRY_SCHEMA_VERSION,
         "authority_key_id": "auth-1",
-        "raters": [
-            {"key_id": f"r{n}", "shared_secret": f"s{n}", "qualified": True} for n in (1, 2, 3)
-        ],
+        "raters": [{"key_id": f"r{n}", "qualified": True} for n in (1, 2, 3)],
     }
     reg["signature"] = sign_registry(reg, "AUTHORITY")
+    keystore = {
+        "schema_version": KEYSTORE_SCHEMA_VERSION,
+        "keys": {f"r{n}": f"s{n}" for n in (1, 2, 3)},
+    }
     with tempfile.TemporaryDirectory() as tmp:
         rp = Path(tmp) / "reg.json"
         rp.write_text(json.dumps(reg), encoding="utf-8")
-        q_ok, k_ok, prob_ok = load_rater_registry(rp, "AUTHORITY")
-        check("signed registry yields the qualified pool", q_ok == ["r1", "r2", "r3"])
-        check("signed registry has no problems", prob_ok == [])
-        check("registry supplies a keyring", set(k_ok) == {"r1", "r2", "r3"})
+        ks = Path(tmp) / "keystore.json"
+        ks.write_text(json.dumps(keystore), encoding="utf-8")
+
+        check(
+            "roster carries NO secret material",
+            not any(
+                k in entry
+                for entry in reg["raters"]
+                for k in ("shared_secret", "secret", "key", "private_key")
+            ),
+        )
+        check(
+            "roster with an embedded secret is REJECTED outright",
+            load_rater_registry(_write_signed_roster(Path(tmp), with_secret=True), "AUTHORITY", ks)[
+                2
+            ]
+            == ["REGISTRY_CONTAINS_SECRET_MATERIAL"],
+        )
+        check(
+            "roster without a keystore yields an EMPTY pool",
+            load_rater_registry(rp, "AUTHORITY", None)[0] == [],
+        )
+        q_ok, k_ok, prob_ok = load_rater_registry(rp, "AUTHORITY", ks)
+        check("signed roster + keystore yields the pool", q_ok == ["r1", "r2", "r3"])
+        check("no problems on the happy path", prob_ok == [])
+        check("keyring comes from the keystore", set(k_ok) == {"r1", "r2", "r3"})
         check(
             "wrong authority secret yields an EMPTY pool",
-            load_rater_registry(rp, "WRONG")[0] == [],
+            load_rater_registry(rp, "WRONG", ks)[0] == [],
+        )
+        partial = Path(tmp) / "partial.json"
+        partial.write_text(
+            json.dumps({"schema_version": KEYSTORE_SCHEMA_VERSION, "keys": {"r1": "s1"}}),
+            encoding="utf-8",
+        )
+        q_part, _, prob_part = load_rater_registry(rp, "AUTHORITY", partial)
+        check("keystore missing a key drops that rater", q_part == ["r1"])
+        check(
+            "keystore gap is reported",
+            any(p.startswith("KEYSTORE_MISSING_KEY") for p in prob_part),
         )
         tampered = {
             **reg,
-            "raters": [
-                *reg["raters"],
-                {"key_id": "rogue", "shared_secret": "x", "qualified": True},
-            ],
+            "raters": [*reg["raters"], {"key_id": "rogue", "qualified": True}],
         }
         rp.write_text(json.dumps(tampered), encoding="utf-8")
-        q_bad, _, prob_bad = load_rater_registry(rp, "AUTHORITY")
+        q_bad, _, prob_bad = load_rater_registry(rp, "AUTHORITY", ks)
         check("tampered roster is rejected", q_bad == [])
         check(
             "tampered roster reports a signature failure",
@@ -687,10 +755,13 @@ def main() -> int:
             json.dumps({k: v for k, v in reg.items() if k != "signature"}),
             encoding="utf-8",
         )
-        check("unsigned registry is rejected", load_rater_registry(rp, "AUTHORITY")[0] == [])
+        check(
+            "unsigned registry is rejected",
+            load_rater_registry(rp, "AUTHORITY", ks)[0] == [],
+        )
     check(
         "absent registry is an explicit problem, not a silent empty pool",
-        load_rater_registry(None, None) == ([], {}, ["REGISTRY_ABSENT"]),
+        load_rater_registry(None, None, None) == ([], {}, ["REGISTRY_ABSENT"]),
     )
     check(
         "package records the registry blocker",

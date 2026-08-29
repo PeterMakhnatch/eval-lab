@@ -51,10 +51,9 @@ import hmac
 import json
 import os
 import random
-import re
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -176,12 +175,15 @@ EXCLUDED_LABELS = {
 }
 
 
-VOLATILE_KEYS = frozenset(
+# Volatile metadata is stripped ONLY at the known top level of a step. Revision 6
+# dropped these keys RECURSIVELY and whitespace-collapsed EVERY string, which can
+# make genuinely different payloads collide - two code blocks differing only in
+# indentation are NOT the same program. Payload bytes (tool arguments, observation
+# content) are now preserved verbatim.
+VOLATILE_STEP_KEYS = frozenset(
     {
         "timestamp",
         "step_id",
-        "tool_call_id",
-        "source_call_id",
         "session_id",
         "created_at",
         "started_at",
@@ -191,41 +193,42 @@ VOLATILE_KEYS = frozenset(
         "latency",
         "metrics",
         "extra",
-        "id",
     }
 )
 
-_WS = re.compile(r"\s+")
+# Per-tool-call volatile keys, stripped at exactly one known depth.
+VOLATILE_CALL_KEYS = frozenset({"tool_call_id", "id"})
+
+# Per-observation-result volatile keys, stripped at exactly one known depth.
+VOLATILE_RESULT_KEYS = frozenset({"source_call_id", "tool_call_id", "id"})
 
 
-def _canonicalize(value: Any) -> Any:
-    """Strip volatile metadata and normalise whitespace for logical identity.
+def _strip_known(mapping: Any, volatile: frozenset[str]) -> Any:
+    """Drop volatile keys at THIS level only. Values pass through untouched."""
+    if not isinstance(mapping, dict):
+        return mapping
+    return {k: v for k, v in sorted(mapping.items()) if k not in volatile}
 
-    Raw-byte SHA is NOT a logical identity: two trajectories differing only in
-    timestamps, ids, or whitespace get different digests, which inflates the
-    cluster count and therefore K_eff. Since K_eff is a readiness GATE, an
-    inflatable digest is a validity hole - semantic clones could clear a floor
-    they should not.
-    """
-    if isinstance(value, dict):
-        return {k: _canonicalize(v) for k, v in sorted(value.items()) if k not in VOLATILE_KEYS}
-    if isinstance(value, list):
-        return [_canonicalize(v) for v in value]
-    if isinstance(value, str):
-        return _WS.sub(" ", value).strip()
-    return value
+
+def _canonical_step(step: dict[str, Any]) -> dict[str, Any]:
+    """Logical view of a step: known metadata stripped, payload bytes preserved."""
+    calls = [_strip_known(call, VOLATILE_CALL_KEYS) for call in (step.get("tool_calls") or [])]
+    observation = step.get("observation") or {}
+    results = [
+        _strip_known(result, VOLATILE_RESULT_KEYS) for result in (observation.get("results") or [])
+    ]
+    return {
+        "source": step.get("source"),
+        # message is a payload: preserved verbatim, NOT whitespace-collapsed
+        "message": step.get("message"),
+        "tool_calls": calls,
+        "observation": {"results": results},
+    }
 
 
 def logical_step_digest(step: dict[str, Any]) -> str:
     """Digest of a step's LOGICAL content: message, action, observation."""
-    payload = _canonicalize(
-        {
-            "source": step.get("source"),
-            "message": step.get("message"),
-            "tool_calls": step.get("tool_calls"),
-            "observation": step.get("observation"),
-        }
-    )
+    payload = _canonical_step(step)
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     ).hexdigest()
@@ -716,6 +719,30 @@ class RegistryRejectedError(RuntimeError):
     """Raised when the qualified-rater registry cannot be trusted."""
 
 
+KEYSTORE_SCHEMA_VERSION = "goldset-rater-keystore/v1"
+
+
+def load_rater_keystore(keystore_path: Path | None) -> tuple[dict[str, str], list[str]]:
+    """Load rater secrets from a SEPARATE, NEVER-EXPORTED keystore.
+
+    Revision 6 put shared_secret inside the signed roster, so anyone who could
+    read the roster could forge ratings - which defeats the signature entirely.
+    The roster now carries key_id and qualification ONLY; secrets live here.
+    """
+    if keystore_path is None:
+        return {}, ["KEYSTORE_ABSENT"]
+    try:
+        doc = json.loads(keystore_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [f"KEYSTORE_UNREADABLE: {exc}"]
+    if doc.get("schema_version") != KEYSTORE_SCHEMA_VERSION:
+        return {}, ["KEYSTORE_BAD_SCHEMA_VERSION"]
+    keys = doc.get("keys") or {}
+    if not isinstance(keys, dict):
+        return {}, ["KEYSTORE_MALFORMED"]
+    return {str(k): str(v) for k, v in keys.items() if k and v}, []
+
+
 def registry_signing_payload(registry: Mapping[str, Any]) -> str:
     """Canonical bytes the registry authority signs."""
     return json.dumps(
@@ -738,14 +765,16 @@ def sign_registry(registry: Mapping[str, Any], secret: str) -> str:
 
 
 def load_rater_registry(
-    registry_path: Path | None, authority_secret: str | None
+    registry_path: Path | None,
+    authority_secret: str | None,
+    keystore_path: Path | None = None,
 ) -> tuple[list[str], dict[str, str], list[str]]:
-    """Load an AUTHENTICATED qualified-rater registry.
+    """Load an AUTHENTICATED qualified-rater roster plus a SEPARATE keystore.
 
-    Returns (qualified_key_ids, keyring, problems). The pool is no longer a
-    hard-coded empty tuple: it comes from a signed registry file, and an
-    unsigned or unverifiable registry yields an EMPTY pool plus an explicit
-    problem rather than silently trusting its contents.
+    Returns (qualified_key_ids, keyring, problems). The roster is signed and
+    carries key_id + qualification ONLY - never secrets. Secrets come from the
+    keystore, which is never exported and never written into any artifact.
+    A roster containing a secret is REJECTED outright.
     """
     if registry_path is None:
         return [], {}, ["REGISTRY_ABSENT"]
@@ -762,28 +791,55 @@ def load_rater_registry(
         return [], {}, ["REGISTRY_SIGNATURE_INVALID"]
 
     problems: list[str] = []
+    secrets, keystore_problems = load_rater_keystore(keystore_path)
+    problems.extend(keystore_problems)
+
     qualified: list[str] = []
     keyring: dict[str, str] = {}
+    seen: set[str] = set()
     for entry in registry.get("raters") or []:
-        key_id = str((entry or {}).get("key_id") or "").strip()
-        secret = str((entry or {}).get("shared_secret") or "").strip()
-        if not key_id or not secret:
+        entry = entry or {}
+        if any(k in entry for k in ("shared_secret", "secret", "key", "private_key")):
+            # A roster that carries secrets is not merely weak, it is wrong.
+            return [], {}, [*problems, "REGISTRY_CONTAINS_SECRET_MATERIAL"]
+        key_id = str(entry.get("key_id") or "").strip()
+        if not key_id:
             problems.append("REGISTRY_ENTRY_INCOMPLETE")
             continue
-        if not (entry or {}).get("qualified"):
+        if not entry.get("qualified"):
             problems.append(f"REGISTRY_ENTRY_NOT_QUALIFIED: {key_id}")
             continue
-        if key_id in keyring:
+        if key_id in seen:
             problems.append(f"REGISTRY_DUPLICATE_KEY_ID: {key_id}")
+            continue
+        seen.add(key_id)
+        secret = secrets.get(key_id)
+        if not secret:
+            problems.append(f"KEYSTORE_MISSING_KEY: {key_id}")
             continue
         qualified.append(key_id)
         keyring[key_id] = secret
     return qualified, keyring, problems
 
 
+def compute_item_set_digest(items: Sequence[LabelItem]) -> str:
+    """Stable anchor ratings bind to. Changes on ANY recut that alters items.
+
+    package_digest cannot serve: it is stamped at write time, after readiness, so
+    binding to it is circular. The item-set digest is computable before readiness
+    and is exactly what a replayed rating must not match across recuts.
+    """
+    return hashlib.sha256(
+        json.dumps(
+            sorted((i.item_id, i.logical_step_digest) for i in items),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 RATING_SIGNED_FIELDS = (
     "schema_version",
-    "package_digest",
+    "item_set_digest",
     "item_id",
     "item_digest",
     "rater_key_id",
@@ -840,7 +896,7 @@ def load_rating_records(ratings_dir: Path | None) -> list[dict[str, Any]]:
 def validate_rating(
     record: dict[str, Any],
     *,
-    package_digest: str | None = None,
+    item_set_digest: str | None = None,
     item_digests: Mapping[str, str] | None = None,
     keyring: Mapping[str, str] | None = None,
 ) -> list[str]:
@@ -861,8 +917,12 @@ def validate_rating(
     if not str(record.get("rater_key_id") or "").strip():
         errors.append("MISSING_RATER_KEY_ID")
 
-    if package_digest is not None and record.get("package_digest") != package_digest:
-        errors.append("PACKAGE_DIGEST_MISMATCH")
+    # Replay defence: a rating signed against a different item set is rejected
+    # even when the individual item_id and logical digest still exist (P1).
+    if item_set_digest is None:
+        errors.append("ITEM_SET_DIGEST_NOT_ENFORCED")
+    elif record.get("item_set_digest") != item_set_digest:
+        errors.append("ITEM_SET_DIGEST_MISMATCH")
     if item_digests is not None and item_id:
         expected = item_digests.get(item_id)
         if expected is None:
@@ -887,7 +947,7 @@ def evaluate_readiness(
     records: Sequence[dict[str, Any]],
     qualified_rater_ids: Sequence[str],
     *,
-    package_digest: str | None = None,
+    item_set_digest: str | None = None,
     keyring: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Fail-closed. Validates labels, not merely the presence of rater IDs (B4).
@@ -924,7 +984,7 @@ def evaluate_readiness(
     for record in records:
         errors = validate_rating(
             record,
-            package_digest=package_digest,
+            item_set_digest=item_set_digest,
             item_digests=item_digests,
             keyring=keyring,
         )
@@ -990,12 +1050,18 @@ def evaluate_readiness(
         "authentication": {
             "rater_id_is_self_asserting": False,
             "requires": [
-                "package_digest",
+                "item_set_digest",
                 "item_digest",
                 "rater_key_id",
                 "signature",
             ],
             "append_only_unique_key": "(item_id, rater_key_id)",
+            "item_set_digest": item_set_digest,
+            "replay_defence": (
+                "Ratings bind item_set_digest. A rating signed against a different "
+                "item set is rejected even when item_id and logical digest survive "
+                "the recut."
+            ),
         },
         "blockers": blockers,
     }
@@ -1009,16 +1075,19 @@ def build_package(
     ratings_dir: Path | None,
     registry_path: Path | None = None,
     authority_secret: str | None = None,
+    keystore_path: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     universe, truths, census = enumerate_universe(runs_root)
     selected = select_items(universe, core_n=core_n, boost_per_stratum=boost_per_stratum)
     keep = {i.item_id for i in selected}
     records = load_rating_records(ratings_dir)
     qualified, keyring, registry_problems = load_rater_registry(registry_path, authority_secret)
+    item_set_digest = compute_item_set_digest(selected)
     readiness = evaluate_readiness(
         selected,
         records,
         qualified_rater_ids=qualified,
+        item_set_digest=item_set_digest,
         keyring=keyring or None,
     )
     readiness["registry"] = {
@@ -1128,7 +1197,18 @@ def build_package(
 # truth and does not even name which field is the attention check.
 # ---------------------------------------------------------------------------
 
-FORBIDDEN_BUNDLE_PATTERNS = ("*machine_truth*", "*WITHHELD*", "*truth*", "*attention*")
+FORBIDDEN_BUNDLE_PATTERNS = (
+    "*machine_truth*",
+    "*WITHHELD*",
+    "*truth*",
+    "*attention*",
+    "*labeling_package*",
+    "*registry*",
+    "*keystore*",
+    "*secret*",
+    "*.key",
+    "*.pem",
+)
 
 
 class BundleContaminationError(RuntimeError):
@@ -1300,6 +1380,9 @@ def write_paired_outputs(
     if resolved[0] == resolved[1]:
         raise OutputPathError(f"IDENTICAL_OUTPUT_PATHS: {package_path}")
 
+    package_dir = resolved[0].parent
+    truth_dir = resolved[1].parent
+
     build_id = compute_build_id(package, truth)
     package["build_id"] = build_id
     truth["build_id"] = build_id
@@ -1307,9 +1390,20 @@ def write_paired_outputs(
         _serialize({k: v for k, v in package.items() if k != "package_digest"}).encode("utf-8")
     ).hexdigest()
 
-    with _build_lock(package_path.parent):
+    # A single lock on the package directory does not serialise a peer writing the
+    # truth file in a DIFFERENT directory, so sequential replaces could tear.
+    # Take locks in a deterministic order over every distinct directory.
+    lock_dirs = sorted({package_dir, truth_dir}, key=str)
+    with ExitStack() as stack:
+        for directory in lock_dirs:
+            stack.enter_context(_build_lock(directory))
         _atomic_write(package_path, _serialize(package))
         _atomic_write(truth_path, _serialize(truth))
+
+    # Post-write verification: prove the pair on disk is coherent before returning.
+    written_pkg, written_truth = load_paired_artifacts(package_path, truth_path)
+    if written_pkg["build_id"] != build_id or written_truth["build_id"] != build_id:
+        raise PairMismatchError(f"POST_WRITE_VERIFICATION_FAILED: expected build_id {build_id}")
     return build_id
 
 
@@ -1342,6 +1436,12 @@ def main() -> int:
         help="signed qualified-rater registry (goldset-rater-registry/v1)",
     )
     parser.add_argument(
+        "--rater-keystore",
+        type=Path,
+        default=None,
+        help="rater secret keystore (goldset-rater-keystore/v1); NEVER exported",
+    )
+    parser.add_argument(
         "--registry-authority-secret-env",
         default="GOLDSET_REGISTRY_AUTHORITY_SECRET",
         help="env var holding the registry authority secret",
@@ -1363,6 +1463,7 @@ def main() -> int:
         ratings_dir=args.ratings_dir,
         registry_path=args.rater_registry,
         authority_secret=os.environ.get(args.registry_authority_secret_env),
+        keystore_path=args.rater_keystore,
     )
     try:
         build_id = write_paired_outputs(package, truth, args.out, args.machine_truth_out)

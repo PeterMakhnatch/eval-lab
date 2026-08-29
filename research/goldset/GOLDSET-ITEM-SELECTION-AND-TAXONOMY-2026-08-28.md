@@ -7,15 +7,15 @@ type: protocol
 topic: goldset-item-selection-and-taxonomy
 author: analyst
 date: 2026-08-28
-status: revision-6-after-exact-head-review
+status: revision-7-after-late-security-review
 readiness: NOT_READY (6 blockers)
 epistemic: measured - every census figure computed from artifacts on disk
 collection: trajectory-analysis
 owns: [item_selection, provenance, label_taxonomy]
 delegated_to_tutor: [agreement_statistic, acceptance_threshold, rater_qualification, adjudication_rule, power_argument]
 package: research/goldset/labeling_package.json
-package_sha256: 77317e371b7203344f1539cf17dce19aa8b531098b34a0f305067c62699bff6f
-revision: 6
+package_sha256: 1196a6c80bd54ad78ee05592dac8c711af0c3f850a282354ad8dd9d8a0c272d8
+revision: 7
 blockers_fixed_from: independent review (Grok) - 5 blockers, all root-caused
 ---
 
@@ -153,7 +153,7 @@ this corpus size: there is nothing to sample from.
 
 Seed is derived from the sha256 of the sorted candidate `item_id`s, so selection is
 reproducible and **cannot be re-rolled to taste**. Verified: two runs produce a
-byte-identical package, `sha256 77317e37…`.
+byte-identical package, `sha256 1196a6c8…`.
 
 ### 2.3 Alias manifest — the dedup is auditable
 
@@ -224,9 +224,21 @@ python3 research/goldset/build_labeling_package.py \
   --export-rater-bundle <clean-empty-dir>
 ```
 
-`export_rater_bundle` refuses if the target directory holds anything matching
-`*machine_truth*`, `*WITHHELD*`, `*truth*` or `*attention*`, and re-asserts after
-writing. The bundle omits `attention_check_field`, omits every truth row, and
+`export_rater_bundle` scans **recursively** and refuses if the target directory
+holds anything matching `*machine_truth*`, `*WITHHELD*`, `*truth*`, `*attention*`,
+`*labeling_package*`, `*registry*`, `*keystore*`, `*secret*`, `*.key` or `*.pem`.
+It re-asserts after writing.
+
+**Secrets never live in the roster.** The signed roster
+(`goldset-rater-registry/v1`) carries `key_id` and `qualified` only; a roster
+containing any secret field is **rejected outright**. Rater secrets come from a
+separate `goldset-rater-keystore/v1` file that is never exported and never written
+into any artifact.
+
+**Ratings bind `item_set_digest`**, a stable digest over the sorted
+`(item_id, logical_step_digest)` pairs. A rating signed against a different item
+set is rejected even when the individual item and its logical digest survive a
+recut — that is the replay defence. The bundle omits `attention_check_field`, omits every truth row, and
 strips prose revealing that a withheld truth exists.
 
 **Open follow-ups, recorded not fixed:** the build lock leaves an empty
@@ -380,10 +392,10 @@ python3 research/goldset/build_labeling_package.py \
   --boost-per-stratum 3 \
   --export-rater-bundle /tmp/rater-bundle
 
-python3 research/goldset/test_labeling_package.py   # 92 standalone checks + 12 pytest
+python3 research/goldset/test_labeling_package.py   # 100 standalone checks + 12 pytest
 ```
 
-Expect `package_sha256 77317e371b7203344f1539cf17dce19aa8b531098b34a0f305067c62699bff6f`
+Expect `package_sha256 1196a6c80bd54ad78ee05592dac8c711af0c3f850a282354ad8dd9d8a0c272d8`
 and `readiness NOT_READY`. A differing digest means the source corpus changed;
 re-pin before labelling.
 

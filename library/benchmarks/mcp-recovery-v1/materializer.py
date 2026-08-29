@@ -685,11 +685,33 @@ before retrying.
 
     tests_dir = target_dir / "tests"
     tests_dir.mkdir(parents=True, exist_ok=True)
-    (tests_dir / "Dockerfile").write_text(
-        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nCOPY . /tests\n"
-        "RUN mkdir -p /logs/verifier && chmod +x /tests/test.sh\n",
-        encoding="utf-8",
-    )
+    if wheelhouse_inputs is not None:
+        verifier_wheels = tests_dir / "wheelhouse"
+        verifier_wheels.mkdir()
+        selected = [
+            wheel for wheel in sorted((sidecar_dir / "wheelhouse").glob("*.whl"))
+            if wheel.name.lower().startswith(("cryptography-", "cffi-", "pycparser-"))
+        ]
+        if len(selected) != 3:
+            raise ValueError("trusted verifier cryptography/cffi/pycparser wheel set is incomplete")
+        requirements = []
+        pinned = []
+        for wheel in selected:
+            shutil.copy2(wheel, verifier_wheels / wheel.name)
+            parts = wheel.name[:-4].split("-")
+            name, version = parts[0].replace("_", "-"), parts[1]
+            digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            requirements.append(f"{name}=={version} --hash=sha256:{digest}")
+            pinned.append({"name": name, "version": version, "wheel": wheel.name})
+        (tests_dir / "requirements.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+        (tests_dir / "offline-build-proof.json").write_text(
+            json.dumps({"kind": "offline_build_proof", "ecosystem": "pip", "lockfile": "requirements.txt", "lockfile_digest": _file_sha256(tests_dir / "requirements.txt"), "pinned_dependencies": pinned, "reviewed_by": "eval-lab-mcp-recovery-v1"}, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tests_docker = f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nCOPY wheelhouse /wheelhouse\nCOPY requirements.txt /tests/requirements.txt\nRUN pip install --no-index --find-links=/wheelhouse --require-hashes -r /tests/requirements.txt\nCOPY . /tests\nRUN mkdir -p /logs/verifier && chmod +x /tests/test.sh\n"
+    else:
+        tests_docker = f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nCOPY . /tests\nRUN mkdir -p /logs/verifier && chmod +x /tests/test.sh\n"
+    (tests_dir / "Dockerfile").write_text(tests_docker, encoding="utf-8")
     _write_executable(tests_dir / "test.sh", "#!/bin/sh\nset -eu\nexec python /tests/verify.py\n")
     (tests_dir / "verify.py").write_text(_verifier_py(), encoding="utf-8")
 

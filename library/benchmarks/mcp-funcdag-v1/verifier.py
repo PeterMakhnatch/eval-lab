@@ -112,7 +112,7 @@ def verify_execution(
     allowed_tools = set(node_tool_map.values())
     no_unknown_tools = all(e.get("tool_name") in allowed_tools for e in successful_calls if not e.get("is_distractor", False))
 
-    # Exact per-node verification: matching tool, input arguments, and output result in topological order
+    # Strict per-node verification: mandatory exact arguments, results, and matching tools
     tool_idx = 0
     dag_conformance = True
     valid_intermediate_count = 0
@@ -120,8 +120,14 @@ def verify_execution(
     for node_id in topological_order:
         expected_tool = node_tool_map[node_id]
         expected_val = reference_node_values[node_id]
-        expected_call_meta = node_expected_calls.get(node_id, {})
+        if node_id not in node_expected_calls:
+            dag_conformance = False
+            break
+        expected_call_meta = node_expected_calls[node_id]
         expected_args = expected_call_meta.get("expected_args")
+        if expected_args is None:
+            dag_conformance = False
+            break
 
         found_match = False
         while tool_idx < len(successful_calls):
@@ -131,15 +137,10 @@ def verify_execution(
             call_res = _result_value(call.get("result"))
             call_args = call.get("arguments", {})
 
-            # Match tool name
-            if call_tool == expected_tool:
-                # Match result value
-                if call_res == expected_val:
-                    # Match input arguments if present in truth
-                    if expected_args is None or call_args == expected_args:
-                        found_match = True
-                        valid_intermediate_count += 1
-                        break
+            if call_tool == expected_tool and call_res == expected_val and call_args == expected_args:
+                found_match = True
+                valid_intermediate_count += 1
+                break
         if not found_match:
             dag_conformance = False
             break
@@ -153,6 +154,7 @@ def verify_execution(
         agent_target_value == expected_target_value
         and dag_conformance
         and value_propagation_accuracy == 1.0
+        and schema_conformance_rate == 1.0
         and contiguous_ordinals
         and no_unknown_tools
     ):

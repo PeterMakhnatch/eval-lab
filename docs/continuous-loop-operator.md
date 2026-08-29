@@ -39,6 +39,7 @@ All commands are local JSON oracles. Exit `0` only when the action is valid
 ```bash
 uv run python -m evallab.ops_continuous validate --state-dir /tmp/op-state
 scripts/ops/continuous-operator validate --state-dir /tmp/op-state
+scripts/ops/continuous-operator start --state-dir /tmp/op-state
 scripts/ops/continuous-operator dry-run --agent oracle --state-dir /tmp/op-state
 scripts/ops/continuous-operator dry-run --agent nop --state-dir /tmp/op-state
 scripts/ops/continuous-operator status --state-dir /tmp/op-state --policy policy/continuous-loop-policy.example.yaml
@@ -62,18 +63,22 @@ not invoke `evallab run`.
 
 ## Enable token, standing approval, budget, secret
 
-Inject by environment or state files. Never put token material in git or argv
-logs (the CLI prints reason codes and mode, not secret values).
+Approval and budget are **digest-bound signed manifests** (`$STATE/approval.json`,
+`$STATE/budget.json`, or `EVAL_LAB_APPROVAL_MANIFEST` / `EVAL_LAB_BUDGET_MANIFEST`
+paths). Env presence flags (`EVAL_LAB_STANDING_APPROVAL`, `EVAL_LAB_BUDGET_PRESENT`)
+are self-assertion and are refused. Signers for enable, campaign-approval, and
+budget must be pairwise distinct. Manifests carry `scope` (must include
+`continuous-loop`), `expires_at`, `payload_digest`, and a bound `signature`.
+Never put token material in git or argv logs.
 
 | Input | How |
 |---|---|
-| Enable token | `EVAL_LAB_ENABLE_TOKEN` |
-| Standing approval | `EVAL_LAB_STANDING_APPROVAL` or `$STATE/standing_approval` |
-| Distinct identities | `EVAL_LAB_ENABLE_IDENTITY` ≠ `EVAL_LAB_APPROVAL_IDENTITY` |
-| Budget | `EVAL_LAB_BUDGET_PRESENT=1` or `$STATE/budget` |
+| Enable token | `EVAL_LAB_ENABLE_TOKEN` + `EVAL_LAB_ENABLE_IDENTITY` |
+| Standing approval | signed `campaign_approval` manifest; policy `approval_digest` must match |
+| Budget | signed `budget` manifest with scope/expiry |
 | Secret reference | `EVAL_LAB_SECRET_REF=keychain:service/account` |
 | Secret presence probe | `EVAL_LAB_SECRET_PRESENT=1` or `$STATE/secret_present` (existence only) |
-| Policy | `--policy path` (`continuous_loop_policy` fields from PR #271 §5) |
+| Policy | `--policy` full typed nested fields; nulls keep DISABLED |
 | Clock | `--now` / `EVAL_LAB_OPERATOR_NOW` (tests) |
 
 Closed reason codes: `missing_enable_token`, `missing_standing_approval`,
@@ -85,10 +90,15 @@ policy fields also keep the operator DISABLED.
 
 ## Units (remain disabled)
 
-- launchd: `Disabled=true`, `RunAtLoad=false`, no `KeepAlive`. Do not
-  `launchctl bootstrap`.
-- systemd: `[Install]` has no `WantedBy=`. Do not `systemctl enable`.
-- compose: `restart: "no"` and `profiles: ["manual"]`. Do not `docker compose up`.
+- launchd: `Disabled=true`, `RunAtLoad=false`, no `KeepAlive`, user-session
+  `Aqua`, logs under `~/Library/Logs/evallab/`, absolute interpreter path.
+  Do not `launchctl bootstrap`.
+- systemd: `[Install]` has no `WantedBy=`. `User=evallab`, `NoNewPrivileges`,
+  `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, empty
+  `CapabilityBoundingSet`, `RestrictAddressFamilies=AF_UNIX`, mode `0700`
+  state. Do not `systemctl enable`.
+- compose: `restart: "no"` and `profiles: ["manual"]`; image `uv sync --locked`
+  then non-root `USER`. Do not `docker compose up`.
 - Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 
 ## Drain vs kill
@@ -101,10 +111,10 @@ policy fields also keep the operator DISABLED.
 
 ## Health / CAS rotation
 
-`status` reports `UNKNOWN` when heartbeat/health files are absent. A heartbeat
-older than `operational_limits.scheduler_stale_after_seconds` →
-`stale_heartbeat`. `rotate-logs` / `rotate-cas` record intent under the state
-dir and do not delete `research/evidence` or live CAS.
+`status`, `validate`, `quota`, and `start` fail closed on a missing or stale
+heartbeat once a typed policy is present (`stale_heartbeat`). `rotate-logs` /
+`rotate-cas` record intent under the state dir and do not delete
+`research/evidence` or live CAS. `start` never launches a process.
 
 ## Postrun compliance hook
 

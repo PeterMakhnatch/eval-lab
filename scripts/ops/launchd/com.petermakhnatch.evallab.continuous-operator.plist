@@ -8,21 +8,24 @@
 	<true/>
 	<key>RunAtLoad</key>
 	<false/>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
 	<key>ProcessType</key>
 	<string>Background</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/usr/bin/env</string>
-		<string>uv</string>
-		<string>run</string>
-		<string>python</string>
+		<string>/opt/evallab/.venv/bin/python</string>
 		<string>-m</string>
 		<string>evallab.ops_continuous</string>
 		<string>validate</string>
+		<string>--state-dir</string>
+		<string>/opt/evallab/operator-state</string>
 	</array>
+	<key>Umask</key>
+	<integer>63</integer>
 	<key>StandardOutPath</key>
-	<string>/Users/Shared/Library/Logs/evallab/continuous-operator.log</string>
+	<string>~/Library/Logs/evallab/continuous-operator.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Users/Shared/Library/Logs/evallab/continuous-operator.error.log</string>
+	<string>~/Library/Logs/evallab/continuous-operator.error.log</string>
 </dict>
 </plist>

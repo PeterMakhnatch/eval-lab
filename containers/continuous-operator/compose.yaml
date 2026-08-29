@@ -5,4 +5,7 @@ services:
       dockerfile: containers/continuous-operator/Dockerfile
     restart: "no"
     profiles: ["manual"]
-    command: ["validate"]
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:mode=0700

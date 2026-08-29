@@ -6,9 +6,37 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/env uv run python -m evallab.ops_continuous validate
+User=evallab
+Group=evallab
+ExecStart=/opt/evallab/.venv/bin/python -m evallab.ops_continuous validate --state-dir /var/lib/evallab/operator-state
+WorkingDirectory=/opt/evallab
 RemainAfterExit=no
 Restart=no
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/evallab/operator-state
+LogsDirectory=evallab
+StateDirectory=evallab-operator
+StateDirectoryMode=0700
+LogsDirectoryMode=0750
 
 [Install]
 # Intentionally empty Install section. Do not enable on boot.

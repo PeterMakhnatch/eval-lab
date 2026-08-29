@@ -103,6 +103,14 @@ def test_contract_schema_and_cells():
     assert contract["evidence_contract"]["sealed_envelope_path"] == "/app/output/sealed-evidence.json"
 
 
+def test_generated_verifier_is_syntactically_valid(tmp_path):
+    import py_compile
+    materializer = load("materializer")
+    task = materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=os.urandom(32))
+    verify_script = task / "tests/verify.py"
+    assert verify_script.is_file()
+    py_compile.compile(str(verify_script), doraise=True)
+
 def test_materializer_hard_fails_without_evidence_key(monkeypatch, tmp_path):
     materializer = load("materializer")
     monkeypatch.delenv("MCP_RECOVERY_EVIDENCE_KEY_FILE", raising=False)

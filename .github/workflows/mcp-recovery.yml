@@ -213,7 +213,15 @@ jobs:
           name: mcp-recovery-pair-${{ matrix.fault_mode }}-p${{ matrix.persistence }}-workbench
           path: |
             artifacts/
-            runs/task-workbench/
+            runs/task-workbench/*/*.json
+            runs/task-workbench/*/jobs/**/result.json
+            runs/task-workbench/*/jobs/**/job.log
+            runs/task-workbench/*/jobs/**/trial.log
+            runs/task-workbench/*/jobs/**/checks.json
             research/registration/candidates/ci/${{ github.run_id }}/
-            research/evidence/runs/
+            research/evidence/runs/**/result.json
+            research/evidence/runs/**/job.log
+            research/evidence/runs/**/trial.log
+            research/evidence/runs/**/reward.txt
+            research/evidence/runs/**/reward.json
           if-no-files-found: error

@@ -462,12 +462,13 @@ def main() -> None:
     if SOURCE_EVENTS.is_file():
         shutil.copy2(SOURCE_EVENTS, sandbox / "output" / "benchmark-events.jsonl")
     result = verify_harbor_task(sandbox, reward_dir=LOG_DIR)
-    (LOG_DIR / "checks.json").write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+    (LOG_DIR / "checks.json").write_text(f"{json.dumps(result, sort_keys=True)}\\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
     main()
 '''
+
 
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()

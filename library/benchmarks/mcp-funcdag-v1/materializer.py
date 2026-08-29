@@ -21,6 +21,8 @@ from evallab.mcp_substrate import (
     DEFAULT_VOLUME_NAME,
     MCPToolDefinition,
     MCPToolParameter,
+    ResolverProvenance,
+    WheelhouseTarget,
     materialize_mcp_sidecar_package,
     render_mcp_compose_document,
     validate_mcp_compose_document,
@@ -292,13 +294,21 @@ Save the final calculated integer result to `/app/output/result.json` in format:
 
     sidecar_dir = environment / "mcp-server"
     wheel_src = wheelhouse or DEFAULT_WHEELHOUSE
-    plan_only = not wheel_src.is_dir()
+    provenance_path = wheel_src / "resolver-provenance.json"
+    plan_only = not (wheel_src.is_dir() and provenance_path.is_file())
+    resolver_provenance = (
+        ResolverProvenance.from_json(json.loads(provenance_path.read_text(encoding="utf-8")))
+        if not plan_only
+        else None
+    )
     materialize_mcp_sidecar_package(
         target_dir=sidecar_dir,
         tools=tools_to_mcp_definitions(dag_spec),
         server_name="mcp-funcdag-sidecar",
         port=DEFAULT_MCP_PORT,
         wheelhouse_source=None if plan_only else wheel_src,
+        target=None if resolver_provenance is None else resolver_provenance.target,
+        resolver_provenance=resolver_provenance,
         plan_only=plan_only,
         internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
     )

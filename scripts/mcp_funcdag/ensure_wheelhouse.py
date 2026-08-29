@@ -1,21 +1,37 @@
 #!/usr/bin/env python3
-"""Download the hash-locked FastMCP sidecar wheelhouse when absent.
+"""Stage a target-specific FastMCP wheelhouse and trusted resolver provenance.
 
-The project uv venv does not include pip. Downloads go through uv's managed
-pip (`uv run --with pip --no-project`) so they never call `sys.executable -m pip`.
+Network prepackaging is intentionally separate from task-image builds. The staged
+bytes are recorded with ``ResolverProvenance``; the materializer derives the
+strict ``--require-hashes`` offline lock from those exact bytes.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from evallab.mcp_substrate import FASTMCP_SIDECAR_REQUIREMENTS_TXT
+from evallab.mcp_substrate import (
+    FASTMCP_VERSION_CONSTRAINTS,
+    ResolverProvenance,
+    WheelhouseTarget,
+    record_prepackaging_provenance,
+)
+
+PROVENANCE_FILENAME = "resolver-provenance.json"
+LINUX_CP312_X86_64 = WheelhouseTarget("cp312", "manylinux_2_17_x86_64")
+MACOS_CP312_ARM64 = WheelhouseTarget("cp312", "macosx_11_0_arm64")
 
 
-def download_command(requirements: Path, dest: Path) -> list[str]:
-    """Return a uv-managed pip download argv that keeps --require-hashes."""
+def default_target() -> WheelhouseTarget:
+    return LINUX_CP312_X86_64 if sys.platform.startswith("linux") else MACOS_CP312_ARM64
+
+
+def stage_command(dest: Path, target: WheelhouseTarget) -> list[str]:
+    """Return managed resolver command for the explicit runtime target."""
     return [
         "uv",
         "run",
@@ -26,29 +42,52 @@ def download_command(requirements: Path, dest: Path) -> list[str]:
         "-m",
         "pip",
         "download",
-        "--require-hashes",
-        "-r",
-        str(requirements),
-        "-d",
+        "--only-binary=:all:",
+        "--platform",
+        target.platform_tag,
+        "--implementation",
+        "cp",
+        "--python-version",
+        target.python_tag.removeprefix("cp"),
+        "--abi",
+        target.python_tag,
+        "--dest",
         str(dest),
+        *FASTMCP_VERSION_CONSTRAINTS,
     ]
 
 
 def ensure_wheelhouse(
     dest: Path,
     *,
+    target: WheelhouseTarget | None = None,
     run: Callable[..., object] = subprocess.run,
-) -> Path:
+) -> ResolverProvenance:
+    target = target or default_target()
     dest.mkdir(parents=True, exist_ok=True)
+    provenance_path = dest / PROVENANCE_FILENAME
+    if any(dest.glob("*.whl")) and provenance_path.is_file():
+        provenance = ResolverProvenance.from_json(
+            json.loads(provenance_path.read_text(encoding="utf-8"))
+        )
+        if provenance.target == target:
+            print(f"wheelhouse already staged for {target}: {dest}")
+            return provenance
+        for wheel in dest.glob("*.whl"):
+            wheel.unlink()
+        provenance_path.unlink()
+
     if any(dest.glob("*.whl")):
-        print(f"wheelhouse already present: {dest}")
-        return dest
-    reqs = dest / "requirements.txt"
-    reqs.write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT, encoding="utf-8")
-    cmd = download_command(reqs, dest)
-    run(cmd, check=True)
-    print(f"downloaded wheelhouse to {dest} ({len(list(dest.glob('*.whl')))} wheels)")
-    return dest
+        for wheel in dest.glob("*.whl"):
+            wheel.unlink()
+    run(stage_command(dest, target), check=True)
+    provenance = record_prepackaging_provenance(dest, target)
+    provenance_path.write_text(
+        json.dumps(provenance.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(f"staged target wheelhouse {target} at {dest} ({len(provenance.wheels)} wheels)")
+    return provenance
 
 
 def main() -> None:

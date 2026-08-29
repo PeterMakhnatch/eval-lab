@@ -1392,6 +1392,12 @@ def main() -> int:
         ledger2 = T / "ledger"
         chosen = [i["item_id"] for i in eb["items"][:2]]
         expected_records = len(chosen) * len(KEYS)
+        # An E2E that exercises nothing reports success. Assert it carries load,
+        # so a change to the synthetic corpus cannot silently hollow it out.
+        check(
+            "E2E is not vacuous: it rates real items with real raters",
+            len(chosen) >= 2 and len(KEYS) >= 3 and expected_records >= 6,
+        )
         for iid in chosen:
             for key_id, secret in KEYS.items():
                 prepared = prepare_rating(

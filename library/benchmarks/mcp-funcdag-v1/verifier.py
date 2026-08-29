@@ -1,10 +1,13 @@
-"""Deterministic verifier and oracle-leak exclusion gate for mcp-funcdag-v1."""
+"""Strict verifier for mcp-funcdag-v1 trusted MCP event evidence."""
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
 from typing import Any
+
+EVENT_SCHEMA_VERSION = "mcp-tool-event-v1"
+EVENT_TYPES = frozenset({"tool_call_success", "tool_call_error"})
 
 
 def check_oracle_leak_exclusion(task_dir: Path) -> None:
@@ -15,6 +18,7 @@ def check_oracle_leak_exclusion(task_dir: Path) -> None:
         "topological_order",
         "node_expected_calls",
         "node_tool_map",
+        "candidate_tool_names",
     ]
     if not agent_workspace.exists():
         return
@@ -40,6 +44,31 @@ def _result_value(raw: Any) -> Any:
     return raw
 
 
+def _event_is_valid(event: Any, allowed_tools: set[str]) -> bool:
+    if not isinstance(event, dict):
+        return False
+    if event.get("schema_version") != EVENT_SCHEMA_VERSION:
+        return False
+    if event.get("event_type") not in EVENT_TYPES:
+        return False
+    if not isinstance(event.get("event_ordinal"), int) or event["event_ordinal"] <= 0:
+        return False
+    if not isinstance(event.get("tool_name"), str) or event["tool_name"] not in allowed_tools:
+        return False
+    if not isinstance(event.get("arguments"), dict):
+        return False
+    if event["event_type"] == "tool_call_success":
+        return event.get("is_error") is False and isinstance(event.get("result"), dict) and event.get("error") is None
+    error = event.get("error")
+    return (
+        event.get("is_error") is True
+        and isinstance(error, dict)
+        and isinstance(error.get("type"), str)
+        and isinstance(error.get("message"), str)
+        and event.get("result") is None
+    )
+
+
 def verify_execution(
     task_dir: Path,
     verifier_truth_path: Path,
@@ -55,89 +84,54 @@ def verify_execution(
     reference_node_values = verifier_truth["reference_node_values"]
     topological_order = verifier_truth["topological_order"]
     node_tool_map = verifier_truth["node_tool_map"]
-    node_expected_calls = verifier_truth.get("node_expected_calls", {})
+    node_expected_calls = verifier_truth["node_expected_calls"]
+    allowed_tools = set(verifier_truth["candidate_tool_names"])
 
     result_file = workspace_dir / "result.json"
     if not result_file.exists():
         alt = Path("/app/result.json")
         result_file = alt if alt.exists() else result_file
     if not result_file.exists():
-        alt2 = Path("/app/output/result.json")
-        result_file = alt2 if alt2.exists() else result_file
-    if not result_file.exists():
-        return {
-            "reward": 0.0,
-            "reason": "Agent result.json missing from workspace",
-            "schema_conformance_rate": 0.0,
-            "dag_conformance": False,
-            "value_propagation_accuracy": 0.0,
-        }
+        return {"reward": 0.0, "reason": "Agent result.json missing from workspace"}
     try:
         agent_target_value = json.loads(result_file.read_text(encoding="utf-8")).get("target_value")
     except Exception as exc:
-        return {
-            "reward": 0.0,
-            "reason": f"Failed to parse agent result.json: {exc}",
-            "schema_conformance_rate": 0.0,
-            "dag_conformance": False,
-            "value_propagation_accuracy": 0.0,
-        }
+        return {"reward": 0.0, "reason": f"Failed to parse agent result.json: {exc}"}
 
     events_file = evidence_dir / "benchmark-events.jsonl"
     alt_events = Path("/app/output/benchmark-events.jsonl")
     if not events_file.exists() and alt_events.exists():
         events_file = alt_events
-    events = []
-    if events_file.exists():
-        for line in events_file.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                events.append(json.loads(line))
+    events = [
+        json.loads(line)
+        for line in events_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ] if events_file.exists() else []
 
-    total_events = len(events)
-    conforming_events = [e for e in events if e.get("schema_conforming", True)]
-    schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
-    successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
+    schema_conformance_rate = (
+        sum(_event_is_valid(event, allowed_tools) for event in events) / len(events)
+        if events else 0.0
+    )
+    contiguous_ordinals = bool(events) and [event.get("event_ordinal") for event in events] == list(range(1, len(events) + 1))
+    successful_calls = [event for event in events if event.get("event_type") == "tool_call_success"]
 
-    # Verify contiguous ordinals (substrate emits 1-based integer event_ordinal; runtime simulator emits 0-based event_index)
-    contiguous_ordinals = False
-    if events:
-        if all(isinstance(e.get("event_ordinal"), int) for e in events):
-            ordinals = [e["event_ordinal"] for e in events]
-            contiguous_ordinals = ordinals == list(range(1, len(ordinals) + 1))
-        elif all(isinstance(e.get("event_index"), int) for e in events):
-            ordinals = [e["event_index"] for e in events]
-            contiguous_ordinals = ordinals == list(range(len(ordinals)))
-
-    # Reject unknown successful tools outside known closed alphabet
-    allowed_tools = set(node_tool_map.values())
-    no_unknown_tools = all(e.get("tool_name") in allowed_tools for e in successful_calls if not e.get("is_distractor", False))
-
-    # Strict per-node verification: mandatory exact arguments, results, and matching tools
+    # Only exact, bound-success calls may satisfy required DAG nodes. Error/probe events never substitute.
     tool_idx = 0
     dag_conformance = True
     valid_intermediate_count = 0
-
     for node_id in topological_order:
         expected_tool = node_tool_map[node_id]
         expected_val = reference_node_values[node_id]
-        if node_id not in node_expected_calls:
-            dag_conformance = False
-            break
-        expected_call_meta = node_expected_calls[node_id]
-        expected_args = expected_call_meta.get("expected_args")
-        if expected_args is None:
-            dag_conformance = False
-            break
-
+        expected_args = node_expected_calls[node_id]["expected_args"]
         found_match = False
         while tool_idx < len(successful_calls):
             call = successful_calls[tool_idx]
             tool_idx += 1
-            call_tool = call.get("tool_name")
-            call_res = _result_value(call.get("result"))
-            call_args = call.get("arguments", {})
-
-            if call_tool == expected_tool and call_res == expected_val and call_args == expected_args:
+            if (
+                call["tool_name"] == expected_tool
+                and _result_value(call["result"]) == expected_val
+                and call["arguments"] == expected_args
+            ):
                 found_match = True
                 valid_intermediate_count += 1
                 break
@@ -145,21 +139,14 @@ def verify_execution(
             dag_conformance = False
             break
 
-    value_propagation_accuracy = (
-        valid_intermediate_count / len(topological_order) if topological_order else 0.0
-    )
-
-    reward = 0.0
-    if (
+    value_propagation_accuracy = valid_intermediate_count / len(topological_order)
+    reward = float(
         agent_target_value == expected_target_value
         and dag_conformance
         and value_propagation_accuracy == 1.0
         and schema_conformance_rate == 1.0
         and contiguous_ordinals
-        and no_unknown_tools
-    ):
-        reward = 1.0
-
+    )
     return {
         "reward": reward,
         "expected_target_value": expected_target_value,
@@ -168,6 +155,6 @@ def verify_execution(
         "dag_conformance": dag_conformance,
         "value_propagation_accuracy": value_propagation_accuracy,
         "contiguous_ordinals": contiguous_ordinals,
-        "total_calls": total_events,
+        "total_calls": len(events),
         "successful_calls": len(successful_calls),
     }

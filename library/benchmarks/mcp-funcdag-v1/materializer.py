@@ -205,6 +205,7 @@ def materialize_task(
         "initial_inputs": dag_spec.initial_inputs,
         "node_tool_map": {n.node_id: n.tool_name for n in dag_spec.nodes},
         "node_expected_calls": dag_spec.node_expected_calls,
+        "candidate_tool_names": sorted(t.name for t in dag_spec.tools),
     }
     (tests / "fixtures").mkdir(parents=True, exist_ok=True)
     (tests / "fixtures" / "verifier_truth.json").write_text(
@@ -388,11 +389,31 @@ _VERIFIER_EVAL = r'''import json
 import sys
 from pathlib import Path
 
+SCHEMA_VERSION = "mcp" + "-tool-event-v1"
+EVENT_TYPES = {"tool_call_success", "tool_call_error"}
+
 
 def _result_value(raw):
-    if isinstance(raw, dict) and "value" in raw:
-        return raw["value"]
-    return raw
+    return raw.get("value") if isinstance(raw, dict) and "value" in raw else raw
+
+
+def valid_event(event, allowed_tools):
+    if not isinstance(event, dict):
+        return False
+    if event.get("schema_version") != SCHEMA_VERSION:
+        return False
+    if event.get("event_type") not in EVENT_TYPES:
+        return False
+    if not isinstance(event.get("event_ordinal"), int) or event["event_ordinal"] <= 0:
+        return False
+    if not isinstance(event.get("tool_name"), str) or event["tool_name"] not in allowed_tools:
+        return False
+    if not isinstance(event.get("arguments"), dict):
+        return False
+    if event["event_type"] == "tool_call_success":
+        return event.get("is_error") is False and isinstance(event.get("result"), dict) and event.get("error") is None
+    error = event.get("error")
+    return event.get("is_error") is True and isinstance(error, dict) and isinstance(error.get("type"), str) and isinstance(error.get("message"), str) and event.get("result") is None
 
 
 def main():
@@ -404,7 +425,8 @@ def main():
     topological_order = truth["topological_order"]
     ref_node_values = truth["reference_node_values"]
     node_tool_map = truth["node_tool_map"]
-    node_expected_calls = truth.get("node_expected_calls", {})
+    node_expected_calls = truth["node_expected_calls"]
+    allowed_tools = set(truth["candidate_tool_names"])
 
     res_file = Path("/app/result.json")
     if not res_file.exists():
@@ -417,80 +439,37 @@ def main():
             agent_val = None
 
     events_file = Path("/app/output/benchmark-events.jsonl")
-    events = []
-    if events_file.exists():
-        for line in events_file.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                events.append(json.loads(line))
+    events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()] if events_file.exists() else []
+    schema_rate = sum(valid_event(event, allowed_tools) for event in events) / len(events) if events else 0.0
+    contiguous = bool(events) and [event.get("event_ordinal") for event in events] == list(range(1, len(events) + 1))
+    successes = [event for event in events if event.get("event_type") == "tool_call_success"]
 
-    total_events = len(events)
-    conforming_events = [e for e in events if e.get("schema_conforming", True)]
-    schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
-    successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
-
-    contiguous_ordinals = False
-    if events:
-        if all(isinstance(e.get("event_ordinal"), int) for e in events):
-            ordinals = [e["event_ordinal"] for e in events]
-            contiguous_ordinals = ordinals == list(range(1, len(ordinals) + 1))
-        elif all(isinstance(e.get("event_index"), int) for e in events):
-            ordinals = [e["event_index"] for e in events]
-            contiguous_ordinals = ordinals == list(range(len(ordinals)))
-
-    allowed_tools = set(node_tool_map.values())
-    no_unknown_tools = all(e.get("tool_name") in allowed_tools for e in successful_calls if not e.get("is_distractor", False))
-
-    tool_idx = 0
-    dag_conformance = True
-    valid = 0
-
+    cursor = 0
+    matched = 0
+    dag_ok = True
     for node_id in topological_order:
         expected_tool = node_tool_map[node_id]
+        expected_args = node_expected_calls[node_id]["expected_args"]
         expected_val = ref_node_values[node_id]
-        if node_id not in node_expected_calls:
-            dag_conformance = False
-            break
-        expected_call_meta = node_expected_calls[node_id]
-        expected_args = expected_call_meta.get("expected_args")
-        if expected_args is None:
-            dag_conformance = False
-            break
-
-        found_match = False
-        while tool_idx < len(successful_calls):
-            call = successful_calls[tool_idx]
-            tool_idx += 1
-            call_tool = call.get("tool_name")
-            call_res = _result_value(call.get("result"))
-            call_args = call.get("arguments", {})
-
-            if call_tool == expected_tool and call_res == expected_val and call_args == expected_args:
-                found_match = True
-                valid += 1
+        found = False
+        while cursor < len(successes):
+            event = successes[cursor]
+            cursor += 1
+            if event["tool_name"] == expected_tool and event["arguments"] == expected_args and _result_value(event["result"]) == expected_val:
+                found = True
+                matched += 1
                 break
-        if not found_match:
-            dag_conformance = False
+        if not found:
+            dag_ok = False
             break
-
-    val_prop = (valid / len(topological_order)) if topological_order else 0.0
-    reward = 1.0 if (
-        agent_val == exp_val
-        and dag_conformance
-        and val_prop == 1.0
-        and schema_conformance_rate == 1.0
-        and contiguous_ordinals
-        and no_unknown_tools
-    ) else 0.0
-
-    print(
-        f"Verification complete: reward={reward}, agent_val={agent_val}, "
-        f"exp_val={exp_val}, dag_conf={dag_conformance}, val_prop={val_prop}"
-    )
+    val_prop = matched / len(topological_order)
+    reward = 1.0 if agent_val == exp_val and dag_ok and val_prop == 1.0 and schema_rate == 1.0 and contiguous else 0.0
+    print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}, dag_conf={dag_ok}, val_prop={val_prop}")
     logs_dir = Path("/logs/verifier")
     if not logs_dir.exists():
         logs_dir = Path("tests/rewards")
     logs_dir.mkdir(parents=True, exist_ok=True)
-    (logs_dir / "reward.txt").write_text(f"{reward}\n", encoding="utf-8")
+    (logs_dir / "reward.txt").write_text(f"{reward}\\n", encoding="utf-8")
     sys.exit(0 if reward == 1.0 else 1)
 
 

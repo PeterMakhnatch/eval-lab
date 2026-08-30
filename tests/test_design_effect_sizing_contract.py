@@ -23,17 +23,23 @@ from evallab.cohort import (
     design_effect,
     effective_sample_size,
     minimum_detectable_effect,
-    power_requirements,
     required_tasks_for_effect,
 )
 from evallab.design_effect import (
     clustered_minimum_detectable_effect as de_mde,
+)
+from evallab.design_effect import (
     clustered_power_requirements as de_power,
+)
+from evallab.design_effect import (
     clustered_required_tasks_for_effect as de_req,
+)
+from evallab.design_effect import (
     design_effect as de_func,
+)
+from evallab.design_effect import (
     effective_sample_size as de_eff,
 )
-
 
 # ===========================================================================
 # 1. Public API & Re-Export Parity
@@ -100,9 +106,7 @@ def test_clustered_required_tasks_rho_zero_equals_independent() -> None:
 
 def test_clustered_mde_rho_zero_equals_independent() -> None:
     """When rho=0, clustered MDE exactly matches the independent MDE."""
-    indep = minimum_detectable_effect(
-        n_tasks=120, k=2, baseline=0.4, pair_correlation=0.2
-    )
+    indep = minimum_detectable_effect(n_tasks=120, k=2, baseline=0.4, pair_correlation=0.2)
     clustered = clustered_minimum_detectable_effect(
         n_tasks=120,
         k=2,
@@ -186,7 +190,9 @@ def test_design_effect_strictly_monotonic_in_cluster_size() -> None:
 # ===========================================================================
 
 
-@pytest.mark.parametrize("invalid_icc", [-0.5, -0.001, 1.0, 1.01, 2.5, float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize(
+    "invalid_icc", [-0.5, -0.001, 1.0, 1.01, 2.5, float("nan"), float("inf"), float("-inf")]
+)
 def test_design_effect_refuses_invalid_icc(invalid_icc: float) -> None:
     """ICC outside [0, 1) or non-finite must be refused."""
     with pytest.raises(ValueError, match="icc"):
@@ -291,7 +297,5 @@ def test_clustered_power_requirements_table_structure() -> None:
         assert row["required_n_tasks_clustered"] is not None
         assert row["required_n_tasks_independent"] is not None
         assert row["required_n_tasks_clustered"] >= row["required_n_tasks_independent"]
-        assert row["effective_n_tasks"] == pytest.approx(
-            row["required_n_tasks_clustered"] / 1.4
-        )
+        assert row["effective_n_tasks"] == pytest.approx(row["required_n_tasks_clustered"] / 1.4)
         assert row["total_attempts_two_cohorts"] == 2 * index * row["required_n_tasks_clustered"]

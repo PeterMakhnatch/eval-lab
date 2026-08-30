@@ -41,9 +41,7 @@ from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
 from evallab.cohort import (
     clustered_minimum_detectable_effect,
     clustered_power_requirements,
-    clustered_required_tasks_for_effect,
     design_effect,
-    effective_sample_size,
     index_comparison_associations,
     minimum_detectable_effect,
     pass_at_k_probability,
@@ -1211,10 +1209,7 @@ def _clustered_power_command(
         print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
         mde = plan["minimum_detectable_effect"]
         if mde is None:
-            print(
-                "minimum detectable per-attempt difference: unavailable at this "
-                "n, k, and design"
-            )
+            print("minimum detectable per-attempt difference: unavailable at this n, k, and design")
         else:
             comparison_pass = pass_at_k_probability(args.baseline + mde, args.k)
             print(f"minimum detectable per-attempt difference: {mde:.4f}")

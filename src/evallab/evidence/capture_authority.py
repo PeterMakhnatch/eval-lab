@@ -160,9 +160,9 @@ class CaptureAuthorityAssessment:
     has_indirect_child_execution: bool
     has_batch_tool_representation: bool
     is_concordant: bool
-    retrieval_authority: CaptureAuthorityName
-    concordance_status: CaptureConcordanceName
-    reason_codes: tuple[str, ...]
+    retrieval_authority: CaptureAuthority
+    concordance_status: CaptureConcordanceStatus
+    reason_codes: tuple[CaptureReasonCode, ...]
     trajectory_ordering_admissible: bool
     benchmark_events_admissible: bool
     disposition_summary: str
@@ -344,7 +344,7 @@ def assess_capture_concordance(
     )
     event_tool_count = None if (events_missing or benchmark_events_invalid) else len(event_calls)
 
-    reason_codes: list[str] = []
+    reason_codes: list[CaptureReasonCode] = []
     if benchmark_events_invalid:
         reason_codes.append(CaptureReasonCode.BENCHMARK_EVENT_SCHEMA_INVALID)
     if events_missing:
@@ -354,7 +354,7 @@ def assess_capture_concordance(
 
     events_admissible = not events_missing and not benchmark_events_invalid
     if events_admissible:
-        retrieval: CaptureAuthorityName = CaptureAuthority.BENCHMARK_EVENTS
+        retrieval = CaptureAuthority.BENCHMARK_EVENTS
     elif benchmark_events_invalid:
         retrieval = CaptureAuthority.UNRESOLVED
     elif not atif_missing:
@@ -457,7 +457,7 @@ def assess_capture_concordance(
             omission = True
 
     if events_missing or benchmark_events_invalid:
-        status: CaptureConcordanceName = CaptureConcordanceStatus.NO_BENCHMARK_EVENTS
+        status = CaptureConcordanceStatus.NO_BENCHMARK_EVENTS
     elif atif_missing:
         status = CaptureConcordanceStatus.NO_TRAJECTORY
     elif indirect:
@@ -533,7 +533,7 @@ def _sequences_concordant(atif_names: Sequence[str], event_names: Sequence[str])
 
 def _disposition_summary(
     *,
-    status: str,
+    status: CaptureConcordanceStatus,
     atif_count: int | None,
     event_tool_count: int | None,
     events_invalid: bool,
@@ -573,7 +573,11 @@ def _disposition_summary(
 
 
 def _assessment_digest(assessment: CaptureAuthorityAssessment) -> str:
-    facts = {key: value for key, value in asdict(assessment).items() if key != "assessment_digest"}
+    facts = {
+        key: (value.value if hasattr(value, "value") else value)
+        for key, value in asdict(assessment).items()
+        if key != "assessment_digest"
+    }
     canonical = json.dumps(facts, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return f"sha256:{sha256(canonical.encode()).hexdigest()}"
 
@@ -667,7 +671,14 @@ def _event_fields(item: Any) -> tuple[str, Mapping[str, Any], str, str]:
         if not name and isinstance(payload, Mapping):
             name = _function_name(payload)
         call_id = ""
-        for key in ("tool_call_id", "call_id", "id", "request_id", "event_ordinal", "event_index"):
+        for key in (
+            "tool_call_id",
+            "call_id",
+            "id",
+            "request_id",
+            "event_ordinal",
+            "event_index",
+        ):
             value = item.get(key)
             if value is None and isinstance(payload, Mapping):
                 value = payload.get(key)

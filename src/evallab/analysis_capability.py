@@ -23,7 +23,7 @@ from evallab.cohort import BOOTSTRAP_RESAMPLES
 from evallab.evidence.capture_authority import CaptureAuthority
 from evallab.schemas import ContractModel
 
-Digest = Annotated[str, Field(pattern=r"^sha256:(?!0{64})[0-9a-f]{64}$")]
+Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 FeatureValue = bool | int | float | str | None
 
 T11_METHOD_VERSION = "t1.1-outcome-lineage/v1"
@@ -40,6 +40,8 @@ _POST_VERDICT_INPUTS = frozenset(
     }
 )
 
+_ZERO_DIGEST = "sha256:" + "0" * 64
+
 ADMISSIBLE_CAPTURE_AUTHORITIES = frozenset(
     {
         CaptureAuthority.BENCHMARK_EVENTS,
@@ -48,6 +50,11 @@ ADMISSIBLE_CAPTURE_AUTHORITIES = frozenset(
         CaptureAuthority.ATIF_TRAJECTORY.value,
     }
 )
+
+
+def _validate_non_zero_digest(value: str | None, field_name: str) -> None:
+    if value is not None and value == _ZERO_DIGEST:
+        raise ValueError(f"{field_name} cannot be all-zero digest")
 
 
 class Verdict(StrEnum):
@@ -802,6 +809,7 @@ class CampaignAnalysisSpecV1(ContractModel):
 
     @model_validator(mode="after")
     def _validate_spec_invariants(self) -> CampaignAnalysisSpecV1:
+        _validate_non_zero_digest(self.spec_digest, "spec_digest")
         if not self.unit_keys or len(self.unit_keys) != len(set(self.unit_keys)) or any(not k for k in self.unit_keys):
             raise ValueError("unit_keys must be non-empty with unique non-empty string components")
         if self.method == AnalysisMethod.PAIRED_SIGN:
@@ -879,6 +887,9 @@ class CampaignAnalysisResultV1(ContractModel):
 
     @model_validator(mode="after")
     def _validate_result_invariants(self) -> CampaignAnalysisResultV1:
+        _validate_non_zero_digest(self.spec_digest, "spec_digest")
+        _validate_non_zero_digest(self.snapshot_digest, "snapshot_digest")
+        _validate_non_zero_digest(self.result_digest, "result_digest")
         if self.status == AnalysisStatus.VALID:
             if self.refusals:
                 raise ValueError("VALID status must not have refusals")
@@ -987,6 +998,12 @@ class ReviewQueueArtifactV1(ContractModel):
 
     @model_validator(mode="after")
     def _validate_queue_digest(self) -> ReviewQueueArtifactV1:
+        _validate_non_zero_digest(self.queue_digest, "queue_digest")
+        _validate_non_zero_digest(self.manifest_digest, "manifest_digest")
+        _validate_non_zero_digest(self.snapshot_digest, "snapshot_digest")
+        _validate_non_zero_digest(self.query_digest, "query_digest")
+        _validate_non_zero_digest(self.candidate_pool_digest, "candidate_pool_digest")
+        _validate_non_zero_digest(self.index_digest, "index_digest")
         body = self.model_dump(mode="json", exclude={"queue_digest"})
         expected = _canonical_digest(body)
         if self.queue_digest != expected:
@@ -999,6 +1016,11 @@ class ReviewQueueRef(ContractModel):
     queue_digest: Digest
     queue_cas_uri: str = Field(min_length=1)
     decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_ref_digest(self) -> ReviewQueueRef:
+        _validate_non_zero_digest(self.queue_digest, "queue_digest")
+        return self
 
 
 class NextRunAction(StrEnum):
@@ -1031,6 +1053,9 @@ class NextRunFeedbackV1(ContractModel):
 
     @model_validator(mode="after")
     def _validate_feedback_digest(self) -> NextRunFeedbackV1:
+        _validate_non_zero_digest(self.source_report_digest, "source_report_digest")
+        _validate_non_zero_digest(self.source_snapshot_digest, "source_snapshot_digest")
+        _validate_non_zero_digest(self.feedback_digest, "feedback_digest")
         body = self.model_dump(mode="json", exclude={"feedback_digest"})
         expected = _canonical_digest(body)
         if self.feedback_digest != expected:
@@ -1049,6 +1074,14 @@ class CampaignAnalysisConfigV1(ContractModel):
 
     @model_validator(mode="after")
     def _validate_config_invariants(self) -> CampaignAnalysisConfigV1:
+        _validate_non_zero_digest(self.feature_registry_digest, "feature_registry_digest")
+        _validate_non_zero_digest(self.cohort_policy_digest, "cohort_policy_digest")
+        _validate_non_zero_digest(self.redaction_policy_digest, "redaction_policy_digest")
+        for k, v in self.producer_digests.items():
+            _validate_non_zero_digest(v, f"producer_digests.{k}")
+        if self.retrieval is not None:
+            _validate_non_zero_digest(self.retrieval.embedder_digest, "retrieval.embedder_digest")
+            _validate_non_zero_digest(self.retrieval.redaction_policy_digest, "retrieval.redaction_policy_digest")
         spec_ids = [s.spec_id for s in self.specs]
         if len(spec_ids) != len(set(spec_ids)):
             raise ValueError("CampaignAnalysisConfigV1 spec_ids must be unique")
@@ -1117,7 +1150,7 @@ def _extract_source_refs(
         )
         digest = (
             digest_val
-            if digest_val and digest_val.startswith("sha256:") and digest_val != ("sha256:" + "0" * 64)
+            if digest_val and digest_val.startswith("sha256:") and digest_val != _ZERO_DIGEST
             else None
         )
         key = (path, digest)

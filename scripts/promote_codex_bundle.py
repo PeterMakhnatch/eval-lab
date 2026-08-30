@@ -125,8 +125,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
+import stat
 import sys
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -151,6 +154,53 @@ SIDECAR_SCHEMA_VERSION = 1
 SIDECAR_DIRNAME = "quota"
 SIDECAR_SUFFIX = ".rate-limits.json"
 ROLLOUT_PREFIX = "rollout-"
+
+#: Streaming read chunk size and hard file size limit.
+STREAM_CHUNK_BYTES = 65536
+MAX_SOURCE_BYTES = 256 * 1024 * 1024
+
+#: Basenames that carry credential/runtime/raw log material regardless of location.
+#: Matched case-folded and Unicode-normalized (NFC).
+FORBIDDEN_BASENAMES = frozenset({
+    "job.log",
+    "trial.log",
+    "codex.txt",
+    "opencode.txt",
+    "auth.json",
+    "credentials.json",
+    ".netrc",
+    ".env",
+    "opencode.db",
+    "opencode.db-wal",
+    "opencode.db-shm",
+})
+
+#: Container and archive extensions rejected from verbatim promotion.
+ARCHIVE_SUFFIXES = frozenset({
+    ".zip",
+    ".tar",
+    ".tgz",
+    ".tar.gz",
+    ".gz",
+    ".bz2",
+    ".xz",
+    ".zst",
+    ".7z",
+    ".rar",
+    ".jar",
+    ".whl",
+    ".apk",
+    ".deb",
+    ".rpm",
+})
+
+#: Pattern matching secret-shaped JSON keys for value redaction.
+_SECRET_KEY_RE = re.compile(
+    r"(?:^|_|-)(?:api[-_]?key|access[-_]?(?:key|token)|auth(?:orization)?|bearer|"
+    r"client[-_]?secret|credential|password|passwd|private[-_]?key|secret|"
+    r"session[-_]?key|signing[-_]?key|ssh[-_]?key|token|webhook[-_]?secret)$",
+    re.IGNORECASE,
+)
 
 #: R4 whitelist. Exactly the fields ``src/evallab/quota.py`` reads from
 #: ``payload.rate_limits``, with the type each must have. Anything else the
@@ -184,6 +234,38 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
 
 
+def _stream_sha256(path: Path) -> tuple[str, int]:
+    """Compute SHA-256 digest and byte count in streaming chunks without unbounded memory usage."""
+    h = hashlib.sha256()
+    total = 0
+    with path.open("rb") as f:
+        while chunk := f.read(STREAM_CHUNK_BYTES):
+            total += len(chunk)
+            h.update(chunk)
+    return f"sha256:{h.hexdigest()}", total
+
+
+def _canonical(name: str) -> str:
+    """Normalize a path component or name to Unicode NFC and casefold for matching."""
+    return unicodedata.normalize("NFC", name).casefold()
+
+
+def _is_archive_like(relative: Path) -> bool:
+    """Whether a path carries an archive/container extension that could embed unredacted secrets."""
+    name_lower = _canonical(relative.name)
+    if any(name_lower.endswith(s) for s in ARCHIVE_SUFFIXES):
+        return True
+    return any(_canonical(s) in ARCHIVE_SUFFIXES for s in relative.suffixes)
+
+
+def _assert_within(base: Path, target: Path) -> None:
+    """Ensure `target` resolves strictly inside `base` to prevent traversal attacks."""
+    resolved_base = base.resolve()
+    resolved_target = target.resolve()
+    if resolved_base != resolved_target and resolved_base not in resolved_target.parents:
+        raise SystemExit(f"path traversal detected: {target} resolves outside {base}")
+
+
 def _marker(text: str) -> str:
     raw = text.encode("utf-8")
     return f"<<evallab-redacted: {len(raw)} bytes, {sha256_bytes(raw)}>>"
@@ -195,19 +277,29 @@ def redact_trajectory(raw: bytes) -> bytes:
     The result must stay a valid ATIF-v1.7 document, because every consumer in
     this repository reads it: ``atif.py:279-280`` requires ``steps[].message`` to
     be text or content parts, so the text is replaced rather than nulled.
+    Also redacts secret-shaped JSON values nested inside agent step messages.
     """
     document = json.loads(raw)
     redacted = 0
     for step in document.get("steps", []):
-        if step.get("source") not in PROMPT_SOURCES:
-            continue
+        source = step.get("source")
         message = step.get("message")
-        if not isinstance(message, str) or not message:
-            continue
-        step["message"] = _marker(message)
-        step["message_sha256"] = sha256_bytes(message.encode("utf-8"))
-        step["message_chars"] = len(message)
-        redacted += 1
+        if source in PROMPT_SOURCES:
+            if not isinstance(message, str) or not message:
+                continue
+            step["message"] = _marker(message)
+            step["message_sha256"] = sha256_bytes(message.encode("utf-8"))
+            step["message_chars"] = len(message)
+            redacted += 1
+        elif isinstance(message, str) and message.startswith(("{", "[")):
+            try:
+                parsed = json.loads(message)
+                redacted_json, hits = _redact_json_strings(parsed)
+                if hits > 0:
+                    step["message"] = json.dumps(redacted_json, ensure_ascii=False)
+                    redacted += hits
+            except Exception:
+                pass
     document["evallab_redaction"] = {
         "rule": "R1",
         "removed": "verbatim message text of every system-source and user-source step",
@@ -219,8 +311,11 @@ def redact_trajectory(raw: bytes) -> bytes:
     return json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
 
 
-def _redact_json_strings(node: Any) -> tuple[Any, int]:
-    """R3a: replace oversize JSON string values with digest markers."""
+def _redact_json_strings(node: Any, parent_key: str | None = None) -> tuple[Any, int]:
+    """R3a & Secret redaction: replace oversize strings and secret-shaped keys with digest markers."""
+    if parent_key and _SECRET_KEY_RE.search(_canonical(parent_key)):
+        if isinstance(node, (str, int, float, bool)) and str(node):
+            return _marker(str(node)), 1
     if isinstance(node, str):
         if len(node.encode("utf-8")) > VERIFIER_JSON_STRING_LIMIT:
             return _marker(node), 1
@@ -229,14 +324,14 @@ def _redact_json_strings(node: Any) -> tuple[Any, int]:
         count = 0
         result: dict[str, Any] = {}
         for key, value in node.items():
-            result[key], hits = _redact_json_strings(value)
+            result[key], hits = _redact_json_strings(value, parent_key=key)
             count += hits
         return result, count
     if isinstance(node, list):
         count = 0
         items = []
         for value in node:
-            item, hits = _redact_json_strings(value)
+            item, hits = _redact_json_strings(value, parent_key=parent_key)
             items.append(item)
             count += hits
         return items, count
@@ -424,36 +519,56 @@ def omit_r2(relative: Path) -> bool:
     runtime state. Harbor's root ``job.log`` and per-trial ``trial.log`` repeat
     the unredacted task instruction and command, so they are raw prompt-bearing
     runtime streams rather than durable evidence.
+    Unicode-normalized (NFC) and case-folded matching prevents bypass via
+    confusables, case variations, or alternative decomposition forms.
     """
-    parts = relative.parts
-    if relative.name == "job.log" and len(parts) == 1:
+    norm_name = _canonical(relative.name)
+    if norm_name in FORBIDDEN_BASENAMES:
         return True
-    if relative.name == "trial.log":
-        return True
-    if "agent" not in parts:
+    norm_parts = [_canonical(p) for p in relative.parts]
+    if "agent" not in norm_parts:
         return False
-    return (
-        "sessions" in parts
-        or "opencode" in parts
-        or relative.name in {"codex.txt", "opencode.txt"}
-    )
+    return "sessions" in norm_parts or "opencode" in norm_parts
+
+
+def _omission_reason(relative: Path) -> str:
+    """Deterministic human-readable explanation for an R2 omission."""
+    norm_name = _canonical(relative.name)
+    if norm_name in FORBIDDEN_BASENAMES:
+        return f"R2: forbidden basename '{relative.name}'"
+    norm_parts = [_canonical(p) for p in relative.parts]
+    if "agent" in norm_parts:
+        if "sessions" in norm_parts:
+            return "R2: raw session rollout stream under agent/sessions"
+        if "opencode" in norm_parts:
+            return "R2: OpenCode runtime state under agent/opencode"
+    return "R2: raw prompt or runtime state"
 
 
 def classify(relative: Path) -> str:
     if omit_r2(relative):
         return "omit-R2"
-    parts = relative.parts
-    if relative.name == "trajectory.json" and "agent" in parts:
+    norm_name = _canonical(relative.name)
+    norm_parts = [_canonical(p) for p in relative.parts]
+    if norm_name == "trajectory.json" and "agent" in norm_parts:
         return "redact-R1"
-    if "verifier" in parts:
+    if "verifier" in norm_parts:
         return "maybe-redact-R3"
     return "verbatim"
 
 
 def omission_record(
-    relative: Path, *, entry_type: str, raw: bytes | None = None, link_target: str | None = None
+    relative: Path,
+    *,
+    entry_type: str,
+    raw: bytes | None = None,
+    link_target: str | None = None,
+    reason: str | None = None,
+    rule: str = "R2",
+    digest: str | None = None,
+    size: int | None = None,
 ) -> dict[str, Any]:
-    """An R2 omission entry.
+    """An omission entry.
 
     A ``file`` records the SHA-256/length of the source bytes. A ``symlink``
     records the SHA-256/length of its *link-target string* only -- the link
@@ -465,9 +580,11 @@ def omission_record(
         "source_path": str(relative),
         "promoted_path": None,
         "action": "omitted",
-        "rule": "R2",
+        "rule": rule,
         "entry_type": entry_type,
     }
+    if reason is not None:
+        record["reason"] = reason
     if entry_type == "symlink":
         assert link_target is not None
         target_bytes = link_target.encode("utf-8")
@@ -475,9 +592,13 @@ def omission_record(
         record["source_bytes"] = len(target_bytes)
         record["source_sha256"] = sha256_bytes(target_bytes)
     else:
-        assert raw is not None
-        record["source_bytes"] = len(raw)
-        record["source_sha256"] = sha256_bytes(raw)
+        if digest is not None and size is not None:
+            record["source_bytes"] = size
+            record["source_sha256"] = digest
+        else:
+            assert raw is not None
+            record["source_bytes"] = len(raw)
+            record["source_sha256"] = sha256_bytes(raw)
     return record
 
 
@@ -495,12 +616,16 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
     entries: list[dict[str, Any]] = []
     promoted_bytes = 0
     for source in sorted(job_dir.rglob("*")):
+        relative = source.relative_to(job_dir)
+        # Path traversal guard: refuse paths that contain '..' or '.' or are absolute
+        if any(part in {"..", ".", ""} for part in relative.parts) or relative.is_absolute():
+            raise SystemExit(f"refusing path with invalid component: {relative}")
+
         # Symlinks are enumerated explicitly and handled by path alone. Their
         # content is never read: a live link would dereference the target
         # (disclosing its bytes into the digest), and a broken link cannot be
         # read at all. Only the link-target *string* is recorded.
         if source.is_symlink():
-            relative = source.relative_to(job_dir)
             if not omit_r2(relative):
                 raise SystemExit(
                     "refusing to promote a symlink outside an R2 omission path: "
@@ -510,19 +635,87 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
                 link_target = str(source.readlink())
             except OSError as exc:  # pragma: no cover - filesystem failure
                 raise SystemExit(f"cannot read link target for {relative}: {exc}") from exc
+            reason = _omission_reason(relative)
             entries.append(
-                omission_record(relative, entry_type="symlink", link_target=link_target)
+                omission_record(
+                    relative,
+                    entry_type="symlink",
+                    link_target=link_target,
+                    reason=reason,
+                )
             )
             continue
-        if not source.is_file():
+
+        try:
+            st = source.lstat()
+        except OSError as exc:
+            raise SystemExit(f"cannot stat source file {relative}: {exc}") from exc
+
+        # Non-regular files (device nodes, FIFOs, sockets)
+        if not stat.S_ISREG(st.st_mode):
+            if omit_r2(relative):
+                reason = f"hardened: non-regular file under R2 (mode {oct(st.st_mode)})"
+                digest, size = _stream_sha256(source) if source.is_file() else (sha256_bytes(b""), 0)
+                entries.append(
+                    omission_record(
+                        relative,
+                        entry_type="file",
+                        digest=digest,
+                        size=size,
+                        reason=reason,
+                        rule="R2",
+                    )
+                )
+                continue
+            raise SystemExit(
+                f"refusing to promote non-regular file outside R2: {relative} (mode {oct(st.st_mode)})"
+            )
+
+        # Hardlink refusal outside R2
+        if st.st_nlink > 1 and not omit_r2(relative):
+            raise SystemExit(
+                f"refusing to promote hardlinked file outside R2: {relative} (nlink {st.st_nlink})"
+            )
+
+        # Streaming size limit check
+        if st.st_size > MAX_SOURCE_BYTES:
+            digest, size = _stream_sha256(source)
+            reason = f"hardened: oversized file ({size} bytes > {MAX_SOURCE_BYTES})"
+            entries.append(
+                omission_record(
+                    relative,
+                    entry_type="file",
+                    digest=digest,
+                    size=size,
+                    reason=reason,
+                    rule="hardened",
+                )
+            )
             continue
-        relative = source.relative_to(job_dir)
+
+        # Archive/container payload rejection
+        if not omit_r2(relative) and _is_archive_like(relative):
+            digest, size = _stream_sha256(source)
+            reason = f"hardened: archive/container payload '{relative.name}'"
+            entries.append(
+                omission_record(
+                    relative,
+                    entry_type="file",
+                    digest=digest,
+                    size=size,
+                    reason=reason,
+                    rule="hardened",
+                )
+            )
+            continue
+
         raw = source.read_bytes()
         parent_digest = sha256_bytes(raw)
         action = classify(relative)
 
         if action == "omit-R2":
-            omission = omission_record(relative, entry_type="file", raw=raw)
+            reason = _omission_reason(relative)
+            omission = omission_record(relative, entry_type="file", raw=raw, reason=reason)
             entries.append(omission)
             # R4: the rollout goes, but the provider's own quota reading inside
             # it survives as a whitelisted sidecar carrying this same parent
@@ -536,6 +729,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             target = sidecar_path(relative)
             omission["quota_sidecar_path"] = str(target)
             out = destination / target
+            _assert_within(destination, out)
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(body)
             promoted_bytes += len(body)
@@ -556,13 +750,6 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
 
         if action == "redact-R1":
             body = redact_trajectory(raw)
-            # Keep the canonical ATIF path. Every consumer hardcodes
-            # agent/trajectory.json -- atif.py:399, facts.py:750, tracing.py:21,
-            # explorer.py:226, status.py:125, analysis_worker.py:485,
-            # calibration/inventory.py:275 -- so a .redacted suffix would promote
-            # a trajectory that no tool can read, which is the F-05 gap again. The
-            # redaction is recorded in-band instead: evallab_redaction plus
-            # per-step message_sha256 and message_chars.
             target = relative
             rule, applied = "R1", "redacted"
         elif action == "maybe-redact-R3":
@@ -578,6 +765,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             body, target, rule, applied = raw, relative, None, "verbatim"
 
         out = destination / target
+        _assert_within(destination, out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(body)
         promoted_bytes += len(body)
@@ -605,11 +793,11 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         "source_job_result_sha256": sha256_file(job_result) if job_result.is_file() else None,
         "promoted_by": "scripts/promote_codex_bundle.py",
         "redaction_rules": {
-            "R1": "system/user ATIF step message text removed; sha256 and length kept",
-            "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+            "R1": "system/user ATIF step message text removed; sha256 and length kept; nested secret-shaped JSON keys redacted",
+            "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log, trial.log, and forbidden basenames (Unicode-normalized and case-folded) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
             "R3a": (
                 "verifier/* JSON string values over "
-                f"{VERIFIER_JSON_STRING_LIMIT} bytes replaced by digest markers"
+                f"{VERIFIER_JSON_STRING_LIMIT} bytes or secret-shaped keys replaced by digest markers"
             ),
             "R3b": (
                 f"verifier/* text files over {VERIFIER_TEXT_LIMIT} bytes promoted "
@@ -622,6 +810,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
                 "rollout's sha256; account-scope point-in-time readings, no message, "
                 "prompt, reasoning, session title or token"
             ),
+            "hardened": "archive/container payloads (.zip, .tar, .gz, etc.), non-regular devices, hardlinks outside R2, oversized files, and path traversal attempts are refused or omitted",
         },
         "totals": {
             "source_files": len(sources),
@@ -633,7 +822,9 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         },
         "files": entries,
     }
-    (destination / MANIFEST_NAME).write_text(
+    manifest_out = destination / MANIFEST_NAME
+    _assert_within(destination, manifest_out)
+    manifest_out.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
     )
     return manifest
@@ -665,11 +856,11 @@ def verify(evidence_runs: Path) -> int:
                 failures += 1
 
         for entry in manifest["files"]:
-            # Validate the R2 omission record schema, source-free. Every bundle
+            # Validate the omission record schema, source-free. Every bundle
             # is schema v2, which requires ``entry_type`` on every omission and
             # ``link_target``/length/hash on symlink omissions. Deleting those
             # fields or downgrading the manifest is therefore caught.
-            if entry.get("action") == "omitted" and entry.get("rule") == "R2":
+            if entry.get("action") == "omitted":
                 name = f"{bundle.name}/{entry.get('source_path')}"
                 if entry.get("promoted_path") is not None:
                     print(f"BAD OMISSION {name}: promoted_path must be null")
@@ -693,6 +884,10 @@ def verify(evidence_runs: Path) -> int:
                         failures += 1
                     if entry.get("source_bytes") != len(target_bytes):
                         print(f"BAD OMISSION {name}: link_target length mismatch")
+                        failures += 1
+                else:
+                    if not entry.get("source_sha256") or not isinstance(entry.get("source_bytes"), int):
+                        print(f"BAD OMISSION {name}: file missing source_sha256 or source_bytes")
                         failures += 1
             promoted = entry.get("promoted_path")
             if not promoted:

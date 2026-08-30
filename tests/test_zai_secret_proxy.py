@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import errno
 import gzip
 import importlib
 import importlib.util
@@ -789,7 +790,8 @@ def test_proxy_worker_pool_503_content_length_and_body(
         t1.join()
 
         # Subsequent connection 3 should be accepted after capacity frees:
-        # poll with bounded monotonic deadline tolerating transient 503 during worker release
+        # poll with bounded monotonic deadline tolerating transient 503 or transient
+        # connection reset / broken pipe during worker release window
         deadline = time.monotonic() + 5.0
         accepted = False
         while time.monotonic() < deadline:
@@ -806,6 +808,21 @@ def test_proxy_worker_pool_503_content_length_and_body(
                         break
             except urllib.error.HTTPError as exc3:
                 if exc3.code == 503:
+                    time.sleep(0.02)
+                    continue
+                raise
+            except (urllib.error.URLError, OSError) as exc3:
+                # Treat only transient socket disconnects/resets during release window as retryable
+                reason = getattr(exc3, "reason", exc3)
+                if isinstance(reason, (BrokenPipeError, ConnectionResetError, ConnectionRefusedError)):
+                    time.sleep(0.02)
+                    continue
+                if isinstance(reason, OSError) and reason.errno in (
+                    errno.EPIPE,
+                    errno.ECONNRESET,
+                    errno.ECONNREFUSED,
+                    errno.ETIMEDOUT,
+                ):
                     time.sleep(0.02)
                     continue
                 raise

@@ -35,6 +35,7 @@ from evallab.interpretation.feature_registry import (
     TRAJECTORY_FEATURE_REGISTRY,
     audit_denominator_policy,
     audit_registry_denominator_policies,
+    feature_analysis_eligibility,
     feature_contract_row,
     verify_feature_registry,
 )
@@ -45,6 +46,7 @@ from evallab.interpretation.producers.mcp_funcdag import (
     extract_mcp_funcdag_features,
 )
 from evallab.interpretation.producers.mcp_recovery import (
+    build_recovery_persistence_curve,
     extract_mcp_recovery_features,
 )
 from evallab.interpretation.traj_card import generate_traj_card
@@ -433,6 +435,13 @@ def test_action_memory_feature_extraction(action_memory_trial_dir: Path):
     assert features.valid_handle_count == 2
     assert features.handle_set_match is False
     assert features.handle_coverage_rate == 2.0 / 7.0
+    assert features.write_update_event_count == 1
+    assert features.conflict_resolution_success is True
+    assert features.retained_obsolete_fact_count == 0
+    assert features.selective_forgetting_success is True
+    assert features.cross_session_retrieval_rate is None
+    assert features.temporal_consistency_rate == 1.0
+    assert features.causal_consistency_rate == 1.0
 
 
 def test_action_memory_retrieval_handle_fidelity_checks(tmp_path: Path):
@@ -856,6 +865,16 @@ def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
     assert features.cycle_violations == 0
     assert features.prompt_cache_hit_rate == 0.5
     assert features.construct == "tool_call_dag_conformance"
+    assert features.required_milestones == (
+        features.required_dag_edges + features.required_value_bindings
+    )
+    assert features.completed_milestones == features.required_milestones
+    assert features.milestone_progress_rate == 1.0
+    assert features.state_dependency_satisfaction_rate == 1.0
+    assert features.policy_violation_count == 0
+    assert features.plan_revision_count == 0
+    assert features.post_error_review_count == 0
+    assert features.insufficient_information_handled is None
 
 
 def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
@@ -873,6 +892,17 @@ def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     assert features.blind_retries == 0
     assert features.prompt_cache_hit_rate == 0.5
     assert features.causal_grade == "C3"
+    assert features.diagnosis_class is None
+    assert features.source_error_count == 1
+    assert features.propagated_error_count == 0
+    assert features.strategy_changed_after_failure is True
+    assert features.controlled_replay_available is False
+    assert features.max_blind_retry_streak == 0
+    assert features.recovery_succeeded_at_persistence is True
+    curve = build_recovery_persistence_curve([features])
+    assert len(curve) == 1
+    assert curve[0].persistence_level == 1
+    assert curve[0].recovery_rate == 1.0
 
 
 def test_null_preservation_on_zero_denominators(tmp_path: Path):
@@ -923,6 +953,25 @@ def test_feature_registry_ci_verification():
     """All registered features must comply with typing, category, and denominator contracts."""
     errors = verify_feature_registry()
     assert errors == [], f"Feature registry CI verification failed: {errors}"
+
+
+def test_tool_and_recovery_features_have_explicit_analysis_governance() -> None:
+    """Every family feature has a declared analysis role and denominator policy."""
+    for family in ("mcp-funcdag-v1", "mcp-recovery-v1"):
+        family_features = TRAJECTORY_FEATURE_REGISTRY.by_family(family)
+        assert family_features
+        for feature in family_features.values():
+            assert feature.available_before_verdict is not None, feature.column_name
+            assert feature.verdict_coupling is not None, feature.column_name
+            assert feature.denominator_policy is not None, feature.column_name
+            if feature.verdict_coupling in {"defines", "correlates"}:
+                assert feature.coupling_basis, feature.column_name
+            eligibility = feature_analysis_eligibility(feature)
+            assert eligibility.descriptive_allowed
+            if feature.verdict_coupling == "independent":
+                assert eligibility.predictor_allowed
+            else:
+                assert not eligibility.predictor_allowed
 
 
 def test_feature_registry_lookup():

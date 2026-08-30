@@ -79,6 +79,14 @@ class McpRecoveryFeatures:
     certified_recovered_faults: int
     step_to_first_fault: int | None
     step_to_recovery: int | None
+    diagnosis_class: str | None
+    source_error_count: int
+    propagated_error_count: int
+    strategy_changed_after_failure: bool | None
+    controlled_replay_available: bool
+    controlled_replay_outcome_delta: float | None
+    max_blind_retry_streak: int
+    recovery_succeeded_at_persistence: bool | None
 
     # L2 Derived Metrics (C0, C2, C3) - NULL-preserving on zero denominator
     schema_conformance_rate: float | None
@@ -93,6 +101,41 @@ class McpRecoveryFeatures:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class RecoveryPersistencePoint:
+    """Observed certified recovery at one native fault persistence level."""
+
+    persistence_level: int
+    trial_count: int
+    recovered_count: int
+    recovery_rate: float
+
+
+def build_recovery_persistence_curve(
+    records: Sequence[McpRecoveryFeatures],
+) -> tuple[RecoveryPersistencePoint, ...]:
+    """Aggregate fault-arm trials without pooling distinct persistence levels."""
+    grouped: dict[int, list[McpRecoveryFeatures]] = {}
+    for record in records:
+        if record.injected_fault_count <= 0:
+            continue
+        grouped.setdefault(record.persistence_level, []).append(record)
+    points = []
+    for level, level_records in sorted(grouped.items()):
+        recovered = sum(
+            record.recovery_succeeded_at_persistence is True for record in level_records
+        )
+        points.append(
+            RecoveryPersistencePoint(
+                persistence_level=level,
+                trial_count=len(level_records),
+                recovered_count=recovered,
+                recovery_rate=recovered / len(level_records),
+            )
+        )
+    return tuple(points)
 
 
 def extract_mcp_recovery_features(
@@ -132,6 +175,11 @@ def extract_mcp_recovery_features(
     step_to_first_fault: int | None = None
     step_to_recovery: int | None = None
     valid_schema_calls = 0
+    source_error_count = 0
+    propagated_error_count = 0
+    max_blind_retry_streak = 0
+    current_blind_retry_streak = 0
+    source_fault_seen = False
 
     last_failing_call: CorrelatedToolCall | None = None
     fault_active = False
@@ -142,6 +190,11 @@ def extract_mcp_recovery_features(
         if is_schema_valid:
             valid_schema_calls += 1
 
+        if call.is_fault_injected:
+            source_error_count += 1
+            source_fault_seen = True
+        elif call.is_error and source_fault_seen:
+            propagated_error_count += 1
         if call.is_fault_injected or call.is_error:
             fc = call.fault_class or "generic_error"
             injected_faults.append(fc)
@@ -160,9 +213,15 @@ def extract_mcp_recovery_features(
                 prev_tool = last_failing_call.tool_name
                 if call.tool_name == prev_tool and args == prev_args:
                     blind_retries += 1
+                    current_blind_retry_streak += 1
+                    max_blind_retry_streak = max(
+                        max_blind_retry_streak,
+                        current_blind_retry_streak,
+                    )
                 else:
                     # Agent adapted arguments or switched tools -> detected/acknowledged fault
                     fault_detected_count += 1
+                    current_blind_retry_streak = 0
 
             if not call.is_error:
                 # Succeeded after fault
@@ -194,6 +253,35 @@ def extract_mcp_recovery_features(
             fault_detected_count = max(fault_detected_count, certified_recovered_faults)
 
     injected_fault_record = json.dumps(injected_faults) if injected_faults else None
+    diagnosis_class: str | None = None
+    for event in events:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        candidate = payload.get("diagnosis_class") or payload.get("diagnosed_fault_class")
+        if candidate is not None:
+            diagnosis_class = str(candidate)
+            break
+        if event.event_type in {"fault_diagnosed", "diagnosis"}:
+            fallback = payload.get("fault_class") or payload.get("fault_type")
+            if fallback is not None:
+                diagnosis_class = str(fallback)
+                break
+
+    strategy_changed_after_failure: bool | None = None
+    if injected_fault_count > 0:
+        strategy_changed_after_failure = (
+            post_fault_retries > blind_retries or fault_detected_count > 0
+        )
+
+    controlled_replay_ref = (
+        cell_factors.get("clean_twin_id")
+        or cell_factors.get("paired_trial_id")
+        or cell_factors.get("controlled_replay_id")
+    )
+    controlled_replay_available = controlled_replay_ref is not None
+    raw_replay_delta = cell_factors.get("controlled_replay_outcome_delta")
+    controlled_replay_outcome_delta = (
+        float(raw_replay_delta) if isinstance(raw_replay_delta, (int, float)) else None
+    )
 
     # Certified autonomous recovery requires all 5 gates:
     # 1. Injected fault occurred (injected_fault_count > 0)
@@ -270,6 +358,9 @@ def extract_mcp_recovery_features(
         and step_to_recovery > step_to_first_fault
     ):
         fault_recovery_latency = float(step_to_recovery - step_to_first_fault)
+    recovery_succeeded_at_persistence: bool | None = None
+    if injected_fault_count > 0:
+        recovery_succeeded_at_persistence = certified_recovered_faults > 0
     citation = bundle.build_citation()
 
     return McpRecoveryFeatures(
@@ -297,6 +388,14 @@ def extract_mcp_recovery_features(
         certified_recovered_faults=certified_recovered_faults,
         step_to_first_fault=step_to_first_fault,
         step_to_recovery=step_to_recovery,
+        diagnosis_class=diagnosis_class,
+        source_error_count=source_error_count,
+        propagated_error_count=propagated_error_count,
+        strategy_changed_after_failure=strategy_changed_after_failure,
+        controlled_replay_available=controlled_replay_available,
+        controlled_replay_outcome_delta=controlled_replay_outcome_delta,
+        max_blind_retry_streak=max_blind_retry_streak,
+        recovery_succeeded_at_persistence=recovery_succeeded_at_persistence,
         schema_conformance_rate=schema_conformance_rate,
         autonomous_recovery_rate=autonomous_recovery_rate,
         fault_detection_rate=fault_detection_rate,

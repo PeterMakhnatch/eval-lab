@@ -22,11 +22,16 @@ from evallab.judge_calibration import (
     E1MissingLaneIdentityError,
     E1TrajectoryLabelAccessError,
     ItemEvaluation,
+    JudgeCalibrationObservationV1,
+    adjudicate_pairwise_preferences,
     assert_no_trajectory_label_access,
     clopper_pearson_interval,
     compute_confusion_matrix,
     compute_diagnostics,
+    create_pairwise_judge_preference,
+    evaluate_trajectory_judge_calibration,
     load_keyed_corpus,
+    load_trajectory_calibration_corpus,
     main,
     run_lexical_control_arm,
     run_model_grader_arm,
@@ -85,7 +90,9 @@ def test_corpus_loader_fails_closed_on_missing_dir(tmp_path: Path) -> None:
 def test_trajectory_label_access_is_forbidden() -> None:
     """Assert security guard raises E1TrajectoryLabelAccessError when trajectory labels are accessed."""
     forbidden_path = Path("research/calibration/trajectory-labels/sample_trial.json")
-    with pytest.raises(E1TrajectoryLabelAccessError, match="strictly forbids reading trajectory labels"):
+    with pytest.raises(
+        E1TrajectoryLabelAccessError, match="strictly forbids reading trajectory labels"
+    ):
         assert_no_trajectory_label_access(forbidden_path)
 
 
@@ -101,14 +108,14 @@ def test_clopper_pearson_exact_intervals() -> None:
     assert low_0 == 0.0
     assert 0.0 < high_0 < 1.0
     # For n=10, k=0, upper bound is 1 - 0.025^(1/10) ~ 0.308497
-    assert pytest.approx(high_0, abs=1e-4) == 1.0 - 0.025 ** 0.1
+    assert pytest.approx(high_0, abs=1e-4) == 1.0 - 0.025**0.1
 
     # k = n boundary case
     low_n, high_n = clopper_pearson_interval(10, 10)
     assert 0.0 < low_n < 1.0
     assert high_n == 1.0
     # For n=10, k=10, lower bound is 0.025^(1/10) ~ 0.691503
-    assert pytest.approx(low_n, abs=1e-4) == 0.025 ** 0.1
+    assert pytest.approx(low_n, abs=1e-4) == 0.025**0.1
 
     # Symmetric case k = 5, n = 10
     low_mid, high_mid = clopper_pearson_interval(5, 10)
@@ -393,3 +400,97 @@ def test_cli_module_main_entrypoint(repo_root: Path) -> None:
     # Test summary mode
     exit_code_summary = main(["--repo-root", str(repo_root), "--arm", "lexical-control"])
     assert exit_code_summary == 0
+
+
+def test_trajectory_calibration_corpus_has_all_deterministic_case_types(
+    repo_root: Path,
+) -> None:
+    corpus = load_trajectory_calibration_corpus(
+        repo_root / "research/calibration/trajectory-judge-v1/cases.json"
+    )
+    assert len(corpus.cases) == 5
+    assert {case.case_type for case in corpus.cases} == {
+        "memory_omission_stale_binding",
+        "funcdag_value_propagation",
+        "injected_recovery_fault",
+        "recovery_clean_twin",
+        "harness_capture_failure",
+    }
+    assert all(case.decision_eligible is False for case in corpus.cases)
+
+
+def test_taste_pairwise_preferences_discussion_and_adjudication() -> None:
+    first = create_pairwise_judge_preference(
+        case_id="memory-omission-stale-binding-001",
+        judge_id="judge-a",
+        option_a="memory_failure",
+        option_b="harness_capture_failure",
+        preferred="a",
+        confidence="high",
+        repeat_index=0,
+    )
+    second = create_pairwise_judge_preference(
+        case_id="memory-omission-stale-binding-001",
+        judge_id="judge-b",
+        option_a="memory_failure",
+        option_b="harness_capture_failure",
+        preferred="b",
+        confidence="medium",
+        repeat_index=0,
+    )
+    adjudication = adjudicate_pairwise_preferences(
+        "memory-pair-001",
+        [first, second],
+        discussion_digest="sha256:" + "d" * 64,
+        final_preference="a",
+        confidence="high",
+        adjudicator_id="adjudicator-1",
+    )
+    assert adjudication.preference_digests == (
+        first.preference_digest,
+        second.preference_digest,
+    )
+    assert adjudication.final_preference == "a"
+
+
+def test_trajectory_judge_calibration_measures_truth_repeats_and_interjudge(
+    repo_root: Path,
+) -> None:
+    corpus = load_trajectory_calibration_corpus(
+        repo_root / "research/calibration/trajectory-judge-v1/cases.json"
+    )
+    observations = []
+    for case in corpus.cases:
+        for repeat_index in range(3):
+            observations.append(
+                JudgeCalibrationObservationV1(
+                    case_id=case.case_id,
+                    judge_id="judge-a",
+                    repeat_index=repeat_index,
+                    predicted_category=case.expected_category,
+                    expected_category=case.expected_category,
+                    confidence=0.9,
+                    run_digest="sha256:" + "a" * 64,
+                )
+            )
+            predicted = case.expected_category
+            if case.case_id == "funcdag-value-propagation-001" and repeat_index == 2:
+                predicted = "uncertain"
+            observations.append(
+                JudgeCalibrationObservationV1(
+                    case_id=case.case_id,
+                    judge_id="judge-b",
+                    repeat_index=repeat_index,
+                    predicted_category=predicted,
+                    expected_category=case.expected_category,
+                    confidence=0.6,
+                    run_digest="sha256:" + "b" * 64,
+                )
+            )
+    report = evaluate_trajectory_judge_calibration(corpus, observations)
+    assert report.observation_count == 30
+    assert report.truth_agreement_rate == pytest.approx(29 / 30)
+    assert report.repeat_consistency_rate == pytest.approx((9 + 2 / 3) / 10)
+    assert report.inter_judge_agreement_rate == pytest.approx(14 / 15)
+    assert report.adjudication_count == 0
+    assert report.decision_eligible is False

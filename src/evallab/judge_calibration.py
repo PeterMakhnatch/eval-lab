@@ -27,7 +27,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, Literal, Protocol
 
+from pydantic import Field, model_validator
+
+from evallab.analyst import ANALYST_CATEGORIES, TrajectoryJudgeRunV1
 from evallab.execution_contracts import PaidRunAuthorization
+from evallab.schemas import ContractModel
 
 CLASSES: Final[tuple[str, ...]] = (
     "correct",
@@ -193,6 +197,355 @@ class E1CalibrationReport:
     corpus_digest: str
 
 
+TrajectoryCaseType = Literal[
+    "memory_omission_stale_binding",
+    "funcdag_value_propagation",
+    "injected_recovery_fault",
+    "recovery_clean_twin",
+    "harness_capture_failure",
+]
+
+
+def _trajectory_digest(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode()
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+class TrajectoryCalibrationCaseV1(ContractModel):
+    schema_version: Literal["trajectory-calibration-case/v1"] = "trajectory-calibration-case/v1"
+    case_id: str = Field(min_length=1)
+    case_type: TrajectoryCaseType
+    family: str = Field(min_length=1)
+    expected_category: str = Field(min_length=1)
+    truth_source_path: str = Field(min_length=1)
+    truth_source_digest: str
+    anchor_facts: dict[str, Any]
+    counterfactual_case_id: str | None = None
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_truth_digest(self) -> TrajectoryCalibrationCaseV1:
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", self.truth_source_digest):
+            raise ValueError("trajectory calibration truth requires sha256 provenance")
+        if self.expected_category not in ANALYST_CATEGORIES:
+            raise ValueError("trajectory calibration expected_category is not in the judge rubric")
+        return self
+
+
+class TrajectoryCalibrationCorpusV1(ContractModel):
+    schema_version: Literal["trajectory-calibration-corpus/v1"] = "trajectory-calibration-corpus/v1"
+    corpus_digest: str
+    cases: tuple[TrajectoryCalibrationCaseV1, ...]
+
+    @model_validator(mode="after")
+    def _validate_corpus(self) -> TrajectoryCalibrationCorpusV1:
+        required_types = {
+            "memory_omission_stale_binding",
+            "funcdag_value_propagation",
+            "injected_recovery_fault",
+            "recovery_clean_twin",
+            "harness_capture_failure",
+        }
+        observed_types = {case.case_type for case in self.cases}
+        if observed_types != required_types:
+            raise ValueError(
+                "trajectory calibration corpus must contain all five anchored case types"
+            )
+        case_ids = [case.case_id for case in self.cases]
+        if len(case_ids) != len(set(case_ids)):
+            raise ValueError("trajectory calibration case IDs must be unique")
+        known_ids = set(case_ids)
+        for case in self.cases:
+            if (
+                case.counterfactual_case_id is not None
+                and case.counterfactual_case_id not in known_ids
+            ):
+                raise ValueError("counterfactual calibration case does not exist")
+        body = self.model_dump(mode="json", exclude={"corpus_digest"})
+        if self.corpus_digest != _trajectory_digest(body):
+            raise ValueError("trajectory calibration corpus digest mismatch")
+        return self
+
+
+class PairwiseJudgePreferenceV1(ContractModel):
+    schema_version: Literal["pairwise-judge-preference/v1"] = "pairwise-judge-preference/v1"
+    preference_digest: str
+    case_id: str
+    judge_id: str
+    option_a: str
+    option_b: str
+    preferred: Literal["a", "b", "tie"]
+    confidence: Literal["low", "medium", "high"]
+    repeat_index: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _validate_preference(self) -> PairwiseJudgePreferenceV1:
+        if self.option_a == self.option_b:
+            raise ValueError("pairwise judge options must differ")
+        if self.option_a not in ANALYST_CATEGORIES or self.option_b not in ANALYST_CATEGORIES:
+            raise ValueError("pairwise options must use the trajectory judge rubric")
+        body = self.model_dump(mode="json", exclude={"preference_digest"})
+        if self.preference_digest != _trajectory_digest(body):
+            raise ValueError("pairwise preference digest mismatch")
+        return self
+
+
+class PairDiscussionAdjudicationV1(ContractModel):
+    schema_version: Literal["pair-discussion-adjudication/v1"] = "pair-discussion-adjudication/v1"
+    adjudication_digest: str
+    pair_id: str
+    preference_digests: tuple[str, ...]
+    discussion_digest: str
+    final_preference: Literal["a", "b", "tie"]
+    confidence: Literal["low", "medium", "high"]
+    adjudicator_id: str
+
+    @model_validator(mode="after")
+    def _validate_adjudication(self) -> PairDiscussionAdjudicationV1:
+        if len(self.preference_digests) < 2:
+            raise ValueError("discussion adjudication requires at least two preferences")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", self.discussion_digest):
+            raise ValueError("discussion transcript requires a sha256 digest")
+        body = self.model_dump(mode="json", exclude={"adjudication_digest"})
+        if self.adjudication_digest != _trajectory_digest(body):
+            raise ValueError("discussion adjudication digest mismatch")
+        return self
+
+
+class JudgeCalibrationObservationV1(ContractModel):
+    schema_version: Literal["judge-calibration-observation/v1"] = "judge-calibration-observation/v1"
+    case_id: str
+    judge_id: str
+    repeat_index: int = Field(ge=0)
+    predicted_category: str
+    expected_category: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    run_digest: str
+
+    @model_validator(mode="after")
+    def _validate_observation(self) -> JudgeCalibrationObservationV1:
+        if (
+            self.predicted_category not in ANALYST_CATEGORIES
+            or self.expected_category not in ANALYST_CATEGORIES
+        ):
+            raise ValueError("calibration observation category is outside the judge rubric")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", self.run_digest):
+            raise ValueError("calibration observation requires a judge run digest")
+        return self
+
+
+class TrajectoryJudgeCalibrationReportV1(ContractModel):
+    schema_version: Literal["trajectory-judge-calibration-report/v1"] = (
+        "trajectory-judge-calibration-report/v1"
+    )
+    report_digest: str
+    corpus_digest: str
+    observation_count: int = Field(ge=0)
+    truth_agreement_rate: float = Field(ge=0.0, le=1.0)
+    repeat_consistency_rate: float = Field(ge=0.0, le=1.0)
+    inter_judge_agreement_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    adjudication_count: int = Field(ge=0)
+    per_case_accuracy: dict[str, float]
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_report(self) -> TrajectoryJudgeCalibrationReportV1:
+        body = self.model_dump(mode="json", exclude={"report_digest"})
+        if self.report_digest != _trajectory_digest(body):
+            raise ValueError("trajectory judge calibration report digest mismatch")
+        return self
+
+
+def load_trajectory_calibration_corpus(path: Path) -> TrajectoryCalibrationCorpusV1:
+    """Load the five-case deterministic trajectory judge calibration corpus."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    cases = tuple(
+        TrajectoryCalibrationCaseV1.model_validate(case) for case in payload.get("cases", [])
+    )
+    repo_root = path.resolve().parents[3]
+    for case in cases:
+        source_path = Path(case.truth_source_path)
+        if source_path.is_absolute() or ".." in source_path.parts:
+            raise ValueError("trajectory truth source path must be repository-relative")
+        resolved = (repo_root / source_path).resolve()
+        if repo_root not in resolved.parents or not resolved.is_file():
+            raise ValueError(f"trajectory truth source is missing: {case.truth_source_path}")
+        observed_digest = f"sha256:{hashlib.sha256(resolved.read_bytes()).hexdigest()}"
+        if observed_digest != case.truth_source_digest:
+            raise ValueError(f"trajectory truth source digest mismatch: {case.case_id}")
+    body = {
+        "schema_version": "trajectory-calibration-corpus/v1",
+        "cases": [case.model_dump(mode="json") for case in cases],
+    }
+    return TrajectoryCalibrationCorpusV1.model_validate(
+        {
+            **body,
+            "corpus_digest": payload.get("corpus_digest") or _trajectory_digest(body),
+        }
+    )
+
+
+def create_pairwise_judge_preference(
+    *,
+    case_id: str,
+    judge_id: str,
+    option_a: str,
+    option_b: str,
+    preferred: Literal["a", "b", "tie"],
+    confidence: Literal["low", "medium", "high"],
+    repeat_index: int,
+) -> PairwiseJudgePreferenceV1:
+    """Create one TASTE-style pairwise preference with explicit confidence."""
+    body = {
+        "schema_version": "pairwise-judge-preference/v1",
+        "case_id": case_id,
+        "judge_id": judge_id,
+        "option_a": option_a,
+        "option_b": option_b,
+        "preferred": preferred,
+        "confidence": confidence,
+        "repeat_index": repeat_index,
+    }
+    return PairwiseJudgePreferenceV1.model_validate(
+        {
+            **body,
+            "preference_digest": _trajectory_digest(body),
+        }
+    )
+
+
+def adjudicate_pairwise_preferences(
+    pair_id: str,
+    preferences: Sequence[PairwiseJudgePreferenceV1],
+    *,
+    discussion_digest: str,
+    final_preference: Literal["a", "b", "tie"],
+    confidence: Literal["low", "medium", "high"],
+    adjudicator_id: str,
+) -> PairDiscussionAdjudicationV1:
+    """Record discussion and adjudication without overwriting initial preferences."""
+    if len(preferences) < 2:
+        raise ValueError("at least two preferences are required for adjudication")
+    case_ids = {preference.case_id for preference in preferences}
+    option_pairs = {(preference.option_a, preference.option_b) for preference in preferences}
+    if len(case_ids) != 1 or len(option_pairs) != 1:
+        raise ValueError("adjudicated preferences must address the same case and options")
+    body = {
+        "schema_version": "pair-discussion-adjudication/v1",
+        "pair_id": pair_id,
+        "preference_digests": tuple(preference.preference_digest for preference in preferences),
+        "discussion_digest": discussion_digest,
+        "final_preference": final_preference,
+        "confidence": confidence,
+        "adjudicator_id": adjudicator_id,
+    }
+    return PairDiscussionAdjudicationV1.model_validate(
+        {
+            **body,
+            "adjudication_digest": _trajectory_digest(body),
+        }
+    )
+
+
+def observation_from_judge_run(
+    case: TrajectoryCalibrationCaseV1,
+    judge_id: str,
+    run: TrajectoryJudgeRunV1,
+) -> JudgeCalibrationObservationV1:
+    """Bind one repeated trajectory judge run to deterministic benchmark truth."""
+    return JudgeCalibrationObservationV1(
+        case_id=case.case_id,
+        judge_id=judge_id,
+        repeat_index=run.repeat_index,
+        predicted_category=run.final_category,
+        expected_category=case.expected_category,
+        confidence=run.stages[-1].confidence,
+        run_digest=run.run_digest,
+    )
+
+
+def evaluate_trajectory_judge_calibration(
+    corpus: TrajectoryCalibrationCorpusV1,
+    observations: Sequence[JudgeCalibrationObservationV1],
+    *,
+    adjudications: Sequence[PairDiscussionAdjudicationV1] = (),
+) -> TrajectoryJudgeCalibrationReportV1:
+    """Measure truth agreement, repeat consistency, and inter-judge agreement."""
+    if not observations:
+        raise ValueError("trajectory judge calibration requires observations")
+    cases = {case.case_id: case for case in corpus.cases}
+    for observation in observations:
+        case = cases.get(observation.case_id)
+        if case is None or observation.expected_category != case.expected_category:
+            raise ValueError("calibration observation does not match deterministic truth")
+    correct = sum(
+        observation.predicted_category == observation.expected_category
+        for observation in observations
+    )
+    per_case_accuracy: dict[str, float] = {}
+    for case_id in sorted(cases):
+        case_observations = [
+            observation for observation in observations if observation.case_id == case_id
+        ]
+        if case_observations:
+            per_case_accuracy[case_id] = sum(
+                observation.predicted_category == observation.expected_category
+                for observation in case_observations
+            ) / len(case_observations)
+
+    repeat_groups: dict[tuple[str, str], list[str]] = {}
+    for observation in observations:
+        repeat_groups.setdefault(
+            (observation.case_id, observation.judge_id),
+            [],
+        ).append(observation.predicted_category)
+    repeat_consistency = sum(
+        max(Counter(predictions).values()) / len(predictions)
+        for predictions in repeat_groups.values()
+    ) / len(repeat_groups)
+
+    judge_pairs = 0
+    judge_agreements = 0
+    by_case_repeat: dict[tuple[str, int], list[JudgeCalibrationObservationV1]] = {}
+    for observation in observations:
+        by_case_repeat.setdefault(
+            (observation.case_id, observation.repeat_index),
+            [],
+        ).append(observation)
+    for group in by_case_repeat.values():
+        ordered = sorted(group, key=lambda observation: observation.judge_id)
+        for left_index, left in enumerate(ordered):
+            for right in ordered[left_index + 1 :]:
+                if left.judge_id == right.judge_id:
+                    continue
+                judge_pairs += 1
+                judge_agreements += left.predicted_category == right.predicted_category
+    inter_judge = judge_agreements / judge_pairs if judge_pairs else None
+
+    body = {
+        "schema_version": "trajectory-judge-calibration-report/v1",
+        "corpus_digest": corpus.corpus_digest,
+        "observation_count": len(observations),
+        "truth_agreement_rate": correct / len(observations),
+        "repeat_consistency_rate": repeat_consistency,
+        "inter_judge_agreement_rate": inter_judge,
+        "adjudication_count": len(adjudications),
+        "per_case_accuracy": per_case_accuracy,
+        "decision_eligible": False,
+    }
+    return TrajectoryJudgeCalibrationReportV1.model_validate(
+        {
+            **body,
+            "report_digest": _trajectory_digest(body),
+        }
+    )
+
+
 # =========================================================================== #
 # Exact Clopper-Pearson Binomial Confidence Intervals (Pure Python)
 # =========================================================================== #
@@ -322,10 +675,14 @@ def load_keyed_corpus(repo_root: Path) -> list[KeyedItem]:
             variant = doc_entry.get("variant")
 
             if not doc_id or not rel_path or not variant:
-                raise E1IncompleteCorpusError(f"Incomplete document entry in {manifest_path}: {doc_entry}")
+                raise E1IncompleteCorpusError(
+                    f"Incomplete document entry in {manifest_path}: {doc_entry}"
+                )
 
             if variant not in CLASSES:
-                raise E1IncompleteCorpusError(f"Document {doc_id} has invalid variant {variant!r}; must be in {CLASSES}")
+                raise E1IncompleteCorpusError(
+                    f"Document {doc_id} has invalid variant {variant!r}; must be in {CLASSES}"
+                )
 
             doc_path = fam_dir / rel_path
             if not doc_path.is_file():
@@ -341,7 +698,9 @@ def load_keyed_corpus(repo_root: Path) -> list[KeyedItem]:
             try:
                 answer_key = json.loads(key_path.read_text(encoding="utf-8"))
             except Exception as exc:
-                raise E1IncompleteCorpusError(f"Invalid JSON in answer key {key_path}: {exc}") from exc
+                raise E1IncompleteCorpusError(
+                    f"Invalid JSON in answer key {key_path}: {exc}"
+                ) from exc
 
             key_variant = answer_key.get("variant")
             if key_variant != variant:
@@ -351,7 +710,9 @@ def load_keyed_corpus(repo_root: Path) -> list[KeyedItem]:
 
             criteria = answer_key.get("criteria")
             if not isinstance(criteria, dict) or not criteria:
-                raise E1IncompleteCorpusError(f"Answer key {key_path} has empty or missing criteria")
+                raise E1IncompleteCorpusError(
+                    f"Answer key {key_path} has empty or missing criteria"
+                )
 
             items.append(
                 KeyedItem(
@@ -430,10 +791,11 @@ class LexicalControlGrader:
         )
         if (
             not has_postmortem_structure
-            or (sum(marker in text_lower for marker in log_density_markers) >= 3 and len(text.splitlines()) > 50)
-        ) and (
-            "<!-- calibration-variant:" not in text and not has_postmortem_structure
-        ):
+            or (
+                sum(marker in text_lower for marker in log_density_markers) >= 3
+                and len(text.splitlines()) > 50
+            )
+        ) and ("<!-- calibration-variant:" not in text and not has_postmortem_structure):
             return "copied-evidence"
 
         # 3. Fabricated evidence markers
@@ -518,7 +880,14 @@ class LexicalControlGrader:
 
         elif family == "retry-storm-backlog":
             has_retry_amplification = (
-                ("retry" in text_lower and ("amplification" in text_lower or "budget" in text_lower or "10x" in text_lower))
+                (
+                    "retry" in text_lower
+                    and (
+                        "amplification" in text_lower
+                        or "budget" in text_lower
+                        or "10x" in text_lower
+                    )
+                )
                 or "backlog exhaustion" in text_lower
                 or "queue slot" in text_lower
             )
@@ -771,9 +1140,7 @@ def run_model_grader_arm(
 ) -> E1CalibrationReport:
     """Run the authorized model-grader arm with 3 repetitions (132 calls)."""
     if authorization is None or not isinstance(authorization, PaidRunAuthorization):
-        raise E1AuthorizationError(
-            "Model grader arm requires a valid PaidRunAuthorization."
-        )
+        raise E1AuthorizationError("Model grader arm requires a valid PaidRunAuthorization.")
 
     if not lane_id or not lane_id.strip():
         raise E1MissingLaneIdentityError("lane identity must be specified.")

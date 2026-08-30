@@ -11,7 +11,8 @@ import hashlib
 import json
 import os
 import tarfile
-from collections.abc import Mapping
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -21,13 +22,16 @@ from typing import Any, Literal, Protocol
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pydantic import Field, model_validator
 
 from evallab.evidence_store import open_archive
+from evallab.lance import TrajectoryWindowV1
 from evallab.lineage import compute_file_digest
 from evallab.queue import new_ulid
 from evallab.schemas import (
     AnalysisRecord,
     ConfidenceClaim,
+    ContractModel,
     EvidenceCitation,
 )
 from evallab.storage.attach import attach
@@ -64,6 +68,11 @@ class AnalystCategory(StrEnum):
     # tests.  They are explicit rubric categories, not an open string fallback.
     HYPOTHESIS_1 = "hypothesis_1"
     HYPOTHESIS_2 = "hypothesis_2"
+    MEMORY_FAILURE = "memory_failure"
+    TOOL_COMPOSITION_FAILURE = "tool_composition_failure"
+    RECOVERY_FAILURE = "recovery_failure"
+    HARNESS_CAPTURE_FAILURE = "harness_capture_failure"
+    UNCERTAIN = "uncertain"
 
 
 ANALYST_CATEGORIES: tuple[str, ...] = tuple(item.value for item in AnalystCategory)
@@ -114,6 +123,8 @@ class AnalystResult:
     # Keep those references at the analyst boundary so they can be validated
     # before an AnalysisRecord is constructed.
     citation_metadata: list[dict[str, Any]] = field(default_factory=list)
+    contradicting_evidence: list[EvidenceCitation] = field(default_factory=list)
+    alternative_explanations: list[str] = field(default_factory=list)
 
 
 class Analyzer(Protocol):
@@ -135,12 +146,16 @@ class StubAnalyzer:
         category: str = "task_execution_failure",
         summary: str = "Deterministic evaluation: agent execution failed acceptance criteria.",
         evidence: list[EvidenceCitation] | None = None,
+        contradicting_evidence: list[EvidenceCitation] | None = None,
+        alternative_explanations: list[str] | None = None,
         confidence_level: Literal["low", "medium", "high"] = "high",
         steps: list[dict[str, Any]] | None = None,
     ) -> None:
         self.category = category
         self.summary = summary
         self.evidence = evidence
+        self.contradicting_evidence = contradicting_evidence or []
+        self.alternative_explanations = alternative_explanations or []
         self.confidence_level = confidence_level
         self.steps = steps
 
@@ -173,6 +188,8 @@ class StubAnalyzer:
                 provenance_digest=provenance_digest,
             ),
             steps=steps,
+            contradicting_evidence=self.contradicting_evidence,
+            alternative_explanations=self.alternative_explanations,
         )
 
 
@@ -219,6 +236,22 @@ class ModelAnalyzer:
                         "additionalProperties": False,
                     },
                 },
+                "contradicting_evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "step": {"type": ["integer", "null"]},
+                        },
+                        "required": ["path"],
+                        "additionalProperties": False,
+                    },
+                },
+                "alternative_explanations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
                 "confidence": {
                     "type": "string",
                     "enum": ["low", "medium", "high"],
@@ -238,6 +271,8 @@ class ModelAnalyzer:
         summary = raw_text.strip()
         evidence: list[EvidenceCitation] = []
         citation_metadata: list[dict[str, Any]] = []
+        contradicting_evidence: list[EvidenceCitation] = []
+        alternative_explanations: list[str] = []
         confidence_level: Literal["low", "medium", "high"] = "medium"
 
         try:
@@ -265,6 +300,23 @@ class ModelAnalyzer:
                                     if item.get(key) is not None
                                 }
                             )
+                if isinstance(parsed.get("contradicting_evidence"), list):
+                    for item in parsed["contradicting_evidence"]:
+                        if isinstance(item, dict) and "path" in item:
+                            contradicting_evidence.append(
+                                EvidenceCitation(
+                                    path=str(item["path"]),
+                                    step=(
+                                        int(item["step"]) if item.get("step") is not None else None
+                                    ),
+                                )
+                            )
+                if isinstance(parsed.get("alternative_explanations"), list):
+                    alternative_explanations = [
+                        str(item)
+                        for item in parsed["alternative_explanations"]
+                        if isinstance(item, str) and item.strip()
+                    ]
                 conf = parsed.get("confidence")
                 if isinstance(conf, str) and conf in {"low", "medium", "high"}:
                     confidence_level = conf  # type: ignore[assignment]
@@ -304,7 +356,264 @@ class ModelAnalyzer:
             ),
             steps=steps,
             citation_metadata=citation_metadata,
+            contradicting_evidence=contradicting_evidence,
+            alternative_explanations=alternative_explanations,
         )
+
+
+class JudgeStage(StrEnum):
+    TRIAGE = "triage"
+    INSPECT = "inspect"
+    FINAL = "final"
+
+
+class JudgeWindowCitationV1(ContractModel):
+    schema_version: Literal["judge-window-citation/v1"] = "judge-window-citation/v1"
+    window_digest: str
+    trial_id: str
+    start_step: int = Field(ge=0)
+    end_step: int = Field(ge=0)
+    stance: Literal["supports", "contradicts"]
+
+
+class JudgeStageResultV1(ContractModel):
+    schema_version: Literal["judge-stage-result/v1"] = "judge-stage-result/v1"
+    stage: JudgeStage
+    stage_digest: str
+    category: str
+    summary: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
+    supporting_citations: tuple[JudgeWindowCitationV1, ...]
+    contradicting_citations: tuple[JudgeWindowCitationV1, ...] = ()
+    alternative_explanations: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_stage(self) -> JudgeStageResultV1:
+        if self.category not in ANALYST_CATEGORIES:
+            raise ValueError(f"unsupported trajectory judge category: {self.category}")
+        if not self.supporting_citations:
+            raise ValueError("trajectory judge stage requires supporting citations")
+        if self.stage == JudgeStage.FINAL:
+            if not self.contradicting_citations:
+                raise ValueError("final judge stage requires contradicting citations")
+            if not self.alternative_explanations:
+                raise ValueError("final judge stage requires alternative explanations")
+        body = self.model_dump(mode="json", exclude={"stage_digest"})
+        expected = _judge_digest(body)
+        if self.stage_digest != expected:
+            raise ValueError("judge stage digest does not match canonical content")
+        return self
+
+
+class TrajectoryJudgeRunV1(ContractModel):
+    schema_version: Literal["trajectory-judge-run/v1"] = "trajectory-judge-run/v1"
+    run_digest: str
+    snapshot_digest: str
+    judge_model: str
+    rubric_digest: str
+    repeat_index: int = Field(ge=0)
+    input_window_digests: tuple[str, ...]
+    stages: tuple[JudgeStageResultV1, ...]
+    final_category: str
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_run(self) -> TrajectoryJudgeRunV1:
+        if tuple(stage.stage for stage in self.stages) != (
+            JudgeStage.TRIAGE,
+            JudgeStage.INSPECT,
+            JudgeStage.FINAL,
+        ):
+            raise ValueError("trajectory judge requires triage, inspect, and final stages")
+        if self.final_category != self.stages[-1].category:
+            raise ValueError("final category must match the final judge stage")
+        body = self.model_dump(mode="json", exclude={"run_digest"})
+        if self.run_digest != _judge_digest(body):
+            raise ValueError("judge run digest does not match canonical content")
+        return self
+
+
+class JudgeDisagreementV1(ContractModel):
+    schema_version: Literal["judge-disagreement/v1"] = "judge-disagreement/v1"
+    disagreement_digest: str
+    snapshot_digest: str
+    run_digests: tuple[str, ...]
+    category_counts: dict[str, int]
+    consensus_category: str | None
+    agreement_rate: float = Field(ge=0.0, le=1.0)
+    unresolved: bool
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_disagreement(self) -> JudgeDisagreementV1:
+        if sum(self.category_counts.values()) != len(self.run_digests):
+            raise ValueError("category counts must reconcile judge runs")
+        body = self.model_dump(mode="json", exclude={"disagreement_digest"})
+        if self.disagreement_digest != _judge_digest(body):
+            raise ValueError("judge disagreement digest does not match canonical content")
+        return self
+
+
+def _judge_digest(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode()
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _judge_context(windows: Sequence[TrajectoryWindowV1], prior: str = "") -> str:
+    rows = []
+    if prior:
+        rows.append(f"Prior stage findings:\n{prior}")
+    for window in windows:
+        rows.append(
+            f"[{window.window_digest}] trial={window.trial_id} "
+            f"steps={window.start_step}-{window.end_step}\n{window.text}"
+        )
+    return "\n\n".join(rows)
+
+
+def _confidence_value(claim: ConfidenceClaim) -> float:
+    return {"low": 0.3, "medium": 0.6, "high": 0.9}[claim.level]
+
+
+def _citation_from_evidence(
+    citation: EvidenceCitation,
+    windows: dict[str, TrajectoryWindowV1],
+    stance: Literal["supports", "contradicts"],
+) -> JudgeWindowCitationV1:
+    window = windows.get(citation.path)
+    if window is None:
+        raise ValueError("trajectory judge citations must use an exact input window_digest as path")
+    return JudgeWindowCitationV1(
+        window_digest=window.window_digest,
+        trial_id=window.trial_id,
+        start_step=window.start_step,
+        end_step=window.end_step,
+        stance=stance,
+    )
+
+
+def _judge_stage_result(
+    stage: JudgeStage,
+    result: AnalystResult,
+    windows: Sequence[TrajectoryWindowV1],
+) -> JudgeStageResultV1:
+    by_digest = {window.window_digest: window for window in windows}
+    supporting = tuple(
+        _citation_from_evidence(citation, by_digest, "supports") for citation in result.evidence
+    )
+    contradicting = tuple(
+        _citation_from_evidence(citation, by_digest, "contradicts")
+        for citation in result.contradicting_evidence
+    )
+    body = {
+        "schema_version": "judge-stage-result/v1",
+        "stage": stage,
+        "category": result.category,
+        "summary": result.summary,
+        "confidence": _confidence_value(result.confidence),
+        "supporting_citations": [citation.model_dump(mode="json") for citation in supporting],
+        "contradicting_citations": [citation.model_dump(mode="json") for citation in contradicting],
+        "alternative_explanations": tuple(result.alternative_explanations),
+    }
+    return JudgeStageResultV1.model_validate(
+        {
+            **body,
+            "stage_digest": _judge_digest(body),
+        }
+    )
+
+
+def run_trajectory_judge(
+    analyzer: Analyzer,
+    windows: Sequence[TrajectoryWindowV1],
+    *,
+    rubric: str,
+    repeats: int = 3,
+) -> tuple[tuple[TrajectoryJudgeRunV1, ...], JudgeDisagreementV1]:
+    """Run TRACE-style triage, inspection, and final judgment with repeated calls."""
+    if not windows or repeats <= 0:
+        raise ValueError("trajectory judge requires windows and positive repeats")
+    snapshots = {window.snapshot_digest for window in windows}
+    if len(snapshots) != 1:
+        raise ValueError("trajectory judge cannot mix snapshot vintages")
+    snapshot_digest = next(iter(snapshots))
+    rubric_digest = _judge_digest({"rubric": rubric})
+    judge_model = str(getattr(analyzer, "model", analyzer.__class__.__name__))
+    runs = []
+    for repeat_index in range(repeats):
+        triage_raw = analyzer.analyze(
+            rubric
+            + "\nStage: TRIAGE. Select high-signal windows. Cite window digests in evidence.path.",
+            _judge_context(windows),
+        )
+        triage = _judge_stage_result(JudgeStage.TRIAGE, triage_raw, windows)
+        selected_digests = {citation.window_digest for citation in triage.supporting_citations}
+        selected = [window for window in windows if window.window_digest in selected_digests]
+        inspect_raw = analyzer.analyze(
+            rubric
+            + "\nStage: INSPECT. Analyze the selected evidence and cite exact window digests.",
+            _judge_context(selected, triage.summary),
+        )
+        inspect = _judge_stage_result(JudgeStage.INSPECT, inspect_raw, selected)
+        # Final synthesis sees the full frozen pool so it can cite counterevidence
+        # outside the triaged subset while retaining the inspection summary.
+        final_windows = list(windows)
+        final_raw = analyzer.analyze(
+            rubric
+            + "\nStage: FINAL. Give a category, supporting and contradicting window citations, "
+            "and at least one alternative explanation.",
+            _judge_context(
+                final_windows,
+                f"Triage: {triage.summary}\nInspect: {inspect.summary}",
+            ),
+        )
+        final = _judge_stage_result(JudgeStage.FINAL, final_raw, final_windows)
+        stages = (triage, inspect, final)
+        body = {
+            "schema_version": "trajectory-judge-run/v1",
+            "snapshot_digest": snapshot_digest,
+            "judge_model": judge_model,
+            "rubric_digest": rubric_digest,
+            "repeat_index": repeat_index,
+            "input_window_digests": tuple(window.window_digest for window in windows),
+            "stages": [stage.model_dump(mode="json") for stage in stages],
+            "final_category": final.category,
+            "decision_eligible": False,
+        }
+        runs.append(
+            TrajectoryJudgeRunV1.model_validate(
+                {
+                    **body,
+                    "run_digest": _judge_digest(body),
+                }
+            )
+        )
+    counts = Counter(run.final_category for run in runs)
+    max_count = max(counts.values())
+    winners = sorted(category for category, count in counts.items() if count == max_count)
+    consensus = winners[0] if len(winners) == 1 else None
+    disagreement_body = {
+        "schema_version": "judge-disagreement/v1",
+        "snapshot_digest": snapshot_digest,
+        "run_digests": tuple(run.run_digest for run in runs),
+        "category_counts": dict(sorted(counts.items())),
+        "consensus_category": consensus,
+        "agreement_rate": max_count / len(runs),
+        "unresolved": consensus is None or len(counts) > 1,
+        "decision_eligible": False,
+    }
+    disagreement = JudgeDisagreementV1.model_validate(
+        {
+            **disagreement_body,
+            "disagreement_digest": _judge_digest(disagreement_body),
+        }
+    )
+    return tuple(runs), disagreement
 
 
 def _resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[Path]:

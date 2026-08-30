@@ -1900,7 +1900,7 @@ def _validate_outcome_and_predictors(
             return feature_registry.get(name)
         return None
 
-    from evallab.interpretation.feature_registry import audit_predictor_eligibility
+    from evallab.interpretation.feature_registry import feature_analysis_eligibility
 
     outcome = get(spec.outcome_feature)
     if outcome is None:
@@ -1911,17 +1911,7 @@ def _validate_outcome_and_predictors(
             observed_rows,
             source_refs,
         )
-    if outcome.verdict_coupling is None:
-        return _refusal_result(
-            spec,
-            snapshot_digest,
-            RefusalCode.MISSING_LINEAGE_DECLARATION,
-            observed_rows,
-            source_refs,
-        )
-    if outcome.verdict_coupling in ("defines", "correlates") and not (
-        outcome.coupling_basis and outcome.coupling_basis.strip()
-    ):
+    if not feature_analysis_eligibility(outcome).outcome_allowed:
         return _refusal_result(
             spec,
             snapshot_digest,
@@ -1964,7 +1954,7 @@ def _validate_outcome_and_predictors(
                 observed_rows,
                 source_refs,
             )
-        audit = audit_predictor_eligibility(feat, strict_independence=True)
+        audit = feature_analysis_eligibility(feat).predictor_refusal
         if audit:
             if audit in (
                 "POST_VERDICT_TEMPORAL_VIOLATION",

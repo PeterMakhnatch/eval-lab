@@ -6,6 +6,8 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from dag_generator import DIFFICULTY_LEVELS
+
 FAMILY = "mcp-funcdag-v1"
 VERSION = "1.0.0"
 CONSTRUCT = "MCP tool selection, composition, and value propagation over dependency DAGs"
@@ -21,6 +23,7 @@ class CellFactors:
     name_similarity: str = "low"  # low, high
     schema_token_volume: str = "concise"  # concise, verbose
     schema_drift: bool = False
+    difficulty: str = "none"  # none, aliases, near_collision, dead_end
     seed: int = 42
 
 
@@ -52,28 +55,29 @@ class BenchmarkContract:
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
 
 
-# Generate Campaign 0 Calibration Grid with 3 deterministic seeds per factor condition
-# Minimum floor of >=5 required calls per cell
+# Campaign 0 Calibration Grid with 3 deterministic seeds per factor condition
+# (depth, width, distractor count, schema token volume, schema drift).
+# Preserved exactly at 30 cells (10 factor variations x 3 seeds).
 CAMPAIGN_0_CELLS: list[dict[str, Any]] = []
 
 FACTOR_VARIATIONS = [
     # Baseline (depth=3, width=2 -> 5 nodes)
-    {"name": "baseline", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "baseline", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
     # Depth ladder (depth_3 and depth_4, >= 5 nodes)
-    {"name": "depth_5", "depth": 5, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
-    {"name": "depth_4", "depth": 4, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "depth_5", "depth": 5, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
+    {"name": "depth_4", "depth": 4, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
     # Width ladder
-    {"name": "width_3", "depth": 3, "width": 3, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
-    {"name": "width_4", "depth": 3, "width": 4, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "width_3", "depth": 3, "width": 3, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
+    {"name": "width_4", "depth": 3, "width": 4, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
     # Distractor ladder
-    {"name": "distractors_0", "depth": 3, "width": 2, "distractor_count": 0, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
-    {"name": "distractors_5", "depth": 3, "width": 2, "distractor_count": 5, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "distractors_0", "depth": 3, "width": 2, "distractor_count": 0, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
+    {"name": "distractors_5", "depth": 3, "width": 2, "distractor_count": 5, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
     # Name similarity
-    {"name": "name_similarity_high", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "high", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "name_similarity_high", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "high", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
     # Schema token volume
-    {"name": "schema_tokens_verbose", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "verbose", "schema_drift": False},
+    {"name": "schema_tokens_verbose", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "verbose", "schema_drift": False, "difficulty": "none"},
     # Schema drift clean twin
-    {"name": "schema_drift_twin", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": True},
+    {"name": "schema_drift_twin", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": True, "difficulty": "none"},
 ]
 
 for var in FACTOR_VARIATIONS:
@@ -83,13 +87,31 @@ for var in FACTOR_VARIATIONS:
         CAMPAIGN_0_CELLS.append(cell_def)
 
 
+# Certified structural difficulty axis campaign (exercises difficulty levels
+# across seeds, holding graph depth/width/distractors constant).
+DIFFICULTY_CELLS: list[dict[str, Any]] = []
+
+DIFFICULTY_VARIATIONS = [
+    {"name": "diff_none", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "none"},
+    {"name": "diff_aliases", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "aliases"},
+    {"name": "diff_near_collision", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "near_collision"},
+    {"name": "diff_dead_end", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "difficulty": "dead_end"},
+]
+
+for var in DIFFICULTY_VARIATIONS:
+    for s in CALIBRATION_SEEDS:
+        cell_def = dict(var)
+        cell_def["seed"] = s
+        DIFFICULTY_CELLS.append(cell_def)
+
+
 def make_benchmark_contract(
     factors: CellFactors,
     dag_spec: Any,
     task_id: str,
     artifact_paths: dict[str, str] | None = None,
 ) -> BenchmarkContract:
-    # Compute verifier truth digest
+    # Compute verifier truth digest (covers only the required, true path)
     truth_payload = {
         "target_node_id": dag_spec.target_node_id,
         "expected_target_value": dag_spec.expected_target_value,

@@ -14,6 +14,8 @@ representation rather than indirect child execution.
 This module establishes a deterministic capture-authority and concordance contract:
 - Identifies direct vs indirect child execution.
 - Distinguishes valid expanded batch/range calls from indirect capture loss.
+- Compares expanded retrieval handles against benchmark retrieval handles while
+  separately comparing non-retrieval call sequences/counts (e.g. list, mutate).
 - Binds benchmark-event authority when benchmark events exist.
 - Reason-codes incomplete trajectory capture so downstream trajectory-only ordering
   analysis can refuse while benchmark-event analysis remains admissible.
@@ -105,6 +107,22 @@ _BATCH_TOOL_FUNCTION_NAMES = frozenset(
     }
 )
 
+_RETRIEVAL_TOOL_NAMES = frozenset(
+    {
+        "get_context_chunk",
+        "get_context_chunks",
+        "read_chunk",
+        "read_chunks",
+        "read_context_chunk",
+        "read_context_chunks",
+        "batch_read",
+        "batch_get_context_chunk",
+        "batch_get_context_chunks",
+        "range_batch",
+        "get_chunks",
+    }
+)
+
 _TOOL_REQUEST_EVENT_TYPES = frozenset(
     {
         "mcp_call",
@@ -114,6 +132,7 @@ _TOOL_REQUEST_EVENT_TYPES = frozenset(
         "tool_call_requested",
         "tool_call_success",
         "tool_call_error",
+        "tool_call_execution",
         "read_chunk",
         "execute_mutation",
         "tools/call",
@@ -193,6 +212,7 @@ def expand_tool_call_handles(
 ) -> tuple[list[str], bool]:
     """Deterministically expand handles from a tool call and optional observation.
 
+    Parses stringified JSON arguments when present.
     Returns ``(handles, is_batch)`` where ``is_batch`` indicates whether the tool
     call represents a batch/range operation.
     """
@@ -200,11 +220,22 @@ def expand_tool_call_handles(
     norm_name = _normalize_tool_name(func_name)
     is_batch = norm_name in _BATCH_TOOL_FUNCTION_NAMES
 
-    args = call.get("arguments") if isinstance(call.get("arguments"), Mapping) else {}
-    if not args and isinstance(call.get("payload"), Mapping):
-        args = call["payload"].get("arguments", {})
-        if not isinstance(args, Mapping):
-            args = {}
+    raw_args = call.get("arguments")
+    if raw_args is None and isinstance(call.get("payload"), Mapping):
+        raw_args = call["payload"].get("arguments")
+
+    args: Mapping[str, Any] = {}
+    if isinstance(raw_args, str):
+        stripped = raw_args.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            try:
+                parsed_args = json.loads(stripped)
+                if isinstance(parsed_args, Mapping):
+                    args = parsed_args
+            except json.JSONDecodeError:
+                pass
+    elif isinstance(raw_args, Mapping):
+        args = raw_args
 
     handles: list[str] = []
 
@@ -294,6 +325,7 @@ def assess_capture_concordance(
 
     Deterministic:
     - Identifies direct calls vs indirect shell/HTTP execution.
+    - Partitions retrieval handles and non-retrieval tool call sequences.
     - Distinguishes valid batch expansion from unexpandable batch representation.
     - Binds retrieval_authority to benchmark_events when valid events exist.
     - Reason-codes indirect execution and sets trajectory_ordering_admissible=False.
@@ -337,61 +369,91 @@ def assess_capture_concordance(
     omission = False
 
     if events_admissible and not atif_missing:
-        atif_names = tuple(_function_name(call) for call in atif_seq)
-        direct_names = tuple(name for name in atif_names if not _is_shell_tool(name))
-        event_names = tuple(_function_name(call) for call in event_calls)
-
-        # Inspect tool calls for batch representations and expand handles
-        expanded_direct_handles: list[str] = []
+        # Partition ATIF direct calls into retrieval vs non-retrieval vs shell
+        atif_retrieval_handles: list[str] = []
+        atif_non_retrieval_names: list[str] = []
+        atif_shell_names: list[str] = []
         has_any_batch = False
         has_unexpandable_batch = False
 
         for call in atif_seq:
-            handles, is_batch = expand_tool_call_handles(call)
-            if is_batch:
-                has_any_batch = True
-                if not handles:
-                    has_unexpandable_batch = True
+            name = _function_name(call)
+            if _is_shell_tool(name):
+                atif_shell_names.append(name)
+            elif _is_retrieval_tool(name):
+                handles, is_batch = expand_tool_call_handles(call)
+                if is_batch:
+                    has_any_batch = True
+                    if not handles:
+                        has_unexpandable_batch = True
+                    else:
+                        atif_retrieval_handles.extend(handles)
+                elif handles:
+                    atif_retrieval_handles.extend(handles)
                 else:
-                    expanded_direct_handles.extend(handles)
-            elif handles:
-                expanded_direct_handles.extend(handles)
+                    # Singular retrieval tool without handle
+                    atif_retrieval_handles.append(_normalize_tool_name(name))
+            else:
+                atif_non_retrieval_names.append(name)
 
         if has_any_batch:
             batch_representation = True
 
-        # Check if benchmark events were generated via indirect shell execution
-        # (e.g. benchmark tool calls exist while ATIF only ran shell/bash commands
-        # or benchmark tool call count vastly exceeds direct ATIF calls)
-        shell_calls_present = any(_is_shell_tool(name) for name in atif_names)
-        atif_is_shell_only = bool(atif_names) and not direct_names
+        # Partition benchmark events into retrieval vs non-retrieval
+        bench_retrieval_handles: list[str] = []
+        bench_non_retrieval_names: list[str] = []
 
+        for call in event_calls:
+            name = _function_name(call)
+            if _is_retrieval_tool(name):
+                handles, _ = expand_tool_call_handles(call)
+                if handles:
+                    bench_retrieval_handles.extend(handles)
+                else:
+                    bench_retrieval_handles.append(_normalize_tool_name(name))
+            else:
+                bench_non_retrieval_names.append(name)
+
+        shell_calls_present = bool(atif_shell_names)
+        atif_has_no_direct_tools = not atif_retrieval_handles and not atif_non_retrieval_names
+
+        # Evaluate concordance across retrieval handles and non-retrieval tool sequences
         if event_tool_count and event_tool_count > 0:
             if (
-                atif_is_shell_only
+                atif_has_no_direct_tools
+                and shell_calls_present
+                or shell_calls_present
+                and len(bench_retrieval_handles) > len(atif_retrieval_handles)
                 or not batch_representation
-                and (event_tool_count or 0) > len(direct_names)
+                and (event_tool_count or 0)
+                > (len(atif_retrieval_handles) + len(atif_non_retrieval_names))
             ):
                 indirect = True
             elif batch_representation:
                 if has_unexpandable_batch:
                     batch_unexpandable = True
-                elif len(expanded_direct_handles) >= (event_tool_count or 0):
+                elif len(atif_retrieval_handles) >= len(
+                    bench_retrieval_handles
+                ) and _sequences_concordant(atif_non_retrieval_names, bench_non_retrieval_names):
                     batch_concordant = True
-                elif shell_calls_present and (event_tool_count or 0) > len(expanded_direct_handles):
+                elif shell_calls_present and len(bench_retrieval_handles) > len(
+                    atif_retrieval_handles
+                ):
                     indirect = True
                 else:
                     batch_unexpandable = True
-            elif _sequences_concordant(direct_names, event_names) or (
-                (atif_count or 0) == (event_tool_count or 0)
-                and _sequences_concordant(atif_names, event_names)
+            elif _sequences_concordant(atif_non_retrieval_names, bench_non_retrieval_names) and (
+                len(atif_retrieval_handles) == len(bench_retrieval_handles)
+                and _retrieval_handles_concordant(atif_retrieval_handles, bench_retrieval_handles)
             ):
                 pass
-            elif len(direct_names) > (event_tool_count or 0):
+            elif (len(atif_retrieval_handles) + len(atif_non_retrieval_names)) > (
+                event_tool_count or 0
+            ):
                 omission = True
             else:
                 indirect = True
-        elif len(direct_names) > 0:
+        elif (len(atif_retrieval_handles) + len(atif_non_retrieval_names)) > 0:
             omission = True
 
     if events_missing or benchmark_events_invalid:
@@ -443,6 +505,21 @@ def assess_capture_concordance(
         assessment_digest="",
     )
     return replace(assessment, assessment_digest=_assessment_digest(assessment))
+
+
+def _is_retrieval_tool(name: str) -> bool:
+    norm = _normalize_tool_name(name)
+    return norm in _RETRIEVAL_TOOL_NAMES or norm in _BATCH_TOOL_FUNCTION_NAMES
+
+
+def _retrieval_handles_concordant(
+    atif_handles: Sequence[str], bench_handles: Sequence[str]
+) -> bool:
+    if len(atif_handles) != len(bench_handles):
+        return False
+    return all(
+        a == b or _tool_names_match(a, b) for a, b in zip(atif_handles, bench_handles, strict=True)
+    )
 
 
 def _sequences_concordant(atif_names: Sequence[str], event_names: Sequence[str]) -> bool:
@@ -633,6 +710,7 @@ def _load_trajectory_payload(path: Path) -> tuple[JsonObject | None, bool]:
     except OSError:
         return None, False
     if path.suffix == ".jsonl":
+        steps: list[JsonObject] = []
         for line in text.splitlines():
             stripped = line.strip()
             if not stripped:
@@ -642,7 +720,11 @@ def _load_trajectory_payload(path: Path) -> tuple[JsonObject | None, bool]:
             except json.JSONDecodeError:
                 return None, False
             if isinstance(payload, dict):
-                return payload, True
+                if "steps" in payload and isinstance(payload["steps"], list):
+                    return payload, True
+                steps.append(payload)
+        if steps:
+            return {"steps": steps}, True
         return None, False
     try:
         payload = json.loads(text)

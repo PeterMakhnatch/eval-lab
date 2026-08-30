@@ -12,20 +12,29 @@ Tests:
 4. Live E0b range_batch shape with get_context_chunks:
    Direct batch tool call with explicit chunk_ids expanding to match benchmark events
    -> concordant_batch_capture, has_batch_tool_representation=True, trajectory ordering admissible.
-5. Unexpandable batch representation:
+5. Mixed batch + non-retrieval calls:
+   Direct list + batch get_context_chunks + execute_mutation matching benchmark sequence
+   -> concordant_batch_capture without false refusal on mixed operations.
+6. JSONL trajectory step loading:
+   Multiple JSONL lines assembled into steps payload rather than only reading line 1.
+7. Stringified JSON tool arguments:
+   Tool arguments passed as raw JSON strings expanded correctly.
+8. Standard mcp-tool-event-v1 success/execution/error event types:
+   Correctly correlates and extracts tool calls.
+9. Unexpandable batch representation:
    Batch tool called without deterministically expandable arguments or result
    -> discordant_batch_unexpandable, trajectory ordering inadmissible.
-6. Missing benchmark events:
-   -> no_benchmark_events, benchmark events inadmissible, retrieval authority atif_trajectory.
-7. Missing ATIF trajectory:
-   -> no_trajectory, trajectory ordering inadmissible, retrieval authority benchmark_events.
-8. Schema-invalid benchmark events:
-   -> schema invalid, retrieval authority unresolved.
-9. Direct handle extraction:
-   extract_direct_atif_handles extracts singular and batch handles without inventing fake calls.
-10. Assessment digest determinism:
+10. Missing benchmark events:
+    -> no_benchmark_events, benchmark events inadmissible, retrieval authority atif_trajectory.
+11. Missing ATIF trajectory:
+    -> no_trajectory, trajectory ordering inadmissible, retrieval authority benchmark_events.
+12. Schema-invalid benchmark events:
+    -> schema invalid, retrieval authority unresolved.
+13. Direct handle extraction:
+    extract_direct_atif_handles extracts singular and batch handles without inventing fake calls.
+14. Assessment digest determinism:
     Identical facts produce byte-identical SHA-256 digests.
-11. Real promoted trial directory evaluation:
+15. Real promoted trial directory evaluation:
     Verifies 6vDNEHZ and 8aYeUds directly against promoted repository artifacts.
 """
 
@@ -40,6 +49,7 @@ from evallab.evidence.capture_authority import (
     CaptureReasonCode,
     assess_capture_concordance,
     evaluate_capture_authority_from_dir,
+    expand_tool_call_handles,
     extract_direct_atif_handles,
     extract_direct_atif_tool_calls,
 )
@@ -468,6 +478,190 @@ def test_live_e0b_shape_get_context_chunks_batch_expansion(tmp_path: Path) -> No
     assert assessment.trajectory_ordering_admissible is True
     assert assessment.benchmark_events_admissible is True
     assert CaptureReasonCode.CONCORDANT_BATCH_CAPTURE in assessment.reason_codes
+
+
+def test_mixed_batch_and_non_retrieval_calls_is_concordant(tmp_path: Path) -> None:
+    """Mixed batch retrieval + list + mutate calls should be concordant without false refusal."""
+    trial_dir = tmp_path / "mixed_batch_trial"
+
+    chunk_ids = [f"ctx_{i:02d}" for i in range(5)]
+
+    atif_payload = {
+        "steps": [
+            {
+                "step_id": 1,
+                "tool_calls": [
+                    {
+                        "tool_call_id": "c_list",
+                        "function_name": "memory_mcp_list_context_chunks",
+                        "arguments": {},
+                    },
+                    {
+                        "tool_call_id": "c_batch",
+                        "function_name": "memory_mcp_get_context_chunks",
+                        "arguments": {"chunk_ids": chunk_ids},
+                    },
+                    {
+                        "tool_call_id": "c_mutate",
+                        "function_name": "memory_mcp_execute_mutation",
+                        "arguments": {"value": "v"},
+                    },
+                ],
+            }
+        ]
+    }
+
+    benchmark_events = [
+        {
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "list_context_chunks",
+            "result": {},
+        },
+        *(
+            {
+                "event_ordinal": 2 + i,
+                "event_type": "tool_call_success",
+                "tool_name": "get_context_chunk",
+                "arguments": {"chunk_id": cid},
+                "result": {"status": "ok"},
+            }
+            for i, cid in enumerate(chunk_ids)
+        ),
+        {
+            "event_ordinal": 7,
+            "event_type": "tool_call_success",
+            "tool_name": "execute_mutation",
+            "result": {},
+        },
+    ]
+
+    _write_json(trial_dir / "agent" / "trajectory.json", atif_payload)
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
+
+    assessment = evaluate_capture_authority_from_dir(trial_dir)
+
+    assert assessment.is_concordant is True
+    assert assessment.has_indirect_child_execution is False
+    assert assessment.has_batch_tool_representation is True
+    assert assessment.concordance_status == CaptureConcordanceStatus.CONCORDANT
+    assert assessment.trajectory_ordering_admissible is True
+    assert CaptureReasonCode.CONCORDANT_BATCH_CAPTURE in assessment.reason_codes
+
+
+def test_jsonl_multi_line_steps_trajectory_loading(tmp_path: Path) -> None:
+    """When trajectory is JSONL with multiple step lines, all steps are loaded."""
+    trial_dir = tmp_path / "jsonl_steps_trial"
+
+    step_lines = [
+        {
+            "step_id": 1,
+            "tool_calls": [
+                {
+                    "tool_call_id": "c1",
+                    "function_name": "get_context_chunk",
+                    "arguments": {"chunk_id": "ctx_1"},
+                }
+            ],
+        },
+        {
+            "step_id": 2,
+            "tool_calls": [
+                {
+                    "tool_call_id": "c2",
+                    "function_name": "get_context_chunk",
+                    "arguments": {"chunk_id": "ctx_2"},
+                }
+            ],
+        },
+    ]
+    benchmark_events = [
+        {
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "ctx_1"},
+        },
+        {
+            "event_ordinal": 2,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "ctx_2"},
+        },
+    ]
+
+    _write_jsonl(trial_dir / "agent" / "trajectory.jsonl", step_lines)
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
+
+    assessment = evaluate_capture_authority_from_dir(trial_dir)
+
+    assert assessment.atif_tool_call_count == 2
+    assert assessment.benchmark_tool_call_count == 2
+    assert assessment.is_concordant is True
+
+
+def test_stringified_json_tool_arguments_expansion() -> None:
+    """Stringified JSON tool arguments are parsed and handles extracted correctly."""
+    call_single = {
+        "function_name": "get_context_chunk",
+        "arguments": '{"chunk_id": "ctx_str_1"}',
+    }
+    call_batch = {
+        "function_name": "get_context_chunks",
+        "arguments": '{"chunk_ids": ["ctx_str_1", "ctx_str_2"]}',
+    }
+
+    h_single, is_b1 = expand_tool_call_handles(call_single)
+    assert h_single == ["ctx_str_1"]
+    assert is_b1 is False
+
+    h_batch, is_b2 = expand_tool_call_handles(call_batch)
+    assert h_batch == ["ctx_str_1", "ctx_str_2"]
+    assert is_b2 is True
+
+
+def test_standard_mcp_tool_event_v1_types_correlation(tmp_path: Path) -> None:
+    """Standard mcp-tool-event-v1 success, error, and execution event types are handled."""
+    events = [
+        {
+            "event_ordinal": 1,
+            "event_type": "tool_call_execution",
+            "tool_name": "list_context_chunks",
+        },
+        {
+            "event_ordinal": 2,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "c1"},
+        },
+        {
+            "event_ordinal": 3,
+            "event_type": "tool_call_error",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "c2"},
+        },
+    ]
+    atif_calls = [
+        {"tool_call_id": "1", "function_name": "list_context_chunks"},
+        {
+            "tool_call_id": "2",
+            "function_name": "get_context_chunk",
+            "arguments": {"chunk_id": "c1"},
+        },
+        {
+            "tool_call_id": "3",
+            "function_name": "get_context_chunk",
+            "arguments": {"chunk_id": "c2"},
+        },
+    ]
+
+    assessment = assess_capture_concordance(atif_calls, events, trial_id="mcp_v1_trial")
+    assert assessment.benchmark_tool_call_count == 3
+    assert assessment.is_concordant is True
 
 
 def test_unexpandable_batch_tool_representation_refuses_trajectory_ordering(tmp_path: Path) -> None:

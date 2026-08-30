@@ -1,0 +1,868 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fae618dddffeAq99Czbifkfl76",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 373 bytes, sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a>>",
+      "message_sha256": "sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a",
+      "message_chars": 373
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-30T07:42:18.608000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The task is straightforward: connect to the memory MCP server, list the context chunk handles, read each one to derive the current state, then call `execute_mutation` using only arguments derived from that context. I'll start by listing the handles and the available resources/templates on the server in parallel, since those are independent discovery calls.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_790e95328ab54686891df18f",
+          "function_name": "list_mcp_resources",
+          "arguments": {
+            "server": "memory"
+          }
+        },
+        {
+          "tool_call_id": "call_907e9857030c4f829a1c13bf",
+          "function_name": "list_mcp_resource_templates",
+          "arguments": {
+            "server": "memory"
+          }
+        },
+        {
+          "tool_call_id": "call_fbd75972912f4512ac013241",
+          "function_name": "memory_mcp_list_context_chunks",
+          "arguments": {}
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_fbd75972912f4512ac013241",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_ids\":[\"ctx_b21277170adae388f6b2f66b\",\"ctx_08288abba507c3ce4f572066\",\"ctx_2a7071bcef3fe74424a92a96\",\"ctx_8d7792867d1953074da789ea\",\"ctx_5dd60e83691ffe00daea9709\",\"ctx_26fbec57e6f4f93f89a6c11e\",\"ctx_c237f83cbd0b7ae8e2af6e89\",\"ctx_7930fc0c3b9246f8fe27d937\",\"ctx_93117d24f7e68342f9b3b857\",\"ctx_324e7c57757a20e7debc0d6d\",\"ctx_94df1d49af98d8b879ba9b75\",\"ctx_0ac755927336cb3a58fbc4d2\",\"ctx_d41b0eb134bc36a589d7dff2\",\"ctx_3499e8b27789f7ab938699f4\",\"ctx_2b626e46197fe08b911cd4b7\",\"ctx_52a6e9d991534abea6a270eb\",\"ctx_f0cd08aaa85bbf34ce48de31\",\"ctx_dec84eab69cad8bf3fbb83a5\",\"ctx_72688523ecc21cc19b6f8a4c\",\"ctx_91f8c9dfdba58bf3e8472897\",\"ctx_e74c3c0fc3d2e2e1f5e6af47\",\"ctx_b36937eaa08d29cee9344d7a\",\"ctx_2de92041a70d42971125d2ee\",\"ctx_afed492ee273b1ac216f826c\",\"ctx_251f948bb3fa943ffb3f5f8a\",\"ctx_31c08efff908b855b5cb95fe\",\"ctx_781f82a35c8aa7dcaaa7ed68\",\"ctx_584124fe8d4ddaf7864c4bac\",\"ctx_66fea1d3d8b45219c3a20dfc\",\"ctx_1b1b6b17ae99c9810d89b0ba\",\"ctx_01386e84d44b2203cae0aaf8\",\"ctx_5ce2f8b6d3fc310e7d6089d2\",\"ctx_18609c49a679801a9e8a4c2f\",\"ctx_aabbe10d0f4df77762579e19\",\"ctx_4944908057e4fadbb43a8427\",\"ctx_142500937630c63a0448d73b\",\"ctx_21528d32e2af68f71c048628\",\"ctx_8bbd3e81efb58b1a21af19b4\",\"ctx_f756ab8370226daa5ba7c75c\",\"ctx_c67a1ac75d9581e8835a787d\",\"ctx_c39c5bc418a2d03f41c54158\",\"ctx_827ec37edc65b2cf4481c945\",\"ctx_cdcefde78c46107ae2bc728c\",\"ctx_b61518949a74fb2069c3e59c\",\"ctx_58d26fdcaf2ce5d4c6de6d72\",\"ctx_99e2cf5473cb3dfe157e9759\",\"ctx_abecc2bb635aa6d337ba300e\",\"ctx_9bf7d586ae9d7f5388163bd2\",\"ctx_71dd2c14b469546b407beea4\",\"ctx_f27ae0a7ae7830d238f363d6\",\"ctx_5a31448567c4bd43371eba19\",\"ctx_1ba7cc2d329bc2e0a0a1101c\",\"ctx_56d8c0947ad1b7476283890e\",\"ctx_b55d9179a283829213f9539d\",\"ctx_e71d999110f76e2cb3bd38e9\",\"ctx_b5aaf1b3b97222b308e33a05\",\"ctx_6a93d351f529e8529f7da9a9\",\"ctx_d5eb08388e6f7dd0d68b635a\",\"ctx_64bc5998cc4ae6bb201b0574\",\"ctx_56aa590103e74bccd47e6d8f\",\"ctx_d29d8cbdd75c8264e837fcdb\",\"ctx_1a8e14718f1df529e626293f\",\"ctx_c4fc1851d1e88e2444d12668\",\"ctx_7b2348dfec168d42773f5add\",\"ctx_6dfd4706e303e7497e284a1c\"]}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7617,
+        "completion_tokens": 35,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 67
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-30T07:42:23.227000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "66 handles listed. Reading all context records in parallel batches:",
+      "reasoning_content": "There are 66 context chunks. I need to read all of them. Let me read them in parallel batches. Let me start with the first batch.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_1ce08c688720494cb1db7396",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b21277170adae388f6b2f66b"
+          }
+        },
+        {
+          "tool_call_id": "call_6ce30d2865f945ceb1b88863",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_08288abba507c3ce4f572066"
+          }
+        },
+        {
+          "tool_call_id": "call_02b1bf85d01b43cc9b16c313",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2a7071bcef3fe74424a92a96"
+          }
+        },
+        {
+          "tool_call_id": "call_42575a6215a4435ca07f4114",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_8d7792867d1953074da789ea"
+          }
+        },
+        {
+          "tool_call_id": "call_096138ae388f4c7588d261e6",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_5dd60e83691ffe00daea9709"
+          }
+        },
+        {
+          "tool_call_id": "call_5e8ba65d0cd6469baeeb8017",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_26fbec57e6f4f93f89a6c11e"
+          }
+        },
+        {
+          "tool_call_id": "call_6466dfbc44a34f30b4806b25",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c237f83cbd0b7ae8e2af6e89"
+          }
+        },
+        {
+          "tool_call_id": "call_16f500f164e74a53b6e3457d",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_7930fc0c3b9246f8fe27d937"
+          }
+        },
+        {
+          "tool_call_id": "call_a1b240ddffd34de9bc3c5b07",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_93117d24f7e68342f9b3b857"
+          }
+        },
+        {
+          "tool_call_id": "call_d942830d1fc74308a5404538",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_324e7c57757a20e7debc0d6d"
+          }
+        },
+        {
+          "tool_call_id": "call_7b7377c381e344dfbc9cfcd2",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_94df1d49af98d8b879ba9b75"
+          }
+        },
+        {
+          "tool_call_id": "call_a82d6b627dac41ea9b5b7eb9",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_0ac755927336cb3a58fbc4d2"
+          }
+        },
+        {
+          "tool_call_id": "call_c4af1658e2684386bc39f8c4",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d41b0eb134bc36a589d7dff2"
+          }
+        },
+        {
+          "tool_call_id": "call_57ca2bd588644549a2fb887b",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_3499e8b27789f7ab938699f4"
+          }
+        },
+        {
+          "tool_call_id": "call_1d8a962a627342b7af613a0a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2b626e46197fe08b911cd4b7"
+          }
+        },
+        {
+          "tool_call_id": "call_3ea814eb80fa42a493f2195a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_52a6e9d991534abea6a270eb"
+          }
+        },
+        {
+          "tool_call_id": "call_b95ac77795ba40659922b34b",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_f0cd08aaa85bbf34ce48de31"
+          }
+        },
+        {
+          "tool_call_id": "call_dda11a9ed2c14a33b860cc31",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_dec84eab69cad8bf3fbb83a5"
+          }
+        },
+        {
+          "tool_call_id": "call_b9f6cbb37d6441c0a503690a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_72688523ecc21cc19b6f8a4c"
+          }
+        },
+        {
+          "tool_call_id": "call_6e44d07f4f5b4b66b419b997",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_91f8c9dfdba58bf3e8472897"
+          }
+        },
+        {
+          "tool_call_id": "call_e50db4df5f3e42fd80052168",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_e74c3c0fc3d2e2e1f5e6af47"
+          }
+        },
+        {
+          "tool_call_id": "call_e91113d0e31a49f8a97b90a9",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b36937eaa08d29cee9344d7a"
+          }
+        },
+        {
+          "tool_call_id": "call_d5ac548f6e3841e99b99cc56",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2de92041a70d42971125d2ee"
+          }
+        },
+        {
+          "tool_call_id": "call_e7b07ab817e34d709c022fe5",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_afed492ee273b1ac216f826c"
+          }
+        },
+        {
+          "tool_call_id": "call_83d307ff648345f3881e8f68",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_251f948bb3fa943ffb3f5f8a"
+          }
+        },
+        {
+          "tool_call_id": "call_280d3e9e495e470aa22240b5",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_31c08efff908b855b5cb95fe"
+          }
+        },
+        {
+          "tool_call_id": "call_f0bd90bd3a6849c5b044f769",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_781f82a35c8aa7dcaaa7ed68"
+          }
+        },
+        {
+          "tool_call_id": "call_aefe9b9add1c4e2db6597173",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_584124fe8d4ddaf7864c4bac"
+          }
+        },
+        {
+          "tool_call_id": "call_b97e18da58fe4dd9996a4851",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_66fea1d3d8b45219c3a20dfc"
+          }
+        },
+        {
+          "tool_call_id": "call_09a5e2718f584897913c0c46",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1b1b6b17ae99c9810d89b0ba"
+          }
+        },
+        {
+          "tool_call_id": "call_34e5eb613bca493789fb198f",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_01386e84d44b2203cae0aaf8"
+          }
+        },
+        {
+          "tool_call_id": "call_592379110682409e90d39ead",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_5ce2f8b6d3fc310e7d6089d2"
+          }
+        },
+        {
+          "tool_call_id": "call_b2cb99300a3f41bcae1cb877",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_18609c49a679801a9e8a4c2f"
+          }
+        },
+        {
+          "tool_call_id": "call_c3182325182b4818be8a979e",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_aabbe10d0f4df77762579e19"
+          }
+        },
+        {
+          "tool_call_id": "call_fd1dd88820084448ba7b31e4",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_4944908057e4fadbb43a8427"
+          }
+        },
+        {
+          "tool_call_id": "call_74e124c6f9074429b15d3fda",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_142500937630c63a0448d73b"
+          }
+        },
+        {
+          "tool_call_id": "call_082a71bd94dd4ce393bbdacf",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_21528d32e2af68f71c048628"
+          }
+        },
+        {
+          "tool_call_id": "call_fc26d1fd01124b359cbc25dc",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_8bbd3e81efb58b1a21af19b4"
+          }
+        },
+        {
+          "tool_call_id": "call_ee303cc9a8bb46de8993d835",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_f756ab8370226daa5ba7c75c"
+          }
+        },
+        {
+          "tool_call_id": "call_23119c3ef5664ac79ce2d0b3",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c67a1ac75d9581e8835a787d"
+          }
+        },
+        {
+          "tool_call_id": "call_11748a3211584431bbf35a35",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c39c5bc418a2d03f41c54158"
+          }
+        },
+        {
+          "tool_call_id": "call_b54bd96c51694011a6dc312a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_827ec37edc65b2cf4481c945"
+          }
+        },
+        {
+          "tool_call_id": "call_b8ae2fa597264f0b8fb109a6",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_cdcefde78c46107ae2bc728c"
+          }
+        },
+        {
+          "tool_call_id": "call_004473513450454ca774d69c",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b61518949a74fb2069c3e59c"
+          }
+        },
+        {
+          "tool_call_id": "call_823bcdd4f31647daa2bc1ee0",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_58d26fdcaf2ce5d4c6de6d72"
+          }
+        },
+        {
+          "tool_call_id": "call_6db3e1aad5214921a21bb0bd",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_99e2cf5473cb3dfe157e9759"
+          }
+        },
+        {
+          "tool_call_id": "call_230765a2decc4be897bded21",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_abecc2bb635aa6d337ba300e"
+          }
+        },
+        {
+          "tool_call_id": "call_3b2409040e5a40829cef1a31",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_9bf7d586ae9d7f5388163bd2"
+          }
+        },
+        {
+          "tool_call_id": "call_99ffa5540a6b4399b39fd2b7",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_71dd2c14b469546b407beea4"
+          }
+        },
+        {
+          "tool_call_id": "call_b32a0808de1844f2b00f3901",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_f27ae0a7ae7830d238f363d6"
+          }
+        },
+        {
+          "tool_call_id": "call_cb414f8afa8b48799b74ca00",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_5a31448567c4bd43371eba19"
+          }
+        },
+        {
+          "tool_call_id": "call_7bfa6a7cc7f24594bbf348aa",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1ba7cc2d329bc2e0a0a1101c"
+          }
+        },
+        {
+          "tool_call_id": "call_3bf82ab45d234fa99c9ac186",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_56d8c0947ad1b7476283890e"
+          }
+        },
+        {
+          "tool_call_id": "call_4bb7611e316f41e5b843850e",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b55d9179a283829213f9539d"
+          }
+        },
+        {
+          "tool_call_id": "call_368f4b5a96c743a6ab8b315d",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_e71d999110f76e2cb3bd38e9"
+          }
+        },
+        {
+          "tool_call_id": "call_585208dfe10b4679a0665a63",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b5aaf1b3b97222b308e33a05"
+          }
+        },
+        {
+          "tool_call_id": "call_2dd26fcd83954ad09347dbcf",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_6a93d351f529e8529f7da9a9"
+          }
+        },
+        {
+          "tool_call_id": "call_f35a5b28b8dd41c8a697f9ce",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d5eb08388e6f7dd0d68b635a"
+          }
+        },
+        {
+          "tool_call_id": "call_c23f79d0d5394e67beebd6cc",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_64bc5998cc4ae6bb201b0574"
+          }
+        },
+        {
+          "tool_call_id": "call_083797b62be54f4ab5f2191e",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_56aa590103e74bccd47e6d8f"
+          }
+        },
+        {
+          "tool_call_id": "call_2354aee3712647ea867cccda",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d29d8cbdd75c8264e837fcdb"
+          }
+        },
+        {
+          "tool_call_id": "call_fea1fc59d6af4dcca4e00860",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1a8e14718f1df529e626293f"
+          }
+        },
+        {
+          "tool_call_id": "call_b26be97ddc284086893f5040",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c4fc1851d1e88e2444d12668"
+          }
+        },
+        {
+          "tool_call_id": "call_0d8978bf0fc6497ba01734d6",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_7b2348dfec168d42773f5add"
+          }
+        },
+        {
+          "tool_call_id": "call_be2798e1348941cfb4cdc192",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_6dfd4706e303e7497e284a1c"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_1ce08c688720494cb1db7396",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b21277170adae388f6b2f66b\",\"content\":\"[SYSTEM LOG 001]: Initializing configuration record for entity_354.\\nEntity attribute routing_key is permanently bound to 'e33f7b03_v1'.\\nAll subsequent telemetry routing must reference this active token unless explicitly updated.\\n\"}}"
+          },
+          {
+            "source_call_id": "call_6ce30d2865f945ceb1b88863",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_08288abba507c3ce4f572066\",\"content\":\"[CRITICAL STATE INVERSION 091]: Configuration OVERRIDE event for entity_354.\\nSuperceding prior assignments, attribute routing_key is now mutated to 'e33f7b03_v2'.\\nMandatory action execution REQUIREMENT: Final mutation must supply latest bound token 'e33f7b03_v2'.\\n\"}}"
+          },
+          {
+            "source_call_id": "call_02b1bf85d01b43cc9b16c313",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2a7071bcef3fe74424a92a96\",\"content\":\"[SYSTEM LOG 100]: Configuration heartbeat for entity_2698. Active routing token for entity_2698.routing_key is confirmed as 'distractor_val_0_25538'. Verify downstream consumers propagate distractor_val_0_25538 for cluster partition #0.....................\"}}"
+          },
+          {
+            "source_call_id": "call_42575a6215a4435ca07f4114",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_8d7792867d1953074da789ea\",\"content\":\"[SYSTEM LOG 101]: Configuration heartbeat for entity_9735. Active routing token for entity_9735.routing_key is confirmed as 'distractor_val_1_38559'. Verify downstream consumers propagate distractor_val_1_38559 for cluster partition #1.....................\"}}"
+          },
+          {
+            "source_call_id": "call_096138ae388f4c7588d261e6",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_5dd60e83691ffe00daea9709\",\"content\":\"[SYSTEM LOG 102]: Configuration heartbeat for entity_7455. Active routing token for entity_7455.routing_key is confirmed as 'distractor_val_2_30166'. Verify downstream consumers propagate distractor_val_2_30166 for cluster partition #2.....................\"}}"
+          },
+          {
+            "source_call_id": "call_5e8ba65d0cd6469baeeb8017",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_26fbec57e6f4f93f89a6c11e\",\"content\":\"[SYSTEM LOG 103]: Configuration heartbeat for entity_8475. Active routing token for entity_8475.routing_key is confirmed as 'distractor_val_3_40701'. Verify downstream consumers propagate distractor_val_3_40701 for cluster partition #3.....................\"}}"
+          },
+          {
+            "source_call_id": "call_6466dfbc44a34f30b4806b25",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c237f83cbd0b7ae8e2af6e89\",\"content\":\"[SYSTEM LOG 104]: Configuration heartbeat for entity_1518. Active routing token for entity_1518.routing_key is confirmed as 'distractor_val_4_45900'. Verify downstream consumers propagate distractor_val_4_45900 for cluster partition #4.....................\"}}"
+          },
+          {
+            "source_call_id": "call_16f500f164e74a53b6e3457d",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_7930fc0c3b9246f8fe27d937\",\"content\":\"[SYSTEM LOG 105]: Configuration heartbeat for entity_5948. Active routing token for entity_5948.routing_key is confirmed as 'distractor_val_5_38518'. Verify downstream consumers propagate distractor_val_5_38518 for cluster partition #5.....................\"}}"
+          },
+          {
+            "source_call_id": "call_a1b240ddffd34de9bc3c5b07",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_93117d24f7e68342f9b3b857\",\"content\":\"[SYSTEM LOG 106]: Configuration heartbeat for entity_1658. Active routing token for entity_1658.routing_key is confirmed as 'distractor_val_6_44891'. Verify downstream consumers propagate distractor_val_6_44891 for cluster partition #6.....................\"}}"
+          },
+          {
+            "source_call_id": "call_d942830d1fc74308a5404538",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_324e7c57757a20e7debc0d6d\",\"content\":\"[SYSTEM LOG 107]: Configuration heartbeat for entity_1968. Active routing token for entity_1968.routing_key is confirmed as 'distractor_val_7_42565'. Verify downstream consumers propagate distractor_val_7_42565 for cluster partition #7.....................\"}}"
+          },
+          {
+            "source_call_id": "call_7b7377c381e344dfbc9cfcd2",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_94df1d49af98d8b879ba9b75\",\"content\":\"[SYSTEM LOG 108]: Configuration heartbeat for entity_1739. Active routing token for entity_1739.routing_key is confirmed as 'distractor_val_8_71128'. Verify downstream consumers propagate distractor_val_8_71128 for cluster partition #8.....................\"}}"
+          },
+          {
+            "source_call_id": "call_a82d6b627dac41ea9b5b7eb9",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_0ac755927336cb3a58fbc4d2\",\"content\":\"[SYSTEM LOG 109]: Configuration heartbeat for entity_8986. Active routing token for entity_8986.routing_key is confirmed as 'distractor_val_9_60387'. Verify downstream consumers propagate distractor_val_9_60387 for cluster partition #9.....................\"}}"
+          },
+          {
+            "source_call_id": "call_c4af1658e2684386bc39f8c4",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d41b0eb134bc36a589d7dff2\",\"content\":\"[SYSTEM LOG 110]: Configuration heartbeat for entity_9561. Active routing token for entity_9561.routing_key is confirmed as 'distractor_val_10_65059'. Verify downstream consumers propagate distractor_val_10_65059 for cluster partition #10..................\"}}"
+          },
+          {
+            "source_call_id": "call_57ca2bd588644549a2fb887b",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_3499e8b27789f7ab938699f4\",\"content\":\"[SYSTEM LOG 111]: Configuration heartbeat for entity_5934. Active routing token for entity_5934.routing_key is confirmed as 'distractor_val_11_57743'. Verify downstream consumers propagate distractor_val_11_57743 for cluster partition #11..................\"}}"
+          },
+          {
+            "source_call_id": "call_1d8a962a627342b7af613a0a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2b626e46197fe08b911cd4b7\",\"content\":\"[SYSTEM LOG 112]: Configuration heartbeat for entity_8624. Active routing token for entity_8624.routing_key is confirmed as 'distractor_val_12_96060'. Verify downstream consumers propagate distractor_val_12_96060 for cluster partition #12..................\"}}"
+          },
+          {
+            "source_call_id": "call_3ea814eb80fa42a493f2195a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_52a6e9d991534abea6a270eb\",\"content\":\"[SYSTEM LOG 113]: Configuration heartbeat for entity_8006. Active routing token for entity_8006.routing_key is confirmed as 'distractor_val_13_95901'. Verify downstream consumers propagate distractor_val_13_95901 for cluster partition #13..................\"}}"
+          },
+          {
+            "source_call_id": "call_b95ac77795ba40659922b34b",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_f0cd08aaa85bbf34ce48de31\",\"content\":\"[SYSTEM LOG 114]: Configuration heartbeat for entity_2457. Active routing token for entity_2457.routing_key is confirmed as 'distractor_val_14_95505'. Verify downstream consumers propagate distractor_val_14_95505 for cluster partition #14..................\"}}"
+          },
+          {
+            "source_call_id": "call_dda11a9ed2c14a33b860cc31",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_dec84eab69cad8bf3fbb83a5\",\"content\":\"[SYSTEM LOG 115]: Configuration heartbeat for entity_7405. Active routing token for entity_7405.routing_key is confirmed as 'distractor_val_15_39055'. Verify downstream consumers propagate distractor_val_15_39055 for cluster partition #15..................\"}}"
+          },
+          {
+            "source_call_id": "call_b9f6cbb37d6441c0a503690a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_72688523ecc21cc19b6f8a4c\",\"content\":\"[SYSTEM LOG 116]: Configuration heartbeat for entity_5611. Active routing token for entity_5611.routing_key is confirmed as 'distractor_val_16_67145'. Verify downstream consumers propagate distractor_val_16_67145 for cluster partition #16..................\"}}"
+          },
+          {
+            "source_call_id": "call_6e44d07f4f5b4b66b419b997",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_91f8c9dfdba58bf3e8472897\",\"content\":\"[SYSTEM LOG 117]: Configuration heartbeat for entity_8146. Active routing token for entity_8146.routing_key is confirmed as 'distractor_val_17_96343'. Verify downstream consumers propagate distractor_val_17_96343 for cluster partition #17..................\"}}"
+          },
+          {
+            "source_call_id": "call_e50db4df5f3e42fd80052168",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_e74c3c0fc3d2e2e1f5e6af47\",\"content\":\"[SYSTEM LOG 118]: Configuration heartbeat for entity_5354. Active routing token for entity_5354.routing_key is confirmed as 'distractor_val_18_88516'. Verify downstream consumers propagate distractor_val_18_88516 for cluster partition #18..................\"}}"
+          },
+          {
+            "source_call_id": "call_e91113d0e31a49f8a97b90a9",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b36937eaa08d29cee9344d7a\",\"content\":\"[SYSTEM LOG 119]: Configuration heartbeat for entity_7160. Active routing token for entity_7160.routing_key is confirmed as 'distractor_val_19_51837'. Verify downstream consumers propagate distractor_val_19_51837 for cluster partition #19..................\"}}"
+          },
+          {
+            "source_call_id": "call_d5ac548f6e3841e99b99cc56",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2de92041a70d42971125d2ee\",\"content\":\"[SYSTEM LOG 120]: Configuration heartbeat for entity_8134. Active routing token for entity_8134.routing_key is confirmed as 'distractor_val_20_71736'. Verify downstream consumers propagate distractor_val_20_71736 for cluster partition #20..................\"}}"
+          },
+          {
+            "source_call_id": "call_e7b07ab817e34d709c022fe5",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_afed492ee273b1ac216f826c\",\"content\":\"[SYSTEM LOG 121]: Configuration heartbeat for entity_5975. Active routing token for entity_5975.routing_key is confirmed as 'distractor_val_21_67018'. Verify downstream consumers propagate distractor_val_21_67018 for cluster partition #21..................\"}}"
+          },
+          {
+            "source_call_id": "call_83d307ff648345f3881e8f68",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_251f948bb3fa943ffb3f5f8a\",\"content\":\"[SYSTEM LOG 122]: Configuration heartbeat for entity_3652. Active routing token for entity_3652.routing_key is confirmed as 'distractor_val_22_24265'. Verify downstream consumers propagate distractor_val_22_24265 for cluster partition #22..................\"}}"
+          },
+          {
+            "source_call_id": "call_280d3e9e495e470aa22240b5",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_31c08efff908b855b5cb95fe\",\"content\":\"[SYSTEM LOG 123]: Configuration heartbeat for entity_5002. Active routing token for entity_5002.routing_key is confirmed as 'distractor_val_23_50811'. Verify downstream consumers propagate distractor_val_23_50811 for cluster partition #23..................\"}}"
+          },
+          {
+            "source_call_id": "call_f0bd90bd3a6849c5b044f769",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_781f82a35c8aa7dcaaa7ed68\",\"content\":\"[SYSTEM LOG 124]: Configuration heartbeat for entity_8773. Active routing token for entity_8773.routing_key is confirmed as 'distractor_val_24_70973'. Verify downstream consumers propagate distractor_val_24_70973 for cluster partition #24..................\"}}"
+          },
+          {
+            "source_call_id": "call_aefe9b9add1c4e2db6597173",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_584124fe8d4ddaf7864c4bac\",\"content\":\"[SYSTEM LOG 125]: Configuration heartbeat for entity_3056. Active routing token for entity_3056.routing_key is confirmed as 'distractor_val_25_71494'. Verify downstream consumers propagate distractor_val_25_71494 for cluster partition #25..................\"}}"
+          },
+          {
+            "source_call_id": "call_b97e18da58fe4dd9996a4851",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_66fea1d3d8b45219c3a20dfc\",\"content\":\"[SYSTEM LOG 126]: Configuration heartbeat for entity_4700. Active routing token for entity_4700.routing_key is confirmed as 'distractor_val_26_17101'. Verify downstream consumers propagate distractor_val_26_17101 for cluster partition #26..................\"}}"
+          },
+          {
+            "source_call_id": "call_09a5e2718f584897913c0c46",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1b1b6b17ae99c9810d89b0ba\",\"content\":\"[SYSTEM LOG 127]: Configuration heartbeat for entity_2981. Active routing token for entity_2981.routing_key is confirmed as 'distractor_val_27_74141'. Verify downstream consumers propagate distractor_val_27_74141 for cluster partition #27..................\"}}"
+          },
+          {
+            "source_call_id": "call_34e5eb613bca493789fb198f",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_01386e84d44b2203cae0aaf8\",\"content\":\"[SYSTEM LOG 128]: Configuration heartbeat for entity_1588. Active routing token for entity_1588.routing_key is confirmed as 'distractor_val_28_51042'. Verify downstream consumers propagate distractor_val_28_51042 for cluster partition #28..................\"}}"
+          },
+          {
+            "source_call_id": "call_592379110682409e90d39ead",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_5ce2f8b6d3fc310e7d6089d2\",\"content\":\"[SYSTEM LOG 129]: Configuration heartbeat for entity_2633. Active routing token for entity_2633.routing_key is confirmed as 'distractor_val_29_64622'. Verify downstream consumers propagate distractor_val_29_64622 for cluster partition #29..................\"}}"
+          },
+          {
+            "source_call_id": "call_b2cb99300a3f41bcae1cb877",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_18609c49a679801a9e8a4c2f\",\"content\":\"[SYSTEM LOG 130]: Configuration heartbeat for entity_7936. Active routing token for entity_7936.routing_key is confirmed as 'distractor_val_30_76880'. Verify downstream consumers propagate distractor_val_30_76880 for cluster partition #30..................\"}}"
+          },
+          {
+            "source_call_id": "call_c3182325182b4818be8a979e",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_aabbe10d0f4df77762579e19\",\"content\":\"[SYSTEM LOG 131]: Configuration heartbeat for entity_4822. Active routing token for entity_4822.routing_key is confirmed as 'distractor_val_31_47891'. Verify downstream consumers propagate distractor_val_31_47891 for cluster partition #31..................\"}}"
+          },
+          {
+            "source_call_id": "call_fd1dd88820084448ba7b31e4",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_4944908057e4fadbb43a8427\",\"content\":\"[SYSTEM LOG 132]: Configuration heartbeat for entity_5304. Active routing token for entity_5304.routing_key is confirmed as 'distractor_val_32_83719'. Verify downstream consumers propagate distractor_val_32_83719 for cluster partition #32..................\"}}"
+          },
+          {
+            "source_call_id": "call_74e124c6f9074429b15d3fda",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_142500937630c63a0448d73b\",\"content\":\"[SYSTEM LOG 133]: Configuration heartbeat for entity_7874. Active routing token for entity_7874.routing_key is confirmed as 'distractor_val_33_45124'. Verify downstream consumers propagate distractor_val_33_45124 for cluster partition #33..................\"}}"
+          },
+          {
+            "source_call_id": "call_082a71bd94dd4ce393bbdacf",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_21528d32e2af68f71c048628\",\"content\":\"[SYSTEM LOG 134]: Configuration heartbeat for entity_4698. Active routing token for entity_4698.routing_key is confirmed as 'distractor_val_34_36971'. Verify downstream consumers propagate distractor_val_34_36971 for cluster partition #34..................\"}}"
+          },
+          {
+            "source_call_id": "call_fc26d1fd01124b359cbc25dc",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_8bbd3e81efb58b1a21af19b4\",\"content\":\"[SYSTEM LOG 135]: Configuration heartbeat for entity_8901. Active routing token for entity_8901.routing_key is confirmed as 'distractor_val_35_16529'. Verify downstream consumers propagate distractor_val_35_16529 for cluster partition #35..................\"}}"
+          },
+          {
+            "source_call_id": "call_ee303cc9a8bb46de8993d835",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_f756ab8370226daa5ba7c75c\",\"content\":\"[SYSTEM LOG 136]: Configuration heartbeat for entity_7202. Active routing token for entity_7202.routing_key is confirmed as 'distractor_val_36_34279'. Verify downstream consumers propagate distractor_val_36_34279 for cluster partition #36..................\"}}"
+          },
+          {
+            "source_call_id": "call_23119c3ef5664ac79ce2d0b3",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c67a1ac75d9581e8835a787d\",\"content\":\"[SYSTEM LOG 137]: Configuration heartbeat for entity_4253. Active routing token for entity_4253.routing_key is confirmed as 'distractor_val_37_17408'. Verify downstream consumers propagate distractor_val_37_17408 for cluster partition #37..................\"}}"
+          },
+          {
+            "source_call_id": "call_11748a3211584431bbf35a35",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c39c5bc418a2d03f41c54158\",\"content\":\"[SYSTEM LOG 138]: Configuration heartbeat for entity_3029. Active routing token for entity_3029.routing_key is confirmed as 'distractor_val_38_14041'. Verify downstream consumers propagate distractor_val_38_14041 for cluster partition #38..................\"}}"
+          },
+          {
+            "source_call_id": "call_b54bd96c51694011a6dc312a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_827ec37edc65b2cf4481c945\",\"content\":\"[SYSTEM LOG 139]: Configuration heartbeat for entity_8812. Active routing token for entity_8812.routing_key is confirmed as 'distractor_val_39_46079'. Verify downstream consumers propagate distractor_val_39_46079 for cluster partition #39..................\"}}"
+          },
+          {
+            "source_call_id": "call_b8ae2fa597264f0b8fb109a6",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_cdcefde78c46107ae2bc728c\",\"content\":\"[SYSTEM LOG 140]: Configuration heartbeat for entity_9115. Active routing token for entity_9115.routing_key is confirmed as 'distractor_val_40_72221'. Verify downstream consumers propagate distractor_val_40_72221 for cluster partition #40..................\"}}"
+          },
+          {
+            "source_call_id": "call_004473513450454ca774d69c",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b61518949a74fb2069c3e59c\",\"content\":\"[SYSTEM LOG 141]: Configuration heartbeat for entity_9469. Active routing token for entity_9469.routing_key is confirmed as 'distractor_val_41_55228'. Verify downstream consumers propagate distractor_val_41_55228 for cluster partition #41..................\"}}"
+          },
+          {
+            "source_call_id": "call_823bcdd4f31647daa2bc1ee0",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_58d26fdcaf2ce5d4c6de6d72\",\"content\":\"[SYSTEM LOG 142]: Configuration heartbeat for entity_9986. Active routing token for entity_9986.routing_key is confirmed as 'distractor_val_42_75046'. Verify downstream consumers propagate distractor_val_42_75046 for cluster partition #42..................\"}}"
+          },
+          {
+            "source_call_id": "call_6db3e1aad5214921a21bb0bd",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_99e2cf5473cb3dfe157e9759\",\"content\":\"[SYSTEM LOG 143]: Configuration heartbeat for entity_1457. Active routing token for entity_1457.routing_key is confirmed as 'distractor_val_43_70482'. Verify downstream consumers propagate distractor_val_43_70482 for cluster partition #43..................\"}}"
+          },
+          {
+            "source_call_id": "call_230765a2decc4be897bded21",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_abecc2bb635aa6d337ba300e\",\"content\":\"[SYSTEM LOG 144]: Configuration heartbeat for entity_2607. Active routing token for entity_2607.routing_key is confirmed as 'distractor_val_44_57413'. Verify downstream consumers propagate distractor_val_44_57413 for cluster partition #44..................\"}}"
+          },
+          {
+            "source_call_id": "call_3b2409040e5a40829cef1a31",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_9bf7d586ae9d7f5388163bd2\",\"content\":\"[SYSTEM LOG 145]: Configuration heartbeat for entity_6664. Active routing token for entity_6664.routing_key is confirmed as 'distractor_val_45_97311'. Verify downstream consumers propagate distractor_val_45_97311 for cluster partition #45..................\"}}"
+          },
+          {
+            "source_call_id": "call_99ffa5540a6b4399b39fd2b7",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_71dd2c14b469546b407beea4\",\"content\":\"[SYSTEM LOG 146]: Configuration heartbeat for entity_6787. Active routing token for entity_6787.routing_key is confirmed as 'distractor_val_46_53830'. Verify downstream consumers propagate distractor_val_46_53830 for cluster partition #46..................\"}}"
+          },
+          {
+            "source_call_id": "call_b32a0808de1844f2b00f3901",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_f27ae0a7ae7830d238f363d6\",\"content\":\"[SYSTEM LOG 147]: Configuration heartbeat for entity_9998. Active routing token for entity_9998.routing_key is confirmed as 'distractor_val_47_11932'. Verify downstream consumers propagate distractor_val_47_11932 for cluster partition #47..................\"}}"
+          },
+          {
+            "source_call_id": "call_cb414f8afa8b48799b74ca00",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_5a31448567c4bd43371eba19\",\"content\":\"[SYSTEM LOG 148]: Configuration heartbeat for entity_2332. Active routing token for entity_2332.routing_key is confirmed as 'distractor_val_48_47507'. Verify downstream consumers propagate distractor_val_48_47507 for cluster partition #48..................\"}}"
+          },
+          {
+            "source_call_id": "call_7bfa6a7cc7f24594bbf348aa",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1ba7cc2d329bc2e0a0a1101c\",\"content\":\"[SYSTEM LOG 149]: Configuration heartbeat for entity_9024. Active routing token for entity_9024.routing_key is confirmed as 'distractor_val_49_21374'. Verify downstream consumers propagate distractor_val_49_21374 for cluster partition #49..................\"}}"
+          },
+          {
+            "source_call_id": "call_3bf82ab45d234fa99c9ac186",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_56d8c0947ad1b7476283890e\",\"content\":\"[SYSTEM LOG 150]: Configuration heartbeat for entity_7410. Active routing token for entity_7410.routing_key is confirmed as 'distractor_val_50_64844'. Verify downstream consumers propagate distractor_val_50_64844 for cluster partition #50..................\"}}"
+          },
+          {
+            "source_call_id": "call_4bb7611e316f41e5b843850e",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b55d9179a283829213f9539d\",\"content\":\"[SYSTEM LOG 151]: Configuration heartbeat for entity_9451. Active routing token for entity_9451.routing_key is confirmed as 'distractor_val_51_34293'. Verify downstream consumers propagate distractor_val_51_34293 for cluster partition #51..................\"}}"
+          },
+          {
+            "source_call_id": "call_368f4b5a96c743a6ab8b315d",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_e71d999110f76e2cb3bd38e9\",\"content\":\"[SYSTEM LOG 152]: Configuration heartbeat for entity_6529. Active routing token for entity_6529.routing_key is confirmed as 'distractor_val_52_70364'. Verify downstream consumers propagate distractor_val_52_70364 for cluster partition #52..................\"}}"
+          },
+          {
+            "source_call_id": "call_585208dfe10b4679a0665a63",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b5aaf1b3b97222b308e33a05\",\"content\":\"[SYSTEM LOG 153]: Configuration heartbeat for entity_5456. Active routing token for entity_5456.routing_key is confirmed as 'distractor_val_53_97458'. Verify downstream consumers propagate distractor_val_53_97458 for cluster partition #53..................\"}}"
+          },
+          {
+            "source_call_id": "call_2dd26fcd83954ad09347dbcf",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_6a93d351f529e8529f7da9a9\",\"content\":\"[SYSTEM LOG 154]: Configuration heartbeat for entity_1448. Active routing token for entity_1448.routing_key is confirmed as 'distractor_val_54_42446'. Verify downstream consumers propagate distractor_val_54_42446 for cluster partition #54..................\"}}"
+          },
+          {
+            "source_call_id": "call_f35a5b28b8dd41c8a697f9ce",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d5eb08388e6f7dd0d68b635a\",\"content\":\"[SYSTEM LOG 155]: Configuration heartbeat for entity_9713. Active routing token for entity_9713.routing_key is confirmed as 'distractor_val_55_91363'. Verify downstream consumers propagate distractor_val_55_91363 for cluster partition #55..................\"}}"
+          },
+          {
+            "source_call_id": "call_c23f79d0d5394e67beebd6cc",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_64bc5998cc4ae6bb201b0574\",\"content\":\"[SYSTEM LOG 156]: Configuration heartbeat for entity_8033. Active routing token for entity_8033.routing_key is confirmed as 'distractor_val_56_51346'. Verify downstream consumers propagate distractor_val_56_51346 for cluster partition #56..................\"}}"
+          },
+          {
+            "source_call_id": "call_083797b62be54f4ab5f2191e",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_56aa590103e74bccd47e6d8f\",\"content\":\"[SYSTEM LOG 157]: Configuration heartbeat for entity_4686. Active routing token for entity_4686.routing_key is confirmed as 'distractor_val_57_43923'. Verify downstream consumers propagate distractor_val_57_43923 for cluster partition #57..................\"}}"
+          },
+          {
+            "source_call_id": "call_2354aee3712647ea867cccda",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d29d8cbdd75c8264e837fcdb\",\"content\":\"[SYSTEM LOG 158]: Configuration heartbeat for entity_2911. Active routing token for entity_2911.routing_key is confirmed as 'distractor_val_58_93620'. Verify downstream consumers propagate distractor_val_58_93620 for cluster partition #58..................\"}}"
+          },
+          {
+            "source_call_id": "call_fea1fc59d6af4dcca4e00860",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1a8e14718f1df529e626293f\",\"content\":\"[SYSTEM LOG 159]: Configuration heartbeat for entity_9065. Active routing token for entity_9065.routing_key is confirmed as 'distractor_val_59_74678'. Verify downstream consumers propagate distractor_val_59_74678 for cluster partition #59..................\"}}"
+          },
+          {
+            "source_call_id": "call_b26be97ddc284086893f5040",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c4fc1851d1e88e2444d12668\",\"content\":\"[SYSTEM LOG 160]: Configuration heartbeat for entity_7458. Active routing token for entity_7458.routing_key is confirmed as 'distractor_val_60_25928'. Verify downstream consumers propagate distractor_val_60_25928 for cluster partition #60..................\"}}"
+          },
+          {
+            "source_call_id": "call_0d8978bf0fc6497ba01734d6",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_7b2348dfec168d42773f5add\",\"content\":\"[SYSTEM LOG 161]: Configuration heartbeat for entity_2867. Active routing token for entity_2867.routing_key is confirmed as 'distractor_val_61_55517'. Verify downstream consumers propagate distractor_val_61_55517 for cluster partition #61..................\"}}"
+          },
+          {
+            "source_call_id": "call_be2798e1348941cfb4cdc192",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_6dfd4706e303e7497e284a1c\",\"content\":\"[SYSTEM LOG 162]: C\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 9011,
+        "completion_tokens": 2096,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 31
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-30T07:43:06.549000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "All 66 records read. Analysis:\n\n- **ctx_b21277170adae388f6b2f66b** (LOG 001): `entity_354.routing_key` initially bound to `'e33f7b03_v1'`\n- **ctx_08288abba507c3ce4f572066** (CRITICAL OVERRIDE 091): `entity_354.routing_key` mutated to `'e33f7b03_v2'` — supersedes prior assignment; final mutation must supply this token\n- Remaining 64 records are distractor heartbeats for unrelated entities; the last record is truncated with no state info\n\nCurrent derived state: `entity_354` / `routing_key` / `e33f7b03_v2`. Executing mutation:",
+      "reasoning_content": "Now let me analyze the context records:\n\n1. `ctx_b21277170adae388f6b2f66b` (SYSTEM LOG 001): entity_354, attribute `routing_key` initially bound to 'e33f7b03_v1'.\n2. `ctx_08288abba507c3ce4f572066` (CRITICAL STATE INVERSION 091): OVERRIDE event for entity_354. Attribute `routing_key` is now mutated to 'e33f7b03_v2'. Mandatory action execution requirement: Final mutation must supply latest bound token 'e33f7b03_v2'.\n\nAll the rest (SYSTEM LOG 100-162) are distractor heartbeat logs for other entities (entity_2698, entity_9735, etc.) with distractor values — they're noise.\n\nThe last chunk (ctx_6dfd4706e303e7497e284a1c) is truncated: \"[SYSTEM LOG 162]: C\" — no relevant info.\n\nSo the target state: entity_id = entity_354, attribute = routing_key, bound_value = 'e33f7b03_v2' (the latest override supersedes the initial 'e33f7b03_v1').\n\nNow invoke execute_mutation with these args.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_974326ce768f404e9c4922d8",
+          "function_name": "memory_mcp_execute_mutation",
+          "arguments": {
+            "entity_id": "entity_354",
+            "attribute": "routing_key",
+            "bound_value": "e33f7b03_v2"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_974326ce768f404e9c4922d8",
+            "content": "{\"status\":\"ok\",\"value\":{\"status\":\"executed\",\"target_entity\":\"entity_354\",\"target_attribute\":\"routing_key\",\"bound_value\":\"e33f7b03_v2\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 17212,
+        "completion_tokens": 215,
+        "cached_tokens": 8960,
+        "extra": {
+          "reasoning_tokens": 282
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-30T07:43:19.224000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Mutation executed successfully.\n\n**Summary:**\n1. **Listed** 66 context handles\n2. **Read** all records — the target was `entity_354.routing_key`: initially `'e33f7b03_v1'` (LOG 001), overridden to `'e33f7b03_v2'` (CRITICAL STATE INVERSION 091). The other 64 records were distractor heartbeats for unrelated entities.\n3. **Mutated** `entity_354.routing_key` → `e33f7b03_v2` (the latest bound token, per the override requirement) — server confirmed: `status: executed`.",
+      "reasoning_content": "The mutation executed successfully. Let me give a concise summary.",
+      "metrics": {
+        "prompt_tokens": 17751,
+        "completion_tokens": 140,
+        "cached_tokens": 17152,
+        "extra": {
+          "reasoning_tokens": 12
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 51591,
+    "total_completion_tokens": 2486,
+    "total_cached_tokens": 41344,
+    "total_steps": 5
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

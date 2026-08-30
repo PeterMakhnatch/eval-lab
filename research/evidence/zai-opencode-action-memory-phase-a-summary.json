@@ -1,0 +1,2118 @@
+{
+  "aggregate": {
+    "atif_event_order_matches": 34,
+    "atif_steps": 328,
+    "cached_tokens": 5341120,
+    "completion_tokens": 138349,
+    "coverage_complete_trials": 32,
+    "duplicate_read_trials": 5,
+    "exceptions": 0,
+    "failures": 17,
+    "order_exact_trials": 19,
+    "pass_at_2_tasks": 14,
+    "passes": 19,
+    "prompt_tokens": 6098162,
+    "task_cells": 18,
+    "tool_calls": 3664,
+    "trials": 36,
+    "unknown_handle_trials": 6
+  },
+  "atif_event_order_mismatch_trials": [
+    "action-64k-semantic_distractor-s__6vDNEHZ",
+    "action-64k-semantic_distractor-s__8aYeUds"
+  ],
+  "cells": [
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": 6,
+      "dose_bytes": 4096,
+      "duplicate_trials": 0,
+      "failures": 1,
+      "order_exact": 5,
+      "passes": 5,
+      "prompt_tokens": 210440,
+      "trials": 6,
+      "unknown_handle_trials": 0
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": 6,
+      "dose_bytes": 4096,
+      "duplicate_trials": 0,
+      "failures": 4,
+      "order_exact": 2,
+      "passes": 2,
+      "prompt_tokens": 218353,
+      "trials": 6,
+      "unknown_handle_trials": 0
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": 6,
+      "dose_bytes": 16384,
+      "duplicate_trials": 0,
+      "failures": 1,
+      "order_exact": 5,
+      "passes": 5,
+      "prompt_tokens": 359678,
+      "trials": 6,
+      "unknown_handle_trials": 0
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": 6,
+      "dose_bytes": 16384,
+      "duplicate_trials": 0,
+      "failures": 2,
+      "order_exact": 4,
+      "passes": 4,
+      "prompt_tokens": 440801,
+      "trials": 6,
+      "unknown_handle_trials": 0
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": 3,
+      "dose_bytes": 65536,
+      "duplicate_trials": 2,
+      "failures": 4,
+      "order_exact": 2,
+      "passes": 2,
+      "prompt_tokens": 2437906,
+      "trials": 6,
+      "unknown_handle_trials": 3
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": 5,
+      "dose_bytes": 65536,
+      "duplicate_trials": 3,
+      "failures": 5,
+      "order_exact": 1,
+      "passes": 1,
+      "prompt_tokens": 2430984,
+      "trials": 6,
+      "unknown_handle_trials": 3
+    }
+  ],
+  "evidence_class": "calibration_only_darwin_public_egress",
+  "failure_modes": {
+    "complete_but_reordered": 13,
+    "incomplete_coverage": 4
+  },
+  "generated_at": "2026-08-30T04:03:39.413163-04:00",
+  "job": "zai-overnight-action-phase-a-v2-20260830",
+  "non_scored_attempts": [
+    {
+      "classification": "harness_setup",
+      "include_in_reward_denominator": false,
+      "job": "zai-overnight-action-phase-a-20260830",
+      "planned_trials": 36,
+      "produced_trial_results": 0,
+      "reason": "Harbor could not import evallab.harbor_zai_opencode because the subprocess lacked the repository src path; failed before agent/model execution"
+    }
+  ],
+  "order_fidelity_reward_equivalence": true,
+  "paired_arm_contrasts": [
+    {
+      "dose_bytes": 4096,
+      "mean_semantic_minus_neutral": -0.5,
+      "pairs": 6,
+      "semantic_better": 1,
+      "semantic_worse": 4,
+      "ties": 1
+    },
+    {
+      "dose_bytes": 16384,
+      "mean_semantic_minus_neutral": -0.16666666666666666,
+      "pairs": 6,
+      "semantic_better": 1,
+      "semantic_worse": 2,
+      "ties": 3
+    },
+    {
+      "dose_bytes": 65536,
+      "mean_semantic_minus_neutral": -0.16666666666666666,
+      "pairs": 6,
+      "semantic_better": 0,
+      "semantic_worse": 1,
+      "ties": 5
+    }
+  ],
+  "paired_rows": [
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 4096,
+      "neutral_reward": 1.0,
+      "repeat": 1,
+      "seed": 42,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "semantic_better",
+      "dose_bytes": 4096,
+      "neutral_reward": 0.0,
+      "repeat": 2,
+      "seed": 42,
+      "semantic_minus_neutral": 1.0,
+      "semantic_reward": 1.0
+    },
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 4096,
+      "neutral_reward": 1.0,
+      "repeat": 1,
+      "seed": 1337,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 4096,
+      "neutral_reward": 1.0,
+      "repeat": 2,
+      "seed": 1337,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 4096,
+      "neutral_reward": 1.0,
+      "repeat": 1,
+      "seed": 2026,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 4096,
+      "neutral_reward": 1.0,
+      "repeat": 2,
+      "seed": 2026,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 1.0
+    },
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 16384,
+      "neutral_reward": 1.0,
+      "repeat": 1,
+      "seed": 42,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "semantic_better",
+      "dose_bytes": 16384,
+      "neutral_reward": 0.0,
+      "repeat": 2,
+      "seed": 42,
+      "semantic_minus_neutral": 1.0,
+      "semantic_reward": 1.0
+    },
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 16384,
+      "neutral_reward": 1.0,
+      "repeat": 1,
+      "seed": 1337,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 16384,
+      "neutral_reward": 1.0,
+      "repeat": 2,
+      "seed": 1337,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 1.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 16384,
+      "neutral_reward": 1.0,
+      "repeat": 1,
+      "seed": 2026,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 1.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 16384,
+      "neutral_reward": 1.0,
+      "repeat": 2,
+      "seed": 2026,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 1.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 65536,
+      "neutral_reward": 0.0,
+      "repeat": 1,
+      "seed": 42,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "semantic_worse",
+      "dose_bytes": 65536,
+      "neutral_reward": 1.0,
+      "repeat": 2,
+      "seed": 42,
+      "semantic_minus_neutral": -1.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 65536,
+      "neutral_reward": 0.0,
+      "repeat": 1,
+      "seed": 1337,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 65536,
+      "neutral_reward": 0.0,
+      "repeat": 2,
+      "seed": 1337,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 65536,
+      "neutral_reward": 0.0,
+      "repeat": 1,
+      "seed": 2026,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 0.0
+    },
+    {
+      "direction": "tie",
+      "dose_bytes": 65536,
+      "neutral_reward": 1.0,
+      "repeat": 2,
+      "seed": 2026,
+      "semantic_minus_neutral": 0.0,
+      "semantic_reward": 1.0
+    }
+  ],
+  "repeat_stability": {
+    "mixed": 9,
+    "stable_fail": 4,
+    "stable_pass": 5
+  },
+  "rows": [
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 32640,
+      "completion_tokens": 774,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:26:20.037669Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f200cf8e_v2",
+          "entity_id": "entity_852"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 34964,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:24:28.993924Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-4096-s42-seed42",
+      "tool_calls": 19,
+      "trial_name": "action-4k-neutral_padding-s42__huvDBVJ",
+      "truth_digest": "sha256:35df065289ce283850195ebb3aa3b1a8fd2a8daaaceb826871c577b7cc7d0a6b",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 27456,
+      "completion_tokens": 786,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:45:01.218593Z",
+      "first_order_mismatch_index": 1,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f200cf8e_v2",
+          "entity_id": "entity_852"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 35013,
+      "repeat": 2,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:43:31.366383Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-4096-s42-seed42",
+      "tool_calls": 19,
+      "trial_name": "action-4k-neutral_padding-s42__fHCW29G",
+      "truth_digest": "sha256:35df065289ce283850195ebb3aa3b1a8fd2a8daaaceb826871c577b7cc7d0a6b",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 27392,
+      "completion_tokens": 724,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:26:02.962316Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "5fcf1d41_v2",
+          "entity_id": "entity_771"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 34927,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:24:20.899681Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-4096-s1337-seed1337",
+      "tool_calls": 19,
+      "trial_name": "action-4k-neutral_padding-s1337__7oQNAeC",
+      "truth_digest": "sha256:312a009a058819537b68bb225acf3b922f41ae3570f08171b9b204f1a5996c76",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 27456,
+      "completion_tokens": 828,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:44:55.509993Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "5fcf1d41_v2",
+          "entity_id": "entity_771"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 35310,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:43:16.786147Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-4096-s1337-seed1337",
+      "tool_calls": 19,
+      "trial_name": "action-4k-neutral_padding-s1337__c29mo9d",
+      "truth_digest": "sha256:312a009a058819537b68bb225acf3b922f41ae3570f08171b9b204f1a5996c76",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 27456,
+      "completion_tokens": 755,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:26:29.620189Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "4f1b29d2_v2",
+          "entity_id": "entity_127"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 35109,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:24:24.289680Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-4096-s2026-seed2026",
+      "tool_calls": 19,
+      "trial_name": "action-4k-neutral_padding-s2026__g7DNGyu",
+      "truth_digest": "sha256:501c48366a16beef2741c46febb854d9d684c34434e01db6e233c5c4a426bd98",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 19840,
+      "completion_tokens": 745,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:45:10.947243Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "4f1b29d2_v2",
+          "entity_id": "entity_127"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 35117,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:43:27.467366Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-4096-s2026-seed2026",
+      "tool_calls": 19,
+      "trial_name": "action-4k-neutral_padding-s2026__45EV9kt",
+      "truth_digest": "sha256:501c48366a16beef2741c46febb854d9d684c34434e01db6e233c5c4a426bd98",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 33344,
+      "completion_tokens": 810,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:28:06.583862Z",
+      "first_order_mismatch_index": 10,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f200cf8e_v2",
+          "entity_id": "entity_852"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 36318,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:26:29.676009Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-4096-s42-seed42",
+      "tool_calls": 19,
+      "trial_name": "action-4k-semantic_distractor-s4__zqVomHN",
+      "truth_digest": "sha256:35df065289ce283850195ebb3aa3b1a8fd2a8daaaceb826871c577b7cc7d0a6b",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 27904,
+      "completion_tokens": 772,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:46:51.252640Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f200cf8e_v2",
+          "entity_id": "entity_852"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 36115,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:45:11.217830Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-4096-s42-seed42",
+      "tool_calls": 19,
+      "trial_name": "action-4k-semantic_distractor-s4__Zu9iVdi",
+      "truth_digest": "sha256:35df065289ce283850195ebb3aa3b1a8fd2a8daaaceb826871c577b7cc7d0a6b",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 28096,
+      "completion_tokens": 821,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:27:36.412317Z",
+      "first_order_mismatch_index": 1,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "5fcf1d41_v2",
+          "entity_id": "entity_771"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 36570,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:26:03.011518Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-4096-s1337-seed1337",
+      "tool_calls": 19,
+      "trial_name": "action-4k-semantic_distractor-s1__V9ZDDrL",
+      "truth_digest": "sha256:312a009a058819537b68bb225acf3b922f41ae3570f08171b9b204f1a5996c76",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 33344,
+      "completion_tokens": 822,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:46:25.985217Z",
+      "first_order_mismatch_index": 8,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "5fcf1d41_v2",
+          "entity_id": "entity_771"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 36425,
+      "repeat": 2,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:44:55.580681Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-4096-s1337-seed1337",
+      "tool_calls": 19,
+      "trial_name": "action-4k-semantic_distractor-s1__eUGnBBL",
+      "truth_digest": "sha256:312a009a058819537b68bb225acf3b922f41ae3570f08171b9b204f1a5996c76",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 28096,
+      "completion_tokens": 801,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:28:01.384679Z",
+      "first_order_mismatch_index": 2,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "4f1b29d2_v2",
+          "entity_id": "entity_127"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 36446,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:26:20.099935Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-4096-s2026-seed2026",
+      "tool_calls": 19,
+      "trial_name": "action-4k-semantic_distractor-s2__LsbUJ8W",
+      "truth_digest": "sha256:501c48366a16beef2741c46febb854d9d684c34434e01db6e233c5c4a426bd98",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 33408,
+      "completion_tokens": 814,
+      "content_reads": 17,
+      "coverage_complete": true,
+      "dose_bytes": 4096,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 17,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:46:48.898497Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 17,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "4f1b29d2_v2",
+          "entity_id": "entity_127"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 36479,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:45:01.267977Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-4096-s2026-seed2026",
+      "tool_calls": 19,
+      "trial_name": "action-4k-semantic_distractor-s2__RYbw3qU",
+      "truth_digest": "sha256:501c48366a16beef2741c46febb854d9d684c34434e01db6e233c5c4a426bd98",
+      "unique_expected_handles_read": 17,
+      "unique_issued_handles": 17,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 7,
+      "cached_tokens": 49536,
+      "completion_tokens": 2379,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:21:57.483277Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "d8c8ffc9_v2",
+          "entity_id": "entity_914"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 70057,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:19:55.194145Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-16384-s42-seed42",
+      "tool_calls": 67,
+      "trial_name": "action-16k-neutral_padding-s42__wAwQXC3",
+      "truth_digest": "sha256:505b312470bd908eee4ed95900cb84f1ce3ced0819886a511cda213c9d5fa12c",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 7,
+      "cached_tokens": 57280,
+      "completion_tokens": 2340,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:41:16.003670Z",
+      "first_order_mismatch_index": 1,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "d8c8ffc9_v2",
+          "entity_id": "entity_914"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 70031,
+      "repeat": 2,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:39:22.383139Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-16384-s42-seed42",
+      "tool_calls": 67,
+      "trial_name": "action-16k-neutral_padding-s42__8nicjhA",
+      "truth_digest": "sha256:505b312470bd908eee4ed95900cb84f1ce3ced0819886a511cda213c9d5fa12c",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 26880,
+      "completion_tokens": 2280,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:22:10.558380Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "68f297ac_v2",
+          "entity_id": "entity_295"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 45857,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:19:55.092714Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-16384-s1337-seed1337",
+      "tool_calls": 67,
+      "trial_name": "action-16k-neutral_padding-s1337__RyhboUY",
+      "truth_digest": "sha256:1cbcffb8db431e154b444d6c315b35db510adc40b0f90b1d09261a567f5d1082",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 6,
+      "cached_tokens": 50368,
+      "completion_tokens": 2359,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:41:01.982482Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "68f297ac_v2",
+          "entity_id": "entity_295"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 57755,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:39:03.871802Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-16384-s1337-seed1337",
+      "tool_calls": 67,
+      "trial_name": "action-16k-neutral_padding-s1337__WNCTjTp",
+      "truth_digest": "sha256:1cbcffb8db431e154b444d6c315b35db510adc40b0f90b1d09261a567f5d1082",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 25664,
+      "completion_tokens": 2370,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:22:03.949537Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "e33f7b03_v2",
+          "entity_id": "entity_354"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 45973,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:19:55.161865Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-16384-s2026-seed2026",
+      "tool_calls": 67,
+      "trial_name": "action-16k-neutral_padding-s2026__oZvu6eF",
+      "truth_digest": "sha256:8f04ed50e8211ddacc83fea92782d512286487b136eb64d87a8af21417506735",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 7,
+      "cached_tokens": 57536,
+      "completion_tokens": 2325,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:41:15.137064Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "e33f7b03_v2",
+          "entity_id": "entity_354"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 70005,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:39:12.369693Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-16384-s2026-seed2026",
+      "tool_calls": 67,
+      "trial_name": "action-16k-neutral_padding-s2026__2dvmBtq",
+      "truth_digest": "sha256:8f04ed50e8211ddacc83fea92782d512286487b136eb64d87a8af21417506735",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 7,
+      "cached_tokens": 62784,
+      "completion_tokens": 2285,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:24:20.837019Z",
+      "first_order_mismatch_index": 5,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "d8c8ffc9_v2",
+          "entity_id": "entity_914"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 78252,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:22:10.622431Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-16384-s42-seed42",
+      "tool_calls": 67,
+      "trial_name": "action-16k-semantic_distractor-s__7vQAEX6",
+      "truth_digest": "sha256:505b312470bd908eee4ed95900cb84f1ce3ced0819886a511cda213c9d5fa12c",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 7,
+      "cached_tokens": 62656,
+      "completion_tokens": 2394,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:43:27.396674Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "d8c8ffc9_v2",
+          "entity_id": "entity_914"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 78374,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:41:16.060310Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-16384-s42-seed42",
+      "tool_calls": 67,
+      "trial_name": "action-16k-semantic_distractor-s__qA779fh",
+      "truth_digest": "sha256:505b312470bd908eee4ed95900cb84f1ce3ced0819886a511cda213c9d5fa12c",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 6,
+      "cached_tokens": 43008,
+      "completion_tokens": 2271,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:24:24.188468Z",
+      "first_order_mismatch_index": 2,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "68f297ac_v2",
+          "entity_id": "entity_295"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 64335,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:21:57.537174Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-16384-s1337-seed1337",
+      "tool_calls": 67,
+      "trial_name": "action-16k-semantic_distractor-s__WMfL9Ed",
+      "truth_digest": "sha256:1cbcffb8db431e154b444d6c315b35db510adc40b0f90b1d09261a567f5d1082",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 8,
+      "cached_tokens": 75072,
+      "completion_tokens": 2332,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:43:16.734796Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "68f297ac_v2",
+          "entity_id": "entity_295"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 90484,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:41:02.053380Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-16384-s1337-seed1337",
+      "tool_calls": 67,
+      "trial_name": "action-16k-semantic_distractor-s__jzVivDR",
+      "truth_digest": "sha256:1cbcffb8db431e154b444d6c315b35db510adc40b0f90b1d09261a567f5d1082",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 7,
+      "cached_tokens": 62336,
+      "completion_tokens": 2383,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:24:28.944392Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "e33f7b03_v2",
+          "entity_id": "entity_354"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 77765,
+      "repeat": 1,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:22:04.005620Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-16384-s2026-seed2026",
+      "tool_calls": 67,
+      "trial_name": "action-16k-semantic_distractor-s__f4iZbmp",
+      "truth_digest": "sha256:8f04ed50e8211ddacc83fea92782d512286487b136eb64d87a8af21417506735",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 5,
+      "cached_tokens": 41344,
+      "completion_tokens": 2486,
+      "content_reads": 65,
+      "coverage_complete": true,
+      "dose_bytes": 16384,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 65,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:43:31.312708Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 65,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "e33f7b03_v2",
+          "entity_id": "entity_354"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 51591,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:41:15.200110Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-16384-s2026-seed2026",
+      "tool_calls": 69,
+      "trial_name": "action-16k-semantic_distractor-s__w4D7Fk7",
+      "truth_digest": "sha256:8f04ed50e8211ddacc83fea92782d512286487b136eb64d87a8af21417506735",
+      "unique_expected_handles_read": 65,
+      "unique_issued_handles": 65,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 21,
+      "cached_tokens": 441920,
+      "completion_tokens": 8452,
+      "content_reads": 257,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:32:44.556707Z",
+      "first_order_mismatch_index": 243,
+      "issued_reads": 257,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "c167559e_v2",
+          "entity_id": "entity_858"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 469688,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:28:06.669457Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s42-seed42",
+      "tool_calls": 259,
+      "trial_name": "action-64k-neutral_padding-s42__KJNRb6i",
+      "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 14,
+      "cached_tokens": 256512,
+      "completion_tokens": 8552,
+      "content_reads": 257,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:51:27.137316Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 257,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "c167559e_v2",
+          "entity_id": "entity_858"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 290127,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:46:51.311666Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s42-seed42",
+      "tool_calls": 259,
+      "trial_name": "action-64k-neutral_padding-s42__EpUT8FT",
+      "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 257,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 18,
+      "cached_tokens": 433024,
+      "completion_tokens": 8496,
+      "content_reads": 256,
+      "coverage_complete": false,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "finished_at": "2026-08-30T07:33:07.136702Z",
+      "first_order_mismatch_index": 83,
+      "issued_reads": 257,
+      "missing_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f3e822e6_v2",
+          "entity_id": "entity_817"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 1,
+      "order_exact": false,
+      "prompt_tokens": 471263,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:27:36.465152Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s1337-seed1337",
+      "tool_calls": 259,
+      "trial_name": "action-64k-neutral_padding-s1337__FFSbF3C",
+      "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca",
+      "unique_expected_handles_read": 256,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 16,
+      "cached_tokens": 346432,
+      "completion_tokens": 8703,
+      "content_reads": 256,
+      "coverage_complete": false,
+      "dose_bytes": 65536,
+      "duplicate_reads": 1,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "finished_at": "2026-08-30T07:53:33.812596Z",
+      "first_order_mismatch_index": 83,
+      "issued_reads": 258,
+      "missing_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f3e822e6_v2",
+          "entity_id": "entity_817"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 2,
+      "order_exact": false,
+      "prompt_tokens": 395369,
+      "repeat": 2,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:46:26.063032Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s1337-seed1337",
+      "tool_calls": 260,
+      "trial_name": "action-64k-neutral_padding-s1337__wPckzoW",
+      "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca",
+      "unique_expected_handles_read": 256,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 19,
+      "cached_tokens": 413248,
+      "completion_tokens": 8818,
+      "content_reads": 257,
+      "coverage_complete": false,
+      "dose_bytes": 65536,
+      "duplicate_reads": 2,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [
+        "ctx_fc828129ede15bde2c9d149fd"
+      ],
+      "finished_at": "2026-08-30T07:34:15.325937Z",
+      "first_order_mismatch_index": 19,
+      "issued_reads": 259,
+      "missing_handles": [
+        "ctx_fc82829ede15bde2c9d149fd"
+      ],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "1b29293e_v2",
+          "entity_id": "entity_879"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 2,
+      "order_exact": false,
+      "prompt_tokens": 453736,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:28:01.445988Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s2026-seed2026",
+      "tool_calls": 262,
+      "trial_name": "action-64k-neutral_padding-s2026__rHaqFij",
+      "truth_digest": "sha256:af128aca5c34bd2a427949bfcb1bef9c0da3a02954547b8799daef63a985c134",
+      "unique_expected_handles_read": 256,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "neutral_padding",
+      "atif_matches_event_order": true,
+      "atif_steps": 14,
+      "cached_tokens": 321600,
+      "completion_tokens": 8612,
+      "content_reads": 257,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:52:29.954150Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 257,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "1b29293e_v2",
+          "entity_id": "entity_879"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 357723,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:46:48.953769Z",
+      "task_name": "evallab/action-memory-dl-neutral-padding-65536-s2026-seed2026",
+      "tool_calls": 259,
+      "trial_name": "action-64k-neutral_padding-s2026__bbfDJyU",
+      "truth_digest": "sha256:af128aca5c34bd2a427949bfcb1bef9c0da3a02954547b8799daef63a985c134",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 257,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 16,
+      "cached_tokens": 440256,
+      "completion_tokens": 8579,
+      "content_reads": 258,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 1,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:39:03.772851Z",
+      "first_order_mismatch_index": 257,
+      "issued_reads": 258,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "c167559e_v2",
+          "entity_id": "entity_858"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 492782,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:34:15.445833Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s42-seed42",
+      "tool_calls": 260,
+      "trial_name": "action-64k-semantic_distractor-s__GH67Boh",
+      "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": false,
+      "atif_steps": 13,
+      "cached_tokens": 209408,
+      "completion_tokens": 6439,
+      "content_reads": 264,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 7,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:58:27.477248Z",
+      "first_order_mismatch_index": 6,
+      "issued_reads": 264,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "c167559e_v2",
+          "entity_id": "entity_858"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": false,
+      "prompt_tokens": 247207,
+      "repeat": 2,
+      "reward": 0.0,
+      "seed": 42,
+      "started_at": "2026-08-30T07:53:33.885769Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s42-seed42",
+      "tool_calls": 17,
+      "trial_name": "action-64k-semantic_distractor-s__6vDNEHZ",
+      "truth_digest": "sha256:27916573e24f6747a4ef2c90c413afb92220edd843b43b533ba495e49151883a",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": false,
+      "atif_steps": 15,
+      "cached_tokens": 267264,
+      "completion_tokens": 8161,
+      "content_reads": 521,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 264,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "finished_at": "2026-08-30T07:39:22.325442Z",
+      "first_order_mismatch_index": 4,
+      "issued_reads": 522,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f3e822e6_v2",
+          "entity_id": "entity_817"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 1,
+      "order_exact": false,
+      "prompt_tokens": 295252,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:32:44.605804Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s1337-seed1337",
+      "tool_calls": 16,
+      "trial_name": "action-64k-semantic_distractor-s__8aYeUds",
+      "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 258,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 14,
+      "cached_tokens": 382528,
+      "completion_tokens": 8698,
+      "content_reads": 256,
+      "coverage_complete": false,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [
+        "ctx_2110473c018845ab0cc32bf6"
+      ],
+      "finished_at": "2026-08-30T07:58:27.648528Z",
+      "first_order_mismatch_index": 83,
+      "issued_reads": 257,
+      "missing_handles": [
+        "ctx_2110473c018845ab0cc32bf4"
+      ],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "f3e822e6_v2",
+          "entity_id": "entity_817"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 1,
+      "order_exact": false,
+      "prompt_tokens": 432934,
+      "repeat": 2,
+      "reward": 0.0,
+      "seed": 1337,
+      "started_at": "2026-08-30T07:51:27.206745Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s1337-seed1337",
+      "tool_calls": 259,
+      "trial_name": "action-64k-semantic_distractor-s__3sAERpi",
+      "truth_digest": "sha256:b7a4144eb1297c69afd21ab202c1c8690cff22482b5363b64ef6431082bf29ca",
+      "unique_expected_handles_read": 256,
+      "unique_issued_handles": 257,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 18,
+      "cached_tokens": 506368,
+      "completion_tokens": 8644,
+      "content_reads": 257,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [
+        "ctx_fc828129ede15bde2c9d149fd"
+      ],
+      "finished_at": "2026-08-30T07:39:12.314894Z",
+      "first_order_mismatch_index": 115,
+      "issued_reads": 258,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "1b29293e_v2",
+          "entity_id": "entity_879"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 1,
+      "order_exact": false,
+      "prompt_tokens": 555454,
+      "repeat": 1,
+      "reward": 0.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:33:07.227268Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s2026-seed2026",
+      "tool_calls": 261,
+      "trial_name": "action-64k-semantic_distractor-s__uEydwLT",
+      "truth_digest": "sha256:af128aca5c34bd2a427949bfcb1bef9c0da3a02954547b8799daef63a985c134",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 258,
+      "verifier_reason": "incomplete_or_reordered_context_retrieval"
+    },
+    {
+      "arm": "semantic_distractor",
+      "atif_matches_event_order": true,
+      "atif_steps": 13,
+      "cached_tokens": 361664,
+      "completion_tokens": 8539,
+      "content_reads": 257,
+      "coverage_complete": true,
+      "dose_bytes": 65536,
+      "duplicate_reads": 0,
+      "exception_type": null,
+      "expected_reads": 257,
+      "extra_handles": [],
+      "finished_at": "2026-08-30T07:57:40.646037Z",
+      "first_order_mismatch_index": null,
+      "issued_reads": 257,
+      "missing_handles": [],
+      "mutation_arguments": [
+        {
+          "attribute": "routing_key",
+          "bound_value": "1b29293e_v2",
+          "entity_id": "entity_879"
+        }
+      ],
+      "mutation_calls": 1,
+      "not_found_reads": 0,
+      "order_exact": true,
+      "prompt_tokens": 407355,
+      "repeat": 2,
+      "reward": 1.0,
+      "seed": 2026,
+      "started_at": "2026-08-30T07:52:30.009701Z",
+      "task_name": "evallab/action-memory-dl-semantic-distractor-65536-s2026-seed2026",
+      "tool_calls": 259,
+      "trial_name": "action-64k-semantic_distractor-s__eFWYpcQ",
+      "truth_digest": "sha256:af128aca5c34bd2a427949bfcb1bef9c0da3a02954547b8799daef63a985c134",
+      "unique_expected_handles_read": 257,
+      "unique_issued_handles": 257,
+      "verifier_reason": "exact_latest_value_bound_after_complete_retrieval"
+    }
+  ],
+  "schema_version": "zai-action-memory-phase-a-analysis/v1",
+  "seed_cells": [
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 4096,
+      "order_exact": [
+        true,
+        false
+      ],
+      "passes": 1,
+      "rewards": [
+        1.0,
+        0.0
+      ],
+      "seed": 42,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 4096,
+      "order_exact": [
+        true,
+        true
+      ],
+      "passes": 2,
+      "rewards": [
+        1.0,
+        1.0
+      ],
+      "seed": 1337,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 4096,
+      "order_exact": [
+        true,
+        true
+      ],
+      "passes": 2,
+      "rewards": [
+        1.0,
+        1.0
+      ],
+      "seed": 2026,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 4096,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 42,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 4096,
+      "order_exact": [
+        false,
+        false
+      ],
+      "passes": 0,
+      "rewards": [
+        0.0,
+        0.0
+      ],
+      "seed": 1337,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 4096,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 2026,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 16384,
+      "order_exact": [
+        true,
+        false
+      ],
+      "passes": 1,
+      "rewards": [
+        1.0,
+        0.0
+      ],
+      "seed": 42,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 16384,
+      "order_exact": [
+        true,
+        true
+      ],
+      "passes": 2,
+      "rewards": [
+        1.0,
+        1.0
+      ],
+      "seed": 1337,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 16384,
+      "order_exact": [
+        true,
+        true
+      ],
+      "passes": 2,
+      "rewards": [
+        1.0,
+        1.0
+      ],
+      "seed": 2026,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 16384,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 42,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 16384,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 1337,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 16384,
+      "order_exact": [
+        true,
+        true
+      ],
+      "passes": 2,
+      "rewards": [
+        1.0,
+        1.0
+      ],
+      "seed": 2026,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 65536,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 42,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        false,
+        false
+      ],
+      "dose_bytes": 65536,
+      "order_exact": [
+        false,
+        false
+      ],
+      "passes": 0,
+      "rewards": [
+        0.0,
+        0.0
+      ],
+      "seed": 1337,
+      "trials": 2
+    },
+    {
+      "arm": "neutral_padding",
+      "coverage_complete": [
+        false,
+        true
+      ],
+      "dose_bytes": 65536,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 2026,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 65536,
+      "order_exact": [
+        false,
+        false
+      ],
+      "passes": 0,
+      "rewards": [
+        0.0,
+        0.0
+      ],
+      "seed": 42,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        false
+      ],
+      "dose_bytes": 65536,
+      "order_exact": [
+        false,
+        false
+      ],
+      "passes": 0,
+      "rewards": [
+        0.0,
+        0.0
+      ],
+      "seed": 1337,
+      "trials": 2
+    },
+    {
+      "arm": "semantic_distractor",
+      "coverage_complete": [
+        true,
+        true
+      ],
+      "dose_bytes": 65536,
+      "order_exact": [
+        false,
+        true
+      ],
+      "passes": 1,
+      "rewards": [
+        0.0,
+        1.0
+      ],
+      "seed": 2026,
+      "trials": 2
+    }
+  ]
+}

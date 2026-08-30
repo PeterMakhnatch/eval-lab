@@ -23,8 +23,8 @@ def _load_scenario() -> dict[str, Any]:
     return json.loads(SCENARIO_PATH.read_text(encoding="utf-8"))
 
 
-def _load_representation() -> str:
-    """Resolve the declared handle representation mode."""
+def _load_representation() -> str | None:
+    """Resolve the declared handle representation mode if declared."""
     env_rep = os.environ.get("AM_HANDLE_REPRESENTATION", "").strip()
     if env_rep:
         return env_rep
@@ -35,7 +35,7 @@ def _load_representation() -> str:
                 return data["representation"]
         except Exception:
             pass
-    return "opaque"
+    return None
 
 
 def agent_visible_chunk(chunk: dict[str, Any]) -> dict[str, str]:
@@ -57,14 +57,15 @@ def list_context_chunks() -> dict[str, Any]:
     rep = _load_representation()
     result: dict[str, Any] = {
         "chunk_ids": [str(chunk["chunk_id"]) for chunk in chunks],
-        "representation": rep,
     }
-    if rep == "range_batch":
-        result["range"] = {
-            "start": 0,
-            "end": max(0, len(chunks) - 1),
-            "unit": "chunk",
-        }
+    if rep is not None:
+        result["representation"] = rep
+        if rep == "range_batch":
+            result["range"] = {
+                "start": 0,
+                "end": max(0, len(chunks) - 1),
+                "unit": "chunk",
+            }
     return result
 
 

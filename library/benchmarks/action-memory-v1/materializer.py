@@ -202,7 +202,13 @@ def materialize(
     state = _get_state_module()
     safe_cell = cell_id.replace("_", "-")
     extra_metadata = dict(extra_metadata or {})
-    active_representation = representation or str(extra_metadata.get("representation", "opaque") or "opaque")
+    is_handle_rep = representation is not None or "handle_axis_version" in extra_metadata
+    active_representation = (
+        representation
+        or str(extra_metadata.get("representation", "opaque") or "opaque")
+        if is_handle_rep
+        else "opaque"
+    )
 
     if output_dir is None:
         output_dir = output_path(safe_cell, seed)
@@ -250,16 +256,17 @@ def materialize(
     scenario_json = json.dumps(asdict(spec), indent=2, sort_keys=True) + "\n"
     (task_state / "scenario.json").write_text(scenario_json, encoding="utf-8")
 
-    # Record handle-representation state when declared
-    handle_rep_payload = {
-        "representation": active_representation,
-        "representation_digest": str(extra_metadata.get("representation_digest", "")),
-        "handle_axis_version": str(extra_metadata.get("handle_axis_version", "")),
-        "declared_delta": str(extra_metadata.get("declared_delta", "")),
-    }
-    (task_state / "handle_representation.json").write_text(
-        json.dumps(handle_rep_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    # Record handle-representation state when declared as a handle-representation intervention
+    if is_handle_rep:
+        handle_rep_payload = {
+            "representation": active_representation,
+            "representation_digest": str(extra_metadata.get("representation_digest", "")),
+            "handle_axis_version": str(extra_metadata.get("handle_axis_version", "")),
+            "declared_delta": str(extra_metadata.get("declared_delta", "")),
+        }
+        (task_state / "handle_representation.json").write_text(
+            json.dumps(handle_rep_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
     family_spec = SyntheticFamilySpec(
         family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
@@ -289,7 +296,7 @@ def materialize(
         "read_opportunity_count": spec.read_opportunity_count,
         "mutation_opportunity_count": spec.mutation_opportunity_count,
     }
-    if representation is not None or "representation" in extra_metadata:
+    if is_handle_rep:
         target_spec["representation"] = active_representation
         if "representation_digest" in extra_metadata:
             target_spec["representation_digest"] = extra_metadata["representation_digest"]
@@ -312,18 +319,21 @@ def materialize(
         encoding="utf-8",
     )
 
-    tools = action_memory_tools(active_representation)
+    tools = action_memory_tools(active_representation if is_handle_rep else "opaque")
     tool_names = tuple(t.name for t in tools)
 
     wheelhouse, resolver_provenance = _wheelhouse_inputs()
     runtime_assets = [
         RuntimeAsset(destination="ops.py", source=ROOT / "ops.py"),
         RuntimeAsset(destination="scenario.json", source=task_state / "scenario.json"),
-        RuntimeAsset(
-            destination="handle_representation.json",
-            source=task_state / "handle_representation.json",
-        ),
     ]
+    if is_handle_rep:
+        runtime_assets.append(
+            RuntimeAsset(
+                destination="handle_representation.json",
+                source=task_state / "handle_representation.json",
+            )
+        )
 
     package = materialize_mcp_sidecar_package(
         target_dir=sidecar_dir,

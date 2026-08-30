@@ -1206,18 +1206,6 @@ def _to_bool(value: Any) -> bool | None:
     return None
 
 
-def _aggregate_arm(values: Sequence[bool | None]) -> bool | None:
-    truthy = sum(1 for v in values if v is True)
-    falsy = sum(1 for v in values if v is False)
-    if truthy == 0 and falsy == 0:
-        return None
-    if truthy > falsy:
-        return True
-    if falsy > truthy:
-        return False
-    return None
-
-
 def _extract_source_refs(
     rows: Sequence[Mapping[str, Any]], target_outcome: str
 ) -> tuple[ContextCitation, ...]:
@@ -1412,10 +1400,10 @@ def _paired_sign(
         pair_id = ":".join(key_parts)
 
         if has_arm and row.get("arm") is not None:
-            arm_raw = row.get("arm")
-            if arm_raw in (0, "0", "control"):
+            arm_raw = str(row.get("arm")).strip().lower()
+            if arm_raw in ("0", "control", "neutral", "neutral_padding"):
                 arm = "control"
-            elif arm_raw in (1, "1", "treatment"):
+            elif arm_raw in ("1", "treatment", "distractor", "semantic", "semantic_distractor"):
                 arm = "treatment"
             else:
                 return _refusal_result(
@@ -1428,18 +1416,27 @@ def _paired_sign(
                     spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
                 )
             if dose in (0, "0", "control") or (
-                isinstance(dose, str) and dose.strip().lower() == "control"
+                isinstance(dose, str) and dose.strip().lower() in ("control", "neutral", "neutral_padding")
             ):
                 arm = "control"
             else:
                 arm = "treatment"
 
-        out = _to_bool(row.get(spec.outcome_feature))
-        if out is None:
+        out_raw = row.get(spec.outcome_feature)
+        if out_raw is None:
             return _refusal_result(
                 spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
             )
-        pairs.setdefault(pair_id, {"control": [], "treatment": []})[arm].append(out)
+        out_bool = _to_bool(out_raw)
+        if out_bool is not None:
+            out_val = 1.0 if out_bool else 0.0
+        elif isinstance(out_raw, (int, float)):
+            out_val = float(out_raw)
+        else:
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
+        pairs.setdefault(pair_id, {"control": [], "treatment": []})[arm].append(out_val)
 
     inputs: list[PairedBinaryInput] = []
     for pair_id, arms in sorted(pairs.items()):
@@ -1447,17 +1444,23 @@ def _paired_sign(
             return _refusal_result(
                 spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
             )
-        control = _aggregate_arm(arms["control"])
-        treatment = _aggregate_arm(arms["treatment"])
-        if control is None or treatment is None:
+        if len(arms["control"]) != len(arms["treatment"]):
             return _refusal_result(
-                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+                spec, snapshot_digest, RefusalCode.PAIRING_IDENTITY_MISMATCH, len(rows), source_refs
             )
+        control_mean = sum(arms["control"]) / len(arms["control"])
+        treatment_mean = sum(arms["treatment"]) / len(arms["treatment"])
+        if control_mean > treatment_mean:
+            arm_a_out, arm_b_out = True, False
+        elif control_mean < treatment_mean:
+            arm_a_out, arm_b_out = False, True
+        else:
+            arm_a_out, arm_b_out = False, False
         inputs.append(
             PairedBinaryInput(
                 assignment_unit_id=pair_id,
-                arm_a_outcome=control,
-                arm_b_outcome=treatment,
+                arm_a_outcome=arm_a_out,
+                arm_b_outcome=arm_b_out,
                 capture_complete=True,
             )
         )

@@ -802,6 +802,40 @@ def _paired_spec() -> CampaignAnalysisSpecV1:
     )
 
 
+def test_mixed_repeat_paired_aggregation() -> None:
+    """Verify mixed repeats (e.g. [1, 0] vs [0, 0] is a win, [1, 0] vs [1, 0] is a tie)."""
+    rows = [
+        # Unit 1: control [1.0, 0.0] mean 0.5 vs treatment [0.0, 0.0] mean 0.0 -> control win (discordant)
+        {"trial_id": "u1_c1", "dose": 0, "seed": 1, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u1_c2", "dose": 0, "seed": 1, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u1_t1", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u1_t2", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+
+        # Unit 2: control [1.0, 0.0] mean 0.5 vs treatment [1.0, 0.0] mean 0.5 -> tie (concordant)
+        {"trial_id": "u2_c1", "dose": 0, "seed": 2, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u2_c2", "dose": 0, "seed": 2, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u2_t1", "dose": 1, "seed": 2, "primary_reward": 1.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u2_t2", "dose": 1, "seed": 2, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+
+        # Unit 3: control [0.0, 0.0] mean 0.0 vs treatment [1.0, 0.0] mean 0.5 -> treatment win (discordant)
+        {"trial_id": "u3_c1", "dose": 0, "seed": 3, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u3_c2", "dose": 0, "seed": 3, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u3_t1", "dose": 1, "seed": 3, "primary_reward": 1.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {"trial_id": "u3_t2", "dose": 1, "seed": 3, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+    ]
+
+    spec = _paired_spec()
+    result = run_campaign_analysis(spec, rows, snapshot_digest=DIGEST_A)
+
+    assert result.observed_rows == 12
+    assert result.analysis_units == 3
+    assert result.informative_units == 2
+    assert result.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.UNDERPOWERED in result.refusals
+    assert result.attainable_p_floor == pytest.approx(0.5)
+    assert len(result.source_refs) == 12
+
+
 def test_exact_paired_units_aggregation() -> None:
     rows = []
     for seed in range(1, 5):  # 4 worse: control succeeds, treatment fails

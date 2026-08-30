@@ -2261,7 +2261,7 @@ def test_end_to_end_zero_model_batch_spend(tmp_path: Path, monkeypatch: pytest.M
 def test_phase_a_e0b_paired_batch_orchestration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """End-to-end proof: 36 repeat trials over 9 (dose, seed) pairs execute zero-model analysis."""
+    """End-to-end proof: 36 real Phase-A repeat trials over 9 (dose_bytes, seed) pairs execute zero-model analysis."""
 
     def boom(*_args, **_kwargs):
         raise AssertionError("live model invoked")
@@ -2272,50 +2272,58 @@ def test_phase_a_e0b_paired_batch_orchestration(
     store = tmp_path / "cas"
     items: list[CampaignAnalysisItem] = []
 
-    # 9 pairs (seed 1..9), 2 arms x 2 repeats per cell = 36 trials total
-    # Seeds 1..4: control succeeds (reward 1.0), treatment fails (reward 0.0) -> 4 worse
-    # Seeds 5..9: both fail (reward 0.0) -> 5 ties
-    for seed in range(1, 10):
-        for dose in (0, 1):
-            arm = "control" if dose == 0 else "treatment"
-            ctrl_success = seed <= 4 and arm == "control"
-            reward = 1.0 if ctrl_success else 0.0
-            for rep in (0, 1):
-                trial_name = f"phase_a_seed_{seed}_dose_{dose}_rep_{rep}"
-                trial_dir = _trial_tree(
-                    tmp_path, trial_name=trial_name, unpaired=False, reward=reward
-                )
-                cas_uri = _archive_trial(trial_dir, store, trial_name)
+    summary_path = (
+        Path(__file__).parents[1]
+        / "research"
+        / "evidence"
+        / "zai-opencode-action-memory-phase-a-summary.json"
+    )
+    phase_a_data = json.loads(summary_path.read_text(encoding="utf-8"))
+    raw_rows = phase_a_data["rows"]
 
-                item = CampaignAnalysisItem(
-                    source_role="analysis",
-                    cohort_included=True,
-                    attempt_role="primary",
-                    job_id=f"job-{arm}",
-                    job_name=f"job-{arm}",
-                    trial_id=trial_name,
-                    trial_name=trial_name,
-                    task_name=f"task-seed-{seed}",
-                    task_digest="sha256:" + f"{seed:02x}" * 32,
-                    verifier_digest="sha256:" + f"{dose:02x}" * 32,
-                    quality_status="pass",
-                    cas_uri=cas_uri,
-                    arm=arm,
-                    dose=dose,
-                    seed=seed,
-                    reward=reward,
-                    capture_complete=True,
-                    capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
-                )
-                items.append(item)
+    for r in raw_rows:
+        trial_name = r["trial_name"]
+        reward = float(r["reward"])
+        trial_dir = _trial_tree(
+            tmp_path, trial_name=trial_name, unpaired=False, reward=reward
+        )
+        cas_uri = _archive_trial(trial_dir, store, trial_name)
+        arm = "control" if "neutral" in r["arm"] else "treatment"
+
+        item = CampaignAnalysisItem(
+            source_role="analysis",
+            cohort_included=True,
+            attempt_role="primary",
+            job_id=f"job-{arm}",
+            job_name=f"job-{arm}",
+            trial_id=trial_name,
+            trial_name=trial_name,
+            task_name=r["task_name"],
+            task_digest="sha256:" + f"{r['seed']:02x}" * 32,
+            verifier_digest="sha256:" + f"{r['dose_bytes'] % 256:02x}" * 32,
+            quality_status="pass",
+            cas_uri=cas_uri,
+            arm=arm,
+            dose=r["dose_bytes"],
+            seed=r["seed"],
+            reward=reward,
+            declared_features={
+                "dose_bytes": r["dose_bytes"],
+                "seed": r["seed"],
+                "repeat": r["repeat"],
+            },
+            capture_complete=True,
+            capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
+        )
+        items.append(item)
 
     spec = create_campaign_analysis_spec(
         spec_id="action-memory-arm-contrast",
         method=AnalysisMethod.PAIRED_SIGN,
         outcome_feature="primary_reward",
         unit=AnalysisUnit.PAIRED_SEED,
-        unit_keys=("dose", "seed"),
-        pair_keys=("seed",),
+        unit_keys=("dose_bytes", "seed"),
+        pair_keys=("dose_bytes", "seed"),
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
         ci_method="none",
     )

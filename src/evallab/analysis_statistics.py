@@ -6,32 +6,15 @@ import hashlib
 import json
 import math
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
-from enum import StrEnum
+from collections.abc import Hashable, Iterable, Sequence
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from evallab.cohort import wilson_interval as _cohort_wilson_interval
+from evallab.analysis_capability import AnalysisStatus, RefusalCode
 from evallab.schemas import ContractModel
 
 Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
-
-
-class AnalysisStatus(StrEnum):
-    VALID = "VALID"
-    REFUSAL = "REFUSAL"
-
-
-class RefusalCode(StrEnum):
-    DUPLICATE_ASSIGNMENT_UNIT = "DUPLICATE_ASSIGNMENT_UNIT"
-    MISSING_PAIR_ARM = "MISSING_PAIR_ARM"
-    UNDERFILLED_REPEATS = "UNDERFILLED_REPEATS"
-    INVALID_BINARY_INPUT = "INVALID_BINARY_INPUT"
-    ZERO_OPPORTUNITY = "ZERO_OPPORTUNITY"
-    CAPTURE_INCOMPLETE = "CAPTURE_INCOMPLETE"
-    ZERO_VARIANCE = "ZERO_VARIANCE"
-    UNDERPOWERED = "UNDERPOWERED"
 
 
 def canonical_digest(value: object) -> str:
@@ -46,6 +29,94 @@ def canonical_digest(value: object) -> str:
         default=str,
     ).encode()
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def normal_quantile(p: float) -> float:
+    """Compute the inverse standard normal cumulative distribution function.
+
+    Uses Peter J. Acklam's rational approximation algorithm (precision ~1.15e-9 or better).
+    """
+    if not 0.0 < p < 1.0:
+        raise ValueError(f"probability p must be strictly between 0 and 1, got {p}")
+
+    a = (
+        -3.969683028665376e01,
+        2.209460984245205e02,
+        -2.759285104469687e02,
+        1.383577518672690e02,
+        -3.066479806614716e01,
+        2.506628277459239e00,
+    )
+    b = (
+        -5.447609879822406e01,
+        1.615858368580409e02,
+        -1.556989798598866e02,
+        6.680131188771972e01,
+        -1.328068155288572e01,
+    )
+    c = (
+        -7.784894002430293e-03,
+        -3.223964580411365e-01,
+        -2.400758277161838e00,
+        -2.549732539343734e00,
+        4.374664141464968e00,
+        2.938163982698783e00,
+    )
+    d = (
+        7.784695709041462e-03,
+        3.224671290700398e-01,
+        2.445134137142996e00,
+        3.754408661907416e00,
+    )
+
+    p_low = 0.02425
+    p_high = 1.0 - p_low
+
+    if p < p_low:
+        q = math.sqrt(-2.0 * math.log(p))
+        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / (
+            (((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0
+        )
+    if p <= p_high:
+        q = p - 0.5
+        r = q * q
+        return (
+            (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
+            * q
+            / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0)
+        )
+    q = math.sqrt(-2.0 * math.log(1.0 - p))
+    return -(
+        (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+        / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+    )
+
+
+def compute_wilson_interval(
+    successes: int,
+    denominator: int,
+    confidence_level: float = 0.95,
+) -> tuple[float, float] | None:
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError(f"confidence_level must be between 0 and 1, got {confidence_level}")
+    if denominator <= 0:
+        return None
+    z = normal_quantile(1.0 - (1.0 - confidence_level) / 2.0)
+    proportion = successes / denominator
+    z_squared = z * z
+    scale = 1.0 + z_squared / denominator
+    center = (proportion + z_squared / (2.0 * denominator)) / scale
+    half_width = (
+        z
+        * math.sqrt(
+            proportion * (1.0 - proportion) / denominator
+            + z_squared / (4.0 * denominator * denominator)
+        )
+        / scale
+    )
+    lower = max(0.0, center - half_width)
+    upper = min(1.0, center + half_width)
+    return lower, upper
 
 
 class PairedBinaryInput(ContractModel):
@@ -81,10 +152,22 @@ class PairedBinaryContrastResult(ContractModel):
     risk_difference_interval_lower: float | None = None
     risk_difference_interval_upper: float | None = None
     exact_p_value: float | None = None
-    min_attainable_p_value: float | None = None
-    design_floor_p_value: float | None = None
-    is_design_floor: bool = False
-    design_floor_limited: bool = False
+    min_attainable_p_value: float | None = Field(
+        default=None,
+        description="Minimum attainable two-sided exact p-value conditional on observed discordant pairs (2^(1-n_discordant)).",
+    )
+    design_floor_p_value: float | None = Field(
+        default=None,
+        description="Theoretical minimum attainable two-sided exact p-value for the planned sample size (2^(1-n_pairs)).",
+    )
+    is_design_floor: bool = Field(
+        default=False,
+        description="True when the observed p-value equals the minimum attainable p-value for the observed discordant count.",
+    )
+    design_floor_limited: bool = Field(
+        default=False,
+        description="True when min_attainable_p_value > 0.05 (discordant sample size cannot achieve significance at alpha=0.05).",
+    )
     result_digest: Digest
 
 
@@ -116,6 +199,9 @@ def exact_paired_binary_contrast(
     arm_b_id: str = "b",
     confidence_level: float = 0.95,
 ) -> PairedBinaryContrastResult:
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError(f"confidence_level must be between 0 and 1, got {confidence_level}")
+
     obs_list = list(observations)
     if not obs_list:
         return _paired_refusal(RefusalCode.ZERO_OPPORTUNITY)
@@ -185,8 +271,8 @@ def exact_paired_binary_contrast(
     # Newcombe paired score interval
     p1 = (a + b) / n_pairs
     p2 = (a + c) / n_pairs
-    w1 = _cohort_wilson_interval(a + b, n_pairs) or (p1, p1)
-    w2 = _cohort_wilson_interval(a + c, n_pairs) or (p2, p2)
+    w1 = compute_wilson_interval(a + b, n_pairs, confidence_level=confidence_level) or (p1, p1)
+    w2 = compute_wilson_interval(a + c, n_pairs, confidence_level=confidence_level) or (p2, p2)
     denom = math.sqrt((a + b) * (c + d) * (a + c) * (b + d))
     phi = (a * d - b * c) / denom if denom > 0 else 0.0
     l1, u1 = w1
@@ -239,44 +325,57 @@ class FisherExact2x2Result(ContractModel):
 
     status: AnalysisStatus
     refusal_code: RefusalCode | None = None
-    table: tuple[tuple[int, int], tuple[int, int]]
+    table: tuple[tuple[int, int], tuple[int, int]] | None = None
     odds_ratio: float | None = None
     exact_p_value: float | None = None
     result_digest: Digest
 
 
-def fisher_exact_2x2(
-    table: Sequence[Sequence[int]] | tuple[tuple[int, int], tuple[int, int]],
+def _fisher_refusal(
+    code: RefusalCode, table: tuple[tuple[int, int], tuple[int, int]] | None
 ) -> FisherExact2x2Result:
+    body = {
+        "status": AnalysisStatus.REFUSAL,
+        "refusal_code": code,
+        "table": table,
+        "odds_ratio": None,
+        "exact_p_value": None,
+    }
+    return FisherExact2x2Result(**body, result_digest=canonical_digest(body))
+
+
+def fisher_exact_2x2(
+    table: Any,
+) -> FisherExact2x2Result:
+    if not (
+        isinstance(table, (list, tuple))
+        and len(table) == 2
+        and isinstance(table[0], (list, tuple))
+        and len(table[0]) == 2
+        and isinstance(table[1], (list, tuple))
+        and len(table[1]) == 2
+    ):
+        return _fisher_refusal(RefusalCode.INVALID_BINARY_INPUT, None)
+
     a, b = table[0][0], table[0][1]
     c, d = table[1][0], table[1][1]
-    if any(x < 0 for x in (a, b, c, d)):
-        body = {
-            "status": AnalysisStatus.REFUSAL,
-            "refusal_code": RefusalCode.INVALID_BINARY_INPUT,
-            "table": ((a, b), (c, d)),
-            "odds_ratio": None,
-            "exact_p_value": None,
-        }
-        return FisherExact2x2Result(**body, result_digest=canonical_digest(body))
+    if not all(isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in (a, b, c, d)):
+        return _fisher_refusal(RefusalCode.INVALID_BINARY_INPUT, None)
 
+    tbl: tuple[tuple[int, int], tuple[int, int]] = ((a, b), (c, d))
     r1 = a + b
     r2 = c + d
     c1 = a + c
+    c2 = b + d
     n = r1 + r2
 
     if n == 0:
-        body = {
-            "status": AnalysisStatus.REFUSAL,
-            "refusal_code": RefusalCode.ZERO_OPPORTUNITY,
-            "table": ((a, b), (c, d)),
-            "odds_ratio": None,
-            "exact_p_value": None,
-        }
-        return FisherExact2x2Result(**body, result_digest=canonical_digest(body))
+        return _fisher_refusal(RefusalCode.ZERO_OPPORTUNITY, tbl)
+    if r1 == 0 or r2 == 0 or c1 == 0 or c2 == 0:
+        return _fisher_refusal(RefusalCode.ZERO_VARIANCE, tbl)
 
     # Odds ratio
-    odds_ratio = (1.0 if a * d == 0 else float("inf")) if b * c == 0 else (a * d) / (b * c)
+    odds_ratio = float("inf") if b * c == 0 else (a * d) / (b * c)
 
     # Hypergeometric exact test
     min_x = max(0, c1 - r2)
@@ -294,7 +393,7 @@ def fisher_exact_2x2(
     body = {
         "status": AnalysisStatus.VALID,
         "refusal_code": None,
-        "table": ((a, b), (c, d)),
+        "table": tbl,
         "odds_ratio": odds_ratio,
         "exact_p_value": exact_p,
     }
@@ -326,8 +425,7 @@ def wilson_score_interval(
             upper=None,
             confidence_level=confidence_level,
         )
-    z = 1.959963984540054 if abs(confidence_level - 0.95) < 1e-4 else 1.959963984540054
-    bounds = _cohort_wilson_interval(successes, denominator, z=z)
+    bounds = compute_wilson_interval(successes, denominator, confidence_level=confidence_level)
     prop = successes / denominator
     lower, upper = bounds if bounds is not None else (None, None)
     return WilsonIntervalResult(
@@ -413,6 +511,15 @@ def analyze_repeat_heterogeneity(
     if any(not c.capture_complete for c in cell_list):
         return _repeat_refusal(RefusalCode.CAPTURE_INCOMPLETE)
 
+    seen_cell_ids: set[str] = set()
+    for c in cell_list:
+        if c.cell_id in seen_cell_ids:
+            return _repeat_refusal(RefusalCode.DUPLICATE_ASSIGNMENT_UNIT)
+        seen_cell_ids.add(c.cell_id)
+
+    if len(cell_list) < 2:
+        return _repeat_refusal(RefusalCode.UNDERPOWERED)
+
     m = cell_list[0].repeats
     if m < 2 or any(c.repeats != m for c in cell_list):
         return _repeat_refusal(RefusalCode.UNDERFILLED_REPEATS)
@@ -424,19 +531,17 @@ def analyze_repeat_heterogeneity(
     total_succ = sum(c.successes for c in cell_list)
     p_bar = total_succ / total_obs
 
-    # Observed distribution
     observed_dist: dict[int, int] = {k: 0 for k in range(m + 1)}
     for c in cell_list:
         observed_dist[c.successes] += 1
 
-    # Expected distribution under binomial
     expected_dist: dict[int, float] = {}
     for k in range(m + 1):
         prob_k = math.comb(m, k) * (p_bar**k) * ((1.0 - p_bar) ** (m - k))
         expected_dist[k] = round(n_cells * prob_k, 6)
 
-    # Variance and dispersion
-    if p_bar == 0.0 or p_bar == 1.0 or n_cells < 2:
+    # Zero-variance case
+    if p_bar == 0.0 or p_bar == 1.0:
         raw_icc = 0.0
         icc = 0.0
         icc_clamped = False
@@ -456,7 +561,7 @@ def analyze_repeat_heterogeneity(
             "pearson_dispersion_statistic": 0.0,
             "pearson_degrees_of_freedom": n_cells - 1,
             "dispersion_ratio": 0.0,
-            "dispersion_p_value": 1.0,
+            "dispersion_p_value": None,
             "raw_icc": raw_icc,
             "icc": icc,
             "icc_clamped": icc_clamped,
@@ -545,40 +650,82 @@ class SequenceFidelityReport(ContractModel):
     result_digest: Digest
 
 
+def _sequence_refusal(code: RefusalCode) -> SequenceFidelityReport:
+    body = {
+        "status": AnalysisStatus.REFUSAL,
+        "refusal_code": code,
+        "sequence_a_len": 0,
+        "sequence_b_len": 0,
+        "is_identical": False,
+        "first_mismatch_index": None,
+        "common_prefix_length": 0,
+        "spearman_footrule_distance": None,
+        "normalized_footrule_distance": None,
+        "kendall_inversion_count": None,
+        "normalized_kendall_distance": None,
+        "set_intersection_size": 0,
+        "set_union_size": 0,
+        "jaccard_similarity": None,
+        "coverage_a_in_b": None,
+        "coverage_b_in_a": None,
+        "duplicates_a_count": 0,
+        "duplicates_b_count": 0,
+        "duplicate_items_a": {},
+        "duplicate_items_b": {},
+    }
+    return SequenceFidelityReport(**body, result_digest=canonical_digest(body))
+
+
 def compute_sequence_fidelity(
     seq_a: Sequence[Any],
     seq_b: Sequence[Any],
 ) -> SequenceFidelityReport:
+    # Check for unhashable or ambiguous items
+    for item in seq_a:
+        if not isinstance(item, Hashable):
+            return _sequence_refusal(RefusalCode.INVALID_BINARY_INPUT)
+    for item in seq_b:
+        if not isinstance(item, Hashable):
+            return _sequence_refusal(RefusalCode.INVALID_BINARY_INPUT)
+
     len_a, len_b = len(seq_a), len(seq_b)
-    is_ident = list(seq_a) == list(seq_b)
+    try:
+        is_ident = list(seq_a) == list(seq_b)
+    except Exception:
+        return _sequence_refusal(RefusalCode.INVALID_BINARY_INPUT)
 
     # First mismatch and prefix
     first_mismatch: int | None = None
     prefix_len = 0
     min_len = min(len_a, len_b)
     for i in range(min_len):
-        if seq_a[i] == seq_b[i]:
-            prefix_len += 1
-        else:
-            first_mismatch = i
-            break
+        try:
+            if seq_a[i] == seq_b[i]:
+                prefix_len += 1
+            else:
+                first_mismatch = i
+                break
+        except Exception:
+            return _sequence_refusal(RefusalCode.INVALID_BINARY_INPUT)
     if first_mismatch is None and len_a != len_b:
         first_mismatch = min_len
 
-    # Duplicate tracking
-    counts_a = Counter(str(x) for x in seq_a)
-    counts_b = Counter(str(x) for x in seq_b)
-    dup_a = {k: v for k, v in counts_a.items() if v > 1}
-    dup_b = {k: v for k, v in counts_b.items() if v > 1}
+    # Duplicate tracking and set operations
+    try:
+        counts_a = Counter(str(x) for x in seq_a)
+        counts_b = Counter(str(x) for x in seq_b)
+        dup_a = {k: v for k, v in counts_a.items() if v > 1}
+        dup_b = {k: v for k, v in counts_b.items() if v > 1}
 
-    # Set coverage
-    set_a = set(str(x) for x in seq_a)
-    set_b = set(str(x) for x in seq_b)
-    inter = set_a & set_b
-    union = set_a | set_b
-    jaccard = len(inter) / len(union) if union else 1.0
-    cov_a = len(inter) / len(set_a) if set_a else 1.0
-    cov_b = len(inter) / len(set_b) if set_b else 1.0
+        set_a = set(str(x) for x in seq_a)
+        set_b = set(str(x) for x in seq_b)
+        inter = set_a & set_b
+        union = set_a | set_b
+        jaccard = len(inter) / len(union) if union else 1.0
+        cov_a = len(inter) / len(set_a) if set_a else 1.0
+        cov_b = len(inter) / len(set_b) if set_b else 1.0
+    except Exception:
+        return _sequence_refusal(RefusalCode.INVALID_BINARY_INPUT)
 
     # Footrule & Kendall
     pos_b: dict[Any, int] = {}
@@ -591,22 +738,33 @@ def compute_sequence_fidelity(
     kendall_inv: int | None = None
     norm_kendall: float | None = None
 
-    if len_a > 0 and len_a == len_b and len(set_a) == len_a and set_a == set_b:
-        # Exact permutation metrics
-        fr = sum(abs(i - pos_b[item]) for i, item in enumerate(seq_a))
-        footrule = float(fr)
-        max_fr = math.floor((len_a**2) / 2) if len_a > 1 else 1.0
-        norm_footrule = footrule / max_fr if max_fr > 0 else 0.0
+    try:
+        if (
+            len_a > 0
+            and len_a == len_b
+            and len(set(seq_a)) == len_a
+            and set(seq_a) == set(seq_b)
+            and all(x in pos_b for x in seq_a)
+        ):
+            fr = sum(abs(i - pos_b[item]) for i, item in enumerate(seq_a))
+            footrule = float(fr)
+            max_fr = math.floor((len_a**2) / 2) if len_a > 1 else 1.0
+            norm_footrule = footrule / max_fr if max_fr > 0 else 0.0
 
-        b_indices = [pos_b[x] for x in seq_a]
-        inv_count = 0
-        for i in range(len_a):
-            for j in range(i + 1, len_a):
-                if b_indices[i] > b_indices[j]:
-                    inv_count += 1
-        kendall_inv = inv_count
-        max_inv = (len_a * (len_a - 1)) / 2 if len_a > 1 else 1.0
-        norm_kendall = inv_count / max_inv if max_inv > 0 else 0.0
+            b_indices = [pos_b[x] for x in seq_a]
+            inv_count = 0
+            for i in range(len_a):
+                for j in range(i + 1, len_a):
+                    if b_indices[i] > b_indices[j]:
+                        inv_count += 1
+            kendall_inv = inv_count
+            max_inv = (len_a * (len_a - 1)) / 2 if len_a > 1 else 1.0
+            norm_kendall = inv_count / max_inv if max_inv > 0 else 0.0
+    except Exception:
+        footrule = None
+        norm_footrule = None
+        kendall_inv = None
+        norm_kendall = None
 
     body = {
         "status": AnalysisStatus.VALID,
@@ -631,3 +789,26 @@ def compute_sequence_fidelity(
         "duplicate_items_b": dup_b,
     }
     return SequenceFidelityReport(**body, result_digest=canonical_digest(body))
+
+
+__all__ = [
+    "AnalysisStatus",
+    "BinaryArmObservation",
+    "FisherExact2x2Result",
+    "PairedBinaryContrastResult",
+    "PairedBinaryInput",
+    "RefusalCode",
+    "RepeatCellInput",
+    "RepeatHeterogeneityReport",
+    "SequenceFidelityReport",
+    "WilsonIntervalResult",
+    "analyze_repeat_heterogeneity",
+    "canonical_digest",
+    "compute_design_effect",
+    "compute_sequence_fidelity",
+    "compute_wilson_interval",
+    "exact_paired_binary_contrast",
+    "fisher_exact_2x2",
+    "normal_quantile",
+    "wilson_score_interval",
+]

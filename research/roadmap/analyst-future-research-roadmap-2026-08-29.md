@@ -371,15 +371,12 @@ required order together**, so no seed contrast can isolate which of the three ma
 
 ### 1.7 Forecast, stated as such
 
-`[FORECAST]` A second lane on these same six cells will land between 10/18 and
-18/18. That interval is wide enough to be nearly useless, which is the point: at
-three repetitions per cell the design cannot separate lanes unless one collapses
-completely. Section 4 quantifies this rather than asserting it.
-
-`[FORECAST]` Sharpened by §1.5: since full and Flash both cleared depth-5
-FuncDAG, the most likely paired-contrast outcome on the current cells is **no
-separation**, and the informative result would then be about the cells rather
-than the models.
+`[FORECAST]` A future full-vs-Flash contrast is likely to refuse ranking unless
+E3/E4 first identify cells with outcomes away from ceiling. The currently
+overlapping full/Flash evidence is only three cells at n=1 per lane and cannot
+estimate a paired model effect. E5 therefore samples only cells that discriminate
+in E3/E4 and treats an MDE refusal as a result about the cell inventory, not as
+evidence that the models are equivalent.
 
 ---
 
@@ -597,7 +594,7 @@ and no credential proxy exists. The spec records this as
 column above states the budget *shape* E2 would admit, not a present authorization.
 
 `[OBSERVED]` **Per-trial input-token cost, and why the old cap was wrong.**
-Recomputed from the promoted wave-1 bundles, with the user-reported 64k figure:
+The 4k/16k figures are recomputed from promoted wave-1 bundles; the 64k mean is recomputed from the nine promoted unscaffolded wave-2 rows:
 
 | Dose | Input tokens / trial |
 |---|---:|
@@ -683,7 +680,7 @@ floors.
   **3/11 including the two scaffold trials, 2/9 unscaffolded**. Quote whichever
   matches the comparison being made, and never the pooled figure for an
   unscaffolded contrast. **Exclude:** FuncDAG **depth 5** (4/4 across both lanes)
-  and Recovery `persistent-signature` / `silent-wrong-payload` (8/8) — a cell both
+  and Recovery `persistent-signature` / `silent-wrong-payload` (9/9) — cells both
   arms pass cannot separate them.
 - **Lanes:** `zai-coding-plan/glm-5.3` (full) and `zai-coding-plan/glm-5.3-flash`.
   `glm-5.3-highspeed` is **excluded as an access-gated lane with n = 0**, recorded
@@ -759,24 +756,24 @@ failing high-dose seed is *not* information-free — it revealed the variation t
 falsified my original single-signature reading. The breadth-versus-depth tradeoff is
 therefore genuinely open, and offered only as a **recommendation**:
 
-| Level | Original plan | Revised |
+| Level | Cost-bounded E3 design | Deferred expansion |
 |---|---|---|
-| 4k, 16k | 3 seeds × 3 reps | unchanged — outcomes are mixed here, so reps still sample real variance |
-| 64k, 128k | 3 seeds × 3 reps | **8 seeds × 2 reps** (recommended) — the observed variance was between seeds; within-seed variance at 64k was *unobserved-but-stable* across six trials, which is weaker than zero |
+| 4k, 16k, 64k | 3 seeds × 2 arms × 2 reps = 36 trials | More seeds or a third rep require a new ceiling |
+| 128k | Neutral, seed 42 × 2 reps = 2 cost-canary trials | No arm contrast until measured cost supports a separately authorized expansion |
 
-Revised expansion (= E3): 4k and 16k at 3 seeds × 2 arms × 3 reps = 36 trials;
-64k and 128k at 8 seeds × 2 arms × 2 reps = 64 trials. **100 trials**, and the
-high-dose half now resolves 8 seeds instead of 3. The arm contrast is **blocked
-within seed** and never pooled.
+E3 is therefore **38 trials**: the 36-trial measured-dose phase A plus the
+two-trial 128k cost canary in phase B. The broader 72-trial ladder remains
+explicitly not runnable because 128k cost is unmeasured. An earlier eight-seed,
+100-trial recommendation is outside the certified generator envelope and the
+provider ceiling; it is not E3.
 
 `[INFERENCE]` If high-dose outcomes really are largely seed-determined, the more
 informative quantity is **the fraction of seeds that fail** rather than a success
-rate pooled over trials. Eight seeds would let that be estimated at all; three
-cannot. Contingent on the pattern holding. The design point that
-matters is that `neutral_padding` and `semantic_distractor` are matched on dose
-and seed with arm as the *declared single delta*, so the contrast isolates
-semantic interference from context length. `[INFERENCE]` Without the neutral arm
-at every dose, a decline at 128k is uninterpretable — it could be length alone.
+rate pooled over trials. The current three-seed envelope can only screen that
+hypothesis. Phase A keeps `neutral_padding` and `semantic_distractor` matched on
+dose and seed with arm as the declared single delta, so its contrast can isolate
+semantic interference from context length at the three measured doses. Phase B
+measures cost only and supports no semantic-arm claim.
 
 Additional instrumentation, no new schema required: the semantic failure was a
 *duplicate retrieval* (66 reads where 65 were expected, one chunk ID twice,
@@ -823,7 +820,7 @@ axis most likely to separate genuine recovery from a single retry, because a
 one-shot retry cannot clear a fault that persists.
 
 `[OBSERVED]` Wave 2 already ran two of the five classes —
-`persistent-signature` and `silent-wrong-payload` — clean and fault, 8/8.
+`persistent-signature` and `silent-wrong-payload` — clean and fault, 9/9.
 `[INFERENCE]` Two consequences. First, the single-repair-move hypothesis (C2) is
 **weakened but not settled** — two distinct class-appropriate repair moves were
 observed, and three of five classes remain unrun (§1.6, §9). Second, the remaining
@@ -954,7 +951,7 @@ new machinery this memo does recommend building (§7).
 | Pilot six cells (§1.1) | 18 | **Pilot only.** Below `clearance_n`; unenforced isolation; single seed. |
 | E1 judge calibration | 44 items × 3 reps | **Reportable** on its own terms — constructed keys, per-class matrix. Not a model-capability claim. |
 | E2 isolation replication | 18 | **Pilot only** by n, but *decisive* as a validity check. A replication does not need power to falsify a contamination hypothesis. |
-| E3 Action Memory ladder | 72 | Crosses `clearance_n`. Reportable as a **dose-response shape** under `CampaignCalibrationLedger`; not a rate. |
+| E3 Action Memory phase A + cost canary | 38 | Clears global `clearance_n`; calibration-ledger arm/dose contrasts only. T1.1 still refuses unless both outcome strata satisfy its display gate. |
 | E4 Recovery matrix | 60 | Crosses `clearance_n`. Conditional recovery rate reportable only if T1.2's declaration contracts are satisfied (§5). |
 | E5 second-model contrast | ≥40 paired | Reportable **only** for effects ≥ the §4.2 MDE at the observed baseline. At ceiling baselines, refuse to rank. |
 
@@ -995,9 +992,9 @@ its own terms — the cells differ in vertical, dose and fault condition, so a
 pooled AUC would be measuring cell difficulty, not process–outcome
 discrimination. The refusals are correct behaviour, not obstacles.
 
-**At E3 scale (72 trials)** T1.1 clears `clearance_n` and, `[FORECAST]` given the
-dose ladder should produce mixed outcomes at middle doses, should produce a
-genuine AUC for the first time.
+**At E3 scale (38 trials)** T1.1 clears the global `clearance_n`. `[FORECAST]`
+It emits an AUC only if the campaign also produces both outcome classes with at
+least two members in each stratum; otherwise its refusal remains the correct result.
 
 ### 5.2 T1.2 conditional recovery bootstrap
 
@@ -1111,8 +1108,8 @@ tracked features, so an unpinned upgrade mid-campaign would silently break
 `[OBSERVED]` The Z.ai lane records `cost_usd: null` on all 18 trials because it is
 subscription-metered. `[INFERENCE]` This is a real accounting hole for a
 subscription lane: `max_cost_usd` cannot bound a plan that reports no per-run
-cost. E3+E4 together are 132 trials — an order of magnitude above the pilot — so
-the bound that matters is **trial count and token volume**, not dollars.
+cost. E3+E4 together are 98 trials — 5.4× the 18-trial pilot — so the bound
+that matters is **trial count and token volume**, not dollars.
 `max_trials` should be set explicitly per campaign, and the pilot's measured
 ~48.9k prompt tokens per trial (880,748 / 18) is the basis for a token budget.
 
@@ -1312,7 +1309,7 @@ graph LR
 6. **W1** — add the design-effect term to sizing (§4.3). Required before any
    clustered n is quoted.
 7. **W3** — denominator declarations in the E3/E4 manifests.
-8. **E3** — Action Memory 4×2×3 ladder, 72 trials, calibration ledger.
+8. **E3** — Action Memory phase A plus 128k cost canary, 38 trials, calibration ledger.
 9. **E4** — Recovery 5×2 with twins, 60 trials, calibration ledger.
 10. **T1.1 / T1.2 / T1.3 + $k^*$** against E3/E4 output. Expect refusals; report
     them beside results.
@@ -1336,9 +1333,10 @@ ceiling, so a contrast has a detectable MDE (§4.2).
 
 The manifest for E3 is committed beside this memo as
 `research/roadmap/specs/campaign-0-action-memory-dose-ladder.json`. It declares
-the 24 cells, the calibration ledger, the denominator contract T1.2 requires, and
-the explicit non-goals. It is a spec, not an authorization: `allow_billable`
-remains `false` and no `PaidRunAuthorization` is attached.
+18 measured-dose cells (36 trials), a two-trial 128k cost canary, the calibration
+ledger, the denominator contract T1.2 requires, and the explicit non-goals. It is
+a spec, not an authorization: `allow_billable` remains `false` and no
+`PaidRunAuthorization` is attached.
 
 ---
 
@@ -1351,12 +1349,13 @@ falsifiable failure mode that none of the other five covers.
 ### C1 — Semantic distractors degrade Action Memory beyond context length alone
 
 - **Refuted by:** neutral and semantic arms statistically indistinguishable across
-  all four dose levels in E3.
-- **Established by:** a monotone semantic-minus-neutral gap that widens with dose,
-  at matched dose and seed.
-- **Boundary:** E3 only (72 trials, one lane, enforced isolation). Says nothing
-  about other lanes or other memory tasks. **Not** established by the pilot's
-  single 16k pair — that is a one-trial difference.
+  all three measured dose levels in E3 phase A.
+- **Established by:** a monotone semantic-minus-neutral gap that widens across
+  those doses, at matched dose and seed.
+- **Boundary:** E3 phase A only (36 trials, one lane, enforced isolation). The
+  128k phase-B canary measures cost and supports no arm claim. Says nothing about
+  other lanes or other memory tasks. **Not** established by the pilot's single
+  16k pair — that is a one-trial difference.
 - **Status: unsettled, and the two doses disagree.** Not refuted.
   `[OBSERVED]` At 64k the arm difference is **0 within two seeds** — seed 42
   2/2, seed 1337 0/6 unscaffolded, with **varying** substituted handles, mismatch
@@ -1390,7 +1389,7 @@ falsifiable failure mode that none of the other five covers.
   passing fault trials used `refresh_auth`, the failing one omitted the designated
   mutation (`zai-opencode-mcp-pilot-2026-08-29.md:92`). n=3.
 - **Status: weakened by wave 2, not settled.** `[OBSERVED]` §1.6: two of the
-  five classes ran clean and fault arms 8/8, and **two distinct repair moves were
+  five classes ran clean and fault arms 9/9, and **two distinct repair moves were
   observed** — `refresh_auth` on persistent faults in both seeds, `fallback_query`
   on `silent-wrong-payload` in both seeds (one also firing `refresh_auth`).
   `[INFERENCE]` A single-reflex lane would not have produced the class-appropriate
@@ -1513,22 +1512,20 @@ Every numeric claim in this memo, and how it was checked at `origin/main`
 
 | Item | Status | Handling |
 |---|---|---|
-| `glm-5.3-highspeed` not in subscription; HTTP 429; **no model outcome** | `[OBSERVED]`; no promoted artifact carries it | Recorded as an access-gated lane at **n = 0** with a stated reason. Never a scored trial, a denominator entry or a refusal rate (§1.5, C6) |
+| `glm-5.3-highspeed` not in subscription; HTTP 429; **no model outcome** | `[OBSERVED]` in `research/evidence/zai-opencode-mcp-wave2-summary.json` | Recorded as an access-gated lane at **n = 0** with a stated reason. Never a scored trial, a denominator entry or a refusal rate (§1.5, C6) |
 | `glm-5.3` (full) and `glm-5.3-flash` both accessible; both cleared the depth-5 seed-42 FuncDAG canary | `[OBSERVED]` | E5 rewritten as a within-provider full-vs-Flash mini-lane; that canary cell explicitly excluded from the contrast set (§1.5, §3.5, E5, C5) |
-| Wave 2: **21 valid scored trials, 17 at reward 1.0**; Flash 18/15, Full 3/2 | `[OBSERVED]` | Arithmetic reconciled here cell-by-cell: the ten cells sum to exactly 21/17 and the Full subtotal matches the reported 2/3. Recorded in §1.6 with **no ranking claim** — the lanes overlap on three cells at n=1 each |
-| **RETRACTION.** I claimed the 64k failures were complete-but-reordered with intact coverage and one repeat-stable signature | `[OBSERVED]` raw parser | **Withdrawn.** The error was reading `observed_reads == expected_reads` as set equality; a count matches while the set is wrong. Raw audit shows three sub-patterns at 64k: Flash seed 42 exact 257/257; Flash seed 1337 **omits** the handle ending `32bf4` every time and substitutes a near-typo (`32bf6` ×5, `32bf3` ×1) at varying positions (1/3/10/19) with one trial at 259 reads; Full seed 42 requests all 257 but **reorders batches** with a duplicated final handle (§1.6) |
+| Wave 2: **27 valid scored trials, 18 at reward 1.0**; Flash 24/16, Full 3/2 | `[OBSERVED]` | The 27 promoted rows reconcile exactly with the aggregate count, pass count, and prompt-token total. Recorded in §1.6 with **no ranking claim** — the lanes overlap on three cells at n=1 each |
+| **RETRACTION.** I claimed the 64k failures were complete-but-reordered with intact coverage and one repeat-stable signature | `[OBSERVED]` raw parser | **Withdrawn.** The error was reading `observed_reads == expected_reads` as set equality; a count matches while the set is wrong. Raw audit shows three sub-patterns at 64k: Flash seed 42 exact 257/257; Flash seed 1337 **omits** the handle ending `32bf4` every time and substitutes a near-typo (`32bf6` ×5, `32bf3` ×1) at mismatch indexes 2/2/10/83/83/83, with issued counts 257 ×5 and 259 ×1; Full seed 42 covers all 257 content handles but **reorders batches** and duplicates one handle (§1.6) |
 | Capture-order control: ATIF issuance order **equals** benchmark-event order in all six seed-1337 failures | `[OBSERVED]` | Rules out server-side or capture-side reordering — the reordering is agent-side. Recorded as a control that is worth more than the pattern it protects |
 | Supported mechanism: agent **batching / opaque-handle transcription / sequence maintenance**; **no capacity claim** | `[INFERENCE]` | Seed 42 carried the identical 257-read load at the identical dose with exact coverage and order, which contradicts "64k is too much context" |
 | Issued-vs-requested audit on the promoted wave-1 16k bundles | `[OBSERVED]`, run in this memo | Failing trial `…Ris4ZwC`: 65 issued, 66 calls, 65 unique, **0 omitted, 0 never-issued**, 1 duplicate, prefix order matches. Both passing trials exact. So the 16k failure is a *redundancy* fault and a **different class** from the 64k transcription/coverage failures. Also: `observed_reads` is present only on failure |
-| Wave 2: seed 42 passed both arms at 64k, seed 1337 failed both | `[OBSERVED]` | Outcomes differed by seed and not by arm within the two observed 64k seeds. Revises C1 from *unsettled* to *evidence against*, and changes E3 to 6 seeds at 64k/128k with seed-blocked pairing (§3.1, E3) |
-| Wave 2: Recovery `persistent-signature` + `silent-wrong-payload` 8/8 clean+fault | `[OBSERVED]` | Weakly refutes C2. Redirects E4 to the three unrun classes plus per-trial `causal_mutation` verification for `silent-wrong-payload` (§3.3, C2) |
+| Wave 2: seed 42 passed both arms at 64k, seed 1337 failed both | `[OBSERVED]` | Outcomes differed by seed and not by arm within the two observed 64k seeds. This is evidence against an arm effect at 64k, while the one-trial 16k difference points the other way; C1 therefore remains unsettled. All phase-A contrasts stay blocked within seed (§3.1, E3) |
+| Wave 2: Recovery `persistent-signature` + `silent-wrong-payload` 9/9 clean+fault | `[OBSERVED]` | Weakly refutes C2. Redirects E4 to the three unrun classes plus per-trial `causal_mutation` verification for `silent-wrong-payload` (§3.3, C2) |
 
-`[OBSERVED]` I searched the repository for `glm-5.3-highspeed` and for non-Flash
-`glm-5.3` model artifacts and found none — the 58 files matching `429` are
-incidental digest substrings, not access records. So these two items are tagged
-`[OBSERVED]` rather than `[OBSERVED]`: this memo acts on them as ground
-truth, and marks them so a reader knows they cannot yet be re-derived from the
-repository. `verify_roadmap_claims.py` therefore does not assert them.
+`[OBSERVED]` The promoted wave-2 summary is the repository source for the
+Highspeed access failure, the full/Flash lane outcomes, and the denominator
+exclusions. `verify_roadmap_claims.py` re-derives those totals and audit facts
+from the promoted summary and handle-audit artifacts.
 
 **Not done, deliberately:** no billable model call, no broad test suite, no Harbor
 execution, no writes outside `research/roadmap/`. Two figures in the pinned state

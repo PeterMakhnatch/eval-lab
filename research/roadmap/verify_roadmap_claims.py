@@ -316,24 +316,63 @@ def check_rank_presentation(fail: list[str]) -> None:
 
 def check_cross_file_counts(fail: list[str]) -> None:
     """The memo and the spec must state the same counts, and both must be present."""
-    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    spec_text = SPEC.read_text(encoding="utf-8")
+    spec = json.loads(spec_text)
     memo = MEMO.read_text(encoding="utf-8")
+    contract_text = f"{memo}\n{spec_text}"
     recon = spec.get("COUNT_RECONCILIATION") or {}
     for key, expected in CROSS_FILE.items():
         got = recon.get(key)
         if got != expected:
             fail.append(f"spec COUNT_RECONCILIATION.{key} = {got}, expected {expected}")
-    # the memo must not still carry the superseded totals
-    for stale in ("21 scored trials", "25 scored trials"):
-        if stale in memo:
-            fail.append(f"memo still says {stale!r}; the promoted wave-2 total is 27")
-    if "USER-REPORTED" in memo:
+    # Reject every stale variant found during the final consistency pass. Checking
+    # only the exact phrase "21 scored trials" previously missed "21 valid scored
+    # trials" in the appendix.
+    stale_fragments = (
+        "21 scored trials",
+        "21 valid scored trials",
+        "25 scored trials",
+        "Flash 18/15",
+        "at varying positions (1/3/10/19)",
+        "Recovery `persistent-signature` + `silent-wrong-payload` 8/8",
+        "arms 8/8",
+        "At E3 scale (72 trials)",
+        "E3 Action Memory ladder | 72",
+        "Action Memory 4×2×3 ladder, 72 trials",
+        "Boundary:** E3 only (72 trials",
+        "no promoted artifact carries it",
+        "cannot yet be re-derived from the",
+        "Revised expansion (= E3)",
+        "E3+E4 together are 132 trials",
+        "Every Action Memory failure observed so far is a sequencing fault",
+        "Revises C1 from *unsettled* to *evidence against*",
+    )
+    for stale in stale_fragments:
+        if stale in contract_text:
+            fail.append(f"roadmap contract still carries stale fragment {stale!r}")
+    if "USER-REPORTED" in contract_text:
         fail.append(
-            "memo still carries USER-REPORTED tags; wave 2 is promoted and must cite artifacts"
+            "roadmap contract still carries USER-REPORTED tags; wave 2 is promoted "
+            "and must cite artifacts"
         )
-    for token in ("27 scored trials", "6,291,672", "9,500,000"):
-        if token not in memo:
-            fail.append(f"memo is missing the reconciled figure {token!r}")
+    required_fragments = (
+        "27 scored trials",
+        "27 valid scored trials, 18 at reward 1.0",
+        "Flash 24/16, Full 3/2",
+        "mismatch indexes 2/2/10/83/83/83",
+        "9/9 clean+fault",
+        "E3 is therefore **38 trials**",
+        "At E3 scale (38 trials)",
+        "18 measured-dose cells (36 trials), a two-trial 128k cost canary",
+        "6,291,672",
+        "9,500,000",
+        "E3+E4 together are 98 trials",
+        "C1 therefore remains unsettled",
+        "Promoted artifacts show three distinct faults.",
+    )
+    for token in required_fragments:
+        if token not in contract_text:
+            fail.append(f"roadmap contract is missing reconciled figure {token!r}")
     # phases must sum
     if recon.get("phase_a_trials", 0) + recon.get("phase_b_trials", 0) != recon.get(
         "total_runnable_trials"

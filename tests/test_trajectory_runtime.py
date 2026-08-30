@@ -14,6 +14,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pyarrow as pa
+import pyarrow.parquet as pq
+from pydantic import ValidationError
 
 from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts

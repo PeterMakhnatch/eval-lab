@@ -22,13 +22,15 @@ from evallab.analysis_capability import (
     NextRunFeedbackV1,
     RecoveryOpportunity,
     RefusalCode,
-    ReviewQueueEntryV1,
+    RetrievalPolicyV1,
     ReviewQueueArtifactV1,
+    ReviewQueueEntryV1,
     ReviewQueueRef,
     RunRecommendationV1,
     Verdict,
     analyze_cascade_distance,
     analyze_conditional_recovery,
+    compute_review_queue_digest,
     compute_spec_digest,
     create_campaign_analysis_result,
     create_campaign_analysis_spec,
@@ -923,16 +925,16 @@ def test_review_queue_entry_is_not_decision_result() -> None:
     with pytest.raises(ValidationError):
         CampaignAnalysisResultV1.model_validate(entry.model_dump(mode="json"))
 
+    policy = RetrievalPolicyV1(
+        embedder_digest=DIGEST_A,
+        redaction_policy_digest=DIGEST_A,
+    )
     artifact_body = {
         "schema_version": "review-queue/v1",
         "queue_id": "q1",
         "manifest_digest": DIGEST_A,
         "snapshot_digest": DIGEST_A,
-        "policy": {
-            "schema_version": "retrieval-policy/v1",
-            "embedder_digest": DIGEST_A,
-            "redaction_policy_digest": DIGEST_A,
-        },
+        "policy": policy.model_dump(mode="json"),
         "query_digest": DIGEST_A,
         "candidate_pool_digest": DIGEST_A,
         "index_digest": DIGEST_A,
@@ -941,8 +943,9 @@ def test_review_queue_entry_is_not_decision_result() -> None:
         "refusals": (),
         "decision_eligible": False,
     }
+    queue_digest = compute_review_queue_digest(artifact_body)
     artifact = ReviewQueueArtifactV1.model_validate(
-        {**artifact_body, "queue_digest": canonical_json_digest(artifact_body)}
+        {**artifact_body, "queue_digest": queue_digest}
     )
     with pytest.raises(ValidationError):
         CampaignAnalysisResultV1.model_validate(artifact.model_dump(mode="json"))
@@ -1000,8 +1003,12 @@ def test_predictor_outcome_lineage_violation_refuses() -> None:
     registry.register(
         FeatureDefinition(
             column_name="defines_outcome",
-            category="action_memory",
+            category="mechanical_fact",
             data_type="BOOLEAN",
+            is_screening=False,
+            source_table="trajectory_ir",
+            formula_or_rule="truth_rule",
+            null_condition="NULL when unobserved",
             description="Defines outcome feature",
             declared_inputs=("invariants_passed",),
             available_before_verdict=True,
@@ -1055,8 +1062,12 @@ def test_correlated_predictor_refuses_under_strict_independence() -> None:
     registry.register(
         FeatureDefinition(
             column_name="target_outcome",
-            category="action_memory",
+            category="mechanical_fact",
             data_type="BOOLEAN",
+            is_screening=False,
+            source_table="trajectory_ir",
+            formula_or_rule="truth_rule",
+            null_condition="NULL when unobserved",
             description="Outcome target",
             declared_inputs=("invariants_passed",),
             available_before_verdict=False,
@@ -1068,8 +1079,12 @@ def test_correlated_predictor_refuses_under_strict_independence() -> None:
     registry.register(
         FeatureDefinition(
             column_name="correlated_feature",
-            category="action_memory",
+            category="mechanical_fact",
             data_type="BOOLEAN",
+            is_screening=False,
+            source_table="trajectory_ir",
+            formula_or_rule="step_rule",
+            null_condition="NULL when unobserved",
             description="Feature that correlates with verdict",
             declared_inputs=("step_count",),
             available_before_verdict=True,

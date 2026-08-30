@@ -784,7 +784,31 @@ def compute_spec_digest(spec: Mapping[str, Any] | CampaignAnalysisSpecV1) -> str
     if isinstance(spec, CampaignAnalysisSpecV1):
         payload = spec.model_dump(mode="json", exclude={"spec_digest"})
     else:
-        payload = {k: v for k, v in dict(spec).items() if k != "spec_digest"}
+        raw = dict(spec)
+        raw.pop("spec_digest", None)
+        normalized = {
+            "schema_version": raw.get("schema_version", "campaign-analysis-spec/v1"),
+            "spec_id": raw["spec_id"],
+            "method": raw["method"].value if isinstance(raw["method"], StrEnum) else str(raw["method"]),
+            "outcome_feature": raw["outcome_feature"],
+            "predictor_features": [f.value if isinstance(f, StrEnum) else str(f) for f in raw.get("predictor_features", ())],
+            "group_by": [g.value if isinstance(g, StrEnum) else str(g) for g in raw.get("group_by", ())],
+            "unit": raw["unit"].value if isinstance(raw["unit"], StrEnum) else str(raw["unit"]),
+            "unit_keys": list(raw["unit_keys"]),
+            "pair_keys": list(raw.get("pair_keys", ())),
+            "cluster_keys": list(raw.get("cluster_keys", ())),
+            "denominator_policy": (
+                raw["denominator_policy"].value
+                if isinstance(raw["denominator_policy"], StrEnum)
+                else str(raw["denominator_policy"])
+            ),
+            "alpha": float(raw.get("alpha", 0.05)),
+            "ci_method": raw.get("ci_method", "wilson"),
+            "bootstrap_resamples": raw.get("bootstrap_resamples"),
+            "minimum_informative_units": raw.get("minimum_informative_units"),
+            "retrieval_inputs_allowed": False,
+        }
+        payload = normalized
     return _canonical_digest(payload)
 
 
@@ -979,6 +1003,39 @@ class ReviewQueueEntryV1(ContractModel):
     window_digest: Digest
     distance: float = Field(ge=0.0)
     reason: Literal["similar_exemplar", "candidate_counterexample"]
+
+
+def compute_review_queue_digest(artifact: Mapping[str, Any] | ReviewQueueArtifactV1) -> str:
+    if isinstance(artifact, ReviewQueueArtifactV1):
+        payload = artifact.model_dump(mode="json", exclude={"queue_digest"})
+    else:
+        raw = dict(artifact)
+        raw.pop("queue_digest", None)
+        policy_dict = (
+            raw["policy"].model_dump(mode="json")
+            if isinstance(raw["policy"], ContractModel)
+            else dict(raw["policy"])
+        )
+        entries_list = [
+            e.model_dump(mode="json") if isinstance(e, ContractModel) else dict(e)
+            for e in raw.get("entries", ())
+        ]
+        refusals_list = [r.value if isinstance(r, StrEnum) else str(r) for r in raw.get("refusals", ())]
+        payload = {
+            "schema_version": raw.get("schema_version", "review-queue/v1"),
+            "queue_id": raw["queue_id"],
+            "manifest_digest": raw["manifest_digest"],
+            "snapshot_digest": raw["snapshot_digest"],
+            "policy": policy_dict,
+            "query_digest": raw["query_digest"],
+            "candidate_pool_digest": raw["candidate_pool_digest"],
+            "index_digest": raw["index_digest"],
+            "coverage_complete": bool(raw.get("coverage_complete", False)),
+            "entries": entries_list,
+            "refusals": refusals_list,
+            "decision_eligible": False,
+        }
+    return _canonical_digest(payload)
 
 
 class ReviewQueueArtifactV1(ContractModel):
@@ -1813,6 +1870,7 @@ __all__ = [
     "Verdict",
     "analyze_cascade_distance",
     "analyze_conditional_recovery",
+    "compute_review_queue_digest",
     "compute_spec_digest",
     "create_campaign_analysis_result",
     "create_campaign_analysis_spec",

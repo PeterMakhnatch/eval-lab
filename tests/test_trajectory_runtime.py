@@ -1975,7 +1975,7 @@ def test_feature_coupled_predictor_refusal_through_analyze_batch(tmp_path: Path)
         spec_id="leakage-spec",
         method=AnalysisMethod.FISHER_2X2,
         outcome_feature="primary_reward",
-        predictor_features=("order_exact",),
+        predictor_features=("handle_order_match",),
         unit=AnalysisUnit.TRIAL,
         unit_keys=("trial_id",),
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
@@ -2006,7 +2006,7 @@ def test_feature_coupled_predictor_refusal_through_analyze_batch(tmp_path: Path)
         quality_status="pass",
         cas_uri=cas_uri,
         reward=1.0,
-        declared_features={"order_exact": True},
+        declared_features={"handle_order_match": True},
         capture_complete=True,
         capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
     )

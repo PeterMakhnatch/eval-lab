@@ -402,6 +402,12 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
     # Case 1: Already typed campaign-analysis-manifest/v1
     if data.get("schema_version") == "campaign-analysis-manifest/v1" and "items" in data:
         manifest = CampaignAnalysisManifest.model_validate(data)
+        expected_snapshot = compute_analysis_snapshot_digest(manifest, manifest.analysis_config)
+        if manifest.analysis_snapshot_digest != expected_snapshot:
+            raise RuntimeError(
+                f"STALE_SNAPSHOT: manifest snapshot digest {manifest.analysis_snapshot_digest} "
+                f"does not match computed {expected_snapshot}"
+            )
         body = {
             "schema_version": manifest.schema_version,
             "campaign_id": manifest.campaign_id,

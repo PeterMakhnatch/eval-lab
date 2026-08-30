@@ -14,9 +14,9 @@ import statistics
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from evallab.cohort import BOOTSTRAP_RESAMPLES
 from evallab.schemas import ContractModel
@@ -94,6 +94,12 @@ class RefusalCode(StrEnum):
     UNDERFILLED_REPEATS = "UNDERFILLED_REPEATS"
     INVALID_BINARY_INPUT = "INVALID_BINARY_INPUT"
     CAPTURE_INCOMPLETE = "CAPTURE_INCOMPLETE"
+    ANALYSIS_UNIT_UNDECLARED = "ANALYSIS_UNIT_UNDECLARED"
+    PAIRING_IDENTITY_MISMATCH = "PAIRING_IDENTITY_MISMATCH"
+    CAPTURE_AUTHORITY_UNRESOLVED = "CAPTURE_AUTHORITY_UNRESOLVED"
+    REVIEW_QUEUE_INELIGIBLE = "REVIEW_QUEUE_INELIGIBLE"
+    SEMANTIC_DECISION_USE_FORBIDDEN = "SEMANTIC_DECISION_USE_FORBIDDEN"
+    UNSUPPORTED_ANALYSIS_METHOD = "UNSUPPORTED_ANALYSIS_METHOD"
 
 
 class AnalysisStatus(StrEnum):
@@ -726,26 +732,775 @@ def analyze_cascade_distance(
     )
 
 
+class AnalysisMethod(StrEnum):
+    RATE_WILSON = "rate_wilson"
+    PAIRED_SIGN = "paired_sign"
+    FISHER_2X2 = "fisher_2x2"
+    DISPERSION_ICC = "dispersion_icc"
+    DESIGN_EFFECT = "design_effect"
+    ORDER_DISTANCE = "order_distance"
+    DESCRIPTIVE_COUNTS = "descriptive_counts"
+
+
+class AnalysisUnit(StrEnum):
+    TRIAL = "trial"
+    CELL = "cell"
+    PAIRED_SEED = "paired_seed"
+    LOGICAL_TRAJECTORY = "logical_trajectory"
+
+
+class ContextCitation(ContractModel):
+    path: str = Field(min_length=1)
+    digest: Digest | None = None
+    step_id: int | None = None
+    tool_call_id: str | None = None
+    supports: str | None = None
+
+
+class CampaignAnalysisSpecV1(ContractModel):
+    schema_version: Literal["campaign-analysis-spec/v1"] = "campaign-analysis-spec/v1"
+    spec_id: str
+    spec_digest: Digest
+    method: AnalysisMethod
+    outcome_feature: str
+    predictor_features: tuple[str, ...] = ()
+    group_by: tuple[str, ...] = ()
+    unit: AnalysisUnit
+    unit_keys: tuple[str, ...]
+    pair_keys: tuple[str, ...] = ()
+    cluster_keys: tuple[str, ...] = ()
+    denominator_policy: DenominatorPolicy
+    alpha: float = 0.05
+    ci_method: Literal["wilson", "cluster_bootstrap", "exact", "none"]
+    bootstrap_resamples: int | None = None
+    minimum_informative_units: int | None = None
+    retrieval_inputs_allowed: Literal[False] = False
+
+
+class CampaignAnalysisResultV1(ContractModel):
+    schema_version: Literal["campaign-analysis-result/v1"] = "campaign-analysis-result/v1"
+    spec_id: str
+    spec_digest: Digest
+    snapshot_digest: Digest
+    status: AnalysisStatus
+    refusals: tuple[RefusalCode, ...]
+    observed_rows: int
+    analysis_units: int
+    informative_units: int | None = None
+    effective_n: float | None = None
+    estimate: float | None = None
+    interval: tuple[float, float] | None = None
+    p_value: float | None = None
+    mde: float | None = None
+    attainable_p_floor: float | None = None
+    design_effect: float | None = None
+    source_refs: tuple[ContextCitation, ...]
+    result_digest: Digest
+
+
+class RetrievalPolicyV1(ContractModel):
+    schema_version: Literal["retrieval-policy/v1"] = "retrieval-policy/v1"
+    enabled: bool = False
+    purpose: Literal["review_queue", "counterexample"] = "review_queue"
+    backend_kind: Literal["lexical", "semantic"] = "lexical"
+    embedder_id: str = "hashing_embedder"
+    embedder_version: str = "v1"
+    embedder_digest: Digest
+    tokenizer_id: str = "default_tokenizer"
+    tokenizer_version: str = "v1"
+    dimension: int = 128
+    normalization: Literal["l2", "none"] = "none"
+    distance_metric: Literal["cosine", "l2", "dot"] = "cosine"
+    redaction_policy_digest: Digest
+    k: int = 10
+
+
+class ReviewQueueEntryV1(ContractModel):
+    rank: int
+    job_id: str
+    trial_id: str
+    source_cas_uri: str
+    citation: ContextCitation
+    window_start_step: int
+    window_end_step: int
+    window_digest: Digest
+    distance: float
+    reason: Literal["similar_exemplar", "candidate_counterexample"]
+
+
+class ReviewQueueArtifactV1(ContractModel):
+    schema_version: Literal["review-queue/v1"] = "review-queue/v1"
+    queue_id: str
+    queue_digest: Digest
+    manifest_digest: Digest
+    snapshot_digest: Digest
+    policy: RetrievalPolicyV1
+    query_digest: Digest
+    candidate_pool_digest: Digest
+    index_digest: Digest
+    coverage_complete: bool
+    entries: tuple[ReviewQueueEntryV1, ...] = ()
+    refusals: tuple[RefusalCode, ...] = ()
+    decision_eligible: Literal[False] = False
+
+
+class ReviewQueueRef(ContractModel):
+    queue_id: str
+    queue_digest: Digest
+    queue_cas_uri: str
+    decision_eligible: Literal[False] = False
+
+
+class NextRunAction(StrEnum):
+    REPAIR_CAPTURE_AUTHORITY = "repair_capture_authority"
+    ADD_INDEPENDENT_SEEDS = "add_independent_seeds"
+    ADD_CELL_REPEATS = "add_cell_repeats"
+    BACKFILL_FEATURE_LINEAGE = "backfill_feature_lineage"
+    HOLD_SEMANTIC_DECISION_ANALYSIS = "hold_semantic_decision_analysis"
+    MANUAL_REVIEW = "manual_review"
+
+
+class RunRecommendationV1(ContractModel):
+    action: NextRunAction
+    basis_result_digests: tuple[Digest, ...]
+    target_estimand: str
+    target_unit: AnalysisUnit
+    requested_units: int | None = None
+    blocking: bool = False
+    reason_codes: tuple[str, ...] = ()
+
+
+class NextRunFeedbackV1(ContractModel):
+    schema_version: Literal["next-run-feedback/v1"] = "next-run-feedback/v1"
+    source_report_digest: Digest
+    source_snapshot_digest: Digest
+    recommendations: tuple[RunRecommendationV1, ...]
+    execution_authorized: Literal[False] = False
+    authorizing_actor_required: Literal[True] = True
+    feedback_digest: Digest
+
+
+class CampaignAnalysisConfigV1(ContractModel):
+    schema_version: Literal["campaign-analysis-config/v1"] = "campaign-analysis-config/v1"
+    feature_registry_digest: Digest
+    producer_digests: dict[str, Digest]
+    cohort_policy_digest: Digest
+    redaction_policy_digest: Digest
+    specs: tuple[CampaignAnalysisSpecV1, ...] = ()
+    retrieval: RetrievalPolicyV1 | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _filter_legacy_config(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        known = {
+            "schema_version",
+            "feature_registry_digest",
+            "producer_digests",
+            "cohort_policy_digest",
+            "redaction_policy_digest",
+            "specs",
+            "retrieval",
+        }
+        zero = "sha256:" + "0" * 64
+        filtered: dict[str, Any] = {k: v for k, v in data.items() if k in known}
+        if "redaction_policy_digest" not in filtered and "redaction_profile_digest" in data:
+            filtered["redaction_policy_digest"] = data["redaction_profile_digest"]
+        producer: dict[str, Any] = dict(filtered.get("producer_digests") or {})
+        for legacy_key in ("ir_builder_digest", "pack_builder_digest", "acceptance_policy_digest"):
+            if legacy_key in data and data[legacy_key]:
+                producer[legacy_key.replace("_digest", "")] = data[legacy_key]
+        if producer:
+            filtered["producer_digests"] = producer
+        if "feature_registry_digest" not in filtered:
+            filtered["feature_registry_digest"] = zero
+        if "producer_digests" not in filtered:
+            filtered["producer_digests"] = {"ir_builder": zero, "pack_builder": zero}
+        if "cohort_policy_digest" not in filtered:
+            filtered["cohort_policy_digest"] = zero
+        if "redaction_policy_digest" not in filtered:
+            filtered["redaction_policy_digest"] = zero
+        if "specs" not in filtered:
+            filtered["specs"] = ()
+        if "schema_version" not in filtered:
+            filtered["schema_version"] = "campaign-analysis-config/v1"
+        return filtered
+
+
+def compute_spec_digest(spec: Mapping[str, Any] | CampaignAnalysisSpecV1) -> str:
+    if isinstance(spec, CampaignAnalysisSpecV1):
+        payload = spec.model_dump(mode="json", exclude={"spec_digest"})
+    else:
+        payload = {k: v for k, v in dict(spec).items() if k != "spec_digest"}
+    return _canonical_digest(payload)
+
+
+def create_campaign_analysis_result(
+    *,
+    spec_id: str,
+    spec_digest: str,
+    snapshot_digest: str,
+    status: AnalysisStatus,
+    refusals: tuple[RefusalCode, ...] = (),
+    observed_rows: int = 0,
+    analysis_units: int = 0,
+    informative_units: int | None = None,
+    effective_n: float | None = None,
+    estimate: float | None = None,
+    interval: tuple[float, float] | None = None,
+    p_value: float | None = None,
+    mde: float | None = None,
+    attainable_p_floor: float | None = None,
+    design_effect: float | None = None,
+    source_refs: tuple[ContextCitation, ...] = (),
+    result_digest: str | None = None,
+) -> CampaignAnalysisResultV1:
+    body: dict[str, Any] = {
+        "schema_version": "campaign-analysis-result/v1",
+        "spec_id": spec_id,
+        "spec_digest": spec_digest,
+        "snapshot_digest": snapshot_digest,
+        "status": status,
+        "refusals": refusals,
+        "observed_rows": observed_rows,
+        "analysis_units": analysis_units,
+        "informative_units": informative_units,
+        "effective_n": effective_n,
+        "estimate": estimate,
+        "interval": interval,
+        "p_value": p_value,
+        "mde": mde,
+        "attainable_p_floor": attainable_p_floor,
+        "design_effect": design_effect,
+        "source_refs": source_refs,
+    }
+    # Use a model instance to get a proper JSON serialization for the digest
+    zero = "sha256:" + "0" * 64
+    _placeholder = CampaignAnalysisResultV1.model_construct(result_digest=zero, **body)
+    canonical = _canonical_digest(_placeholder.model_dump(mode="json", exclude={"result_digest"}))
+    if result_digest is not None and result_digest != canonical:
+        raise ValueError("result_digest does not match canonical content identity")
+    return CampaignAnalysisResultV1.model_construct(result_digest=canonical, **body)
+
+
+def _to_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        if value == 1:
+            return True
+        if value == 0:
+            return False
+        return None
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "success", "yes"}:
+            return True
+        if lowered in {"0", "false", "failure", "no"}:
+            return False
+        return None
+    return None
+
+
+def _aggregate_arm(values: Sequence[bool | None]) -> bool | None:
+    truthy = sum(1 for v in values if v is True)
+    falsy = sum(1 for v in values if v is False)
+    if truthy == 0 and falsy == 0:
+        return None
+    if truthy > falsy:
+        return True
+    if falsy > truthy:
+        return False
+    return None
+
+
+def _refusal_result(
+    spec: CampaignAnalysisSpecV1,
+    snapshot_digest: str,
+    code: RefusalCode,
+    observed_rows: int,
+) -> CampaignAnalysisResultV1:
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=AnalysisStatus.REFUSAL,
+        refusals=(code,),
+        observed_rows=observed_rows,
+        analysis_units=0,
+        informative_units=None,
+        effective_n=None,
+        estimate=None,
+        interval=None,
+        p_value=None,
+        mde=None,
+        attainable_p_floor=None,
+        design_effect=None,
+        source_refs=(),
+    )
+
+
+def _rate_wilson(spec: CampaignAnalysisSpecV1, rows: Sequence[Mapping[str, Any]], snapshot_digest: str) -> CampaignAnalysisResultV1:
+    from evallab.analysis_statistics import wilson_score_interval
+
+    if spec.denominator_policy == DenominatorPolicy.REQUIRED:
+        denominators: list[Any] = []
+        for row in rows:
+            denom = row.get("denominator")
+            if denom is None:
+                return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_DENOMINATOR_DECLARATION, len(rows))
+            denominators.append(denom)
+        if any(not isinstance(d, (int, float)) or d < 0 for d in denominators):
+            return _refusal_result(spec, snapshot_digest, RefusalCode.INVALID_DENOMINATOR_DECLARATION, len(rows))
+        total = sum(d for d in denominators if d > 0)
+        successes = 0
+        for row, denom in zip(rows, denominators, strict=False):
+            if denom > 0 and _to_bool(row.get(spec.outcome_feature)) is True:
+                successes += 1
+    else:
+        values = [_to_bool(row.get(spec.outcome_feature)) for row in rows]
+        total = sum(1 for v in values if v is not None)
+        successes = sum(1 for v in values if v is True)
+
+    if total <= 0:
+        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows))
+
+    confidence_level = 1.0 - spec.alpha
+    wilson = wilson_score_interval(successes, total, confidence_level=confidence_level)
+    interval = (wilson.lower, wilson.upper) if wilson.lower is not None and wilson.upper is not None else None
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=AnalysisStatus.VALID,
+        refusals=(),
+        observed_rows=len(rows),
+        analysis_units=total,
+        informative_units=total,
+        effective_n=float(total),
+        estimate=wilson.proportion,
+        interval=interval,
+        p_value=None,
+        mde=None,
+        attainable_p_floor=None,
+        design_effect=None,
+        source_refs=(),
+    )
+
+
+def _paired_sign(spec: CampaignAnalysisSpecV1, rows: Sequence[Mapping[str, Any]], snapshot_digest: str) -> CampaignAnalysisResultV1:
+    from evallab.analysis_statistics import PairedBinaryInput, exact_paired_binary_contrast
+
+    pair_cols = spec.pair_keys or spec.unit_keys or ("dose", "seed")
+    has_arm = any("arm" in row for row in rows)
+    has_dose = any("dose" in row for row in rows)
+    if not has_arm and not has_dose:
+        return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows))
+
+    pairs: dict[str, dict[str, list[bool | None]]] = {}
+    for row in rows:
+        pair_id = ":".join(str(row.get(k, "")) for k in pair_cols)
+        if not pair_id:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.PAIRING_IDENTITY_MISMATCH, len(rows))
+
+        if has_arm:
+            arm = row.get("arm")
+        else:
+            dose = row.get("dose")
+            if dose is None:
+                return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows))
+            if dose in (0, "0", "control") or (isinstance(dose, str) and dose.strip().lower() == "control"):
+                arm = "control"
+            else:
+                arm = "treatment"
+
+        if arm not in ("control", "treatment") and arm not in (0, 1, "0", "1"):
+            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows))
+
+        if arm in (0, "0"):
+            arm = "control"
+        if arm in (1, "1"):
+            arm = "treatment"
+
+        out = _to_bool(row.get(spec.outcome_feature))
+        pairs.setdefault(pair_id, {"control": [], "treatment": []})[arm].append(out)
+
+    inputs: list[PairedBinaryInput] = []
+    for pair_id, arms in sorted(pairs.items()):
+        control = _aggregate_arm(arms["control"])
+        treatment = _aggregate_arm(arms["treatment"])
+        if control is None or treatment is None:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows))
+        inputs.append(
+            PairedBinaryInput(
+                assignment_unit_id=pair_id,
+                arm_a_outcome=control,
+                arm_b_outcome=treatment,
+                capture_complete=True,
+            )
+        )
+
+    if not inputs:
+        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows))
+
+    result = exact_paired_binary_contrast(inputs, arm_a_id="control", arm_b_id="treatment")
+    status = AnalysisStatus.VALID
+    refusals: tuple[RefusalCode, ...] = ()
+    if result.status == AnalysisStatus.REFUSAL:
+        status = AnalysisStatus.REFUSAL
+        refusals = (result.refusal_code,) if result.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+    elif result.design_floor_limited or (
+        spec.minimum_informative_units is not None and result.n_discordant < spec.minimum_informative_units
+    ):
+        status = AnalysisStatus.REFUSAL
+        refusals = (RefusalCode.UNDERPOWERED,)
+
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=status,
+        refusals=refusals,
+        observed_rows=len(rows),
+        analysis_units=result.n_pairs,
+        informative_units=result.n_discordant,
+        effective_n=float(result.n_pairs),
+        estimate=result.risk_difference,
+        interval=(result.risk_difference_interval_lower, result.risk_difference_interval_upper)
+        if result.risk_difference_interval_lower is not None and result.risk_difference_interval_upper is not None
+        else None,
+        p_value=result.exact_p_value,
+        mde=result.design_floor_p_value,
+        attainable_p_floor=result.min_attainable_p_value,
+        design_effect=None,
+        source_refs=(),
+    )
+
+
+def _fisher_2x2(spec: CampaignAnalysisSpecV1, rows: Sequence[Mapping[str, Any]], snapshot_digest: str) -> CampaignAnalysisResultV1:
+    from evallab.analysis_statistics import fisher_exact_2x2
+
+    if not spec.predictor_features:
+        return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows))
+
+    pred = spec.predictor_features[0]
+    a = b = c = d = 0
+    for row in rows:
+        pred_val = _to_bool(row.get(pred))
+        out = _to_bool(row.get(spec.outcome_feature))
+        if pred_val is None or out is None:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows))
+        if not pred_val and out:
+            a += 1
+        elif not pred_val and not out:
+            b += 1
+        elif pred_val and out:
+            c += 1
+        else:
+            d += 1
+
+    result = fisher_exact_2x2([[a, b], [c, d]])
+    status = result.status
+    refusals: tuple[RefusalCode, ...] = ()
+    if status == AnalysisStatus.REFUSAL:
+        refusals = (result.refusal_code,) if result.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=status,
+        refusals=refusals,
+        observed_rows=len(rows),
+        analysis_units=a + b + c + d,
+        informative_units=a + b + c + d,
+        effective_n=float(a + b + c + d),
+        estimate=result.odds_ratio,
+        interval=None,
+        p_value=result.exact_p_value,
+        mde=None,
+        attainable_p_floor=None,
+        design_effect=None,
+        source_refs=(),
+    )
+
+
+def _repeat_heterogeneity(spec: CampaignAnalysisSpecV1, rows: Sequence[Mapping[str, Any]], snapshot_digest: str) -> CampaignAnalysisResultV1:
+    from evallab.analysis_statistics import RepeatCellInput, analyze_repeat_heterogeneity
+
+    cluster_cols = spec.cluster_keys or spec.unit_keys
+    if not cluster_cols:
+        return _refusal_result(spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, len(rows))
+
+    by_cell: dict[str, dict[str, int]] = {}
+    for row in rows:
+        cell_id = ":".join(str(row.get(k, "")) for k in cluster_cols)
+        if cell_id not in by_cell:
+            by_cell[cell_id] = {"successes": 0, "repeats": 0}
+        out = _to_bool(row.get(spec.outcome_feature))
+        if out is True:
+            by_cell[cell_id]["successes"] += 1
+        if out is not None:
+            by_cell[cell_id]["repeats"] += 1
+
+    cells = [
+        RepeatCellInput(cell_id=cell_id, successes=counts["successes"], repeats=counts["repeats"], capture_complete=True)
+        for cell_id, counts in sorted(by_cell.items())
+    ]
+    report = analyze_repeat_heterogeneity(cells)
+    status = report.status
+    refusals: tuple[RefusalCode, ...] = ()
+    if status == AnalysisStatus.REFUSAL:
+        refusals = (report.refusal_code,) if report.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+    elif spec.minimum_informative_units is not None and report.n_cells < spec.minimum_informative_units:
+        status = AnalysisStatus.REFUSAL
+        refusals = (RefusalCode.UNDERPOWERED,)
+
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=status,
+        refusals=refusals,
+        observed_rows=len(rows),
+        analysis_units=report.n_cells,
+        informative_units=report.n_cells,
+        effective_n=report.effective_n,
+        estimate=report.pooled_probability,
+        interval=None,
+        p_value=report.dispersion_p_value,
+        mde=None,
+        attainable_p_floor=None,
+        design_effect=report.design_effect,
+        source_refs=(),
+    )
+
+
+def _order_distance(spec: CampaignAnalysisSpecV1, rows: Sequence[Mapping[str, Any]], snapshot_digest: str) -> CampaignAnalysisResultV1:
+    from evallab.analysis_statistics import compute_sequence_fidelity
+
+    if len(spec.predictor_features) >= 2:
+        a_col, b_col = spec.predictor_features[0], spec.predictor_features[1]
+    elif spec.predictor_features:
+        a_col = spec.outcome_feature
+        b_col = spec.predictor_features[0]
+    else:
+        return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows))
+
+    def _sort_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+        return tuple(row.get(k) for k in spec.unit_keys)
+
+    sorted_rows = sorted(rows, key=_sort_key)
+    seq_a = [r.get(a_col) for r in sorted_rows]
+    seq_b = [r.get(b_col) for r in sorted_rows]
+    result = compute_sequence_fidelity(seq_a, seq_b)
+    status = result.status
+    refusals: tuple[RefusalCode, ...] = ()
+    if status == AnalysisStatus.REFUSAL:
+        refusals = (result.refusal_code,) if result.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+
+    estimate = result.normalized_footrule_distance
+    if estimate is None:
+        estimate = result.jaccard_similarity
+
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=status,
+        refusals=refusals,
+        observed_rows=len(rows),
+        analysis_units=len(seq_a),
+        informative_units=None,
+        effective_n=None,
+        estimate=estimate,
+        interval=None,
+        p_value=None,
+        mde=None,
+        attainable_p_floor=None,
+        design_effect=None,
+        source_refs=(),
+    )
+
+
+def _descriptive_counts(spec: CampaignAnalysisSpecV1, rows: Sequence[Mapping[str, Any]], snapshot_digest: str) -> CampaignAnalysisResultV1:
+    if not spec.group_by:
+        values = [_to_bool(row.get(spec.outcome_feature)) for row in rows]
+        total = sum(1 for v in values if v is not None)
+        successes = sum(1 for v in values if v is True)
+        estimate = successes / total if total > 0 else None
+        return create_campaign_analysis_result(
+            spec_id=spec.spec_id,
+            spec_digest=spec.spec_digest,
+            snapshot_digest=snapshot_digest,
+            status=AnalysisStatus.VALID,
+            refusals=(),
+            observed_rows=len(rows),
+            analysis_units=total,
+            informative_units=total,
+            effective_n=float(total),
+            estimate=estimate,
+            interval=None,
+            p_value=None,
+            mde=None,
+            attainable_p_floor=None,
+            design_effect=None,
+            source_refs=(),
+        )
+
+    by_group: dict[tuple[Any, ...], dict[str, int]] = {}
+    for row in rows:
+        gkey = tuple(row.get(k) for k in spec.group_by)
+        if gkey not in by_group:
+            by_group[gkey] = {"n": 0, "successes": 0}
+        out = _to_bool(row.get(spec.outcome_feature))
+        if out is not None:
+            by_group[gkey]["n"] += 1
+            if out:
+                by_group[gkey]["successes"] += 1
+
+    total = sum(v["n"] for v in by_group.values())
+    successes = sum(v["successes"] for v in by_group.values())
+    estimate = successes / total if total > 0 else None
+    return create_campaign_analysis_result(
+        spec_id=spec.spec_id,
+        spec_digest=spec.spec_digest,
+        snapshot_digest=snapshot_digest,
+        status=AnalysisStatus.VALID,
+        refusals=(),
+        observed_rows=len(rows),
+        analysis_units=len(by_group),
+        informative_units=len(by_group),
+        effective_n=float(total),
+        estimate=estimate,
+        interval=None,
+        p_value=None,
+        mde=None,
+        attainable_p_floor=None,
+        design_effect=None,
+        source_refs=(),
+    )
+
+
+def _validate_outcome_and_predictors(
+    spec: CampaignAnalysisSpecV1,
+    feature_registry: Any,
+    snapshot_digest: str,
+    observed_rows: int,
+) -> CampaignAnalysisResultV1 | None:
+    if feature_registry is None:
+        return None
+
+    def get(name: str) -> Any:
+        if hasattr(feature_registry, "get"):
+            return feature_registry.get(name)
+        return None
+
+    from evallab.interpretation.feature_registry import audit_predictor_eligibility
+
+    outcome = get(spec.outcome_feature)
+    if outcome is not None:
+        if outcome.verdict_coupling is None:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows)
+        if outcome.verdict_coupling in ("defines", "correlates") and not (
+            outcome.coupling_basis and outcome.coupling_basis.strip()
+        ):
+            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows)
+
+    for pred in spec.predictor_features:
+        if pred == spec.outcome_feature:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.OUTCOME_LINEAGE_VIOLATION, observed_rows)
+        feat = get(pred)
+        if feat is None:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows)
+        if feat.available_before_verdict is None:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows)
+        if not feat.available_before_verdict:
+            return _refusal_result(spec, snapshot_digest, RefusalCode.OUTCOME_LINEAGE_VIOLATION, observed_rows)
+        audit = audit_predictor_eligibility(feat, strict_independence=False)
+        if audit:
+            if audit in (
+                "POST_VERDICT_TEMPORAL_VIOLATION",
+                "REWARD_DEFINITION_LEAKAGE",
+                "INVALID_VERDICT_COUPLING",
+            ):
+                return _refusal_result(spec, snapshot_digest, RefusalCode.OUTCOME_LINEAGE_VIOLATION, observed_rows)
+            if audit in (
+                "MISSING_TEMPORAL_AVAILABILITY",
+                "UNDECLARED_VERDICT_COUPLING",
+                "MISSING_COUPLING_EVIDENCE_BASIS",
+            ):
+                return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows)
+            if audit == "NOT_APPLICABLE_FOR_PREDICTION":
+                return _refusal_result(spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, observed_rows)
+            return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, observed_rows)
+    return None
+
+
+def run_campaign_analysis(
+    spec: CampaignAnalysisSpecV1,
+    rows: Sequence[Mapping[str, Any]],
+    feature_registry: Any = None,
+    snapshot_digest: str = "sha256:" + "0" * 64,
+) -> CampaignAnalysisResultV1:
+    refusal = _validate_outcome_and_predictors(spec, feature_registry, snapshot_digest, len(rows))
+    if refusal is not None:
+        return refusal
+
+    if spec.method == AnalysisMethod.RATE_WILSON:
+        return _rate_wilson(spec, rows, snapshot_digest)
+    if spec.method == AnalysisMethod.PAIRED_SIGN:
+        return _paired_sign(spec, rows, snapshot_digest)
+    if spec.method == AnalysisMethod.FISHER_2X2:
+        return _fisher_2x2(spec, rows, snapshot_digest)
+    if spec.method in (AnalysisMethod.DISPERSION_ICC, AnalysisMethod.DESIGN_EFFECT):
+        return _repeat_heterogeneity(spec, rows, snapshot_digest)
+    if spec.method == AnalysisMethod.ORDER_DISTANCE:
+        return _order_distance(spec, rows, snapshot_digest)
+    if spec.method == AnalysisMethod.DESCRIPTIVE_COUNTS:
+        return _descriptive_counts(spec, rows, snapshot_digest)
+    return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows))
+
+
 __all__ = [
+    "AnalysisMethod",
     "AnalysisStatus",
+    "AnalysisUnit",
     "Basis",
     "CIDisposition",
+    "CampaignAnalysisConfigV1",
+    "CampaignAnalysisResultV1",
+    "CampaignAnalysisSpecV1",
     "CascadeStatus",
     "CascadeTrialInput",
     "CascadeTrialResult",
+    "ContextCitation",
     "DenominatorPolicy",
     "EmpiricalDiagnostics",
     "FeatureContractRow",
     "FeatureGateResult",
     "FeatureObservation",
+    "NextRunAction",
+    "NextRunFeedbackV1",
     "RecoveryAnalysisResult",
     "RecoveryOpportunity",
     "RefusalCode",
+    "RetrievalPolicyV1",
+    "ReviewQueueArtifactV1",
+    "ReviewQueueEntryV1",
+    "ReviewQueueRef",
+    "RunRecommendationV1",
     "StratumDiagnostics",
     "T11Report",
     "T13Report",
     "Verdict",
     "analyze_cascade_distance",
     "analyze_conditional_recovery",
+    "create_campaign_analysis_result",
     "evaluate_process_outcome_gate",
+    "compute_spec_digest",
+    "run_campaign_analysis",
 ]

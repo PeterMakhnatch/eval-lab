@@ -1,22 +1,36 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from evallab.analysis_capability import (
+    AnalysisMethod,
     AnalysisStatus,
+    AnalysisUnit,
     Basis,
+    CampaignAnalysisResultV1,
+    CampaignAnalysisSpecV1,
     CascadeStatus,
     CascadeTrialInput,
     CIDisposition,
+    ContextCitation,
     DenominatorPolicy,
     FeatureContractRow,
     FeatureObservation,
+    NextRunAction,
+    NextRunFeedbackV1,
     RecoveryOpportunity,
     RefusalCode,
+    ReviewQueueEntryV1,
+    ReviewQueueArtifactV1,
+    RunRecommendationV1,
     Verdict,
     analyze_cascade_distance,
     analyze_conditional_recovery,
+    compute_spec_digest,
+    create_campaign_analysis_result,
     evaluate_process_outcome_gate,
+    run_campaign_analysis,
 )
 
 DIGEST_A = "sha256:" + "a" * 64
@@ -760,3 +774,225 @@ def test_t13_conjunctive_refusals(trial: CascadeTrialInput, expected_code: Refus
     res = report.results[0]
     assert res.status == CascadeStatus.REFUSED
     assert res.refusal_code == expected_code
+
+
+# =============================================================================
+# v1 campaign-analysis contracts and runner
+# =============================================================================
+
+
+ZERO_DIGEST = "sha256:" + "0" * 64
+
+
+def _paired_spec() -> CampaignAnalysisSpecV1:
+    body = {
+        "schema_version": "campaign-analysis-spec/v1",
+        "spec_id": "paired-seed-test",
+        "method": AnalysisMethod.PAIRED_SIGN,
+        "outcome_feature": "outcome",
+        "unit": AnalysisUnit.PAIRED_SEED,
+        "unit_keys": ("dose", "seed"),
+        "pair_keys": ("seed",),
+        "denominator_policy": DenominatorPolicy.NOT_APPLICABLE,
+        "ci_method": "none",
+        "minimum_informative_units": None,
+        "retrieval_inputs_allowed": False,
+    }
+    spec_digest = compute_spec_digest(body)
+    return CampaignAnalysisSpecV1.model_validate({**body, "spec_digest": spec_digest})
+
+
+def test_exact_paired_units_aggregation() -> None:
+    rows = []
+    for seed in range(1, 5):  # 4 worse: control succeeds, treatment fails
+        rows.append({"dose": 0, "seed": seed, "outcome": 1})
+        rows.append({"dose": 1, "seed": seed, "outcome": 0})
+    for seed in range(5, 10):  # 5 ties: both fail
+        rows.append({"dose": 0, "seed": seed, "outcome": 0})
+        rows.append({"dose": 1, "seed": seed, "outcome": 0})
+
+    spec = _paired_spec()
+    result = run_campaign_analysis(spec, rows, snapshot_digest=ZERO_DIGEST)
+
+    assert result.observed_rows == 18
+    assert result.analysis_units == 9
+    assert result.informative_units == 4
+    assert result.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.UNDERPOWERED in result.refusals
+    assert result.p_value == pytest.approx(0.125)
+    assert result.attainable_p_floor == pytest.approx(0.125)
+    assert result.estimate == pytest.approx(4 / 9)
+
+
+def test_spec_digest_excludes_spec_digest_field() -> None:
+    body = {
+        "schema_version": "campaign-analysis-spec/v1",
+        "spec_id": "digest-test",
+        "method": AnalysisMethod.RATE_WILSON,
+        "outcome_feature": "success",
+        "unit": AnalysisUnit.TRIAL,
+        "unit_keys": ("trial_id",),
+        "denominator_policy": DenominatorPolicy.NOT_APPLICABLE,
+        "ci_method": "wilson",
+        "retrieval_inputs_allowed": False,
+    }
+    d1 = compute_spec_digest(body)
+    body["spec_digest"] = d1
+    d2 = compute_spec_digest(body)
+    assert d1 == d2
+    body["spec_id"] = "different"
+    d3 = compute_spec_digest(body)
+    assert d3 != d1
+
+
+def test_result_digest_binds_content_identity() -> None:
+    body = {
+        "schema_version": "campaign-analysis-result/v1",
+        "spec_id": "r1",
+        "spec_digest": DIGEST_A,
+        "snapshot_digest": DIGEST_B,
+        "status": AnalysisStatus.VALID,
+        "refusals": (),
+        "observed_rows": 10,
+        "analysis_units": 10,
+        "source_refs": (ContextCitation(path="test.json", digest=DIGEST_A),),
+    }
+    r1 = create_campaign_analysis_result(**body)
+    r2 = create_campaign_analysis_result(**body)
+    assert r1.result_digest == r2.result_digest
+
+    r3 = create_campaign_analysis_result(**{**body, "observed_rows": 11})
+    assert r3.result_digest != r1.result_digest
+
+
+def test_review_queue_entry_is_not_decision_result() -> None:
+    entry = ReviewQueueEntryV1(
+        rank=1,
+        job_id="j1",
+        trial_id="t1",
+        source_cas_uri="cas://sha256/" + "1" * 64,
+        citation=ContextCitation(path="test.json"),
+        window_start_step=0,
+        window_end_step=1,
+        window_digest=DIGEST_A,
+        distance=0.1,
+        reason="similar_exemplar",
+    )
+    with pytest.raises(ValidationError):
+        CampaignAnalysisResultV1.model_validate(entry.model_dump(mode="json"))
+
+    artifact = ReviewQueueArtifactV1(
+        queue_id="q1",
+        queue_digest=DIGEST_A,
+        manifest_digest=DIGEST_A,
+        snapshot_digest=DIGEST_A,
+        policy={"schema_version": "retrieval-policy/v1", "embedder_digest": DIGEST_A, "redaction_policy_digest": DIGEST_A},
+        query_digest=DIGEST_A,
+        candidate_pool_digest=DIGEST_A,
+        index_digest=DIGEST_A,
+        coverage_complete=False,
+    )
+    with pytest.raises(ValidationError):
+        CampaignAnalysisResultV1.model_validate(artifact.model_dump(mode="json"))
+
+
+def test_next_run_feedback_is_unauthorized() -> None:
+    recommendation = RunRecommendationV1(
+        action=NextRunAction.HOLD_SEMANTIC_DECISION_ANALYSIS,
+        basis_result_digests=(DIGEST_A,),
+        target_estimand="outcome",
+        target_unit=AnalysisUnit.TRIAL,
+        blocking=True,
+    )
+    feedback = NextRunFeedbackV1(
+        source_report_digest=DIGEST_A,
+        source_snapshot_digest=DIGEST_B,
+        recommendations=(recommendation,),
+        feedback_digest=DIGEST_A,  # will be recomputed/validated by tests
+    )
+    assert feedback.execution_authorized is False
+    assert feedback.authorizing_actor_required is True
+    assert feedback.feedback_digest.startswith("sha256:")
+
+
+def test_run_campaign_analysis_refuses_unsupported_or_empty() -> None:
+    spec_body = {
+        "schema_version": "campaign-analysis-spec/v1",
+        "spec_id": "unsupported",
+        "method": AnalysisMethod.FISHER_2X2,
+        "outcome_feature": "outcome",
+        "unit": AnalysisUnit.TRIAL,
+        "unit_keys": ("trial_id",),
+        "denominator_policy": DenominatorPolicy.NOT_APPLICABLE,
+        "ci_method": "none",
+        "retrieval_inputs_allowed": False,
+    }
+    spec = CampaignAnalysisSpecV1.model_validate(
+        {**spec_body, "spec_digest": compute_spec_digest(spec_body)}
+    )
+    result = run_campaign_analysis(spec, [{"outcome": 1}])
+    assert result.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.UNSUPPORTED_ANALYSIS_METHOD in result.refusals
+
+
+def test_predictor_outcome_lineage_violation_refuses() -> None:
+    from evallab.interpretation.feature_registry import FeatureDefinition, FeatureRegistry
+
+    registry = FeatureRegistry()
+    registry.register(
+        FeatureDefinition(
+            column_name="defines_outcome",
+            category="action_memory",
+            data_type="BOOLEAN",
+            description="Defines outcome feature",
+            declared_inputs=("invariants_passed",),
+            available_before_verdict=True,
+            denominator_policy="not_applicable",
+            verdict_coupling="defines",
+            coupling_basis="exact verifier basis",
+        )
+    )
+    spec_body = {
+        "schema_version": "campaign-analysis-spec/v1",
+        "spec_id": "lineage-violation-test",
+        "method": AnalysisMethod.FISHER_2X2,
+        "outcome_feature": "defines_outcome",
+        "predictor_features": ("defines_outcome",),
+        "unit": AnalysisUnit.TRIAL,
+        "unit_keys": ("trial_id",),
+        "denominator_policy": DenominatorPolicy.NOT_APPLICABLE,
+        "ci_method": "none",
+        "retrieval_inputs_allowed": False,
+    }
+    spec = CampaignAnalysisSpecV1.model_validate(
+        {**spec_body, "spec_digest": compute_spec_digest(spec_body)}
+    )
+    result = run_campaign_analysis(spec, [{"defines_outcome": 1}], feature_registry=registry)
+    assert result.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.OUTCOME_LINEAGE_VIOLATION in result.refusals
+
+
+def test_predictor_missing_lineage_declaration_refuses() -> None:
+    from evallab.interpretation.feature_registry import FeatureRegistry
+
+    registry = FeatureRegistry()
+    spec_body = {
+        "schema_version": "campaign-analysis-spec/v1",
+        "spec_id": "missing-lineage-test",
+        "method": AnalysisMethod.FISHER_2X2,
+        "outcome_feature": "unregistered_outcome",
+        "predictor_features": ("unregistered_pred",),
+        "unit": AnalysisUnit.TRIAL,
+        "unit_keys": ("trial_id",),
+        "denominator_policy": DenominatorPolicy.NOT_APPLICABLE,
+        "ci_method": "none",
+        "retrieval_inputs_allowed": False,
+    }
+    spec = CampaignAnalysisSpecV1.model_validate(
+        {**spec_body, "spec_digest": compute_spec_digest(spec_body)}
+    )
+    result = run_campaign_analysis(
+        spec, [{"unregistered_outcome": 1, "unregistered_pred": 1}], feature_registry=registry
+    )
+    assert result.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.MISSING_LINEAGE_DECLARATION in result.refusals

@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 
 from evallab.database import ingest_interpretation_artifacts
 from evallab.evidence_store import (
@@ -64,6 +64,24 @@ from evallab.interpretation.trajectory_judgment import (
     JudgmentConfidence,
     MachineJudgment,
     canonical_json_digest,
+)
+from evallab.analysis_capability import (
+    AnalysisMethod,
+    AnalysisStatus,
+    AnalysisUnit,
+    CampaignAnalysisConfigV1,
+    CampaignAnalysisResultV1,
+    CampaignAnalysisSpecV1,
+    ContextCitation,
+    NextRunAction,
+    NextRunFeedbackV1,
+    RefusalCode,
+    RetrievalPolicyV1,
+    ReviewQueueArtifactV1,
+    ReviewQueueEntryV1,
+    ReviewQueueRef,
+    RunRecommendationV1,
+    run_campaign_analysis,
 )
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel
@@ -221,14 +239,88 @@ class CampaignAnalysisManifest(ContractModel):
     cas_store_root: str
     items: list[CampaignAnalysisItem]
     accounting: dict[str, Any]
-    analysis_config: dict[str, Any]
+    analysis_config: CampaignAnalysisConfigV1
+    analysis_snapshot_digest: str = "sha256:" + "0" * 64
     produced_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_manifest_before(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "analysis_config" not in data or not data["analysis_config"]:
+            data["analysis_config"] = {}
+        if not isinstance(data["analysis_config"], CampaignAnalysisConfigV1):
+            data["analysis_config"] = CampaignAnalysisConfigV1.model_validate(data["analysis_config"])
+        if not data.get("analysis_snapshot_digest"):
+            data["analysis_snapshot_digest"] = compute_analysis_snapshot_digest(data, data["analysis_config"])
+        return data
 
     def cohort_items(self) -> list[CampaignAnalysisItem]:
         return [item for item in self.items if item.cohort_included]
 
     def accounting_items(self) -> list[CampaignAnalysisItem]:
         return [item for item in self.items if not item.cohort_included]
+
+
+def compute_analysis_snapshot_digest(
+    manifest_or_data: Mapping[str, Any] | CampaignAnalysisManifest,
+    config: CampaignAnalysisConfigV1,
+) -> str:
+    """Deterministic identity digest for the analysis snapshot.
+
+    Excludes all timestamps and mutable artifact paths. Binds the cohort
+    identities, task/verifier/spec digests, CAS URIs, and configuration fields
+    that define a frozen analysis-ready snapshot.
+    """
+    if isinstance(manifest_or_data, CampaignAnalysisManifest):
+        data = manifest_or_data.model_dump(mode="json")
+    else:
+        data = dict(manifest_or_data)
+
+    items = data.get("items", [])
+    cohort = [i for i in items if (i.get("cohort_included") if isinstance(i, dict) else getattr(i, "cohort_included", False))]
+
+    def _item_body(item: Any) -> dict[str, Any]:
+        if isinstance(item, dict):
+            d = item
+        else:
+            d = item.model_dump(mode="json")
+        return {
+            "job_id": d.get("job_id", ""),
+            "trial_id": d.get("trial_id", ""),
+            "attempt_role": d.get("attempt_role", ""),
+            "cohort_included": d.get("cohort_included", True),
+            "task_digest": d.get("task_digest"),
+            "verifier_digest": d.get("verifier_digest"),
+            "quality_report_digest": d.get("quality_report_digest"),
+            "cas_uri": d.get("cas_uri"),
+        }
+
+    cohort_body = sorted((_item_body(i) for i in cohort), key=lambda d: (d["job_id"], d["trial_id"]))
+    config_dict = config.model_dump(mode="json")
+    producer_digests = dict(config_dict.get("producer_digests") or {})
+    capture_policy_digest = producer_digests.get("capture_policy", "sha256:" + "0" * 64)
+    retrieval = config.retrieval
+    retrieval_digest = None
+    if retrieval is not None:
+        retrieval_digest = canonical_json_digest(retrieval.model_dump(mode="json"))
+
+    snapshot_body = {
+        "schema_version": "analysis-snapshot/v1",
+        "campaign_id": data.get("campaign_id", ""),
+        "source_campaign_manifest_digest": data.get("source_campaign_manifest_digest", ""),
+        "source_commit": data.get("source_commit"),
+        "cohort_items": cohort_body,
+        "feature_registry_digest": config_dict.get("feature_registry_digest"),
+        "producer_digests": dict(sorted(producer_digests.items())),
+        "capture_policy_digest": capture_policy_digest,
+        "cohort_policy_digest": config_dict.get("cohort_policy_digest"),
+        "redaction_policy_digest": config_dict.get("redaction_policy_digest"),
+        "spec_digests": sorted(s.get("spec_digest") for s in config_dict.get("specs", [])),
+        "retrieval_digest": retrieval_digest,
+    }
+    return canonical_json_digest(snapshot_body)
 
 
 def _clean_digest(value: Any) -> str | None:
@@ -355,23 +447,43 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
     if accounting["unresolved"] != 0:
         raise ValueError(f"campaign manifest has unresolved evidence: {accounting['unresolved']}")
 
-    analysis_config = data.get("analysis_config")
-    if not isinstance(analysis_config, dict) or not analysis_config:
-        analysis_config = {
-            "ir_builder_digest": _sha256_file(Path(build_trajectory_ir.__code__.co_filename)),
-            "pack_builder_digest": _sha256_file(Path(build_evidence_pack.__code__.co_filename)),
-            "token_budget": DEFAULT_TOKEN_BUDGET,
-            "redaction_profile_digest": RedactionPolicy().compute_digest(),
-            "judge_configuration_digests": [],
-            "calibration_version": None,
-            "acceptance_policy_digest": canonical_json_digest(
+    raw_config = data.get("analysis_config") or {}
+    if not isinstance(raw_config, dict):
+        raw_config = {}
+    if "redaction_policy_digest" not in raw_config and "redaction_profile_digest" in raw_config:
+        raw_config["redaction_policy_digest"] = raw_config.pop("redaction_profile_digest")
+    zero_digest = "sha256:" + "0" * 64
+    producer_digests = dict(raw_config.get("producer_digests") or {})
+    for legacy_key, short in (
+        ("ir_builder_digest", "ir_builder"),
+        ("pack_builder_digest", "pack_builder"),
+        ("acceptance_policy_digest", "acceptance_policy"),
+    ):
+        if legacy_key in raw_config and raw_config[legacy_key]:
+            producer_digests[short] = raw_config[legacy_key]
+    if "capture_policy_digest" in raw_config and raw_config["capture_policy_digest"]:
+        producer_digests["capture_policy"] = raw_config["capture_policy_digest"]
+    if not producer_digests:
+        producer_digests = {
+            "ir_builder": _sha256_file(Path(build_trajectory_ir.__code__.co_filename)),
+            "pack_builder": _sha256_file(Path(build_evidence_pack.__code__.co_filename)),
+            "acceptance_policy": canonical_json_digest(
                 {
                     "auto_acceptance_enabled": False,
                     "gate_order": list(DETERMINISTIC_GATE_ORDER),
                 }
             ),
         }
-    body = {
+    analysis_config = CampaignAnalysisConfigV1(
+        feature_registry_digest=raw_config.get("feature_registry_digest") or zero_digest,
+        producer_digests=producer_digests,
+        cohort_policy_digest=raw_config.get("cohort_policy_digest") or zero_digest,
+        redaction_policy_digest=raw_config.get("redaction_policy_digest") or RedactionPolicy().compute_digest(),
+        specs=(),
+        retrieval=None,
+    )
+
+    body_pre_id = {
         "schema_version": "campaign-analysis-manifest/v1",
         "campaign_id": data.get("campaign", ""),
         "source_campaign_manifest_digest": _sha256_file(path),
@@ -382,14 +494,16 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
         "accounting": accounting,
         "analysis_config": analysis_config,
     }
+    analysis_snapshot_digest = compute_analysis_snapshot_digest(body_pre_id, analysis_config)
+    body_pre_id["analysis_snapshot_digest"] = analysis_snapshot_digest
     produced_at = datetime.now(UTC)
-    manifest_id = canonical_json_digest(body)
-    manifest_digest = canonical_json_digest({**body, "manifest_id": manifest_id})
+    manifest_id = canonical_json_digest(body_pre_id)
+    manifest_digest = canonical_json_digest({**body_pre_id, "manifest_id": manifest_id})
     return CampaignAnalysisManifest(
         manifest_id=manifest_id,
         manifest_digest=manifest_digest,
         produced_at=produced_at,
-        **body,
+        **body_pre_id,
     )
 
 
@@ -1792,9 +1906,94 @@ def _validated_campaign_result_identities(
     return actual
 
 
+def _spec_for_result(manifest: CampaignAnalysisManifest, spec_id: str) -> CampaignAnalysisSpecV1 | None:
+    for spec in manifest.analysis_config.specs:
+        if spec.spec_id == spec_id:
+            return spec
+    return None
+
+
+def _build_next_run_feedback(
+    manifest: CampaignAnalysisManifest,
+    analysis_results: Sequence[CampaignAnalysisResultV1],
+    source_report_digest: str,
+) -> NextRunFeedbackV1:
+    recommendations: list[RunRecommendationV1] = []
+    all_digests = tuple(r.result_digest for r in analysis_results)
+
+    lineage_digests = tuple(
+        r.result_digest
+        for r in analysis_results
+        if any(
+            code in (RefusalCode.MISSING_LINEAGE_DECLARATION, RefusalCode.OUTCOME_LINEAGE_VIOLATION)
+            for code in r.refusals
+        )
+    )
+    if lineage_digests:
+        recommendations.append(
+            RunRecommendationV1(
+                action=NextRunAction.BACKFILL_FEATURE_LINEAGE,
+                basis_result_digests=lineage_digests,
+                target_estimand="declared_outcome_features",
+                target_unit=AnalysisUnit.TRIAL,
+                blocking=True,
+                reason_codes=("MISSING_LINEAGE_DECLARATION", "OUTCOME_LINEAGE_VIOLATION"),
+            )
+        )
+
+    underpowered = [
+        r for r in analysis_results
+        if r.status == AnalysisStatus.REFUSAL and RefusalCode.UNDERPOWERED in r.refusals
+    ]
+    for result in underpowered:
+        spec = _spec_for_result(manifest, result.spec_id)
+        target_estimand = spec.outcome_feature if spec else "outcome"
+        target_unit = spec.unit if spec else AnalysisUnit.PAIRED_SEED
+        requested = spec.minimum_informative_units if spec and spec.minimum_informative_units is not None else result.informative_units
+        recommendations.append(
+            RunRecommendationV1(
+                action=NextRunAction.ADD_INDEPENDENT_SEEDS,
+                basis_result_digests=(result.result_digest,),
+                target_estimand=target_estimand,
+                target_unit=target_unit,
+                requested_units=requested,
+                blocking=False,
+                reason_codes=("UNDERPOWERED", "attainable_p_floor_above_alpha"),
+            )
+        )
+
+    recommendations.append(
+        RunRecommendationV1(
+            action=NextRunAction.HOLD_SEMANTIC_DECISION_ANALYSIS,
+            basis_result_digests=all_digests,
+            target_estimand="all_outcomes",
+            target_unit=AnalysisUnit.TRIAL,
+            blocking=True,
+            reason_codes=("execution_not_authorized",),
+        )
+    )
+
+    feedback_body = {
+        "schema_version": "next-run-feedback/v1",
+        "source_report_digest": source_report_digest,
+        "source_snapshot_digest": manifest.analysis_snapshot_digest,
+        "recommendations": tuple(r.model_dump(mode="json") for r in recommendations),
+        "execution_authorized": False,
+        "authorizing_actor_required": True,
+    }
+    feedback_digest = canonical_json_digest(feedback_body)
+    return NextRunFeedbackV1(
+        feedback_digest=feedback_digest,
+        **{**feedback_body, "recommendations": tuple(recommendations)},
+    )
+
+
 def build_campaign_report(
     manifest: CampaignAnalysisManifest,
     results: Sequence[dict[str, Any]],
+    *,
+    analysis_results: Sequence[CampaignAnalysisResultV1] = (),
+    review_queue_ref: ReviewQueueRef | None = None,
 ) -> dict[str, Any]:
     """Build the campaign report from manifest accounting and per-item results."""
     _validated_campaign_result_identities(manifest, results)
@@ -1835,9 +2034,10 @@ def build_campaign_report(
         role_counts[item.attempt_role] = role_counts.get(item.attempt_role, 0) + 1
 
     body = {
-        "schema_version": "campaign-report/v1",
+        "schema_version": "campaign-report/v2",
         "manifest_id": manifest.manifest_id,
         "manifest_digest": manifest.manifest_digest,
+        "analysis_snapshot_digest": manifest.analysis_snapshot_digest,
         "campaign_id": manifest.campaign_id,
         "cohort_accounted": len(results),
         "accepted": accepted,
@@ -1847,6 +2047,8 @@ def build_campaign_report(
         "reason_counts": reason_counts,
         "coverage_gap_counts": coverage_gap_counts,
         "source_refs": source_refs,
+        "analysis_results": [r.model_dump(mode="json") for r in analysis_results],
+        "review_queue_ref": review_queue_ref.model_dump(mode="json") if review_queue_ref is not None else None,
         "accounting": {
             "total_planned_specs": manifest.accounting.get("total_planned_specs"),
             "total_executed_trials": manifest.accounting.get("total_executed_trials"),
@@ -1858,6 +2060,9 @@ def build_campaign_report(
             "unresolved_evidence_count": manifest.accounting.get("unresolved_evidence_count"),
         },
     }
+    pre_feedback_report_id = canonical_json_digest(body)
+    next_run_feedback = _build_next_run_feedback(manifest, analysis_results, pre_feedback_report_id)
+    body["next_run_feedback"] = next_run_feedback.model_dump(mode="json")
     report_id = canonical_json_digest(body)
     return {
         **body,
@@ -1907,6 +2112,92 @@ def write_campaign_report(
     }
 
 
+def _extract_analysis_rows(
+    manifest: CampaignAnalysisManifest,
+    results: Sequence[dict[str, Any]],
+    output_dir: Path,
+    store_root: Path,
+) -> list[dict[str, Any]]:
+    """Return analysis-ready rows from the deterministic interpretation sidecars.
+
+    v1 pulls only the identity row fields that are available without model calls,
+    retrieval, or feature-projection re-materialization. Consumers of specific
+    features should project those columns before calling ``run_campaign_analysis``.
+    """
+    rows: list[dict[str, Any]] = []
+    for item, res in zip(manifest.cohort_items(), results, strict=False):
+        row = dict(res)
+        row["job_id"] = item.job_id
+        row["trial_id"] = item.trial_id
+        row["task_digest"] = item.task_digest
+        row["verifier_digest"] = item.verifier_digest
+        rows.append(row)
+    return rows
+
+
+def _build_review_queue_artifact(
+    manifest: CampaignAnalysisManifest,
+    retrieval: RetrievalPolicyV1,
+    store_root: Path,
+) -> ReviewQueueRef:
+    """Build a non-decision review queue artifact for the deterministic path.
+
+    The deterministic path does not run model embedders or clustering, so the
+    queue is marked incomplete and ineligible for downstream decisions.
+    """
+    query_body = {
+        "manifest_id": manifest.manifest_id,
+        "spec_ids": sorted(s.spec_id for s in manifest.analysis_config.specs),
+        "retrieval_purpose": retrieval.purpose,
+    }
+    query_digest = canonical_json_digest(query_body)
+    candidate_pool = [
+        {
+            "job_id": item.job_id,
+            "trial_id": item.trial_id,
+            "cas_uri": item.cas_uri,
+            "task_digest": item.task_digest,
+            "verifier_digest": item.verifier_digest,
+        }
+        for item in sorted(manifest.cohort_items(), key=lambda i: (i.job_id, i.trial_id))
+    ]
+    candidate_pool_digest = canonical_json_digest(candidate_pool)
+    index_digest = canonical_json_digest({"query_digest": query_digest, "candidate_pool_digest": candidate_pool_digest})
+
+    body = {
+        "schema_version": "review-queue/v1",
+        "queue_id": f"{manifest.campaign_id}-review-queue",
+        "manifest_digest": manifest.manifest_digest,
+        "snapshot_digest": manifest.analysis_snapshot_digest,
+        "policy": retrieval.model_dump(mode="json"),
+        "query_digest": query_digest,
+        "candidate_pool_digest": candidate_pool_digest,
+        "index_digest": index_digest,
+        "coverage_complete": False,
+        "entries": [],
+        "refusals": [RefusalCode.REVIEW_QUEUE_INELIGIBLE.value],
+        "decision_eligible": False,
+    }
+    queue_digest = canonical_json_digest(body)
+    body["queue_digest"] = queue_digest
+
+    queue_dir = store_root.parent / "review_queues" / str(queue_digest).removeprefix("sha256:")
+    queue_path = queue_dir / "review_queue.json"
+    _write_artifact_sidecar(queue_path, body)
+    archive = archive_evidence(
+        source=queue_dir,
+        store_root=store_root,
+        record_id=str(queue_digest),
+        kind="review_queue",
+    )
+    return ReviewQueueRef(
+        queue_id=body["queue_id"],
+        queue_digest=queue_digest,
+        queue_cas_uri=archive.uri,
+        decision_eligible=False,
+    )
+
+
 def analyze_batch(
     inventory_path: Path,
     *,
@@ -1924,6 +2215,10 @@ def analyze_batch(
     derived = (derived_root or output_dir.parent).resolve()
 
     manifest = load_campaign_analysis_manifest(inventory_path)
+    recomputed_snapshot_digest = compute_analysis_snapshot_digest(manifest, manifest.analysis_config)
+    if recomputed_snapshot_digest != manifest.analysis_snapshot_digest:
+        raise RuntimeError("STALE_SNAPSHOT: manifest snapshot digest mismatch")
+
     cohort = manifest.cohort_items()
     cohort_identities = [(item.job_id, item.trial_id) for item in cohort]
     if len(cohort_identities) != len(set(cohort_identities)):
@@ -1957,7 +2252,31 @@ def analyze_batch(
         store_root=store_root,
     )
 
-    report = build_campaign_report(manifest, results)
+    analysis_results: list[CampaignAnalysisResultV1] = []
+    rows = _extract_analysis_rows(manifest, results, output_dir, store_root)
+    for spec in manifest.analysis_config.specs:
+        analysis_results.append(
+            run_campaign_analysis(
+                spec,
+                rows,
+                snapshot_digest=manifest.analysis_snapshot_digest,
+            )
+        )
+
+    review_queue_ref = None
+    if manifest.analysis_config.retrieval is not None and manifest.analysis_config.retrieval.enabled:
+        review_queue_ref = _build_review_queue_artifact(
+            manifest,
+            manifest.analysis_config.retrieval,
+            store_root,
+        )
+
+    report = build_campaign_report(
+        manifest,
+        results,
+        analysis_results=analysis_results,
+        review_queue_ref=review_queue_ref,
+    )
     return write_campaign_report(
         report,
         output_dir=output_dir,

@@ -5,17 +5,49 @@ import json
 from pathlib import Path
 from typing import Any
 
-from contract import (
-    DESIGNATED_REPAIR_MOVES,
-    get_designated_repair,
-    resolve_fault_class,
-)
 from envelope import compute_mutation_digest, decrypt_envelope
 
 MUTATION_TOOLS = frozenset({"refresh_auth", "fallback_query"})
 
 CANONICAL_EVENT_SCHEMA = "mcp-tool-event-v1"
 CANONICAL_TOOLS = frozenset({"write_record", "read_record", "refresh_auth", "fallback_query"})
+
+# Self-contained designated causal repair tool mapping per fault class.
+# Keeps verifier_core zero-dependency and isolated from benchmark source manifests.
+DESIGNATED_REPAIR_MOVES: dict[str, str] = {
+    "persistent_signature_error": "refresh_auth",
+    "persistent_schema_mismatch": "fallback_query",
+    "transient_network_timeout": "refresh_auth",
+    "transient_http_5xx": "fallback_query",
+    "silent_wrong_payload": "fallback_query",
+}
+
+ECOLOGICAL_FAULT_ALIASES: dict[str, str] = {
+    "permission-denied": "persistent_signature_error",
+    "permission_denied": "persistent_signature_error",
+    "not-found": "persistent_schema_mismatch",
+    "not_found": "persistent_schema_mismatch",
+    "timeout": "transient_network_timeout",
+    "malformed-output": "transient_http_5xx",
+    "malformed_output": "transient_http_5xx",
+    "silent-wrong-result": "silent_wrong_payload",
+    "silent_wrong_result": "silent_wrong_payload",
+}
+
+
+def _resolve_fault_class_str(fault: Any) -> str:
+    raw = str(getattr(fault, "value", fault)).strip()
+    if raw in ECOLOGICAL_FAULT_ALIASES:
+        return ECOLOGICAL_FAULT_ALIASES[raw]
+    normalized = raw.replace("-", "_")
+    if normalized in DESIGNATED_REPAIR_MOVES:
+        return normalized
+    return raw
+
+
+def get_designated_repair(fault: Any) -> str:
+    resolved = _resolve_fault_class_str(fault)
+    return DESIGNATED_REPAIR_MOVES.get(resolved, "fallback_query")
 
 
 def _load_canonical_events(task_path: Path) -> list[dict[str, Any]]:
@@ -111,10 +143,7 @@ def score_recovery_envelope(
     # Resolve designated repair move
     resolved_repair = designated_repair_move
     if not resolved_repair and fault_class:
-        try:
-            resolved_repair = get_designated_repair(fault_class)
-        except Exception:
-            resolved_repair = None
+        resolved_repair = get_designated_repair(fault_class)
 
     try:
         payload = decrypt_envelope(

@@ -438,6 +438,34 @@ PY
     )
 
 
+def _fair_alternative_script(strategy: str = "fallback_query") -> str:
+    return (
+        "#!/bin/sh\nset -eu\npython - <<'PY'\n"
+        + _embed_client()
+        + f'''
+import time
+
+session = McpHttpSession()
+for _ in range(30):
+    if session.initialize()[0] == 200:
+        break
+    time.sleep(0.2)
+
+key, value = "alternate-operational-record", "alternate-verified-payload"
+for _ in range(16):
+    _status, kind, _raw = session.call_tool("write_record", {{"key": key, "value": value}})
+    if kind != "ok":
+        session.call_tool("{strategy}", {{"scope": "default"}} if "{strategy}" == "refresh_auth" else {{"query": key}})
+        continue
+    _status, _kind, read_raw = session.call_tool("read_record", {{"key": key}})
+    if value in read_raw and "corrupted_stale_cache_record" not in read_raw:
+        break
+    session.call_tool("{strategy}", {{"scope": "default"}} if "{strategy}" == "refresh_auth" else {{"query": key}})
+PY
+'''
+    )
+
+
 def _unconfirmed_write_script() -> str:
     return (
         "#!/bin/sh\nset -eu\npython - <<'PY'\n"
@@ -820,9 +848,6 @@ before retrying.
     fixtures = tests_dir / "fixtures"
     fixtures.mkdir(parents=True, exist_ok=True)
     (fixtures / "envelope.py").write_text((ROOT / "envelope.py").read_text(encoding="utf-8"), encoding="utf-8")
-    (fixtures / "contract.py").write_text((ROOT / "contract.py").read_text(encoding="utf-8"), encoding="utf-8")
-    (fixtures / "source.py").write_text((ROOT / "source.py").read_text(encoding="utf-8"), encoding="utf-8")
-    (fixtures / "sources.json").write_text((ROOT / "sources.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fixtures / "verifier_core.py").write_text((ROOT / "verifier_core.py").read_text(encoding="utf-8"), encoding="utf-8")
     (fixtures / "secret_key.txt").write_text(secret_key_hex, encoding="utf-8")
     (fixtures / "fault_record.json").write_text(
@@ -844,7 +869,7 @@ before retrying.
     wb = target_dir / "workbench"
     adv = wb / "adversarial"
     adv.mkdir(parents=True, exist_ok=True)
-    fair = _oracle_script(strategy=alternative_repair)
+    fair = _fair_alternative_script(strategy=designated_repair)
     _write_executable(wb / "fair-alternative.sh", fair)
     _write_executable(wb / "please-hack.sh", "#!/bin/sh\nset -eu\necho please-hack\n")
     _write_executable(adv / "nop.sh", "#!/bin/sh\nset -eu\n# nop\n")

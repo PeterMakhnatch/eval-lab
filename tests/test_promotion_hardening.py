@@ -3,7 +3,7 @@
 Tests that ``scripts/promote_codex_bundle.py`` resists nested/encoded credential
 material, path confusion, traversal, mixed-case bypasses, Unicode confusables,
 nested sessions, raw logs, non-regular device nodes, hardlinks, archive payloads,
-and secret-shaped JSON keys.
+secret-shaped JSON keys, and CLI path injection / root-deletion attempts via --job.
 
 Deterministic by construction: no host state, no network, no Docker.
 """
@@ -419,3 +419,110 @@ def test_all_existing_repository_manifests_continue_to_verify() -> None:
     manifests = sorted(PROMOTED_RUNS.glob("*/PROMOTION.json"))
     assert len(manifests) >= 10, "Expected at least 10 committed evidence bundles"
     assert PROMOTE.verify(PROMOTED_RUNS) == 0
+
+
+# ---- 12. Negative CLI & job basename injection / root-deletion tests ---------
+
+
+def test_cli_job_dot_cannot_delete_evidence_root(tmp_path: Path) -> None:
+    """--job . with --force must fail closed and never delete the evidence root."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+
+    evidence_sentinel = evidence / "DO_NOT_DELETE.txt"
+    evidence_sentinel.write_bytes(SENTINEL_SECRET)
+    runs_sentinel = runs / "RUNS_ROOT_SENTINEL.txt"
+    runs_sentinel.write_bytes(SENTINEL_SECRET)
+
+    with pytest.raises(SystemExit):
+        PROMOTE.main([
+            "--source-runs", str(runs),
+            "--evidence-runs", str(evidence),
+            "--job", ".",
+            "--force",
+        ])
+
+    assert evidence.is_dir(), "evidence root must survive"
+    assert evidence_sentinel.exists(), "evidence root sentinel must not be deleted"
+    assert runs_sentinel.exists(), "runs root sentinel must not be deleted"
+
+
+def test_cli_job_dotdot_cannot_delete_or_escape(tmp_path: Path) -> None:
+    """--job .. with --force must fail closed."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+
+    sentinel = evidence / "EVIDENCE_SENTINEL.txt"
+    sentinel.write_bytes(SENTINEL_SECRET)
+
+    with pytest.raises(SystemExit):
+        PROMOTE.main([
+            "--source-runs", str(runs),
+            "--evidence-runs", str(evidence),
+            "--job", "..",
+            "--force",
+        ])
+
+    assert sentinel.exists()
+
+
+def test_cli_job_absolute_path_is_rejected(tmp_path: Path) -> None:
+    """--job /absolute/path must fail closed."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+
+    sentinel = evidence / "EVIDENCE_SENTINEL.txt"
+    sentinel.write_bytes(SENTINEL_SECRET)
+
+    with pytest.raises(SystemExit):
+        PROMOTE.main([
+            "--source-runs", str(runs),
+            "--evidence-runs", str(evidence),
+            "--job", "/etc/passwd",
+            "--force",
+        ])
+
+    assert sentinel.exists()
+
+
+def test_cli_job_path_separators_are_rejected(tmp_path: Path) -> None:
+    """--job with path separators (traversal or subdirectories) fails closed."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+
+    sentinel = evidence / "EVIDENCE_SENTINEL.txt"
+    sentinel.write_bytes(SENTINEL_SECRET)
+
+    for invalid_job in ("../escaped", "subdir/job1", "..\\escaped", "a/b/c"):
+        with pytest.raises(SystemExit):
+            PROMOTE.main([
+                "--source-runs", str(runs),
+                "--evidence-runs", str(evidence),
+                "--job", invalid_job,
+                "--force",
+            ])
+        assert sentinel.exists(), f"sentinel deleted by {invalid_job}"
+
+
+def test_promote_function_rejects_unsafe_destination_or_source(tmp_path: Path) -> None:
+    """Direct calls to promote() with unsafe paths fail before any rmtree or existence check."""
+    valid_job = make_base_job(tmp_path, "valid_job")
+    valid_dest = tmp_path / "evidence" / "valid_bundle"
+
+    # Unsafe destination names
+    for unsafe_dest in (Path("."), Path(".."), Path("/"), Path("")):
+        with pytest.raises(SystemExit):
+            PROMOTE.promote(valid_job, unsafe_dest, force=True)
+
+    # Unsafe source names
+    for unsafe_source in (Path("."), Path(".."), Path("/"), Path("")):
+        with pytest.raises(SystemExit):
+            PROMOTE.promote(unsafe_source, valid_dest, force=True)

@@ -250,6 +250,27 @@ def _canonical(name: str) -> str:
     return unicodedata.normalize("NFC", name).casefold()
 
 
+def _validate_job_name(job: str | Path) -> str:
+    """Validate that a job argument is exactly one safe, non-empty basename.
+
+    Rejects '.', '..', empty strings, whitespace, path separators, absolute paths,
+    and ambiguous Unicode or traversal variants before any filesystem or delete operations.
+    """
+    raw = str(job)
+    if not raw or not raw.strip():
+        raise SystemExit("job name cannot be empty")
+    normalized = unicodedata.normalize("NFC", raw.strip())
+    # Reject any path separators (forward or backslash)
+    if "/" in normalized or "\\" in normalized:
+        raise SystemExit(f"job name cannot contain path separators: {raw!r}")
+    if normalized in {".", "..", ""}:
+        raise SystemExit(f"invalid job name (must not be '.' or '..'): {raw!r}")
+    p = Path(normalized)
+    if p.is_absolute() or len(p.parts) != 1 or p.parts[0] in {".", "..", ""}:
+        raise SystemExit(f"invalid job name (must be a single non-traversal basename): {raw!r}")
+    return normalized
+
+
 def _is_archive_like(relative: Path) -> bool:
     """Whether a path carries an archive/container extension that could embed unredacted secrets."""
     name_lower = _canonical(relative.name)
@@ -603,6 +624,32 @@ def omission_record(
 
 
 def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
+    # Validate destination basename and strict parent containment before any existence or delete
+    _validate_job_name(destination.name)
+    resolved_dest = destination.resolve()
+    resolved_dest_parent = destination.parent.resolve()
+    if (
+        resolved_dest == resolved_dest_parent
+        or resolved_dest.parent != resolved_dest_parent
+        or str(destination) in {".", "..", "/", ""}
+    ):
+        raise SystemExit(
+            f"destination must be a strict child of its parent directory: {destination}"
+        )
+
+    # Validate source basename and strict parent containment
+    _validate_job_name(job_dir.name)
+    resolved_source = job_dir.resolve()
+    resolved_source_parent = job_dir.parent.resolve()
+    if (
+        resolved_source == resolved_source_parent
+        or resolved_source.parent != resolved_source_parent
+        or str(job_dir) in {".", "..", "/", ""}
+    ):
+        raise SystemExit(
+            f"source job directory must be a strict child of its parent: {job_dir}"
+        )
+
     if not job_dir.is_dir():
         raise SystemExit(f"source job directory not found: {job_dir}")
     if destination.exists():
@@ -940,13 +987,30 @@ def main(argv: list[str] | None = None) -> int:
     if not args.source_runs or not args.job:
         parser.error("--source-runs and at least one --job are required")
 
-    total = 0
+    source_root = args.source_runs.resolve()
+    evidence_root = args.evidence_runs.resolve()
+    if not source_root.is_dir():
+        raise SystemExit(f"source runs directory not found: {args.source_runs}")
+
+    # Validate every job name before any filesystem operations or delete
+    validated_jobs: list[tuple[str, Path, Path]] = []
     for job in args.job:
-        manifest = promote(args.source_runs / job, args.evidence_runs / job, force=args.force)
+        safe_job = _validate_job_name(job)
+        job_source = (source_root / safe_job).resolve()
+        job_dest = (evidence_root / safe_job).resolve()
+        if job_source.parent != source_root:
+            raise SystemExit(f"invalid job source path escape: {job}")
+        if job_dest.parent != evidence_root:
+            raise SystemExit(f"invalid job destination path escape: {job}")
+        validated_jobs.append((safe_job, job_source, job_dest))
+
+    total = 0
+    for job_name, job_source, job_dest in validated_jobs:
+        manifest = promote(job_source, job_dest, force=args.force)
         totals = manifest["totals"]
         total += totals["promoted_bytes"]
         print(
-            f"{job}: {totals['promoted_files']} promoted "
+            f"{job_name}: {totals['promoted_files']} promoted "
             f"({totals['promoted_bytes']} B) "
             f"{totals['omitted_files']} omitted "
             f"({totals['quota_sidecars']} quota sidecar(s) kept) "

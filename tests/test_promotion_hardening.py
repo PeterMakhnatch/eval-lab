@@ -4,8 +4,8 @@ Tests that ``scripts/promote_codex_bundle.py`` resists nested/encoded credential
 material, path confusion, traversal, mixed-case bypasses, Unicode confusables,
 nested sessions, raw logs, non-regular device nodes, hardlinks, archive payloads,
 secret-shaped JSON keys, ATIF content-part lists, uppercase verifier JSON suffixes,
-oversized streaming rollouts with bounded dropped names, manifest traversal in verify(),
-and CLI path injection / root-deletion attempts via --job.
+oversized streaming rollouts with bounded dropped names, value-shape-aware secret exemptions,
+manifest traversal in verify(), and CLI path injection / root-deletion attempts via --job.
 
 Deterministic by construction: no host state, no network, no Docker.
 """
@@ -704,53 +704,70 @@ def test_nested_secret_context_propagation(tmp_path: Path) -> None:
         assert b"server1.auth" not in body, f"nested list item leaked in {name}"
 
 
-def test_benign_metrics_and_indicators_preservation(tmp_path: Path) -> None:
-    """Benign metric keys and indicator keys are preserved verbatim and not falsely redacted."""
-    job = make_base_job(tmp_path, "metrics_job")
+def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
+    """Value-shape awareness: metrics only exempt numbers, indicators only booleans, status only short safe strings."""
+    job = make_base_job(tmp_path, "value_shape_job")
     trial = job / "evallab-zai-syn-hardening__synthetic"
 
-    metrics_payload = {
-        "summary": {
-            "token_count": 12345,
-            "input_tokens": 8000,
-            "output_tokens": 4345,
-            "total_tokens": 12345,
-            "prompt_tokens": 7500,
-            "completion_tokens": 4000,
-            "cached_tokens": 500,
-            "reasoning_tokens": 345,
-            "tokens_per_second": 42.5,
-            "api_key_present": True,
-            "credentials_count": 2,
-            "auth_status": "verified",
-            "has_api_key": True,
-            "is_authenticated": True,
-            "auth_type": "bearer",
-            "auth_method": "oauth2",
-            "auth_state": "active",
+    payload = {
+        # Legitimate benign metrics / indicators / status
+        "input_tokens": 8000,
+        "token_count": 12000,
+        "total_tokens": 12000,
+        "has_api_key": True,
+        "is_authenticated": False,
+        "credentials_count": 2,
+        "authorization_result": "passed",
+        "auth_status": "verified",
+        "auth_type": "bearer",
+        "auth_result": {
+            "status": "ok",
+            "token": SECRET_TOKEN,
+        },
+        # Malicious smuggling under indicator/metric keys
+        "smuggled": {
+            "has_api_key": SECRET_TOKEN,
+            "is_authenticated": [SECRET_TOKEN],
+            "input_tokens": [SECRET_TOKEN],
+            "token_count": SECRET_TOKEN,
+            "credentials_count": SECRET_TOKEN,
+            "authorization_result": SECRET_TOKEN * 5,  # Oversized status string
         }
     }
-    (trial / "verifier" / "metrics.json").write_text(
-        json.dumps(metrics_payload), encoding="utf-8"
+    (trial / "verifier" / "value_shape.json").write_text(
+        json.dumps(payload), encoding="utf-8"
     )
 
     bundle = tmp_path / "evidence" / job.name
     PROMOTE.promote(job, bundle)
 
-    promoted_metrics = next(
-        b for n, b in promoted_bytes(bundle) if n.endswith("metrics.json")
-    )
-    doc = json.loads(promoted_metrics)
-    assert doc["summary"]["token_count"] == 12345
-    assert doc["summary"]["input_tokens"] == 8000
-    assert doc["summary"]["total_tokens"] == 12345
-    assert doc["summary"]["tokens_per_second"] == 42.5
-    assert doc["summary"]["api_key_present"] is True
-    assert doc["summary"]["credentials_count"] == 2
-    assert doc["summary"]["auth_status"] == "verified"
-    assert doc["summary"]["has_api_key"] is True
-    assert doc["summary"]["is_authenticated"] is True
-    assert doc["summary"]["auth_type"] == "bearer"
+    promoted_file = next(b for n, b in promoted_bytes(bundle) if "value_shape" in n)
+    doc = json.loads(promoted_file)
+
+    # Legitimate values preserved
+    assert doc["input_tokens"] == 8000
+    assert doc["token_count"] == 12000
+    assert doc["total_tokens"] == 12000
+    assert doc["has_api_key"] is True
+    assert doc["is_authenticated"] is False
+    assert doc["credentials_count"] == 2
+    assert doc["authorization_result"] == "passed"
+    assert doc["auth_status"] == "verified"
+    assert doc["auth_type"] == "bearer"
+    assert doc["auth_result"]["status"] == "ok"
+    assert "evallab-redacted" in doc["auth_result"]["token"]
+
+    # Smuggled values redacted
+    assert "evallab-redacted" in doc["smuggled"]["has_api_key"]
+    assert "evallab-redacted" in doc["smuggled"]["is_authenticated"][0]
+    assert "evallab-redacted" in doc["smuggled"]["input_tokens"][0]
+    assert "evallab-redacted" in doc["smuggled"]["token_count"]
+    assert "evallab-redacted" in doc["smuggled"]["credentials_count"]
+    assert "evallab-redacted" in doc["smuggled"]["authorization_result"]
+
+    # Sentinel must not leak
+    for name, body in promoted_bytes(bundle):
+        assert SECRET_TOKEN.encode() not in body, f"SECRET_TOKEN leaked into {name}"
 
 
 def test_mixed_case_agent_sessions_quota_sidecar(tmp_path: Path) -> None:

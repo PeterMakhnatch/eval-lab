@@ -155,6 +155,7 @@ MAX_ROLLOUT_LINE_BYTES = 65536
 MAX_QUOTA_SNAPSHOTS = 1000
 MAX_DROPPED_NAMES = 100
 MAX_SIDECAR_BYTES = 1024 * 1024
+_STATUS_MAX_STRING_BYTES = 64
 
 #: Streaming read chunk size and hard file size limit.
 STREAM_CHUNK_BYTES = 65536
@@ -215,32 +216,38 @@ BENIGN_EXACT_METRIC_KEYS = frozenset({
 })
 
 #: Suffixes and prefixes for indicator/status/metric keys that are not secret containers.
-_BENIGN_INDICATOR_SUFFIXES = (
+_INDICATOR_BOOLEAN_SUFFIXES = (
     "_present",
     "_exists",
-    "_count",
-    "_counts",
-    "_status",
-    "_state",
-    "_mode",
-    "_type",
-    "_method",
-    "_verified",
-    "_configured",
     "_enabled",
     "_required",
-    "_valid",
+    "_verified",
+    "_configured",
 )
 
-_BENIGN_INDICATOR_PREFIXES = (
+_INDICATOR_BOOLEAN_PREFIXES = (
     "has_",
     "is_",
     "use_",
     "require_",
 )
 
+_METRIC_COUNT_SUFFIXES = (
+    "_count",
+    "_counts",
+)
+
+_STATUS_ENUM_SUFFIXES = (
+    "_status",
+    "_state",
+    "_mode",
+    "_type",
+    "_method",
+    "_result",
+)
+
 #: Words and pattern matching secret-shaped auth/credential keys.
-_SECRET_AUTH_KEYS = frozenset({
+_SECRET_CONTAINER_WORDS = frozenset({
     "token",
     "tokens",
     "api_key",
@@ -280,12 +287,44 @@ _SECRET_AUTH_KEYS = frozenset({
     "webhook_secret",
 })
 
-_SECRET_PATTERN = re.compile(
+_SECRET_CONTAINER_PATTERN = re.compile(
     r"(?:^|_)(?:api_?key|access_?(?:key|tokens?)|auth(?:orization|_secret|_tokens?)?|bearer(?:_token)?|"
     r"client_?secret|credential(?:s|_key)?|github_?token|gitlab_?token|id_?token|jwt(?:_token)?|"
     r"passphrase|password|passwd|private_?key|pwd|refresh_?tokens?|secret(?:s|_key)?|"
     r"session_?(?:key|token)|signing_?key|ssh_?key|tokens?|webhook_?secret)(?:$|_)"
 )
+
+
+class _BoundedDroppedCollector:
+    """Bounded container for tracking dropped field names with an overflow counter.
+
+    Never allocates or accumulates unbounded names in memory: maintains at most
+    `MAX_DROPPED_NAMES` truncated strings and increments an overflow counter for excess.
+    """
+
+    def __init__(
+        self,
+        max_names: int = MAX_DROPPED_NAMES,
+        max_name_len: int = RATE_LIMIT_STRING_LIMIT,
+    ) -> None:
+        self.max_names = max_names
+        self.max_name_len = max_name_len
+        self.names: set[str] = set()
+        self.overflow_count = 0
+
+    def add(self, name: str) -> None:
+        bounded_name = name[: self.max_name_len]
+        if len(self.names) < self.max_names:
+            self.names.add(bounded_name)
+        elif bounded_name not in self.names:
+            self.overflow_count += 1
+
+    def extend(self, names: list[str]) -> None:
+        for n in names:
+            self.add(n)
+
+    def finish(self) -> tuple[list[str], int]:
+        return sorted(self.names), self.overflow_count
 
 
 def _normalize_key_name(key: str) -> str:
@@ -297,16 +336,45 @@ def _normalize_key_name(key: str) -> str:
     return s3.strip("_").casefold()
 
 
-def _is_secret_key(key: str) -> bool:
-    """Detect if a JSON key name is secret-shaped across casing styles while preserving metrics/indicators."""
+def _should_redact_key_value(
+    key: str, node: object, under_secret: bool
+) -> tuple[bool, bool]:
+    """Value-shape-aware secret detection.
+
+    Returns: (redact_leaf: bool, propagate_under_secret: bool)
+    """
+    if under_secret:
+        return True, True
+
     normalized = _normalize_key_name(key)
-    if normalized in BENIGN_EXACT_METRIC_KEYS:
-        return False
-    if normalized.endswith(_BENIGN_INDICATOR_SUFFIXES) or normalized.startswith(_BENIGN_INDICATOR_PREFIXES):
-        return False
-    if normalized in _SECRET_AUTH_KEYS:
-        return True
-    return bool(_SECRET_PATTERN.search(normalized))
+
+    # 1. Metric / Count shape check: only exempt numeric scalars
+    if normalized in BENIGN_EXACT_METRIC_KEYS or normalized.endswith(_METRIC_COUNT_SUFFIXES):
+        if isinstance(node, (int, float)) and not isinstance(node, bool):
+            return False, False
+        return True, True
+
+    # 2. Boolean indicator shape check: only exempt booleans
+    if normalized.endswith(_INDICATOR_BOOLEAN_SUFFIXES) or normalized.startswith(_INDICATOR_BOOLEAN_PREFIXES):
+        if isinstance(node, bool):
+            return False, False
+        return True, True
+
+    # 3. Status / State / Type / Mode / Method / Result enum shape check: exempt bounded safe status scalars
+    if normalized.endswith(_STATUS_ENUM_SUFFIXES):
+        if isinstance(node, bool) or (isinstance(node, (int, float)) and not isinstance(node, bool)):
+            return False, False
+        if isinstance(node, str):
+            if len(node.encode("utf-8")) <= _STATUS_MAX_STRING_BYTES:
+                return False, False
+            return True, False
+        return False, False
+
+    # 4. Secret container check: redact and propagate context to children
+    if normalized in _SECRET_CONTAINER_WORDS or bool(_SECRET_CONTAINER_PATTERN.search(normalized)):
+        return True, True
+
+    return False, False
 
 
 #: R4 whitelist. Exactly the fields ``src/evallab/quota.py`` reads from
@@ -468,36 +536,41 @@ def _redact_json_strings(
     node: Any, parent_key: str | None = None, under_secret: bool = False
 ) -> tuple[Any, int]:
     """R3a & Secret redaction: replace oversize strings and secret-shaped keys with digest markers."""
-    is_secret = under_secret or (parent_key is not None and _is_secret_key(parent_key))
-    if (
-        is_secret
-        and isinstance(node, (str, int, float, bool))
-        and str(node)
-    ):
+    redact_leaf, propagate_secret = (
+        _should_redact_key_value(parent_key, node, under_secret)
+        if parent_key is not None or under_secret
+        else (False, False)
+    )
+
+    if redact_leaf and isinstance(node, (str, int, float, bool)) and str(node):
         return _marker(str(node)), 1
+
     if isinstance(node, str):
         if len(node.encode("utf-8")) > VERIFIER_JSON_STRING_LIMIT:
             return _marker(node), 1
         return node, 0
+
     if isinstance(node, dict):
         count = 0
         result: dict[str, Any] = {}
         for key, value in node.items():
             result[key], hits = _redact_json_strings(
-                value, parent_key=key, under_secret=is_secret
+                value, parent_key=key, under_secret=propagate_secret
             )
             count += hits
         return result, count
+
     if isinstance(node, list):
         count = 0
         items = []
         for value in node:
             item, hits = _redact_json_strings(
-                value, parent_key=parent_key, under_secret=is_secret
+                value, parent_key=parent_key, under_secret=propagate_secret
             )
             items.append(item)
             count += hits
         return items, count
+
     return node, 0
 
 
@@ -530,7 +603,10 @@ def _whitelisted_scalar(value: Any, kinds: tuple[type, ...]) -> Any | None:
 
 
 def _whitelisted_group(
-    payload: Any, fields: dict[str, tuple[type, ...]], prefix: str, dropped: list[str]
+    payload: Any,
+    fields: dict[str, tuple[type, ...]],
+    prefix: str,
+    dropped: list[str],
 ) -> dict[str, Any] | None:
     """Rebuild one nested quota object from the whitelist, field by field."""
     if not isinstance(payload, dict):
@@ -551,7 +627,10 @@ def _whitelisted_group(
     return group
 
 
-def redact_rate_limits(limits: Any) -> tuple[dict[str, Any], list[str]]:
+def redact_rate_limits(
+    limits: Any,
+    dropped_collector: _BoundedDroppedCollector | None = None,
+) -> tuple[dict[str, Any], list[str]]:
     """R4: rebuild ``payload.rate_limits`` from the whitelist, nothing else.
 
     Returns the safe object and the *names* of the fields dropped. Values are
@@ -566,7 +645,8 @@ def redact_rate_limits(limits: Any) -> tuple[dict[str, Any], list[str]]:
         if key in RATE_LIMIT_SCALARS:
             kept = _whitelisted_scalar(value, RATE_LIMIT_SCALARS[key])
             if kept is None and value is not None:
-                dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
+                if len(dropped) < MAX_DROPPED_NAMES * 2:
+                    dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
                 continue
             safe[key] = kept
         elif key in RATE_LIMIT_WINDOW_KEYS:
@@ -574,7 +654,10 @@ def redact_rate_limits(limits: Any) -> tuple[dict[str, Any], list[str]]:
         elif key == "credits":
             safe[key] = _whitelisted_group(value, RATE_LIMIT_CREDITS, key, dropped)
         else:
-            dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
+            if len(dropped) < MAX_DROPPED_NAMES * 2:
+                dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
+    if dropped_collector is not None:
+        dropped_collector.extend(dropped)
     return safe, dropped
 
 
@@ -602,7 +685,8 @@ def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
     timestamp are read; the rest of the line is never touched.
     """
     snapshots: list[dict[str, Any]] = []
-    dropped: set[str] = set()
+    dropped_collector = _BoundedDroppedCollector()
+
     for line in raw.decode("utf-8", errors="replace").splitlines():
         if len(snapshots) >= MAX_QUOTA_SNAPSHOTS:
             break
@@ -620,13 +704,13 @@ def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
         if not isinstance(payload, dict) or payload.get("type") != "token_count":
             continue
         observed_at = _timestamp(event.get("timestamp"))
-        limits, missed = redact_rate_limits(payload.get("rate_limits"))
-        dropped.update(missed)
+        limits, _ = redact_rate_limits(payload.get("rate_limits"), dropped_collector)
         if observed_at is None or not limits:
             continue
         snapshots.append({"timestamp": observed_at, "rate_limits": limits})
     snapshots.sort(key=lambda item: item["timestamp"])
-    return snapshots, sorted(dropped)
+    dropped_names, _ = dropped_collector.finish()
+    return snapshots, dropped_names
 
 
 def _build_sidecar_document(
@@ -634,16 +718,12 @@ def _build_sidecar_document(
     total_bytes: int,
     digest: str,
     snapshots: list[dict[str, Any]],
-    dropped: set[str] | list[str],
+    dropped_names: list[str],
+    dropped_overflow: int = 0,
 ) -> bytes:
     """Build and strictly bound (<= MAX_SIDECAR_BYTES) a quota sidecar document."""
-    bounded_dropped = [
-        str(name)[:RATE_LIMIT_STRING_LIMIT] for name in sorted(dropped)
-    ]
-    dropped_overflow = 0
-    if len(bounded_dropped) > MAX_DROPPED_NAMES:
-        dropped_overflow = len(bounded_dropped) - MAX_DROPPED_NAMES
-        bounded_dropped = bounded_dropped[:MAX_DROPPED_NAMES]
+    bounded_dropped = dropped_names[:MAX_DROPPED_NAMES]
+    total_overflow = dropped_overflow + max(0, len(dropped_names) - MAX_DROPPED_NAMES)
 
     doc: dict[str, Any] = {
         "schema_version": SIDECAR_SCHEMA_VERSION,
@@ -666,8 +746,8 @@ def _build_sidecar_document(
         ),
         "snapshots": snapshots,
     }
-    if dropped_overflow > 0:
-        doc["dropped_field_overflow_count"] = dropped_overflow
+    if total_overflow > 0:
+        doc["dropped_field_overflow_count"] = total_overflow
 
     body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
 
@@ -682,7 +762,9 @@ def _build_sidecar_document(
 
         if len(body) > MAX_SIDECAR_BYTES and doc.get("dropped_field_names"):
             doc["dropped_field_names"] = doc["dropped_field_names"][:10]
-            doc["dropped_field_overflow_count"] = len(dropped) - len(doc["dropped_field_names"])
+            doc["dropped_field_overflow_count"] = (
+                total_overflow + len(bounded_dropped) - len(doc["dropped_field_names"])
+            )
             body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
 
     assert len(body) <= MAX_SIDECAR_BYTES, (
@@ -696,13 +778,13 @@ def stream_rollout_digest_and_quota(
 ) -> tuple[str, int, bytes | None]:
     """Single-pass streaming: compute SHA-256 digest, byte count, and quota sidecar document.
 
-    Reads line-by-line with bounded line lengths, snapshot limits, and dropped-name limits
+    Reads line-by-line with bounded line lengths, snapshot limits, and a bounded dropped collector
     so that digest and sidecar are derived from a single coherent file pass without unbounded memory.
     """
     h = hashlib.sha256()
     total_bytes = 0
     snapshots: list[dict[str, Any]] = []
-    dropped: set[str] = set()
+    dropped_collector = _BoundedDroppedCollector()
 
     with path.open("rb") as f:
         while chunk := f.readline(MAX_ROLLOUT_LINE_BYTES):
@@ -723,8 +805,7 @@ def stream_rollout_digest_and_quota(
             if not isinstance(payload, dict) or payload.get("type") != "token_count":
                 continue
             observed_at = _timestamp(event.get("timestamp"))
-            limits, missed = redact_rate_limits(payload.get("rate_limits"))
-            dropped.update(missed)
+            limits, _ = redact_rate_limits(payload.get("rate_limits"), dropped_collector)
             if observed_at is None or not limits:
                 continue
             snapshots.append({"timestamp": observed_at, "rate_limits": limits})
@@ -734,7 +815,10 @@ def stream_rollout_digest_and_quota(
     if not snapshots:
         return digest, total_bytes, None
 
-    body = _build_sidecar_document(relative, total_bytes, digest, snapshots, dropped)
+    dropped_names, overflow = dropped_collector.finish()
+    body = _build_sidecar_document(
+        relative, total_bytes, digest, snapshots, dropped_names, overflow
+    )
     return digest, total_bytes, body
 
 
@@ -765,11 +849,11 @@ def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
     canonical_name = _canonical(relative.name)
     if not canonical_name.startswith(ROLLOUT_PREFIX) or not canonical_name.endswith(".jsonl"):
         return None
-    snapshots, dropped = rate_limit_snapshots(raw)
+    snapshots, dropped_names = rate_limit_snapshots(raw)
     if not snapshots:
         return None
     return _build_sidecar_document(
-        relative, len(raw), sha256_bytes(raw), snapshots, dropped
+        relative, len(raw), sha256_bytes(raw), snapshots, dropped_names, 0
     )
 
 

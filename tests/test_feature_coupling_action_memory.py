@@ -9,10 +9,6 @@ from typing import Any
 import pytest
 
 from evallab.interpretation.benchmark_events import (
-    BenchmarkContractRecord,
-    BenchmarkEventRecord,
-    CorrelatedToolCall,
-    FinalStateRecord,
     TrialBundle,
     load_trial_bundle,
 )
@@ -69,16 +65,18 @@ def _build_mock_bundle(
         "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
     )
     (trial_dir / "final-state.json").write_text(
-        json.dumps({
-            "invariants_passed": invariants_passed,
-            "mutations": [
-                {
-                    "entity_id": target_entity,
-                    "attribute": target_attribute,
-                    "bound_value": latest_value,
-                }
-            ],
-        }),
+        json.dumps(
+            {
+                "invariants_passed": invariants_passed,
+                "mutations": [
+                    {
+                        "entity_id": target_entity,
+                        "attribute": target_attribute,
+                        "bound_value": latest_value,
+                    }
+                ],
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -101,46 +99,54 @@ def test_action_memory_522_257_case(tmp_path: Path):
 
     # 1. First read all 257 valid chunks
     for cid in expected_chunk_ids:
-        events.append({
-            "event_index": event_idx,
-            "event_type": "mcp_call",
-            "call_id": f"call_{event_idx}",
-            "tool_name": "get_context_chunk",
-            "arguments": {"chunk_id": cid},
-        })
+        events.append(
+            {
+                "event_index": event_idx,
+                "event_type": "mcp_call",
+                "call_id": f"call_{event_idx}",
+                "tool_name": "get_context_chunk",
+                "arguments": {"chunk_id": cid},
+            }
+        )
         event_idx += 1
 
     # 2. Add 264 duplicate reads (repeating chunk_000)
     for _ in range(264):
-        events.append({
+        events.append(
+            {
+                "event_index": event_idx,
+                "event_type": "mcp_call",
+                "call_id": f"call_{event_idx}",
+                "tool_name": "get_context_chunk",
+                "arguments": {"chunk_id": "chunk_000"},
+            }
+        )
+        event_idx += 1
+
+    # 3. Add 1 unknown read
+    events.append(
+        {
             "event_index": event_idx,
             "event_type": "mcp_call",
             "call_id": f"call_{event_idx}",
             "tool_name": "get_context_chunk",
-            "arguments": {"chunk_id": "chunk_000"},
-        })
-        event_idx += 1
-
-    # 3. Add 1 unknown read
-    events.append({
-        "event_index": event_idx,
-        "event_type": "mcp_call",
-        "call_id": f"call_{event_idx}",
-        "tool_name": "get_context_chunk",
-        "arguments": {"chunk_id": "chunk_unknown_999"},
-    })
+            "arguments": {"chunk_id": "chunk_unknown_999"},
+        }
+    )
     event_idx += 1
 
     # 4. Mutation call
-    events.append({
-        "event_index": event_idx,
-        "event_type": "execute_mutation",
-        "payload": {
-            "entity_id": "entity_42",
-            "attribute": "routing_key",
-            "bound_value": "target_val",
-        },
-    })
+    events.append(
+        {
+            "event_index": event_idx,
+            "event_type": "execute_mutation",
+            "payload": {
+                "entity_id": "entity_42",
+                "attribute": "routing_key",
+                "bound_value": "target_val",
+            },
+        }
+    )
 
     assert len(events) == 523  # 522 chunk reads + 1 mutation
     bundle = _build_mock_bundle(tmp_path, expected_chunk_ids=expected_chunk_ids, events=events)
@@ -184,22 +190,26 @@ def test_action_memory_duplicate_accounting(tmp_path: Path):
 
     events: list[dict[str, Any]] = []
     for idx, cid in enumerate(requested_sequence):
-        events.append({
-            "event_index": idx,
-            "event_type": "mcp_call",
-            "call_id": f"call_{idx}",
-            "tool_name": "read_chunk",
-            "arguments": {"chunk_id": cid},
-        })
-    events.append({
-        "event_index": len(requested_sequence),
-        "event_type": "execute_mutation",
-        "payload": {
-            "entity_id": "entity_42",
-            "attribute": "routing_key",
-            "bound_value": "target_val",
-        },
-    })
+        events.append(
+            {
+                "event_index": idx,
+                "event_type": "mcp_call",
+                "call_id": f"call_{idx}",
+                "tool_name": "read_chunk",
+                "arguments": {"chunk_id": cid},
+            }
+        )
+    events.append(
+        {
+            "event_index": len(requested_sequence),
+            "event_type": "execute_mutation",
+            "payload": {
+                "entity_id": "entity_42",
+                "attribute": "routing_key",
+                "bound_value": "target_val",
+            },
+        }
+    )
 
     bundle = _build_mock_bundle(tmp_path, expected_chunk_ids=expected_chunk_ids, events=events)
     feat = extract_action_memory_features(bundle)
@@ -418,7 +428,10 @@ def test_predictor_audit_refusal():
         coupling_basis="Correlates with search depth",
     )
     assert audit_predictor_eligibility(feat_correlates, strict_independence=False) is None
-    assert audit_predictor_eligibility(feat_correlates, strict_independence=True) == "VERDICT_CORRELATED"
+    assert (
+        audit_predictor_eligibility(feat_correlates, strict_independence=True)
+        == "VERDICT_CORRELATED"
+    )
 
 
 def test_feature_definition_contract_validation():

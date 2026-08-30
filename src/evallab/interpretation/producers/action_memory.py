@@ -10,6 +10,7 @@ Computes:
 
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
@@ -174,17 +175,13 @@ def _extract_atif_handles(bundle: TrialBundle, atif_trajectory: Any = None) -> l
         if not isinstance(call_obj, dict):
             return
         func_name = (
-            call_obj.get("tool_name")
-            or call_obj.get("function_name")
-            or call_obj.get("name")
+            call_obj.get("tool_name") or call_obj.get("function_name") or call_obj.get("name")
         )
         if isinstance(call_obj.get("function"), dict):
             func_name = func_name or call_obj["function"].get("name")
         if isinstance(call_obj.get("action"), dict):
             func_name = (
-                func_name
-                or call_obj["action"].get("name")
-                or call_obj["action"].get("tool_name")
+                func_name or call_obj["action"].get("name") or call_obj["action"].get("tool_name")
             )
 
         if func_name in target_tools:
@@ -199,17 +196,10 @@ def _extract_atif_handles(bundle: TrialBundle, atif_trajectory: Any = None) -> l
                 args = args or call_obj["function"]["arguments"]
             if isinstance(call_obj.get("action"), dict):
                 act = call_obj["action"]
-                args = (
-                    args
-                    or act.get("arguments")
-                    or act.get("args")
-                    or act.get("parameters")
-                )
+                args = args or act.get("arguments") or act.get("args") or act.get("parameters")
             if isinstance(args, str):
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     args = json.loads(args)
-                except (ValueError, TypeError):
-                    pass
             cid = None
             if isinstance(args, dict):
                 cid = args.get("chunk_id") or args.get("key") or args.get("id")
@@ -427,7 +417,7 @@ def extract_action_memory_features(
 
     atif_handles = _extract_atif_handles(bundle, atif_trajectory)
     if atif_handles is not None and (calls or events or observed_handles):
-        handle_order_concordance = (atif_handles == observed_handles)
+        handle_order_concordance = atif_handles == observed_handles
         retrieval_authority = "benchmark_events"
         capture_concordance_status = "concordant" if handle_order_concordance else "mismatch"
     elif atif_handles is not None and not (calls or events or observed_handles):

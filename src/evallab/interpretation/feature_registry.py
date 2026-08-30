@@ -111,7 +111,12 @@ class FeatureDefinition:
                 f"Feature {self.column_name!r} requires null_on_zero_denominator=True but has no denominator_sibling declared"
             )
         if self.verdict_coupling is not None:
-            if self.verdict_coupling not in ("defines", "correlates", "independent", "not_applicable"):
+            if self.verdict_coupling not in (
+                "defines",
+                "correlates",
+                "independent",
+                "not_applicable",
+            ):
                 errors.append(
                     f"Feature {self.column_name!r} has invalid verdict_coupling={self.verdict_coupling!r}"
                 )
@@ -236,7 +241,9 @@ def audit_registry_denominator_policies() -> dict[str, str]:
     }
 
 
-def audit_predictor_eligibility(feature: FeatureDefinition, *, strict_independence: bool = False) -> str | None:
+def audit_predictor_eligibility(
+    feature: FeatureDefinition, *, strict_independence: bool = False
+) -> str | None:
     """Return the registry verdict for candidate predictor eligibility.
 
     Refuses predictor eligibility when:
@@ -1450,7 +1457,12 @@ register_trajectory_feature(
     denominator_sibling="expected_handle_count",
     null_on_zero_denominator=True,
     denominator_policy="required",
-    declared_inputs=("valid_handle_count", "unknown_handle_count", "duplicate_handle_count", "expected_handle_count"),
+    declared_inputs=(
+        "valid_handle_count",
+        "unknown_handle_count",
+        "duplicate_handle_count",
+        "expected_handle_count",
+    ),
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of total issued handles to expected contract handles correlates with retrieval efficiency and thrashing",

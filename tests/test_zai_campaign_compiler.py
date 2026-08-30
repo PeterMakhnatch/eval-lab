@@ -511,6 +511,74 @@ def test_matched_contrast_report_pairing_fidelity(tmp_path: Path) -> None:
     assert s42_row.order_fidelity is False
 
 
+def test_matched_contrast_report_preserves_observed_fidelity_when_siblings_unobserved(tmp_path: Path) -> None:
+    task_root = _make_dummy_task_root(tmp_path)
+    definition = build_default_definition()
+    manifest = compile_campaign(definition, task_root=task_root)
+
+    # Trial 1 has perfect order fidelity; sibling trials (r2, semantic arms) have no evidence
+    evidence_by_trial = {
+        "a-dl-neutral-padding-4096-s42-r1": {
+            "expected_handles": ["h1", "h2", "h3"],
+            "issued_handles": ["h1", "h2", "h3"],
+        }
+    }
+
+    rows = matched_contrast_report(
+        manifest,
+        attempts=(),
+        evidence_by_trial=evidence_by_trial,
+    )
+
+    s42_row = next(r for r in rows if r.dose_bytes == 4096 and r.seed == 42)
+    assert s42_row.order_fidelity is True
+    assert s42_row.unknown == 0
+    assert s42_row.omitted == 0
+    assert s42_row.duplicate == 0
+
+
+def test_matched_contrast_report_mixed_order_fidelity_resolves_false(tmp_path: Path) -> None:
+    task_root = _make_dummy_task_root(tmp_path)
+    definition = build_default_definition()
+    manifest = compile_campaign(definition, task_root=task_root)
+
+    # Trial 1 preserved order, but Trial 2 reordered handles
+    evidence_by_trial = {
+        "a-dl-neutral-padding-4096-s42-r1": {
+            "expected_handles": ["h1", "h2", "h3"],
+            "issued_handles": ["h1", "h2", "h3"],
+        },
+        "a-dl-semantic-distractor-4096-s42-r1": {
+            "expected_handles": ["h1", "h2", "h3"],
+            "issued_handles": ["h2", "h1", "h3"],  # reordered
+        },
+    }
+
+    rows = matched_contrast_report(
+        manifest,
+        attempts=(),
+        evidence_by_trial=evidence_by_trial,
+    )
+
+    s42_row = next(r for r in rows if r.dose_bytes == 4096 and r.seed == 42)
+    assert s42_row.order_fidelity is False
+
+
+def test_matched_contrast_report_all_unobserved_resolves_none(tmp_path: Path) -> None:
+    task_root = _make_dummy_task_root(tmp_path)
+    definition = build_default_definition()
+    manifest = compile_campaign(definition, task_root=task_root)
+
+    # No retrieval evidence provided for any trial
+    rows = matched_contrast_report(manifest, attempts=(), evidence_by_trial={})
+
+    for row in rows:
+        assert row.order_fidelity is None
+        assert row.unknown == 0
+        assert row.omitted == 0
+        assert row.duplicate == 0
+
+
 def test_retrieval_fidelity_calculation() -> None:
     # Perfect retrieval
     perfect = classify_verifier_retrieval({

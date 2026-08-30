@@ -1041,73 +1041,74 @@ def matched_contrast_report(
     Pairs the neutral/semantic arms within a block. ``attempts`` (when supplied)
     contribute scored/non-scored counts; per-trial ``evidence_by_trial``
     contributes unknown/omitted/duplicate/order fidelity separately.
+
+    Order fidelity is aggregated strictly across observed trials in the block:
+    - ``None`` when no trial in the block has observed retrieval evidence.
+    - ``True`` when all observed trials in the block preserved order fidelity.
+    - ``False`` when any observed trial in the block exhibited an ordering fault.
     """
     evidence_by_trial = evidence_by_trial or {}
-    by_key: dict[tuple[str, int, int], MatchedContrastRow] = {}
     attempt_by_trial = {attempt.trial_id: attempt for attempt in attempts}
+
+    # Group trials by pairing key
+    trials_by_key: dict[tuple[str, int, int], list[ZaiTrial]] = {}
     for trial in manifest.trials:
         key = pairing_key_of(trial)
-        row = by_key.setdefault(
-            key,
+        trials_by_key.setdefault(key, []).append(trial)
+
+    rows: list[MatchedContrastRow] = []
+    for key in sorted(trials_by_key):
+        block_trials = trials_by_key[key]
+        first = block_trials[0]
+        arms_present = tuple(sorted({t.arm for t in block_trials}))
+
+        scored_count = 0
+        non_scored_count = 0
+        unknown_total = 0
+        omitted_total = 0
+        duplicate_total = 0
+        observed_order_fidelities: list[bool] = []
+
+        for trial in block_trials:
+            record = attempt_by_trial.get(trial.trial_id)
+            if record is not None:
+                if is_scored(record.kind):
+                    scored_count += 1
+                else:
+                    non_scored_count += 1
+
+            trial_evidence = evidence_by_trial.get(trial.trial_id)
+            if trial_evidence is not None:
+                fidelity = classify_verifier_retrieval(trial_evidence)
+                unknown_total += fidelity.unknown
+                omitted_total += fidelity.omitted
+                duplicate_total += fidelity.duplicate
+                if fidelity.order_fidelity is not None:
+                    observed_order_fidelities.append(fidelity.order_fidelity)
+
+        if not observed_order_fidelities:
+            block_order_fidelity = None
+        else:
+            block_order_fidelity = all(observed_order_fidelities)
+
+        rows.append(
             MatchedContrastRow(
                 pairing_key=key,
-                task_block_id=trial.task_block_id,
-                dose_bytes=trial.dose_bytes,
-                seed=trial.seed,
-            ),
+                task_block_id=first.task_block_id,
+                dose_bytes=first.dose_bytes,
+                seed=first.seed,
+                planned_trials=len(block_trials),
+                scored=scored_count,
+                non_scored=non_scored_count,
+                unknown=unknown_total,
+                omitted=omitted_total,
+                duplicate=duplicate_total,
+                order_fidelity=block_order_fidelity,
+                arms_present=arms_present,
+            )
         )
-        row = MatchedContrastRow(
-            pairing_key=row.pairing_key,
-            task_block_id=row.task_block_id,
-            dose_bytes=row.dose_bytes,
-            seed=row.seed,
-            planned_trials=row.planned_trials + 1,
-            arms_present=tuple(sorted({*row.arms_present, trial.arm})),
-            scored=row.scored,
-            non_scored=row.non_scored,
-            unknown=row.unknown,
-            omitted=row.omitted,
-            duplicate=row.duplicate,
-            order_fidelity=row.order_fidelity,
-        )
-        record = attempt_by_trial.get(trial.trial_id)
-        if record is not None:
-            if is_scored(record.kind):
-                row = _row_with(row, scored=row.scored + 1)
-            else:
-                row = _row_with(row, non_scored=row.non_scored + 1)
-        fidelity = classify_verifier_retrieval(evidence_by_trial.get(trial.trial_id))
-        order_fidelity = (
-            fidelity.order_fidelity
-            if fidelity.order_fidelity is not None
-            else row.order_fidelity
-        )
-        row = _row_with(
-            row,
-            unknown=row.unknown + fidelity.unknown,
-            omitted=row.omitted + fidelity.omitted,
-            duplicate=row.duplicate + fidelity.duplicate,
-            order_fidelity=order_fidelity,
-        )
-        by_key[key] = row
-    return [by_key[key] for key in sorted(by_key)]
 
-
-def _row_with(row: MatchedContrastRow, **changes: Any) -> MatchedContrastRow:
-    return MatchedContrastRow(
-        pairing_key=row.pairing_key,
-        task_block_id=row.task_block_id,
-        dose_bytes=row.dose_bytes,
-        seed=row.seed,
-        planned_trials=row.planned_trials,
-        scored=changes.get("scored", row.scored),
-        non_scored=changes.get("non_scored", row.non_scored),
-        unknown=changes.get("unknown", row.unknown),
-        omitted=changes.get("omitted", row.omitted),
-        duplicate=changes.get("duplicate", row.duplicate),
-        order_fidelity=changes.get("order_fidelity", row.order_fidelity),
-        arms_present=row.arms_present,
-    )
+    return rows
 
 
 # --------------------------------------------------------------------------- #

@@ -61,7 +61,7 @@ import json
 import os
 import tempfile
 import threading
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -250,7 +250,7 @@ def cell_id_for(arm: str, dose_bytes: int, seed: int) -> str:
     return f"dl-{arm.replace('_', '-')}-{dose_bytes}-s{seed}"
 
 
-def pairing_key_of(trial: "ZaiTrial | Mapping[str, Any]") -> tuple[str, int, int]:
+def pairing_key_of(trial: ZaiTrial | Mapping[str, Any]) -> tuple[str, int, int]:
     """The matched-contrast pairing key ``(task_block_id, dose_bytes, seed)``."""
     if isinstance(trial, ZaiTrial):
         return trial.task_block_id, trial.dose_bytes, trial.seed
@@ -335,7 +335,7 @@ class ZaiCampaignDefinition(_FrozenContract):
     limits: ZaiCampaignLimits
 
     @model_validator(mode="after")
-    def _validate_digest_and_lane(self) -> "ZaiCampaignDefinition":
+    def _validate_digest_and_lane(self) -> ZaiCampaignDefinition:
         if campaign_design_digest(self) != self.design_digest:
             raise ValueError("zai campaign design digest mismatch")
         if self.lane_model not in ALLOWED_MODELS:
@@ -388,7 +388,7 @@ class ZaiManifest(_FrozenContract):
         return len(self.phase_a) + len(self.phase_b)
 
     @model_validator(mode="after")
-    def _immutable_and_consistent(self) -> "ZaiManifest":
+    def _immutable_and_consistent(self) -> ZaiManifest:
         if self.campaign_id != CAMPAIGN_ID:
             raise ValueError("zai campaign manifest identity mismatch")
         if self.total_trials != TOTAL_TRIALS:
@@ -449,7 +449,7 @@ class TrialRunner(Protocol):
         *,
         staged_auth_path: Path,
         attempt_id: str,
-    ) -> "TrialOutcome": ...
+    ) -> TrialOutcome: ...
 
 
 @dataclass(frozen=True)

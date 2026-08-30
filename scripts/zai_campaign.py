@@ -44,6 +44,7 @@ from evallab.zai_campaign import (  # noqa: E402
     TOTAL_TRIALS,
     ZaiCampaignAuthError,
     ZaiCampaignBudgetError,
+    ZaiCampaignDefinition,
     ZaiCampaignError,
     ZaiCampaignModelError,
     ZaiCampaignPreconditionError,
@@ -55,11 +56,10 @@ from evallab.zai_campaign import (  # noqa: E402
     load_definition,
     matched_contrast_report,
     read_opencode_auth,
-    validate_model,
 )
 
 
-def _resolve_definition(args: argparse.Namespace) -> Any:
+def _resolve_definition(args: argparse.Namespace) -> ZaiCampaignDefinition:
     if getattr(args, "definition", None) is not None:
         return load_definition(Path(args.definition))
     lane_model = getattr(args, "lane_model", "zai-coding-plan/glm-5.3-flash")

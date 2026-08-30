@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -25,22 +24,16 @@ from evallab.zai_campaign import (
     CAMPAIGN_ID,
     HIGHSPEED_SELECTOR,
     PHASE_A_CEILING_INPUT_TOKENS,
-    PHASE_A_PROJECTED_INPUT_TOKENS,
     PHASE_A_TRIALS,
     PHASE_B_TRIALS,
-    PROVIDER_TOKEN_BUDGET,
     TOTAL_TRIALS,
     ConcurrencyGate,
     RecorderTrialRunner,
-    RetrievalFidelity,
     TrialOutcome,
-    ZaiAttemptRecord,
-    ZaiAuthShape,
     ZaiCampaignAuthError,
     ZaiCampaignBudgetError,
     ZaiCampaignError,
     ZaiCampaignModelError,
-    ZaiCampaignPreconditionError,
     ZaiCampaignRunner,
     ZaiCampaignState,
     ZaiCampaignStatus,
@@ -51,21 +44,17 @@ from evallab.zai_campaign import (
     build_default_definition,
     campaign_design_digest,
     check_budget_admission,
-    check_lane_preconditions,
     classify_attempt,
     classify_verifier_retrieval,
     compile_campaign,
     default_campaign_limits,
     describe_auth_shape,
-    filter_zai_auth,
     is_scored,
     matched_contrast_report,
-    pairing_key_of,
     read_opencode_auth,
     stage_provider_auth,
     validate_model,
 )
-
 
 # --------------------------------------------------------------------------- #
 # Helpers & Fixtures

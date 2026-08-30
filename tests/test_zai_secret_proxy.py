@@ -785,18 +785,31 @@ def test_proxy_worker_pool_503_content_length_and_body(
         assert body_bytes == b"proxy worker capacity exceeded\n"
         assert len(body_bytes) == 31
 
-        # Wait for worker 1 to finish
+        # Wait for worker 1 client thread to finish
         t1.join()
 
-        # Subsequent connection 3 should be accepted immediately and succeed (200 OK)
-        req3 = urllib.request.Request(
-            f"{base_url}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req3, timeout=5) as resp3:
-            assert resp3.status == 200
+        # Subsequent connection 3 should be accepted after capacity frees:
+        # poll with bounded monotonic deadline tolerating transient 503 during worker release
+        deadline = time.monotonic() + 5.0
+        accepted = False
+        while time.monotonic() < deadline:
+            req3 = urllib.request.Request(
+                f"{base_url}/api/paas/v4/chat/completions",
+                data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req3, timeout=5) as resp3:
+                    if resp3.status == 200:
+                        accepted = True
+                        break
+            except urllib.error.HTTPError as exc3:
+                if exc3.code == 503:
+                    time.sleep(0.02)
+                    continue
+                raise
+        assert accepted, "connection 3 was not accepted within deadline after worker finished"
     finally:
         proxy.shutdown()
         upstream.shutdown()

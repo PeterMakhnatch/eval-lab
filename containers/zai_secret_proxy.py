@@ -7,7 +7,7 @@ headers, rejects Highspeed/access errors without fallback, injects provider
 auth only in the proxy process, and exposes no secret in config/log/error surfaces.
 
 Hardening features:
-- Worker bounding before thread creation: rejects excess connections with 503 before spawning threads.
+- Worker bounding before thread creation: rejects excess connections with nonblocking 503 without stalling accept loop.
 - Inbound request deadline: wall-clock timer covers headers+body acquisition and cancels before upstream wait.
 - Separate upstream timeout (120s) allowing long model generation without client socket cancellation.
 - Pre-body capability authentication: rejects unauthenticated requests before reading body.
@@ -300,11 +300,8 @@ class ProxyServer(ThreadingHTTPServer):
                 + body
             )
             with contextlib.suppress(OSError):
+                request.settimeout(1.0)
                 request.sendall(response)
-                request.shutdown(socket.SHUT_WR)
-            with contextlib.suppress(OSError):
-                while request.recv(4096):
-                    pass
             self.close_request(request)
             return
 

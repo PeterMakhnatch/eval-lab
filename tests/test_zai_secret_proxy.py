@@ -6,6 +6,7 @@ Covers:
    - Pre-body capability authentication (unauthenticated requests rejected before body read).
    - Worker bounding before thread creation: rejects excess connections with exact 503 response.
    - Inbound request deadline: cancels timer before upstream wait, allowing legitimate >15s model responses.
+   - Nonblocking accept loop: overloaded client keeping socket open does not block subsequent connections.
    - Model allowlist enforcement: allows ``zai-coding-plan/glm-5.3`` and
      ``zai-coding-plan/glm-5.3-flash``; rejects disallowed providers/models (403).
    - Highspeed handling: forwards ``zai-coding-plan/glm-5.3-highspeed`` verbatim
@@ -713,7 +714,7 @@ def test_proxy_upstream_read_error_sanitized_to_502(
 def test_proxy_worker_pool_503_content_length_and_body(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Worker capacity limits connections before spawning threads, returning exact 503 with exact Content-Length."""
+    """Worker capacity limits connections before spawning threads, returning exact 503 without stalling accept loop."""
     class SlowUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -722,11 +723,12 @@ def test_proxy_worker_pool_503_content_length_and_body(
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
             time.sleep(1.0)
+            resp = b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", "2")
+            self.send_header("Content-Length", str(len(resp)))
             self.end_headers()
-            self.wfile.write(b"ok")
+            self.wfile.write(resp)
 
     capability = "valid-cap"
     proxy, upstream, base_url = _setup_proxy(
@@ -751,9 +753,9 @@ def test_proxy_worker_pool_503_content_length_and_body(
         t1.start()
         time.sleep(0.1)
 
-        # 2nd request should immediately get raw 503 capacity exceeded
+        # 2nd request connects without half-closing write side: verify 503 received without blocking server
         host, port = proxy.server_address[:2]
-        s = socket.create_connection((host, port), timeout=5)
+        s2 = socket.create_connection((host, port), timeout=5)
         raw_req = (
             b"POST /api/paas/v4/chat/completions HTTP/1.1\r\n"
             b"Host: 127.0.0.1\r\n"
@@ -763,19 +765,19 @@ def test_proxy_worker_pool_503_content_length_and_body(
             b"\r\n"
             b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}'
         )
-        s.sendall(raw_req)
-        s.shutdown(socket.SHUT_WR)
+        s2.sendall(raw_req)
+        # Note: Do NOT call s2.shutdown(socket.SHUT_WR); test that server returns 503 and closes
         raw_resp = b""
-        s.settimeout(5)
+        s2.settimeout(5)
         while True:
             try:
-                chunk = s.recv(4096)
+                chunk = s2.recv(4096)
                 if not chunk:
                     break
                 raw_resp += chunk
             except OSError:
                 break
-        s.close()
+        s2.close()
 
         header_bytes, _, body_bytes = raw_resp.partition(b"\r\n\r\n")
         assert b"503 Service Unavailable" in header_bytes
@@ -783,7 +785,18 @@ def test_proxy_worker_pool_503_content_length_and_body(
         assert body_bytes == b"proxy worker capacity exceeded\n"
         assert len(body_bytes) == 31
 
+        # Wait for worker 1 to finish
         t1.join()
+
+        # Subsequent connection 3 should be accepted immediately and succeed (200 OK)
+        req3 = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req3, timeout=5) as resp3:
+            assert resp3.status == 200
     finally:
         proxy.shutdown()
         upstream.shutdown()

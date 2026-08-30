@@ -4,7 +4,8 @@ Tests that ``scripts/promote_codex_bundle.py`` resists nested/encoded credential
 material, path confusion, traversal, mixed-case bypasses, Unicode confusables,
 nested sessions, raw logs, non-regular device nodes, hardlinks, archive payloads,
 secret-shaped JSON keys, ATIF content-part lists, uppercase verifier JSON suffixes,
-oversized streaming rollouts, manifest traversal in verify(), and CLI path injection / root-deletion attempts via --job.
+oversized streaming rollouts with bounded dropped names, manifest traversal in verify(),
+and CLI path injection / root-deletion attempts via --job.
 
 Deterministic by construction: no host state, no network, no Docker.
 """
@@ -269,6 +270,8 @@ def test_secret_shaped_json_keys_redacted(tmp_path: Path) -> None:
             "auth_details": {
                 "api_key": SECRET_TOKEN,
                 "access_token": SECRET_BEARER,
+                "access_tokens": [SECRET_TOKEN],
+                "refresh_tokens": [SECRET_TOKEN],
                 "client_secret": SECRET_PASSWORD,
                 "webhook_secret": "whsec_1234567890abcdef",
             },
@@ -648,6 +651,8 @@ def test_expanded_secret_keys_redaction(tmp_path: Path) -> None:
         "credentials": {
             "secretKey": SECRET_TOKEN,
             "refreshToken": SECRET_TOKEN,
+            "refresh_tokens": [SECRET_TOKEN],
+            "access_tokens": [SECRET_TOKEN],
             "githubToken": SECRET_TOKEN,
             "passphrase": SECRET_PASSWORD,
             "jwtToken": "eyJhbGciOi...",
@@ -699,8 +704,8 @@ def test_nested_secret_context_propagation(tmp_path: Path) -> None:
         assert b"server1.auth" not in body, f"nested list item leaked in {name}"
 
 
-def test_benign_metrics_preservation(tmp_path: Path) -> None:
-    """Benign metric keys like token_count, input_tokens, total_tokens are not redacted."""
+def test_benign_metrics_and_indicators_preservation(tmp_path: Path) -> None:
+    """Benign metric keys and indicator keys are preserved verbatim and not falsely redacted."""
     job = make_base_job(tmp_path, "metrics_job")
     trial = job / "evallab-zai-syn-hardening__synthetic"
 
@@ -715,6 +720,14 @@ def test_benign_metrics_preservation(tmp_path: Path) -> None:
             "cached_tokens": 500,
             "reasoning_tokens": 345,
             "tokens_per_second": 42.5,
+            "api_key_present": True,
+            "credentials_count": 2,
+            "auth_status": "verified",
+            "has_api_key": True,
+            "is_authenticated": True,
+            "auth_type": "bearer",
+            "auth_method": "oauth2",
+            "auth_state": "active",
         }
     }
     (trial / "verifier" / "metrics.json").write_text(
@@ -732,6 +745,12 @@ def test_benign_metrics_preservation(tmp_path: Path) -> None:
     assert doc["summary"]["input_tokens"] == 8000
     assert doc["summary"]["total_tokens"] == 12345
     assert doc["summary"]["tokens_per_second"] == 42.5
+    assert doc["summary"]["api_key_present"] is True
+    assert doc["summary"]["credentials_count"] == 2
+    assert doc["summary"]["auth_status"] == "verified"
+    assert doc["summary"]["has_api_key"] is True
+    assert doc["summary"]["is_authenticated"] is True
+    assert doc["summary"]["auth_type"] == "bearer"
 
 
 def test_mixed_case_agent_sessions_quota_sidecar(tmp_path: Path) -> None:
@@ -780,15 +799,20 @@ def test_oversized_session_rollout_extracts_quota_sidecar_via_streaming(
     # Set threshold low for testing streaming path
     monkeypatch.setattr(PROMOTE, "MAX_SOURCE_BYTES", 256)
 
-    # Rollout with quota snapshot
+    # Rollout with quota snapshot and many dropped fields to test bounded dropped names
+    rate_limits = {
+        "limit_id": "test_limit",
+        "primary": {"used_percent": 42.0, "window_minutes": 60, "resets_at": 1000},
+    }
+    # Add 250 unrecognized fields
+    for i in range(250):
+        rate_limits[f"extra_unrecognised_dropped_field_number_{i}"] = f"value_{i}"
+
     rollout_line = json.dumps({
         "timestamp": "2026-08-30T00:00:00Z",
         "payload": {
             "type": "token_count",
-            "rate_limits": {
-                "limit_id": "test_limit",
-                "primary": {"used_percent": 42.0, "window_minutes": 60, "resets_at": 1000},
-            },
+            "rate_limits": rate_limits,
         },
     })
     # Padding line to exceed MAX_SOURCE_BYTES (256 bytes)
@@ -806,7 +830,7 @@ def test_oversized_session_rollout_extracts_quota_sidecar_via_streaming(
     promoted_names = [name for name, _ in promoted_bytes(bundle)]
     assert not any("rollout-20260830-test.jsonl" in name for name in promoted_names)
 
-    # Quota sidecar is created and valid
+    # Quota sidecar is created, bounded, and valid
     sidecars = [e for e in manifest["files"] if e.get("rule") == "R4"]
     assert len(sidecars) == 1
     assert sidecars[0]["promoted_path"].endswith(".rate-limits.json")
@@ -815,3 +839,7 @@ def test_oversized_session_rollout_extracts_quota_sidecar_via_streaming(
     sidecar_data = json.loads(sidecar_file.read_text(encoding="utf-8"))
     assert sidecar_data["snapshot_count"] == 1
     assert sidecar_data["snapshots"][0]["rate_limits"]["limit_id"] == "test_limit"
+    # Verify dropped field names are capped and overflow recorded
+    assert len(sidecar_data["dropped_field_names"]) <= PROMOTE.MAX_DROPPED_NAMES
+    assert sidecar_data.get("dropped_field_overflow_count", 0) > 0
+    assert len(sidecar_file.read_bytes()) <= PROMOTE.MAX_SIDECAR_BYTES

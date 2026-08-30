@@ -153,6 +153,7 @@ SIDECAR_SUFFIX = ".rate-limits.json"
 ROLLOUT_PREFIX = "rollout-"
 MAX_ROLLOUT_LINE_BYTES = 65536
 MAX_QUOTA_SNAPSHOTS = 1000
+MAX_DROPPED_NAMES = 100
 MAX_SIDECAR_BYTES = 1024 * 1024
 
 #: Streaming read chunk size and hard file size limit.
@@ -194,8 +195,8 @@ ARCHIVE_SUFFIXES = frozenset({
     ".rpm",
 })
 
-#: Benign metrics containing 'token' that must never be treated as secret keys.
-_BENIGN_METRIC_WORDS = frozenset({
+#: Exact benign metric keys containing 'token' that must never be treated as secret keys.
+BENIGN_EXACT_METRIC_KEYS = frozenset({
     "token_count",
     "token_counts",
     "input_tokens",
@@ -211,20 +212,46 @@ _BENIGN_METRIC_WORDS = frozenset({
     "max_output_tokens",
     "num_tokens",
     "n_tokens",
-    "token_usage",
-    "usage_tokens",
 })
+
+#: Suffixes and prefixes for indicator/status/metric keys that are not secret containers.
+_BENIGN_INDICATOR_SUFFIXES = (
+    "_present",
+    "_exists",
+    "_count",
+    "_counts",
+    "_status",
+    "_state",
+    "_mode",
+    "_type",
+    "_method",
+    "_verified",
+    "_configured",
+    "_enabled",
+    "_required",
+    "_valid",
+)
+
+_BENIGN_INDICATOR_PREFIXES = (
+    "has_",
+    "is_",
+    "use_",
+    "require_",
+)
 
 #: Words and pattern matching secret-shaped auth/credential keys.
 _SECRET_AUTH_KEYS = frozenset({
     "token",
+    "tokens",
     "api_key",
     "apikey",
     "access_key",
     "access_token",
+    "access_tokens",
     "auth",
     "auth_secret",
     "auth_token",
+    "auth_tokens",
     "authorization",
     "bearer",
     "bearer_token",
@@ -242,6 +269,7 @@ _SECRET_AUTH_KEYS = frozenset({
     "private_key",
     "pwd",
     "refresh_token",
+    "refresh_tokens",
     "secret",
     "secrets",
     "secret_key",
@@ -253,10 +281,10 @@ _SECRET_AUTH_KEYS = frozenset({
 })
 
 _SECRET_PATTERN = re.compile(
-    r"(?:^|_)(?:api_?key|access_?(?:key|token)|auth(?:orization|_secret|_token)?|bearer(?:_token)?|"
+    r"(?:^|_)(?:api_?key|access_?(?:key|tokens?)|auth(?:orization|_secret|_tokens?)?|bearer(?:_token)?|"
     r"client_?secret|credential(?:s|_key)?|github_?token|gitlab_?token|id_?token|jwt(?:_token)?|"
-    r"passphrase|password|passwd|private_?key|pwd|refresh_?token|secret(?:s|_key)?|"
-    r"session_?(?:key|token)|signing_?key|ssh_?key|webhook_?secret)(?:$|_)"
+    r"passphrase|password|passwd|private_?key|pwd|refresh_?tokens?|secret(?:s|_key)?|"
+    r"session_?(?:key|token)|signing_?key|ssh_?key|tokens?|webhook_?secret)(?:$|_)"
 )
 
 
@@ -270,13 +298,11 @@ def _normalize_key_name(key: str) -> str:
 
 
 def _is_secret_key(key: str) -> bool:
-    """Detect if a JSON key name is secret-shaped across casing styles while preserving benign metrics."""
+    """Detect if a JSON key name is secret-shaped across casing styles while preserving metrics/indicators."""
     normalized = _normalize_key_name(key)
-    if (
-        normalized in _BENIGN_METRIC_WORDS
-        or normalized.endswith(("_tokens", "_token_count", "_tokens_per_second", "_token_usage"))
-        or normalized.startswith(("token_count", "tokens_per_"))
-    ):
+    if normalized in BENIGN_EXACT_METRIC_KEYS:
+        return False
+    if normalized.endswith(_BENIGN_INDICATOR_SUFFIXES) or normalized.startswith(_BENIGN_INDICATOR_PREFIXES):
         return False
     if normalized in _SECRET_AUTH_KEYS:
         return True
@@ -443,7 +469,11 @@ def _redact_json_strings(
 ) -> tuple[Any, int]:
     """R3a & Secret redaction: replace oversize strings and secret-shaped keys with digest markers."""
     is_secret = under_secret or (parent_key is not None and _is_secret_key(parent_key))
-    if is_secret and isinstance(node, (str, int, float, bool)) and str(node):
+    if (
+        is_secret
+        and isinstance(node, (str, int, float, bool))
+        and str(node)
+    ):
         return _marker(str(node)), 1
     if isinstance(node, str):
         if len(node.encode("utf-8")) > VERIFIER_JSON_STRING_LIMIT:
@@ -509,11 +539,13 @@ def _whitelisted_group(
     for key, value in payload.items():
         kinds = fields.get(key)
         if kinds is None:
-            dropped.append(f"{prefix}.{key}")
+            if len(dropped) < MAX_DROPPED_NAMES * 2:
+                dropped.append(f"{prefix}.{key}"[:RATE_LIMIT_STRING_LIMIT])
             continue
         kept = _whitelisted_scalar(value, kinds)
         if kept is None and value is not None:
-            dropped.append(f"{prefix}.{key}")
+            if len(dropped) < MAX_DROPPED_NAMES * 2:
+                dropped.append(f"{prefix}.{key}"[:RATE_LIMIT_STRING_LIMIT])
             continue
         group[key] = kept
     return group
@@ -534,7 +566,7 @@ def redact_rate_limits(limits: Any) -> tuple[dict[str, Any], list[str]]:
         if key in RATE_LIMIT_SCALARS:
             kept = _whitelisted_scalar(value, RATE_LIMIT_SCALARS[key])
             if kept is None and value is not None:
-                dropped.append(key)
+                dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
                 continue
             safe[key] = kept
         elif key in RATE_LIMIT_WINDOW_KEYS:
@@ -542,7 +574,7 @@ def redact_rate_limits(limits: Any) -> tuple[dict[str, Any], list[str]]:
         elif key == "credits":
             safe[key] = _whitelisted_group(value, RATE_LIMIT_CREDITS, key, dropped)
         else:
-            dropped.append(key)
+            dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
     return safe, dropped
 
 
@@ -574,6 +606,8 @@ def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
     for line in raw.decode("utf-8", errors="replace").splitlines():
         if len(snapshots) >= MAX_QUOTA_SNAPSHOTS:
             break
+        if len(line) > MAX_ROLLOUT_LINE_BYTES:
+            line = line[:MAX_ROLLOUT_LINE_BYTES]
         if "rate_limits" not in line:
             continue
         try:
@@ -595,13 +629,75 @@ def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
     return snapshots, sorted(dropped)
 
 
+def _build_sidecar_document(
+    relative: Path,
+    total_bytes: int,
+    digest: str,
+    snapshots: list[dict[str, Any]],
+    dropped: set[str] | list[str],
+) -> bytes:
+    """Build and strictly bound (<= MAX_SIDECAR_BYTES) a quota sidecar document."""
+    bounded_dropped = [
+        str(name)[:RATE_LIMIT_STRING_LIMIT] for name in sorted(dropped)
+    ]
+    dropped_overflow = 0
+    if len(bounded_dropped) > MAX_DROPPED_NAMES:
+        dropped_overflow = len(bounded_dropped) - MAX_DROPPED_NAMES
+        bounded_dropped = bounded_dropped[:MAX_DROPPED_NAMES]
+
+    doc: dict[str, Any] = {
+        "schema_version": SIDECAR_SCHEMA_VERSION,
+        "rule": "R4",
+        "kind": "evallab-rate-limits-sidecar",
+        "source_path": str(relative),
+        "source_bytes": total_bytes,
+        "source_sha256": digest,
+        "source_omitted_by_rule": "R2",
+        "kept": (
+            "the event timestamp and a whitelist of payload.rate_limits scalars; "
+            "no message, prompt, reasoning, session title or token is read"
+        ),
+        "dropped_field_names": bounded_dropped,
+        "snapshot_count": len(snapshots),
+        "limits": (
+            "account-scope, not the lab's share; a point-in-time snapshot, not a "
+            "series; only as fresh as the trial that recorded it. See "
+            "docs/quota-accounting.md."
+        ),
+        "snapshots": snapshots,
+    }
+    if dropped_overflow > 0:
+        doc["dropped_field_overflow_count"] = dropped_overflow
+
+    body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+
+    # Enforce strict byte cap <= MAX_SIDECAR_BYTES in every path
+    if len(body) > MAX_SIDECAR_BYTES:
+        cur_snapshots = list(snapshots)
+        while len(body) > MAX_SIDECAR_BYTES and len(cur_snapshots) > 1:
+            cur_snapshots = cur_snapshots[: len(cur_snapshots) // 2]
+            doc["snapshots"] = cur_snapshots
+            doc["snapshot_count"] = len(cur_snapshots)
+            body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+
+        if len(body) > MAX_SIDECAR_BYTES and doc.get("dropped_field_names"):
+            doc["dropped_field_names"] = doc["dropped_field_names"][:10]
+            doc["dropped_field_overflow_count"] = len(dropped) - len(doc["dropped_field_names"])
+            body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+
+    assert len(body) <= MAX_SIDECAR_BYTES, (
+        f"sidecar document exceeds MAX_SIDECAR_BYTES ({len(body)} > {MAX_SIDECAR_BYTES})"
+    )
+    return body
+
+
 def stream_rollout_digest_and_quota(
     relative: Path, path: Path
 ) -> tuple[str, int, bytes | None]:
     """Single-pass streaming: compute SHA-256 digest, byte count, and quota sidecar document.
 
-    Reads line-by-line with bounded line lengths and snapshot limits so that digest and sidecar
-    are derived from a single coherent file pass without unbounded memory.
+    Reads line-by-line with bounded line lengths, snapshot limits, and dropped-name limits
+    so that digest and sidecar are derived from a single coherent file pass without unbounded memory.
     """
     h = hashlib.sha256()
     total_bytes = 0
@@ -638,34 +734,7 @@ def stream_rollout_digest_and_quota(
     if not snapshots:
         return digest, total_bytes, None
 
-    doc = {
-        "schema_version": SIDECAR_SCHEMA_VERSION,
-        "rule": "R4",
-        "kind": "evallab-rate-limits-sidecar",
-        "source_path": str(relative),
-        "source_bytes": total_bytes,
-        "source_sha256": digest,
-        "source_omitted_by_rule": "R2",
-        "kept": (
-            "the event timestamp and a whitelist of payload.rate_limits scalars; "
-            "no message, prompt, reasoning, session title or token is read"
-        ),
-        "dropped_field_names": sorted(dropped),
-        "snapshot_count": len(snapshots),
-        "limits": (
-            "account-scope, not the lab's share; a point-in-time snapshot, not a "
-            "series; only as fresh as the trial that recorded it. See "
-            "docs/quota-accounting.md."
-        ),
-        "snapshots": snapshots,
-    }
-    body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
-    if len(body) > MAX_SIDECAR_BYTES:
-        while len(body) > MAX_SIDECAR_BYTES and len(snapshots) > 1:
-            snapshots = snapshots[: len(snapshots) // 2]
-            doc["snapshots"] = snapshots
-            doc["snapshot_count"] = len(snapshots)
-            body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+    body = _build_sidecar_document(relative, total_bytes, digest, snapshots, dropped)
     return digest, total_bytes, body
 
 
@@ -699,28 +768,9 @@ def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
     snapshots, dropped = rate_limit_snapshots(raw)
     if not snapshots:
         return None
-    document = {
-        "schema_version": SIDECAR_SCHEMA_VERSION,
-        "rule": "R4",
-        "kind": "evallab-rate-limits-sidecar",
-        "source_path": str(relative),
-        "source_bytes": len(raw),
-        "source_sha256": sha256_bytes(raw),
-        "source_omitted_by_rule": "R2",
-        "kept": (
-            "the event timestamp and a whitelist of payload.rate_limits scalars; "
-            "no message, prompt, reasoning, session title or token is read"
-        ),
-        "dropped_field_names": dropped,
-        "snapshot_count": len(snapshots),
-        "limits": (
-            "account-scope, not the lab's share; a point-in-time snapshot, not a "
-            "series; only as fresh as the trial that recorded it. See "
-            "docs/quota-accounting.md."
-        ),
-        "snapshots": snapshots,
-    }
-    return json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+    return _build_sidecar_document(
+        relative, len(raw), sha256_bytes(raw), snapshots, dropped
+    )
 
 
 def omit_r2(relative: Path) -> bool:

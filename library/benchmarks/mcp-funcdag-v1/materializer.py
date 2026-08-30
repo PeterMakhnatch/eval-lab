@@ -94,7 +94,7 @@ def _write_compose(environment: Path, sidecar_rel: str = "./mcp-server") -> dict
     compose = render_mcp_compose_document(
         sidecar_service=DEFAULT_SIDECAR_SERVICE,
         volume_name=DEFAULT_VOLUME_NAME,
-        volume_mount=DEFAULT_VOLUME_NAME,
+        volume_mount=DEFAULT_VOLUME_MOUNT,
         sidecar_build_context=sidecar_rel,
         network_name=DEFAULT_INTERNAL_NETWORK_NAME,
     )

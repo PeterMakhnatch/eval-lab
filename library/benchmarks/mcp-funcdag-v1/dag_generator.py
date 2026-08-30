@@ -155,15 +155,13 @@ def _make_dead_end_branch(
     initial_inputs: dict[str, Any],
     used_names: set[str],
 ) -> tuple[ToolSpec, list[DAGNode]]:
-    """Create one deterministic dead-end branch: a real-shaped compute tool plus a
-    short chain of nodes that never feeds the target node. The tool computes an
-    integer so the branch is a plausible trap, but it is excluded from the real
+    """Create one deterministic dead-end branch: a real-shaped distractor tool plus a
+    short chain of nodes that never feeds the target node. Excluded from the real
     topological order / node_expected_calls, preserving the unique correct DAG."""
     input_ids = list(initial_inputs.keys())
     base = f"dead_end_metric_{branch_idx + 1}"
     tool_name = _unique_tool_name(base, used_names)
     used_names.add(tool_name)
-    op_name = rng.choice(["combine_metrics", "scale_factor", "transform_signal", "merge_checksums"])
     params = [
         ToolParameter("a", "integer", "First side-branch metric input"),
         ToolParameter("b", "integer", "Second side-branch metric input"),
@@ -176,15 +174,15 @@ def _make_dead_end_branch(
         ),
         parameters=params,
         output_type="integer",
-        is_distractor=False,
-        op_kind=op_name,
+        is_distractor=True,
+        op_kind="distractor",
     )
     nodes: list[DAGNode] = []
     prev = input_ids[0]
     for n in range(DEAD_END_NODES_PER_BRANCH):
         node_id = f"deadend_{branch_idx}_{n}"
         bindings = {"a": prev, "b": prev}
-        nodes.append(DAGNode(node_id, tool_name, op_name, bindings, "integer"))
+        nodes.append(DAGNode(node_id, tool_name, "dead_end", bindings, "integer"))
         prev = node_id
     return tool, nodes
 

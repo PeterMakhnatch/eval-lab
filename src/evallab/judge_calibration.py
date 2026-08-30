@@ -22,7 +22,7 @@ import re
 import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, Literal, Protocol
@@ -428,11 +428,13 @@ class LexicalControlGrader:
             "timestamp [",
             "error: [",
         )
-        if not has_postmortem_structure or (
-            sum(marker in text_lower for marker in log_density_markers) >= 3 and len(text.splitlines()) > 50
+        if (
+            not has_postmortem_structure
+            or (sum(marker in text_lower for marker in log_density_markers) >= 3 and len(text.splitlines()) > 50)
+        ) and (
+            "<!-- calibration-variant:" not in text and not has_postmortem_structure
         ):
-            if "<!-- calibration-variant:" not in text and not has_postmortem_structure:
-                return "copied-evidence"
+            return "copied-evidence"
 
         # 3. Fabricated evidence markers
         fabricated_needles = (
@@ -674,7 +676,6 @@ def compute_diagnostics(matrix: ConfusionMatrix7x7) -> StyleCauseDiagnostics:
     """Compute style-only vs cause-correct discrimination diagnostics."""
     m = matrix.matrix
 
-    correct_total = matrix.row_totals["correct"]
     style_total = matrix.row_totals["style-only-fluent"]
     subtly_wrong_total = matrix.row_totals["subtly-wrong-cause"]
     useless_actions_total = matrix.row_totals["right-cause-useless-actions"]

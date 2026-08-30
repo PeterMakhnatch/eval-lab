@@ -1,6 +1,7 @@
 """Package export for mcp-funcdag-v1 benchmark family."""
 from contract import (
     CAMPAIGN_0_CELLS,
+    DIFFICULTY_CELLS,
     FAMILY,
     VERSION,
     BenchmarkContract,
@@ -8,7 +9,14 @@ from contract import (
     OpportunityCounts,
     make_benchmark_contract,
 )
-from dag_generator import DAGNode, DAGSpec, ToolParameter, ToolSpec, generate_dag_spec
+from dag_generator import (
+    DIFFICULTY_LEVELS,
+    DAGNode,
+    DAGSpec,
+    ToolParameter,
+    ToolSpec,
+    generate_dag_spec,
+)
 from materializer import materialize_task
 from runtime import MCPRuntime, start_server
 from verifier import verify_execution
@@ -30,4 +38,6 @@ __all__ = [
     "start_server",
     "verify_execution",
     "CAMPAIGN_0_CELLS",
+    "DIFFICULTY_CELLS",
+    "DIFFICULTY_LEVELS",
 ]

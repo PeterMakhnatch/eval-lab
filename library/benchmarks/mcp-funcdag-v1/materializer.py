@@ -94,7 +94,7 @@ def _write_compose(environment: Path, sidecar_rel: str = "./mcp-server") -> dict
     compose = render_mcp_compose_document(
         sidecar_service=DEFAULT_SIDECAR_SERVICE,
         volume_name=DEFAULT_VOLUME_NAME,
-        volume_mount=DEFAULT_VOLUME_MOUNT,
+        volume_mount=DEFAULT_VOLUME_NAME,
         sidecar_build_context=sidecar_rel,
         network_name=DEFAULT_INTERNAL_NETWORK_NAME,
     )
@@ -128,6 +128,7 @@ def materialize_task(
         name_similarity=cell["name_similarity"],
         schema_token_volume=cell["schema_token_volume"],
         schema_drift=cell["schema_drift"],
+        difficulty=cell.get("difficulty", "none"),
         seed=cell["seed"],
     )
     dag_spec = generate_dag_spec(
@@ -138,9 +139,11 @@ def materialize_task(
         name_similarity=factors.name_similarity,
         schema_token_volume=factors.schema_token_volume,
         schema_drift=factors.schema_drift,
+        difficulty=factors.difficulty,
     )
+    diff_suffix = f"_{factors.difficulty}" if factors.difficulty != "none" else ""
     cell_name = cell.get(
-        "name", f"cell_d{factors.depth}_w{factors.width}_dist{factors.distractor_count}"
+        "name", f"cell_d{factors.depth}_w{factors.width}_dist{factors.distractor_count}{diff_suffix}"
     )
     task_id = f"mcp-funcdag-{cell_name}-seed{factors.seed}"
     full_task_name = f"evallab/{task_id}"
@@ -233,6 +236,13 @@ def materialize_task(
         op_desc = OP_HUMAN_DESCS.get(n.op_name, n.op_name)
         node_lines.append(f"- Step `{n.node_id}`: {op_desc} over inputs ({params_str})")
 
+    # Render dead-end branch lines as auxiliary decoy steps
+    if dag_spec.dead_end_nodes:
+        node_lines.append("\n### Auxiliary Graph Steps (non-target):")
+        for dn in dag_spec.dead_end_nodes:
+            params_str = ", ".join(f"{param}=<{src}>" for param, src in dn.input_bindings.items())
+            node_lines.append(f"- Step `{dn.node_id}`: Side-branch metric over inputs ({params_str})")
+
     inputs_desc = ", ".join(f"`{k}={v}`" for k, v in dag_spec.initial_inputs.items())
     (target_dir / "instruction.md").write_text(
         f"""# MCP Tool Composition: Function DAG Evaluation
@@ -298,6 +308,7 @@ Save the final calculated integer result to `/app/result.json` in format:
         'CMD ["sleep", "infinity"]\n',
         encoding="utf-8",
     )
+
     (tests / "verifier_eval.py").write_text(_VERIFIER_EVAL, encoding="utf-8")
     (tests / "test.sh").write_text(
         "#!/bin/bash\nset -euo pipefail\npython3 /tests/verifier_eval.py\n",
@@ -323,6 +334,8 @@ authors = [
 
 [metadata]
 difficulty = "medium"
+difficulty_level = "{factors.difficulty}"
+source_digest = "{src_digest}"
 category = "tool-use"
 tags = ["mcp", "dag", "calibration"]
 
@@ -382,6 +395,7 @@ url = "http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp"
     (adversarial / "probe-distractor-only.sh").chmod(0o755)
 
     (target_dir / "benchmark_contract.json").write_text(contract.to_json(), encoding="utf-8")
+    (target_dir / "source_digest.txt").write_text(f"{src_digest}\n", encoding="utf-8")
     return target_dir
 
 
@@ -416,6 +430,23 @@ def valid_event(event, allowed_tools):
     return event.get("is_error") is True and isinstance(error, dict) and isinstance(error.get("type"), str) and isinstance(error.get("message"), str) and event.get("result") is None
 
 
+def parse_result_artifact(res_file):
+    if not res_file.exists():
+        return False, "missing", None
+    try:
+        raw = json.loads(res_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"invalid_json:{exc}", None
+    if not isinstance(raw, dict):
+        return False, "not_an_object", None
+    if "target_value" not in raw:
+        return False, "missing_target_value", None
+    val = raw["target_value"]
+    if not isinstance(val, int) or isinstance(val, bool):
+        return False, "non_integer_target_value", None
+    return True, None, val
+
+
 def main():
     truth_file = Path("/tests/fixtures/verifier_truth.json")
     if not truth_file.exists():
@@ -431,12 +462,8 @@ def main():
     res_file = Path("/app/result.json")
     if not res_file.exists():
         res_file = Path("/app/output/result.json")
-    agent_val = None
-    if res_file.exists():
-        try:
-            agent_val = json.loads(res_file.read_text(encoding="utf-8")).get("target_value")
-        except Exception:
-            agent_val = None
+
+    format_ok, format_err, agent_val = parse_result_artifact(res_file)
 
     events_file = Path("/app/output/benchmark-events.jsonl")
     events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()] if events_file.exists() else []
@@ -461,8 +488,15 @@ def main():
             matched += 1
 
     val_prop = matched / len(topological_order)
-    reward = 1.0 if agent_val == exp_val and dag_ok and val_prop == 1.0 and schema_rate == 1.0 and contiguous else 0.0
-    print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}, dag_conf={dag_ok}, val_prop={val_prop}")
+    value_match = format_ok and agent_val == exp_val
+    structure_ok = dag_ok and val_prop == 1.0 and schema_rate == 1.0 and contiguous
+    reward = 1.0 if format_ok and value_match and structure_ok else 0.0
+
+    print(
+        f"Verification complete: reward={reward}, format_ok={format_ok}, format_err={format_err}, "
+        f"agent_val={agent_val}, exp_val={exp_val}, value_match={value_match}, "
+        f"dag_conf={dag_ok}, val_prop={val_prop}, schema_rate={schema_rate}, contiguous={contiguous}"
+    )
     logs_dir = Path("/logs/verifier")
     if not logs_dir.exists():
         logs_dir = Path("tests/rewards")

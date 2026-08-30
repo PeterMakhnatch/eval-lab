@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import duckdb
 import pyarrow.parquet as pq
 import pytest
 
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.interpretation.trajectory_judgment import canonical_json_digest
 from evallab.storage.incremental_ingest import (
     DIGEST_INDEX_FILENAME,
@@ -32,6 +34,8 @@ def _write_minimal_bundle(
     steps_count: int = 2,
     include_raw_log: bool = False,
     include_symlink: bool = False,
+    include_r4_sidecar: bool = False,
+    schema_version: int | str = 2,
 ) -> Path:
     """Helper to create a self-contained, valid promoted Harbor job tree with PROMOTION.json."""
     bundle_dir = runs_root / bundle_name
@@ -105,6 +109,18 @@ def _write_minimal_bundle(
     }
     (agent_dir / "trajectory.json").write_text(json.dumps(trajectory_payload), encoding="utf-8")
 
+    # Optional R4 quota sidecar
+    if include_r4_sidecar:
+        quota_dir = agent_dir / "quota"
+        quota_dir.mkdir(parents=True, exist_ok=True)
+        quota_payload = {
+            "schema_version": 1,
+            "rule": "R4",
+            "source_path": f"{trial_name}/agent/sessions/rollout-01.jsonl",
+            "snapshots": [{"timestamp": "2026-08-30T00:00:00Z", "used_percent": 10}],
+        }
+        (quota_dir / "rollout-01.rate-limits.json").write_text(json.dumps(quota_payload), encoding="utf-8")
+
     # Optional security defect: raw log or symlink
     if include_raw_log:
         (bundle_dir / "job.log").write_text("unredacted raw log", encoding="utf-8")
@@ -136,8 +152,35 @@ def _write_minimal_bundle(
         },
     ]
 
+    if include_r4_sidecar:
+        # Both the omitted rollout and its derived R4 sidecar share source_path
+        manifest_files.append(
+            {
+                "source_path": f"{trial_name}/agent/sessions/rollout-01.jsonl",
+                "promoted_path": None,
+                "action": "omitted",
+                "rule": "R2",
+                "entry_type": "file",
+                "source_bytes": 2048,
+                "source_sha256": "sha256:rawrollout123",
+            }
+        )
+        manifest_files.append(
+            {
+                "source_path": f"{trial_name}/agent/sessions/rollout-01.jsonl",
+                "promoted_path": f"{trial_name}/agent/quota/rollout-01.rate-limits.json",
+                "action": "redacted",
+                "rule": "R4",
+                "derived_from": f"{trial_name}/agent/sessions/rollout-01.jsonl",
+                "source_bytes": 2048,
+                "source_sha256": "sha256:rawrollout123",
+                "promoted_bytes": 150,
+                "promoted_sha256": "sha256:quotasidecar123",
+            }
+        )
+
     manifest = {
-        "schema_version": 2,
+        "schema_version": schema_version,
         "bundle": bundle_name,
         "source_job_runtime_path": f"runs/{bundle_name}",
         "source_job_result_sha256": "sha256:resultsha123",
@@ -245,6 +288,10 @@ def test_rollback_on_projection_failure_preserves_prior_state(
 
     initial_index = load_digest_index(derived_root / DIGEST_INDEX_FILENAME)
     initial_digest = initial_index.entries["bundle-alpha"]
+    initial_steps = pq.read_table(
+        derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-alpha" / "steps.parquet"
+    )
+    assert initial_steps.num_rows == 2
 
     # Modify bundle-alpha
     _write_minimal_bundle(runs_root, "bundle-alpha", steps_count=4)
@@ -265,11 +312,41 @@ def test_rollback_on_projection_failure_preserves_prior_state(
     retained_index = load_digest_index(derived_root / DIGEST_INDEX_FILENAME)
     assert retained_index.entries["bundle-alpha"] == initial_digest
 
-    # No leftover staging directory
-    staging_dir = (
-        derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-alpha.staging"
+    # Previous partition is completely preserved by adjacent rollback swap
+    retained_steps = pq.read_table(
+        derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-alpha" / "steps.parquet"
     )
+    assert retained_steps.num_rows == 2
+
+    # No leftover staging or backup directories
+    staging_dir = derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-alpha.staging"
+    backup_dir = derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-alpha.backup"
     assert not staging_dir.exists()
+    assert not backup_dir.exists()
+
+
+def test_r4_quota_sidecar_accepted_and_version_compatibility(tmp_path: Path) -> None:
+    """R4 quota sidecars with sessions in source_path and supported versions are accepted."""
+    runs_root = tmp_path / "runs"
+    derived_root = tmp_path / "derived"
+
+    # Bundle with R4 quota sidecars and schema version 1 (supported)
+    _write_minimal_bundle(
+        runs_root, "bundle-quota", include_r4_sidecar=True, schema_version=1
+    )
+
+    result = ingest_promoted_bundles(runs_root, derived_root)
+    assert result.performance.rejected_bundles == 0
+    assert result.performance.changed_bundles == 1
+    assert result.dispositions[0].outcome == "changed"
+
+    # Check lineage contains the R4 sidecar
+    partition_dir = derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-quota"
+    lineage = pq.read_table(partition_dir / "promotion_lineage.parquet").to_pylist()
+    r4_entries = [e for e in lineage if e.get("rule") == "R4"]
+    assert len(r4_entries) == 1
+    assert r4_entries[0]["action"] == "redacted"
+    assert "quota/rollout-01.rate-limits.json" in r4_entries[0]["promoted_path"]
 
 
 def test_security_rejection_symlink(tmp_path: Path) -> None:
@@ -308,22 +385,77 @@ def test_security_rejection_raw_log_path(tmp_path: Path) -> None:
     assert "security_raw_log_file_present" in (disposition.reason or "")
 
 
-def test_lineage_and_omissions_preservation(tmp_path: Path) -> None:
-    """Lineage mapping and R2 omission records are accurately preserved in Parquet."""
-    runs_root = tmp_path / "runs"
-    derived_root = tmp_path / "derived"
+def test_deterministic_digest_tie_break(tmp_path: Path) -> None:
+    """Duplicate source_paths in manifests produce identical digests regardless of list order."""
+    entry_a = {
+        "source_path": "trial/agent/sessions/rollout.jsonl",
+        "promoted_path": None,
+        "action": "omitted",
+        "rule": "R2",
+        "entry_type": "file",
+        "source_bytes": 100,
+        "source_sha256": "sha256:111",
+    }
+    entry_b = {
+        "source_path": "trial/agent/sessions/rollout.jsonl",
+        "promoted_path": "trial/agent/quota/rollout.rate-limits.json",
+        "action": "redacted",
+        "rule": "R4",
+        "source_bytes": 100,
+        "source_sha256": "sha256:111",
+        "promoted_bytes": 50,
+        "promoted_sha256": "sha256:222",
+    }
 
-    _write_minimal_bundle(runs_root, "bundle-alpha")
-    ingest_promoted_bundles(runs_root, derived_root)
+    manifest_1 = {
+        "schema_version": 2,
+        "bundle": "b1",
+        "source_job_result_sha256": "sha256:333",
+        "files": [entry_a, entry_b],
+    }
+    manifest_2 = {
+        "schema_version": 2,
+        "bundle": "b1",
+        "source_job_result_sha256": "sha256:333",
+        "files": [entry_b, entry_a],
+    }
 
-    alpha_dir = derived_root / PROMOTED_BUNDLES_DIRNAME / "bundle-alpha"
-    lineage_table = pq.read_table(alpha_dir / "promotion_lineage.parquet")
-    omissions_table = pq.read_table(alpha_dir / "promotion_omissions.parquet")
+    assert compute_bundle_digest(manifest_1) == compute_bundle_digest(manifest_2)
 
-    assert lineage_table.num_rows == 2
-    assert omissions_table.num_rows == 1
 
-    omissions_data = omissions_table.to_pylist()
-    assert omissions_data[0]["rule"] == "R2"
-    assert omissions_data[0]["entry_type"] == "file"
-    assert "sessions/session.json" in omissions_data[0]["source_path"]
+def test_sql_views_pre_aggregation_and_no_fan_out(tmp_path: Path) -> None:
+    """SQL views in sql/incremental_ingest_views.sql execute cleanly in DuckDB with no Cartesian fanout."""
+    sql_path = Path(__file__).resolve().parents[1] / "sql" / "incremental_ingest_views.sql"
+    sql_ddl = sql_path.read_text(encoding="utf-8")
+
+    conn = duckdb.connect(":memory:")
+    conn.execute(sql_ddl)
+
+    # Insert test rows into fallback schema tables
+    conn.execute("INSERT INTO promoted_bundles_index VALUES ('b1', 'sha256:dig1', 'sha256:res1')")
+    conn.execute("INSERT INTO jobs VALUES ('job-b1', 'b1', 1)")
+    conn.execute("INSERT INTO trajectories VALUES ('job-b1', 't1', 'doc1', 'valid', 5, 2)")
+    # 2 lineage records
+    conn.execute("INSERT INTO promotion_lineage VALUES ('b1', 'f1', 'f1', 'verbatim', 'R0', 10, 'sha256:a', 10, 'sha256:a')")
+    conn.execute("INSERT INTO promotion_lineage VALUES ('b1', 'f2', 'f2', 'redacted', 'R1', 20, 'sha256:b', 15, 'sha256:c')")
+    # 2 omissions records
+    conn.execute("INSERT INTO promotion_omissions VALUES ('b1', 'f3', 'R2', 'file', NULL, 30, 'sha256:d')")
+    conn.execute("INSERT INTO promotion_omissions VALUES ('b1', 'f4', 'R2', 'file', NULL, 40, 'sha256:e')")
+
+    rows = conn.execute("SELECT * FROM v_incremental_ingest_reconciliation").fetchall()
+    assert len(rows) == 1
+    row = rows[0]
+    # columns: bundle_name, bundle_digest, job_id, trial_count, total_source_files, verbatim_files, redacted_files, omitted_files, projected_trajectories, projection_status
+    assert row[0] == "b1"
+    assert row[2] == "job-b1"
+    assert row[4] == 2  # total_source_files exactly 2 (not 2 * 2 = 4)
+    assert row[5] == 1  # verbatim_files exactly 1
+    assert row[6] == 1  # redacted_files exactly 1
+    assert row[7] == 2  # omitted_files exactly 2 (not 2 * 2 = 4)
+    assert row[8] == 1  # projected_trajectories exactly 1
+    assert row[9] == "fully_projected"
+
+    summary_rows = conn.execute("SELECT * FROM v_incremental_ingest_summary").fetchall()
+    assert len(summary_rows) == 1
+    assert summary_rows[0][0] == 1  # total_indexed_bundles
+    assert summary_rows[0][4] == 1  # fully_projected_bundles

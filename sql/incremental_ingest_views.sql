@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS promotion_omissions (
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
+    job_id TEXT PRIMARY KEY,
     job_name TEXT,
     trial_count BIGINT
 );
@@ -66,29 +66,51 @@ CREATE TABLE IF NOT EXISTS trajectories (
     llm_call_count BIGINT
 );
 
--- 1. v_incremental_ingest_reconciliation: per-bundle join across index, lineage, omissions, and projections
+-- 1. v_incremental_ingest_reconciliation: pre-aggregated join across index, lineage, omissions, and projections
 CREATE OR REPLACE VIEW v_incremental_ingest_reconciliation AS
+WITH agg_lineage AS (
+    SELECT
+        bundle_name,
+        count(DISTINCT source_path) AS total_source_files,
+        sum(CASE WHEN action = 'verbatim' THEN 1 ELSE 0 END) AS verbatim_files,
+        sum(CASE WHEN action = 'redacted' THEN 1 ELSE 0 END) AS redacted_files
+    FROM promotion_lineage
+    GROUP BY bundle_name
+),
+agg_omissions AS (
+    SELECT
+        bundle_name,
+        count(DISTINCT source_path) AS omitted_files
+    FROM promotion_omissions
+    GROUP BY bundle_name
+),
+agg_trajectories AS (
+    SELECT
+        job_id,
+        count(DISTINCT document_id) AS projected_trajectories
+    FROM trajectories
+    GROUP BY job_id
+)
 SELECT
     idx.bundle_name,
     idx.bundle_digest,
-    j.id AS job_id,
+    j.job_id,
     j.trial_count,
-    count(DISTINCT l.source_path) AS total_source_files,
-    sum(CASE WHEN l.action = 'verbatim' THEN 1 ELSE 0 END) AS verbatim_files,
-    sum(CASE WHEN l.action = 'redacted' THEN 1 ELSE 0 END) AS redacted_files,
-    count(DISTINCT o.source_path) AS omitted_files,
-    count(DISTINCT t.document_id) AS projected_trajectories,
+    coalesce(l.total_source_files, 0) AS total_source_files,
+    coalesce(l.verbatim_files, 0) AS verbatim_files,
+    coalesce(l.redacted_files, 0) AS redacted_files,
+    coalesce(o.omitted_files, 0) AS omitted_files,
+    coalesce(t.projected_trajectories, 0) AS projected_trajectories,
     CASE
-        WHEN j.id IS NOT NULL AND count(DISTINCT t.document_id) > 0 THEN 'fully_projected'
-        WHEN j.id IS NOT NULL THEN 'partial_projection'
+        WHEN j.job_id IS NOT NULL AND coalesce(t.projected_trajectories, 0) > 0 THEN 'fully_projected'
+        WHEN j.job_id IS NOT NULL THEN 'partial_projection'
         ELSE 'unprojected'
     END AS projection_status
 FROM promoted_bundles_index idx
-LEFT JOIN jobs j ON j.job_name = idx.bundle_name OR j.id = idx.bundle_name
-LEFT JOIN trajectories t ON t.job_id = j.id
-LEFT JOIN promotion_lineage l ON l.bundle_name = idx.bundle_name
-LEFT JOIN promotion_omissions o ON o.bundle_name = idx.bundle_name
-GROUP BY idx.bundle_name, idx.bundle_digest, j.id, j.trial_count;
+LEFT JOIN jobs j ON j.job_name = idx.bundle_name OR j.job_id = idx.bundle_name
+LEFT JOIN agg_trajectories t ON t.job_id = j.job_id OR t.job_id = idx.bundle_name
+LEFT JOIN agg_lineage l ON l.bundle_name = idx.bundle_name
+LEFT JOIN agg_omissions o ON o.bundle_name = idx.bundle_name;
 
 -- 2. v_incremental_ingest_efficiency: skip rates and work saved
 CREATE OR REPLACE VIEW v_incremental_ingest_efficiency AS

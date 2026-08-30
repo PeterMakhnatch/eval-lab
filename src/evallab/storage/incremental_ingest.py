@@ -1,13 +1,15 @@
 """Digest-indexed incremental ingestion of promoted ATIF bundles.
 
 Invariants:
-1. Digest Indexing: Tracks content digests from PROMOTION.json manifests to skip unchanged bundles.
-2. Atomicity & Idempotence: Bundle parquet writes are staged and replaced atomically; the digest
-   index is committed only after bundle writes succeed; reruns produce identical logical tables.
+1. Digest Indexing: Tracks content digests from PROMOTION.json manifests with total-order tie-breaks
+   to skip unchanged bundles.
+2. Atomicity & Idempotence: Bundle parquet writes are staged and swapped using a rollback-safe adjacent
+   backup; the digest index is committed only after bundle writes succeed; reruns produce identical
+   logical tables.
 3. Provenance & Omission Preservation: Lineage (source->promoted mapping) and omission records are
    captured into derived Parquet tables.
-4. Security Enforcement: Rejects any bundle carrying physical symlinks or raw-log paths (R2 paths
-   promoted as real files).
+4. Security Enforcement: Rejects any bundle carrying physical symlinks or unredacted raw-log paths,
+   while admitting repository-supported promotion schema versions and valid R4 quota sidecars.
 5. Compact Performance Ledger: Records scanned, changed, skipped, and rejected counts without
    wall-clock claims.
 """
@@ -32,6 +34,7 @@ from evallab.schemas import ContractModel
 
 SCHEMA_VERSION = "promoted-atif-incremental-ingest/v1"
 PERF_SCHEMA_VERSION = "incremental-ingest-perf/v1"
+SUPPORTED_PROMOTION_VERSIONS = frozenset({1, 2, "1", "2", "v1", "v2"})
 MANIFEST_NAME = "PROMOTION.json"
 DIGEST_INDEX_FILENAME = "promoted_ingest_index.json"
 PERF_LEDGER_FILENAME = "promoted_ingest_perf.json"
@@ -81,6 +84,9 @@ def is_raw_log_path(relative: Path) -> bool:
         return True
     if "agent" not in parts:
         return False
+    # R4 quota sidecars under agent/quota/ are whitelisted derivatives, not raw logs
+    if "quota" in parts or relative.name.endswith(".rate-limits.json"):
+        return False
     return (
         "sessions" in parts
         or "opencode" in parts
@@ -92,16 +98,17 @@ def validate_bundle_security(bundle_dir: Path, manifest: dict[str, Any]) -> list
     """Fail-closed security validation of a promoted bundle directory.
 
     Rejects:
-    1. Physical symlinks anywhere in the bundle tree.
-    2. Physical raw-log files present on disk.
-    3. Manifest entries promoting raw-log paths (must be action=omitted).
-    4. Non-v2 manifest schema.
+    1. Unsupported promotion manifest schema versions.
+    2. Physical symlinks anywhere in the bundle tree.
+    3. Physical raw-log files present on disk.
+    4. Manifest entries promoting raw-log paths (except valid R4 quota sidecars).
     """
     rejections: list[str] = []
 
-    # 1. Schema version
-    if manifest.get("schema_version") != 2:
-        rejections.append(f"unsupported_manifest_schema_version:{manifest.get('schema_version')}")
+    # 1. Schema version: accept all repository-supported promotion versions
+    manifest_version = manifest.get("schema_version")
+    if manifest_version not in SUPPORTED_PROMOTION_VERSIONS:
+        rejections.append(f"unsupported_manifest_schema_version:{manifest_version}")
 
     # 2. Check filesystem for symlinks and forbidden raw files
     try:
@@ -122,9 +129,15 @@ def validate_bundle_security(bundle_dir: Path, manifest: dict[str, Any]) -> list
             continue
         source_path = entry.get("source_path", "")
         action = entry.get("action")
+        rule = entry.get("rule")
         promoted_path = entry.get("promoted_path")
 
-        if is_raw_log_path(Path(source_path)) and action != "omitted":
+        # Allow valid R4 quota sidecars derived from omitted rollouts
+        is_r4_sidecar = rule == "R4" and action == "redacted" and isinstance(promoted_path, str) and (
+            "quota" in Path(promoted_path).parts or promoted_path.endswith(".rate-limits.json")
+        )
+
+        if is_raw_log_path(Path(source_path)) and action != "omitted" and not is_r4_sidecar:
             rejections.append(f"security_unomitted_raw_log_manifest:{source_path}")
         if action == "omitted" and promoted_path is not None:
             rejections.append(f"security_omission_promoted_path_not_null:{source_path}")
@@ -191,25 +204,41 @@ class IncrementalIngestResult:
 # --------------------------------------------------------------------------- #
 
 def compute_bundle_digest(manifest: dict[str, Any]) -> str:
-    """Deterministic content digest for a promoted bundle from its manifest."""
+    """Deterministic content digest for a promoted bundle from its manifest.
+
+    Applies a complete total-order tie-break across all entry fields so duplicate
+    source_paths (e.g. omitted rollout vs R4 sidecar) produce identical deterministic digests.
+    """
     files = manifest.get("files", [])
+    valid_entries = [f for f in files if isinstance(f, dict)]
+
+    def _sort_key(f: dict[str, Any]) -> tuple[str, str, str, str, str, str, str]:
+        return (
+            str(f.get("source_path") or ""),
+            str(f.get("promoted_path") or ""),
+            str(f.get("action") or ""),
+            str(f.get("rule") or ""),
+            str(f.get("source_sha256") or ""),
+            str(f.get("promoted_sha256") or ""),
+            str(f.get("entry_type") or ""),
+        )
+
     normalized_files = []
-    for f in sorted(files, key=lambda x: str(x.get("source_path", ""))):
-        if isinstance(f, dict):
-            normalized_files.append(
-                {
-                    "source_path": f.get("source_path"),
-                    "promoted_path": f.get("promoted_path"),
-                    "action": f.get("action"),
-                    "rule": f.get("rule"),
-                    "source_bytes": f.get("source_bytes"),
-                    "source_sha256": f.get("source_sha256"),
-                    "promoted_bytes": f.get("promoted_bytes"),
-                    "promoted_sha256": f.get("promoted_sha256"),
-                    "entry_type": f.get("entry_type"),
-                    "link_target": f.get("link_target"),
-                }
-            )
+    for f in sorted(valid_entries, key=_sort_key):
+        normalized_files.append(
+            {
+                "source_path": f.get("source_path"),
+                "promoted_path": f.get("promoted_path"),
+                "action": f.get("action"),
+                "rule": f.get("rule"),
+                "source_bytes": f.get("source_bytes"),
+                "source_sha256": f.get("source_sha256"),
+                "promoted_bytes": f.get("promoted_bytes"),
+                "promoted_sha256": f.get("promoted_sha256"),
+                "entry_type": f.get("entry_type"),
+                "link_target": f.get("link_target"),
+            }
+        )
 
     body = {
         "schema_version": manifest.get("schema_version"),
@@ -298,12 +327,17 @@ def ingest_bundle_atomic(
 ) -> list[ExportedTable]:
     """Atomically project one bundle's ATIF tables, lineage, and omissions.
 
-    Writes to a staging directory first, then atomically replaces the destination.
+    Writes to a staging directory first, then performs a rollback-safe adjacent swap.
     """
     bundle_name = bundle_dir.name
     staging_dir = target_partition_dir.parent / f"{target_partition_dir.name}.staging"
+    backup_dir = target_partition_dir.parent / f"{target_partition_dir.name}.backup"
+
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     exported_tables: list[ExportedTable] = []
@@ -368,14 +402,26 @@ def ingest_bundle_atomic(
             )
         )
 
-        # 3. Atomic replacement of destination partition
-        if target_partition_dir.exists():
-            shutil.rmtree(target_partition_dir)
-        staging_dir.rename(target_partition_dir)
+        # 3. Rollback-safe adjacent swap
+        target_existed = target_partition_dir.exists()
+        if target_existed:
+            target_partition_dir.rename(backup_dir)
+
+        try:
+            staging_dir.rename(target_partition_dir)
+        except Exception:
+            if target_existed and backup_dir.exists() and not target_partition_dir.exists():
+                backup_dir.rename(target_partition_dir)
+            raise
+        else:
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir)
 
     except Exception:
         if staging_dir.exists():
             shutil.rmtree(staging_dir)
+        if backup_dir.exists() and not target_partition_dir.exists():
+            backup_dir.rename(target_partition_dir)
         raise
 
     return exported_tables
@@ -455,8 +501,8 @@ def ingest_promoted_bundles(
 
     Guarantees:
     - Skips bundles whose digest has not changed since the last indexed run.
-    - Atomically projects changed bundles into Parquet partitions.
-    - Rejects bundles violating security invariants (symlinks, raw logs).
+    - Atomically projects changed bundles into Parquet partitions via rollback-safe swap.
+    - Rejects bundles violating security invariants (symlinks, unredacted raw logs).
     - Preserves lineage and omission rows.
     - Writes a compact performance ledger without wall-clock claims.
     """
@@ -545,7 +591,7 @@ def ingest_promoted_bundles(
             promoted_files_skipped += promoted_count
             continue
 
-        # 3. Atomic Ingestion
+        # 3. Atomic Ingestion with Rollback-Safe Swap
         try:
             tables = ingest_bundle_atomic(bundle_dir, manifest, target_partition)
             all_exported_tables.extend(tables)

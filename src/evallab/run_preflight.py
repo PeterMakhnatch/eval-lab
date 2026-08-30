@@ -37,13 +37,11 @@ distinction mechanical.
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import platform
 import shutil
 import subprocess
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -334,8 +332,12 @@ def _task_checks(
     except Exception as exc:  # noqa: BLE001 - deterministic reason, no secret
         return (
             PreflightCheck("task-path", True, "task-present"),
-            PreflightCheck("task-package-digest", False, f"digest-unavailable:{type(exc).__name__}"),
-            PreflightCheck("task-verifier-digest", False, f"digest-unavailable:{type(exc).__name__}"),
+            PreflightCheck(
+                "task-package-digest", False, f"digest-unavailable:{type(exc).__name__}"
+            ),
+            PreflightCheck(
+                "task-verifier-digest", False, f"digest-unavailable:{type(exc).__name__}"
+            ),
         )
     package_ok = digests.package == task.expected_package_digest
     verifier_ok = digests.verifier == task.expected_verifier_digest
@@ -508,7 +510,9 @@ def assess_campaign(
 
     compile_codes = _compile_codes()
     compile_reasons = tuple(
-        sorted(check.code for code in compile_codes if (check := by_code.get(code)) and not check.ok)
+        sorted(
+            check.code for code in compile_codes if (check := by_code.get(code)) and not check.ok
+        )
     )
     may_compile = not compile_reasons
 
@@ -624,10 +628,9 @@ def build_run_preflight(
     calibration_gates = {
         result.launch_gate for result in results if result.campaign.evidence_mode == "calibration"
     }
-    launch_ok = (
-        calibration_gates <= {LAUNCH_GATE_CALIBRATE}
-        and launch_gates <= {LAUNCH_GATE_PROMOTE_CAUSAL}
-    )
+    launch_ok = calibration_gates <= {LAUNCH_GATE_CALIBRATE} and launch_gates <= {
+        LAUNCH_GATE_PROMOTE_CAUSAL
+    }
     if compile_only:
         launch_ok = True
     return RunPreflightReport(
@@ -652,8 +655,7 @@ def render_run_preflight(report: RunPreflightReport) -> str:
         f"OVERNIGHT RUN PREFLIGHT ({report.generated_at.isoformat()})",
         f"os={env.os_name} isolation_enforced={env.network_isolation_enforced} "
         f"isolation_reason={env.network_isolation_reason or 'none'}",
-        f"mode={'compile-only' if report.compile_only else 'launch'} "
-        f"launch_ok={report.launch_ok}",
+        f"mode={'compile-only' if report.compile_only else 'launch'} launch_ok={report.launch_ok}",
         "ENVIRONMENT",
         _check_line(env.docker),
         _check_line(env.disk),

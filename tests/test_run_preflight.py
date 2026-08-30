@@ -15,9 +15,7 @@ Tests cover:
 
 from __future__ import annotations
 
-import hashlib
 import json
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -25,12 +23,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from evallab.harbor_network import HarborNetworkPolicy
 from evallab.run_preflight import (
     ALLOWED_ZAI_MODELS,
-    LAUNCH_GATE_CALIBRATE,
-    LAUNCH_GATE_COMPILE,
-    LAUNCH_GATE_PROMOTE_CAUSAL,
     LAUNCH_GATE_REFUSED,
     MAX_OVERNIGHT_CONCURRENCY,
     MAX_OVERNIGHT_TRIALS,
@@ -40,20 +34,17 @@ from evallab.run_preflight import (
     SCHEMA_VERSION,
     ZAI_PROVIDER,
     OvernightCampaignPreflight,
-    OvernightCampaignResult,
     OvernightTaskSpec,
     OvernightWheelhouseSpec,
     PreflightCheck,
     RunPreflightEnvironment,
     RunPreflightReport,
     assess_campaign,
-    build_environment,
     build_run_preflight,
     check_model_allowlist,
     render_run_preflight,
     run_preflight_to_dict,
 )
-
 
 # --- fixtures & helpers ---------------------------------------------------
 
@@ -113,7 +104,9 @@ def _mock_env(
 ) -> RunPreflightEnvironment:
     return RunPreflightEnvironment(
         os_name=os_name,
-        docker=PreflightCheck("docker-reachable", docker_ok, "docker-ok" if docker_ok else "no-docker"),
+        docker=PreflightCheck(
+            "docker-reachable", docker_ok, "docker-ok" if docker_ok else "no-docker"
+        ),
         disk=PreflightCheck("disk-headroom", disk_ok, "disk-ok" if disk_ok else "no-disk"),
         network_isolation_enforced=isolation_enforced,
         network_isolation_reason=isolation_reason,

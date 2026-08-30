@@ -25,7 +25,6 @@ from evallab.analysis_capability import (
     RetrievalPolicyV1,
     ReviewQueueArtifactV1,
     ReviewQueueEntryV1,
-    ReviewQueueRef,
     RunRecommendationV1,
     Verdict,
     analyze_cascade_distance,

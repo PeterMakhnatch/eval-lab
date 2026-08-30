@@ -5,19 +5,31 @@ No live models, no derived/evidence-cas, no required PostgreSQL.
 
 from __future__ import annotations
 
-import hashlib
-import json
-import re
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
+import hashlib
+import json
 from pathlib import Path
+import re
 from uuid import uuid4
 
-import pytest
+from pydantic import ValidationError
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import ValidationError
+import pytest
 
+from evallab.analysis_capability import (
+    AnalysisMethod,
+    AnalysisStatus,
+    AnalysisUnit,
+    CampaignAnalysisConfigV1,
+    CampaignAnalysisResultV1,
+    DenominatorPolicy,
+    NextRunAction,
+    RefusalCode,
+    RetrievalPolicyV1,
+    create_campaign_analysis_spec,
+)
 from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts
 from evallab.evidence.capture_authority import CaptureAuthority
@@ -42,24 +54,6 @@ from evallab.interpretation.trajectory_judgment import (
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
     MachineJudgment,
     canonical_json_digest,
-)
-from evallab.analysis_capability import (
-    AnalysisMethod,
-    AnalysisStatus,
-    AnalysisUnit,
-    CampaignAnalysisConfigV1,
-    CampaignAnalysisResultV1,
-    CampaignAnalysisSpecV1,
-    ContextCitation,
-    DenominatorPolicy,
-    NextRunAction,
-    RefusalCode,
-    RetrievalPolicyV1,
-    ReviewQueueArtifactV1,
-    ReviewQueueRef,
-    compute_spec_digest,
-    create_campaign_analysis_result,
-    create_campaign_analysis_spec,
 )
 from evallab.interpretation.trajectory_runtime import (
     ArtifactRecord,

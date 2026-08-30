@@ -13,7 +13,6 @@ import random
 import statistics
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, is_dataclass
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
@@ -836,9 +835,10 @@ class CampaignAnalysisSpecV1(ContractModel):
         _validate_non_zero_digest(self.spec_digest, "spec_digest")
         if not self.unit_keys or len(self.unit_keys) != len(set(self.unit_keys)) or any(not k for k in self.unit_keys):
             raise ValueError("unit_keys must be non-empty with unique non-empty string components")
-        if self.method == AnalysisMethod.PAIRED_SIGN:
-            if not self.pair_keys or any(not k for k in self.pair_keys):
-                raise ValueError("PAIRED_SIGN analysis requires explicit non-empty pair_keys")
+        if self.method == AnalysisMethod.PAIRED_SIGN and (
+            not self.pair_keys or any(not k for k in self.pair_keys)
+        ):
+            raise ValueError("PAIRED_SIGN analysis requires explicit non-empty pair_keys")
         if self.ci_method == "cluster_bootstrap":
             if not self.cluster_keys or any(not k for k in self.cluster_keys):
                 raise ValueError("cluster_bootstrap requires explicit non-empty cluster_keys")
@@ -920,12 +920,14 @@ class CampaignAnalysisResultV1(ContractModel):
         elif self.status == AnalysisStatus.REFUSAL:
             if not self.refusals:
                 raise ValueError("REFUSAL status must contain at least one refusal code")
-            if any(code != RefusalCode.UNDERPOWERED for code in self.refusals):
-                if self.estimate is not None or self.interval is not None or self.p_value is not None:
-                    raise ValueError("Refusal that invalidates the estimand must set estimate, interval, and p_value to None")
-            elif RefusalCode.UNDERPOWERED in self.refusals:
-                if self.interval is not None or self.p_value is not None:
-                    raise ValueError("UNDERPOWERED inferential claims must set interval and p_value to None")
+            if any(code != RefusalCode.UNDERPOWERED for code in self.refusals) and (
+                self.estimate is not None or self.interval is not None or self.p_value is not None
+            ):
+                raise ValueError("Refusal that invalidates the estimand must set estimate, interval, and p_value to None")
+            elif RefusalCode.UNDERPOWERED in self.refusals and (
+                self.interval is not None or self.p_value is not None
+            ):
+                raise ValueError("UNDERPOWERED inferential claims must set interval and p_value to None")
         body = self.model_dump(mode="json", exclude={"result_digest"})
         expected = _canonical_digest(body)
         if self.result_digest != expected:

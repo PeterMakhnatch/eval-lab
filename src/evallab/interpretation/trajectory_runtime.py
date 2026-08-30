@@ -7,39 +7,36 @@ automatic acceptance is hard-disabled.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import contextlib
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 import hashlib
 import json
 import os
+from pathlib import Path
 import tempfile
-from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
+
+from pydantic import Field, ValidationError, model_validator
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from evallab.analysis_capability import (
-    AnalysisMethod,
     AnalysisStatus,
     AnalysisUnit,
     CampaignAnalysisConfigV1,
     CampaignAnalysisResultV1,
     CampaignAnalysisSpecV1,
-    ContextCitation,
     NextRunAction,
     NextRunFeedbackV1,
     RefusalCode,
     RetrievalPolicyV1,
     ReviewQueueArtifactV1,
-    ReviewQueueEntryV1,
     ReviewQueueRef,
     RunRecommendationV1,
     run_campaign_analysis,
 )
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal
-
-import pyarrow as pa
-import pyarrow.parquet as pq
-from pydantic import Field, ValidationError, model_validator
-
 from evallab.database import ingest_interpretation_artifacts
 from evallab.evidence_store import (
     archive_evidence,
@@ -48,7 +45,6 @@ from evallab.evidence_store import (
     restore_evidence,
 )
 from evallab.interpretation.evidence_pack import (
-    DEFAULT_TOKEN_BUDGET,
     EvidencePack,
     build_evidence_pack,
     reopen_omitted_range,
@@ -288,10 +284,7 @@ def compute_analysis_snapshot_digest(
     ]
 
     def _item_body(item: Any) -> dict[str, Any]:
-        if isinstance(item, dict):
-            d = item
-        else:
-            d = item.model_dump(mode="json")
+        d = item if isinstance(item, dict) else item.model_dump(mode="json")
         return {
             "job_id": d.get("job_id", ""),
             "trial_id": d.get("trial_id", ""),

@@ -45,12 +45,12 @@ from contract import (
     CAMPAIGN0_PERSISTENCE,
     DESIGNATED_REPAIR_MOVES,
     FAMILY,
+    compute_mutation_digest,
     get_alternative_repair,
     get_designated_repair,
     resolve_fault_class,
     slugify_fault,
 )
-from envelope import compute_mutation_digest
 from source import reject_committed_corpora, source_digest
 
 ROOT = Path(__file__).resolve().parent

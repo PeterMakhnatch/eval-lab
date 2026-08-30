@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from contract import (
+    compute_mutation_digest,
     get_alternative_repair,
     get_designated_repair,
 )
-from envelope import compute_mutation_digest, encrypt_envelope, write_atomic_envelope
+from envelope import encrypt_envelope, write_atomic_envelope
 
 
 def _load_cell_meta(task_dir: Path) -> tuple[dict[str, Any], bytes]:

@@ -9,6 +9,7 @@ from evallab.benchmark_program_contracts import FaultClass
 from contract import (
     ALTERNATIVE_REPAIR_MOVES,
     DESIGNATED_REPAIR_MOVES,
+    compute_mutation_digest,
     get_alternative_repair,
     get_designated_repair,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "FaultController",
     "FaultSpec",
     "TRANSIENT_FAULTS",
+    "compute_mutation_digest",
     "get_alternative_repair",
     "get_designated_repair",
 ]

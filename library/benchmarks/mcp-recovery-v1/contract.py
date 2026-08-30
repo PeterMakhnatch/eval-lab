@@ -1,12 +1,15 @@
 """Benchmark contract for mcp-recovery-v1 using immutable program contracts."""
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from evallab.benchmark_program_contracts import (
     CellFactorsC,
     FaultClass,
     SyntheticFamilyType,
+    canonical_bytes,
     compute_sha256,
 )
 
@@ -48,6 +51,33 @@ ALTERNATIVE_REPAIR_MOVES: dict[FaultClass, str] = {
     FaultClass.TRANSIENT_HTTP_5XX: "refresh_auth",
     FaultClass.SILENT_WRONG_PAYLOAD: "refresh_auth",
 }
+
+
+def compute_mutation_digest(
+    *,
+    fault_class: str,
+    persistence: int,
+    seed: int,
+    is_clean_twin: bool,
+    twin_task_id: str,
+    mutation_tool: str | None = None,
+) -> str:
+    """Compute deterministic SHA-256 mutation digest bound into sealed evidence payload.
+
+    Pure stdlib / program-contract helper safe for host-side materialization without crypto extras.
+    For clean twins, mutation_tool is None.
+    For fault cells, mutation_tool is the designated repair move executed during recovery.
+    """
+    payload = {
+        "fault_class": str(fault_class),
+        "is_clean_twin": bool(is_clean_twin),
+        "mutation_tool": mutation_tool,
+        "persistence": int(persistence),
+        "seed": int(seed),
+        "twin_task_id": str(twin_task_id),
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def slugify_fault(fault: FaultClass | str) -> str:

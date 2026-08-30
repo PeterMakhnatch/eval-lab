@@ -1,4 +1,4 @@
-"""AES-256-GCM sealed evidence envelope. Requires trusted cryptography wheels."""
+"""AES-256-GCM sealed evidence envelope. Requires trusted cryptography wheels at runtime/verifier."""
 from __future__ import annotations
 
 import base64
@@ -8,7 +8,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # ty: ignore[unresolved-import]
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # ty: ignore[unresolved-import]
+except ImportError:
+    AESGCM = None  # type: ignore[assignment,misc]
 
 SCHEMA_VERSION = 1
 
@@ -28,6 +31,7 @@ def compute_mutation_digest(
 ) -> str:
     """Compute deterministic SHA-256 mutation digest bound into sealed evidence payload.
 
+    Pure stdlib implementation with zero external imports.
     For clean twins, mutation_tool is None.
     For fault cells, mutation_tool is the designated repair move executed during recovery.
     """
@@ -71,6 +75,8 @@ def encrypt_envelope(
     sequence: int,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    if AESGCM is None:
+        raise RuntimeError("cryptography package is required for AES-256-GCM operations")
     if len(key) != 32:
         raise ValueError("AES-256-GCM key must be 32 bytes")
     nonce = os.urandom(12)
@@ -98,6 +104,8 @@ def decrypt_envelope(
     persistence: int,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    if AESGCM is None:
+        raise RuntimeError("cryptography package is required for AES-256-GCM operations")
     expected = {"schema_version", "sequence", "nonce", "ciphertext"}
     if set(envelope) != expected or envelope.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("invalid envelope schema")

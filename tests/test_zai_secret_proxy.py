@@ -4,6 +4,8 @@ Covers:
 1. Proxy in-process HTTP server:
    - Capability verification and expiry (fail-closed 401).
    - Pre-body capability authentication (unauthenticated requests rejected before body read).
+   - Worker bounding before thread creation: rejects excess connections with 503.
+   - Absolute connection deadline: wall-clock shutdown timer cancels socket.
    - Model allowlist enforcement: allows ``zai-coding-plan/glm-5.3`` and
      ``zai-coding-plan/glm-5.3-flash``; rejects disallowed providers/models (403).
    - Highspeed handling: forwards ``zai-coding-plan/glm-5.3-highspeed`` verbatim
@@ -12,14 +14,14 @@ Covers:
    - Credential isolation: strips inbound headers, injects provider auth only in
      proxy, redacts secret from responses (raw, JSON, Base64, URL-encoded, Unicode, Bearer).
    - Transport security: rejects redirects, gzip, binary, non-JSON upstream (502).
-   - Upstream size limits & error sanitization: oversized responses (limit+1) and
-     stream disconnects return sanitized 502.
-   - Concurrency bounding: worker capacity limits concurrent requests.
+   - Upstream size limits & exact Content-Length verification: oversized responses (limit+1),
+     stream disconnects, and truncated-valid-JSON payloads return sanitized 502.
    - Secret file validation: rejects symlinks, wrong mode/owner (500).
    - Pinned upstream URL enforcement.
 2. Adapter integration (``SecretSafeZaiOpenCodeAgent``):
    - Rewrites model_connection to internal proxy with placeholder token.
    - Scrubs real secrets from environment and command execution.
+   - Collects host secret file and path environment variables.
    - Sanitizes trajectory files.
 3. Compose asset validation (``zai-secret.compose.yaml``).
 """
@@ -312,8 +314,6 @@ def test_proxy_unauthenticated_request_rejected_before_reading_body(
     """Pre-body auth ensures unauthenticated slow-body attacks are rejected immediately."""
     proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch)
     try:
-        # Connect raw socket and send headers with invalid auth and huge Content-Length
-        # without sending the body
         host, port = proxy.server_address[:2]
         s = socket.create_connection((host, port), timeout=5)
         request_data = (
@@ -590,6 +590,46 @@ def test_proxy_upstream_oversized_response_rejected(
         upstream.shutdown()
 
 
+def test_proxy_upstream_truncated_valid_json_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Upstream delivering fewer bytes than declared Content-Length is rejected (sanitized 502) even if valid JSON."""
+    class TruncatedValidJsonUpstream(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            body = b'{"choices":[{"message":{"content":"ok"}}]}'
+            # Declare 200 bytes, but send only 43 bytes and close socket
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", "200")
+            self.end_headers()
+            self.wfile.write(body)
+            self.close_connection = True
+
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, upstream_handler=TruncatedValidJsonUpstream, capability=capability
+    )
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc.value.code == 502
+        assert SECRET_SENTINEL.encode() not in exc.value.read()
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
 def test_proxy_upstream_read_error_sanitized_to_502(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -624,6 +664,64 @@ def test_proxy_upstream_read_error_sanitized_to_502(
             urllib.request.urlopen(req, timeout=5)
         assert exc.value.code == 502
         assert SECRET_SENTINEL.encode() not in exc.value.read()
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_worker_pool_bounded_before_thread_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Worker capacity limits connections before spawning threads, returning 503."""
+    class SlowUpstream(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            time.sleep(1.0)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, upstream_handler=SlowUpstream, capability=capability, max_workers=1
+    )
+    try:
+        def _slow_request() -> int:
+            req = urllib.request.Request(
+                f"{base_url}/api/paas/v4/chat/completions",
+                data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    return int(resp.status)
+            except urllib.error.HTTPError as exc:
+                return int(exc.code)
+
+        # Start 1st request to occupy the single worker
+        t1 = threading.Thread(target=_slow_request)
+        t1.start()
+        time.sleep(0.1)
+
+        # 2nd request should immediately get 503 capacity exceeded
+        req2 = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc2:
+            urllib.request.urlopen(req2, timeout=5)
+        assert exc2.value.code == 503
+
+        t1.join()
     finally:
         proxy.shutdown()
         upstream.shutdown()
@@ -828,6 +926,26 @@ def test_adapter_refuses_secret_in_exec_command(
                 'export ZAI_CODING_PLAN_API_KEY="$(cat /run/secrets/key)"',
             )
         )
+
+
+def test_collected_zai_secret_values_checks_both_file_and_path_envs(
+    zai_adapter_module: ModuleType, tmp_path: Path
+) -> None:
+    module = zai_adapter_module
+    file_secret = tmp_path / "host_secret"
+    file_secret.write_text("host-file-secret-value\n")
+    path_secret = tmp_path / "container_secret"
+    path_secret.write_text("container-path-secret-value\n")
+
+    env = {
+        module.ZAI_SECRET_FILE_ENV: str(file_secret),
+        module.ZAI_SECRET_PATH_ENV: str(path_secret),
+        "ZAI_CODING_PLAN_API_KEY": "env-secret-value",
+    }
+    collected = module.collected_zai_secret_values(env)
+    assert "host-file-secret-value" in collected
+    assert "container-path-secret-value" in collected
+    assert "env-secret-value" in collected
 
 
 def test_adapter_sanitizes_trajectories(

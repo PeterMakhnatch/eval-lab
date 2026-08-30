@@ -59,6 +59,8 @@ ZAI_PROXY_HOST = "zai-secret-proxy"
 ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
 ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
 ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
+ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
+ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
 ZAI_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
     {
         "ZAI_CODING_PLAN_API_KEY",
@@ -118,16 +120,17 @@ def collected_zai_secret_values(
         value = source.get(key)
         if value and value != ZAI_PROXY_TOKEN:
             values.add(value)
-    secret_file = source.get("EVALLAB_ZAI_SECRET_PATH")
-    if secret_file:
-        try:
-            p = Path(secret_file)
-            if p.is_file():
-                file_value = p.read_text(encoding="utf-8").strip()
-                if file_value and file_value != ZAI_PROXY_TOKEN:
-                    values.add(file_value)
-        except OSError:
-            pass
+    for env_var in (ZAI_SECRET_FILE_ENV, ZAI_SECRET_PATH_ENV):
+        secret_file = source.get(env_var)
+        if secret_file:
+            try:
+                p = Path(secret_file)
+                if p.is_file():
+                    file_value = p.read_text(encoding="utf-8").strip()
+                    if file_value and file_value != ZAI_PROXY_TOKEN:
+                        values.add(file_value)
+            except OSError:
+                pass
     capability = source.get(ZAI_PROXY_CAPABILITY_ENV)
     if capability and capability != ZAI_PROXY_TOKEN:
         values.add(capability)

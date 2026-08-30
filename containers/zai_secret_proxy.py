@@ -7,10 +7,11 @@ headers, rejects Highspeed/access errors without fallback, injects provider
 auth only in the proxy process, and exposes no secret in config/log/error surfaces.
 
 Hardening features:
-- Pre-body capability authentication (rejects unauthenticated requests before reading body).
-- Short socket and body read deadlines.
-- Bounded concurrency with worker limit.
-- Incremental, size-bounded upstream response reading (limit+1) with sanitized 502 classification.
+- Worker bounding before thread creation: rejects excess connections with 503 before spawning threads.
+- Absolute connection deadline: enforces wall-clock connection shutdown timer covering headers+body.
+- Pre-body capability authentication: rejects unauthenticated requests before reading body.
+- Strict upstream response reading: requires bytes_read == declared Content-Length; EOF-short payloads return 502.
+- Size-bounded upstream response reading (limit+1) with sanitized 502 classification.
 - Multi-encoding secret redaction (raw, JSON, Base64, URL-encoded, Unicode, UTF-16, Bearer).
 """
 
@@ -22,6 +23,7 @@ import hmac
 import http.client
 import json
 import os
+import socket
 import ssl
 import stat
 import threading
@@ -274,7 +276,7 @@ def _validate_model(model: Any) -> str | None:
 
 
 class ProxyServer(ThreadingHTTPServer):
-    """Threading HTTPServer with bounded concurrent worker semaphore."""
+    """Threading HTTPServer with bounded concurrent worker semaphore acquired before thread spawn."""
 
     def __init__(
         self,
@@ -285,6 +287,36 @@ class ProxyServer(ThreadingHTTPServer):
         super().__init__(server_address, RequestHandlerClass)
         self.semaphore = threading.BoundedSemaphore(max_workers)
 
+    def process_request(self, request: Any, client_address: Any) -> None:
+        """Acquire worker permit before spawning thread; reject 503 if capacity exceeded."""
+        if not self.semaphore.acquire(blocking=False):
+            with contextlib.suppress(OSError):
+                request.sendall(
+                    b"HTTP/1.1 503 Service Unavailable\r\n"
+                    b"Content-Type: text/plain; charset=utf-8\r\n"
+                    b"Content-Length: 32\r\n"
+                    b"Connection: close\r\n\r\n"
+                    b"proxy worker capacity exceeded\n"
+                )
+            self.close_request(request)
+            return
+
+        thread = threading.Thread(
+            target=self._bounded_process_request,
+            args=(request, client_address),
+            daemon=True,
+        )
+        thread.start()
+
+    def _bounded_process_request(self, request: Any, client_address: Any) -> None:
+        try:
+            self.finish_request(request, client_address)
+        except Exception:
+            self.handle_error(request, client_address)
+        finally:
+            self.close_request(request)
+            self.semaphore.release()
+
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -293,10 +325,27 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         del format, args
 
+    def _force_close_socket(self) -> None:
+        with contextlib.suppress(OSError):
+            self.connection.shutdown(socket.SHUT_RDWR)
+        with contextlib.suppress(OSError):
+            self.connection.close()
+
     def setup(self) -> None:
         super().setup()
         with contextlib.suppress(AttributeError, OSError):
             self.connection.settimeout(REQUEST_TIMEOUT_SECONDS)
+        # Absolute wall-clock connection deadline covering headers + body
+        self._shutdown_timer = threading.Timer(
+            REQUEST_TIMEOUT_SECONDS, self._force_close_socket
+        )
+        self._shutdown_timer.daemon = True
+        self._shutdown_timer.start()
+
+    def finish(self) -> None:
+        if hasattr(self, "_shutdown_timer"):
+            self._shutdown_timer.cancel()
+        super().finish()
 
     def _reject(self, status: int, message: bytes) -> None:
         with contextlib.suppress(OSError):
@@ -337,57 +386,43 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(401, b"capability rejected\n")
             return
 
-        # BOUND CONCURRENT WORKERS
-        server = self.server
-        semaphore = getattr(server, "semaphore", None)
-        if semaphore is not None:
-            acquired = semaphore.acquire(blocking=False)
-            if not acquired:
-                self._reject(503, b"proxy worker capacity exceeded\n")
-                return
-        else:
-            acquired = False
-
+        raw_length = self.headers.get("Content-Length")
         try:
-            raw_length = self.headers.get("Content-Length")
+            length = int(raw_length or "-1")
+        except ValueError:
+            self._reject(400, b"invalid content length\n")
+            return
+        if length < 0 or length > MAX_REQUEST_BYTES:
+            self._reject(413, b"request body rejected\n")
+            return
+
+        # Incremental body read with deadline
+        chunks: list[bytes] = []
+        remaining = length
+        while remaining > 0:
+            chunk_size = min(remaining, 65536)
             try:
-                length = int(raw_length or "-1")
-            except ValueError:
-                self._reject(400, b"invalid content length\n")
+                chunk = self.rfile.read(chunk_size)
+            except (TimeoutError, OSError):
+                self._reject(408, b"request body timeout\n")
                 return
-            if length < 0 or length > MAX_REQUEST_BYTES:
-                self._reject(413, b"request body rejected\n")
+            if not chunk:
+                self._reject(400, b"incomplete request body\n")
                 return
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        body = b"".join(chunks)
 
-            # Incremental body read with deadline
-            chunks: list[bytes] = []
-            remaining = length
-            while remaining > 0:
-                chunk_size = min(remaining, 65536)
-                try:
-                    chunk = self.rfile.read(chunk_size)
-                except (TimeoutError, OSError):
-                    self._reject(408, b"request body timeout\n")
-                    return
-                if not chunk:
-                    self._reject(400, b"incomplete request body\n")
-                    return
-                chunks.append(chunk)
-                remaining -= len(chunk)
-            body = b"".join(chunks)
-
-            self._proxy(body)
-        finally:
-            if acquired and semaphore is not None:
-                semaphore.release()
+        self._proxy(body)
 
     def _read_upstream_body(self, response: Any) -> bytes | None:
-        """Read upstream response incrementally with strict size limit (limit+1)."""
+        """Read upstream response incrementally with strict size limit (limit+1) and exact Content-Length verification."""
         content_length_hdr = response.headers.get("Content-Length")
+        declared_len: int | None = None
         if content_length_hdr is not None:
             try:
                 declared_len = int(content_length_hdr)
-                if declared_len > MAX_RESPONSE_BYTES:
+                if declared_len < 0 or declared_len > MAX_RESPONSE_BYTES:
                     return None
             except ValueError:
                 return None
@@ -406,6 +441,10 @@ class Handler(BaseHTTPRequestHandler):
                     return None
                 chunks.append(chunk)
         except (OSError, http.client.HTTPException):
+            return None
+
+        # Fail closed if upstream closed before delivering declared Content-Length
+        if declared_len is not None and total_read != declared_len:
             return None
 
         return b"".join(chunks)

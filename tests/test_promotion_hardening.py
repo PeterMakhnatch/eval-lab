@@ -173,7 +173,7 @@ def test_unicode_confusables_and_normalization(tmp_path: Path) -> None:
     (trial / "agent" / cyrillic_name).write_bytes(b"legitimate custom text file")
 
     bundle = tmp_path / "evidence" / job.name
-    manifest = PROMOTE.promote(job, bundle)
+    PROMOTE.promote(job, bundle)
 
     promoted_map = dict(promoted_bytes(bundle))
     # NFD opencode.txt was normalized and omitted
@@ -246,7 +246,7 @@ def test_raw_logs_omitted_at_any_depth(tmp_path: Path) -> None:
     nested_job_log.write_bytes(b"nested job log prompt data")
 
     bundle = tmp_path / "evidence" / job.name
-    manifest = PROMOTE.promote(job, bundle)
+    PROMOTE.promote(job, bundle)
 
     promoted_names = [name for name, _ in promoted_bytes(bundle)]
     assert not any(name.endswith("trial.log") or name.endswith("job.log") for name in promoted_names)
@@ -668,6 +668,106 @@ def test_expanded_secret_keys_redaction(tmp_path: Path) -> None:
         assert SECRET_PASSWORD.encode() not in body, f"leaked in {name}"
         assert b"eyJhbGciOi..." not in body, f"jwt leaked in {name}"
         assert b"authsec_999" not in body, f"authSecret leaked in {name}"
+
+
+def test_nested_secret_context_propagation(tmp_path: Path) -> None:
+    """Secret parent context propagates through nested dicts/lists to redact leaf scalar values."""
+    job = make_base_job(tmp_path, "nested_secret_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    payload = {
+        "credentials": {
+            "custom_endpoint": "https://auth.internal.corp",
+            "nested_value": SECRET_TOKEN,
+            "servers": ["server1.auth", SECRET_PASSWORD],
+        },
+        "auth": [
+            {"username": "admin", "secret_payload": SECRET_TOKEN}
+        ],
+    }
+    (trial / "verifier" / "nested_auth.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+    bundle = tmp_path / "evidence" / job.name
+    PROMOTE.promote(job, bundle)
+
+    for name, body in promoted_bytes(bundle):
+        assert SECRET_TOKEN.encode() not in body, f"secret leaked in {name}"
+        assert SECRET_PASSWORD.encode() not in body, f"password leaked in {name}"
+        assert b"https://auth.internal.corp" not in body, f"nested url leaked in {name}"
+        assert b"server1.auth" not in body, f"nested list item leaked in {name}"
+
+
+def test_benign_metrics_preservation(tmp_path: Path) -> None:
+    """Benign metric keys like token_count, input_tokens, total_tokens are not redacted."""
+    job = make_base_job(tmp_path, "metrics_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    metrics_payload = {
+        "summary": {
+            "token_count": 12345,
+            "input_tokens": 8000,
+            "output_tokens": 4345,
+            "total_tokens": 12345,
+            "prompt_tokens": 7500,
+            "completion_tokens": 4000,
+            "cached_tokens": 500,
+            "reasoning_tokens": 345,
+            "tokens_per_second": 42.5,
+        }
+    }
+    (trial / "verifier" / "metrics.json").write_text(
+        json.dumps(metrics_payload), encoding="utf-8"
+    )
+
+    bundle = tmp_path / "evidence" / job.name
+    PROMOTE.promote(job, bundle)
+
+    promoted_metrics = next(
+        b for n, b in promoted_bytes(bundle) if n.endswith("metrics.json")
+    )
+    doc = json.loads(promoted_metrics)
+    assert doc["summary"]["token_count"] == 12345
+    assert doc["summary"]["input_tokens"] == 8000
+    assert doc["summary"]["total_tokens"] == 12345
+    assert doc["summary"]["tokens_per_second"] == 42.5
+
+
+def test_mixed_case_agent_sessions_quota_sidecar(tmp_path: Path) -> None:
+    """Mixed-case Agent/Sessions paths extract quota sidecars without crashing."""
+    job = make_base_job(tmp_path, "mixed_case_quota_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    rollout_line = json.dumps({
+        "timestamp": "2026-08-30T01:00:00Z",
+        "payload": {
+            "type": "token_count",
+            "rate_limits": {
+                "limit_id": "mixed_case_limit",
+                "primary": {"used_percent": 15.0, "window_minutes": 60, "resets_at": 500},
+            },
+        },
+    })
+    # Mixed case directory Agent/Sessions
+    agent_dir = trial / "Agent"
+    sessions_dir = agent_dir / "Sessions"
+    sessions_dir.mkdir(parents=True)
+    rollout_file = sessions_dir / "rollout-20260830-mixed.jsonl"
+    rollout_file.write_text(f"{rollout_line}\n", encoding="utf-8")
+
+    bundle = tmp_path / "evidence" / job.name
+    manifest = PROMOTE.promote(job, bundle)
+
+    # Rollout is omitted
+    promoted_names = [name for name, _ in promoted_bytes(bundle)]
+    assert not any("rollout-20260830-mixed.jsonl" in name for name in promoted_names)
+
+    # Sidecar is extracted under Agent/quota
+    sidecars = [e for e in manifest["files"] if e.get("rule") == "R4"]
+    assert len(sidecars) == 1
+    assert "Agent" in sidecars[0]["promoted_path"] or "agent" in sidecars[0]["promoted_path"]
+    assert sidecars[0]["promoted_path"].endswith(".rate-limits.json")
 
 
 def test_oversized_session_rollout_extracts_quota_sidecar_via_streaming(

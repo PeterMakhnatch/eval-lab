@@ -145,15 +145,15 @@ PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
 EVIDENCE_RUNS = Path(__file__).resolve().parents[1] / "research" / "evidence" / "runs"
 
-#: R4. Longest whitelisted quota string this repository has ever observed is
-#: ``"prolite"`` (7 bytes). 128 bytes is generous for a plan or limit label and
-#: still bounds the sidecar by construction, so no whitelisted string can carry
-#: a payload even if the provider starts putting prose in one.
+#: R4 constants and bounding limits.
 RATE_LIMIT_STRING_LIMIT = 128
 SIDECAR_SCHEMA_VERSION = 1
 SIDECAR_DIRNAME = "quota"
 SIDECAR_SUFFIX = ".rate-limits.json"
 ROLLOUT_PREFIX = "rollout-"
+MAX_ROLLOUT_LINE_BYTES = 65536
+MAX_QUOTA_SNAPSHOTS = 1000
+MAX_SIDECAR_BYTES = 1024 * 1024
 
 #: Streaming read chunk size and hard file size limit.
 STREAM_CHUNK_BYTES = 65536
@@ -194,8 +194,30 @@ ARCHIVE_SUFFIXES = frozenset({
     ".rpm",
 })
 
-#: Words and regex pattern matching secret-shaped keys (camelCase, snake_case, kebab-case).
-_SECRET_KEY_WORDS = frozenset({
+#: Benign metrics containing 'token' that must never be treated as secret keys.
+_BENIGN_METRIC_WORDS = frozenset({
+    "token_count",
+    "token_counts",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "prompt_tokens",
+    "completion_tokens",
+    "cached_tokens",
+    "reasoning_tokens",
+    "tokens_per_second",
+    "step_tokens",
+    "max_tokens",
+    "max_output_tokens",
+    "num_tokens",
+    "n_tokens",
+    "token_usage",
+    "usage_tokens",
+})
+
+#: Words and pattern matching secret-shaped auth/credential keys.
+_SECRET_AUTH_KEYS = frozenset({
+    "token",
     "api_key",
     "apikey",
     "access_key",
@@ -227,8 +249,6 @@ _SECRET_KEY_WORDS = frozenset({
     "session_token",
     "signing_key",
     "ssh_key",
-    "token",
-    "tokens",
     "webhook_secret",
 })
 
@@ -236,7 +256,7 @@ _SECRET_PATTERN = re.compile(
     r"(?:^|_)(?:api_?key|access_?(?:key|token)|auth(?:orization|_secret|_token)?|bearer(?:_token)?|"
     r"client_?secret|credential(?:s|_key)?|github_?token|gitlab_?token|id_?token|jwt(?:_token)?|"
     r"passphrase|password|passwd|private_?key|pwd|refresh_?token|secret(?:s|_key)?|"
-    r"session_?(?:key|token)|signing_?key|ssh_?key|token(?:s|_secret)?|webhook_?secret)(?:$|_)"
+    r"session_?(?:key|token)|signing_?key|ssh_?key|webhook_?secret)(?:$|_)"
 )
 
 
@@ -250,9 +270,15 @@ def _normalize_key_name(key: str) -> str:
 
 
 def _is_secret_key(key: str) -> bool:
-    """Detect if a JSON key name is secret-shaped across casing styles."""
+    """Detect if a JSON key name is secret-shaped across casing styles while preserving benign metrics."""
     normalized = _normalize_key_name(key)
-    if normalized in _SECRET_KEY_WORDS:
+    if (
+        normalized in _BENIGN_METRIC_WORDS
+        or normalized.endswith(("_tokens", "_token_count", "_tokens_per_second", "_token_usage"))
+        or normalized.startswith(("token_count", "tokens_per_"))
+    ):
+        return False
+    if normalized in _SECRET_AUTH_KEYS:
         return True
     return bool(_SECRET_PATTERN.search(normalized))
 
@@ -412,11 +438,13 @@ def redact_trajectory(raw: bytes) -> bytes:
     return json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
 
 
-def _redact_json_strings(node: Any, parent_key: str | None = None) -> tuple[Any, int]:
+def _redact_json_strings(
+    node: Any, parent_key: str | None = None, under_secret: bool = False
+) -> tuple[Any, int]:
     """R3a & Secret redaction: replace oversize strings and secret-shaped keys with digest markers."""
-    if parent_key and _is_secret_key(parent_key):
-        if isinstance(node, (str, int, float, bool)) and str(node):
-            return _marker(str(node)), 1
+    is_secret = under_secret or (parent_key is not None and _is_secret_key(parent_key))
+    if is_secret and isinstance(node, (str, int, float, bool)) and str(node):
+        return _marker(str(node)), 1
     if isinstance(node, str):
         if len(node.encode("utf-8")) > VERIFIER_JSON_STRING_LIMIT:
             return _marker(node), 1
@@ -425,14 +453,18 @@ def _redact_json_strings(node: Any, parent_key: str | None = None) -> tuple[Any,
         count = 0
         result: dict[str, Any] = {}
         for key, value in node.items():
-            result[key], hits = _redact_json_strings(value, parent_key=key)
+            result[key], hits = _redact_json_strings(
+                value, parent_key=key, under_secret=is_secret
+            )
             count += hits
         return result, count
     if isinstance(node, list):
         count = 0
         items = []
         for value in node:
-            item, hits = _redact_json_strings(value, parent_key=parent_key)
+            item, hits = _redact_json_strings(
+                value, parent_key=parent_key, under_secret=is_secret
+            )
             items.append(item)
             count += hits
         return items, count
@@ -530,27 +562,64 @@ def _timestamp(value: Any) -> str | None:
     return value
 
 
-def rate_limit_snapshots(source: bytes | Path) -> tuple[list[dict[str, Any]], list[str]]:
+def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
     """Every provider quota snapshot in one rollout, reduced to the whitelist.
 
-    Can accept either bytes in memory or a Path to stream line-by-line from disk,
-    allowing oversized rollouts to extract quota without unbounded memory usage.
+    Mirrors ``evallab.quota._rate_limit_snapshots``: a ``token_count`` event
+    whose payload carries ``rate_limits``. Only that subtree and the event
+    timestamp are read; the rest of the line is never touched.
     """
     snapshots: list[dict[str, Any]] = []
     dropped: set[str] = set()
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        if len(snapshots) >= MAX_QUOTA_SNAPSHOTS:
+            break
+        if "rate_limits" not in line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict) or payload.get("type") != "token_count":
+            continue
+        observed_at = _timestamp(event.get("timestamp"))
+        limits, missed = redact_rate_limits(payload.get("rate_limits"))
+        dropped.update(missed)
+        if observed_at is None or not limits:
+            continue
+        snapshots.append({"timestamp": observed_at, "rate_limits": limits})
+    snapshots.sort(key=lambda item: item["timestamp"])
+    return snapshots, sorted(dropped)
 
-    lines = (
-        source.open("r", encoding="utf-8", errors="replace")
-        if isinstance(source, Path)
-        else source.decode("utf-8", errors="replace").splitlines()
-    )
-    try:
-        for line in lines:
-            if "rate_limits" not in line:
+
+def stream_rollout_digest_and_quota(
+    relative: Path, path: Path
+) -> tuple[str, int, bytes | None]:
+    """Single-pass streaming: compute SHA-256 digest, byte count, and quota sidecar document.
+
+    Reads line-by-line with bounded line lengths and snapshot limits so that digest and sidecar
+    are derived from a single coherent file pass without unbounded memory.
+    """
+    h = hashlib.sha256()
+    total_bytes = 0
+    snapshots: list[dict[str, Any]] = []
+    dropped: set[str] = set()
+
+    with path.open("rb") as f:
+        while chunk := f.readline(MAX_ROLLOUT_LINE_BYTES):
+            total_bytes += len(chunk)
+            h.update(chunk)
+            if len(snapshots) >= MAX_QUOTA_SNAPSHOTS or b"rate_limits" not in chunk:
                 continue
             try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
+                line_str = chunk.decode("utf-8", errors="replace").strip()
+                if not line_str:
+                    continue
+                event = json.loads(line_str)
+            except Exception:
                 continue
             if not isinstance(event, dict):
                 continue
@@ -563,12 +632,41 @@ def rate_limit_snapshots(source: bytes | Path) -> tuple[list[dict[str, Any]], li
             if observed_at is None or not limits:
                 continue
             snapshots.append({"timestamp": observed_at, "rate_limits": limits})
-    finally:
-        if isinstance(source, Path):
-            lines.close()
 
+    digest = f"sha256:{h.hexdigest()}"
     snapshots.sort(key=lambda item: item["timestamp"])
-    return snapshots, sorted(dropped)
+    if not snapshots:
+        return digest, total_bytes, None
+
+    doc = {
+        "schema_version": SIDECAR_SCHEMA_VERSION,
+        "rule": "R4",
+        "kind": "evallab-rate-limits-sidecar",
+        "source_path": str(relative),
+        "source_bytes": total_bytes,
+        "source_sha256": digest,
+        "source_omitted_by_rule": "R2",
+        "kept": (
+            "the event timestamp and a whitelist of payload.rate_limits scalars; "
+            "no message, prompt, reasoning, session title or token is read"
+        ),
+        "dropped_field_names": sorted(dropped),
+        "snapshot_count": len(snapshots),
+        "limits": (
+            "account-scope, not the lab's share; a point-in-time snapshot, not a "
+            "series; only as fresh as the trial that recorded it. See "
+            "docs/quota-accounting.md."
+        ),
+        "snapshots": snapshots,
+    }
+    body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+    if len(body) > MAX_SIDECAR_BYTES:
+        while len(body) > MAX_SIDECAR_BYTES and len(snapshots) > 1:
+            snapshots = snapshots[: len(snapshots) // 2]
+            doc["snapshots"] = snapshots
+            doc["snapshot_count"] = len(snapshots)
+            body = json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+    return digest, total_bytes, body
 
 
 def sidecar_path(relative: Path) -> Path:
@@ -577,45 +675,37 @@ def sidecar_path(relative: Path) -> Path:
     Deliberately *not* under ``agent/sessions/``. That prefix is the structural
     signal that a path holds raw model I/O, and ``git ls-files`` finding nothing
     under it in committed evidence must stay a true check.
+    Supports case-folded agent components.
     """
     parts = relative.parts
-    agent = parts.index("agent")
+    norm_parts = [_canonical(p) for p in parts]
+    if "agent" in norm_parts:
+        agent_idx = norm_parts.index("agent")
+    else:
+        agent_idx = len(parts) - 2 if len(parts) >= 2 else 0
     stem = relative.name.removesuffix(".jsonl")
-    return Path(*parts[: agent + 1], SIDECAR_DIRNAME, f"{stem}{SIDECAR_SUFFIX}")
+    return Path(*parts[: agent_idx + 1], SIDECAR_DIRNAME, f"{stem}{SIDECAR_SUFFIX}")
 
 
-def rate_limits_sidecar(
-    relative: Path,
-    source: bytes | Path,
-    *,
-    source_bytes: int | None = None,
-    source_sha256: str | None = None,
-) -> bytes | None:
+def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
     """R4: the redacted quota sidecar for one omitted rollout, or ``None``.
 
     ``None`` when the file is not a rollout or records no quota snapshot, so a
     bundle only grows a sidecar where there is a reading to preserve.
     """
-    if not relative.name.startswith(ROLLOUT_PREFIX) or not relative.name.endswith(".jsonl"):
+    canonical_name = _canonical(relative.name)
+    if not canonical_name.startswith(ROLLOUT_PREFIX) or not canonical_name.endswith(".jsonl"):
         return None
-    snapshots, dropped = rate_limit_snapshots(source)
+    snapshots, dropped = rate_limit_snapshots(raw)
     if not snapshots:
         return None
-    if isinstance(source, bytes):
-        actual_bytes = len(source)
-        actual_sha256 = sha256_bytes(source)
-    else:
-        assert source_bytes is not None and source_sha256 is not None
-        actual_bytes = source_bytes
-        actual_sha256 = source_sha256
-
     document = {
         "schema_version": SIDECAR_SCHEMA_VERSION,
         "rule": "R4",
         "kind": "evallab-rate-limits-sidecar",
         "source_path": str(relative),
-        "source_bytes": actual_bytes,
-        "source_sha256": actual_sha256,
+        "source_bytes": len(raw),
+        "source_sha256": sha256_bytes(raw),
         "source_omitted_by_rule": "R2",
         "kept": (
             "the event timestamp and a whitelist of payload.rate_limits scalars; "
@@ -852,15 +942,25 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
 
         if action == "omit-R2":
             reason = _omission_reason(relative)
-            if st.st_size > MAX_SOURCE_BYTES:
+            is_rollout = (
+                _canonical(relative.name).startswith(ROLLOUT_PREFIX)
+                and _canonical(relative.name).endswith(".jsonl")
+            )
+
+            if is_rollout:
+                parent_digest, file_size, body = stream_rollout_digest_and_quota(
+                    relative, source
+                )
+                raw_bytes = None
+            elif st.st_size > MAX_SOURCE_BYTES:
                 parent_digest, file_size = _stream_sha256(source)
                 raw_bytes = None
-                sidecar_source: bytes | Path = source
+                body = None
             else:
                 raw_bytes = source.read_bytes()
                 parent_digest = sha256_bytes(raw_bytes)
                 file_size = len(raw_bytes)
-                sidecar_source = raw_bytes
+                body = None
 
             omission = omission_record(
                 relative,
@@ -872,15 +972,6 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             )
             entries.append(omission)
 
-            # R4: the rollout goes, but the provider's own quota reading inside
-            # it survives as a whitelisted sidecar carrying this same parent
-            # digest. Streams line-by-line from disk for oversized rollouts.
-            body = rate_limits_sidecar(
-                relative,
-                sidecar_source,
-                source_bytes=file_size,
-                source_sha256=parent_digest,
-            )
             if body is None:
                 continue
             target = sidecar_path(relative)

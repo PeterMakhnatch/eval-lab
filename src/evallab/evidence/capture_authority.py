@@ -112,6 +112,8 @@ _TOOL_REQUEST_EVENT_TYPES = frozenset(
         "request",
         "tool_invoked",
         "tool_call_requested",
+        "tool_call_success",
+        "tool_call_error",
         "read_chunk",
         "execute_mutation",
         "tools/call",
@@ -303,8 +305,10 @@ def assess_capture_concordance(
 
     atif_count = None if atif_missing else len(atif_seq)
     event_count = None if (events_missing or benchmark_events_invalid) else len(event_seq)
-    event_calls = () if (events_missing or benchmark_events_invalid) else tuple(
-        _benchmark_tool_calls(event_seq)
+    event_calls = (
+        ()
+        if (events_missing or benchmark_events_invalid)
+        else tuple(_benchmark_tool_calls(event_seq))
     )
     event_tool_count = None if (events_missing or benchmark_events_invalid) else len(event_calls)
 
@@ -331,7 +335,6 @@ def assess_capture_concordance(
     batch_concordant = False
     batch_unexpandable = False
     omission = False
-    concordant = False
 
     if events_admissible and not atif_missing:
         atif_names = tuple(_function_name(call) for call in atif_seq)
@@ -358,44 +361,38 @@ def assess_capture_concordance(
             batch_representation = True
 
         # Check if benchmark events were generated via indirect shell execution
-        # (e.g. benchmark tool calls exist while ATIF only issued shell/bash commands
+        # (e.g. benchmark tool calls exist while ATIF only ran shell/bash commands
         # or benchmark tool call count vastly exceeds direct ATIF calls)
         shell_calls_present = any(_is_shell_tool(name) for name in atif_names)
         atif_is_shell_only = bool(atif_names) and not direct_names
 
         if event_tool_count and event_tool_count > 0:
-            if atif_is_shell_only:
+            if (
+                atif_is_shell_only
+                or not batch_representation
+                and (event_tool_count or 0) > len(direct_names)
+            ):
                 indirect = True
-            elif not batch_representation and (event_tool_count or 0) > len(direct_names):
-                # When non-batch direct calls are fewer than benchmark events and shell calls were made
-                if shell_calls_present:
-                    indirect = True
-                else:
-                    indirect = True
             elif batch_representation:
                 if has_unexpandable_batch:
                     batch_unexpandable = True
                 elif len(expanded_direct_handles) >= (event_tool_count or 0):
                     batch_concordant = True
-                    concordant = True
                 elif shell_calls_present and (event_tool_count or 0) > len(expanded_direct_handles):
                     indirect = True
                 else:
                     batch_unexpandable = True
-            elif _sequences_concordant(direct_names, event_names):
-                concordant = True
-            elif (atif_count or 0) == (event_tool_count or 0) and _sequences_concordant(
-                atif_names, event_names
+            elif _sequences_concordant(direct_names, event_names) or (
+                (atif_count or 0) == (event_tool_count or 0)
+                and _sequences_concordant(atif_names, event_names)
             ):
-                concordant = True
+                pass
             elif len(direct_names) > (event_tool_count or 0):
                 omission = True
             else:
                 indirect = True
         elif len(direct_names) > 0:
             omission = True
-        elif (atif_count or 0) == 0 and (event_tool_count or 0) == 0:
-            concordant = True
 
     if events_missing or benchmark_events_invalid:
         status: CaptureConcordanceName = CaptureConcordanceStatus.NO_BENCHMARK_EVENTS
@@ -413,11 +410,9 @@ def assess_capture_concordance(
     elif batch_concordant:
         status = CaptureConcordanceStatus.CONCORDANT
         reason_codes.append(CaptureReasonCode.CONCORDANT_BATCH_CAPTURE)
-        concordant = True
     else:
         status = CaptureConcordanceStatus.CONCORDANT
         reason_codes.append(CaptureReasonCode.CONCORDANT_DIRECT_CAPTURE)
-        concordant = True
 
     is_concordant = status == CaptureConcordanceStatus.CONCORDANT
     has_indirect = status == CaptureConcordanceStatus.DISCORDANT_INDIRECT_EXECUTION
@@ -468,9 +463,7 @@ def _disposition_summary(
     has_batch: bool = False,
 ) -> str:
     if events_invalid:
-        return (
-            "Benchmark events are present but schema-invalid; retrieval authority is unresolved."
-        )
+        return "Benchmark events are present but schema-invalid; retrieval authority is unresolved."
     if status == CaptureConcordanceStatus.CONCORDANT:
         count = atif_count if atif_count is not None else 0
         batch_note = " (with deterministic batch expansion)" if has_batch else ""
@@ -503,11 +496,7 @@ def _disposition_summary(
 
 
 def _assessment_digest(assessment: CaptureAuthorityAssessment) -> str:
-    facts = {
-        key: value
-        for key, value in asdict(assessment).items()
-        if key != "assessment_digest"
-    }
+    facts = {key: value for key, value in asdict(assessment).items() if key != "assessment_digest"}
     canonical = json.dumps(facts, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return f"sha256:{sha256(canonical.encode()).hexdigest()}"
 
@@ -567,9 +556,7 @@ def _benchmark_tool_calls(events: Sequence[Any]) -> list[Any]:
     unnamed = 0
     for item in events:
         event_type, payload, name, call_id = _event_fields(item)
-        if event_type in _TOOL_REQUEST_EVENT_TYPES or (
-            not event_type and (name or _looks_like_call_mapping(item))
-        ):
+        if event_type in _TOOL_REQUEST_EVENT_TYPES or name or _looks_like_call_mapping(item):
             if not call_id:
                 unnamed += 1
                 call_id = f"call_{unnamed}"
@@ -581,8 +568,8 @@ def _benchmark_tool_calls(events: Sequence[Any]) -> list[Any]:
 
 
 def _looks_like_correlated_call(item: Any) -> bool:
-    return hasattr(item, "tool_name") and hasattr(item, "call_id") and hasattr(
-        item, "request_event"
+    return (
+        hasattr(item, "tool_name") and hasattr(item, "call_id") and hasattr(item, "request_event")
     )
 
 
@@ -600,8 +587,10 @@ def _event_fields(item: Any) -> tuple[str, Mapping[str, Any], str, str]:
         payload = item.get("payload") if isinstance(item.get("payload"), Mapping) else item
         event_type = str(item.get("event_type") or "")
         name = _function_name(item)
+        if not name and isinstance(payload, Mapping):
+            name = _function_name(payload)
         call_id = ""
-        for key in ("tool_call_id", "call_id", "id", "request_id"):
+        for key in ("tool_call_id", "call_id", "id", "request_id", "event_ordinal", "event_index"):
             value = item.get(key)
             if value is None and isinstance(payload, Mapping):
                 value = payload.get(key)
@@ -620,7 +609,11 @@ def _event_fields(item: Any) -> tuple[str, Mapping[str, Any], str, str]:
         if value is not None:
             call_id = str(value)
     if not call_id:
-        call_id = str(getattr(item, "call_id", "") or "")
+        for attr in ("call_id", "tool_call_id", "event_ordinal", "event_index"):
+            val = getattr(item, attr, None)
+            if val is not None and str(val):
+                call_id = str(val)
+                break
     return event_type, payload, name, call_id
 
 

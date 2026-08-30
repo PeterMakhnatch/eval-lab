@@ -4,10 +4,10 @@ Tests:
 1. Normal direct-call control: 1:1 direct ATIF tool calls matching benchmark events
    -> concordant, trajectory ordering admissible, benchmark events admissible.
 2. Discordant shape 1 (action-64k-semantic_distractor-s__6vDNEHZ regression fixture):
-   264 benchmark reads vs 17 ATIF direct tool calls (child curl loop in bash)
+   264 benchmark reads (266 total MCP tool calls) vs 17 ATIF direct tool calls (child curl loop in bash)
    -> discordant_indirect_execution, trajectory ordering inadmissible, benchmark events admissible.
 3. Discordant shape 2 (action-64k-semantic_distractor-s__8aYeUds regression fixture):
-   522 benchmark reads (two passes, 1 typo handle error) vs 16 ATIF direct tool calls
+   522 benchmark reads (525 total MCP tool calls, two passes, 1 typo handle error) vs 16 ATIF direct tool calls
    -> discordant_indirect_execution, trajectory ordering inadmissible, benchmark events admissible.
 4. Live E0b range_batch shape with get_context_chunks:
    Direct batch tool call with explicit chunk_ids expanding to match benchmark events
@@ -25,6 +25,8 @@ Tests:
    extract_direct_atif_handles extracts singular and batch handles without inventing fake calls.
 10. Assessment digest determinism:
     Identical facts produce byte-identical SHA-256 digests.
+11. Real promoted trial directory evaluation:
+    Verifies 6vDNEHZ and 8aYeUds directly against promoted repository artifacts.
 """
 
 from __future__ import annotations
@@ -32,16 +34,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from evallab.evidence.capture_authority import (
     CaptureAuthority,
-    CaptureAuthorityAssessment,
     CaptureConcordanceStatus,
     CaptureReasonCode,
     assess_capture_concordance,
     evaluate_capture_authority_from_dir,
-    expand_tool_call_handles,
     extract_direct_atif_handles,
     extract_direct_atif_tool_calls,
 )
@@ -108,41 +106,39 @@ def test_normal_direct_call_control_is_concordant_and_admissible(tmp_path: Path)
 
     benchmark_events = [
         {
-            "event_index": 1,
-            "event_type": "mcp_call",
-            "payload": {"tool_call_id": "call_1", "tool_name": "list_context_chunks"},
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "list_context_chunks",
+            "arguments": {},
+            "result": {"status": "ok"},
         },
         {
-            "event_index": 2,
-            "event_type": "mcp_call",
-            "payload": {
-                "tool_call_id": "call_2",
-                "tool_name": "get_context_chunk",
-                "arguments": {"chunk_id": "ctx_alpha"},
-            },
+            "event_ordinal": 2,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "ctx_alpha"},
+            "result": {"status": "ok"},
         },
         {
-            "event_index": 3,
-            "event_type": "mcp_call",
-            "payload": {
-                "tool_call_id": "call_3",
-                "tool_name": "get_context_chunk",
-                "arguments": {"chunk_id": "ctx_beta"},
-            },
+            "event_ordinal": 3,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "ctx_beta"},
+            "result": {"status": "ok"},
         },
         {
-            "event_index": 4,
-            "event_type": "mcp_call",
-            "payload": {
-                "tool_call_id": "call_4",
-                "tool_name": "execute_mutation",
-                "arguments": {"entity_id": "e1"},
-            },
+            "event_ordinal": 4,
+            "event_type": "tool_call_success",
+            "tool_name": "execute_mutation",
+            "arguments": {"entity_id": "e1"},
+            "result": {"status": "ok"},
         },
     ]
 
     _write_json(trial_dir / "agent" / "trajectory.json", atif_payload)
-    _write_jsonl(trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events)
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
 
     assessment = evaluate_capture_authority_from_dir(trial_dir)
 
@@ -158,16 +154,20 @@ def test_normal_direct_call_control_is_concordant_and_admissible(tmp_path: Path)
 
 
 def test_discordant_shape_1_6vdnehz_indirect_shell_execution(tmp_path: Path) -> None:
-    """Regression fixture matching action-64k-semantic_distractor-s__6vDNEHZ:
+    """Regression fixture exactly matching action-64k-semantic_distractor-s__6vDNEHZ:
 
-    264 benchmark reads recorded by MCP service vs 17 ATIF direct tool calls
+    266 benchmark events (264 get_context_chunk + 1 list + 1 mutation) vs 17 ATIF direct tool calls
     (agent invoked bash to run a curl loop over 257 handles).
     """
     trial_dir = tmp_path / "action-64k-semantic_distractor-s__6vDNEHZ"
 
-    # In ATIF: 1 list + 6 direct gets + several bash script invocations + 1 mutation = 17 calls
+    # In ATIF: 1 list + 6 direct gets + 6 bash + 1 direct get + 2 bash + 1 mutation = 17 calls
     atif_calls = [
-        {"tool_call_id": "call_list", "function_name": "memory_mcp_list_context_chunks", "arguments": {}},
+        {
+            "tool_call_id": "call_list",
+            "function_name": "memory_mcp_list_context_chunks",
+            "arguments": {},
+        },
         *(
             {
                 "tool_call_id": f"call_direct_{i}",
@@ -176,42 +176,95 @@ def test_discordant_shape_1_6vdnehz_indirect_shell_execution(tmp_path: Path) -> 
             }
             for i in range(6)
         ),
-        {"tool_call_id": "call_bash_init", "function_name": "bash", "arguments": {"command": "curl initialize"}},
-        {"tool_call_id": "call_bash_notif", "function_name": "bash", "arguments": {"command": "curl notif"}},
-        {"tool_call_id": "call_bash_file", "function_name": "bash", "arguments": {"command": "cat > chunks.txt"}},
-        {"tool_call_id": "call_bash_loop", "function_name": "bash", "arguments": {"command": "while read cid; do curl ...; done"}},
-        {"tool_call_id": "call_bash_grep", "function_name": "bash", "arguments": {"command": "grep -v distractor"}},
-        {"tool_call_id": "call_bash_parse", "function_name": "bash", "arguments": {"command": "python3 parse.py"}},
-        {"tool_call_id": "call_bash_check", "function_name": "bash", "arguments": {"command": "cat result"}},
-        {"tool_call_id": "call_bash_echo", "function_name": "bash", "arguments": {"command": "echo done"}},
-        {"tool_call_id": "call_mutate", "function_name": "memory_mcp_execute_mutation", "arguments": {"value": "v2"}},
+        {
+            "tool_call_id": "call_bash_init",
+            "function_name": "bash",
+            "arguments": {"command": "curl initialize"},
+        },
+        {
+            "tool_call_id": "call_bash_notif",
+            "function_name": "bash",
+            "arguments": {"command": "curl notif"},
+        },
+        {
+            "tool_call_id": "call_bash_file",
+            "function_name": "bash",
+            "arguments": {"command": "cat > chunks.txt"},
+        },
+        {
+            "tool_call_id": "call_bash_loop",
+            "function_name": "bash",
+            "arguments": {"command": "while read cid; do curl ...; done"},
+        },
+        {
+            "tool_call_id": "call_bash_grep",
+            "function_name": "bash",
+            "arguments": {"command": "grep -v distractor"},
+        },
+        {
+            "tool_call_id": "call_bash_parse",
+            "function_name": "bash",
+            "arguments": {"command": "python3 parse.py"},
+        },
+        {
+            "tool_call_id": "call_direct_last",
+            "function_name": "memory_mcp_get_context_chunk",
+            "arguments": {"chunk_id": "ctx_0007"},
+        },
+        {
+            "tool_call_id": "call_bash_check",
+            "function_name": "bash",
+            "arguments": {"command": "cat result"},
+        },
+        {
+            "tool_call_id": "call_bash_echo",
+            "function_name": "bash",
+            "arguments": {"command": "echo done"},
+        },
+        {
+            "tool_call_id": "call_mutate",
+            "function_name": "memory_mcp_execute_mutation",
+            "arguments": {"value": "v2"},
+        },
     ]
     assert len(atif_calls) == 17
 
-    # In benchmark events: 1 list + 6 direct gets + 257 curl loop gets = 264 MCP tool calls
+    # In benchmark events: 1 list + 264 get_context_chunk + 1 mutation = 266 events
     benchmark_events = [
-        {"event_index": 1, "event_type": "mcp_call", "payload": {"tool_call_id": "call_list", "tool_name": "list_context_chunks"}},
+        {
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "list_context_chunks",
+            "arguments": {},
+            "result": {},
+        },
         *(
             {
-                "event_index": 2 + i,
-                "event_type": "mcp_call",
-                "payload": {"tool_call_id": f"call_direct_{i}", "tool_name": "get_context_chunk"},
+                "event_ordinal": 2 + i,
+                "event_type": "tool_call_success",
+                "tool_name": "get_context_chunk",
+                "arguments": {"chunk_id": f"ctx_{i}"},
+                "result": {"status": "ok"},
             }
-            for i in range(6)
+            for i in range(264)
         ),
-        *(
-            {
-                "event_index": 8 + i,
-                "event_type": "mcp_call",
-                "payload": {"tool_call_id": f"curl_call_{i}", "tool_name": "get_context_chunk"},
-            }
-            for i in range(257)
-        ),
+        {
+            "event_ordinal": 266,
+            "event_type": "tool_call_success",
+            "tool_name": "execute_mutation",
+            "arguments": {"value": "v2"},
+            "result": {},
+        },
     ]
-    assert len(benchmark_events) == 264
+    assert len(benchmark_events) == 266
 
-    _write_json(trial_dir / "agent" / "trajectory.json", {"steps": [{"step_id": 1, "tool_calls": atif_calls}]})
-    _write_jsonl(trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events)
+    _write_json(
+        trial_dir / "agent" / "trajectory.json",
+        {"steps": [{"step_id": 1, "tool_calls": atif_calls}]},
+    )
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
 
     assessment = evaluate_capture_authority_from_dir(trial_dir)
 
@@ -223,18 +276,23 @@ def test_discordant_shape_1_6vdnehz_indirect_shell_execution(tmp_path: Path) -> 
     assert assessment.benchmark_events_admissible is True
     assert CaptureReasonCode.INDIRECT_CHILD_EXECUTION in assessment.reason_codes
     assert assessment.atif_tool_call_count == 17
-    assert assessment.benchmark_tool_call_count == 264
+    assert assessment.benchmark_tool_call_count == 266
 
 
 def test_discordant_shape_2_8ayeuds_indirect_shell_with_duplicate_passes(tmp_path: Path) -> None:
-    """Regression fixture matching action-64k-semantic_distractor-s__8aYeUds:
+    """Regression fixture exactly matching action-64k-semantic_distractor-s__8aYeUds:
 
-    522 benchmark reads (two loop passes, 1 typo not-found) vs 16 ATIF tool calls.
+    525 benchmark events (522 get_context_chunk + 2 list + 1 mutation) vs 16 ATIF tool calls.
     """
     trial_dir = tmp_path / "action-64k-semantic_distractor-s__8aYeUds"
 
+    # In ATIF: 1 list + 4 direct gets + 10 bash + 1 mutation = 16 calls
     atif_calls = [
-        {"tool_call_id": "call_list", "function_name": "memory_mcp_list_context_chunks", "arguments": {}},
+        {
+            "tool_call_id": "call_list",
+            "function_name": "memory_mcp_list_context_chunks",
+            "arguments": {},
+        },
         *(
             {
                 "tool_call_id": f"call_direct_{i}",
@@ -243,34 +301,107 @@ def test_discordant_shape_2_8ayeuds_indirect_shell_with_duplicate_passes(tmp_pat
             }
             for i in range(4)
         ),
-        {"tool_call_id": "call_bash_init", "function_name": "bash", "arguments": {"command": "curl init"}},
-        {"tool_call_id": "call_bash_fetch_sh", "function_name": "bash", "arguments": {"command": "./fetch.sh"}},
-        {"tool_call_id": "call_bash_parse", "function_name": "bash", "arguments": {"command": "python3 parse.py"}},
-        {"tool_call_id": "call_bash_list_server", "function_name": "bash", "arguments": {"command": "curl list"}},
-        {"tool_call_id": "call_bash_fetch_single", "function_name": "bash", "arguments": {"command": "curl single"}},
-        {"tool_call_id": "call_bash_loop2", "function_name": "bash", "arguments": {"command": "while read ...; do curl; done"}},
-        {"tool_call_id": "call_bash_analyze", "function_name": "bash", "arguments": {"command": "python3 analyze.py"}},
-        {"tool_call_id": "call_bash_verify", "function_name": "bash", "arguments": {"command": "cat out.txt"}},
-        {"tool_call_id": "call_mutate", "function_name": "memory_mcp_execute_mutation", "arguments": {"value": "f3e822e6_v2"}},
+        {
+            "tool_call_id": "call_bash_init",
+            "function_name": "bash",
+            "arguments": {"command": "curl init"},
+        },
+        {
+            "tool_call_id": "call_bash_fetch_sh",
+            "function_name": "bash",
+            "arguments": {"command": "./fetch.sh"},
+        },
+        {
+            "tool_call_id": "call_bash_parse",
+            "function_name": "bash",
+            "arguments": {"command": "python3 parse.py"},
+        },
+        {
+            "tool_call_id": "call_bash_list_server",
+            "function_name": "bash",
+            "arguments": {"command": "curl list"},
+        },
+        {
+            "tool_call_id": "call_bash_fetch_single",
+            "function_name": "bash",
+            "arguments": {"command": "curl single"},
+        },
+        {
+            "tool_call_id": "call_bash_loop2",
+            "function_name": "bash",
+            "arguments": {"command": "while read ...; do curl; done"},
+        },
+        {
+            "tool_call_id": "call_bash_analyze",
+            "function_name": "bash",
+            "arguments": {"command": "python3 analyze.py"},
+        },
+        {
+            "tool_call_id": "call_bash_debug",
+            "function_name": "bash",
+            "arguments": {"command": "python3 debug.py"},
+        },
+        {
+            "tool_call_id": "call_bash_verify",
+            "function_name": "bash",
+            "arguments": {"command": "cat out.txt"},
+        },
+        {
+            "tool_call_id": "call_bash_clean",
+            "function_name": "bash",
+            "arguments": {"command": "rm tmp"},
+        },
+        {
+            "tool_call_id": "call_mutate",
+            "function_name": "memory_mcp_execute_mutation",
+            "arguments": {"value": "f3e822e6_v2"},
+        },
     ]
     assert len(atif_calls) == 16
 
-    # 522 benchmark tool calls from MCP service
+    # In benchmark events: 2 list + 522 get_context_chunk + 1 mutation = 525 events
     benchmark_events = [
-        {"event_index": 1, "event_type": "mcp_call", "payload": {"tool_call_id": "call_list", "tool_name": "list_context_chunks"}},
+        {
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "list_context_chunks",
+            "arguments": {},
+            "result": {},
+        },
         *(
             {
-                "event_index": 2 + i,
-                "event_type": "mcp_call",
-                "payload": {"tool_call_id": f"call_{i}", "tool_name": "get_context_chunk"},
+                "event_ordinal": 2 + i,
+                "event_type": "tool_call_success",
+                "tool_name": "get_context_chunk",
+                "arguments": {"chunk_id": f"ctx_{i}"},
+                "result": {"status": "ok"},
             }
-            for i in range(521)
+            for i in range(522)
         ),
+        {
+            "event_ordinal": 524,
+            "event_type": "tool_call_success",
+            "tool_name": "list_context_chunks",
+            "arguments": {},
+            "result": {},
+        },
+        {
+            "event_ordinal": 525,
+            "event_type": "tool_call_success",
+            "tool_name": "execute_mutation",
+            "arguments": {"value": "v2"},
+            "result": {},
+        },
     ]
-    assert len(benchmark_events) == 522
+    assert len(benchmark_events) == 525
 
-    _write_json(trial_dir / "agent" / "trajectory.json", {"steps": [{"step_id": 1, "tool_calls": atif_calls}]})
-    _write_jsonl(trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events)
+    _write_json(
+        trial_dir / "agent" / "trajectory.json",
+        {"steps": [{"step_id": 1, "tool_calls": atif_calls}]},
+    )
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
 
     assessment = evaluate_capture_authority_from_dir(trial_dir)
 
@@ -281,6 +412,8 @@ def test_discordant_shape_2_8ayeuds_indirect_shell_with_duplicate_passes(tmp_pat
     assert assessment.trajectory_ordering_admissible is False
     assert assessment.benchmark_events_admissible is True
     assert CaptureReasonCode.INDIRECT_CHILD_EXECUTION in assessment.reason_codes
+    assert assessment.atif_tool_call_count == 16
+    assert assessment.benchmark_tool_call_count == 525
 
 
 def test_live_e0b_shape_get_context_chunks_batch_expansion(tmp_path: Path) -> None:
@@ -312,19 +445,19 @@ def test_live_e0b_shape_get_context_chunks_batch_expansion(tmp_path: Path) -> No
     # In benchmark events: 10 get_context_chunk events corresponding to the 10 requested chunks
     benchmark_events = [
         {
-            "event_index": 1 + i,
-            "event_type": "mcp_call",
-            "payload": {
-                "tool_call_id": f"call_batch_1_{i}",
-                "tool_name": "get_context_chunk",
-                "arguments": {"chunk_id": cid},
-            },
+            "event_ordinal": 1 + i,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": cid},
+            "result": {"status": "ok"},
         }
         for i, cid in enumerate(chunk_ids)
     ]
 
     _write_json(trial_dir / "agent" / "trajectory.json", atif_payload)
-    _write_jsonl(trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events)
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
 
     assessment = evaluate_capture_authority_from_dir(trial_dir)
 
@@ -361,19 +494,23 @@ def test_unexpandable_batch_tool_representation_refuses_trajectory_ordering(tmp_
 
     benchmark_events = [
         {
-            "event_index": 1,
-            "event_type": "mcp_call",
-            "payload": {"tool_call_id": "call_1", "tool_name": "get_context_chunk"},
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "result": {"status": "ok"},
         },
         {
-            "event_index": 2,
-            "event_type": "mcp_call",
-            "payload": {"tool_call_id": "call_2", "tool_name": "get_context_chunk"},
+            "event_ordinal": 2,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "result": {"status": "ok"},
         },
     ]
 
     _write_json(trial_dir / "agent" / "trajectory.json", atif_payload)
-    _write_jsonl(trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events)
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
 
     assessment = evaluate_capture_authority_from_dir(trial_dir)
 
@@ -419,13 +556,16 @@ def test_missing_atif_trajectory_sets_no_trajectory_and_authority(tmp_path: Path
 
     benchmark_events = [
         {
-            "event_index": 1,
-            "event_type": "mcp_call",
-            "payload": {"tool_call_id": "call_1", "tool_name": "get_context_chunk"},
+            "event_ordinal": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "get_context_chunk",
+            "result": {"status": "ok"},
         }
     ]
 
-    _write_jsonl(trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events)
+    _write_jsonl(
+        trial_dir / "artifacts" / "app" / "output" / "benchmark-events.jsonl", benchmark_events
+    )
 
     assessment = evaluate_capture_authority_from_dir(trial_dir)
 
@@ -492,12 +632,12 @@ def test_assessment_digest_is_deterministic() -> None:
     """Assessment digest produces identical SHA-256 for identical facts."""
     a1 = assess_capture_concordance(
         [{"function_name": "get_context_chunk", "arguments": {"chunk_id": "c1"}}],
-        [{"event_type": "mcp_call", "payload": {"tool_name": "get_context_chunk"}}],
+        [{"event_type": "tool_call_success", "tool_name": "get_context_chunk"}],
         trial_id="trial_1",
     )
     a2 = assess_capture_concordance(
         [{"function_name": "get_context_chunk", "arguments": {"chunk_id": "c1"}}],
-        [{"event_type": "mcp_call", "payload": {"tool_name": "get_context_chunk"}}],
+        [{"event_type": "tool_call_success", "tool_name": "get_context_chunk"}],
         trial_id="trial_1",
     )
 
@@ -520,7 +660,8 @@ def test_real_promoted_phase_a_discordant_trials_if_present() -> None:
         assert a1.trajectory_ordering_admissible is False
         assert a1.benchmark_events_admissible is True
         assert a1.atif_tool_call_count == 17
-        assert a1.benchmark_tool_call_count == 264
+        assert a1.benchmark_tool_call_count == 266
+        assert a1.benchmark_event_count == 266
 
     if t2.is_dir():
         a2 = evaluate_capture_authority_from_dir(t2)
@@ -530,4 +671,5 @@ def test_real_promoted_phase_a_discordant_trials_if_present() -> None:
         assert a2.trajectory_ordering_admissible is False
         assert a2.benchmark_events_admissible is True
         assert a2.atif_tool_call_count == 16
-        assert a2.benchmark_tool_call_count == 522
+        assert a2.benchmark_tool_call_count == 525
+        assert a2.benchmark_event_count == 525

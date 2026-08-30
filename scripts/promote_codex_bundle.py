@@ -196,7 +196,39 @@ ARCHIVE_SUFFIXES = frozenset({
     ".rpm",
 })
 
-#: Exact benign metric keys containing 'token' that must never be treated as secret keys.
+#: Allowlisted safe status enum strings that may survive under auth/status keys.
+SAFE_STATUS_ENUMS = frozenset({
+    "ok",
+    "passed",
+    "failed",
+    "error",
+    "skipped",
+    "success",
+    "active",
+    "inactive",
+    "pending",
+    "verified",
+    "unverified",
+    "enabled",
+    "disabled",
+    "true",
+    "false",
+    "valid",
+    "invalid",
+    "authorized",
+    "unauthorized",
+    "authenticated",
+    "unauthenticated",
+    "allowed",
+    "denied",
+    "completed",
+    "running",
+    "idle",
+    "none",
+    "null",
+})
+
+#: Exact benign metric keys containing 'token' that only exempt numeric scalars.
 BENIGN_EXACT_METRIC_KEYS = frozenset({
     "token_count",
     "token_counts",
@@ -215,7 +247,7 @@ BENIGN_EXACT_METRIC_KEYS = frozenset({
     "n_tokens",
 })
 
-#: Suffixes and prefixes for indicator/status/metric keys that are not secret containers.
+#: Suffixes and prefixes for boolean indicator keys that only exempt booleans.
 _INDICATOR_BOOLEAN_SUFFIXES = (
     "_present",
     "_exists",
@@ -223,6 +255,7 @@ _INDICATOR_BOOLEAN_SUFFIXES = (
     "_required",
     "_verified",
     "_configured",
+    "_valid",
 )
 
 _INDICATOR_BOOLEAN_PREFIXES = (
@@ -235,15 +268,6 @@ _INDICATOR_BOOLEAN_PREFIXES = (
 _METRIC_COUNT_SUFFIXES = (
     "_count",
     "_counts",
-)
-
-_STATUS_ENUM_SUFFIXES = (
-    "_status",
-    "_state",
-    "_mode",
-    "_type",
-    "_method",
-    "_result",
 )
 
 #: Words and pattern matching secret-shaped auth/credential keys.
@@ -336,44 +360,56 @@ def _normalize_key_name(key: str) -> str:
     return s3.strip("_").casefold()
 
 
+def _is_secret_word_match(normalized: str) -> bool:
+    if normalized in _SECRET_CONTAINER_WORDS:
+        return True
+    return bool(_SECRET_CONTAINER_PATTERN.search(normalized))
+
+
 def _should_redact_key_value(
     key: str, node: object, under_secret: bool
 ) -> tuple[bool, bool]:
-    """Value-shape-aware secret detection.
+    """Semantic value-shape-aware secret detection.
 
     Returns: (redact_leaf: bool, propagate_under_secret: bool)
     """
     if under_secret:
+        if isinstance(node, bool):
+            return False, True
+        if isinstance(node, str) and node.strip().casefold() in SAFE_STATUS_ENUMS:
+            return False, True
         return True, True
 
     normalized = _normalize_key_name(key)
 
-    # 1. Metric / Count shape check: only exempt numeric scalars
-    if normalized in BENIGN_EXACT_METRIC_KEYS or normalized.endswith(_METRIC_COUNT_SUFFIXES):
+    # 1. Exact metric keys & count suffixes: only exempt numeric scalars
+    if normalized in BENIGN_EXACT_METRIC_KEYS or (
+        normalized.endswith(_METRIC_COUNT_SUFFIXES) and not _is_secret_word_match(normalized)
+    ):
         if isinstance(node, (int, float)) and not isinstance(node, bool):
             return False, False
         return True, True
 
-    # 2. Boolean indicator shape check: only exempt booleans
-    if normalized.endswith(_INDICATOR_BOOLEAN_SUFFIXES) or normalized.startswith(_INDICATOR_BOOLEAN_PREFIXES):
+    # 2. Boolean indicator shape check (has_, is_, _present, _exists, etc.)
+    if (
+        normalized.endswith(_INDICATOR_BOOLEAN_SUFFIXES)
+        or normalized.startswith(_INDICATOR_BOOLEAN_PREFIXES)
+    ) and not _is_secret_word_match(normalized):
         if isinstance(node, bool):
             return False, False
         return True, True
 
-    # 3. Status / State / Type / Mode / Method / Result enum shape check: exempt bounded safe status scalars
-    if normalized.endswith(_STATUS_ENUM_SUFFIXES):
-        if isinstance(node, bool) or (isinstance(node, (int, float)) and not isinstance(node, bool)):
+    # 3. Secret-associated keys (auth, token, credential, secret, password, api_key, etc.)
+    if _is_secret_word_match(normalized):
+        if normalized.endswith(_METRIC_COUNT_SUFFIXES) and isinstance(node, (int, float)) and not isinstance(node, bool):
             return False, False
-        if isinstance(node, str):
-            if len(node.encode("utf-8")) <= _STATUS_MAX_STRING_BYTES:
-                return False, False
-            return True, False
-        return False, False
-
-    # 4. Secret container check: redact and propagate context to children
-    if normalized in _SECRET_CONTAINER_WORDS or bool(_SECRET_CONTAINER_PATTERN.search(normalized)):
+        if isinstance(node, bool):
+            return False, False
+        if isinstance(node, str) and node.strip().casefold() in SAFE_STATUS_ENUMS:
+            return False, False
         return True, True
 
+    # 4. Generic non-secret keys: recurse normally without propagating secret context
     return False, False
 
 
@@ -615,13 +651,11 @@ def _whitelisted_group(
     for key, value in payload.items():
         kinds = fields.get(key)
         if kinds is None:
-            if len(dropped) < MAX_DROPPED_NAMES * 2:
-                dropped.append(f"{prefix}.{key}"[:RATE_LIMIT_STRING_LIMIT])
+            dropped.append(f"{prefix}.{key}"[:RATE_LIMIT_STRING_LIMIT])
             continue
         kept = _whitelisted_scalar(value, kinds)
         if kept is None and value is not None:
-            if len(dropped) < MAX_DROPPED_NAMES * 2:
-                dropped.append(f"{prefix}.{key}"[:RATE_LIMIT_STRING_LIMIT])
+            dropped.append(f"{prefix}.{key}"[:RATE_LIMIT_STRING_LIMIT])
             continue
         group[key] = kept
     return group
@@ -645,8 +679,7 @@ def redact_rate_limits(
         if key in RATE_LIMIT_SCALARS:
             kept = _whitelisted_scalar(value, RATE_LIMIT_SCALARS[key])
             if kept is None and value is not None:
-                if len(dropped) < MAX_DROPPED_NAMES * 2:
-                    dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
+                dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
                 continue
             safe[key] = kept
         elif key in RATE_LIMIT_WINDOW_KEYS:
@@ -654,8 +687,7 @@ def redact_rate_limits(
         elif key == "credits":
             safe[key] = _whitelisted_group(value, RATE_LIMIT_CREDITS, key, dropped)
         else:
-            if len(dropped) < MAX_DROPPED_NAMES * 2:
-                dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
+            dropped.append(key[:RATE_LIMIT_STRING_LIMIT])
     if dropped_collector is not None:
         dropped_collector.extend(dropped)
     return safe, dropped

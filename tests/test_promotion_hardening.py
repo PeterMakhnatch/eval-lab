@@ -705,7 +705,7 @@ def test_nested_secret_context_propagation(tmp_path: Path) -> None:
 
 
 def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
-    """Value-shape awareness: metrics only exempt numbers, indicators only booleans, status only short safe strings."""
+    """Value-shape awareness: metrics only exempt numbers, indicators only booleans, status only safe enums."""
     job = make_base_job(tmp_path, "value_shape_job")
     trial = job / "evallab-zai-syn-hardening__synthetic"
 
@@ -719,10 +719,15 @@ def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
         "credentials_count": 2,
         "authorization_result": "passed",
         "auth_status": "verified",
-        "auth_type": "bearer",
         "auth_result": {
             "status": "ok",
             "token": SECRET_TOKEN,
+        },
+        # Generic result structure that recurses normally
+        "generic_result": {
+            "status": "completed",
+            "summary_text": "all tests passed",
+            "leaked_token": SECRET_TOKEN,
         },
         # Malicious smuggling under indicator/metric keys
         "smuggled": {
@@ -731,7 +736,11 @@ def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
             "input_tokens": [SECRET_TOKEN],
             "token_count": SECRET_TOKEN,
             "credentials_count": SECRET_TOKEN,
-            "authorization_result": SECRET_TOKEN * 5,  # Oversized status string
+            "authorization_result": SECRET_TOKEN,  # Arbitrary secret string in status key
+            "auth_result": {
+                "status": "ok",
+                "value": SECRET_TOKEN,
+            },
         }
     }
     (trial / "verifier" / "value_shape.json").write_text(
@@ -753,9 +762,11 @@ def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
     assert doc["credentials_count"] == 2
     assert doc["authorization_result"] == "passed"
     assert doc["auth_status"] == "verified"
-    assert doc["auth_type"] == "bearer"
     assert doc["auth_result"]["status"] == "ok"
     assert "evallab-redacted" in doc["auth_result"]["token"]
+    assert doc["generic_result"]["status"] == "completed"
+    assert doc["generic_result"]["summary_text"] == "all tests passed"
+    assert "evallab-redacted" in doc["generic_result"]["leaked_token"]
 
     # Smuggled values redacted
     assert "evallab-redacted" in doc["smuggled"]["has_api_key"]
@@ -764,6 +775,8 @@ def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
     assert "evallab-redacted" in doc["smuggled"]["token_count"]
     assert "evallab-redacted" in doc["smuggled"]["credentials_count"]
     assert "evallab-redacted" in doc["smuggled"]["authorization_result"]
+    assert doc["smuggled"]["auth_result"]["status"] == "ok"
+    assert "evallab-redacted" in doc["smuggled"]["auth_result"]["value"]
 
     # Sentinel must not leak
     for name, body in promoted_bytes(bundle):

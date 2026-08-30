@@ -1367,7 +1367,9 @@ def test_search_records_invalidated_by_candidate_pool_change(tmp_path, monkeypat
             candidate_pool_digest="altered_candidate_pool",
         )
 
-    with pytest.raises(ValueError, match="Candidate pool is invalid or candidate identity is missing"):
+    with pytest.raises(
+        ValueError, match="Candidate pool is invalid or candidate identity is missing"
+    ):
         search_records(
             "Instruction text",
             table="tasks",
@@ -1482,4 +1484,3 @@ def test_manifest_persisted_for_all_built_tables(tmp_path, monkeypatch):
         assert len(manifest.snapshot_digest) == 64
         assert len(manifest.candidate_pool_digest) == 64
         assert manifest.redaction_policy_digest == DEFAULT_REDACTION_POLICY_DIGEST
-

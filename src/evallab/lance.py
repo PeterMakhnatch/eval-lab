@@ -39,9 +39,7 @@ tasks, trials, steps, analyses so policy is consistent.
 """
 
 DEFAULT_REDACTION_POLICY: str = "default_redaction_v1"
-DEFAULT_REDACTION_POLICY_DIGEST: str = hashlib.sha256(
-    DEFAULT_REDACTION_POLICY.encode("utf-8")
-).hexdigest()
+DEFAULT_REDACTION_POLICY_DIGEST: str = hashlib.sha256(DEFAULT_REDACTION_POLICY.encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -113,7 +111,7 @@ class LanceIndexManifest:
             "row_count": row_count,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 class Embedder(Protocol):
@@ -148,9 +146,7 @@ class HashingEmbedder:
 
     @property
     def digest(self) -> str:
-        return hashlib.sha256(
-            f"{self.identity}:{self.version}:dim={self.dim}".encode("utf-8")
-        ).hexdigest()
+        return hashlib.sha256(f"{self.identity}:{self.version}:dim={self.dim}".encode()).hexdigest()
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
@@ -218,9 +214,7 @@ def _get_embedder_metadata(embedder: Embedder) -> tuple[str, str, str]:
         emb_digest = digest_attr
     else:
         dim_val = getattr(embedder, "dim", 256)
-        emb_digest = hashlib.sha256(
-            f"{emb_id}:{emb_ver}:dim={dim_val}".encode("utf-8")
-        ).hexdigest()
+        emb_digest = hashlib.sha256(f"{emb_id}:{emb_ver}:dim={dim_val}".encode()).hexdigest()
     return emb_id, emb_ver, emb_digest
 
 
@@ -347,14 +341,12 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
     tbl = db.create_table("tasks", data=data, mode="overwrite")
     index_reason: str | None = None
     n_rows = len(data)
-    candidate_pool_digest = hashlib.sha256(
-        "\n".join(sorted(task_refs)).encode("utf-8")
-    ).hexdigest()
+    candidate_pool_digest = hashlib.sha256("\n".join(sorted(task_refs)).encode()).hexdigest()
     snapshot_content = "\n".join(
-        f"{tr}:{hashlib.sha256(instr.encode('utf-8')).hexdigest()}"
+        f"{tr}:{hashlib.sha256(instr.encode()).hexdigest()}"
         for tr, instr in sorted(zip(task_refs, instructions, strict=True))
     )
-    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    snapshot_digest = hashlib.sha256(snapshot_content.encode()).hexdigest()
     _save_manifest(root, "tasks", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
@@ -480,13 +472,13 @@ def _build_trials(
     index_reason: str | None = None
     n_rows = len(rows)
     candidate_pool_digest = hashlib.sha256(
-        "\n".join(sorted(r["trial_id"] for r in rows)).encode("utf-8")
+        "\n".join(sorted(r["trial_id"] for r in rows)).encode()
     ).hexdigest()
     snapshot_content = "\n".join(
-        f"{r['job_id']}:{r['trial_id']}:{hashlib.sha256(r['text'].encode('utf-8')).hexdigest()}"
+        f"{r['job_id']}:{r['trial_id']}:{hashlib.sha256(r['text'].encode()).hexdigest()}"
         for r in sorted(rows, key=lambda x: (x["job_id"], x["trial_id"]))
     )
-    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    snapshot_digest = hashlib.sha256(snapshot_content.encode()).hexdigest()
     _save_manifest(root, "trials", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
@@ -596,17 +588,13 @@ def _build_steps(
     index_reason: str | None = None
     n_rows = len(rows)
     candidate_pool_digest = hashlib.sha256(
-        "\n".join(
-            sorted(f"{r['job_id']}:{r['trial_id']}:{r['step_id']}" for r in rows)
-        ).encode("utf-8")
+        "\n".join(sorted(f"{r['job_id']}:{r['trial_id']}:{r['step_id']}" for r in rows)).encode()
     ).hexdigest()
     snapshot_content = "\n".join(
-        f"{r['job_id']}:{r['trial_id']}:{r['step_id']}:{hashlib.sha256(r['message'].encode('utf-8')).hexdigest()}"
-        for r in sorted(
-            rows, key=lambda x: (x["job_id"], x["trial_id"], str(x["step_id"]))
-        )
+        f"{r['job_id']}:{r['trial_id']}:{r['step_id']}:{hashlib.sha256(r['message'].encode()).hexdigest()}"
+        for r in sorted(rows, key=lambda x: (x["job_id"], x["trial_id"], str(x["step_id"])))
     )
-    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    snapshot_digest = hashlib.sha256(snapshot_content.encode()).hexdigest()
     _save_manifest(root, "steps", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
@@ -778,13 +766,13 @@ def _build_analyses(
     index_reason: str | None = None
     n_rows = len(rows)
     candidate_pool_digest = hashlib.sha256(
-        "\n".join(sorted(r["analysis_id"] for r in rows)).encode("utf-8")
+        "\n".join(sorted(r["analysis_id"] for r in rows)).encode()
     ).hexdigest()
     snapshot_content = "\n".join(
-        f"{r['analysis_id']}:{hashlib.sha256(r['conclusion'].encode('utf-8')).hexdigest()}"
+        f"{r['analysis_id']}:{hashlib.sha256(r['conclusion'].encode()).hexdigest()}"
         for r in sorted(rows, key=lambda x: x["analysis_id"])
     )
-    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    snapshot_digest = hashlib.sha256(snapshot_content.encode()).hexdigest()
     _save_manifest(root, "analyses", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
@@ -828,13 +816,9 @@ def search_records(
     manifest_path = root / f"{table}.manifest.json"
     if manifest is None:
         if not manifest_path.is_file():
-            raise FileNotFoundError(
-                f"Manifest for table '{table}' not found at {manifest_path}"
-            )
+            raise FileNotFoundError(f"Manifest for table '{table}' not found at {manifest_path}")
         try:
-            manifest = LanceIndexManifest.from_json(
-                manifest_path.read_text(encoding="utf-8")
-            )
+            manifest = LanceIndexManifest.from_json(manifest_path.read_text(encoding="utf-8"))
         except Exception as e:
             raise ValueError(f"Corrupt manifest for table '{table}': {e}") from e
 
@@ -874,18 +858,11 @@ def search_records(
     for r in res:
         raw_dist = float(r.get("_distance", 0.0))
         text_val = str(
-            r.get("text")
-            or r.get("conclusion")
-            or r.get("message")
-            or r.get("instruction")
-            or ""
+            r.get("text") or r.get("conclusion") or r.get("message") or r.get("instruction") or ""
         )
 
         # Self-distance is strictly 0.0 for exact matches or float precision rounding
-        if text_val.strip() == query.strip() or abs(raw_dist) < 1e-6:
-            dist = 0.0
-        else:
-            dist = raw_dist
+        dist = 0.0 if text_val.strip() == query.strip() or abs(raw_dist) < 1e-6 else raw_dist
 
         score = max(0.0, 1.0 - dist)
 

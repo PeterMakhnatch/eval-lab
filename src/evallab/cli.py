@@ -396,6 +396,43 @@ def _preflight_command(
     return 1 if report.refusals() else 0
 
 
+def _run_preflight_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Secret-safe preflight for Z.ai / TB4 overnight campaign manifests."""
+    from evallab.run_preflight import (
+        OvernightCampaignPreflight,
+        build_run_preflight,
+        render_run_preflight,
+        run_preflight_to_dict,
+    )
+
+    campaigns: list[OvernightCampaignPreflight] = []
+    for raw_path in args.campaigns:
+        manifest_path = _resolve(root, raw_path)
+        if not manifest_path.is_file():
+            print(f"error: campaign manifest not found: {raw_path}", file=sys.stderr)
+            return 2
+        try:
+            campaigns.append(
+                OvernightCampaignPreflight.model_validate_json(
+                    manifest_path.read_text(encoding="utf-8")
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: invalid overnight campaign manifest {raw_path}: {exc}", file=sys.stderr)
+            return 2
+
+    report = build_run_preflight(root, campaigns, compile_only=args.compile_only)
+    if args.json:
+        print(json.dumps(run_preflight_to_dict(report), indent=2, sort_keys=True))
+    else:
+        print(render_run_preflight(report), end="")
+    if args.compile_only:
+        return 0
+    return 0 if report.launch_ok else 1
+
+
 def _submit_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3404,6 +3441,28 @@ def parser() -> argparse.ArgumentParser:
         help="Repository root to read (default: this checkout)",
     )
     preflight.set_defaults(func=_preflight_command)
+
+    run_preflight = commands.add_parser(
+        "run-preflight",
+        help="Secret-safe preflight for Z.ai/TB4 overnight campaigns: which may compile, calibrate, or promote causally",
+    )
+    run_preflight.add_argument(
+        "campaigns",
+        type=Path,
+        nargs="+",
+        help="Overnight campaign manifest JSON path(s)",
+    )
+    run_preflight.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+    run_preflight.add_argument(
+        "--compile-only",
+        action="store_true",
+        help="Report which campaigns may compile; do not fail-closed on launch",
+    )
+    run_preflight.set_defaults(func=_run_preflight_command)
 
     submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
     submit.add_argument("path", type=Path)

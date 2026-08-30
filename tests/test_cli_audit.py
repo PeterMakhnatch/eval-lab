@@ -15,6 +15,7 @@ TOP_LEVEL_COMMANDS = (
     "dashboard",
     "status",
     "preflight",
+    "run-preflight",
     "submit",
     "tick",
     "approve",

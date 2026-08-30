@@ -96,9 +96,18 @@ class _FakeOpenCode:
 
     def populate_context_post_run(self, context: Any) -> None:
         del context
-        (self.logs_dir / "trajectory.json").write_text(
-            json.dumps({"authorization": SECRET_SENTINEL, "ok": True}) + "\n"
-        )
+        traj_path = self.logs_dir / "trajectory.json"
+        if traj_path.is_file():
+            try:
+                data = json.loads(traj_path.read_text())
+            except Exception:
+                data = {}
+        else:
+            data = {}
+        data.setdefault("authorization", f"Bearer {SECRET_SENTINEL}")
+        data.setdefault("apiKey", SECRET_SENTINEL)
+        data.setdefault("ok", True)
+        traj_path.write_text(json.dumps(data) + "\n")
 
 
 def _module(name: str, **attributes: Any) -> ModuleType:
@@ -207,6 +216,7 @@ def _setup_proxy(
     upstream_handler: type[BaseHTTPRequestHandler] = _MockZaiUpstream,
     capability: str = "test-zai-capability-token-32b",
 ) -> tuple[ThreadingHTTPServer, ThreadingHTTPServer, str]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     secret_file = tmp_path / "zai_key"
     secret_file.write_text(SECRET_SENTINEL + "\n")
     secret_file.chmod(0o600)
@@ -542,6 +552,7 @@ def test_proxy_rejects_upstream_redirects_and_gzip(
 
 
 def test_proxy_refuses_symlink_secret(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     real = tmp_path / "real_key"
     real.write_text(SECRET_SENTINEL + "\n")
     real.chmod(0o400)
@@ -623,9 +634,20 @@ def test_adapter_rewrites_connection_to_internal_proxy(
 
 def test_adapter_rejects_non_zai_models(zai_adapter_module: ModuleType) -> None:
     module = zai_adapter_module
-    for bad_model in ("openai/gpt-5.2", "anthropic/claude-3-5-sonnet", "glm-5.3-flash"):
+    # Missing provider prefix
+    with pytest.raises(ValueError, match="requires a provider/model selector"):
+        module.SecretSafeZaiOpenCodeAgent(model_name="glm-5.3-flash")
+    with pytest.raises(ValueError, match="requires a provider/model selector"):
+        module.SecretSafeZaiOpenCodeAgent(model_name="")
+
+    # Wrong provider prefix
+    for bad_model in ("openai/gpt-5.2", "anthropic/claude-3-5-sonnet", "zai/glm-5.3"):
         with pytest.raises(ValueError, match="only accepts models under 'zai-coding-plan/'"):
             module.SecretSafeZaiOpenCodeAgent(model_name=bad_model)
+
+    # Empty model under prefix
+    with pytest.raises(ValueError, match="requires a non-empty model"):
+        module.SecretSafeZaiOpenCodeAgent(model_name="zai-coding-plan/")
 
 
 def test_adapter_refuses_provider_key_in_exec_environment(

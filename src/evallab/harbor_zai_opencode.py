@@ -14,6 +14,7 @@ import contextlib
 import copy
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -76,7 +77,7 @@ SENSITIVE_CONFIG_KEYS = frozenset(
         "api_key",
         "x-api-key",
         "access_token",
-        "apiKey",
+        "apikey",
     }
 )
 
@@ -107,6 +108,33 @@ def validate_model_name(model_name: str | None) -> str:
     return model_name
 
 
+def collected_zai_secret_values(
+    environment: Mapping[str, str] | None = None,
+) -> frozenset[str]:
+    """Return non-placeholder Z.ai provider secret strings present in environment."""
+    source = os.environ if environment is None else environment
+    values: set[str] = set()
+    for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
+        value = source.get(key)
+        if value and value != ZAI_PROXY_TOKEN:
+            values.add(value)
+    secret_file = source.get("EVALLAB_ZAI_SECRET_PATH")
+    if secret_file:
+        try:
+            p = Path(secret_file)
+            if p.is_file():
+                file_value = p.read_text(encoding="utf-8").strip()
+                if file_value and file_value != ZAI_PROXY_TOKEN:
+                    values.add(file_value)
+        except OSError:
+            pass
+    capability = source.get(ZAI_PROXY_CAPABILITY_ENV)
+    if capability and capability != ZAI_PROXY_TOKEN:
+        values.add(capability)
+    values.update(collected_secret_values(environment))
+    return frozenset(values)
+
+
 def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
     if isinstance(value, dict):
         return {
@@ -119,8 +147,9 @@ def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
         }
     if isinstance(value, list):
         return [_redact_sensitive_values(item, secrets) for item in value]
-    if isinstance(value, str) and value in secrets:
-        return REDACTED_SECRET_VALUE
+    if isinstance(value, str):
+        if value in secrets or any(s and s in value for s in secrets):
+            return REDACTED_SECRET_VALUE
     return value
 
 
@@ -137,7 +166,7 @@ def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None
             secrets=(),
         )
         return
-    known = secrets if secrets is not None else collected_secret_values()
+    known = secrets if secrets is not None else collected_zai_secret_values()
     sanitized = _redact_sensitive_values(payload, known)
     persist_private_bytes(
         path,
@@ -261,7 +290,7 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
         runtime_env = dict(env or {})
         capability = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
         allowed_tokens = {ZAI_PROXY_TOKEN, capability}
-        host_secrets = collected_secret_values() - allowed_tokens
+        host_secrets = collected_zai_secret_values() - allowed_tokens
         for name in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
             value = runtime_env.get(name)
             if value and value not in allowed_tokens:
@@ -288,7 +317,7 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
         )
 
     def populate_context_post_run(self, context: Any) -> None:
-        secrets = collected_secret_values()
+        secrets = collected_zai_secret_values()
         logs = self.logs_dir
         sanitize_native_trajectory(logs / "trajectory.json", secrets)
         super().populate_context_post_run(context)

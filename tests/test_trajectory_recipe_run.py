@@ -648,38 +648,44 @@ def test_real_build_campaign_report_source_refs_select_only_report_trials(
     # source_refs; selection must scope to exactly those trials.
     from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map
     from evallab.interpretation.trajectory_runtime import (
+        CampaignAnalysisItem,
         CampaignAnalysisManifest,
         build_campaign_report,
     )
 
-    manifest = CampaignAnalysisManifest.model_validate(
-        {
-            "schema_version": "campaign-analysis-manifest/v1",
-            "manifest_id": "m-1",
-            "manifest_digest": "sha256:" + "a" * 64,
-            "campaign_id": "camp-1",
-            "source_campaign_manifest_digest": "sha256:" + "1" * 64,
-            "source_commit": None,
-            "authorizing_actor": "test",
-            "cas_store_root": str(tmp_path / "cas"),
-            "items": [
-                {
-                    "source_role": "analysis",
-                    "cohort_included": True,
-                    "attempt_role": "primary",
-                    "job_id": "job-in-report",
-                    "job_name": "job-in-report",
-                    "trial_id": "trial-in-report",
-                    "trial_name": "trial-in-report",
-                    "task_name": "fixture-task",
-                    "quality_status": "pass",
-                    "cas_uri": "cas://sha256/" + "b" * 64,
-                }
-            ],
-            "accounting": {},
-            "analysis_config": {},
-            "produced_at": "2026-08-15T00:00:00Z",
-        }
+    zero = "sha256:" + "0" * 64
+    item = CampaignAnalysisItem(
+        source_role="analysis",
+        cohort_included=True,
+        attempt_role="primary",
+        job_id="job-in-report",
+        job_name="job-in-report",
+        trial_id="trial-in-report",
+        trial_name="trial-in-report",
+        task_name="fixture-task",
+        quality_status="pass",
+        cas_uri="cas://sha256/" + "b" * 64,
+    )
+    manifest = CampaignAnalysisManifest(
+        schema_version="campaign-analysis-manifest/v1",
+        manifest_id="m-1",
+        manifest_digest="sha256:" + "a" * 64,
+        campaign_id="camp-1",
+        source_campaign_manifest_digest="sha256:" + "1" * 64,
+        source_commit=None,
+        authorizing_actor="test",
+        cas_store_root=str(tmp_path / "cas"),
+        items=[item],
+        accounting={},
+        analysis_config=CampaignAnalysisConfigV1(
+            feature_registry_digest=zero,
+            producer_digests={"ir_builder": zero},
+            cohort_policy_digest=zero,
+            redaction_policy_digest=zero,
+            specs=(),
+        ),
+        analysis_snapshot_digest=zero,
+        produced_at=datetime.now(UTC),
     )
     results = [
         {
@@ -692,9 +698,11 @@ def test_real_build_campaign_report_source_refs_select_only_report_trials(
             "judgment_id": "sha256:" + "f" * 64,
             "decision_id": "sha256:" + "0" * 64,
             "decision": "abstained",
+            "reason_codes": [],
+            "coverage_gaps": [],
         }
     ]
-    report = build_campaign_report(manifest, results)  # type: ignore[arg-type]
+    report = build_campaign_report(manifest, results)
     report_path = tmp_path / "real_report.json"
     report_path.write_text(json.dumps(report, sort_keys=True), encoding="utf-8")
     _write_sidecar(tmp_path, "trial-in-report", "e1" * 32, created_at="")

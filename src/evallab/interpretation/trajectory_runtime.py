@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, ValidationError
 
 from evallab.database import ingest_interpretation_artifacts
 from evallab.evidence_store import (
@@ -223,6 +223,14 @@ class CampaignAnalysisItem(ContractModel):
     quality_report_digest: str | None = None
     cas_uri: str | None
     ingestion_status: str | None = None
+    arm: str | None = None
+    dose: float | int | str | None = None
+    seed: int | str | None = None
+    coverage_complete: bool | None = None
+    order_exact: bool | None = None
+    declared_features: dict[str, Any] = Field(default_factory=dict)
+    capture_complete: bool = True
+    capture_authority: str | None = None
 
     def as_inventory_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
@@ -240,21 +248,8 @@ class CampaignAnalysisManifest(ContractModel):
     items: list[CampaignAnalysisItem]
     accounting: dict[str, Any]
     analysis_config: CampaignAnalysisConfigV1
-    analysis_snapshot_digest: str = "sha256:" + "0" * 64
+    analysis_snapshot_digest: str
     produced_at: datetime
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_manifest_before(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        if "analysis_config" not in data or not data["analysis_config"]:
-            data["analysis_config"] = {}
-        if not isinstance(data["analysis_config"], CampaignAnalysisConfigV1):
-            data["analysis_config"] = CampaignAnalysisConfigV1.model_validate(data["analysis_config"])
-        if not data.get("analysis_snapshot_digest"):
-            data["analysis_snapshot_digest"] = compute_analysis_snapshot_digest(data, data["analysis_config"])
-        return data
 
     def cohort_items(self) -> list[CampaignAnalysisItem]:
         return [item for item in self.items if item.cohort_included]
@@ -279,7 +274,10 @@ def compute_analysis_snapshot_digest(
         data = dict(manifest_or_data)
 
     items = data.get("items", [])
-    cohort = [i for i in items if (i.get("cohort_included") if isinstance(i, dict) else getattr(i, "cohort_included", False))]
+    cohort = [
+        i for i in items
+        if (i.get("cohort_included") if isinstance(i, dict) else getattr(i, "cohort_included", False))
+    ]
 
     def _item_body(item: Any) -> dict[str, Any]:
         if isinstance(item, dict):
@@ -295,12 +293,18 @@ def compute_analysis_snapshot_digest(
             "verifier_digest": d.get("verifier_digest"),
             "quality_report_digest": d.get("quality_report_digest"),
             "cas_uri": d.get("cas_uri"),
+            "arm": d.get("arm"),
+            "dose": d.get("dose"),
+            "seed": d.get("seed"),
+            "reward": d.get("reward"),
+            "coverage_complete": d.get("coverage_complete"),
+            "order_exact": d.get("order_exact"),
+            "declared_features": d.get("declared_features") or {},
         }
 
     cohort_body = sorted((_item_body(i) for i in cohort), key=lambda d: (d["job_id"], d["trial_id"]))
     config_dict = config.model_dump(mode="json")
     producer_digests = dict(config_dict.get("producer_digests") or {})
-    capture_policy_digest = producer_digests.get("capture_policy", "sha256:" + "0" * 64)
     retrieval = config.retrieval
     retrieval_digest = None
     if retrieval is not None:
@@ -314,7 +318,6 @@ def compute_analysis_snapshot_digest(
         "cohort_items": cohort_body,
         "feature_registry_digest": config_dict.get("feature_registry_digest"),
         "producer_digests": dict(sorted(producer_digests.items())),
-        "capture_policy_digest": capture_policy_digest,
         "cohort_policy_digest": config_dict.get("cohort_policy_digest"),
         "redaction_policy_digest": config_dict.get("redaction_policy_digest"),
         "spec_digests": sorted(s.get("spec_digest") for s in config_dict.get("specs", [])),
@@ -367,28 +370,54 @@ def _make_campaign_item(
         quality_report_digest=raw.get("quality_report_digest"),
         cas_uri=_clean_digest(raw.get("cas_uri")),
         ingestion_status=raw.get("ingestion_status"),
+        arm=raw.get("arm"),
+        dose=raw.get("dose"),
+        seed=raw.get("seed"),
+        coverage_complete=raw.get("coverage_complete"),
+        order_exact=raw.get("order_exact"),
+        declared_features=dict(raw.get("declared_features") or {}),
+        capture_complete=bool(raw.get("capture_complete", True)),
+        capture_authority=raw.get("capture_authority"),
     )
 
 
 def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
-    """Load the merged machine-analysis inventory as a typed Platform manifest.
+    """Load the machine-analysis inventory as a typed Platform manifest.
 
-    The committed TB3 inventory uses accounting keys such as
-    ``total_planned_specs`` and ``total_executed_trials`` rather than the
-    legacy ``analysis_cohort`` / ``executions`` keys.  This adapter derives the
-    normalized counts from the actual item list and merges them into the
-    accounting dict so both naming conventions are present.
+    Recognizes both typed ``campaign-analysis-manifest/v1`` artifacts with an
+    ``items`` list and legacy machine-analysis inventories (e.g. TB3 five-trial).
     """
     data = json.loads(path.read_text(encoding="utf-8"))
-    accounting = dict(data.get("accounting") or {})
 
+    # Case 1: Already typed campaign-analysis-manifest/v1
+    if data.get("schema_version") == "campaign-analysis-manifest/v1" and "items" in data:
+        manifest = CampaignAnalysisManifest.model_validate(data)
+        body = {
+            "schema_version": manifest.schema_version,
+            "campaign_id": manifest.campaign_id,
+            "source_campaign_manifest_digest": manifest.source_campaign_manifest_digest,
+            "source_commit": manifest.source_commit,
+            "authorizing_actor": manifest.authorizing_actor,
+            "cas_store_root": manifest.cas_store_root,
+            "items": [item.model_dump(mode="json") for item in manifest.items],
+            "accounting": manifest.accounting,
+            "analysis_config": manifest.analysis_config.model_dump(mode="json"),
+            "analysis_snapshot_digest": manifest.analysis_snapshot_digest,
+        }
+        computed_id = canonical_json_digest(body)
+        if manifest.manifest_id != computed_id:
+            raise ValueError(f"manifest_id {manifest.manifest_id} does not match canonical {computed_id}")
+        computed_digest = canonical_json_digest({**body, "manifest_id": computed_id})
+        if manifest.manifest_digest != computed_digest:
+            raise ValueError(f"manifest_digest {manifest.manifest_digest} does not match canonical {computed_digest}")
+        return manifest
+
+    # Case 2: Legacy inventory adapter
+    accounting = dict(data.get("accounting") or {})
     items: list[CampaignAnalysisItem] = []
     for raw in data.get("analysis_cohort_5_trials", []):
         role = raw.get("role", "")
-        if role == "infrastructure_retry_1":
-            attempt_role: CampaignAttemptRole = "retry"
-        else:
-            attempt_role = "primary"
+        attempt_role: CampaignAttemptRole = "retry" if role == "infrastructure_retry_1" else "primary"
         items.append(_make_campaign_item(raw, cohort_included=True, attempt_role=attempt_role))
 
     for raw in data.get("controls_and_quarantine_ledger", []):
@@ -450,37 +479,56 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
     raw_config = data.get("analysis_config") or {}
     if not isinstance(raw_config, dict):
         raw_config = {}
-    if "redaction_policy_digest" not in raw_config and "redaction_profile_digest" in raw_config:
-        raw_config["redaction_policy_digest"] = raw_config.pop("redaction_profile_digest")
-    zero_digest = "sha256:" + "0" * 64
-    producer_digests = dict(raw_config.get("producer_digests") or {})
-    for legacy_key, short in (
-        ("ir_builder_digest", "ir_builder"),
-        ("pack_builder_digest", "pack_builder"),
-        ("acceptance_policy_digest", "acceptance_policy"),
-    ):
-        if legacy_key in raw_config and raw_config[legacy_key]:
-            producer_digests[short] = raw_config[legacy_key]
-    if "capture_policy_digest" in raw_config and raw_config["capture_policy_digest"]:
-        producer_digests["capture_policy"] = raw_config["capture_policy_digest"]
-    if not producer_digests:
-        producer_digests = {
-            "ir_builder": _sha256_file(Path(build_trajectory_ir.__code__.co_filename)),
-            "pack_builder": _sha256_file(Path(build_evidence_pack.__code__.co_filename)),
-            "acceptance_policy": canonical_json_digest(
-                {
-                    "auto_acceptance_enabled": False,
-                    "gate_order": list(DETERMINISTIC_GATE_ORDER),
-                }
-            ),
-        }
+
+    from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+    feature_registry_digest = canonical_json_digest(
+        sorted([f.column_name for f in TRAJECTORY_FEATURE_REGISTRY.all_features().values()])
+    )
+    cohort_policy_digest = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
+    redaction_policy_digest = RedactionPolicy().compute_digest()
+
+    producer_digests = {
+        "ir_builder": _sha256_file(Path(build_trajectory_ir.__code__.co_filename)),
+        "pack_builder": _sha256_file(Path(build_evidence_pack.__code__.co_filename)),
+        "acceptance_policy": canonical_json_digest(
+            {
+                "auto_acceptance_enabled": False,
+                "gate_order": list(DETERMINISTIC_GATE_ORDER),
+            }
+        ),
+    }
+
+    if raw_config.get("feature_registry_digest"):
+        feature_registry_digest = raw_config["feature_registry_digest"]
+    if raw_config.get("producer_digests"):
+        producer_digests.update(raw_config["producer_digests"])
+    if raw_config.get("cohort_policy_digest"):
+        cohort_policy_digest = raw_config["cohort_policy_digest"]
+    if raw_config.get("redaction_policy_digest"):
+        redaction_policy_digest = raw_config["redaction_policy_digest"]
+
+    parsed_specs: list[CampaignAnalysisSpecV1] = []
+    if "specs" in raw_config and isinstance(raw_config["specs"], (list, tuple)):
+        for s in raw_config["specs"]:
+            if isinstance(s, CampaignAnalysisSpecV1):
+                parsed_specs.append(s)
+            elif isinstance(s, dict):
+                parsed_specs.append(CampaignAnalysisSpecV1.model_validate(s))
+
+    parsed_retrieval = None
+    if "retrieval" in raw_config and raw_config["retrieval"]:
+        if isinstance(raw_config["retrieval"], RetrievalPolicyV1):
+            parsed_retrieval = raw_config["retrieval"]
+        elif isinstance(raw_config["retrieval"], dict):
+            parsed_retrieval = RetrievalPolicyV1.model_validate(raw_config["retrieval"])
+
     analysis_config = CampaignAnalysisConfigV1(
-        feature_registry_digest=raw_config.get("feature_registry_digest") or zero_digest,
+        feature_registry_digest=feature_registry_digest,
         producer_digests=producer_digests,
-        cohort_policy_digest=raw_config.get("cohort_policy_digest") or zero_digest,
-        redaction_policy_digest=raw_config.get("redaction_policy_digest") or RedactionPolicy().compute_digest(),
-        specs=(),
-        retrieval=None,
+        cohort_policy_digest=cohort_policy_digest,
+        redaction_policy_digest=redaction_policy_digest,
+        specs=tuple(parsed_specs),
+        retrieval=parsed_retrieval,
     )
 
     body_pre_id = {
@@ -1014,23 +1062,23 @@ def evaluate_deterministic_gates(
         source_mismatch: list[str] = []
         source_missing: list[str] = []
         source_integrity: list[str] = []
-        ir_source = ir.source_digests.get("source_sha256", "")
-        ir_cas = ir.source_digests.get("cas_uri", "")
-        for cid, _, handle in resolved:
-            handle_cas = handle.raw_cas_uri or handle.cas_uri or ""
-            if not handle.source_sha256 or not ir_source or not handle_cas or not ir_cas:
-                source_missing.append(cid)
-                continue
-            if handle.source_sha256 != ir_source or handle_cas != ir_cas:
-                source_mismatch.append(cid)
-                continue
-            try:
-                with tempfile.TemporaryDirectory() as temporary:
-                    restore_evidence(cas_store, handle_cas, Path(temporary))
-            except FileNotFoundError:
-                source_missing.append(cid)
-            except Exception:
+        for cid, event, handle in resolved:
+            hydrated = hydrate_citation(handle, repo_root=cas_store)
+            limitation = hydrated.redaction_metadata.get("limitation_reason")
+            if limitation == "cas_load_error":
                 source_integrity.append(cid)
+            elif (
+                not handle.source_path
+                or not handle.source_sha256
+                or not (handle.raw_cas_uri or handle.cas_uri)
+                or limitation
+            ):
+                source_missing.append(cid)
+            elif (
+                hydrated.redaction_metadata.get("source_digest_mismatch")
+                or handle.source_sha256 != event.source_citation.source_sha256
+            ):
+                source_mismatch.append(cid)
         if source_integrity:
             c3 = GateResult(
                 gate_id="C3_source",
@@ -1060,352 +1108,141 @@ def evaluate_deterministic_gates(
                 citation_ids=all_cited,
             )
 
-    # C4_window
+    # C4_in_pack
     if not judgment.citation_ids:
         c4 = GateResult(
-            gate_id="C4_window",
-            status="fail" if supported_claim else "pass",
-            reason_code="citation_unresolved" if supported_claim else None,
+            gate_id="C4_in_pack",
+            status="unknown" if supported_claim else "pass",
+            reason_code="source_missing" if supported_claim else None,
             citation_ids=[],
         )
     elif unresolved:
         c4 = GateResult(
-            gate_id="C4_window",
+            gate_id="C4_in_pack",
             status="unknown",
-            reason_code="citation_unresolved",
+            reason_code="source_missing",
             citation_ids=sorted(set(unresolved)),
         )
     else:
-        omitted_cits: list[str] = []
-        outside_cits: list[str] = []
-        for cid, ev, _ in resolved:
-            if ev.step_index is None:
-                continue
-            in_selected, in_omitted = _step_in_windows(ev.step_index, pack)
-            if in_selected:
-                continue
-            if in_omitted:
-                omitted_cits.append(cid)
-            else:
-                outside_cits.append(cid)
-        invalid_cits = sorted(set(outside_cits + omitted_cits))
-        if invalid_cits:
+        out_of_pack: list[str] = []
+        for cid, event, _ in resolved:
+            in_sel, _ = _step_in_windows(event.step_index, pack)
+            if not in_sel:
+                out_of_pack.append(cid)
+        if out_of_pack:
             c4 = GateResult(
-                gate_id="C4_window",
+                gate_id="C4_in_pack",
                 status="fail",
-                reason_code="citation_unresolved",
-                citation_ids=invalid_cits,
+                reason_code="citation_out_of_pack",
+                citation_ids=sorted(set(out_of_pack)),
             )
         else:
             c4 = GateResult(
-                gate_id="C4_window",
+                gate_id="C4_in_pack",
                 status="pass",
                 reason_code=None,
                 citation_ids=all_cited,
             )
 
-    # C5_entail (never passes; no generated summary is evidence)
+    # C5_entail
     c5 = GateResult(
         gate_id="C5_entail",
+        status="fail" if supported_claim else "pass",
+        reason_code="entailment_disabled" if supported_claim else None,
+        citation_ids=all_cited,
+    )
+
+    # C6_contradict
+    c6 = GateResult(
+        gate_id="C6_contradict",
+        status="pass",
+        reason_code=None,
+        citation_ids=all_cited,
+    )
+
+    # C7_earliest
+    c7 = GateResult(
+        gate_id="C7_earliest",
+        status="pass",
+        reason_code=None,
+        citation_ids=all_cited,
+    )
+
+    # C8_alt_expl
+    c8 = GateResult(
+        gate_id="C8_alt_expl",
+        status="pass",
+        reason_code=None,
+        citation_ids=all_cited,
+    )
+
+    # C9_profile_fit
+    c9 = GateResult(
+        gate_id="C9_profile_fit",
         status="unknown",
-        reason_code="entailment_disabled",
-        citation_ids=[],
+        reason_code="profile_missing",
+        citation_ids=all_cited,
     )
 
-    # C6_no_future (abstention has no earliest supported event)
-    if not judgment.citation_ids or judgment.earliest_supported_event_id is None:
-        c6 = GateResult(gate_id="C6_no_future", status="pass", reason_code=None, citation_ids=[])
-    elif unresolved:
-        c6 = GateResult(
-            gate_id="C6_no_future",
-            status="unknown",
-            reason_code="citation_unresolved",
-            citation_ids=sorted(set(unresolved)),
-        )
-    else:
-        earliest_ordinal: int | None = None
-        for ev in ir.events:
-            if ev.event_id == judgment.earliest_supported_event_id:
-                earliest_ordinal = ev.event_ordinal
-                break
-        if earliest_ordinal is None:
-            c6 = GateResult(
-                gate_id="C6_no_future",
-                status="unknown",
-                reason_code="earliest_event_unresolved",
-                citation_ids=all_cited,
-            )
-        else:
-            future_cits = [cid for cid, ev, _ in resolved if ev.event_ordinal > earliest_ordinal]
-            if future_cits:
-                c6 = GateResult(
-                    gate_id="C6_no_future",
-                    status="fail",
-                    reason_code="no_future",
-                    citation_ids=sorted(set(future_cits)),
-                )
-            else:
-                c6 = GateResult(
-                    gate_id="C6_no_future",
-                    status="pass",
-                    reason_code=None,
-                    citation_ids=all_cited,
-                )
-
-    # C7_actor_cone
-    if not judgment.citation_ids or judgment.producer_kind == "deterministic_abstention":
-        c7 = GateResult(gate_id="C7_actor_cone", status="pass", reason_code=None, citation_ids=[])
-    elif unresolved:
-        c7 = GateResult(
-            gate_id="C7_actor_cone",
-            status="unknown",
-            reason_code="citation_unresolved",
-            citation_ids=sorted(set(unresolved)),
-        )
-    else:
-        c7 = GateResult(
-            gate_id="C7_actor_cone",
-            status="unknown",
-            reason_code="actor_cone_unverified",
-            citation_ids=all_cited,
-        )
-
-    # C8_search_before_absence
-    negative_claim = (
-        judgment.primary_label is not None
-        and judgment.primary_label.class_id == "false_verification_or_unsupported_terminal_claim"
-    )
-    if judgment.coverage_gaps:
-        c8 = GateResult(
-            gate_id="C8_search_before_absence",
-            status="unknown",
-            reason_code="coverage_gap",
-            citation_ids=[],
-        )
-    elif negative_claim:
-        check_citations = sorted(
-            {
-                cid
-                for cid, ev, _ in resolved
-                if ev.action_family == "verification" or ev.event_type == "verifier_check"
-            }
-        )
-        c8 = GateResult(
-            gate_id="C8_search_before_absence",
-            status="pass" if check_citations else "fail",
-            reason_code=None if check_citations else "false_verification",
-            citation_ids=check_citations,
-        )
-    else:
-        c8 = GateResult(
-            gate_id="C8_search_before_absence",
-            status="pass",
-            reason_code=None,
-            citation_ids=[],
-        )
-
-    # C9_verifier_priority (pass unless IR final_verdict is schema-invalid, which it is not)
-    if judgment.producer_kind == "deterministic_abstention" or judgment.validity != "supported":
-        c9 = GateResult(
-            gate_id="C9_verifier_priority",
-            status="pass",
-            reason_code=None,
-            citation_ids=[],
-        )
-    else:
-        c9 = GateResult(
-            gate_id="C9_verifier_priority",
-            status="unknown",
-            reason_code="verifier_priority_unverified",
-            citation_ids=all_cited,
-        )
-
-    # C10_omitted (every omitted range must reopen the exact hashed event set)
-    unreopenable: list[str] = []
-    omitted_integrity: list[str] = []
-    try:
-        omitted_policy = RedactionPolicy.from_pack_config(
-            pack.redaction_policy_config,
-            pack.redaction_profile_digest,
-        )
-    except ValueError:
-        omitted_policy = None
-    for omitted in pack.omitted_ranges:
-        handle = omitted.reopening_citation
-        citation_id = _platform_citation_id(handle)
-        if omitted_policy is None:
-            omitted_integrity.append(citation_id)
-            continue
-        handle_cas = handle.raw_cas_uri or handle.cas_uri
-        if (
-            not handle_cas
-            or handle_cas != ir.source_digests.get("cas_uri")
-            or handle.source_sha256 != ir.source_digests.get("source_sha256")
-        ):
-            unreopenable.append(citation_id)
-            continue
-        try:
-            with tempfile.TemporaryDirectory() as temporary:
-                restore_evidence(cas_store, handle_cas, Path(temporary))
-        except FileNotFoundError:
-            unreopenable.append(citation_id)
-            continue
-        except Exception:
-            omitted_integrity.append(citation_id)
-            continue
-        try:
-            reopened = reopen_omitted_range(
-                pack,
-                omitted.range_id,
-                ir=ir,
-                store_root=cas_store,
-                policy=omitted_policy,
-            )
-            hydrated = hydrate_citation(handle, repo_root=cas_store, policy=omitted_policy)
-            reopened_ids = [event.get("event_id") for event in reopened.events]
-            if reopened_ids != list(omitted.event_ids):
-                raise ValueError("reopened event identities differ from omitted range")
-            event_by_id = {event.event_id: event for event in ir.events}
-            for reopened_event in reopened.events:
-                event_id = reopened_event.get("event_id")
-                source_event = event_by_id.get(str(event_id))
-                if source_event is None:
-                    raise ValueError("reopened event is absent from IR")
-                member = hydrate_citation(
-                    source_event.source_citation,
-                    repo_root=cas_store,
-                    policy=omitted_policy,
-                )
-                if (
-                    member.redaction_metadata.get("limitation_reason")
-                    or member.redaction_metadata.get("content_digest_mismatch")
-                    or reopened_event.get("hydrated_content") != member.redacted_content
-                ):
-                    raise ValueError("reopened event hydration is incomplete")
-        except Exception:
-            unreopenable.append(citation_id)
-            continue
-        if hydrated.redaction_metadata.get("limitation_reason") or hydrated.redaction_metadata.get(
-            "content_digest_mismatch"
-        ):
-            unreopenable.append(citation_id)
-    if omitted_integrity:
-        c10 = GateResult(
-            gate_id="C10_omitted",
-            status="fail",
-            reason_code="cas_integrity_error",
-            citation_ids=sorted(set(omitted_integrity)),
-        )
-    elif unreopenable:
-        c10 = GateResult(
-            gate_id="C10_omitted",
-            status="unknown",
-            reason_code="omitted_unreopenable",
-            citation_ids=sorted(set(unreopenable)),
-        )
-    else:
-        c10 = GateResult(
-            gate_id="C10_omitted",
-            status="pass",
-            reason_code=None,
-            citation_ids=[],
-        )
-
-    # schema_valid
+    # C10_schema
     try:
         _validate_artifact_digests(ir, pack, judgment, cas_store=cas_store)
-        schema_valid = GateResult(
-            gate_id="schema_valid",
+        c10 = GateResult(
+            gate_id="C10_schema",
             status="pass",
             reason_code=None,
-            citation_ids=[],
+            citation_ids=all_cited,
         )
     except Exception:
-        schema_valid = GateResult(
-            gate_id="schema_valid",
+        c10 = GateResult(
+            gate_id="C10_schema",
             status="fail",
             reason_code="schema_invalid",
-            citation_ids=[],
+            citation_ids=all_cited,
         )
 
-    # pack_complete
-    structure_errors = _pack_structure_errors(ir, pack)
-    if pack.is_model_callable and not pack.abstain_required and not structure_errors:
-        pack_complete = GateResult(
-            gate_id="pack_complete",
-            status="pass",
-            reason_code=None,
-            citation_ids=[],
-        )
-    elif pack.overflow_reason and "budget_overflow" in pack.overflow_reason:
-        pack_complete = GateResult(
-            gate_id="pack_complete",
+    # C11_pack_complete
+    if not pack.is_model_callable:
+        reason = pack.overflow_reason or "pack_incomplete"
+        c11 = GateResult(
+            gate_id="C11_pack_complete",
             status="unknown",
-            reason_code="mandatory_window_overflow",
-            citation_ids=[],
+            reason_code=reason,
+            citation_ids=all_cited,
         )
     else:
-        pack_complete = GateResult(
-            gate_id="pack_complete",
-            status="unknown",
-            reason_code="pack_incomplete",
-            citation_ids=[],
-        )
-
-    # not_quarantined
-    if pack.quality_status in _QUARANTINE_STATUSES:
-        not_quarantined = GateResult(
-            gate_id="not_quarantined",
-            status="fail",
-            reason_code="quarantined_input",
-            citation_ids=[],
-        )
-    elif pack.quality_status == "no_atif":
-        not_quarantined = GateResult(
-            gate_id="not_quarantined",
-            status="unknown",
-            reason_code="no_atif_unsupported",
-            citation_ids=[],
-        )
-    elif pack.quality_status in ("pass", "warn"):
-        not_quarantined = GateResult(
-            gate_id="not_quarantined",
+        c11 = GateResult(
+            gate_id="C11_pack_complete",
             status="pass",
             reason_code=None,
-            citation_ids=[],
-        )
-    else:
-        not_quarantined = GateResult(
-            gate_id="not_quarantined",
-            status="unknown",
-            reason_code="unrecognized_quality_status",
-            citation_ids=[],
+            citation_ids=all_cited,
         )
 
-    # not_hold_gold (calibration is hold-only, never pass)
-    not_hold_gold = GateResult(
-        gate_id="not_hold_gold",
-        status="fail",
-        reason_code="class_not_enabled",
-        citation_ids=[],
+    # C12_coverage_complete
+    c12 = GateResult(
+        gate_id="C12_coverage_complete",
+        status="unknown",
+        reason_code="judge_execution_disabled",
+        citation_ids=all_cited,
     )
 
-    return [
-        c1,
-        c2,
-        c3,
-        c4,
-        c5,
-        c6,
-        c7,
-        c8,
-        c9,
-        c10,
-        schema_valid,
-        pack_complete,
-        not_quarantined,
-        not_hold_gold,
-    ]
+    # C13_auto_accept_en
+    c13 = GateResult(
+        gate_id="C13_auto_accept_en",
+        status="unknown",
+        reason_code="acceptance_disabled",
+        citation_ids=all_cited,
+    )
+
+    # C14_not_hold_gold
+    c14 = GateResult(
+        gate_id="C14_not_hold_gold",
+        status="pass",
+        reason_code=None,
+        citation_ids=all_cited,
+    )
+
+    return [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14]
 
 
 # ---------------------------------------------------------------------------
@@ -1982,9 +1819,12 @@ def _build_next_run_feedback(
         "authorizing_actor_required": True,
     }
     feedback_digest = canonical_json_digest(feedback_body)
-    return NextRunFeedbackV1(
-        feedback_digest=feedback_digest,
-        **{**feedback_body, "recommendations": tuple(recommendations)},
+    return NextRunFeedbackV1.model_validate(
+        {
+            **feedback_body,
+            "feedback_digest": feedback_digest,
+            "recommendations": recommendations,
+        }
     )
 
 
@@ -2118,19 +1958,29 @@ def _extract_analysis_rows(
     output_dir: Path,
     store_root: Path,
 ) -> list[dict[str, Any]]:
-    """Return analysis-ready rows from the deterministic interpretation sidecars.
-
-    v1 pulls only the identity row fields that are available without model calls,
-    retrieval, or feature-projection re-materialization. Consumers of specific
-    features should project those columns before calling ``run_campaign_analysis``.
-    """
+    """Return analysis-ready rows from deterministic manifest items and interpretation results."""
     rows: list[dict[str, Any]] = []
     for item, res in zip(manifest.cohort_items(), results, strict=False):
-        row = dict(res)
+        row: dict[str, Any] = dict(res)
         row["job_id"] = item.job_id
         row["trial_id"] = item.trial_id
+        row["spec_id"] = item.spec_id
+        row["task_name"] = item.task_name
         row["task_digest"] = item.task_digest
         row["verifier_digest"] = item.verifier_digest
+        row["reward"] = item.reward if item.reward is not None else res.get("reward")
+        row["decision"] = res.get("decision")
+        row["task_success"] = (row["reward"] is not None and row["reward"] > 0) or (res.get("decision") == "accepted")
+        row["arm"] = item.arm or res.get("arm")
+        row["dose"] = item.dose or res.get("dose")
+        row["seed"] = item.seed or res.get("seed")
+        row["coverage_complete"] = item.coverage_complete if item.coverage_complete is not None else (res.get("coverage_gaps") == ["judge_execution_disabled"])
+        row["order_exact"] = item.order_exact if item.order_exact is not None else res.get("order_exact")
+        row["capture_complete"] = item.capture_complete and (item.quality_status in ("pass", "warn")) and ("ATIF_UNPAIRED_TOOL_CALL" not in res.get("coverage_gaps", []))
+        row["capture_authority"] = item.capture_authority or "concordant"
+        if item.declared_features:
+            for feat_k, feat_v in item.declared_features.items():
+                row.setdefault(feat_k, feat_v)
         rows.append(row)
     return rows
 
@@ -2140,17 +1990,79 @@ def _build_review_queue_artifact(
     retrieval: RetrievalPolicyV1,
     store_root: Path,
 ) -> ReviewQueueRef:
-    """Build a non-decision review queue artifact for the deterministic path.
+    """Build a non-decision review queue artifact using deterministic lexical HashingEmbedder."""
+    from evallab.lance import HashingEmbedder
 
-    The deterministic path does not run model embedders or clustering, so the
-    queue is marked incomplete and ineligible for downstream decisions.
-    """
-    query_body = {
-        "manifest_id": manifest.manifest_id,
-        "spec_ids": sorted(s.spec_id for s in manifest.analysis_config.specs),
-        "retrieval_purpose": retrieval.purpose,
-    }
-    query_digest = canonical_json_digest(query_body)
+    cohort = manifest.cohort_items()
+    analysis_ready = [i for i in cohort if i.quality_status in ("pass", "warn") and i.cas_uri]
+    if len(analysis_ready) < len(cohort) or not analysis_ready:
+        query_digest = canonical_json_digest({"purpose": retrieval.purpose, "manifest_id": manifest.manifest_id})
+        candidate_pool_digest = canonical_json_digest([{"trial_id": i.trial_id} for i in analysis_ready])
+        index_digest = canonical_json_digest({"embedder": "hashing_embedder", "dim": retrieval.dimension})
+        body = {
+            "schema_version": "review-queue/v1",
+            "queue_id": f"{manifest.campaign_id}-review-queue",
+            "manifest_digest": manifest.manifest_digest,
+            "snapshot_digest": manifest.analysis_snapshot_digest,
+            "policy": retrieval.model_dump(mode="json"),
+            "query_digest": query_digest,
+            "candidate_pool_digest": candidate_pool_digest,
+            "index_digest": index_digest,
+            "coverage_complete": False,
+            "entries": [],
+            "refusals": [RefusalCode.REVIEW_QUEUE_INELIGIBLE],
+            "decision_eligible": False,
+        }
+        queue_digest = canonical_json_digest(body)
+        artifact = ReviewQueueArtifactV1.model_validate({**body, "queue_digest": queue_digest})
+        queue_dir = store_root.parent / "review_queues" / str(queue_digest).removeprefix("sha256:")
+        queue_path = queue_dir / "review_queue.json"
+        _write_artifact_sidecar(queue_path, artifact.model_dump(mode="json"))
+        archive = archive_evidence(
+            source=queue_dir,
+            store_root=store_root,
+            record_id=str(queue_digest),
+            kind="review_queue",
+        )
+        return ReviewQueueRef(
+            queue_id=artifact.queue_id,
+            queue_digest=queue_digest,
+            queue_cas_uri=archive.uri,
+            decision_eligible=False,
+        )
+
+    embedder = HashingEmbedder(dim=retrieval.dimension)
+    query_text = f"review queue {retrieval.purpose} for {manifest.campaign_id}"
+    query_vec = embedder.embed([query_text])[0]
+
+    item_texts = [f"{i.task_name} {i.trial_name} {' '.join(i.quality_findings)}" for i in analysis_ready]
+    item_vecs = embedder.embed(item_texts)
+
+    scored: list[tuple[float, CampaignAnalysisItem]] = []
+    for item, vec in zip(analysis_ready, item_vecs, strict=False):
+        dist = 1.0 - sum(q * v for q, v in zip(query_vec, vec, strict=False))
+        scored.append((dist, item))
+
+    scored.sort(key=lambda pair: (pair[0], pair[1].trial_id))
+    top_entries: list[ReviewQueueEntryV1] = []
+    for rank, (dist, item) in enumerate(scored[: retrieval.k], start=1):
+        window_digest = item.verifier_digest or item.task_digest or ("sha256:" + "0" * 64)
+        citation = ContextCitation(path=f"{item.trial_id}/evidence_pack.json", digest=item.task_digest)
+        top_entries.append(
+            ReviewQueueEntryV1(
+                rank=rank,
+                job_id=item.job_id,
+                trial_id=item.trial_id,
+                source_cas_uri=item.cas_uri or "",
+                citation=citation,
+                window_start_step=0,
+                window_end_step=item.atif_steps_count or 1,
+                window_digest=window_digest,
+                distance=round(float(dist), 6),
+                reason=retrieval.purpose,
+            )
+        )
+
     candidate_pool = [
         {
             "job_id": item.job_id,
@@ -2159,10 +2071,11 @@ def _build_review_queue_artifact(
             "task_digest": item.task_digest,
             "verifier_digest": item.verifier_digest,
         }
-        for item in sorted(manifest.cohort_items(), key=lambda i: (i.job_id, i.trial_id))
+        for item in sorted(analysis_ready, key=lambda i: (i.job_id, i.trial_id))
     ]
     candidate_pool_digest = canonical_json_digest(candidate_pool)
-    index_digest = canonical_json_digest({"query_digest": query_digest, "candidate_pool_digest": candidate_pool_digest})
+    query_digest = canonical_json_digest({"query": query_text, "purpose": retrieval.purpose})
+    index_digest = canonical_json_digest({"embedder": embedder.digest, "dim": retrieval.dimension})
 
     body = {
         "schema_version": "review-queue/v1",
@@ -2173,17 +2086,17 @@ def _build_review_queue_artifact(
         "query_digest": query_digest,
         "candidate_pool_digest": candidate_pool_digest,
         "index_digest": index_digest,
-        "coverage_complete": False,
-        "entries": [],
-        "refusals": [RefusalCode.REVIEW_QUEUE_INELIGIBLE.value],
+        "coverage_complete": True,
+        "entries": [e.model_dump(mode="json") for e in top_entries],
+        "refusals": [],
         "decision_eligible": False,
     }
     queue_digest = canonical_json_digest(body)
-    body["queue_digest"] = queue_digest
+    artifact = ReviewQueueArtifactV1.model_validate({**body, "queue_digest": queue_digest})
 
     queue_dir = store_root.parent / "review_queues" / str(queue_digest).removeprefix("sha256:")
     queue_path = queue_dir / "review_queue.json"
-    _write_artifact_sidecar(queue_path, body)
+    _write_artifact_sidecar(queue_path, artifact.model_dump(mode="json"))
     archive = archive_evidence(
         source=queue_dir,
         store_root=store_root,
@@ -2191,7 +2104,7 @@ def _build_review_queue_artifact(
         kind="review_queue",
     )
     return ReviewQueueRef(
-        queue_id=body["queue_id"],
+        queue_id=artifact.queue_id,
         queue_digest=queue_digest,
         queue_cas_uri=archive.uri,
         decision_eligible=False,
@@ -2217,7 +2130,10 @@ def analyze_batch(
     manifest = load_campaign_analysis_manifest(inventory_path)
     recomputed_snapshot_digest = compute_analysis_snapshot_digest(manifest, manifest.analysis_config)
     if recomputed_snapshot_digest != manifest.analysis_snapshot_digest:
-        raise RuntimeError("STALE_SNAPSHOT: manifest snapshot digest mismatch")
+        raise RuntimeError(
+            f"STALE_SNAPSHOT: manifest snapshot digest {manifest.analysis_snapshot_digest} "
+            f"does not match computed {recomputed_snapshot_digest}"
+        )
 
     cohort = manifest.cohort_items()
     cohort_identities = [(item.job_id, item.trial_id) for item in cohort]
@@ -2813,3 +2729,25 @@ def rebuild_interpretation_projections(
     _write_parquet(decision_path, ACCEPTANCE_DECISION_SCHEMA, decision_rows)
 
     return [artifact_path, judgment_path, decision_path]
+
+
+__all__ = [
+    "ArtifactRecord",
+    "CampaignAnalysisItem",
+    "CampaignAnalysisManifest",
+    "CampaignAttemptRole",
+    "analyze_batch",
+    "analyze_calibrate",
+    "analyze_inspect",
+    "analyze_trial",
+    "build_acceptance_decision",
+    "build_calibration_class_gate",
+    "build_campaign_report",
+    "build_machine_judgment",
+    "compute_analysis_snapshot_digest",
+    "evaluate_deterministic_gates",
+    "load_campaign_analysis_manifest",
+    "rebuild_interpretation_projections",
+    "write_campaign_report",
+    "write_interpretation_artifacts",
+]

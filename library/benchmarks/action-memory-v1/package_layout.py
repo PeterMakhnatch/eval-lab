@@ -140,8 +140,11 @@ dose_bytes = {spec.dose_bytes}
 inversion_count = {inversion_count}
 license = "Apache-2.0"
 dose_axis_version = "{extra_metadata.get("dose_axis_version", "")}"
+handle_axis_version = "{extra_metadata.get("handle_axis_version", "")}"
 base_task_pair_id = "{extra_metadata.get("base_task_pair_id", "")}"
 declared_delta = "{extra_metadata.get("declared_delta", "")}"
+representation = "{extra_metadata.get("representation", "")}"
+representation_digest = "{extra_metadata.get("representation_digest", "")}"
 
 [agent]
 timeout_sec = 600.0

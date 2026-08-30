@@ -15,7 +15,7 @@ import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import lancedb
 import pyarrow.parquet as pq
@@ -38,9 +38,95 @@ avoids LanceDB "dataset too small" and empty-cluster warnings). Applied uniforml
 tasks, trials, steps, analyses so policy is consistent.
 """
 
+DEFAULT_REDACTION_POLICY: str = "default_redaction_v1"
+DEFAULT_REDACTION_POLICY_DIGEST: str = hashlib.sha256(
+    DEFAULT_REDACTION_POLICY.encode("utf-8")
+).hexdigest()
+
+
+@dataclass(frozen=True)
+class LanceIndexManifest:
+    """Manifest capturing provenance, schema, and invalidation metadata for a LanceDB index table."""
+
+    table_name: str
+    snapshot_digest: str
+    candidate_pool_digest: str
+    embedder_id: str
+    embedder_version: str
+    embedder_digest: str
+    redaction_policy_digest: str
+    row_count: int
+    index_digest: str
+    decision_eligible: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "table_name": self.table_name,
+            "snapshot_digest": self.snapshot_digest,
+            "candidate_pool_digest": self.candidate_pool_digest,
+            "embedder_id": self.embedder_id,
+            "embedder_version": self.embedder_version,
+            "embedder_digest": self.embedder_digest,
+            "redaction_policy_digest": self.redaction_policy_digest,
+            "row_count": self.row_count,
+            "index_digest": self.index_digest,
+            "decision_eligible": self.decision_eligible,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> LanceIndexManifest:
+        return cls(
+            table_name=str(d["table_name"]),
+            snapshot_digest=str(d["snapshot_digest"]),
+            candidate_pool_digest=str(d["candidate_pool_digest"]),
+            embedder_id=str(d["embedder_id"]),
+            embedder_version=str(d["embedder_version"]),
+            embedder_digest=str(d["embedder_digest"]),
+            redaction_policy_digest=str(d["redaction_policy_digest"]),
+            row_count=int(d["row_count"]),
+            index_digest=str(d["index_digest"]),
+            decision_eligible=bool(d.get("decision_eligible", False)),
+        )
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, s: str) -> LanceIndexManifest:
+        return cls.from_dict(json.loads(s))
+
+    @staticmethod
+    def compute_index_digest(
+        table_name: str,
+        snapshot_digest: str,
+        candidate_pool_digest: str,
+        embedder_digest: str,
+        redaction_policy_digest: str,
+        row_count: int,
+    ) -> str:
+        payload = {
+            "table_name": table_name,
+            "snapshot_digest": snapshot_digest,
+            "candidate_pool_digest": candidate_pool_digest,
+            "embedder_digest": embedder_digest,
+            "redaction_policy_digest": redaction_policy_digest,
+            "row_count": row_count,
+        }
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
 
 class Embedder(Protocol):
     """Protocol for text embedders. Implementations must be deterministic."""
+
+    @property
+    def identity(self) -> str: ...
+
+    @property
+    def version(self) -> str: ...
+
+    @property
+    def digest(self) -> str: ...
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
@@ -57,6 +143,14 @@ class HashingEmbedder:
     """
 
     dim: int = 256
+    identity: str = "hashing"
+    version: str = "v1"
+
+    @property
+    def digest(self) -> str:
+        return hashlib.sha256(
+            f"{self.identity}:{self.version}:dim={self.dim}".encode("utf-8")
+        ).hexdigest()
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
@@ -68,6 +162,101 @@ class HashingEmbedder:
             norm = math.sqrt(sum(x * x for x in v)) or 1.0
             vectors.append([x / norm for x in v])
         return vectors
+
+
+@dataclass(frozen=True)
+class LanceSearchHit:
+    """Typed search hit from LanceDB retrieval.
+
+    Carries source identity and citation fields, but MUST NOT carry
+    reward, primary_reward, exception_class, verdict, or decision fields.
+    """
+
+    record_id: str
+    table: str
+    job_id: str | None = None
+    trial_id: str | None = None
+    task_name: str | None = None
+    step_id: int | str | None = None
+    analysis_id: str | None = None
+    source: str | None = None
+    model: str | None = None
+    category: str | None = None
+    created_at: str | None = None
+    text: str = ""
+    distance: float = 0.0
+    score: float = 0.0
+    decision_eligible: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "table": self.table,
+            "job_id": self.job_id,
+            "trial_id": self.trial_id,
+            "task_name": self.task_name,
+            "step_id": self.step_id,
+            "analysis_id": self.analysis_id,
+            "source": self.source,
+            "model": self.model,
+            "category": self.category,
+            "created_at": self.created_at,
+            "text": self.text,
+            "distance": self.distance,
+            "score": self.score,
+            "decision_eligible": self.decision_eligible,
+        }
+
+
+def _get_embedder_metadata(embedder: Embedder) -> tuple[str, str, str]:
+    emb_id = getattr(embedder, "identity", "hashing")
+    emb_ver = getattr(embedder, "version", "v1")
+    digest_attr = getattr(embedder, "digest", None)
+    if callable(digest_attr):
+        emb_digest = str(digest_attr())
+    elif isinstance(digest_attr, str):
+        emb_digest = digest_attr
+    else:
+        dim_val = getattr(embedder, "dim", 256)
+        emb_digest = hashlib.sha256(
+            f"{emb_id}:{emb_ver}:dim={dim_val}".encode("utf-8")
+        ).hexdigest()
+    return emb_id, emb_ver, emb_digest
+
+
+def _save_manifest(
+    root: Path,
+    table_name: str,
+    snapshot_digest: str,
+    candidate_pool_digest: str,
+    embedder: Embedder,
+    row_count: int,
+    redaction_policy_digest: str = DEFAULT_REDACTION_POLICY_DIGEST,
+) -> LanceIndexManifest:
+    emb_id, emb_ver, emb_digest = _get_embedder_metadata(embedder)
+    index_digest = LanceIndexManifest.compute_index_digest(
+        table_name=table_name,
+        snapshot_digest=snapshot_digest,
+        candidate_pool_digest=candidate_pool_digest,
+        embedder_digest=emb_digest,
+        redaction_policy_digest=redaction_policy_digest,
+        row_count=row_count,
+    )
+    manifest = LanceIndexManifest(
+        table_name=table_name,
+        snapshot_digest=snapshot_digest,
+        candidate_pool_digest=candidate_pool_digest,
+        embedder_id=emb_id,
+        embedder_version=emb_ver,
+        embedder_digest=emb_digest,
+        redaction_policy_digest=redaction_policy_digest,
+        row_count=row_count,
+        index_digest=index_digest,
+        decision_eligible=False,
+    )
+    manifest_path = root / f"{table_name}.manifest.json"
+    manifest_path.write_text(manifest.to_json(), encoding="utf-8")
+    return manifest
 
 
 def _lance_root() -> Path:
@@ -158,6 +347,15 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
     tbl = db.create_table("tasks", data=data, mode="overwrite")
     index_reason: str | None = None
     n_rows = len(data)
+    candidate_pool_digest = hashlib.sha256(
+        "\n".join(sorted(task_refs)).encode("utf-8")
+    ).hexdigest()
+    snapshot_content = "\n".join(
+        f"{tr}:{hashlib.sha256(instr.encode('utf-8')).hexdigest()}"
+        for tr, instr in sorted(zip(task_refs, instructions, strict=True))
+    )
+    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    _save_manifest(root, "tasks", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
     else:
@@ -281,6 +479,15 @@ def _build_trials(
     tbl = db.create_table("trials", data=rows, mode="overwrite")
     index_reason: str | None = None
     n_rows = len(rows)
+    candidate_pool_digest = hashlib.sha256(
+        "\n".join(sorted(r["trial_id"] for r in rows)).encode("utf-8")
+    ).hexdigest()
+    snapshot_content = "\n".join(
+        f"{r['job_id']}:{r['trial_id']}:{hashlib.sha256(r['text'].encode('utf-8')).hexdigest()}"
+        for r in sorted(rows, key=lambda x: (x["job_id"], x["trial_id"]))
+    )
+    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    _save_manifest(root, "trials", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
     else:
@@ -388,6 +595,19 @@ def _build_steps(
     tbl = db.create_table("steps", data=rows, mode="overwrite")
     index_reason: str | None = None
     n_rows = len(rows)
+    candidate_pool_digest = hashlib.sha256(
+        "\n".join(
+            sorted(f"{r['job_id']}:{r['trial_id']}:{r['step_id']}" for r in rows)
+        ).encode("utf-8")
+    ).hexdigest()
+    snapshot_content = "\n".join(
+        f"{r['job_id']}:{r['trial_id']}:{r['step_id']}:{hashlib.sha256(r['message'].encode('utf-8')).hexdigest()}"
+        for r in sorted(
+            rows, key=lambda x: (x["job_id"], x["trial_id"], str(x["step_id"]))
+        )
+    )
+    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    _save_manifest(root, "steps", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
     else:
@@ -557,6 +777,15 @@ def _build_analyses(
     tbl = db.create_table("analyses", data=rows, mode="overwrite")
     index_reason: str | None = None
     n_rows = len(rows)
+    candidate_pool_digest = hashlib.sha256(
+        "\n".join(sorted(r["analysis_id"] for r in rows)).encode("utf-8")
+    ).hexdigest()
+    snapshot_content = "\n".join(
+        f"{r['analysis_id']}:{hashlib.sha256(r['conclusion'].encode('utf-8')).hexdigest()}"
+        for r in sorted(rows, key=lambda x: x["analysis_id"])
+    )
+    snapshot_digest = hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest()
+    _save_manifest(root, "analyses", snapshot_digest, candidate_pool_digest, embedder, n_rows)
     if n_rows < MIN_ROWS_FOR_ANN:
         index_reason = "too few rows for ANN index (exact brute-force search)"
     else:
@@ -568,6 +797,135 @@ def _build_analyses(
             else:
                 raise
     return n_rows, skip_info, index_reason
+
+
+def search_records(
+    query: str,
+    table: str = "analyses",
+    k: int = 5,
+    *,
+    snapshot_digest: str | None = None,
+    candidate_pool_digest: str | None = None,
+    embedder: Embedder | None = None,
+    redaction_policy_digest: str | None = None,
+    analysis_ready: bool = True,
+    manifest: LanceIndexManifest | None = None,
+) -> list[LanceSearchHit]:
+    """Retrieve nearest records from a LanceDB table with validation and manifest checks.
+
+    Strictly refuses non-analysis-ready pools and stale/mismatched manifests.
+    Returns typed LanceSearchHit items with decision_eligible=False.
+    """
+    if not analysis_ready:
+        raise ValueError(
+            "Candidate pool is not analysis-ready: retrieval refused. "
+            "AnalysisRecord and review artifacts require explicit analysis-ready pool."
+        )
+    if candidate_pool_digest is not None and not candidate_pool_digest.strip():
+        raise ValueError("Candidate pool is invalid or candidate identity is missing")
+
+    root = _lance_root()
+    manifest_path = root / f"{table}.manifest.json"
+    if manifest is None:
+        if not manifest_path.is_file():
+            raise FileNotFoundError(
+                f"Manifest for table '{table}' not found at {manifest_path}"
+            )
+        try:
+            manifest = LanceIndexManifest.from_json(
+                manifest_path.read_text(encoding="utf-8")
+            )
+        except Exception as e:
+            raise ValueError(f"Corrupt manifest for table '{table}': {e}") from e
+
+    if snapshot_digest is not None and snapshot_digest != manifest.snapshot_digest:
+        raise ValueError("Snapshot digest mismatch: index is stale or from different vintage")
+    if (
+        candidate_pool_digest is not None
+        and candidate_pool_digest != manifest.candidate_pool_digest
+    ):
+        raise ValueError("Candidate pool digest mismatch")
+    if embedder is not None:
+        _, _, emb_digest = _get_embedder_metadata(embedder)
+        if emb_digest != manifest.embedder_digest:
+            raise ValueError("Embedder digest mismatch: embedder configuration changed")
+    if (
+        redaction_policy_digest is not None
+        and redaction_policy_digest != manifest.redaction_policy_digest
+    ):
+        raise ValueError("Redaction policy digest mismatch: index invalidated")
+
+    db = lancedb.connect(str(root))
+    tables_obj = db.list_tables()
+    names = tables_obj.tables if hasattr(tables_obj, "tables") else list(tables_obj)
+    if table not in names:
+        raise FileNotFoundError(f"Table '{table}' not found in LanceDB at {root}")
+
+    active_embedder: Embedder = embedder if embedder is not None else HashingEmbedder()
+    vec = active_embedder.embed([query])[0]
+    tbl = db.open_table(table)
+    qb = tbl.search(vec)
+    fn = getattr(qb, "distance_type", None)
+    if callable(fn):
+        qb = fn("cosine")
+    res = qb.limit(k).to_list()
+
+    hits: list[LanceSearchHit] = []
+    for r in res:
+        raw_dist = float(r.get("_distance", 0.0))
+        text_val = str(
+            r.get("text")
+            or r.get("conclusion")
+            or r.get("message")
+            or r.get("instruction")
+            or ""
+        )
+
+        # Self-distance is strictly 0.0 for exact matches or float precision rounding
+        if text_val.strip() == query.strip() or abs(raw_dist) < 1e-6:
+            dist = 0.0
+        else:
+            dist = raw_dist
+
+        score = max(0.0, 1.0 - dist)
+
+        record_id = str(
+            r.get("analysis_id")
+            or r.get("task_ref")
+            or (
+                f"{r.get('trial_id')}:{r.get('step_id')}"
+                if r.get("step_id") is not None and r.get("trial_id")
+                else None
+            )
+            or r.get("trial_id")
+            or r.get("record_id")
+            or ""
+        )
+
+        hit = LanceSearchHit(
+            record_id=record_id,
+            table=table,
+            job_id=str(r["job_id"]) if r.get("job_id") is not None else None,
+            trial_id=str(r["trial_id"]) if r.get("trial_id") is not None else None,
+            task_name=str(r.get("task_name") or r.get("task_ref") or "")
+            if (r.get("task_name") or r.get("task_ref")) is not None
+            else None,
+            step_id=r.get("step_id"),
+            analysis_id=str(r["analysis_id"]) if r.get("analysis_id") is not None else None,
+            source=str(r["source"]) if r.get("source") is not None else None,
+            model=str(r.get("model") or r.get("agent_version") or "")
+            if (r.get("model") or r.get("agent_version")) is not None
+            else None,
+            category=str(r["category"]) if r.get("category") is not None else None,
+            created_at=str(r["created_at"]) if r.get("created_at") is not None else None,
+            text=text_val,
+            distance=dist,
+            score=score,
+            decision_eligible=False,
+        )
+        hits.append(hit)
+
+    return hits
 
 
 def build(table: str = "all", runs_root: Path | None = None) -> None:

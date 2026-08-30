@@ -1,6 +1,7 @@
 """Tests for evallab.lance: embedder, build, search, skip."""
 
 import contextlib
+import dataclasses
 import io
 import json
 import subprocess
@@ -11,7 +12,15 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.lance import HashingEmbedder, build, search
+from evallab.lance import (
+    DEFAULT_REDACTION_POLICY_DIGEST,
+    HashingEmbedder,
+    LanceIndexManifest,
+    LanceSearchHit,
+    build,
+    search,
+    search_records,
+)
 
 
 def test_embedder_determinism_same_process():
@@ -1073,3 +1082,404 @@ def test_build_analyses_surfaces_corrupt_sidecar_json(tmp_path, monkeypatch):
     assert "1 skipped:" in out
     assert "A_CORRUPT" in out
     assert "corrupt" in out
+
+
+def test_manifest_immutability_and_determinism():
+    index_digest = LanceIndexManifest.compute_index_digest(
+        table_name="analyses",
+        snapshot_digest="snap123",
+        candidate_pool_digest="pool123",
+        embedder_digest="emb123",
+        redaction_policy_digest="red123",
+        row_count=42,
+    )
+    manifest = LanceIndexManifest(
+        table_name="analyses",
+        snapshot_digest="snap123",
+        candidate_pool_digest="pool123",
+        embedder_id="hashing",
+        embedder_version="v1",
+        embedder_digest="emb123",
+        redaction_policy_digest="red123",
+        row_count=42,
+        index_digest=index_digest,
+        decision_eligible=False,
+    )
+    # Immutability check
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        manifest.table_name = "tasks"  # type: ignore[misc]
+
+    # Determinism & serialization roundtrip
+    j1 = manifest.to_json()
+    m2 = LanceIndexManifest.from_json(j1)
+    assert m2 == manifest
+    assert m2.to_json() == j1
+    assert manifest.decision_eligible is False
+
+    # Byte-identical recomputation
+    manifest_rebuilt = LanceIndexManifest(
+        table_name="analyses",
+        snapshot_digest="snap123",
+        candidate_pool_digest="pool123",
+        embedder_id="hashing",
+        embedder_version="v1",
+        embedder_digest="emb123",
+        redaction_policy_digest="red123",
+        row_count=42,
+        index_digest=LanceIndexManifest.compute_index_digest(
+            table_name="analyses",
+            snapshot_digest="snap123",
+            candidate_pool_digest="pool123",
+            embedder_digest="emb123",
+            redaction_policy_digest="red123",
+            row_count=42,
+        ),
+        decision_eligible=False,
+    )
+    assert manifest_rebuilt.to_json() == manifest.to_json()
+    assert manifest_rebuilt.index_digest == manifest.index_digest
+
+
+def test_search_records_typed_hit_no_decision_fields(tmp_path, monkeypatch):
+    """Verify LanceSearchHit contains citation/source identity fields and decision_eligible=False,
+    but no reward, primary_reward, exception_class, verdict, or decision fields."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    pdir = derived / "job_id=j1" / "trial_id=t1"
+    pdir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [{"job_id": "j1", "trial_id": "t1"}],
+            schema=pa.schema([("job_id", pa.string()), ("trial_id", pa.string())]),
+        ),
+        pdir / "trial_facts.parquet",
+    )
+    analyses_dir = derived / "analyses"
+    analyses_dir.mkdir(parents=True)
+    rec_schema = pa.schema(
+        [
+            ("analysis_id", pa.string()),
+            ("trial_id", pa.string()),
+            ("model", pa.string()),
+            ("category", pa.string()),
+            ("created_at", pa.string()),
+        ]
+    )
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "analysis_id": "A_TYPED",
+                    "trial_id": "t1",
+                    "model": "model-v1",
+                    "category": "cat-x",
+                    "created_at": "2026-08-18T10:00:00Z",
+                }
+            ],
+            schema=rec_schema,
+        ),
+        analyses_dir / "analyses.parquet",
+    )
+    aj_dir = tmp_path / "research" / "analysis"
+    aj_dir.mkdir(parents=True)
+    (aj_dir / "A_TYPED.json").write_text(
+        json.dumps(
+            {
+                "analysis_id": "A_TYPED",
+                "summary": "Agent encountered unexpected token during parsing.",
+                "created_at": "2026-08-18T10:00:00Z",
+            }
+        )
+    )
+
+    build("analyses")
+
+    hits = search_records("parsing unexpected token", table="analyses", k=1)
+    assert len(hits) == 1
+    hit = hits[0]
+    assert isinstance(hit, LanceSearchHit)
+    assert hit.record_id == "A_TYPED"
+    assert hit.analysis_id == "A_TYPED"
+    assert hit.job_id == "j1"
+    assert hit.trial_id == "t1"
+    assert hit.model == "model-v1"
+    assert hit.category == "cat-x"
+    assert hit.created_at == "2026-08-18T10:00:00Z"
+    assert "unexpected token" in hit.text
+    assert hit.decision_eligible is False
+
+    # CRITICAL CONTRACT: verify forbidden fields do not exist on hit
+    for forbidden in ("reward", "primary_reward", "exception_class", "verdict", "decision"):
+        assert not hasattr(hit, forbidden), f"Forbidden field '{forbidden}' found on LanceSearchHit"
+
+    # Immutability check on hit
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        hit.decision_eligible = True  # type: ignore[misc]
+
+
+def test_search_records_self_distance_zero(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "exact-match-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "exact-match-task"\n')
+    exact_text = "Perform exact precision match retrieval test."
+    (task_dir / "instruction.md").write_text(exact_text)
+
+    build("tasks")
+
+    hits = search_records(exact_text, table="tasks", k=1)
+    assert len(hits) >= 1
+    assert hits[0].distance == 0.0
+    assert hits[0].score == 1.0
+    assert hits[0].text == exact_text
+
+
+def test_search_records_invalidated_by_snapshot_change(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Instruction text.")
+
+    build("tasks")
+
+    with pytest.raises(ValueError, match="Snapshot digest mismatch"):
+        search_records(
+            "Instruction text",
+            table="tasks",
+            snapshot_digest="altered_snapshot_digest_value",
+        )
+
+
+def test_search_records_invalidated_by_redaction_change(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Instruction text.")
+
+    build("tasks")
+
+    with pytest.raises(ValueError, match="Redaction policy digest mismatch"):
+        search_records(
+            "Instruction text",
+            table="tasks",
+            redaction_policy_digest="altered_redaction_digest",
+        )
+
+
+def test_search_records_invalidated_by_embedder_change(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Instruction text.")
+
+    build("tasks")
+
+    changed_embedder = HashingEmbedder(dim=512)
+    with pytest.raises(ValueError, match="Embedder digest mismatch"):
+        search_records(
+            "Instruction text",
+            table="tasks",
+            embedder=changed_embedder,
+        )
+
+
+def test_search_records_refuses_non_analysis_ready_pool(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Instruction text.")
+
+    build("tasks")
+
+    with pytest.raises(ValueError, match="Candidate pool is not analysis-ready"):
+        search_records(
+            "Instruction text",
+            table="tasks",
+            analysis_ready=False,
+        )
+
+
+def test_search_records_invalidated_by_candidate_pool_change(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Instruction text.")
+
+    build("tasks")
+
+    with pytest.raises(ValueError, match="Candidate pool digest mismatch"):
+        search_records(
+            "Instruction text",
+            table="tasks",
+            candidate_pool_digest="altered_candidate_pool",
+        )
+
+    with pytest.raises(ValueError, match="Candidate pool is invalid or candidate identity is missing"):
+        search_records(
+            "Instruction text",
+            table="tasks",
+            candidate_pool_digest="   ",
+        )
+
+
+def test_manifest_persisted_for_all_built_tables(tmp_path, monkeypatch):
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Instruction text.")
+
+    pdir = derived / "job_id=j1" / "trial_id=t1"
+    pdir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "job_id": "j1",
+                    "trial_id": "t1",
+                    "job_name": "job1",
+                    "trial_name": "trial1",
+                    "task_name": "fixture-task",
+                    "agent_version": "v1",
+                    "primary_reward": 1.0,
+                }
+            ],
+            schema=pa.schema(
+                [
+                    ("job_id", pa.string()),
+                    ("trial_id", pa.string()),
+                    ("job_name", pa.string()),
+                    ("trial_name", pa.string()),
+                    ("task_name", pa.string()),
+                    ("agent_version", pa.string()),
+                    ("primary_reward", pa.float64()),
+                ]
+            ),
+        ),
+        pdir / "trial_facts.parquet",
+    )
+    traj_dir = tmp_path / "runs" / "job1" / "trial1" / "agent"
+    traj_dir.mkdir(parents=True)
+    (traj_dir / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ATIF-1",
+                "steps": [{"step_id": 0, "source": "user", "message": "msg"}],
+            }
+        )
+    )
+
+    analyses_dir = derived / "analyses"
+    analyses_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "analysis_id": "A1",
+                    "trial_id": "t1",
+                    "model": "m1",
+                    "category": "c1",
+                    "created_at": "2026-08-18T10:00:00Z",
+                }
+            ],
+            schema=pa.schema(
+                [
+                    ("analysis_id", pa.string()),
+                    ("trial_id", pa.string()),
+                    ("model", pa.string()),
+                    ("category", pa.string()),
+                    ("created_at", pa.string()),
+                ]
+            ),
+        ),
+        analyses_dir / "analyses.parquet",
+    )
+    aj_dir = tmp_path / "research" / "analysis"
+    aj_dir.mkdir(parents=True)
+    (aj_dir / "A1.json").write_text(
+        json.dumps(
+            {
+                "analysis_id": "A1",
+                "summary": "Summary text",
+                "created_at": "2026-08-18T10:00:00Z",
+            }
+        )
+    )
+
+    build("all")
+
+    lance_dir = derived / "lance"
+    for table_name in ["tasks", "trials", "steps", "analyses"]:
+        manifest_file = lance_dir / f"{table_name}.manifest.json"
+        assert manifest_file.is_file(), f"Missing manifest for {table_name}"
+        manifest = LanceIndexManifest.from_json(manifest_file.read_text(encoding="utf-8"))
+        assert manifest.table_name == table_name
+        assert manifest.row_count >= 1
+        assert manifest.decision_eligible is False
+        assert manifest.embedder_id == "hashing"
+        assert manifest.embedder_version == "v1"
+        assert len(manifest.index_digest) == 64
+        assert len(manifest.snapshot_digest) == 64
+        assert len(manifest.candidate_pool_digest) == 64
+        assert manifest.redaction_policy_digest == DEFAULT_REDACTION_POLICY_DIGEST
+

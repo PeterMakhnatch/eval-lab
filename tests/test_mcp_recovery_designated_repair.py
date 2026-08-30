@@ -153,18 +153,24 @@ def test_designated_repair_negative_controls_fail(tmp_path, fault, persistence):
     res_blind = verifier.verify_harbor_task(task)
     assert res_blind["reward"] == 0.0, res_blind
     assert res_blind["causal_mutation"] is False
+    assert "read_ok" in res_blind
+    assert "write_ok" in res_blind
 
     # 2. Wrong repair mutant (non-designated tool) -> reward 0.0
     templates.run_wrong_repair_mutant(task, task / "agent_ws")
     res_wrong = verifier.verify_harbor_task(task)
     assert res_wrong["reward"] == 0.0, res_wrong
     assert res_wrong["designated_repair_matched"] is False
+    assert "read_ok" in res_wrong
+    assert "write_ok" in res_wrong
 
     # 3. Unconditional fallback mutant -> reward 0.0
     templates.run_unconditional_fallback_mutant(task, task / "agent_ws")
     res_uncond = verifier.verify_harbor_task(task)
     assert res_uncond["reward"] == 0.0, res_uncond
     assert res_uncond["causal_mutation"] is False
+    assert "read_ok" in res_uncond
+    assert "write_ok" in res_uncond
 
 
 def test_clean_twin_negative_controls(tmp_path):
@@ -210,6 +216,8 @@ def test_tampered_mutation_digest_fails_verification(tmp_path):
         evidence_key=key,
     )
 
+    record = json.loads((task / "tests/fixtures/fault_record.json").read_text())
+
     # Run oracle to produce valid state
     templates.run_oracle_repair(task, task / "agent_ws")
 
@@ -219,8 +227,8 @@ def test_tampered_mutation_digest_fails_verification(tmp_path):
     payload = envelope_mod.decrypt_envelope(
         key,
         raw_env,
-        task_id=task.name,
-        fault_id="opaque",
+        task_id=record["task_id"],
+        fault_id=record["fault_id"],
         persistence=1,
     )
     payload["mutation_digest"] = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -228,8 +236,8 @@ def test_tampered_mutation_digest_fails_verification(tmp_path):
     tampered_env = envelope_mod.encrypt_envelope(
         key,
         payload,
-        task_id=task.name,
-        fault_id="opaque",
+        task_id=record["task_id"],
+        fault_id=record["fault_id"],
         persistence=1,
         sequence=payload["sequence"],
     )
@@ -238,3 +246,4 @@ def test_tampered_mutation_digest_fails_verification(tmp_path):
     res = verifier.verify_harbor_task(task)
     assert res["reward"] == 0.0
     assert res["mutation_digest_verified"] is False
+    assert res["success"] is False

@@ -26,7 +26,7 @@ def compute_mutation_digest(
     twin_task_id: str,
     mutation_tool: str | None = None,
 ) -> str:
-    """Compute deterministic SHA-256 mutation digest bound into sealed evidence.
+    """Compute deterministic SHA-256 mutation digest bound into sealed evidence payload.
 
     For clean twins, mutation_tool is None.
     For fault cells, mutation_tool is the designated repair move executed during recovery.
@@ -48,30 +48,17 @@ def derive_aad(
     fault_id: str,
     persistence: int,
     sequence: int,
-    fault_class: str | None = None,
-    seed: int | None = None,
-    is_clean_twin: bool | None = None,
-    twin_task_id: str | None = None,
-    mutation_digest: str | None = None,
+    **kwargs: Any,
 ) -> bytes:
-    aad_dict: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION,
-        "task_id": task_id,
-        "fault_id": fault_id,
-        "persistence": persistence,
-        "sequence": sequence,
-    }
-    if fault_class is not None:
-        aad_dict["fault_class"] = fault_class
-    if seed is not None:
-        aad_dict["seed"] = seed
-    if is_clean_twin is not None:
-        aad_dict["is_clean_twin"] = is_clean_twin
-    if twin_task_id is not None:
-        aad_dict["twin_task_id"] = twin_task_id
-    if mutation_digest is not None:
-        aad_dict["mutation_digest"] = mutation_digest
-    return canonical_json(aad_dict)
+    return canonical_json(
+        {
+            "fault_id": fault_id,
+            "persistence": persistence,
+            "schema_version": SCHEMA_VERSION,
+            "sequence": sequence,
+            "task_id": task_id,
+        }
+    )
 
 
 def encrypt_envelope(
@@ -82,11 +69,7 @@ def encrypt_envelope(
     fault_id: str,
     persistence: int,
     sequence: int,
-    fault_class: str | None = None,
-    seed: int | None = None,
-    is_clean_twin: bool | None = None,
-    twin_task_id: str | None = None,
-    mutation_digest: str | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     if len(key) != 32:
         raise ValueError("AES-256-GCM key must be 32 bytes")
@@ -96,11 +79,6 @@ def encrypt_envelope(
         fault_id=fault_id,
         persistence=persistence,
         sequence=sequence,
-        fault_class=fault_class,
-        seed=seed,
-        is_clean_twin=is_clean_twin,
-        twin_task_id=twin_task_id,
-        mutation_digest=mutation_digest,
     )
     encrypted = AESGCM(key).encrypt(nonce, canonical_json(payload), aad)
     return {
@@ -118,11 +96,7 @@ def decrypt_envelope(
     task_id: str,
     fault_id: str,
     persistence: int,
-    fault_class: str | None = None,
-    seed: int | None = None,
-    is_clean_twin: bool | None = None,
-    twin_task_id: str | None = None,
-    mutation_digest: str | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     expected = {"schema_version", "sequence", "nonce", "ciphertext"}
     if set(envelope) != expected or envelope.get("schema_version") != SCHEMA_VERSION:
@@ -135,32 +109,13 @@ def decrypt_envelope(
     try:
         nonce = base64.b64decode(envelope["nonce"], validate=True)
         ciphertext = base64.b64decode(envelope["ciphertext"], validate=True)
-        # Try decrypt with full AAD; if caller provided extended fields and it fails,
-        # try backward-compatible basic AAD in case envelope was sealed without extended fields.
-        try:
-            aad = derive_aad(
-                task_id=task_id,
-                fault_id=fault_id,
-                persistence=persistence,
-                sequence=sequence,
-                fault_class=fault_class,
-                seed=seed,
-                is_clean_twin=is_clean_twin,
-                twin_task_id=twin_task_id,
-                mutation_digest=mutation_digest,
-            )
-            raw = AESGCM(key).decrypt(nonce, ciphertext, aad)
-        except Exception:
-            if any(x is not None for x in (fault_class, seed, is_clean_twin, twin_task_id, mutation_digest)):
-                basic_aad = derive_aad(
-                    task_id=task_id,
-                    fault_id=fault_id,
-                    persistence=persistence,
-                    sequence=sequence,
-                )
-                raw = AESGCM(key).decrypt(nonce, ciphertext, basic_aad)
-            else:
-                raise
+        aad = derive_aad(
+            task_id=task_id,
+            fault_id=fault_id,
+            persistence=persistence,
+            sequence=sequence,
+        )
+        raw = AESGCM(key).decrypt(nonce, ciphertext, aad)
         payload = json.loads(raw.decode("utf-8"))
     except Exception as exc:
         raise ValueError("envelope decryption/authentication failed") from exc

@@ -276,20 +276,15 @@ def _record_and_seal(event: dict[str, Any], state: dict[str, Any]) -> None:
         fault_id=FAULT_ID,
         persistence=PERSISTENCE,
         sequence=SEQUENCE,
-        fault_class=FAULT_CLASS,
-        seed=SEED,
-        is_clean_twin=IS_CLEAN_TWIN,
-        twin_task_id=TWIN_TASK_ID,
-        mutation_digest=mutation_digest,
     )
     write_atomic_envelope(ENVELOPE_FILE, env)
 
 
 def recovery_refresh_auth(scope: str) -> dict[str, Any]:
     state = _load_db()
-    state["strategy_used"] = True
     if DESIGNATED_REPAIR == "refresh_auth":
         state["designated_mutation_used"] = "refresh_auth"
+        state["strategy_used"] = True
     _save_db(state)
     event = {{
         "event_index": len(RECORDED_EVENTS),
@@ -305,9 +300,9 @@ def recovery_refresh_auth(scope: str) -> dict[str, Any]:
 
 def recovery_fallback_query(query: str) -> dict[str, Any]:
     state = _load_db()
-    state["strategy_used"] = True
     if DESIGNATED_REPAIR == "fallback_query":
         state["designated_mutation_used"] = "fallback_query"
+        state["strategy_used"] = True
     _save_db(state)
     event = {{
         "event_index": len(RECORDED_EVENTS),
@@ -355,7 +350,7 @@ def recovery_write_record(key: str, value: str) -> Any:
         }}
         return ToolResult(content=messages["{fault_class.value}"], is_error=True)
 
-    if not IS_CLEAN_TWIN and "{fault_class.value}" in ("persistent_signature_error", "persistent_schema_mismatch") and not state["strategy_used"]:
+    if not IS_CLEAN_TWIN and "{fault_class.value}" in ("persistent_signature_error", "persistent_schema_mismatch") and not state.get("designated_mutation_used"):
         event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "unresolved_error", "fault_injected": False, "written_key": key}}
         _record_and_seal(event, state)
         return ToolResult(content="operation failed: underlying channel error unmitigated", is_error=True)

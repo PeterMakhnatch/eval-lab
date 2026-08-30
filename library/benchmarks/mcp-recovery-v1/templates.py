@@ -79,11 +79,6 @@ def _seal_and_write(task_dir: Path, record: dict[str, Any], key: bytes, events: 
         fault_id=str(record["fault_id"]),
         persistence=persistence,
         sequence=len(events),
-        fault_class=fault_class,
-        seed=seed,
-        is_clean_twin=is_clean,
-        twin_task_id=twin_task_id,
-        mutation_digest=mutation_digest,
     )
     write_atomic_envelope(out / "sealed-evidence.json", env)
     canonical = []

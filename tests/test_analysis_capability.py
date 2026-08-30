@@ -1301,3 +1301,50 @@ def test_all_zero_digest_rejected_at_contract_boundary() -> None:
     }
     with pytest.raises(ValidationError):
         CampaignAnalysisConfigV1.model_validate(config_body)
+
+def test_malformed_source_digest_normalizes_to_none() -> None:
+    spec = create_campaign_analysis_spec(
+        spec_id="malformed-digest-test",
+        method=AnalysisMethod.RATE_WILSON,
+        outcome_feature="primary_reward",
+        unit=AnalysisUnit.TRIAL,
+        unit_keys=("trial_id",),
+        denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
+        ci_method="wilson",
+    )
+    rows = [
+        {
+            "trial_id": "trial_short",
+            "primary_reward": 1.0,
+            "task_digest": "sha256:1234",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "trial_md5",
+            "primary_reward": 0.0,
+            "task_digest": "md5:abcd",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "trial_zero",
+            "primary_reward": 1.0,
+            "task_digest": "sha256:" + "0" * 64,
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "trial_plain",
+            "primary_reward": 1.0,
+            "task_digest": "not-a-digest",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+    ]
+    res = run_campaign_analysis(spec, rows, snapshot_digest=DIGEST_A)
+    assert res.status == AnalysisStatus.VALID
+    assert len(res.source_refs) == 4
+    for ref in res.source_refs:
+        assert ref.digest is None
+

@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 import statistics
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -40,6 +41,16 @@ _POST_VERDICT_INPUTS = frozenset(
 )
 
 _ZERO_DIGEST = "sha256:" + "0" * 64
+_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def _clean_source_digest(val: Any) -> str | None:
+    if not val or not isinstance(val, str):
+        return None
+    s = val.strip()
+    if not _DIGEST_PATTERN.match(s) or s == _ZERO_DIGEST:
+        return None
+    return s
 
 ADMISSIBLE_CAPTURE_AUTHORITIES = frozenset(
     {
@@ -1216,20 +1227,13 @@ def _extract_source_refs(
         if not trial_id:
             continue
         path = f"{trial_id}/result.json"
-        digest_val = (
-            str(row.get("task_digest"))
-            if row.get("task_digest")
-            else (
-                str(row.get("verifier_digest"))
-                if row.get("verifier_digest")
-                else str(row.get("ir_digest") or "")
-            )
+        raw_digest = (
+            row.get("task_digest")
+            or row.get("verifier_digest")
+            or row.get("ir_digest")
+            or row.get("digest")
         )
-        digest = (
-            digest_val
-            if digest_val and digest_val.startswith("sha256:") and digest_val != _ZERO_DIGEST
-            else None
-        )
+        digest = _clean_source_digest(raw_digest)
         key = (path, digest)
         if key not in seen:
             seen.add(key)

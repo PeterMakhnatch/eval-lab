@@ -6,7 +6,25 @@ from typing import Any, Callable
 
 from evallab.benchmark_program_contracts import FaultClass
 
-__all__ = ["FaultClass", "FaultSpec", "FaultController", "TRANSIENT_FAULTS"]
+from contract import (
+    ALTERNATIVE_REPAIR_MOVES,
+    DESIGNATED_REPAIR_MOVES,
+    compute_mutation_digest,
+    get_alternative_repair,
+    get_designated_repair,
+)
+
+__all__ = [
+    "ALTERNATIVE_REPAIR_MOVES",
+    "DESIGNATED_REPAIR_MOVES",
+    "FaultClass",
+    "FaultController",
+    "FaultSpec",
+    "TRANSIENT_FAULTS",
+    "compute_mutation_digest",
+    "get_alternative_repair",
+    "get_designated_repair",
+]
 
 TRANSIENT_FAULTS = {
     FaultClass.TRANSIENT_NETWORK_TIMEOUT,
@@ -22,6 +40,11 @@ class FaultSpec:
     trigger_condition: Callable[[dict[str, Any]], bool] | None = None
     clear_condition: Callable[[dict[str, Any], Any], bool] | None = None
     corrupted_payload: Any = None
+    designated_repair: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.designated_repair is None and self.fault_class in DESIGNATED_REPAIR_MOVES:
+            self.designated_repair = DESIGNATED_REPAIR_MOVES[self.fault_class]
 
 
 class FaultController:
@@ -54,6 +77,7 @@ class FaultController:
                     "fault_class": spec.fault_class.value,
                     "hit_index": self.hit_counts[tool_name],
                     "persistence": spec.persistence,
+                    "designated_repair": spec.designated_repair,
                 }
             )
             if spec.fault_class == FaultClass.PERSISTENT_SIGNATURE_ERROR:

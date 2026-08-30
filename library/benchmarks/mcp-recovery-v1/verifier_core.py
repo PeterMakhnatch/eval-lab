@@ -5,13 +5,50 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-from envelope import decrypt_envelope
+from envelope import compute_mutation_digest, decrypt_envelope
 
 MUTATION_TOOLS = frozenset({"refresh_auth", "fallback_query"})
 
 CANONICAL_EVENT_SCHEMA = "mcp-tool-event-v1"
 CANONICAL_TOOLS = frozenset({"write_record", "read_record", "refresh_auth", "fallback_query"})
+
+# Self-contained designated causal repair tool mapping per fault class.
+# Keeps verifier_core zero-dependency and isolated from benchmark source manifests.
+DESIGNATED_REPAIR_MOVES: dict[str, str] = {
+    "persistent_signature_error": "refresh_auth",
+    "persistent_schema_mismatch": "fallback_query",
+    "transient_network_timeout": "refresh_auth",
+    "transient_http_5xx": "fallback_query",
+    "silent_wrong_payload": "fallback_query",
+}
+
+ECOLOGICAL_FAULT_ALIASES: dict[str, str] = {
+    "permission-denied": "persistent_signature_error",
+    "permission_denied": "persistent_signature_error",
+    "not-found": "persistent_schema_mismatch",
+    "not_found": "persistent_schema_mismatch",
+    "timeout": "transient_network_timeout",
+    "malformed-output": "transient_http_5xx",
+    "malformed_output": "transient_http_5xx",
+    "silent-wrong-result": "silent_wrong_payload",
+    "silent_wrong_result": "silent_wrong_payload",
+}
+
+
+def _resolve_fault_class_str(fault: Any) -> str:
+    raw = str(getattr(fault, "value", fault)).strip()
+    if raw in ECOLOGICAL_FAULT_ALIASES:
+        return ECOLOGICAL_FAULT_ALIASES[raw]
+    normalized = raw.replace("-", "_")
+    if normalized in DESIGNATED_REPAIR_MOVES:
+        return normalized
+    return raw
+
+
+def get_designated_repair(fault: Any) -> str:
+    resolved = _resolve_fault_class_str(fault)
+    return DESIGNATED_REPAIR_MOVES.get(resolved, "fallback_query")
+
 
 def _load_canonical_events(task_path: Path) -> list[dict[str, Any]]:
     event_path = task_path / "output" / "benchmark-events.jsonl"
@@ -35,6 +72,7 @@ def _load_canonical_events(task_path: Path) -> list[dict[str, Any]]:
             raise ValueError("canonical event type is invalid")
     return events
 
+
 def _crosscheck_transport(sealed: list[dict[str, Any]], canonical: list[dict[str, Any]]) -> None:
     if len(sealed) != len(canonical):
         raise ValueError("sealed and canonical event count mismatch")
@@ -44,7 +82,6 @@ def _crosscheck_transport(sealed: list[dict[str, Any]], canonical: list[dict[str
         handler_error = handler.get("outcome") not in {"ok"}
         if bool(transport.get("is_error")) != handler_error and handler.get("outcome") != "silent_corruption":
             raise ValueError("sealed/canonical outcome mismatch")
-
 
 
 def _evidence_path(task_dir: Path) -> Path:
@@ -59,6 +96,35 @@ def _evidence_path(task_dir: Path) -> Path:
     return candidates[1]
 
 
+def _base_failure_result(
+    reason: str,
+    *,
+    expected_persistence: int = 1,
+    is_clean_twin: bool = False,
+    designated_repair: str = "none",
+) -> dict[str, Any]:
+    return {
+        "reward": 0.0,
+        "success": False,
+        "reason": reason,
+        "causal_mutation": False,
+        "designated_repair_matched": False,
+        "designated_repair": designated_repair,
+        "mutation_digest_verified": False,
+        "exact_injections": False,
+        "write_ok": False,
+        "read_ok": False,
+        "read_confirmed": False,
+        "state_changed": False,
+        "auto_clear": False,
+        "monotonic": False,
+        "zero_faults": False,
+        "fault_count": 0,
+        "required_fault_count": expected_persistence,
+        "is_clean_twin": is_clean_twin,
+    }
+
+
 def score_recovery_envelope(
     key: bytes,
     raw_envelope: dict[str, Any],
@@ -68,7 +134,17 @@ def score_recovery_envelope(
     expected_persistence: int,
     is_clean_twin: bool = False,
     target_tool: str = "write_record",
+    fault_class: str | None = None,
+    seed: int | None = None,
+    twin_task_id: str | None = None,
+    designated_repair_move: str | None = None,
+    expected_mutation_digest: str | None = None,
 ) -> dict[str, Any]:
+    # Resolve designated repair move
+    resolved_repair = designated_repair_move
+    if not resolved_repair and fault_class:
+        resolved_repair = get_designated_repair(fault_class)
+
     try:
         payload = decrypt_envelope(
             key,
@@ -78,14 +154,12 @@ def score_recovery_envelope(
             persistence=expected_persistence,
         )
     except Exception as exc:
-        return {
-            "reward": 0.0,
-            "success": False,
-            "reason": f"envelope decryption failed: {exc}",
-            "auto_clear": False,
-            "monotonic": False,
-            "fault_count": 0,
-        }
+        return _base_failure_result(
+            f"envelope decryption failed: {exc}",
+            expected_persistence=expected_persistence,
+            is_clean_twin=is_clean_twin,
+            designated_repair=resolved_repair or "none",
+        )
 
     events = payload.get("events", [])
     monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
@@ -94,35 +168,72 @@ def score_recovery_envelope(
 
     state_changed = payload.get("initial_digest") != payload.get("final_digest") and bool(payload.get("records"))
 
+    # Verify sealed mutation digest if present
+    sealed_digest = payload.get("mutation_digest")
+    mutation_digest_verified = True
+    if sealed_digest and fault_class and seed is not None and twin_task_id:
+        if is_clean_twin:
+            expected_dig = compute_mutation_digest(
+                fault_class=fault_class,
+                persistence=0,
+                seed=seed,
+                is_clean_twin=True,
+                twin_task_id=twin_task_id,
+                mutation_tool=None,
+            )
+            mutation_digest_verified = (sealed_digest == expected_dig)
+        elif resolved_repair:
+            expected_dig = compute_mutation_digest(
+                fault_class=fault_class,
+                persistence=expected_persistence,
+                seed=seed,
+                is_clean_twin=False,
+                twin_task_id=twin_task_id,
+                mutation_tool=resolved_repair,
+            )
+            mutation_digest_verified = (sealed_digest == expected_dig)
+
+    all_reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
+    all_writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
+
     if is_clean_twin:
-        writes = [ev for ev in events if ev.get("tool") == "write_record" and ev.get("outcome") == "ok"]
-        reads = [ev for ev in events if ev.get("tool") == "read_record" and ev.get("outcome") == "ok" and ev.get("read_value")]
+        writes = all_writes
+        reads = all_reads
         confirmed = any(
             w.get("written_value") and r.get("read_value") == w.get("written_value") and int(r.get("event_index", 0)) > int(w.get("event_index", 0))
             for w in writes for r in reads
         ) if writes and reads else False
-        success = bool(monotonic and exact_injections and writes and reads and confirmed and state_changed)
+        success = bool(monotonic and exact_injections and writes and reads and confirmed and state_changed and mutation_digest_verified)
         return {
             "reward": 1.0 if success else 0.0,
             "success": success,
             "zero_faults": exact_injections,
             "write_ok": bool(writes),
             "read_ok": bool(reads),
-            "confirmed": confirmed,
+            "read_confirmed": confirmed,
             "state_changed": state_changed,
             "auto_clear": False,
             "monotonic": monotonic,
             "fault_count": len(injections),
+            "required_fault_count": expected_persistence,
+            "mutation_digest_verified": mutation_digest_verified,
+            "causal_mutation": False,
+            "designated_repair_matched": True,
+            "designated_repair": resolved_repair or "none",
+            "is_clean_twin": True,
         }
 
     if not injections:
-        return {
-            "reward": 0.0,
-            "success": False,
-            "reason": "no fault injections observed",
-            "auto_clear": False,
-            "fault_count": 0,
-        }
+        res = _base_failure_result(
+            "no fault injections observed",
+            expected_persistence=expected_persistence,
+            is_clean_twin=False,
+            designated_repair=resolved_repair or "none",
+        )
+        res["write_ok"] = bool(all_writes)
+        res["read_ok"] = bool(all_reads)
+        res["monotonic"] = monotonic
+        return res
 
     first_fault_idx = min(int(ev["event_index"]) for ev in injections)
 
@@ -136,24 +247,47 @@ def score_recovery_envelope(
     ]
 
     if not post_fault_target_successes:
-        return {
-            "reward": 0.0,
-            "success": False,
-            "reason": "no post-fault target operation succeeded",
-            "auto_clear": False,
-            "fault_count": len(injections),
-        }
+        res = _base_failure_result(
+            "no post-fault target operation succeeded",
+            expected_persistence=expected_persistence,
+            is_clean_twin=False,
+            designated_repair=resolved_repair or "none",
+        )
+        res["fault_count"] = len(injections)
+        res["exact_injections"] = exact_injections
+        res["monotonic"] = monotonic
+        res["write_ok"] = bool(all_writes)
+        res["read_ok"] = bool(all_reads)
+        return res
 
     first_post_fault_success = min(post_fault_target_successes)
 
-    # Strategy mutation must occur strictly after first fault and strictly before first post-fault target success
+    # Exact Designated Causal Mutation:
+    # 1. Mutation must occur strictly after first fault and strictly before first post-fault target success
+    # 2. If a designated repair move is specified, the mutation MUST be the designated tool.
+    target_mutation_tools = frozenset({resolved_repair}) if resolved_repair else MUTATION_TOOLS
     mutations_before_success = [
         int(ev["event_index"])
+        for ev in events
+        if ev.get("tool") in target_mutation_tools
+        and first_fault_idx < int(ev.get("event_index", -1)) < first_post_fault_success
+    ]
+    causal_mutation = bool(mutations_before_success)
+    designated_repair_matched = causal_mutation
+
+    # Check if a non-designated tool was executed in the mutation window (wrong repair check)
+    any_mutation_in_window = [
+        ev.get("tool")
         for ev in events
         if ev.get("tool") in MUTATION_TOOLS
         and first_fault_idx < int(ev.get("event_index", -1)) < first_post_fault_success
     ]
-    causal_mutation = bool(mutations_before_success)
+    wrong_repair_executed = bool(
+        resolved_repair and any_mutation_in_window and resolved_repair not in any_mutation_in_window
+    )
+    if wrong_repair_executed:
+        causal_mutation = False
+        designated_repair_matched = False
 
     confirmed_read = False
     post_mutation_writes: list[dict[str, Any]] = []
@@ -175,9 +309,9 @@ def score_recovery_envelope(
                 if any((r.get("read_value") == w_val or (w_val and str(w_val) in str(r.get("read_value", "")))) and int(r.get("event_index", 0)) > w_idx for r in clean_reads):
                     confirmed_read = True
                     break
-        success = bool(monotonic and exact_injections and causal_mutation and confirmed_read and state_changed)
+        success = bool(monotonic and exact_injections and causal_mutation and designated_repair_matched and confirmed_read and state_changed and mutation_digest_verified)
     else:
-        # Write-targeted faults: fault writes -> mutation -> post-mutation successful write -> matching read confirmation
+        # Write-targeted faults: fault writes -> designated mutation -> post-mutation successful write -> matching read confirmation
         post_mutation_writes = [
             ev for ev in events
             if ev.get("tool") == "write_record"
@@ -197,7 +331,7 @@ def score_recovery_envelope(
             if matching_reads:
                 confirmed_read = True
                 break
-        success = bool(monotonic and exact_injections and causal_mutation and post_mutation_writes and confirmed_read and state_changed)
+        success = bool(monotonic and exact_injections and causal_mutation and designated_repair_matched and post_mutation_writes and confirmed_read and state_changed and mutation_digest_verified)
 
     auto_clear = bool(state_changed and exact_injections and not causal_mutation)
 
@@ -205,14 +339,20 @@ def score_recovery_envelope(
         "reward": 1.0 if success else 0.0,
         "success": success,
         "causal_mutation": causal_mutation,
+        "designated_repair_matched": designated_repair_matched,
+        "designated_repair": resolved_repair or "any",
+        "mutation_digest_verified": mutation_digest_verified,
         "exact_injections": exact_injections,
-        "write_ok": bool(post_mutation_writes),
+        "write_ok": bool(post_mutation_writes or all_writes),
+        "read_ok": bool(all_reads),
         "read_confirmed": confirmed_read,
         "state_changed": state_changed,
         "auto_clear": auto_clear,
         "monotonic": monotonic,
+        "zero_faults": False,
         "fault_count": len(injections),
         "required_fault_count": expected_persistence,
+        "is_clean_twin": False,
     }
 
 
@@ -230,31 +370,45 @@ def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = Non
     payload_cfg = record.get("injection_payload") or {}
     expected_persistence = int(payload_cfg.get("persistence", 1))
     is_clean_twin = bool(payload_cfg.get("is_clean_twin", False))
+    seed = payload_cfg.get("seed", 42)
+    designated_repair = payload_cfg.get("designated_repair_move")
+    fault_class_str = record.get("fault_class")
 
     envelope_file = _evidence_path(task_path)
     if not envelope_file.is_file():
-        result = {
-            "reward": 0.0,
-            "success": False,
-            "reason": f"missing sealed evidence envelope: {envelope_file}",
-            "auto_clear": False,
-        }
+        result = _base_failure_result(
+            f"missing sealed evidence envelope: {envelope_file}",
+            expected_persistence=expected_persistence,
+            is_clean_twin=is_clean_twin,
+            designated_repair=designated_repair or "none",
+        )
     else:
         try:
             raw_env = json.loads(envelope_file.read_text(encoding="utf-8"))
         except Exception as exc:
-            result = {
-                "reward": 0.0,
-                "success": False,
-                "reason": f"envelope JSON parse error: {exc}",
-                "auto_clear": False,
-            }
+            result = _base_failure_result(
+                f"envelope JSON parse error: {exc}",
+                expected_persistence=expected_persistence,
+                is_clean_twin=is_clean_twin,
+                designated_repair=designated_repair or "none",
+            )
         else:
             try:
-                payload = decrypt_envelope(key, raw_env, task_id=str(record["task_id"]), fault_id=str(record["fault_id"]), persistence=expected_persistence)
+                payload = decrypt_envelope(
+                    key,
+                    raw_env,
+                    task_id=str(record["task_id"]),
+                    fault_id=str(record["fault_id"]),
+                    persistence=expected_persistence,
+                )
                 _crosscheck_transport(payload.get("events", []), _load_canonical_events(task_path))
             except Exception as exc:
-                result = {"reward": 0.0, "success": False, "reason": f"canonical transport validation failed: {exc}", "auto_clear": False}
+                result = _base_failure_result(
+                    f"canonical transport validation failed: {exc}",
+                    expected_persistence=expected_persistence,
+                    is_clean_twin=is_clean_twin,
+                    designated_repair=designated_repair or "none",
+                )
             else:
                 result = score_recovery_envelope(
                     key,
@@ -264,6 +418,10 @@ def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = Non
                     expected_persistence=expected_persistence,
                     is_clean_twin=is_clean_twin,
                     target_tool=str(record.get("target_tool", "write_record")),
+                    fault_class=fault_class_str,
+                    seed=seed,
+                    twin_task_id=str(record.get("twin_task_id", "")),
+                    designated_repair_move=designated_repair,
                 )
 
     if reward_dir:
@@ -280,5 +438,3 @@ def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = Non
         )
 
     return result
-
-

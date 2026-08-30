@@ -3,14 +3,18 @@
 Covers:
 1. Proxy in-process HTTP server:
    - Capability verification and expiry (fail-closed 401).
+   - Pre-body capability authentication (unauthenticated requests rejected before body read).
    - Model allowlist enforcement: allows ``zai-coding-plan/glm-5.3`` and
      ``zai-coding-plan/glm-5.3-flash``; rejects disallowed providers/models (403).
    - Highspeed handling: forwards ``zai-coding-plan/glm-5.3-highspeed`` verbatim
      without fallback/substitution; upstream 429 access failure is forwarded
      without fallback so it surfaces as non-scored execution failure.
    - Credential isolation: strips inbound headers, injects provider auth only in
-     proxy, redacts secret from responses (raw, JSON-escaped, base64).
+     proxy, redacts secret from responses (raw, JSON, Base64, URL-encoded, Unicode, Bearer).
    - Transport security: rejects redirects, gzip, binary, non-JSON upstream (502).
+   - Upstream size limits & error sanitization: oversized responses (limit+1) and
+     stream disconnects return sanitized 502.
+   - Concurrency bounding: worker capacity limits concurrent requests.
    - Secret file validation: rejects symlinks, wrong mode/owner (500).
    - Pinned upstream URL enforcement.
 2. Adapter integration (``SecretSafeZaiOpenCodeAgent``):
@@ -28,13 +32,12 @@ import gzip
 import importlib
 import importlib.util
 import json
-import os
-import stat
+import socket
 import sys
-import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -215,6 +218,7 @@ def _setup_proxy(
     monkeypatch: pytest.MonkeyPatch,
     upstream_handler: type[BaseHTTPRequestHandler] = _MockZaiUpstream,
     capability: str = "test-zai-capability-token-32b",
+    max_workers: int = 32,
 ) -> tuple[ThreadingHTTPServer, ThreadingHTTPServer, str]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     secret_file = tmp_path / "zai_key"
@@ -230,7 +234,7 @@ def _setup_proxy(
     monkeypatch.setenv("EVALLAB_ZAI_CAPABILITY_EXPIRES_AT", str(time.time() + 300))
 
     proxy_module = _load_proxy_module()
-    proxy = proxy_module.serve(host="127.0.0.1", port=0)
+    proxy = proxy_module.serve(host="127.0.0.1", port=0, max_workers=max_workers)
     thread = threading.Thread(target=proxy.serve_forever, daemon=True)
     thread.start()
 
@@ -297,6 +301,69 @@ def test_proxy_rejects_expired_capability(tmp_path: Path, monkeypatch: pytest.Mo
         with pytest.raises(urllib.error.HTTPError) as exc:
             urllib.request.urlopen(req, timeout=5)
         assert exc.value.code == 401
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_unauthenticated_request_rejected_before_reading_body(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pre-body auth ensures unauthenticated slow-body attacks are rejected immediately."""
+    proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch)
+    try:
+        # Connect raw socket and send headers with invalid auth and huge Content-Length
+        # without sending the body
+        host, port = proxy.server_address[:2]
+        s = socket.create_connection((host, port), timeout=5)
+        request_data = (
+            b"POST /api/paas/v4/chat/completions HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Authorization: Bearer invalid-capability\r\n"
+            b"Content-Length: 1048576\r\n"
+            b"Content-Type: application/json\r\n"
+            b"\r\n"
+        )
+        s.sendall(request_data)
+        response_data = b""
+        s.settimeout(5)
+        while True:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            response_data += chunk
+            if b"\r\n\r\n" in response_data:
+                break
+        s.close()
+        assert b"401" in response_data.split(b"\r\n")[0]
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_incomplete_body_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Incomplete body (declared 1000 bytes, sends 10 then closes) is rejected."""
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch, capability=capability)
+    try:
+        host, port = proxy.server_address[:2]
+        s = socket.create_connection((host, port), timeout=5)
+        request_data = (
+            b"POST /api/paas/v4/chat/completions HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            + f"Authorization: Bearer {capability}\r\n".encode()
+            + b"Content-Length: 1000\r\n"
+            b"Content-Type: application/json\r\n"
+            b"\r\n"
+            b'{"model":"'
+        )
+        s.sendall(request_data)
+        s.shutdown(socket.SHUT_WR)
+        response_data = s.recv(4096)
+        s.close()
+        assert b"400" in response_data.split(b"\r\n")[0]
     finally:
         proxy.shutdown()
         upstream.shutdown()
@@ -450,6 +517,8 @@ def test_proxy_redacts_secret_reflection_from_upstream(
                         "content": f"reflected {SECRET_SENTINEL}",
                         "escaped": json.dumps(SECRET_SENTINEL),
                         "b64": base64.b64encode(SECRET_SENTINEL.encode()).decode(),
+                        "url_enc": urllib.parse.quote(SECRET_SENTINEL),
+                        "bearer_hdr": f"Bearer {SECRET_SENTINEL}",
                     }
                 }],
                 "usage": {"prompt_tokens": 1, "completion_tokens": 1},
@@ -476,7 +545,85 @@ def test_proxy_redacts_secret_reflection_from_upstream(
         assert resp.status == 200
         assert SECRET_SENTINEL.encode() not in body
         assert base64.b64encode(SECRET_SENTINEL.encode()) not in body
+        assert urllib.parse.quote(SECRET_SENTINEL).encode() not in body
         assert b"<redacted>" in body
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_upstream_oversized_response_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Upstream response exceeding MAX_RESPONSE_BYTES is rejected with sanitized 502."""
+    class HugeResponseUpstream(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            # Send Content-Length larger than 16MB
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(20 * 1024 * 1024))
+            self.end_headers()
+            self.wfile.write(b" " * 1024)
+
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, upstream_handler=HugeResponseUpstream, capability=capability
+    )
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc.value.code == 502
+        assert SECRET_SENTINEL.encode() not in exc.value.read()
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_upstream_read_error_sanitized_to_502(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Upstream transport disconnect during body read is sanitized to 502."""
+    class DroppingUpstream(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", "1000")
+            self.end_headers()
+            self.wfile.write(b'{"choices":')
+            # Abruptly close connection before full body
+            self.close_connection = True
+
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, upstream_handler=DroppingUpstream, capability=capability
+    )
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc.value.code == 502
+        assert SECRET_SENTINEL.encode() not in exc.value.read()
     finally:
         proxy.shutdown()
         upstream.shutdown()

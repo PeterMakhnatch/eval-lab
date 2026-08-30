@@ -147,9 +147,8 @@ def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
         }
     if isinstance(value, list):
         return [_redact_sensitive_values(item, secrets) for item in value]
-    if isinstance(value, str):
-        if value in secrets or any(s and s in value for s in secrets):
-            return REDACTED_SECRET_VALUE
+    if isinstance(value, str) and (value in secrets or any(s and s in value for s in secrets)):
+        return REDACTED_SECRET_VALUE
     return value
 
 

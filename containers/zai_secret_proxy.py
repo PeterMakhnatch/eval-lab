@@ -5,17 +5,26 @@ see an internal endpoint and a per-trial capability, never the credential.
 Enforces the ``zai-coding-plan/`` model prefix, strips inbound credential
 headers, rejects Highspeed/access errors without fallback, injects provider
 auth only in the proxy process, and exposes no secret in config/log/error surfaces.
+
+Hardening features:
+- Pre-body capability authentication (rejects unauthenticated requests before reading body).
+- Short socket and body read deadlines.
+- Bounded concurrency with worker limit.
+- Incremental, size-bounded upstream response reading (limit+1) with sanitized 502 classification.
+- Multi-encoding secret redaction (raw, JSON, Base64, URL-encoded, Unicode, UTF-16, Bearer).
 """
 
 from __future__ import annotations
 
 import base64
+import contextlib
 import hmac
 import http.client
 import json
 import os
 import ssl
 import stat
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -29,6 +38,11 @@ DEFAULT_UPSTREAM = "https://api.z.ai"
 ALLOWED_PATH = "/api/paas/v4/chat/completions"
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
+MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+REQUEST_TIMEOUT_SECONDS = 15.0
+UPSTREAM_TIMEOUT_SECONDS = 120.0
+MAX_CONCURRENT_WORKERS = 32
+
 PINNED_HTTPS_HOST = "api.z.ai"
 PINNED_HTTPS_PORT = 443
 ALLOWED_HTTP_HOSTS = frozenset(
@@ -148,15 +162,20 @@ def _key_needles(key: str) -> tuple[bytes, ...]:
     escaped = json.dumps(key, ensure_ascii=True)[1:-1].encode("ascii")
     raw_escaped = json.dumps(key, ensure_ascii=False)[1:-1].encode("utf-8")
     b64 = base64.b64encode(utf8)
+    url_quoted = urllib.parse.quote(key).encode("ascii")
     needles = {
         utf8,
         escaped,
         raw_escaped,
+        url_quoted,
         key.encode("unicode_escape"),
         key.encode("utf-16le"),
         key.encode("utf-16be"),
         b64,
         b64.rstrip(b"="),
+        b"Bearer " + utf8,
+        b"bearer " + utf8,
+        b"BEARER " + utf8,
     }
     return tuple(needle for needle in needles if needle)
 
@@ -254,43 +273,51 @@ def _validate_model(model: Any) -> str | None:
     return model
 
 
+class ProxyServer(ThreadingHTTPServer):
+    """Threading HTTPServer with bounded concurrent worker semaphore."""
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        RequestHandlerClass: type[BaseHTTPRequestHandler],  # noqa: N803
+        max_workers: int = MAX_CONCURRENT_WORKERS,
+    ) -> None:
+        super().__init__(server_address, RequestHandlerClass)
+        self.semaphore = threading.BoundedSemaphore(max_workers)
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    timeout = REQUEST_TIMEOUT_SECONDS
 
     def log_message(self, format: str, *args: object) -> None:
         del format, args
 
+    def setup(self) -> None:
+        super().setup()
+        with contextlib.suppress(AttributeError, OSError):
+            self.connection.settimeout(REQUEST_TIMEOUT_SECONDS)
+
     def _reject(self, status: int, message: bytes) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(message)))
-        self.send_header("Connection", "close")
-        self.end_headers()
-        self.wfile.write(message)
+        with contextlib.suppress(OSError):
+            self.send_response(status)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(message)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(message)
 
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.partition("?")[0]
         if path == HEALTHZ_PATH:
             body = b"ok\n"
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            with contextlib.suppress(OSError):
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             return
         self._reject(404, b"endpoint not allowed\n")
-
-    def do_POST(self) -> None:  # noqa: N802
-        raw_length = self.headers.get("Content-Length")
-        try:
-            length = int(raw_length or "-1")
-        except ValueError:
-            self._reject(400, b"invalid content length\n")
-            return
-        if length < 0 or length > MAX_REQUEST_BYTES:
-            self._reject(413, b"request body rejected\n")
-            return
-        body = self.rfile.read(length)
-        self._proxy(body)
 
     def _presented_capability(self) -> str:
         header = self.headers.get("Authorization", "")
@@ -299,14 +326,91 @@ class Handler(BaseHTTPRequestHandler):
             return header[len(prefix) :].strip()
         return self.headers.get("X-Evallab-Proxy-Capability", "").strip()
 
-    def _proxy(self, body: bytes) -> None:
+    def do_POST(self) -> None:  # noqa: N802
         path = self.path.partition("?")[0]
         if path != ALLOWED_PATH and self.path != ALLOWED_PATH:
             self._reject(404, b"endpoint not allowed\n")
             return
+
+        # AUTHENTICATE HEADERS BEFORE READING BODY (slow-body DoS protection)
         if _expired() or not _capability_ok(self._presented_capability()):
             self._reject(401, b"capability rejected\n")
             return
+
+        # BOUND CONCURRENT WORKERS
+        server = self.server
+        semaphore = getattr(server, "semaphore", None)
+        if semaphore is not None:
+            acquired = semaphore.acquire(blocking=False)
+            if not acquired:
+                self._reject(503, b"proxy worker capacity exceeded\n")
+                return
+        else:
+            acquired = False
+
+        try:
+            raw_length = self.headers.get("Content-Length")
+            try:
+                length = int(raw_length or "-1")
+            except ValueError:
+                self._reject(400, b"invalid content length\n")
+                return
+            if length < 0 or length > MAX_REQUEST_BYTES:
+                self._reject(413, b"request body rejected\n")
+                return
+
+            # Incremental body read with deadline
+            chunks: list[bytes] = []
+            remaining = length
+            while remaining > 0:
+                chunk_size = min(remaining, 65536)
+                try:
+                    chunk = self.rfile.read(chunk_size)
+                except (TimeoutError, OSError):
+                    self._reject(408, b"request body timeout\n")
+                    return
+                if not chunk:
+                    self._reject(400, b"incomplete request body\n")
+                    return
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            body = b"".join(chunks)
+
+            self._proxy(body)
+        finally:
+            if acquired and semaphore is not None:
+                semaphore.release()
+
+    def _read_upstream_body(self, response: Any) -> bytes | None:
+        """Read upstream response incrementally with strict size limit (limit+1)."""
+        content_length_hdr = response.headers.get("Content-Length")
+        if content_length_hdr is not None:
+            try:
+                declared_len = int(content_length_hdr)
+                if declared_len > MAX_RESPONSE_BYTES:
+                    return None
+            except ValueError:
+                return None
+
+        chunks: list[bytes] = []
+        total_read = 0
+        limit = MAX_RESPONSE_BYTES
+        try:
+            while True:
+                # Read chunks up to MAX_RESPONSE_BYTES + 1
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > limit:
+                    return None
+                chunks.append(chunk)
+        except (OSError, http.client.HTTPException):
+            return None
+
+        return b"".join(chunks)
+
+    def _proxy(self, body: bytes) -> None:
         try:
             payload = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -373,7 +477,7 @@ class Handler(BaseHTTPRequestHandler):
         opener = urllib.request.build_opener(*handlers)
 
         try:
-            response = opener.open(request, timeout=120)
+            response = opener.open(request, timeout=UPSTREAM_TIMEOUT_SECONDS)
         except urllib.error.HTTPError as exc:
             if 300 <= int(exc.code) < 400:
                 self._reject(502, b"redirects disabled\n")
@@ -392,30 +496,40 @@ class Handler(BaseHTTPRequestHandler):
             if not _response_encoding_ok(response.headers):  # ty: ignore[invalid-argument-type]
                 self._reject(502, b"unsupported upstream encoding\n")
                 return
-            upstream_body = response.read()
+
+            upstream_body = self._read_upstream_body(response)
+            if upstream_body is None:
+                self._reject(502, b"unsupported upstream body\n")
+                return
             if b"\x00" in upstream_body:
                 self._reject(502, b"unsupported upstream body\n")
                 return
+
             try:
                 sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
             except ValueError:
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
-            self.send_response(status)
-            content_type = response.headers.get("Content-Type", "application/json")
-            sanitized_type = _redact_key(content_type.encode("utf-8"), key).decode("utf-8")
-            self.send_header("Content-Type", sanitized_type)
-            self.send_header("Content-Encoding", "identity")
-            self.send_header("Content-Length", str(len(sanitized_body)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(sanitized_body)
+            with contextlib.suppress(OSError):
+                self.send_response(status)
+                content_type = response.headers.get("Content-Type", "application/json")
+                sanitized_type = _redact_key(content_type.encode("utf-8"), key).decode("utf-8")
+                self.send_header("Content-Type", sanitized_type)
+                self.send_header("Content-Encoding", "identity")
+                self.send_header("Content-Length", str(len(sanitized_body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(sanitized_body)
 
 
-def serve(host: str = "0.0.0.0", port: int | None = None) -> ThreadingHTTPServer:
+def serve(
+    host: str = "0.0.0.0",
+    port: int | None = None,
+    max_workers: int = MAX_CONCURRENT_WORKERS,
+) -> ThreadingHTTPServer:
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
-    return ThreadingHTTPServer((host, bound_port), Handler)
+    return ProxyServer((host, bound_port), Handler, max_workers=max_workers)
 
 
 if __name__ == "__main__":

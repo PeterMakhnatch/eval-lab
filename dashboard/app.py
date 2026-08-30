@@ -13,12 +13,16 @@ import streamlit as st
 from dashboard.projection import load_operator_snapshot
 from dashboard.queries import (
     AttachSource,
+    action_memory_contrast_fidelity,
     atif_activity,
     calibration_history,
     canary_history,
     daily_ceiling,
     discoveries,
+    experiment_operations,
+    experiment_operations_summary,
     leaderboard,
+    model_access_vs_capability,
     queue_funnel,
     spend_history,
 )
@@ -62,6 +66,11 @@ def load_research_snapshot(
             errors[label] = f"{type(exc).__name__}: {exc}"
             return fallback
 
+    def load_ops() -> list[dict[str, Any]]:
+        return experiment_operations(source)
+
+    ops_trials = load("operations_trials", load_ops, [])
+
     return {
         "leaderboard": load("leaderboard", lambda: leaderboard(source), []),
         "canaries": load("canaries", lambda: canary_history(source), []),
@@ -82,6 +91,22 @@ def load_research_snapshot(
         "atif": load("atif", lambda: atif_activity(source), {}),
         "discoveries": load(
             "discoveries", lambda: discoveries(root / "digests/DISCOVERIES.md"), []
+        ),
+        "operations_trials": ops_trials,
+        "operations_summary": load(
+            "operations_summary",
+            lambda: experiment_operations_summary(ops_trials) if ops_trials else [],
+            [],
+        ),
+        "model_access": load(
+            "model_access",
+            lambda: model_access_vs_capability(ops_trials) if ops_trials else [],
+            [],
+        ),
+        "action_memory": load(
+            "action_memory",
+            lambda: action_memory_contrast_fidelity(ops_trials) if ops_trials else {},
+            {},
         ),
         "errors": errors,
     }
@@ -201,6 +226,107 @@ if research["errors"]:
     with st.expander("Unavailable research sources", expanded=True):
         for pane, error in research["errors"].items():
             st.warning(f"{pane}: {error}")
+
+st.header("Operational experiment view")
+st.caption(
+    "Fail-closed operational view separating scored, harness-failure, provider-access, "
+    "calibration-only, and causal-admissible trials. Capability pass rates are computed "
+    "strictly over scored trials (zero denominator contamination)."
+)
+
+ops_summary = research.get("operations_summary", [])
+if ops_summary:
+    st.subheader("Campaign progress & evidence eligibility")
+    summary_table = [
+        {
+            "cohort": row["cohort"],
+            "task": row["task"],
+            "agent / model": f"{row['agent']} / {row['model']}",
+            "total trials": row["n_total"],
+            "scored": row["n_scored"],
+            "passes": row["passes"],
+            "pass@1 (scored only)": _percent(row["pass_rate"]),
+            "95% CI": (
+                f"{_percent(row['ci_95_low'])} – {_percent(row['ci_95_high'])}"
+                if row["scorable"]
+                else "not defined"
+            ),
+            "harness failures": row["harness_failures"],
+            "provider access failures": row["provider_access_failures"],
+            "refusals": row["refusals"],
+            "causal admissible": row["causal_admissible"],
+            "calibration only": row["calibration_only"],
+        }
+        for row in ops_summary
+    ]
+    st.dataframe(summary_table, width="stretch", hide_index=True)
+elif "operations_summary" in research.get("errors", {}):
+    st.warning(f"Operations summary unavailable: {research['errors']['operations_summary']}")
+else:
+    st.info("No operational experiment trials are indexed yet.")
+
+model_access = research.get("model_access", [])
+if model_access:
+    st.subheader("Model access vs capability")
+    st.caption(
+        "Provider access failures (rate limits, 429/5xx) are separated from agent "
+        "capability pass rates to prevent misattributing outages to model failure."
+    )
+    access_table = [
+        {
+            "agent / model": f"{row['agent']} / {row['model']}",
+            "attempts": row["total_attempts"],
+            "access status": row["access_status"],
+            "access failures": row["access_failures"],
+            "access rate": _percent(row["access_success_rate"]),
+            "scored trials": row["n_scored"],
+            "passes": row["passes"],
+            "capability rate": _percent(row["capability_pass_rate"]),
+            "95% CI": (
+                f"{_percent(row['ci_95_low'])} – {_percent(row['ci_95_high'])}"
+                if row["n_scored"] > 0
+                else "not defined"
+            ),
+            "basis": row["access_vs_capability_basis"],
+        }
+        for row in model_access
+    ]
+    st.dataframe(access_table, width="stretch", hide_index=True)
+
+am_fidelity = research.get("action_memory", {})
+if am_fidelity and am_fidelity.get("total_trials", 0) > 0:
+    st.subheader("Action Memory matched contrast fidelity")
+    st.caption(
+        "Matched contrast fidelity across dose ladder cells (paired by task_block_id, "
+        "dose_bytes, seed). Exposes coverage, unknown, omitted, duplicate, and order fidelity."
+    )
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Coverage fidelity", _percent(am_fidelity.get("coverage_fidelity")))
+    c2.metric("Matched pairs", am_fidelity.get("matched_pairs", 0))
+    c3.metric("Unknown keys", am_fidelity.get("unknown_count", 0))
+    c4.metric("Omitted arms", am_fidelity.get("omitted_count", 0))
+    c5.metric("Order fidelity rate", _percent(am_fidelity.get("order_fidelity_rate")))
+
+    if am_fidelity.get("contrast_groups"):
+        st.dataframe(am_fidelity["contrast_groups"], width="stretch", hide_index=True)
+
+ops_trials = research.get("operations_trials", [])
+refused_trials = [t for t in ops_trials if t.get("outcome_class") == "refused"]
+if refused_trials:
+    with st.expander(f"Refusal & unscored trials ({len(refused_trials)} observed)", expanded=False):
+        st.caption("Refusal reasons displayed explicitly rather than coercing missing outcomes to zero.")
+        refusal_table = [
+            {
+                "cohort": t.get("cohort"),
+                "job": t.get("job_name"),
+                "trial": t.get("trial_name"),
+                "task": t.get("task_name"),
+                "agent / model": f"{t.get('agent_name')} / {t.get('model_name')}",
+                "refusal rationale": t.get("refusal_reason"),
+            }
+            for t in refused_trials
+        ]
+        st.dataframe(refusal_table, width="stretch", hide_index=True)
 
 st.header("Leaderboard by cohort")
 st.caption(

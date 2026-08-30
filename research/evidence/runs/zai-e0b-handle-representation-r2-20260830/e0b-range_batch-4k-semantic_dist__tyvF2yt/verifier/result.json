@@ -1,0 +1,8 @@
+{
+  "events_validated": 3,
+  "mutation_events": 1,
+  "read_events": 17,
+  "reason": "exact_latest_value_bound_after_complete_retrieval",
+  "reward": 1.0,
+  "truth_digest": "sha256:36ebcab228e4afd028193a9e4e045fd2a6361d5f438d103d89f4d5d9fb5318b0"
+}

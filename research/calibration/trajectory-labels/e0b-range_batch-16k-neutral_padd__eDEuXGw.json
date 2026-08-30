@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "trial_name": "e0b-range_batch-16k-neutral_padd__eDEuXGw",
+  "source": "research/evidence/runs/zai-e0b-handle-representation-r2-20260830/e0b-range_batch-16k-neutral_padd__eDEuXGw",
+  "primary_category": "unknown",
+  "summary": "GLM-5.3-Flash completed the range_batch handle-representation task with complete coverage, exact required order, and verifier reward 1.0; no failure class applies.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 5,
+      "supports": "The ATIF trajectory records the representation-specific execution and final agent step."
+    },
+    {
+      "path": "artifacts/app/output/benchmark-events.jsonl",
+      "step": null,
+      "supports": "Benchmark events record the representation, physical retrieval calls, logical handle sequence, and mutation."
+    },
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The verifier records reward 1.0 for exact versus non-exact ordered retrieval."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Deterministic reward-1.0 triage; unknown means no failure mechanism applies, not a human gold label.",
+  "labelled_by": "Main, 2026-08-30, deterministic E0b post-run taxonomy triage",
+  "parent_trajectory_sha256": "sha256:aae007190c069cf5fab85dcd8e096ec1a479bd8d4302d030f33de95f866d134b"
+}

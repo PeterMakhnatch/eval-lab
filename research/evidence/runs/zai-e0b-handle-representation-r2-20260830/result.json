@@ -1,0 +1,114 @@
+{
+    "id": "6c5df612-7f71-4bbf-be7f-0f7e2058b043",
+    "started_at": "2026-08-30T12:26:26.371086",
+    "updated_at": "2026-08-30T13:15:56.102131",
+    "finished_at": "2026-08-30T13:15:56.102131",
+    "n_total_trials": 72,
+    "stats": {
+        "n_completed_trials": 72,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "opencode__glm-5.3-flash__adhoc": {
+                "n_trials": 72,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.5833333333333334
+                    }
+                ],
+                "pass_at_k": {
+                    "2": 0.8055555555555556
+                },
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "e0b-indexed-16k-neutral_padding__tf6Qym8",
+                            "e0b-indexed-16k-neutral_padding__auh7gKh",
+                            "e0b-indexed-16k-semantic_distrac__WevxUwT",
+                            "e0b-indexed-16k-semantic_distrac__i54upuG",
+                            "e0b-indexed-4k-neutral_padding-s__pVv7NZn",
+                            "e0b-indexed-4k-neutral_padding-s__2MCxugw",
+                            "e0b-indexed-4k-semantic_distract__AiBa5mE",
+                            "e0b-indexed-4k-semantic_distract__svsaFvT",
+                            "e0b-indexed-4k-semantic_distract__L3MruNW",
+                            "e0b-opaque-16k-neutral_padding-s__u3Dyqqb",
+                            "e0b-opaque-4k-neutral_padding-s2__yfkBcTX",
+                            "e0b-opaque-4k-semantic_distracto__KEpnoi6",
+                            "e0b-range_batch-16k-semantic_dis__cLbnVbw",
+                            "e0b-range_batch-16k-semantic_dis__6NRjbVx",
+                            "e0b-range_batch-4k-semantic_dist__wrQTy77",
+                            "e0b-range_batch-4k-semantic_dist__AxV4JJt",
+                            "e0b-indexed-16k-neutral_padding__NeYp572",
+                            "e0b-indexed-16k-neutral_padding__eDfHfz4",
+                            "e0b-indexed-16k-semantic_distrac__4maMAyy",
+                            "e0b-indexed-16k-semantic_distrac__LPNcqqi",
+                            "e0b-indexed-16k-semantic_distrac__7Bqqk82",
+                            "e0b-indexed-4k-neutral_padding-s__HvkBNAn",
+                            "e0b-indexed-4k-semantic_distract__AdQaFPM",
+                            "e0b-indexed-4k-semantic_distract__fuASozZ",
+                            "e0b-indexed-4k-semantic_distract__W4Mo2XQ",
+                            "e0b-opaque-16k-semantic_distract__SQHzhJg",
+                            "e0b-opaque-16k-semantic_distract__35HqUif",
+                            "e0b-opaque-16k-semantic_distract__SrUwFte",
+                            "e0b-range_batch-16k-semantic_dis__covk4HK",
+                            "e0b-range_batch-4k-neutral_paddi__4pfh2be"
+                        ],
+                        "1.0": [
+                            "e0b-indexed-16k-neutral_padding__Q7YxsaN",
+                            "e0b-indexed-16k-semantic_distrac__YQqrniW",
+                            "e0b-indexed-4k-neutral_padding-s__DuTboZH",
+                            "e0b-opaque-16k-neutral_padding-s__Gdtq5L6",
+                            "e0b-opaque-16k-neutral_padding-s__xFUmWJJ",
+                            "e0b-opaque-16k-semantic_distract__nVwjyai",
+                            "e0b-opaque-16k-semantic_distract__D4N6uDW",
+                            "e0b-opaque-16k-semantic_distract__vXfiLjM",
+                            "e0b-opaque-4k-neutral_padding-s1__AujWXut",
+                            "e0b-opaque-4k-neutral_padding-s4__QSabEuT",
+                            "e0b-opaque-4k-semantic_distracto__puZEPeV",
+                            "e0b-opaque-4k-semantic_distracto__tYab62M",
+                            "e0b-range_batch-16k-neutral_padd__Nj8s3us",
+                            "e0b-range_batch-16k-neutral_padd__kNHo7hh",
+                            "e0b-range_batch-16k-neutral_padd__AcTx6Cm",
+                            "e0b-range_batch-16k-semantic_dis__bsE2ymC",
+                            "e0b-range_batch-4k-neutral_paddi__UrmeW3N",
+                            "e0b-range_batch-4k-neutral_paddi__zYJVLyW",
+                            "e0b-range_batch-4k-neutral_paddi__jSP5eqH",
+                            "e0b-range_batch-4k-semantic_dist__9FGh6A5",
+                            "e0b-indexed-16k-neutral_padding__hgSB2wg",
+                            "e0b-indexed-4k-neutral_padding-s__jkHTpa5",
+                            "e0b-indexed-4k-neutral_padding-s__DzdyHn5",
+                            "e0b-opaque-16k-neutral_padding-s__46pfu8g",
+                            "e0b-opaque-16k-neutral_padding-s__5sDeq7o",
+                            "e0b-opaque-16k-neutral_padding-s__6LqrTuj",
+                            "e0b-opaque-4k-neutral_padding-s1__MuVGwid",
+                            "e0b-opaque-4k-neutral_padding-s2__rNBAWPb",
+                            "e0b-opaque-4k-neutral_padding-s4__CwRopyC",
+                            "e0b-opaque-4k-semantic_distracto__A2pv2hn",
+                            "e0b-opaque-4k-semantic_distracto__r9Amt5i",
+                            "e0b-opaque-4k-semantic_distracto__joJjLye",
+                            "e0b-range_batch-16k-neutral_padd__ju8LNVm",
+                            "e0b-range_batch-16k-neutral_padd__VN3nRkV",
+                            "e0b-range_batch-16k-neutral_padd__eDEuXGw",
+                            "e0b-range_batch-16k-semantic_dis__3P9pnPm",
+                            "e0b-range_batch-16k-semantic_dis__5TR7eTF",
+                            "e0b-range_batch-4k-neutral_paddi__vrAt2J8",
+                            "e0b-range_batch-4k-neutral_paddi__u4ktUm5",
+                            "e0b-range_batch-4k-semantic_dist__PaLUYJX",
+                            "e0b-range_batch-4k-semantic_dist__tyvF2yt",
+                            "e0b-range_batch-4k-semantic_dist__6gJnMqy"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 3366474,
+        "n_cache_tokens": 2689280,
+        "n_output_tokens": 70076,
+        "cost_usd": null
+    }
+}

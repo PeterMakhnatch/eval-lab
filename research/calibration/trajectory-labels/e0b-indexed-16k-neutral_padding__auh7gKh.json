@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "trial_name": "e0b-indexed-16k-neutral_padding__auh7gKh",
+  "source": "research/evidence/runs/zai-e0b-handle-representation-r2-20260830/e0b-indexed-16k-neutral_padding__auh7gKh",
+  "primary_category": "context_management",
+  "summary": "The agent covered all 65 expected handles under the indexed representation but did not preserve exact required order; 65 logical handles were issued with 0 duplicate and 0 unknown reads.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 8,
+      "supports": "The ATIF trajectory records the representation-specific execution and final agent step."
+    },
+    {
+      "path": "artifacts/app/output/benchmark-events.jsonl",
+      "step": null,
+      "supports": "Benchmark events record the representation, physical retrieval calls, logical handle sequence, and mutation."
+    },
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The verifier records reward 0.0 for exact versus non-exact ordered retrieval."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Provisional deterministic triage from verifier and benchmark-event ordering evidence; not a human gold label.",
+  "labelled_by": "Main, 2026-08-30, deterministic E0b post-run taxonomy triage",
+  "parent_trajectory_sha256": "sha256:b26143e4ee118a33190b4b1055ecf89bedb3782537b72f7b61f00cabdf262bde"
+}

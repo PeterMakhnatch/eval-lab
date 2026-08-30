@@ -4,8 +4,8 @@ Covers:
 1. Proxy in-process HTTP server:
    - Capability verification and expiry (fail-closed 401).
    - Pre-body capability authentication (unauthenticated requests rejected before body read).
-   - Worker bounding before thread creation: rejects excess connections with 503.
-   - Absolute connection deadline: wall-clock shutdown timer cancels socket.
+   - Worker bounding before thread creation: rejects excess connections with exact 503 response.
+   - Inbound request deadline: cancels timer before upstream wait, allowing legitimate >15s model responses.
    - Model allowlist enforcement: allows ``zai-coding-plan/glm-5.3`` and
      ``zai-coding-plan/glm-5.3-flash``; rejects disallowed providers/models (403).
    - Highspeed handling: forwards ``zai-coding-plan/glm-5.3-highspeed`` verbatim
@@ -369,6 +369,47 @@ def test_proxy_incomplete_body_rejected(
         upstream.shutdown()
 
 
+def test_proxy_upstream_delayed_beyond_inbound_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legitimate upstream response taking >15s is not aborted by the inbound deadline timer."""
+    class DelayedUpstream(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            # Sleep 16s (longer than 15s inbound timer, shorter than 120s upstream timeout)
+            time.sleep(16.0)
+            resp = b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, upstream_handler=DelayedUpstream, capability=capability
+    )
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        # Timeout 25s for the 16s wait
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = resp.read()
+        assert resp.status == 200
+        assert b'"ok"' in body
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
 def test_proxy_forwards_allowed_flash_and_full_models(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -669,10 +710,10 @@ def test_proxy_upstream_read_error_sanitized_to_502(
         upstream.shutdown()
 
 
-def test_proxy_worker_pool_bounded_before_thread_creation(
+def test_proxy_worker_pool_503_content_length_and_body(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Worker capacity limits connections before spawning threads, returning 503."""
+    """Worker capacity limits connections before spawning threads, returning exact 503 with exact Content-Length."""
     class SlowUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -710,16 +751,37 @@ def test_proxy_worker_pool_bounded_before_thread_creation(
         t1.start()
         time.sleep(0.1)
 
-        # 2nd request should immediately get 503 capacity exceeded
-        req2 = urllib.request.Request(
-            f"{base_url}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
+        # 2nd request should immediately get raw 503 capacity exceeded
+        host, port = proxy.server_address[:2]
+        s = socket.create_connection((host, port), timeout=5)
+        raw_req = (
+            b"POST /api/paas/v4/chat/completions HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            + f"Authorization: Bearer {capability}\r\n".encode()
+            + b"Content-Length: 50\r\n"
+            b"Content-Type: application/json\r\n"
+            b"\r\n"
+            b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}'
         )
-        with pytest.raises(urllib.error.HTTPError) as exc2:
-            urllib.request.urlopen(req2, timeout=5)
-        assert exc2.value.code == 503
+        s.sendall(raw_req)
+        s.shutdown(socket.SHUT_WR)
+        raw_resp = b""
+        s.settimeout(5)
+        while True:
+            try:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                raw_resp += chunk
+            except OSError:
+                break
+        s.close()
+
+        header_bytes, _, body_bytes = raw_resp.partition(b"\r\n\r\n")
+        assert b"503 Service Unavailable" in header_bytes
+        assert b"Content-Length: 31" in header_bytes
+        assert body_bytes == b"proxy worker capacity exceeded\n"
+        assert len(body_bytes) == 31
 
         t1.join()
     finally:

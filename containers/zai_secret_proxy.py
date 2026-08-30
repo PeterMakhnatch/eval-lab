@@ -8,7 +8,8 @@ auth only in the proxy process, and exposes no secret in config/log/error surfac
 
 Hardening features:
 - Worker bounding before thread creation: rejects excess connections with 503 before spawning threads.
-- Absolute connection deadline: enforces wall-clock connection shutdown timer covering headers+body.
+- Inbound request deadline: wall-clock timer covers headers+body acquisition and cancels before upstream wait.
+- Separate upstream timeout (120s) allowing long model generation without client socket cancellation.
 - Pre-body capability authentication: rejects unauthenticated requests before reading body.
 - Strict upstream response reading: requires bytes_read == declared Content-Length; EOF-short payloads return 502.
 - Size-bounded upstream response reading (limit+1) with sanitized 502 classification.
@@ -290,14 +291,20 @@ class ProxyServer(ThreadingHTTPServer):
     def process_request(self, request: Any, client_address: Any) -> None:
         """Acquire worker permit before spawning thread; reject 503 if capacity exceeded."""
         if not self.semaphore.acquire(blocking=False):
+            body = b"proxy worker capacity exceeded\n"
+            response = (
+                b"HTTP/1.1 503 Service Unavailable\r\n"
+                b"Content-Type: text/plain; charset=utf-8\r\n"
+                + f"Content-Length: {len(body)}\r\n".encode("ascii")
+                + b"Connection: close\r\n\r\n"
+                + body
+            )
             with contextlib.suppress(OSError):
-                request.sendall(
-                    b"HTTP/1.1 503 Service Unavailable\r\n"
-                    b"Content-Type: text/plain; charset=utf-8\r\n"
-                    b"Content-Length: 32\r\n"
-                    b"Connection: close\r\n\r\n"
-                    b"proxy worker capacity exceeded\n"
-                )
+                request.sendall(response)
+                request.shutdown(socket.SHUT_WR)
+            with contextlib.suppress(OSError):
+                while request.recv(4096):
+                    pass
             self.close_request(request)
             return
 
@@ -331,23 +338,28 @@ class Handler(BaseHTTPRequestHandler):
         with contextlib.suppress(OSError):
             self.connection.close()
 
+    def _cancel_inbound_timer(self) -> None:
+        if hasattr(self, "_inbound_timer") and self._inbound_timer is not None:
+            self._inbound_timer.cancel()
+            self._inbound_timer = None
+
     def setup(self) -> None:
         super().setup()
         with contextlib.suppress(AttributeError, OSError):
             self.connection.settimeout(REQUEST_TIMEOUT_SECONDS)
-        # Absolute wall-clock connection deadline covering headers + body
-        self._shutdown_timer = threading.Timer(
+        # Wall-clock timer covering only inbound request headers + body acquisition
+        self._inbound_timer: threading.Timer | None = threading.Timer(
             REQUEST_TIMEOUT_SECONDS, self._force_close_socket
         )
-        self._shutdown_timer.daemon = True
-        self._shutdown_timer.start()
+        self._inbound_timer.daemon = True
+        self._inbound_timer.start()
 
     def finish(self) -> None:
-        if hasattr(self, "_shutdown_timer"):
-            self._shutdown_timer.cancel()
+        self._cancel_inbound_timer()
         super().finish()
 
     def _reject(self, status: int, message: bytes) -> None:
+        self._cancel_inbound_timer()
         with contextlib.suppress(OSError):
             self.send_response(status)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -357,6 +369,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(message)
 
     def do_GET(self) -> None:  # noqa: N802
+        self._cancel_inbound_timer()
         path = self.path.partition("?")[0]
         if path == HEALTHZ_PATH:
             body = b"ok\n"
@@ -412,6 +425,13 @@ class Handler(BaseHTTPRequestHandler):
             chunks.append(chunk)
             remaining -= len(chunk)
         body = b"".join(chunks)
+
+        # INBOUND BODY ACQUISITION COMPLETE: CANCEL INBOUND DEADLINE TIMER BEFORE UPSTREAM WAIT
+        self._cancel_inbound_timer()
+
+        # Relax socket timeout for legitimate long upstream generations
+        with contextlib.suppress(AttributeError, OSError):
+            self.connection.settimeout(UPSTREAM_TIMEOUT_SECONDS + 30.0)
 
         self._proxy(body)
 

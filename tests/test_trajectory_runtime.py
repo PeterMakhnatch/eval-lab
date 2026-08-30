@@ -2261,7 +2261,7 @@ def test_end_to_end_zero_model_batch_spend(tmp_path: Path, monkeypatch: pytest.M
 def test_phase_a_e0b_paired_batch_orchestration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """End-to-end proof: 18 repeat trials over 9 (dose, seed) pairs execute zero-model analysis."""
+    """End-to-end proof: 36 repeat trials over 9 (dose, seed) pairs execute zero-model analysis."""
 
     def boom(*_args, **_kwargs):
         raise AssertionError("live model invoked")
@@ -2272,7 +2272,7 @@ def test_phase_a_e0b_paired_batch_orchestration(
     store = tmp_path / "cas"
     items: list[CampaignAnalysisItem] = []
 
-    # 9 pairs (seed 1..9), 2 repeats per cell = 18 trials total
+    # 9 pairs (seed 1..9), 2 arms x 2 repeats per cell = 36 trials total
     # Seeds 1..4: control succeeds (reward 1.0), treatment fails (reward 0.0) -> 4 worse
     # Seeds 5..9: both fail (reward 0.0) -> 5 ties
     for seed in range(1, 10):
@@ -2280,32 +2280,32 @@ def test_phase_a_e0b_paired_batch_orchestration(
             arm = "control" if dose == 0 else "treatment"
             ctrl_success = seed <= 4 and arm == "control"
             reward = 1.0 if ctrl_success else 0.0
+            for rep in (0, 1):
+                trial_name = f"phase_a_seed_{seed}_dose_{dose}_rep_{rep}"
+                trial_dir = _trial_tree(tmp_path, trial_name=trial_name, unpaired=False, reward=reward)
+                cas_uri = _archive_trial(trial_dir, store, trial_name)
 
-            trial_name = f"phase_a_seed_{seed}_dose_{dose}"
-            trial_dir = _trial_tree(tmp_path, trial_name=trial_name, unpaired=False, reward=reward)
-            cas_uri = _archive_trial(trial_dir, store, trial_name)
-
-            item = CampaignAnalysisItem(
-                source_role="analysis",
-                cohort_included=True,
-                attempt_role="primary",
-                job_id=f"job-{arm}",
-                job_name=f"job-{arm}",
-                trial_id=trial_name,
-                trial_name=trial_name,
-                task_name=f"task-seed-{seed}",
-                task_digest="sha256:" + f"{seed:02x}" * 32,
-                verifier_digest="sha256:" + f"{dose:02x}" * 32,
-                quality_status="pass",
-                cas_uri=cas_uri,
-                arm=arm,
-                dose=dose,
-                seed=seed,
-                reward=reward,
-                capture_complete=True,
-                capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
-            )
-            items.append(item)
+                item = CampaignAnalysisItem(
+                    source_role="analysis",
+                    cohort_included=True,
+                    attempt_role="primary",
+                    job_id=f"job-{arm}",
+                    job_name=f"job-{arm}",
+                    trial_id=trial_name,
+                    trial_name=trial_name,
+                    task_name=f"task-seed-{seed}",
+                    task_digest="sha256:" + f"{seed:02x}" * 32,
+                    verifier_digest="sha256:" + f"{dose:02x}" * 32,
+                    quality_status="pass",
+                    cas_uri=cas_uri,
+                    arm=arm,
+                    dose=dose,
+                    seed=seed,
+                    reward=reward,
+                    capture_complete=True,
+                    capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
+                )
+                items.append(item)
 
     spec = create_campaign_analysis_spec(
         spec_id="action-memory-arm-contrast",
@@ -2349,9 +2349,9 @@ def test_phase_a_e0b_paired_batch_orchestration(
         "cas_store_root": str(store),
         "items": [item.model_dump(mode="json") for item in items],
         "accounting": {
-            "total_planned_specs": 18,
-            "total_executed_trials": 18,
-            "valid_analysis_ready_trials": 18,
+            "total_planned_specs": 36,
+            "total_executed_trials": 36,
+            "valid_analysis_ready_trials": 36,
             "quarantined_infrastructure_attempts": 0,
             "free_local_controls": 0,
             "unresolved_evidence_count": 0,
@@ -2393,13 +2393,13 @@ def test_phase_a_e0b_paired_batch_orchestration(
     )
 
     assert report["schema_version"] == "campaign-report/v2"
-    assert report["cohort_accounted"] == 18
+    assert report["cohort_accounted"] == 36
     assert report["analysis_snapshot_digest"] == snapshot_digest
     assert len(report["analysis_results"]) == 1
 
     paired_res = report["analysis_results"][0]
     assert paired_res["spec_id"] == "action-memory-arm-contrast"
-    assert paired_res["observed_rows"] == 18
+    assert paired_res["observed_rows"] == 36
     assert paired_res["analysis_units"] == 9
     assert paired_res["informative_units"] == 4
     assert paired_res["status"] == AnalysisStatus.REFUSAL
@@ -2407,7 +2407,7 @@ def test_phase_a_e0b_paired_batch_orchestration(
     assert paired_res["estimate"] == pytest.approx(4 / 9)
     assert paired_res["p_value"] is None
     assert paired_res["attainable_p_floor"] == pytest.approx(0.125)
-    assert len(paired_res["source_refs"]) == 18
+    assert len(paired_res["source_refs"]) == 36
 
     feedback = report["next_run_feedback"]
     assert feedback["execution_authorized"] is False
@@ -2415,7 +2415,7 @@ def test_phase_a_e0b_paired_batch_orchestration(
     assert feedback["source_snapshot_digest"] == snapshot_digest
     recs = {r["action"]: r for r in feedback["recommendations"]}
     assert NextRunAction.ADD_INDEPENDENT_SEEDS in recs
-    assert recs[NextRunAction.ADD_INDEPENDENT_SEEDS]["requested_units"] == 4
+    assert recs[NextRunAction.ADD_INDEPENDENT_SEEDS]["requested_units"] == 2
     assert NextRunAction.HOLD_SEMANTIC_DECISION_ANALYSIS in recs
 
     # Idempotent rerun check

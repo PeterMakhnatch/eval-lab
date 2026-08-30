@@ -23,6 +23,7 @@ import pyarrow.parquet as pq
 from pydantic import Field, ValidationError, model_validator
 
 from evallab.analysis_capability import (
+    AnalysisMethod,
     AnalysisStatus,
     AnalysisUnit,
     CampaignAnalysisConfigV1,
@@ -2030,11 +2031,22 @@ def _build_next_run_feedback(
         spec = _spec_for_result(manifest, result.spec_id)
         target_estimand = spec.outcome_feature if spec else "outcome"
         target_unit = spec.unit if spec else AnalysisUnit.PAIRED_SEED
-        requested = (
-            spec.minimum_informative_units
-            if spec and spec.minimum_informative_units is not None
-            else result.informative_units
-        )
+        requested: int | None = None
+        if spec and spec.method == AnalysisMethod.PAIRED_SIGN:
+            alpha = spec.alpha if spec.alpha > 0 else 0.05
+            target_n = 1
+            while (2.0 / (2.0 ** target_n)) > alpha:
+                target_n += 1
+            if spec.minimum_informative_units is not None:
+                target_n = max(target_n, spec.minimum_informative_units)
+            current_informative = result.informative_units or 0
+            requested = max(0, target_n - current_informative)
+        elif spec and spec.minimum_informative_units is not None:
+            current_informative = result.informative_units or 0
+            requested = max(0, spec.minimum_informative_units - current_informative)
+        else:
+            requested = None
+
         recommendations.append(
             RunRecommendationV1(
                 action=NextRunAction.ADD_INDEPENDENT_SEEDS,
@@ -2043,7 +2055,11 @@ def _build_next_run_feedback(
                 target_unit=target_unit,
                 requested_units=requested,
                 blocking=False,
-                reason_codes=("UNDERPOWERED", "attainable_p_floor_above_alpha"),
+                reason_codes=(
+                    "UNDERPOWERED",
+                    "attainable_p_floor_above_alpha",
+                    "minimum_additional_informative_independent_units_needed",
+                ),
             )
         )
 

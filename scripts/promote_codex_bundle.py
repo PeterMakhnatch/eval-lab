@@ -194,13 +194,68 @@ ARCHIVE_SUFFIXES = frozenset({
     ".rpm",
 })
 
-#: Pattern matching secret-shaped JSON keys for value redaction.
-_SECRET_KEY_RE = re.compile(
-    r"(?:^|_|-)(?:api[-_]?key|access[-_]?(?:key|token)|auth(?:orization)?|bearer|"
-    r"client[-_]?secret|credential|password|passwd|private[-_]?key|secret|"
-    r"session[-_]?key|signing[-_]?key|ssh[-_]?key|token|webhook[-_]?secret)$",
-    re.IGNORECASE,
+#: Words and regex pattern matching secret-shaped keys (camelCase, snake_case, kebab-case).
+_SECRET_KEY_WORDS = frozenset({
+    "api_key",
+    "apikey",
+    "access_key",
+    "access_token",
+    "auth",
+    "auth_secret",
+    "auth_token",
+    "authorization",
+    "bearer",
+    "bearer_token",
+    "client_secret",
+    "credential",
+    "credentials",
+    "github_token",
+    "gitlab_token",
+    "id_token",
+    "jwt",
+    "jwt_token",
+    "passphrase",
+    "password",
+    "passwd",
+    "private_key",
+    "pwd",
+    "refresh_token",
+    "secret",
+    "secrets",
+    "secret_key",
+    "session_key",
+    "session_token",
+    "signing_key",
+    "ssh_key",
+    "token",
+    "tokens",
+    "webhook_secret",
+})
+
+_SECRET_PATTERN = re.compile(
+    r"(?:^|_)(?:api_?key|access_?(?:key|token)|auth(?:orization|_secret|_token)?|bearer(?:_token)?|"
+    r"client_?secret|credential(?:s|_key)?|github_?token|gitlab_?token|id_?token|jwt(?:_token)?|"
+    r"passphrase|password|passwd|private_?key|pwd|refresh_?token|secret(?:s|_key)?|"
+    r"session_?(?:key|token)|signing_?key|ssh_?key|token(?:s|_secret)?|webhook_?secret)(?:$|_)"
 )
+
+
+def _normalize_key_name(key: str) -> str:
+    """Normalize camelCase, kebab-case, dot-notation, and Unicode to snake_case."""
+    nfc = unicodedata.normalize("NFC", key)
+    s1 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", nfc)
+    s2 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s1)
+    s3 = re.sub(r"[^a-zA-Z0-9]+", "_", s2)
+    return s3.strip("_").casefold()
+
+
+def _is_secret_key(key: str) -> bool:
+    """Detect if a JSON key name is secret-shaped across casing styles."""
+    normalized = _normalize_key_name(key)
+    if normalized in _SECRET_KEY_WORDS:
+        return True
+    return bool(_SECRET_PATTERN.search(normalized))
+
 
 #: R4 whitelist. Exactly the fields ``src/evallab/quota.py`` reads from
 #: ``payload.rate_limits``, with the type each must have. Anything else the
@@ -306,21 +361,46 @@ def redact_trajectory(raw: bytes) -> bytes:
         source = step.get("source")
         message = step.get("message")
         if source in PROMPT_SOURCES:
-            if not isinstance(message, str) or not message:
-                continue
-            step["message"] = _marker(message)
-            step["message_sha256"] = sha256_bytes(message.encode("utf-8"))
-            step["message_chars"] = len(message)
-            redacted += 1
-        elif isinstance(message, str) and message.startswith(("{", "[")):
-            try:
-                parsed = json.loads(message)
-                redacted_json, hits = _redact_json_strings(parsed)
-                if hits > 0:
-                    step["message"] = json.dumps(redacted_json, ensure_ascii=False)
-                    redacted += hits
-            except Exception:
-                pass
+            if isinstance(message, str) and message:
+                step["message"] = _marker(message)
+                step["message_sha256"] = sha256_bytes(message.encode("utf-8"))
+                step["message_chars"] = len(message)
+                redacted += 1
+            elif isinstance(message, list):
+                # Valid ATIF v1.7 content parts list
+                for part in message:
+                    if isinstance(part, dict) and isinstance(part.get("text"), str) and part["text"]:
+                        text = part["text"]
+                        part["text"] = _marker(text)
+                        part["text_sha256"] = sha256_bytes(text.encode("utf-8"))
+                        redacted += 1
+        else:
+            # Check agent message (str with possible leading whitespace or content parts list)
+            if isinstance(message, str):
+                trimmed = message.strip()
+                if trimmed.startswith(("{", "[")):
+                    try:
+                        parsed = json.loads(trimmed)
+                        redacted_json, hits = _redact_json_strings(parsed)
+                        if hits > 0:
+                            step["message"] = json.dumps(redacted_json, ensure_ascii=False)
+                            redacted += hits
+                    except Exception:
+                        pass
+            elif isinstance(message, list):
+                for part in message:
+                    if isinstance(part, dict) and isinstance(part.get("text"), str):
+                        text = part["text"]
+                        trimmed = text.strip()
+                        if trimmed.startswith(("{", "[")):
+                            try:
+                                parsed = json.loads(trimmed)
+                                redacted_json, hits = _redact_json_strings(parsed)
+                                if hits > 0:
+                                    part["text"] = json.dumps(redacted_json, ensure_ascii=False)
+                                    redacted += hits
+                            except Exception:
+                                pass
     document["evallab_redaction"] = {
         "rule": "R1",
         "removed": "verbatim message text of every system-source and user-source step",
@@ -334,7 +414,7 @@ def redact_trajectory(raw: bytes) -> bytes:
 
 def _redact_json_strings(node: Any, parent_key: str | None = None) -> tuple[Any, int]:
     """R3a & Secret redaction: replace oversize strings and secret-shaped keys with digest markers."""
-    if parent_key and _SECRET_KEY_RE.search(_canonical(parent_key)):
+    if parent_key and _is_secret_key(parent_key):
         if isinstance(node, (str, int, float, bool)) and str(node):
             return _marker(str(node)), 1
     if isinstance(node, str):
@@ -361,7 +441,7 @@ def _redact_json_strings(node: Any, parent_key: str | None = None) -> tuple[Any,
 
 def redact_verifier(path: Path, raw: bytes) -> tuple[bytes, int]:
     """R3: reduce a verifier artifact to the facts it can safely carry."""
-    if path.suffix == ".json":
+    if _canonical(path.suffix) == ".json":
         document, hits = _redact_json_strings(json.loads(raw))
         if hits == 0:
             return raw, 0
@@ -450,33 +530,43 @@ def _timestamp(value: Any) -> str | None:
     return value
 
 
-def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
+def rate_limit_snapshots(source: bytes | Path) -> tuple[list[dict[str, Any]], list[str]]:
     """Every provider quota snapshot in one rollout, reduced to the whitelist.
 
-    Mirrors ``evallab.quota._rate_limit_snapshots``: a ``token_count`` event
-    whose payload carries ``rate_limits``. Only that subtree and the event
-    timestamp are read; the rest of the line is never touched.
+    Can accept either bytes in memory or a Path to stream line-by-line from disk,
+    allowing oversized rollouts to extract quota without unbounded memory usage.
     """
     snapshots: list[dict[str, Any]] = []
     dropped: set[str] = set()
-    for line in raw.decode("utf-8", errors="replace").splitlines():
-        if "rate_limits" not in line:
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(event, dict):
-            continue
-        payload = event.get("payload")
-        if not isinstance(payload, dict) or payload.get("type") != "token_count":
-            continue
-        observed_at = _timestamp(event.get("timestamp"))
-        limits, missed = redact_rate_limits(payload.get("rate_limits"))
-        dropped.update(missed)
-        if observed_at is None or not limits:
-            continue
-        snapshots.append({"timestamp": observed_at, "rate_limits": limits})
+
+    lines = (
+        source.open("r", encoding="utf-8", errors="replace")
+        if isinstance(source, Path)
+        else source.decode("utf-8", errors="replace").splitlines()
+    )
+    try:
+        for line in lines:
+            if "rate_limits" not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            payload = event.get("payload")
+            if not isinstance(payload, dict) or payload.get("type") != "token_count":
+                continue
+            observed_at = _timestamp(event.get("timestamp"))
+            limits, missed = redact_rate_limits(payload.get("rate_limits"))
+            dropped.update(missed)
+            if observed_at is None or not limits:
+                continue
+            snapshots.append({"timestamp": observed_at, "rate_limits": limits})
+    finally:
+        if isinstance(source, Path):
+            lines.close()
+
     snapshots.sort(key=lambda item: item["timestamp"])
     return snapshots, sorted(dropped)
 
@@ -494,24 +584,38 @@ def sidecar_path(relative: Path) -> Path:
     return Path(*parts[: agent + 1], SIDECAR_DIRNAME, f"{stem}{SIDECAR_SUFFIX}")
 
 
-def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
+def rate_limits_sidecar(
+    relative: Path,
+    source: bytes | Path,
+    *,
+    source_bytes: int | None = None,
+    source_sha256: str | None = None,
+) -> bytes | None:
     """R4: the redacted quota sidecar for one omitted rollout, or ``None``.
 
     ``None`` when the file is not a rollout or records no quota snapshot, so a
     bundle only grows a sidecar where there is a reading to preserve.
     """
-    if not relative.name.startswith(ROLLOUT_PREFIX) or relative.suffix != ".jsonl":
+    if not relative.name.startswith(ROLLOUT_PREFIX) or not relative.name.endswith(".jsonl"):
         return None
-    snapshots, dropped = rate_limit_snapshots(raw)
+    snapshots, dropped = rate_limit_snapshots(source)
     if not snapshots:
         return None
+    if isinstance(source, bytes):
+        actual_bytes = len(source)
+        actual_sha256 = sha256_bytes(source)
+    else:
+        assert source_bytes is not None and source_sha256 is not None
+        actual_bytes = source_bytes
+        actual_sha256 = source_sha256
+
     document = {
         "schema_version": SIDECAR_SCHEMA_VERSION,
         "rule": "R4",
         "kind": "evallab-rate-limits-sidecar",
         "source_path": str(relative),
-        "source_bytes": len(raw),
-        "source_sha256": sha256_bytes(raw),
+        "source_bytes": actual_bytes,
+        "source_sha256": actual_sha256,
         "source_omitted_by_rule": "R2",
         "kept": (
             "the event timestamp and a whitelist of payload.rate_limits scalars; "
@@ -728,23 +832,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
                 f"refusing to promote hardlinked file outside R2: {relative} (nlink {st.st_nlink})"
             )
 
-        # Streaming size limit check
-        if st.st_size > MAX_SOURCE_BYTES:
-            digest, size = _stream_sha256(source)
-            reason = f"hardened: oversized file ({size} bytes > {MAX_SOURCE_BYTES})"
-            entries.append(
-                omission_record(
-                    relative,
-                    entry_type="file",
-                    digest=digest,
-                    size=size,
-                    reason=reason,
-                    rule="hardened",
-                )
-            )
-            continue
-
-        # Archive/container payload rejection
+        # Archive/container payload rejection (outside R2)
         if not omit_r2(relative) and _is_archive_like(relative):
             digest, size = _stream_sha256(source)
             reason = f"hardened: archive/container payload '{relative.name}'"
@@ -760,21 +848,39 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             )
             continue
 
-        raw = source.read_bytes()
-        parent_digest = sha256_bytes(raw)
         action = classify(relative)
 
         if action == "omit-R2":
             reason = _omission_reason(relative)
-            omission = omission_record(relative, entry_type="file", raw=raw, reason=reason)
+            if st.st_size > MAX_SOURCE_BYTES:
+                parent_digest, file_size = _stream_sha256(source)
+                raw_bytes = None
+                sidecar_source: bytes | Path = source
+            else:
+                raw_bytes = source.read_bytes()
+                parent_digest = sha256_bytes(raw_bytes)
+                file_size = len(raw_bytes)
+                sidecar_source = raw_bytes
+
+            omission = omission_record(
+                relative,
+                entry_type="file",
+                raw=raw_bytes,
+                digest=parent_digest,
+                size=file_size,
+                reason=reason,
+            )
             entries.append(omission)
+
             # R4: the rollout goes, but the provider's own quota reading inside
             # it survives as a whitelisted sidecar carrying this same parent
-            # digest. Recorded as a second entry rather than folded into the
-            # omission record, so `verify` checks the sidecar's own digest and
-            # the explorer can report what it cost -- a few hundred bytes out of
-            # the whole rollout -- instead of presenting it as a promoted file.
-            body = rate_limits_sidecar(relative, raw)
+            # digest. Streams line-by-line from disk for oversized rollouts.
+            body = rate_limits_sidecar(
+                relative,
+                sidecar_source,
+                source_bytes=file_size,
+                source_sha256=parent_digest,
+            )
             if body is None:
                 continue
             target = sidecar_path(relative)
@@ -791,13 +897,32 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
                     "action": "redacted",
                     "rule": "R4",
                     "derived_from": str(relative),
-                    "source_bytes": len(raw),
+                    "source_bytes": file_size,
                     "source_sha256": parent_digest,
                     "promoted_bytes": len(body),
                     "promoted_sha256": sha256_bytes(body),
                 }
             )
             continue
+
+        # Streaming size limit check for promoted files
+        if st.st_size > MAX_SOURCE_BYTES:
+            digest, size = _stream_sha256(source)
+            reason = f"hardened: oversized file ({size} bytes > {MAX_SOURCE_BYTES})"
+            entries.append(
+                omission_record(
+                    relative,
+                    entry_type="file",
+                    digest=digest,
+                    size=size,
+                    reason=reason,
+                    rule="hardened",
+                )
+            )
+            continue
+
+        raw = source.read_bytes()
+        parent_digest = sha256_bytes(raw)
 
         if action == "redact-R1":
             body = redact_trajectory(raw)
@@ -841,7 +966,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         "schema_version": SCHEMA_VERSION,
         "bundle": destination.name,
         "source_job_runtime_path": f"runs/{job_dir.name}",
-        "source_job_result_sha256": sha256_file(job_result) if job_result.is_file() else None,
+        "source_job_result_sha256": _stream_sha256(job_result)[0] if job_result.is_file() else None,
         "promoted_by": "scripts/promote_codex_bundle.py",
         "redaction_rules": {
             "R1": "system/user ATIF step message text removed; sha256 and length kept; nested secret-shaped JSON keys redacted",
@@ -943,7 +1068,22 @@ def verify(evidence_runs: Path) -> int:
             promoted = entry.get("promoted_path")
             if not promoted:
                 continue
+
+            # Strict containment check: reject path traversal in manifest promoted_path
+            p_obj = Path(promoted)
+            if any(p in {"..", ".", ""} for p in p_obj.parts) or p_obj.is_absolute():
+                print(f"PATH TRAVERSAL IN MANIFEST {bundle.name}/{promoted}")
+                failures += 1
+                continue
+
             path = bundle / promoted
+            resolved_bundle = bundle.resolve()
+            resolved_path = path.resolve()
+            if resolved_path != resolved_bundle and resolved_bundle not in resolved_path.parents:
+                print(f"PATH TRAVERSAL IN MANIFEST {bundle.name}/{promoted}")
+                failures += 1
+                continue
+
             if not path.is_file():
                 print(f"MISSING {bundle.name}/{promoted}")
                 failures += 1

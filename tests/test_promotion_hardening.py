@@ -3,7 +3,8 @@
 Tests that ``scripts/promote_codex_bundle.py`` resists nested/encoded credential
 material, path confusion, traversal, mixed-case bypasses, Unicode confusables,
 nested sessions, raw logs, non-regular device nodes, hardlinks, archive payloads,
-secret-shaped JSON keys, and CLI path injection / root-deletion attempts via --job.
+secret-shaped JSON keys, ATIF content-part lists, uppercase verifier JSON suffixes,
+oversized streaming rollouts, manifest traversal in verify(), and CLI path injection / root-deletion attempts via --job.
 
 Deterministic by construction: no host state, no network, no Docker.
 """
@@ -44,7 +45,7 @@ def _load_promoter():
 PROMOTE = _load_promoter()
 
 
-def atif_fixture(*, agent_message: str = "computed target 3") -> dict:
+def atif_fixture(*, agent_message: str | list = "computed target 3") -> dict:
     """A minimal valid ATIF-v1.7 document with redactable system/user steps."""
     return {
         "schema_version": "ATIF-v1.7",
@@ -526,3 +527,191 @@ def test_promote_function_rejects_unsafe_destination_or_source(tmp_path: Path) -
     for unsafe_source in (Path("."), Path(".."), Path("/"), Path("")):
         with pytest.raises(SystemExit):
             PROMOTE.promote(unsafe_source, valid_dest, force=True)
+
+
+# ---- 13. Additional Security Review Defect Tests ----------------------------
+
+
+def test_verify_detects_traversal_in_manifest_promoted_path(tmp_path: Path) -> None:
+    """verify() checks promoted_path containment against bundle and fails closed on traversal."""
+    job = make_base_job(tmp_path, "traversal_manifest_job")
+    evidence = tmp_path / "evidence"
+    bundle = evidence / job.name
+    PROMOTE.promote(job, bundle)
+
+    manifest_path = bundle / "PROMOTION.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # Forge a traversal promoted_path in manifest
+    manifest["files"].append({
+        "source_path": "evil.txt",
+        "promoted_path": "../escaped_secret.txt",
+        "action": "verbatim",
+        "rule": None,
+        "source_bytes": 10,
+        "source_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "promoted_bytes": 10,
+        "promoted_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    })
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    # verify() must flag failure and not crash or disclose
+    assert PROMOTE.verify(evidence) != 0, "verify must fail on manifest promoted_path traversal"
+
+
+def test_root_result_json_streaming_sha256(tmp_path: Path) -> None:
+    """Root result.json digest in manifest is computed via streaming without unbounded memory."""
+    job = make_base_job(tmp_path, "result_json_job")
+    result_file = job / "result.json"
+    data = json.dumps({"job": "result_json_job", "status": "completed", "scores": [1.0] * 50})
+    result_file.write_text(data, encoding="utf-8")
+
+    bundle = tmp_path / "evidence" / job.name
+    manifest = PROMOTE.promote(job, bundle)
+
+    expected_sha256 = PROMOTE.sha256_bytes(data.encode("utf-8"))
+    assert manifest["source_job_result_sha256"] == expected_sha256
+
+
+def test_atif_content_parts_and_whitespace_json_redaction(tmp_path: Path) -> None:
+    """ATIF content parts in system/user steps and leading-whitespace JSON in agent steps are redacted."""
+    job = make_base_job(tmp_path, "atif_content_parts_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    # Trajectory with content-part list in user step and leading whitespace JSON in agent step
+    traj = {
+        "schema_version": "ATIF-v1.7",
+        "session_id": "synthetic-content-parts",
+        "agent": {
+            "name": "opencode",
+            "version": "1.18.25",
+            "model_name": "zai-coding-plan/glm-5.3-flash",
+        },
+        "steps": [
+            {
+                "step_id": 1,
+                "source": "system",
+                "message": [{"type": "text", "text": SYS_PROMPT}],
+            },
+            {
+                "step_id": 2,
+                "source": "user",
+                "message": [{"type": "text", "text": USER_TASK}],
+            },
+            {
+                "step_id": 3,
+                "source": "agent",
+                "message": f"   \n\t{{\"refreshToken\": \"{SECRET_TOKEN}\", \"status\": \"ok\"}}",
+            },
+        ],
+        "final_metrics": {"reward": 1.0},
+    }
+    (trial / "agent" / "trajectory.json").write_text(json.dumps(traj), encoding="utf-8")
+
+    bundle = tmp_path / "evidence" / job.name
+    PROMOTE.promote(job, bundle)
+
+    promoted = promoted_bytes(bundle)
+    for name, body in promoted:
+        assert SYS_PROMPT.encode() not in body, f"SYS_PROMPT leaked into {name}"
+        assert USER_TASK.encode() not in body, f"USER_TASK leaked into {name}"
+        assert SECRET_TOKEN.encode() not in body, f"SECRET_TOKEN leaked into {name}"
+
+    traj_bytes = next(b for n, b in promoted if n.endswith("trajectory.json"))
+    doc = json.loads(traj_bytes)
+    assert _validate_fallback(doc) is None
+
+
+def test_verifier_uppercase_json_suffix_redaction(tmp_path: Path) -> None:
+    """Verifier files with .JSON or .Json suffix are parsed and redacted as JSON."""
+    job = make_base_job(tmp_path, "uppercase_json_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    # Verifier JSON with uppercase extension
+    (trial / "verifier" / "REPORT.JSON").write_text(
+        json.dumps({"githubToken": SECRET_TOKEN, "score": 1.0}), encoding="utf-8"
+    )
+
+    bundle = tmp_path / "evidence" / job.name
+    PROMOTE.promote(job, bundle)
+
+    for name, body in promoted_bytes(bundle):
+        assert SECRET_TOKEN.encode() not in body, f"secret leaked in {name}"
+
+
+def test_expanded_secret_keys_redaction(tmp_path: Path) -> None:
+    """camelCase, snake_case, and expanded secret-shaped keys are all redacted."""
+    job = make_base_job(tmp_path, "expanded_secrets_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    verifier_payload = {
+        "credentials": {
+            "secretKey": SECRET_TOKEN,
+            "refreshToken": SECRET_TOKEN,
+            "githubToken": SECRET_TOKEN,
+            "passphrase": SECRET_PASSWORD,
+            "jwtToken": "eyJhbGciOi...",
+            "authSecret": "authsec_999",
+            "apiKey": "ak_12345",
+            "bearerToken": "bt_67890",
+        }
+    }
+    (trial / "verifier" / "secrets.json").write_text(
+        json.dumps(verifier_payload), encoding="utf-8"
+    )
+
+    bundle = tmp_path / "evidence" / job.name
+    PROMOTE.promote(job, bundle)
+
+    for name, body in promoted_bytes(bundle):
+        assert SECRET_TOKEN.encode() not in body, f"leaked in {name}"
+        assert SECRET_PASSWORD.encode() not in body, f"leaked in {name}"
+        assert b"eyJhbGciOi..." not in body, f"jwt leaked in {name}"
+        assert b"authsec_999" not in body, f"authSecret leaked in {name}"
+
+
+def test_oversized_session_rollout_extracts_quota_sidecar_via_streaming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Oversized R2 rollout extracts R4 quota sidecar by streaming line-by-line without loading whole file."""
+    job = make_base_job(tmp_path, "oversized_rollout_job")
+    trial = job / "evallab-zai-syn-hardening__synthetic"
+
+    # Set threshold low for testing streaming path
+    monkeypatch.setattr(PROMOTE, "MAX_SOURCE_BYTES", 256)
+
+    # Rollout with quota snapshot
+    rollout_line = json.dumps({
+        "timestamp": "2026-08-30T00:00:00Z",
+        "payload": {
+            "type": "token_count",
+            "rate_limits": {
+                "limit_id": "test_limit",
+                "primary": {"used_percent": 42.0, "window_minutes": 60, "resets_at": 1000},
+            },
+        },
+    })
+    # Padding line to exceed MAX_SOURCE_BYTES (256 bytes)
+    padding_line = json.dumps({"type": "noise", "data": "a" * 300})
+
+    sessions = trial / "agent" / "sessions"
+    sessions.mkdir(parents=True)
+    rollout_path = sessions / "rollout-20260830-test.jsonl"
+    rollout_path.write_text(f"{rollout_line}\n{padding_line}\n", encoding="utf-8")
+
+    bundle = tmp_path / "evidence" / job.name
+    manifest = PROMOTE.promote(job, bundle)
+
+    # Rollout is omitted under R2
+    promoted_names = [name for name, _ in promoted_bytes(bundle)]
+    assert not any("rollout-20260830-test.jsonl" in name for name in promoted_names)
+
+    # Quota sidecar is created and valid
+    sidecars = [e for e in manifest["files"] if e.get("rule") == "R4"]
+    assert len(sidecars) == 1
+    assert sidecars[0]["promoted_path"].endswith(".rate-limits.json")
+
+    sidecar_file = bundle / sidecars[0]["promoted_path"]
+    sidecar_data = json.loads(sidecar_file.read_text(encoding="utf-8"))
+    assert sidecar_data["snapshot_count"] == 1
+    assert sidecar_data["snapshots"][0]["rate_limits"]["limit_id"] == "test_limit"

@@ -1,0 +1,86 @@
+{
+  "cases": [
+    {
+      "anchor_facts": {
+        "coverage_complete": false,
+        "missing_handle_count_min": 1,
+        "reward": 0.0
+      },
+      "case_id": "memory-omission-stale-binding-001",
+      "case_type": "memory_omission_stale_binding",
+      "counterfactual_case_id": null,
+      "decision_eligible": false,
+      "expected_category": "memory_failure",
+      "family": "action-memory-v1",
+      "schema_version": "trajectory-calibration-case/v1",
+      "truth_source_digest": "sha256:676b91ea5dd31ebad44fbe2f33b2bbccd92e9b6f023b4a3727d1e4095c15c07b",
+      "truth_source_path": "research/evidence/zai-opencode-action-memory-phase-a-summary.json"
+    },
+    {
+      "anchor_facts": {
+        "condition": "name_similarity_high",
+        "failure_mode": "value_propagation",
+        "reward": 0.0
+      },
+      "case_id": "funcdag-value-propagation-001",
+      "case_type": "funcdag_value_propagation",
+      "counterfactual_case_id": null,
+      "decision_eligible": false,
+      "expected_category": "tool_composition_failure",
+      "family": "mcp-funcdag-v1",
+      "schema_version": "trajectory-calibration-case/v1",
+      "truth_source_digest": "sha256:99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
+      "truth_source_path": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json"
+    },
+    {
+      "anchor_facts": {
+        "fault_class": "transient_http_5xx",
+        "mandatory_recovery_mutation": false,
+        "reward": 0.0
+      },
+      "case_id": "recovery-injected-fault-001",
+      "case_type": "injected_recovery_fault",
+      "counterfactual_case_id": "recovery-clean-twin-001",
+      "decision_eligible": false,
+      "expected_category": "recovery_failure",
+      "family": "mcp-recovery-v1",
+      "schema_version": "trajectory-calibration-case/v1",
+      "truth_source_digest": "sha256:99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
+      "truth_source_path": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json"
+    },
+    {
+      "anchor_facts": {
+        "invariants_passed": true,
+        "mode": "clean_twin",
+        "reward": 1.0
+      },
+      "case_id": "recovery-clean-twin-001",
+      "case_type": "recovery_clean_twin",
+      "counterfactual_case_id": "recovery-injected-fault-001",
+      "decision_eligible": false,
+      "expected_category": "task_success",
+      "family": "mcp-recovery-v1",
+      "schema_version": "trajectory-calibration-case/v1",
+      "truth_source_digest": "sha256:99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
+      "truth_source_path": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json"
+    },
+    {
+      "anchor_facts": {
+        "affected_trial_count": 2,
+        "atif_matches_event_order": false,
+        "benchmark_event_authority": true
+      },
+      "case_id": "harness-capture-discordance-001",
+      "case_type": "harness_capture_failure",
+      "counterfactual_case_id": null,
+      "decision_eligible": false,
+      "expected_category": "harness_capture_failure",
+      "family": "action-memory-v1",
+      "schema_version": "trajectory-calibration-case/v1",
+      "truth_source_digest": "sha256:676b91ea5dd31ebad44fbe2f33b2bbccd92e9b6f023b4a3727d1e4095c15c07b",
+      "truth_source_path": "research/evidence/zai-opencode-action-memory-phase-a-summary.json"
+    }
+  ],
+  "corpus_digest": "sha256:d4df11dd7a53263e782051ba981fd56c61885467c80479c6234cef483d4d3d11",
+  "schema_version": "trajectory-calibration-corpus/v1"
+}

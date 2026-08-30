@@ -78,6 +78,15 @@ class ActionMemoryFeatures:
     bound_target_value: str | None
     binding_matched: bool
     stale_value_bound: bool
+    write_update_event_count: int
+    conflict_resolution_success: bool | None
+    retained_obsolete_fact_count: int | None
+    selective_forgetting_success: bool | None
+    cross_session_retrieval_opportunities: int
+    cross_session_retrieval_successes: int
+    cross_session_retrieval_rate: float | None
+    temporal_consistency_rate: float | None
+    causal_consistency_rate: float | None
     expected_handle_count: int
     valid_handle_count: int
     unknown_handle_count: int
@@ -591,6 +600,76 @@ def extract_action_memory_features(
     stale_value_override_rate: float | None = None
     if raw_conflicting_opps > 0:
         stale_value_override_rate = 1.0 if (not stale_value_bound and binding_matched) else 0.0
+    # Agentic memory lifecycle features. Unsupported cross-session evidence remains
+    # NULL rather than being inferred from ordinary same-session retrieval.
+    explicit_write_update_events = sum(
+        event.event_type
+        in {
+            "execute_mutation",
+            "mutate_record",
+            "bind_fact",
+            "write_memory",
+            "update_entity",
+            "set_value",
+        }
+        for event in events
+    )
+    write_update_event_count = max(
+        len(mutation_calls),
+        len(final_state.mutations),
+        explicit_write_update_events,
+    )
+    conflict_resolution_success: bool | None = None
+    retained_obsolete_fact_count: int | None = None
+    selective_forgetting_success: bool | None = None
+    temporal_consistency_rate: float | None = None
+    if raw_conflicting_opps > 0:
+        conflict_resolution_success = bool(binding_matched and not stale_value_bound)
+        retained_obsolete_fact_count = int(stale_value_bound)
+        selective_forgetting_success = not stale_value_bound
+        temporal_consistency_rate = 1.0 if conflict_resolution_success else 0.0
+
+    causal_consistency_rate: float | None = None
+    if raw_binding_opps > 0:
+        causal_consistency_rate = (
+            1.0 if (binding_matched and final_state.invariants_passed) else 0.0
+        )
+
+    cross_session_retrieval_opportunities = int(
+        opp_counts.get(
+            "cross_session_retrieval_opportunities",
+            cell_factors.get("cross_session_retrieval_opportunities", 0),
+        )
+    )
+    explicit_cross_session_successes = opp_counts.get(
+        "cross_session_retrieval_successes",
+        cell_factors.get("cross_session_retrieval_successes"),
+    )
+    if explicit_cross_session_successes is not None:
+        cross_session_retrieval_successes = int(explicit_cross_session_successes)
+    else:
+        cross_session_retrieval_successes = sum(
+            1
+            for call in calls
+            if not call.is_error
+            and isinstance(call.result_payload, dict)
+            and (
+                call.result_payload.get("cross_session") is True
+                or (
+                    isinstance(call.result_payload.get("value"), dict)
+                    and call.result_payload["value"].get("cross_session") is True
+                )
+            )
+        )
+    cross_session_retrieval_rate: float | None = None
+    if cross_session_retrieval_opportunities > 0:
+        cross_session_retrieval_rate = (
+            min(
+                cross_session_retrieval_successes,
+                cross_session_retrieval_opportunities,
+            )
+            / cross_session_retrieval_opportunities
+        )
     # 4. context_burn_velocity: prompt token slope
     context_burn_velocity: float | None = _compute_cbv_slope(step_tokens)
 
@@ -626,6 +705,15 @@ def extract_action_memory_features(
         bound_target_value=bound_value,
         binding_matched=binding_matched,
         stale_value_bound=stale_value_bound,
+        write_update_event_count=write_update_event_count,
+        conflict_resolution_success=conflict_resolution_success,
+        retained_obsolete_fact_count=retained_obsolete_fact_count,
+        selective_forgetting_success=selective_forgetting_success,
+        cross_session_retrieval_opportunities=cross_session_retrieval_opportunities,
+        cross_session_retrieval_successes=cross_session_retrieval_successes,
+        cross_session_retrieval_rate=cross_session_retrieval_rate,
+        temporal_consistency_rate=temporal_consistency_rate,
+        causal_consistency_rate=causal_consistency_rate,
         expected_handle_count=metrics["expected_handle_count"],
         valid_handle_count=metrics["valid_handle_count"],
         unknown_handle_count=metrics["unknown_handle_count"],

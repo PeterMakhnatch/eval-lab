@@ -79,6 +79,15 @@ class McpFuncDagFeatures:
     cycle_violations: int
     satisfied_edge_opportunities: int
     first_edge_step: int | None
+    required_milestones: int
+    completed_milestones: int
+    milestone_progress_rate: float | None
+    state_dependency_satisfaction_rate: float | None
+    policy_violation_count: int
+    plan_revision_count: int
+    post_error_review_count: int
+    insufficient_information_opportunities: int
+    insufficient_information_handled: bool | None
     # L2 Derived Metrics (C0, C1) - NULL-preserving on zero denominator
     schema_conformance_rate: float | None
     value_propagation_accuracy: float | None
@@ -226,6 +235,70 @@ def extract_mcp_funcdag_features(
         )
 
     satisfied_edge_opps = min(executed_dag_edges, required_dag_edges)
+    required_milestones = int(
+        opp_counts.get(
+            "required_milestone_count",
+            required_dag_edges + required_value_bindings,
+        )
+    )
+    completed_milestones = min(executed_dag_edges, required_dag_edges) + min(
+        correct_value_bindings,
+        required_value_bindings,
+    )
+    milestone_progress_rate: float | None = None
+    if required_milestones > 0:
+        milestone_progress_rate = (
+            min(completed_milestones, required_milestones) / required_milestones
+        )
+
+    state_dependency_satisfaction_rate: float | None = None
+    if required_dag_edges > 0:
+        state_dependency_satisfaction_rate = (
+            min(executed_dag_edges, required_dag_edges) / required_dag_edges
+        )
+
+    policy_violation_count = 0
+    plan_revision_count = 0
+    post_error_review_count = 0
+    seen_error = False
+    insufficient_information_opportunities = int(
+        opp_counts.get(
+            "insufficient_information_opportunities",
+            cell_factors.get("insufficient_information_opportunities", 0),
+        )
+    )
+    insufficient_information_responses = 0
+    for event in events:
+        event_type = event.event_type.strip().lower()
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        if event_type == "policy_violation" or payload.get("policy_violation") is True:
+            policy_violation_count += 1
+        if event_type in {"plan_revision", "replan"} or payload.get("plan_revision") is True:
+            plan_revision_count += 1
+        is_error_event = (
+            event_type in {"tool_call_error", "error", "failure"} or payload.get("is_error") is True
+        )
+        if seen_error and (
+            event_type in {"review", "error_review", "plan_revision", "replan"}
+            or payload.get("reviewed_error") is True
+        ):
+            post_error_review_count += 1
+        seen_error = seen_error or is_error_event
+        if (
+            event_type
+            in {
+                "insufficient_information",
+                "request_clarification",
+                "ask_user",
+            }
+            or payload.get("insufficient_information_handled") is True
+        ):
+            insufficient_information_responses += 1
+    insufficient_information_handled: bool | None = None
+    if insufficient_information_opportunities > 0:
+        insufficient_information_handled = (
+            insufficient_information_responses >= insufficient_information_opportunities
+        )
     # Prompt token metrics
     prompt_tokens_per_step: float | None = None
     if step_tokens:
@@ -289,6 +362,15 @@ def extract_mcp_funcdag_features(
         cycle_violations=cycle_violations,
         satisfied_edge_opportunities=satisfied_edge_opps,
         first_edge_step=first_edge_step,
+        required_milestones=required_milestones,
+        completed_milestones=completed_milestones,
+        milestone_progress_rate=milestone_progress_rate,
+        state_dependency_satisfaction_rate=state_dependency_satisfaction_rate,
+        policy_violation_count=policy_violation_count,
+        plan_revision_count=plan_revision_count,
+        post_error_review_count=post_error_review_count,
+        insufficient_information_opportunities=insufficient_information_opportunities,
+        insufficient_information_handled=insufficient_information_handled,
         schema_conformance_rate=schema_conformance_rate,
         value_propagation_accuracy=value_propagation_accuracy,
         dag_edge_conformance_rate=dag_edge_conformance_rate,

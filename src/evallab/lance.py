@@ -12,14 +12,17 @@ import math
 import os
 import re
 import tomllib
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import lancedb
 import pyarrow.parquet as pq
 from lancedb.index import IvfPq
+from pydantic import ConfigDict, Field, model_validator
 
 from evallab.craft import (
     TASK_INSTRUCTION,
@@ -28,6 +31,7 @@ from evallab.craft import (
     library_source,
     repository_root,
 )
+from evallab.schemas import ContractModel
 from evallab.storage.attach import attach
 from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 
@@ -160,6 +164,281 @@ class HashingEmbedder:
         return vectors
 
 
+_SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_ZERO_DIGEST = "sha256:" + "0" * 64
+
+
+def _canonical_prefixed_digest(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode()
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _require_digest(value: str, field_name: str) -> str:
+    if not _SHA256_RE.fullmatch(value) or value == _ZERO_DIGEST:
+        raise ValueError(f"{field_name} must be a non-zero sha256:<64-hex> digest")
+    return value
+
+
+@dataclass(frozen=True)
+class OpenAICompatibleEmbedder:
+    """Pinned neural embedding backend for local or remote OpenAI-compatible servers."""
+
+    endpoint: str
+    model: str
+    model_revision: str
+    tokenizer_id: str
+    tokenizer_revision: str
+    dim: int
+    normalization: str = "l2"
+    timeout_seconds: float = 60.0
+    api_key: str | None = field(default=None, repr=False, compare=False)
+    identity: str = "openai-compatible"
+
+    @property
+    def version(self) -> str:
+        return self.model_revision
+
+    @property
+    def digest(self) -> str:
+        body = {
+            "identity": self.identity,
+            "endpoint": self.endpoint,
+            "model": self.model,
+            "model_revision": self.model_revision,
+            "tokenizer_id": self.tokenizer_id,
+            "tokenizer_revision": self.tokenizer_revision,
+            "dim": self.dim,
+            "normalization": self.normalization,
+        }
+        return hashlib.sha256(
+            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        if not self.endpoint.startswith(("http://", "https://")):
+            raise ValueError("embedding endpoint must use http:// or https://")
+        if self.dim <= 0:
+            raise ValueError("embedding dimension must be positive")
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "input": list(texts),
+                "encoding_format": "float",
+            },
+            separators=(",", ":"),
+        ).encode()
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        request = urllib.request.Request(
+            self.endpoint.rstrip("/") + "/v1/embeddings",
+            data=payload,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                response_body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"embedding backend request failed: {exc}") from exc
+        records = response_body.get("data") if isinstance(response_body, dict) else None
+        if not isinstance(records, list) or len(records) != len(texts):
+            raise ValueError("embedding backend returned a mismatched data array")
+        ordered = sorted(records, key=lambda row: int(row.get("index", 0)))
+        vectors: list[list[float]] = []
+        for record in ordered:
+            raw_vector = record.get("embedding") if isinstance(record, dict) else None
+            if not isinstance(raw_vector, list) or len(raw_vector) != self.dim:
+                raise ValueError("embedding backend returned an invalid vector dimension")
+            vector = [float(value) for value in raw_vector]
+            if not all(math.isfinite(value) for value in vector):
+                raise ValueError("embedding backend returned a non-finite vector")
+            if self.normalization == "l2":
+                norm = math.sqrt(sum(value * value for value in vector))
+                if norm == 0:
+                    raise ValueError("embedding backend returned a zero vector")
+                vector = [value / norm for value in vector]
+            elif self.normalization != "none":
+                raise ValueError("normalization must be 'l2' or 'none'")
+            vectors.append(vector)
+        return vectors
+
+
+class TrajectoryWindowV1(ContractModel):
+    """Exact post-redaction trajectory window eligible for semantic retrieval."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["trajectory-window/v1"] = "trajectory-window/v1"
+    window_id: str
+    window_digest: str
+    snapshot_digest: str
+    source_digest: str
+    redaction_policy_digest: str
+    job_id: str
+    trial_id: str
+    start_step: int = Field(ge=0)
+    end_step: int = Field(ge=0)
+    text: str = Field(min_length=1)
+    text_digest: str
+    source_is_redacted: Literal[True]
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_window(self) -> TrajectoryWindowV1:
+        if self.schema_version != "trajectory-window/v1":
+            raise ValueError("unsupported trajectory window schema")
+        if self.source_is_redacted is not True:
+            raise ValueError("trajectory windows require post-redaction source text")
+        if self.end_step < self.start_step:
+            raise ValueError("window end_step must be >= start_step")
+        for name in (
+            "snapshot_digest",
+            "source_digest",
+            "redaction_policy_digest",
+            "text_digest",
+        ):
+            _require_digest(str(getattr(self, name)), name)
+        expected_text = f"sha256:{hashlib.sha256(self.text.encode()).hexdigest()}"
+        if self.text_digest != expected_text:
+            raise ValueError("text_digest does not match trajectory window text")
+        body = self.model_dump(
+            mode="json",
+            exclude={"window_id", "window_digest"},
+        )
+        expected = _canonical_prefixed_digest(body)
+        if self.window_id != expected or self.window_digest != expected:
+            raise ValueError("window identity does not match canonical content")
+        if self.decision_eligible is not False:
+            raise ValueError("semantic windows are never decision eligible")
+        return self
+
+
+class EmbeddingArtifactV1(ContractModel):
+    """Pinned vector derived from one exact trajectory window."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["embedding-artifact/v1"] = "embedding-artifact/v1"
+    artifact_digest: str
+    window_digest: str
+    snapshot_digest: str
+    model_id: str
+    model_revision: str
+    model_digest: str
+    tokenizer_id: str
+    tokenizer_revision: str
+    redaction_policy_digest: str
+    dimension: int = Field(gt=0)
+    normalization: Literal["l2", "none"]
+    distance_metric: Literal["cosine", "l2", "dot"]
+    vector: tuple[float, ...]
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_embedding(self) -> EmbeddingArtifactV1:
+        if self.schema_version != "embedding-artifact/v1":
+            raise ValueError("unsupported embedding artifact schema")
+        for name in (
+            "window_digest",
+            "snapshot_digest",
+            "model_digest",
+            "redaction_policy_digest",
+        ):
+            _require_digest(str(getattr(self, name)), name)
+        if len(self.vector) != self.dimension:
+            raise ValueError("embedding vector length does not match dimension")
+        if not all(math.isfinite(value) for value in self.vector):
+            raise ValueError("embedding vector contains non-finite values")
+        if self.normalization not in {"l2", "none"}:
+            raise ValueError("unsupported embedding normalization")
+        if self.distance_metric not in {"cosine", "l2", "dot"}:
+            raise ValueError("unsupported embedding distance metric")
+        body = self.model_dump(mode="json", exclude={"artifact_digest"})
+        expected = _canonical_prefixed_digest(body)
+        if self.artifact_digest != expected:
+            raise ValueError("artifact_digest does not match canonical embedding content")
+        if self.decision_eligible is not False:
+            raise ValueError("embedding artifacts are never decision eligible")
+        return self
+
+
+class EmbeddingIndexManifestV1(ContractModel):
+    """Identity and invalidation contract for one semantic window index."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["embedding-index-manifest/v1"] = "embedding-index-manifest/v1"
+    table_name: str
+    index_digest: str
+    snapshot_digest: str
+    candidate_pool_digest: str
+    embedding_artifact_pool_digest: str
+    model_digest: str
+    tokenizer_id: str
+    tokenizer_revision: str
+    redaction_policy_digest: str
+    dimension: int = Field(gt=0)
+    normalization: Literal["l2", "none"]
+    distance_metric: Literal["cosine", "l2", "dot"]
+    row_count: int = Field(ge=0)
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_index(self) -> EmbeddingIndexManifestV1:
+        if self.schema_version != "embedding-index-manifest/v1":
+            raise ValueError("unsupported embedding index manifest schema")
+        for name in (
+            "snapshot_digest",
+            "candidate_pool_digest",
+            "embedding_artifact_pool_digest",
+            "model_digest",
+            "redaction_policy_digest",
+        ):
+            _require_digest(str(getattr(self, name)), name)
+        body = self.model_dump(mode="json", exclude={"index_digest"})
+        expected = _canonical_prefixed_digest(body)
+        if self.index_digest != expected:
+            raise ValueError("index_digest does not match canonical index content")
+        if self.decision_eligible is not False:
+            raise ValueError("embedding indexes are never decision eligible")
+        return self
+
+
+class SemanticSearchHitV1(ContractModel):
+    """Citation-bound nearest-neighbor result with no decision fields."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["semantic-search-hit/v1"] = "semantic-search-hit/v1"
+    window_id: str
+    window_digest: str
+    source_digest: str
+    job_id: str
+    trial_id: str
+    start_step: int = Field(ge=0)
+    end_step: int = Field(ge=0)
+    rank: int = Field(ge=1)
+    distance: float = Field(ge=0)
+    text: str
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_hit(self) -> SemanticSearchHitV1:
+        for name in ("window_digest", "source_digest"):
+            _require_digest(str(getattr(self, name)), name)
+        if not math.isfinite(self.distance):
+            raise ValueError("semantic search distance must be finite")
+        if self.decision_eligible is not False:
+            raise ValueError("semantic search hits are never decision eligible")
+        return self
+
+
 @dataclass(frozen=True)
 class LanceSearchHit:
     """Typed search hit from LanceDB retrieval.
@@ -216,6 +495,301 @@ def _get_embedder_metadata(embedder: Embedder) -> tuple[str, str, str]:
         dim_val = getattr(embedder, "dim", 256)
         emb_digest = hashlib.sha256(f"{emb_id}:{emb_ver}:dim={dim_val}".encode()).hexdigest()
     return emb_id, emb_ver, emb_digest
+
+
+def create_trajectory_window(
+    *,
+    snapshot_digest: str,
+    source_digest: str,
+    redaction_policy_digest: str,
+    job_id: str,
+    trial_id: str,
+    start_step: int,
+    end_step: int,
+    text: str,
+    source_is_redacted: Literal[True],
+) -> TrajectoryWindowV1:
+    """Create one canonical post-redaction trajectory window."""
+    text_digest = f"sha256:{hashlib.sha256(text.encode()).hexdigest()}"
+    body = {
+        "schema_version": "trajectory-window/v1",
+        "snapshot_digest": snapshot_digest,
+        "source_digest": source_digest,
+        "redaction_policy_digest": redaction_policy_digest,
+        "job_id": job_id,
+        "trial_id": trial_id,
+        "start_step": start_step,
+        "end_step": end_step,
+        "text": text,
+        "text_digest": text_digest,
+        "source_is_redacted": source_is_redacted,
+        "decision_eligible": False,
+    }
+    digest = _canonical_prefixed_digest(body)
+    return TrajectoryWindowV1.model_validate(
+        {
+            **body,
+            "window_id": digest,
+            "window_digest": digest,
+        }
+    )
+
+
+def build_trajectory_windows(
+    steps: Sequence[dict[str, Any]],
+    *,
+    snapshot_digest: str,
+    source_digest: str,
+    redaction_policy_digest: str,
+    job_id: str,
+    trial_id: str,
+    source_is_redacted: Literal[True],
+    window_steps: int = 8,
+    stride_steps: int = 4,
+) -> tuple[TrajectoryWindowV1, ...]:
+    """Partition post-redaction ATIF steps into deterministic overlapping windows."""
+    if window_steps <= 0 or stride_steps <= 0:
+        raise ValueError("window_steps and stride_steps must be positive")
+    if not steps:
+        return ()
+    windows: list[TrajectoryWindowV1] = []
+    for offset in range(0, len(steps), stride_steps):
+        selected = steps[offset : offset + window_steps]
+        if not selected:
+            break
+        start_value = selected[0].get("step_id", offset)
+        end_value = selected[-1].get("step_id", offset + len(selected) - 1)
+        start_step = int(start_value) if isinstance(start_value, (int, str)) else offset
+        end_step = (
+            int(end_value) if isinstance(end_value, (int, str)) else offset + len(selected) - 1
+        )
+        text = json.dumps(
+            selected,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        windows.append(
+            create_trajectory_window(
+                snapshot_digest=snapshot_digest,
+                source_digest=source_digest,
+                redaction_policy_digest=redaction_policy_digest,
+                source_is_redacted=source_is_redacted,
+                job_id=job_id,
+                trial_id=trial_id,
+                start_step=start_step,
+                end_step=end_step,
+                text=text,
+            )
+        )
+        if offset + window_steps >= len(steps):
+            break
+    return tuple(windows)
+
+
+def create_embedding_artifact(
+    window: TrajectoryWindowV1,
+    vector: Sequence[float],
+    embedder: Embedder,
+    *,
+    tokenizer_id: str,
+    tokenizer_revision: str,
+    normalization: str,
+    distance_metric: str = "cosine",
+) -> EmbeddingArtifactV1:
+    """Bind one vector to its exact window and backend identities."""
+    model_id, model_revision, model_digest = _get_embedder_metadata(embedder)
+    body = {
+        "schema_version": "embedding-artifact/v1",
+        "window_digest": window.window_digest,
+        "snapshot_digest": window.snapshot_digest,
+        "model_id": model_id,
+        "model_revision": model_revision,
+        "model_digest": f"sha256:{model_digest}",
+        "tokenizer_id": tokenizer_id,
+        "tokenizer_revision": tokenizer_revision,
+        "redaction_policy_digest": window.redaction_policy_digest,
+        "dimension": len(vector),
+        "normalization": normalization,
+        "distance_metric": distance_metric,
+        "vector": tuple(float(value) for value in vector),
+        "decision_eligible": False,
+    }
+    digest = _canonical_prefixed_digest(body)
+    return EmbeddingArtifactV1.model_validate(
+        {
+            **body,
+            "artifact_digest": digest,
+        }
+    )
+
+
+def embed_trajectory_windows(
+    windows: Sequence[TrajectoryWindowV1],
+    embedder: Embedder,
+    *,
+    tokenizer_id: str,
+    tokenizer_revision: str,
+    normalization: str,
+    distance_metric: str = "cosine",
+) -> tuple[EmbeddingArtifactV1, ...]:
+    """Embed exact windows and preserve one-to-one source identity."""
+    vectors = embedder.embed([window.text for window in windows])
+    if len(vectors) != len(windows):
+        raise ValueError("embedder returned a mismatched vector count")
+    return tuple(
+        create_embedding_artifact(
+            window,
+            vector,
+            embedder,
+            tokenizer_id=tokenizer_id,
+            tokenizer_revision=tokenizer_revision,
+            normalization=normalization,
+            distance_metric=distance_metric,
+        )
+        for window, vector in zip(windows, vectors, strict=True)
+    )
+
+
+def write_semantic_window_index(
+    windows: Sequence[TrajectoryWindowV1],
+    embeddings: Sequence[EmbeddingArtifactV1],
+    *,
+    root: Path | None = None,
+    table_name: str = "trajectory_windows",
+) -> EmbeddingIndexManifestV1:
+    """Write a citation-bound semantic window table into the existing LanceDB root."""
+    if not windows:
+        raise ValueError("semantic window index requires at least one window")
+    if len(windows) != len(embeddings):
+        raise ValueError("windows and embeddings must have identical cardinality")
+    by_digest = {artifact.window_digest: artifact for artifact in embeddings}
+    if set(by_digest) != {window.window_digest for window in windows}:
+        raise ValueError("embedding artifacts do not cover the exact window pool")
+    first = embeddings[0]
+    for window in windows:
+        artifact = by_digest[window.window_digest]
+        if artifact.snapshot_digest != window.snapshot_digest:
+            raise ValueError("embedding snapshot differs from source window snapshot")
+        if artifact.redaction_policy_digest != window.redaction_policy_digest:
+            raise ValueError("embedding redaction policy differs from source window")
+        if (
+            artifact.model_digest != first.model_digest
+            or artifact.tokenizer_id != first.tokenizer_id
+            or artifact.tokenizer_revision != first.tokenizer_revision
+            or artifact.dimension != first.dimension
+            or artifact.normalization != first.normalization
+            or artifact.distance_metric != first.distance_metric
+        ):
+            raise ValueError("mixed embedding vintages cannot share an index")
+    snapshots = {window.snapshot_digest for window in windows}
+    redactions = {window.redaction_policy_digest for window in windows}
+    if len(snapshots) != 1 or len(redactions) != 1:
+        raise ValueError("mixed snapshot or redaction vintages cannot share an index")
+
+    target = root or _lance_root()
+    target.mkdir(parents=True, exist_ok=True)
+    data = []
+    for window in windows:
+        artifact = by_digest[window.window_digest]
+        data.append(
+            {
+                "record_id": window.window_id,
+                "window_digest": window.window_digest,
+                "source_digest": window.source_digest,
+                "job_id": window.job_id,
+                "trial_id": window.trial_id,
+                "step_id": window.start_step,
+                "end_step": window.end_step,
+                "text": window.text,
+                "vector": list(artifact.vector),
+                "decision_eligible": False,
+            }
+        )
+    db = lancedb.connect(str(target))
+    table = db.create_table(table_name, data=data, mode="overwrite")
+    if len(data) >= MIN_ROWS_FOR_ANN:
+        table.create_index(
+            "vector",
+            config=IvfPq(distance_type=first.distance_metric),
+        )
+    candidate_pool_digest = _canonical_prefixed_digest(
+        sorted(window.window_digest for window in windows)
+    )
+    embedding_artifact_pool_digest = _canonical_prefixed_digest(
+        sorted(artifact.artifact_digest for artifact in embeddings)
+    )
+    body = {
+        "schema_version": "embedding-index-manifest/v1",
+        "table_name": table_name,
+        "snapshot_digest": next(iter(snapshots)),
+        "candidate_pool_digest": candidate_pool_digest,
+        "embedding_artifact_pool_digest": embedding_artifact_pool_digest,
+        "model_digest": first.model_digest,
+        "tokenizer_id": first.tokenizer_id,
+        "tokenizer_revision": first.tokenizer_revision,
+        "redaction_policy_digest": next(iter(redactions)),
+        "dimension": first.dimension,
+        "normalization": first.normalization,
+        "distance_metric": first.distance_metric,
+        "row_count": len(data),
+        "decision_eligible": False,
+    }
+    index_digest = _canonical_prefixed_digest(body)
+    manifest = EmbeddingIndexManifestV1.model_validate(
+        {
+            **body,
+            "index_digest": index_digest,
+        }
+    )
+    (target / f"{table_name}.embedding-manifest.json").write_text(
+        manifest.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def search_semantic_windows(
+    query: str,
+    embedder: Embedder,
+    manifest: EmbeddingIndexManifestV1,
+    *,
+    root: Path | None = None,
+    k: int = 5,
+) -> tuple[SemanticSearchHitV1, ...]:
+    """Search one pinned semantic index and return source-bound review candidates."""
+    if not query.strip() or k <= 0:
+        raise ValueError("semantic search requires a non-empty query and positive k")
+    _, _, embedder_digest = _get_embedder_metadata(embedder)
+    if f"sha256:{embedder_digest}" != manifest.model_digest:
+        raise ValueError("embedder identity does not match semantic index manifest")
+    target = root or _lance_root()
+    db = lancedb.connect(str(target))
+    table = db.open_table(manifest.table_name)
+    query_vector = embedder.embed([query])[0]
+    result = table.search(query_vector)
+    distance_method = getattr(result, "distance_type", None)
+    if callable(distance_method):
+        result = distance_method(manifest.distance_metric)
+    records = result.limit(k).to_list()
+    hits = []
+    for rank, record in enumerate(records, start=1):
+        hits.append(
+            SemanticSearchHitV1(
+                window_id=str(record["record_id"]),
+                window_digest=str(record["window_digest"]),
+                source_digest=str(record["source_digest"]),
+                job_id=str(record["job_id"]),
+                trial_id=str(record["trial_id"]),
+                start_step=int(record["step_id"]),
+                end_step=int(record["end_step"]),
+                rank=rank,
+                distance=max(0.0, float(record.get("_distance", 0.0))),
+                text=str(record["text"]),
+                decision_eligible=False,
+            )
+        )
+    return tuple(hits)
 
 
 def _save_manifest(

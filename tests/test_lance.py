@@ -14,12 +14,21 @@ import pytest
 
 from evallab.lance import (
     DEFAULT_REDACTION_POLICY_DIGEST,
+    EmbeddingArtifactV1,
+    EmbeddingIndexManifestV1,
     HashingEmbedder,
     LanceIndexManifest,
     LanceSearchHit,
+    OpenAICompatibleEmbedder,
+    SemanticSearchHitV1,
+    TrajectoryWindowV1,
     build,
+    build_trajectory_windows,
+    embed_trajectory_windows,
     search,
     search_records,
+    search_semantic_windows,
+    write_semantic_window_index,
 )
 
 
@@ -28,6 +37,137 @@ def test_embedder_determinism_same_process():
     v1 = e.embed(["hello world test"])[0]
     v2 = e.embed(["hello world test"])[0]
     assert v1 == v2
+
+
+def test_openai_compatible_embedder_pins_identity_and_normalizes():
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return json.dumps(
+                {
+                    "data": [
+                        {"index": 0, "embedding": [3.0, 4.0]},
+                        {"index": 1, "embedding": [0.0, 2.0]},
+                    ]
+                }
+            ).encode()
+
+    embedder = OpenAICompatibleEmbedder(
+        endpoint="http://localhost:8000",
+        model="sentence-transformer",
+        model_revision="sha256-model-revision",
+        tokenizer_id="sentence-transformer-tokenizer",
+        tokenizer_revision="tokenizer-v1",
+        dim=2,
+        api_key="secret-not-in-digest",
+    )
+    with patch("urllib.request.urlopen", return_value=Response()):
+        vectors = embedder.embed(["first", "second"])
+    assert vectors == [[0.6, 0.8], [0.0, 1.0]]
+    assert len(embedder.digest) == 64
+    assert "secret-not-in-digest" not in repr(embedder)
+
+
+def test_semantic_window_contract_index_and_search(tmp_path):
+    digest_a = "sha256:" + "1" * 64
+    digest_b = "sha256:" + "2" * 64
+    digest_c = "sha256:" + "3" * 64
+    steps = [
+        {"step_id": 1, "message": "inspect the failed tool call"},
+        {"step_id": 2, "message": "change retry arguments"},
+        {"step_id": 3, "message": "verify recovered state"},
+    ]
+    windows = build_trajectory_windows(
+        steps,
+        snapshot_digest=digest_a,
+        source_digest=digest_b,
+        redaction_policy_digest=digest_c,
+        source_is_redacted=True,
+        job_id="job-1",
+        trial_id="trial-1",
+        window_steps=2,
+        stride_steps=1,
+    )
+    assert len(windows) == 2
+    assert all(isinstance(window, TrajectoryWindowV1) for window in windows)
+    assert all(window.decision_eligible is False for window in windows)
+
+    embedder = HashingEmbedder(dim=32)
+    artifacts = embed_trajectory_windows(
+        windows,
+        embedder,
+        tokenizer_id="hashing-tokenizer",
+        tokenizer_revision="v1",
+        normalization="l2",
+    )
+    assert all(isinstance(artifact, EmbeddingArtifactV1) for artifact in artifacts)
+    manifest = write_semantic_window_index(
+        windows,
+        artifacts,
+        root=tmp_path / "lance",
+    )
+    assert isinstance(manifest, EmbeddingIndexManifestV1)
+    assert manifest.row_count == 2
+    assert manifest.decision_eligible is False
+
+    hits = search_semantic_windows(
+        windows[0].text,
+        embedder,
+        manifest,
+        root=tmp_path / "lance",
+        k=2,
+    )
+    assert hits
+    assert isinstance(hits[0], SemanticSearchHitV1)
+    assert hits[0].window_digest == windows[0].window_digest
+    assert hits[0].decision_eligible is False
+
+
+def test_semantic_window_tamper_and_embedder_drift_refuse(tmp_path):
+    digest_a = "sha256:" + "a" * 64
+    digest_b = "sha256:" + "b" * 64
+    digest_c = "sha256:" + "c" * 64
+    windows = build_trajectory_windows(
+        [{"step_id": 1, "message": "redacted evidence"}],
+        snapshot_digest=digest_a,
+        source_digest=digest_b,
+        redaction_policy_digest=digest_c,
+        source_is_redacted=True,
+        job_id="job-1",
+        trial_id="trial-1",
+        window_steps=1,
+        stride_steps=1,
+    )
+    payload = windows[0].model_dump(mode="json")
+    payload["text"] = "tampered"
+    with pytest.raises(ValueError, match="text_digest"):
+        TrajectoryWindowV1.model_validate(payload)
+
+    embedder = HashingEmbedder(dim=16)
+    artifacts = embed_trajectory_windows(
+        windows,
+        embedder,
+        tokenizer_id="hashing-tokenizer",
+        tokenizer_revision="v1",
+        normalization="l2",
+    )
+    manifest = write_semantic_window_index(
+        windows,
+        artifacts,
+        root=tmp_path / "lance",
+    )
+    with pytest.raises(ValueError, match="embedder identity"):
+        search_semantic_windows(
+            "query",
+            HashingEmbedder(dim=32),
+            manifest,
+            root=tmp_path / "lance",
+        )
 
 
 def test_embedder_determinism_across_process(tmp_path):

@@ -17,6 +17,8 @@ from evallab.interpretation.producers.mcp_funcdag import (
 )
 from evallab.interpretation.producers.mcp_recovery import (
     McpRecoveryFeatures,
+    RecoveryPersistencePoint,
+    build_recovery_persistence_curve,
     extract_mcp_recovery_features,
 )
 
@@ -24,6 +26,8 @@ __all__ = [
     "ActionMemoryFeatures",
     "McpFuncDagFeatures",
     "McpRecoveryFeatures",
+    "RecoveryPersistencePoint",
+    "build_recovery_persistence_curve",
     "compute_prompt_cache_hit_rate",
     "extract_action_memory_features",
     "extract_mcp_funcdag_features",

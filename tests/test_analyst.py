@@ -11,6 +11,7 @@ import pytest
 from evallab.analyst import (
     AnalystResult,
     Analyzer,
+    JudgeStage,
     ModelAnalyzer,
     ModelProviderRefusedError,
     StubAnalyzer,
@@ -19,9 +20,11 @@ from evallab.analyst import (
     list_analyses,
     resolve_trial,
     run_analysis,
+    run_trajectory_judge,
 )
 from evallab.cli import run_cli
 from evallab.evidence_store import archive_evidence
+from evallab.lance import build_trajectory_windows
 from evallab.lineage import resolve_lineage
 from evallab.schemas import AnalysisRecord, ConfidenceClaim, EvidenceCitation
 
@@ -610,3 +613,90 @@ def test_run_analysis_persists_bindings_and_decision_ineligible(tmp_path: Path) 
         assert row[2] == snapshot_digest
         assert row[3] == queue_digest
         assert row[4] is False
+
+
+def _judge_windows():
+    return build_trajectory_windows(
+        [
+            {"step_id": 1, "message": "memory handle was omitted"},
+            {"step_id": 2, "message": "clean replay completed successfully"},
+        ],
+        snapshot_digest="sha256:" + "1" * 64,
+        source_digest="sha256:" + "2" * 64,
+        redaction_policy_digest="sha256:" + "3" * 64,
+        source_is_redacted=True,
+        job_id="judge-job",
+        trial_id="judge-trial",
+        window_steps=1,
+        stride_steps=1,
+    )
+
+
+class ScriptedTrajectoryAnalyzer:
+    model = "scripted-trajectory-judge"
+
+    def __init__(self, *, missing_counterevidence: bool = False) -> None:
+        self.missing_counterevidence = missing_counterevidence
+
+    def analyze(self, prompt: str, context: str) -> AnalystResult:
+        windows = _judge_windows()
+        support = EvidenceCitation(path=windows[0].window_digest, step=1)
+        counter = EvidenceCitation(path=windows[1].window_digest, step=2)
+        if "Stage: TRIAGE" in prompt:
+            summary = "The omission window is high signal."
+            contradictions: list[EvidenceCitation] = []
+            alternatives: list[str] = []
+        elif "Stage: INSPECT" in prompt:
+            summary = "The omitted handle precedes the stale binding."
+            contradictions = []
+            alternatives = []
+        else:
+            summary = "The cited trajectory supports a memory failure."
+            contradictions = [] if self.missing_counterevidence else [counter]
+            alternatives = ["The omission may instead reflect a capture failure."]
+        return AnalystResult(
+            category="memory_failure",
+            summary=summary,
+            evidence=[support],
+            contradicting_evidence=contradictions,
+            alternative_explanations=alternatives,
+            confidence=ConfidenceClaim(
+                level="high",
+                n=1,
+                provenance_digest="sha256:" + "4" * 64,
+            ),
+        )
+
+
+def test_trajectory_judge_runs_triage_inspect_final_repeats_and_disagreement() -> None:
+    windows = _judge_windows()
+    runs, disagreement = run_trajectory_judge(
+        ScriptedTrajectoryAnalyzer(),
+        windows,
+        rubric="Classify the primary agentic failure with exact window citations.",
+        repeats=3,
+    )
+    assert len(runs) == 3
+    assert all(
+        tuple(stage.stage for stage in run.stages)
+        == (JudgeStage.TRIAGE, JudgeStage.INSPECT, JudgeStage.FINAL)
+        for run in runs
+    )
+    assert all(run.stages[-1].supporting_citations for run in runs)
+    assert all(run.stages[-1].contradicting_citations for run in runs)
+    assert all(run.stages[-1].alternative_explanations for run in runs)
+    assert all(run.decision_eligible is False for run in runs)
+    assert disagreement.consensus_category == "memory_failure"
+    assert disagreement.agreement_rate == 1.0
+    assert disagreement.unresolved is False
+    assert disagreement.decision_eligible is False
+
+
+def test_trajectory_judge_refuses_final_without_counterevidence() -> None:
+    with pytest.raises(ValueError, match="contradicting citations"):
+        run_trajectory_judge(
+            ScriptedTrajectoryAnalyzer(missing_counterevidence=True),
+            _judge_windows(),
+            rubric="Require counterevidence.",
+            repeats=1,
+        )

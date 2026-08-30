@@ -561,7 +561,6 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
         manifest_id=manifest_id,
         manifest_digest=manifest_digest,
         produced_at=produced_at,
-        analysis_config=analysis_config,
         **body_pre_id,
     )
 

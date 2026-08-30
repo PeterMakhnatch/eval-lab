@@ -481,6 +481,9 @@ register_trajectory_feature(
     formula_or_rule="Primary numeric reward from result.json (1.0 = pass, 0.0 = fail)",
     null_condition="NULL when result.json reward is absent",
     description="Deterministic primary evaluation reward.",
+    available_before_verdict=False,
+    verdict_coupling="defines",
+    coupling_basis="Primary deterministic reward from verifier (1.0 = pass, 0.0 = fail)",
 )
 register_trajectory_feature(
     "exception_class",

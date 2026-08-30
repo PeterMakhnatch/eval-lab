@@ -1779,7 +1779,7 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
         "source_commit": "c0ffee",
         "authorizing_actor": "test",
         "cas_store_root": str(tmp_path / "cas"),
-        "items": [item],
+        "items": [item.model_dump(mode="json")],
         "accounting": {
             "total_planned_specs": 1,
             "total_executed_trials": 1,
@@ -1788,7 +1788,7 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
             "free_local_controls": 0,
             "unresolved_evidence_count": 0,
         },
-        "analysis_config": config,
+        "analysis_config": config.model_dump(mode="json"),
     }
     snapshot_digest = compute_analysis_snapshot_digest(manifest_body, config)
     manifest_body["analysis_snapshot_digest"] = snapshot_digest
@@ -1798,7 +1798,16 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
         manifest_id=manifest_id,
         manifest_digest=manifest_digest,
         produced_at=datetime.now(UTC),
-        **manifest_body,
+        items=[item],
+        accounting=manifest_body["accounting"],
+        analysis_config=config,
+        analysis_snapshot_digest=snapshot_digest,
+        schema_version="campaign-analysis-manifest/v1",
+        campaign_id="rerun-campaign",
+        source_campaign_manifest_digest=DIGEST_C,
+        source_commit="c0ffee",
+        authorizing_actor="test",
+        cas_store_root=str(tmp_path / "cas"),
     )
     path = tmp_path / "manifest.json"
     path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")

@@ -5,18 +5,18 @@ No live models, no derived/evidence-cas, no required PostgreSQL.
 
 from __future__ import annotations
 
-from dataclasses import asdict, replace
-from datetime import UTC, datetime
 import hashlib
 import json
-from pathlib import Path
 import re
+from dataclasses import asdict, replace
+from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
-from pydantic import ValidationError
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from pydantic import ValidationError
 
 from evallab.analysis_capability import (
     AnalysisMethod,

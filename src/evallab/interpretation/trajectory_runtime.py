@@ -7,20 +7,20 @@ automatic acceptance is hard-disabled.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import contextlib
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
 import hashlib
 import json
 import os
-from pathlib import Path
 import tempfile
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, ValidationError, model_validator
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pydantic import Field, ValidationError, model_validator
 
 from evallab.analysis_capability import (
     AnalysisStatus,

@@ -521,14 +521,21 @@ def _unconditional_fallback_script() -> str:
         "#!/bin/sh\nset -eu\npython - <<'PY'\n"
         + _embed_client()
         + '''
+import time
+
 session = McpHttpSession()
-session.initialize()
+for _ in range(30):
+    if session.initialize()[0] == 200:
+        break
+    time.sleep(0.2)
+
 # Unconditionally fires fallback_query before observing any fault or diagnosis
 session.call_tool("fallback_query", {"query": "unconditional_pre_probe"})
 # Proceeds directly to normal writes without post-fault causal diagnosis
+key, value = "operational-record", "verified-payload"
 for _ in range(8):
-    session.call_tool("write_record", {"key": "operational-record", "value": "verified-payload"})
-    session.call_tool("read_record", {"key": "operational-record"})
+    session.call_tool("write_record", {"key": key, "value": value})
+    session.call_tool("read_record", {"key": key})
 PY
 '''
     )
@@ -877,8 +884,8 @@ before retrying.
         _write_executable(adv / "unconfirmed-write.sh", _unconfirmed_write_script())
     else:
         _write_executable(adv / "blind-retry.sh", _blind_retry_script())
+        _write_executable(adv / "unconditional-fallback.sh", _unconditional_fallback_script())
     _write_executable(adv / "wrong-repair.sh", _wrong_repair_script(strategy=alternative_repair))
-    _write_executable(adv / "unconditional-fallback.sh", _unconditional_fallback_script())
 
     # Neutral fixed-policy probe materialized byte-identically into both arms
     fixed_policy_dir = target_dir / "controls" / "fixed-policy"

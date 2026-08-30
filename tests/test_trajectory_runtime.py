@@ -2414,6 +2414,7 @@ def test_phase_a_e0b_paired_batch_orchestration(
     assert RefusalCode.UNDERPOWERED in paired_res["refusals"]
     assert paired_res["estimate"] == pytest.approx(4 / 9)
     assert paired_res["p_value"] is None
+    assert paired_res["mde"] is None
     assert paired_res["attainable_p_floor"] == pytest.approx(0.125)
     assert len(paired_res["source_refs"]) == 36
 

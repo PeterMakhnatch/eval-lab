@@ -1524,7 +1524,7 @@ def _paired_sign(
             estimate=result.risk_difference,
             interval=None,
             p_value=None,
-            mde=result.design_floor_p_value,
+            mde=None,
             attainable_p_floor=result.min_attainable_p_value,
             design_effect=None,
             source_refs=source_refs,
@@ -1546,7 +1546,7 @@ def _paired_sign(
         and result.risk_difference_interval_upper is not None
         else None,
         p_value=result.exact_p_value,
-        mde=result.design_floor_p_value,
+        mde=None,
         attainable_p_floor=result.min_attainable_p_value,
         design_effect=None,
         source_refs=source_refs,

@@ -926,6 +926,7 @@ def test_mixed_repeat_paired_aggregation() -> None:
     assert result.informative_units == 2
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.UNDERPOWERED in result.refusals
+    assert result.mde is None
     assert result.attainable_p_floor == pytest.approx(0.5)
     assert len(result.source_refs) == 12
 
@@ -988,6 +989,7 @@ def test_exact_paired_units_aggregation() -> None:
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.UNDERPOWERED in result.refusals
     assert result.p_value is None
+    assert result.mde is None
     assert result.attainable_p_floor == pytest.approx(0.125)
     assert result.estimate == pytest.approx(4 / 9)
     assert len(result.source_refs) == 18

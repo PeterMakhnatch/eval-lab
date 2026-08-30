@@ -258,6 +258,8 @@ def audit_predictor_eligibility(
         return "POST_VERDICT_TEMPORAL_VIOLATION"
     if feature.verdict_coupling is None:
         return "UNDECLARED_VERDICT_COUPLING"
+    if feature.verdict_coupling not in ("defines", "correlates", "independent", "not_applicable"):
+        return "INVALID_VERDICT_COUPLING"
     if feature.verdict_coupling == "defines":
         return "REWARD_DEFINITION_LEAKAGE"
     if feature.verdict_coupling in ("defines", "correlates") and not (
@@ -1451,18 +1453,13 @@ register_trajectory_feature(
     category="benchmark_l2_metric",
     is_screening=False,
     source_table="benchmark_events",
-    formula_or_rule="(valid_handle_count + unknown_handle_count + duplicate_handle_count) / expected_handle_count",
+    formula_or_rule="issued_handle_count / expected_handle_count",
     null_condition="NULL when expected_handle_count == 0",
     description="Ratio of total issued retrieval handles to expected contract handles (measures over/under-issuance).",
     denominator_sibling="expected_handle_count",
     null_on_zero_denominator=True,
     denominator_policy="required",
-    declared_inputs=(
-        "valid_handle_count",
-        "unknown_handle_count",
-        "duplicate_handle_count",
-        "expected_handle_count",
-    ),
+    declared_inputs=("issued_handle_count", "expected_handle_count"),
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of total issued handles to expected contract handles correlates with retrieval efficiency and thrashing",

@@ -82,7 +82,6 @@ def _build_mock_bundle(
 
     bundle = load_trial_bundle(trial_dir)
     if raw_dir is not None:
-        # Override raw_dir for testing file-based ATIF discovery
         object.__setattr__(bundle, "raw_dir", raw_dir) if hasattr(bundle, "__dict__") else None
     return bundle
 
@@ -160,6 +159,149 @@ def test_action_memory_522_257_case(tmp_path: Path):
     assert feat.handle_issuance_ratio == pytest.approx(522 / 257)
     assert feat.handle_order_match is False
     assert feat.handle_set_match is False
+
+
+def test_action_memory_issuance_ratio_exact_issued_over_expected(tmp_path: Path):
+    """Verify handle_issuance_ratio is exactly issued_handle_count / expected_handle_count
+
+    even when there are failed valid calls and duplicate unknown calls.
+    """
+    expected_chunk_ids = ["chunk_0", "chunk_1"]
+    # 4 issued calls: chunk_0 (failed), chunk_unknown_1, chunk_unknown_1 (duplicate unknown), chunk_1
+    events: list[dict[str, Any]] = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c0",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_0"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_result",
+            "call_id": "c0",
+            "payload": {"result": {"is_error": True, "error": "not_found"}},
+        },
+        {
+            "event_index": 2,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_unknown_1"},
+        },
+        {
+            "event_index": 3,
+            "event_type": "mcp_call",
+            "call_id": "c2",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_unknown_1"},
+        },
+        {
+            "event_index": 4,
+            "event_type": "mcp_call",
+            "call_id": "c3",
+            "tool_name": "get_context_chunk",
+            "arguments": {"chunk_id": "chunk_1"},
+        },
+    ]
+    bundle = _build_mock_bundle(tmp_path, expected_chunk_ids=expected_chunk_ids, events=events)
+    feat = extract_action_memory_features(bundle)
+
+    assert feat.expected_handle_count == 2
+    assert feat.issued_handle_count == 4
+    # Ratio must be exactly 4 / 2 = 2.0 (issued_handle_count / expected_handle_count)
+    assert feat.handle_issuance_ratio == pytest.approx(2.0)
+    # Valid handle count is only successful valid read (chunk_1)
+    assert feat.valid_handle_count == 1
+    # Unknown handle count is 2 (both occurrences of chunk_unknown_1)
+    assert feat.unknown_handle_count == 2
+    # Duplicate handle count is 1 (chunk_unknown_1 repeated)
+    assert feat.duplicate_handle_count == 1
+
+
+def test_action_memory_atif_authority_fallback(tmp_path: Path):
+    """When benchmark events are absent and ATIF is authority, all handle metrics
+
+    must be recomputed from ATIF instead of leaving false zero coverage/order.
+    """
+    expected_chunk_ids = ["chunk_001", "chunk_002"]
+    events: list[dict[str, Any]] = [
+        {
+            "event_index": 0,
+            "event_type": "execute_mutation",
+            "payload": {
+                "entity_id": "entity_42",
+                "attribute": "routing_key",
+                "bound_value": "target_val",
+            },
+        }
+    ]
+    bundle = _build_mock_bundle(tmp_path, expected_chunk_ids=expected_chunk_ids, events=events)
+
+    atif_trajectory = {
+        "steps": [
+            {
+                "tool_calls": [
+                    {"name": "get_context_chunk", "arguments": {"chunk_id": "chunk_001"}},
+                    {"name": "get_context_chunk", "arguments": {"chunk_id": "chunk_002"}},
+                ]
+            }
+        ]
+    }
+    feat = extract_action_memory_features(bundle, atif_trajectory=atif_trajectory)
+
+    assert feat.retrieval_authority == "atif_trajectory"
+    assert feat.capture_concordance_status == "benchmark_events_unavailable"
+    assert feat.handle_order_concordance is None
+    assert feat.expected_handle_count == 2
+    assert feat.issued_handle_count == 2
+    assert feat.valid_handle_count == 2
+    assert feat.handle_coverage_rate == 1.0
+    assert feat.handle_order_match is True
+    assert feat.handle_set_match is True
+    assert feat.handle_issuance_ratio == 1.0
+
+
+def test_action_memory_e0b_range_batch_retrieval(tmp_path: Path):
+    """Test E0b get_context_chunks range and batch tool call expansion."""
+    expected_chunk_ids = ["chunk_000", "chunk_001", "chunk_002"]
+
+    # Benchmark events with get_context_chunks (batch list)
+    events: list[dict[str, Any]] = [
+        {
+            "event_index": 0,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "get_context_chunks",
+            "arguments": {"chunk_ids": ["chunk_000", "chunk_001", "chunk_002"]},
+        }
+    ]
+    bundle = _build_mock_bundle(tmp_path, expected_chunk_ids=expected_chunk_ids, events=events)
+
+    # ATIF trajectory with range retrieval {"range": {"start": 0, "end": 2}}
+    atif_trajectory = {
+        "steps": [
+            {
+                "tool_calls": [
+                    {
+                        "name": "get_context_chunks",
+                        "arguments": {"range": {"start": 0, "end": 2}},
+                    }
+                ]
+            }
+        ]
+    }
+    feat = extract_action_memory_features(bundle, atif_trajectory=atif_trajectory)
+
+    assert feat.handle_order_concordance is True
+    assert feat.capture_concordance_status == "concordant"
+    assert feat.retrieval_authority == "benchmark_events"
+    assert feat.issued_handle_count == 3
+    assert feat.valid_handle_count == 3
+    assert feat.handle_coverage_rate == 1.0
+    assert feat.handle_order_match is True
+    assert feat.handle_set_match is True
+    assert feat.handle_issuance_ratio == 1.0
 
 
 def test_action_memory_zero_denominator_preserves_null(tmp_path: Path):
@@ -432,6 +574,21 @@ def test_predictor_audit_refusal():
         audit_predictor_eligibility(feat_correlates, strict_independence=True)
         == "VERDICT_CORRELATED"
     )
+
+    # 9. Invalid / unrecognized verdict_coupling fails closed
+    feat_invalid_coupling = FeatureDefinition(
+        column_name="test_invalid_coupling",
+        data_type="BOOLEAN",
+        category="benchmark_l1_fact",
+        is_screening=False,
+        source_table="benchmark_events",
+        formula_or_rule="test",
+        null_condition="never",
+        description="test",
+        available_before_verdict=True,
+        verdict_coupling="unrecognized_value",  # type: ignore[arg-type]
+    )
+    assert audit_predictor_eligibility(feat_invalid_coupling) == "INVALID_VERDICT_COUPLING"
 
 
 def test_feature_definition_contract_validation():

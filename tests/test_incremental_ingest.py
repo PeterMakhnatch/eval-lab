@@ -8,7 +8,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.benchmark_program_contracts import canonical_json_digest
+from evallab.interpretation.trajectory_judgment import canonical_json_digest
 from evallab.storage.incremental_ingest import (
     DIGEST_INDEX_FILENAME,
     PERF_LEDGER_FILENAME,

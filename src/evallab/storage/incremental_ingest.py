@@ -24,9 +24,9 @@ from typing import Any, Literal
 
 import pyarrow as pa
 
-from evallab.benchmark_program_contracts import canonical_json_digest
 from evallab.evidence.atif import PARQUET_SCHEMAS, ExportedTable, project_trial
 from evallab.evidence.parquet_io import write_table_atomic
+from evallab.interpretation.trajectory_judgment import canonical_json_digest
 from evallab.results import JobRecord, load_job, sha256_file
 from evallab.schemas import ContractModel
 

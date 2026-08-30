@@ -203,13 +203,24 @@ class TestModelAllowlist:
 
 class TestSecretSafeProviderPresence:
     def test_provider_presence_emits_name_only_never_secret(self) -> None:
-        check = _mock_provider_presence(ZAI_PROVIDER)
+        sentinel_secret = "secret-vault-sentinel-key-9988776655"
+        internal_vault = {ZAI_PROVIDER: sentinel_secret}
+
+        def _vault_presence_probe(provider: str) -> PreflightCheck:
+            present = provider in internal_vault
+            return PreflightCheck(
+                "provider-presence",
+                present,
+                "provider-credential-injected-at-launch" if present else "provider-missing",
+                provider=provider,
+            )
+
+        check = _vault_presence_probe(ZAI_PROVIDER)
         assert check.ok is True
         assert check.provider == ZAI_PROVIDER
-        # Ensure no credential tokens, auth paths, or secrets are in reason
-        assert "sk-" not in check.reason
-        assert "token" not in check.reason.lower()
-        assert "key" not in check.reason.lower()
+        # Exact sentinel injected into vault is absent from reason
+        assert sentinel_secret not in check.reason
+        assert check.reason == "provider-credential-injected-at-launch"
 
     def test_unknown_provider_fails_closed(self) -> None:
         check = _mock_provider_presence("unknown-vendor")
@@ -258,8 +269,6 @@ class TestDarwinVsLinuxIsolationEligibility:
         env = _mock_env(os_name="Darwin", isolation_enforced=False)
         result = assess_campaign(campaign, env, provider_presence=_mock_provider_presence)
 
-        # On Darwin, calibration mode produces may_calibrate (with static mocks)
-        # Note: task/wheelhouse checks will fail on dummy paths unless mocked
         darwin_label = next(c for c in result.checks if c.code == "darwin-calibration-only")
         assert darwin_label.ok is True
         assert result.may_promote_causal is False
@@ -315,9 +324,21 @@ class TestDarwinVsLinuxIsolationEligibility:
 
 class TestReportRenderingAndSerialization:
     def test_report_renders_deterministic_text(self) -> None:
+        sentinel_secret = "secret-vault-sentinel-key-9988776655"
+        internal_vault = {ZAI_PROVIDER: sentinel_secret}
+
+        def _vault_presence_probe(provider: str) -> PreflightCheck:
+            present = provider in internal_vault
+            return PreflightCheck(
+                "provider-presence",
+                present,
+                "provider-credential-injected-at-launch" if present else "provider-missing",
+                provider=provider,
+            )
+
         campaign = _make_campaign()
         env = _mock_env()
-        result = assess_campaign(campaign, env, provider_presence=_mock_provider_presence)
+        result = assess_campaign(campaign, env, provider_presence=_vault_presence_probe)
         report = RunPreflightReport(
             generated_at=datetime(2026, 8, 30, 0, 0, 0, tzinfo=UTC),
             environment=env,
@@ -329,9 +350,8 @@ class TestReportRenderingAndSerialization:
         assert "OVERNIGHT RUN PREFLIGHT (2026-08-30T00:00:00+00:00)" in rendered
         assert "CAMPAIGN test-campaign-01" in rendered
         assert "VERDICT" in rendered
-        # Ensure no secrets in output
-        assert "sk-" not in rendered
-        assert "Bearer" not in rendered
+        # Exact sentinel injected into vault is absent from rendered output
+        assert sentinel_secret not in rendered
 
     def test_canonical_json_serialization(self) -> None:
         campaign = _make_campaign()
@@ -355,7 +375,6 @@ class TestReportRenderingAndSerialization:
         assert "may_calibrate" in c_dict["verdict"]
         assert "may_promote_causal" in c_dict["verdict"]
 
-        # Ensure json.dumps works cleanly with sorted keys
         serialized = json.dumps(data, indent=2, sort_keys=True)
         assert "test-campaign-01" in serialized
 

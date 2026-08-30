@@ -125,9 +125,7 @@ FLOATING_REF_TOKENS = frozenset({"latest", "head", "main", "master"})
 #: task lists, the pinned release identity, and the expected 66-task inventory.
 #: `plan` reads it so the expected inventory is authoritative even without a TB3
 #: checkout on disk.
-MIGRATION_RECORD = (
-    Path(__file__).resolve().parent / "data" / "terminal-bench-4-migration.json"
-)
+MIGRATION_RECORD = Path(__file__).resolve().parent / "data" / "terminal-bench-4-migration.json"
 
 #: Pinned TB4 resource contract: flat 8-hour agent timeout on all 66 tasks.
 TB4_TIMEOUT_SECONDS: int = 28_800
@@ -1229,9 +1227,7 @@ def resolve_tb4_ref(root: Path, ref: str | None = None) -> str:
     if not name:
         raise ValueError(f"not a Terminal-Bench checkout: {root} declares no dataset name")
     if name != TB4_DATASET_NAME:
-        raise ValueError(
-            f"wrong dataset: expected {TB4_DATASET_NAME!r}, got {name!r} at {root}"
-        )
+        raise ValueError(f"wrong dataset: expected {TB4_DATASET_NAME!r}, got {name!r} at {root}")
     effective = ref
     if effective is None and identity.get("version"):
         effective = f"{name}@{identity['version']}"
@@ -1355,7 +1351,7 @@ def deterministic_tb4_task_id(dataset_ref: str, task_ref: str) -> str:
     Guarantees stable, collision-free per-task identity across recompilations
     so partial runs can be resumed without re-keying jobs.
     """
-    digest = hashlib.sha256(f"{dataset_ref}\0{task_ref}".encode("utf-8")).digest()
+    digest = hashlib.sha256(f"{dataset_ref}\0{task_ref}".encode()).digest()
     millis = int.from_bytes(digest[:6], "big") & ((1 << 48) - 1)
     randomness = int.from_bytes(digest[6:16], "big") & ((1 << 80) - 1)
     return new_ulid(timestamp_ms=millis, randomness=randomness)
@@ -1709,6 +1705,7 @@ def distribution(records: Sequence[CraftRecord]) -> dict[str, dict[str, int]]:
     Mirrors what `sql/craft_views.sql` returns from Parquet; the CLI prints it
     so a scan is self-describing without a DuckDB round trip.
     """
+
     def tally(values: Iterable[Any]) -> dict[str, int]:
         counts: dict[str, int] = {}
         for value in values:
@@ -1773,9 +1770,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--library", action="store_true", help="scan in-repo library/")
     scan_parser.add_argument("--tb3-root", type=Path, default=None, help="override the TB3 root")
     scan_parser.add_argument("--tb4", action="store_true", help="scan the pinned TB4 corpus")
-    scan_parser.add_argument(
-        "--tb4-root", type=Path, default=None, help="override the TB4 root"
-    )
+    scan_parser.add_argument("--tb4-root", type=Path, default=None, help="override the TB4 root")
     scan_parser.add_argument(
         "--batch-size",
         type=int,
@@ -1809,9 +1804,7 @@ def build_parser() -> argparse.ArgumentParser:
         "compile",
         help="compile pinned TB4 v4.0.0 Harbor job plan with flat 8h timeout and drift guards",
     )
-    compile_parser.add_argument(
-        "--tb4-root", type=Path, default=None, help="override the TB4 root"
-    )
+    compile_parser.add_argument("--tb4-root", type=Path, default=None, help="override the TB4 root")
     compile_parser.add_argument(
         "--tb3-root",
         type=Path,

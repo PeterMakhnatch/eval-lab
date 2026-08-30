@@ -11,7 +11,7 @@ inputs:
   - path: src/evallab/agentabstain_gate.py
     digest: sha256:2233270ac0f1753a197158360e1d356c213d37a8290a92400d4cf6cfb89d324c
   - path: src/evallab/analysis_capability.py
-    digest: sha256:320fe44b175d700652b18639388c47d9cd227af23a483f73f0ed00a88e8a776f
+    digest: sha256:f62a6e51d10094eec725e9eae57026885ebbd7799dcbb8ba91119650df0cda93
   - path: src/evallab/analysis_statistics.py
     digest: sha256:7667177227de70d3c6fac3dce28503632cacf264cdece6289a762a7b9d888076
   - path: src/evallab/analysis_worker.py

@@ -1374,7 +1374,7 @@ def _paired_sign(
             spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
         )
 
-    pairs: dict[str, dict[str, list[bool | None]]] = {}
+    pairs: dict[str, dict[str, list[float]]] = {}
     for row in rows:
         if row.get("capture_complete") is not True:
             return _refusal_result(

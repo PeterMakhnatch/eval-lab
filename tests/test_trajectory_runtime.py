@@ -2282,7 +2282,9 @@ def test_phase_a_e0b_paired_batch_orchestration(
             reward = 1.0 if ctrl_success else 0.0
             for rep in (0, 1):
                 trial_name = f"phase_a_seed_{seed}_dose_{dose}_rep_{rep}"
-                trial_dir = _trial_tree(tmp_path, trial_name=trial_name, unpaired=False, reward=reward)
+                trial_dir = _trial_tree(
+                    tmp_path, trial_name=trial_name, unpaired=False, reward=reward
+                )
                 cas_uri = _archive_trial(trial_dir, store, trial_name)
 
                 item = CampaignAnalysisItem(

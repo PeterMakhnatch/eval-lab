@@ -2035,7 +2035,7 @@ def _build_next_run_feedback(
         if spec and spec.method == AnalysisMethod.PAIRED_SIGN:
             alpha = spec.alpha if spec.alpha > 0 else 0.05
             target_n = 1
-            while (2.0 / (2.0 ** target_n)) > alpha:
+            while (2.0 / (2.0**target_n)) > alpha:
                 target_n += 1
             if spec.minimum_informative_units is not None:
                 target_n = max(target_n, spec.minimum_informative_units)

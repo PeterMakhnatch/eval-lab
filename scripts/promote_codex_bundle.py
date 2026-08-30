@@ -646,6 +646,10 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             )
             continue
 
+        # Skip real directories before non-regular file inspection
+        if source.is_dir():
+            continue
+
         try:
             st = source.lstat()
         except OSError as exc:

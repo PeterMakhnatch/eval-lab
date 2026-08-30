@@ -1,0 +1,854 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fae74ef22ffe30IugCL65ouOYS",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 373 bytes, sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a>>",
+      "message_sha256": "sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a",
+      "message_chars": 373
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-30T07:21:12.997000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The user wants me to interact with an MCP server. Let me start by listing the available context chunks/handles using the memory MCP tools.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_519949aab87d4e78a7ca4eac",
+          "function_name": "memory_mcp_list_context_chunks",
+          "arguments": {}
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_519949aab87d4e78a7ca4eac",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_ids\":[\"ctx_58d80173f239065828c5cb8e\",\"ctx_efbcf13717f631120c01943d\",\"ctx_0f018982149ef92ed05c444a\",\"ctx_1ca517472d6c3cbbce93bf4e\",\"ctx_2624f04a666607bb0c9b0f3e\",\"ctx_af0d0e6b5ee1a9dfc700ca49\",\"ctx_bdc67b3b25f17780f31563f7\",\"ctx_1b6221d288a4fc7622767d21\",\"ctx_1eb25dbc3ae5903f67193dee\",\"ctx_ca0df706c781ecce8efdf061\",\"ctx_bf7d75f84afb966d0331737e\",\"ctx_7b5e50a079efdbdd3133b6e3\",\"ctx_28c77e69d4a257ef72c32fe8\",\"ctx_6fda44e85dc6172fe25341d2\",\"ctx_a0235a491969f82414aa55e4\",\"ctx_1e117f10c228bb1b919f9d2d\",\"ctx_2d2f39ab6b516e3a5405b5d4\",\"ctx_797c77e1920e302a64f0121d\",\"ctx_aa0d1a3452d931f759f15a7b\",\"ctx_8cba561595aba65d51316dd6\",\"ctx_b38fd499c61e54c87915b2f6\",\"ctx_4021d33c551eb2b509bc42da\",\"ctx_ec4a03574ce223dfd6d62a0f\",\"ctx_04b14d35ed62a415fe2148d0\",\"ctx_5f30fec537c11591658b5e89\",\"ctx_e528a6b2257eda4314a7cf57\",\"ctx_dd51637ae7b08f331b7e4444\",\"ctx_b2acfd5e4591fef5f3609cbe\",\"ctx_90a7e61b52419f57869f9d30\",\"ctx_d49c3c5d13a0f8f3d076d0ff\",\"ctx_b99fe213878c55205766ba56\",\"ctx_c5c25a65d32fc77ec1472eef\",\"ctx_4967646ad5a2cb96bf5a4a96\",\"ctx_2cdb8c9563a91cdb00995c92\",\"ctx_73ad211f0a44025a669a9db4\",\"ctx_fc701439517e15c76c84618a\",\"ctx_65361a156490e27367dcf204\",\"ctx_2254ef62bed35d7826e06297\",\"ctx_e254c08653b16560c4ffbc3d\",\"ctx_f981d1e8f56ffbb7773f64e1\",\"ctx_2b82938798aa0afb5fa0decc\",\"ctx_759bf212677b8f443d05cabe\",\"ctx_d26515b2636df3cf14dc44a7\",\"ctx_c2a6dbae943e06d7723442b2\",\"ctx_99253ea723ba6306b8bdc2f8\",\"ctx_4527694103209817c796a4ba\",\"ctx_e4cefd64cc5538f2c531cd3a\",\"ctx_66f9770f1667caf592384361\",\"ctx_d45df21cfa916aec97c9a3b4\",\"ctx_28f12fac50af21ee97af1ab3\",\"ctx_859c8f87582f73618eda5a6f\",\"ctx_11e9e56c0d0b6f19c2029180\",\"ctx_eb27b92b42afb495e2d4eafd\",\"ctx_aa6157359966f90963ec29d2\",\"ctx_dfed9ce2d2964fd2c44cb8d8\",\"ctx_fd5d5096ba056ca01105a091\",\"ctx_82c81c4a0a00f7d50a141154\",\"ctx_1e0dce140cd5a4283b589d54\",\"ctx_29424df597c6b2ec967ec706\",\"ctx_63cb017033c777b2b153d7e6\",\"ctx_9d218080f04004709dcc63ea\",\"ctx_41225b2b84ae6d86f5d89bd5\",\"ctx_a568300c75b637de8e0404ec\",\"ctx_a5bdba515dda3089a1154026\",\"ctx_7570f37da54aee5553d93d0e\"]}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7617,
+        "completion_tokens": 10,
+        "cached_tokens": 1280,
+        "extra": {
+          "reasoning_tokens": 28
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-30T07:21:20.652000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Now reading all 65 context records in parallel:",
+      "reasoning_content": "There are 65 context chunks. I need to read all of them. That's a lot of calls, but they're independent, so I can batch them. Let me read them in parallel batches. Let me do them all in one big batch of parallel calls... 65 calls might be a lot, but let's try batching in groups. Actually, let me batch them all in one message.\n\nLet me do batches of ~16 at a time to be safe. Actually, the instructions say to make all independent calls in the same block. Let me try all 65.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_ec7bd7a48ebe4c238134a162",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_58d80173f239065828c5cb8e"
+          }
+        },
+        {
+          "tool_call_id": "call_585ed9a3b8e240b5a11a27ad",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_efbcf13717f631120c01943d"
+          }
+        },
+        {
+          "tool_call_id": "call_303a09e793f841de830daa7c",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_0f018982149ef92ed05c444a"
+          }
+        },
+        {
+          "tool_call_id": "call_85f3f67f5bb0420090e93e91",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1ca517472d6c3cbbce93bf4e"
+          }
+        },
+        {
+          "tool_call_id": "call_0b21d3094ad240509b64feaf",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2624f04a666607bb0c9b0f3e"
+          }
+        },
+        {
+          "tool_call_id": "call_7448eb8a62724f3a9a4ca389",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_af0d0e6b5ee1a9dfc700ca49"
+          }
+        },
+        {
+          "tool_call_id": "call_237cb5483b094211834a2518",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_bdc67b3b25f17780f31563f7"
+          }
+        },
+        {
+          "tool_call_id": "call_a220dce168b341fa82dd0915",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1b6221d288a4fc7622767d21"
+          }
+        },
+        {
+          "tool_call_id": "call_15d209d7f65242cea9a674d8",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1eb25dbc3ae5903f67193dee"
+          }
+        },
+        {
+          "tool_call_id": "call_774f9dc442cb4a3e9021ef50",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_ca0df706c781ecce8efdf061"
+          }
+        },
+        {
+          "tool_call_id": "call_3af39aab04314e21bd0483f7",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_bf7d75f84afb966d0331737e"
+          }
+        },
+        {
+          "tool_call_id": "call_4905cb81c05e48cfbe501809",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_7b5e50a079efdbdd3133b6e3"
+          }
+        },
+        {
+          "tool_call_id": "call_1651d2dc5cf24a5cab45020a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_28c77e69d4a257ef72c32fe8"
+          }
+        },
+        {
+          "tool_call_id": "call_ee679d7f5782490f9b8a514d",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_6fda44e85dc6172fe25341d2"
+          }
+        },
+        {
+          "tool_call_id": "call_1f8d67cf1f37467dae7be911",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_a0235a491969f82414aa55e4"
+          }
+        },
+        {
+          "tool_call_id": "call_749326da54474f41b43a216b",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1e117f10c228bb1b919f9d2d"
+          }
+        },
+        {
+          "tool_call_id": "call_25f0bba7e31f452d8cbf4635",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2d2f39ab6b516e3a5405b5d4"
+          }
+        },
+        {
+          "tool_call_id": "call_dc878b414dbd4910bf4784d7",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_797c77e1920e302a64f0121d"
+          }
+        },
+        {
+          "tool_call_id": "call_d1bc866e9023420f898aebef",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_aa0d1a3452d931f759f15a7b"
+          }
+        },
+        {
+          "tool_call_id": "call_49496a5e40e84435af06e839",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_8cba561595aba65d51316dd6"
+          }
+        },
+        {
+          "tool_call_id": "call_205d0cb68dcf449d88140257",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b38fd499c61e54c87915b2f6"
+          }
+        },
+        {
+          "tool_call_id": "call_cff947f3a72c4e128c2c3bc7",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_4021d33c551eb2b509bc42da"
+          }
+        },
+        {
+          "tool_call_id": "call_768a5d6eb2ab485d863149c6",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_ec4a03574ce223dfd6d62a0f"
+          }
+        },
+        {
+          "tool_call_id": "call_83dbbbfb0e3e462bb430d097",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_04b14d35ed62a415fe2148d0"
+          }
+        },
+        {
+          "tool_call_id": "call_727b4119627c456d816f3740",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_5f30fec537c11591658b5e89"
+          }
+        },
+        {
+          "tool_call_id": "call_8b97104691b742aea318d559",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_e528a6b2257eda4314a7cf57"
+          }
+        },
+        {
+          "tool_call_id": "call_92607c04eb35463c90dd365a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_dd51637ae7b08f331b7e4444"
+          }
+        },
+        {
+          "tool_call_id": "call_2726897643204b799cf1a86c",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b2acfd5e4591fef5f3609cbe"
+          }
+        },
+        {
+          "tool_call_id": "call_c0e269ec897943a1821467d5",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_90a7e61b52419f57869f9d30"
+          }
+        },
+        {
+          "tool_call_id": "call_6d9d0b87342f4b8e8c3ce2e6",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d49c3c5d13a0f8f3d076d0ff"
+          }
+        },
+        {
+          "tool_call_id": "call_4729be60fffd484095c608d0",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b99fe213878c55205766ba56"
+          }
+        },
+        {
+          "tool_call_id": "call_270052a749f44e48ae56355c",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c5c25a65d32fc77ec1472eef"
+          }
+        },
+        {
+          "tool_call_id": "call_996f95ee3c1e49bea28e0913",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_4967646ad5a2cb96bf5a4a96"
+          }
+        },
+        {
+          "tool_call_id": "call_9f573caabb3d4aca9b4b9265",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2cdb8c9563a91cdb00995c92"
+          }
+        },
+        {
+          "tool_call_id": "call_e6fd64cd033b45708113c20c",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_73ad211f0a44025a669a9db4"
+          }
+        },
+        {
+          "tool_call_id": "call_238f6329453d44eab62f49fd",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_fc701439517e15c76c84618a"
+          }
+        },
+        {
+          "tool_call_id": "call_bc315488ac3949378d6c963e",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_65361a156490e27367dcf204"
+          }
+        },
+        {
+          "tool_call_id": "call_778d838e694148ea8bc32417",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2254ef62bed35d7826e06297"
+          }
+        },
+        {
+          "tool_call_id": "call_a5ae20fd90494143b7e7a659",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_e254c08653b16560c4ffbc3d"
+          }
+        },
+        {
+          "tool_call_id": "call_d9ba36273fae4ad49725b316",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_f981d1e8f56ffbb7773f64e1"
+          }
+        },
+        {
+          "tool_call_id": "call_74f53da2c7a44bedaf139c97",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_2b82938798aa0afb5fa0decc"
+          }
+        },
+        {
+          "tool_call_id": "call_1d85d46250b1436cb2ef039f",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_759bf212677b8f443d05cabe"
+          }
+        },
+        {
+          "tool_call_id": "call_29ab5d9db8c541578dc6759a",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d26515b2636df3cf14dc44a7"
+          }
+        },
+        {
+          "tool_call_id": "call_5cae736eab984afbaf5b6d4e",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c2a6dbae943e06d7723442b2"
+          }
+        },
+        {
+          "tool_call_id": "call_46a2e638a3e04959b67a0dee",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_99253ea723ba6306b8bdc2f8"
+          }
+        },
+        {
+          "tool_call_id": "call_b7f2933f7f064f3ab544e3fa",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_4527694103209817c796a4ba"
+          }
+        },
+        {
+          "tool_call_id": "call_cbcb0085462b46208e440605",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_e4cefd64cc5538f2c531cd3a"
+          }
+        },
+        {
+          "tool_call_id": "call_8a0263c6b843496f9631be29",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_66f9770f1667caf592384361"
+          }
+        },
+        {
+          "tool_call_id": "call_025bc283fdf34afeaee3bf04",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d45df21cfa916aec97c9a3b4"
+          }
+        },
+        {
+          "tool_call_id": "call_d0486eaecbea481787803102",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_28f12fac50af21ee97af1ab3"
+          }
+        },
+        {
+          "tool_call_id": "call_1b3fd588de06497ab4f4cccc",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_859c8f87582f73618eda5a6f"
+          }
+        },
+        {
+          "tool_call_id": "call_8ea396a5cfa84d9e84c7749c",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_11e9e56c0d0b6f19c2029180"
+          }
+        },
+        {
+          "tool_call_id": "call_1f3b394c2adc44feb225ce54",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_eb27b92b42afb495e2d4eafd"
+          }
+        },
+        {
+          "tool_call_id": "call_c9f1c7fad6234b9cbe5f9426",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_aa6157359966f90963ec29d2"
+          }
+        },
+        {
+          "tool_call_id": "call_fadd1ced3cc54f479d12911e",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_dfed9ce2d2964fd2c44cb8d8"
+          }
+        },
+        {
+          "tool_call_id": "call_c0b8eda8d7a944b48010d149",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_fd5d5096ba056ca01105a091"
+          }
+        },
+        {
+          "tool_call_id": "call_9a8d863f3fb843d69652013b",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_82c81c4a0a00f7d50a141154"
+          }
+        },
+        {
+          "tool_call_id": "call_7d9c0bbd9ef7439b8667eae9",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_1e0dce140cd5a4283b589d54"
+          }
+        },
+        {
+          "tool_call_id": "call_a2b5856bc56443ff98039bfb",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_29424df597c6b2ec967ec706"
+          }
+        },
+        {
+          "tool_call_id": "call_29d74fad6cba42f284ce5a63",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_63cb017033c777b2b153d7e6"
+          }
+        },
+        {
+          "tool_call_id": "call_b07e169d5ecd4e2393d79028",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_9d218080f04004709dcc63ea"
+          }
+        },
+        {
+          "tool_call_id": "call_3e260bd54b834f19af88f4a0",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_41225b2b84ae6d86f5d89bd5"
+          }
+        },
+        {
+          "tool_call_id": "call_d9ea705f67a147a580915f26",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_a568300c75b637de8e0404ec"
+          }
+        },
+        {
+          "tool_call_id": "call_21dbb28531084fa5af879893",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_a5bdba515dda3089a1154026"
+          }
+        },
+        {
+          "tool_call_id": "call_cd36a94115bc40eaa680a69b",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_7570f37da54aee5553d93d0e"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_ec7bd7a48ebe4c238134a162",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_58d80173f239065828c5cb8e\",\"content\":\"[SYSTEM LOG 001]: Initializing configuration record for entity_295.\\nEntity attribute routing_key is permanently bound to '68f297ac_v1'.\\nAll subsequent telemetry routing must reference this active token unless explicitly updated.\\n\"}}"
+          },
+          {
+            "source_call_id": "call_585ed9a3b8e240b5a11a27ad",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_efbcf13717f631120c01943d\",\"content\":\"[CRITICAL STATE INVERSION 091]: Configuration OVERRIDE event for entity_295.\\nSuperceding prior assignments, attribute routing_key is now mutated to '68f297ac_v2'.\\nMandatory action execution REQUIREMENT: Final mutation must supply latest bound token '68f297ac_v2'.\\n\"}}"
+          },
+          {
+            "source_call_id": "call_303a09e793f841de830daa7c",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_0f018982149ef92ed05c444a\",\"content\":\"[DIAGNOSTIC NOISE 0000] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_85f3f67f5bb0420090e93e91",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1ca517472d6c3cbbce93bf4e\",\"content\":\"[DIAGNOSTIC NOISE 0001] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_0b21d3094ad240509b64feaf",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2624f04a666607bb0c9b0f3e\",\"content\":\"[DIAGNOSTIC NOISE 0002] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_7448eb8a62724f3a9a4ca389",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_af0d0e6b5ee1a9dfc700ca49\",\"content\":\"[DIAGNOSTIC NOISE 0003] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_237cb5483b094211834a2518",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_bdc67b3b25f17780f31563f7\",\"content\":\"[DIAGNOSTIC NOISE 0004] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_a220dce168b341fa82dd0915",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1b6221d288a4fc7622767d21\",\"content\":\"[DIAGNOSTIC NOISE 0005] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_15d209d7f65242cea9a674d8",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1eb25dbc3ae5903f67193dee\",\"content\":\"[DIAGNOSTIC NOISE 0006] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_774f9dc442cb4a3e9021ef50",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_ca0df706c781ecce8efdf061\",\"content\":\"[DIAGNOSTIC NOISE 0007] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_3af39aab04314e21bd0483f7",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_bf7d75f84afb966d0331737e\",\"content\":\"[DIAGNOSTIC NOISE 0008] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_4905cb81c05e48cfbe501809",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_7b5e50a079efdbdd3133b6e3\",\"content\":\"[DIAGNOSTIC NOISE 0009] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_1651d2dc5cf24a5cab45020a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_28c77e69d4a257ef72c32fe8\",\"content\":\"[DIAGNOSTIC NOISE 0010] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_ee679d7f5782490f9b8a514d",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_6fda44e85dc6172fe25341d2\",\"content\":\"[DIAGNOSTIC NOISE 0011] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_1f8d67cf1f37467dae7be911",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_a0235a491969f82414aa55e4\",\"content\":\"[DIAGNOSTIC NOISE 0012] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_749326da54474f41b43a216b",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1e117f10c228bb1b919f9d2d\",\"content\":\"[DIAGNOSTIC NOISE 0013] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_25f0bba7e31f452d8cbf4635",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2d2f39ab6b516e3a5405b5d4\",\"content\":\"[DIAGNOSTIC NOISE 0014] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_dc878b414dbd4910bf4784d7",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_797c77e1920e302a64f0121d\",\"content\":\"[DIAGNOSTIC NOISE 0015] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_d1bc866e9023420f898aebef",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_aa0d1a3452d931f759f15a7b\",\"content\":\"[DIAGNOSTIC NOISE 0016] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_49496a5e40e84435af06e839",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_8cba561595aba65d51316dd6\",\"content\":\"[DIAGNOSTIC NOISE 0017] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_205d0cb68dcf449d88140257",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b38fd499c61e54c87915b2f6\",\"content\":\"[DIAGNOSTIC NOISE 0018] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_cff947f3a72c4e128c2c3bc7",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_4021d33c551eb2b509bc42da\",\"content\":\"[DIAGNOSTIC NOISE 0019] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_768a5d6eb2ab485d863149c6",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_ec4a03574ce223dfd6d62a0f\",\"content\":\"[DIAGNOSTIC NOISE 0020] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_83dbbbfb0e3e462bb430d097",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_04b14d35ed62a415fe2148d0\",\"content\":\"[DIAGNOSTIC NOISE 0021] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_727b4119627c456d816f3740",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_5f30fec537c11591658b5e89\",\"content\":\"[DIAGNOSTIC NOISE 0022] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_8b97104691b742aea318d559",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_e528a6b2257eda4314a7cf57\",\"content\":\"[DIAGNOSTIC NOISE 0023] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_92607c04eb35463c90dd365a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_dd51637ae7b08f331b7e4444\",\"content\":\"[DIAGNOSTIC NOISE 0024] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_2726897643204b799cf1a86c",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b2acfd5e4591fef5f3609cbe\",\"content\":\"[DIAGNOSTIC NOISE 0025] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_c0e269ec897943a1821467d5",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_90a7e61b52419f57869f9d30\",\"content\":\"[DIAGNOSTIC NOISE 0026] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_6d9d0b87342f4b8e8c3ce2e6",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d49c3c5d13a0f8f3d076d0ff\",\"content\":\"[DIAGNOSTIC NOISE 0027] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_4729be60fffd484095c608d0",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b99fe213878c55205766ba56\",\"content\":\"[DIAGNOSTIC NOISE 0028] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_270052a749f44e48ae56355c",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c5c25a65d32fc77ec1472eef\",\"content\":\"[DIAGNOSTIC NOISE 0029] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_996f95ee3c1e49bea28e0913",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_4967646ad5a2cb96bf5a4a96\",\"content\":\"[DIAGNOSTIC NOISE 0030] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_9f573caabb3d4aca9b4b9265",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2cdb8c9563a91cdb00995c92\",\"content\":\"[DIAGNOSTIC NOISE 0031] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_e6fd64cd033b45708113c20c",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_73ad211f0a44025a669a9db4\",\"content\":\"[DIAGNOSTIC NOISE 0032] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_238f6329453d44eab62f49fd",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_fc701439517e15c76c84618a\",\"content\":\"[DIAGNOSTIC NOISE 0033] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_bc315488ac3949378d6c963e",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_65361a156490e27367dcf204\",\"content\":\"[DIAGNOSTIC NOISE 0034] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_778d838e694148ea8bc32417",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2254ef62bed35d7826e06297\",\"content\":\"[DIAGNOSTIC NOISE 0035] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_a5ae20fd90494143b7e7a659",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_e254c08653b16560c4ffbc3d\",\"content\":\"[DIAGNOSTIC NOISE 0036] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_d9ba36273fae4ad49725b316",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_f981d1e8f56ffbb7773f64e1\",\"content\":\"[DIAGNOSTIC NOISE 0037] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_74f53da2c7a44bedaf139c97",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_2b82938798aa0afb5fa0decc\",\"content\":\"[DIAGNOSTIC NOISE 0038] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_1d85d46250b1436cb2ef039f",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_759bf212677b8f443d05cabe\",\"content\":\"[DIAGNOSTIC NOISE 0039] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_29ab5d9db8c541578dc6759a",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d26515b2636df3cf14dc44a7\",\"content\":\"[DIAGNOSTIC NOISE 0040] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_5cae736eab984afbaf5b6d4e",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c2a6dbae943e06d7723442b2\",\"content\":\"[DIAGNOSTIC NOISE 0041] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_46a2e638a3e04959b67a0dee",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_99253ea723ba6306b8bdc2f8\",\"content\":\"[DIAGNOSTIC NOISE 0042] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_b7f2933f7f064f3ab544e3fa",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_4527694103209817c796a4ba\",\"content\":\"[DIAGNOSTIC NOISE 0043] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_cbcb0085462b46208e440605",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_e4cefd64cc5538f2c531cd3a\",\"content\":\"[DIAGNOSTIC NOISE 0044] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_8a0263c6b843496f9631be29",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_66f9770f1667caf592384361\",\"content\":\"[DIAGNOSTIC NOISE 0045] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_025bc283fdf34afeaee3bf04",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d45df21cfa916aec97c9a3b4\",\"content\":\"[DIAGNOSTIC NOISE 0046] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_d0486eaecbea481787803102",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_28f12fac50af21ee97af1ab3\",\"content\":\"[DIAGNOSTIC NOISE 0047] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_1b3fd588de06497ab4f4cccc",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_859c8f87582f73618eda5a6f\",\"content\":\"[DIAGNOSTIC NOISE 0048] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_8ea396a5cfa84d9e84c7749c",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_11e9e56c0d0b6f19c2029180\",\"content\":\"[DIAGNOSTIC NOISE 0049] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_1f3b394c2adc44feb225ce54",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_eb27b92b42afb495e2d4eafd\",\"content\":\"[DIAGNOSTIC NOISE 0050] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_c9f1c7fad6234b9cbe5f9426",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_aa6157359966f90963ec29d2\",\"content\":\"[DIAGNOSTIC NOISE 0051] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_fadd1ced3cc54f479d12911e",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_dfed9ce2d2964fd2c44cb8d8\",\"content\":\"[DIAGNOSTIC NOISE 0052] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_c0b8eda8d7a944b48010d149",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_fd5d5096ba056ca01105a091\",\"content\":\"[DIAGNOSTIC NOISE 0053] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_9a8d863f3fb843d69652013b",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_82c81c4a0a00f7d50a141154\",\"content\":\"[DIAGNOSTIC NOISE 0054] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_7d9c0bbd9ef7439b8667eae9",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_1e0dce140cd5a4283b589d54\",\"content\":\"[DIAGNOSTIC NOISE 0055] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_a2b5856bc56443ff98039bfb",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_29424df597c6b2ec967ec706\",\"content\":\"[DIAGNOSTIC NOISE 0056] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_29d74fad6cba42f284ce5a63",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_63cb017033c777b2b153d7e6\",\"content\":\"[DIAGNOSTIC NOISE 0057] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_b07e169d5ecd4e2393d79028",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_9d218080f04004709dcc63ea\",\"content\":\"[DIAGNOSTIC NOISE 0058] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_3e260bd54b834f19af88f4a0",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_41225b2b84ae6d86f5d89bd5\",\"content\":\"[DIAGNOSTIC NOISE 0059] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_d9ea705f67a147a580915f26",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_a568300c75b637de8e0404ec\",\"content\":\"[DIAGNOSTIC NOISE 0060] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_21dbb28531084fa5af879893",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_a5bdba515dda3089a1154026\",\"content\":\"[DIAGNOSTIC NOISE 0061] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_cd36a94115bc40eaa680a69b",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_7570f37da54aee5553d93d0e\",\"content\":\"[DIAGNOSTIC NOISE 0\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8890,
+        "completion_tokens": 2077,
+        "cached_tokens": 2304,
+        "extra": {
+          "reasoning_tokens": 117
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-30T07:21:50.534000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "I've read all 65 records. Two contain meaningful state; the rest are diagnostic noise:\n- **ctx_58d80173...**: entity_295's `routing_key` initially bound to `68f297ac_v1`\n- **ctx_efbcf137...**: CRITICAL OVERRIDE — `routing_key` mutated to `68f297ac_v2` (latest bound token)\n\nExecuting the mutation with the derived state:",
+      "reasoning_content": "I've read all 65 context chunks. The meaningful ones are:\n\n1. `ctx_58d80173f239065828c5cb8e`: [SYSTEM LOG 001]: entity_295, attribute routing_key bound to '68f297ac_v1'.\n2. `ctx_efbcf13717f631120c01943d`: [CRITICAL STATE INVERSION 091]: entity_295, attribute routing_key now mutated to '68f297ac_v2'. Final mutation must supply latest bound token '68f297ac_v2'.\n\nAll the rest are diagnostic noise.\n\nSo the derived mutation:\n- entity_id: entity_295\n- attribute: routing_key\n- bound_value: 68f297ac_v2 (the latest value, since the override event supercedes the prior assignment)\n\nLet me execute the mutation.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_570d1b62bd3743cbbb522354",
+          "function_name": "memory_mcp_execute_mutation",
+          "arguments": {
+            "entity_id": "entity_295",
+            "attribute": "routing_key",
+            "bound_value": "68f297ac_v2"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_570d1b62bd3743cbbb522354",
+            "content": "{\"status\":\"ok\",\"value\":{\"status\":\"executed\",\"target_entity\":\"entity_295\",\"target_attribute\":\"routing_key\",\"bound_value\":\"68f297ac_v2\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 14495,
+        "completion_tokens": 132,
+        "cached_tokens": 8832,
+        "extra": {
+          "reasoning_tokens": 187
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-30T07:22:00.649000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Mutation executed successfully:\n- **entity_id**: `entity_295`\n- **attribute**: `routing_key`\n- **bound_value**: `68f297ac_v2` (derived from the CRITICAL STATE INVERSION record, which superseded the initial `v1` binding)",
+      "reasoning_content": "The mutation was executed successfully. Let me summarize.",
+      "metrics": {
+        "prompt_tokens": 14855,
+        "completion_tokens": 61,
+        "cached_tokens": 14464,
+        "extra": {
+          "reasoning_tokens": 10
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 45857,
+    "total_completion_tokens": 2280,
+    "total_cached_tokens": 26880,
+    "total_steps": 5
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

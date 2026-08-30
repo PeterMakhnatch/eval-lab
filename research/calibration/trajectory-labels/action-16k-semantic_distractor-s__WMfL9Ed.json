@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "trial_name": "action-16k-semantic_distractor-s__WMfL9Ed",
+  "source": "research/evidence/runs/zai-overnight-action-phase-a-v2-20260830/action-16k-semantic_distractor-s__WMfL9Ed",
+  "primary_category": "context_management",
+  "summary": "The agent produced a complete-but-reordered retrieval failure: expected 65 ordered reads, issued 65, covered 65 unique expected handles, with 0 duplicates and 0 not-found reads.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 6,
+      "supports": "The ATIF trajectory records the agent execution associated with the retrieval failure; benchmark events provide the exact read sequence."
+    },
+    {
+      "path": "artifacts/app/output/benchmark-events.jsonl",
+      "step": null,
+      "supports": "Benchmark events record the issued handle sequence, coverage, duplicates, and application-level not-found results."
+    },
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The verifier records reward 0.0 and incomplete_or_reordered_context_retrieval."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Provisional deterministic taxonomy triage from verifier and benchmark-event evidence; not a human gold label.",
+  "labelled_by": "Main, 2026-08-30, deterministic post-run taxonomy triage for PR #324",
+  "parent_trajectory_sha256": "sha256:7c6671ffbf178129d38ee911439ae654a21e97b502bee56d78d08cf55e9d3b95"
+}

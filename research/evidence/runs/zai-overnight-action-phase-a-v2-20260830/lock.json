@@ -1,0 +1,1648 @@
+{
+    "schema_version": 3,
+    "created_at": "2026-08-30T07:19:55.032838Z",
+    "harbor": {
+        "version": "0.21.0",
+        "is_editable": false
+    },
+    "n_concurrent_trials": 3,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "VerifierOutputParseError",
+            "AgentSafetyRefusalError",
+            "RewardFileNotFoundError",
+            "RewardFileEmptyError",
+            "VerifierTimeoutError",
+            "ModelNotFoundError",
+            "AgentTimeoutError",
+            "AgentAuthenticationError",
+            "ApiUsageLimitError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-neutral_padding-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9475659c5884d078c1f00d649a573bffa4fadd2b973978b53aedaddad9cd1bc5",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-neutral_padding-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-neutral_padding-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9378182e6e8d9e2d77cd1293c74679b0be185f855d3d6e02f60d662b7bc94a3d",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-neutral_padding-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-neutral_padding-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:70f3ed1f5202724b589f31cd7f193cde99fad8e3e6cce1a8e9535b6a7f8bca89",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-neutral_padding-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-semantic_distractor-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:0bea393b237774ad0a9f12cdfb0837ae35081cbe3821790c93477ce6c2ffae6f",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-semantic_distractor-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-semantic_distractor-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:48f12e08a7b55c20b6875cdf88e2581e1173de98e1a5b7b21571c3b87dcce26d",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-semantic_distractor-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-semantic_distractor-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:4deac9fcaa84274191b6e41c944c5017f2ffffc125d715a3c28fb3cd5e8cd200",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-semantic_distractor-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-neutral_padding-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:cd7ae80345305d4e5593a8de37e2d62294458c8247b809c691b78fcca3341253",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-neutral_padding-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-neutral_padding-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:03d4f85525a9a693841510496483b8682fb6b78d81fb9e06231b8f07a233b801",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-neutral_padding-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-neutral_padding-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:d5b1fe4f803126897c5b84942089896990a3605590494103edb4e2a45953ec61",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-neutral_padding-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-semantic_distractor-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:52f5d8daa9670402b58c4add381fc822064ee3b276a5972d6a2d25c299f6ffe8",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-semantic_distractor-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-semantic_distractor-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:b6b5cd039c15b71ea17e739794241bada51ccccc779a212fdfb1522cdab7424b",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-semantic_distractor-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-semantic_distractor-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:11dc2d10ae9788073465366f7c0a91c5e27300c897941e6788501511e52cb933",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-semantic_distractor-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-neutral_padding-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:ea0df9fd45804932b08083202eef5606ad8b7bd86dcf5fc8c2159afac1581cfb",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-neutral_padding-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-neutral_padding-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:a371abd232a11ea8ada2c9406bc2a3a2e4123a9e0a68f1151c873379fd047a4e",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-neutral_padding-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-neutral_padding-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9ac804e5beac1a51d724cb7610b0ae61de902d95d22cd31333d989de589f629b",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-neutral_padding-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-semantic_distractor-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:ed5ee146b141d4337dfef8515c8d1e1e748e54f1819f6564faba01d353ac4b90",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-semantic_distractor-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-semantic_distractor-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9a158b682aa750a24a8df500610e92b8e2eaa0b8a26b30487bf1b81034e21b29",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-semantic_distractor-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-semantic_distractor-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:6115411f6c4cf22a82f3adeda3f406ab671395dd70d153d354005982fede82dc",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-semantic_distractor-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-neutral_padding-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9475659c5884d078c1f00d649a573bffa4fadd2b973978b53aedaddad9cd1bc5",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-neutral_padding-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-neutral_padding-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9378182e6e8d9e2d77cd1293c74679b0be185f855d3d6e02f60d662b7bc94a3d",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-neutral_padding-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-neutral_padding-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:70f3ed1f5202724b589f31cd7f193cde99fad8e3e6cce1a8e9535b6a7f8bca89",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-neutral_padding-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-semantic_distractor-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:0bea393b237774ad0a9f12cdfb0837ae35081cbe3821790c93477ce6c2ffae6f",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-semantic_distractor-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-semantic_distractor-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:48f12e08a7b55c20b6875cdf88e2581e1173de98e1a5b7b21571c3b87dcce26d",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-semantic_distractor-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-16k-semantic_distractor-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:4deac9fcaa84274191b6e41c944c5017f2ffffc125d715a3c28fb3cd5e8cd200",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-16k-semantic_distractor-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-neutral_padding-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:cd7ae80345305d4e5593a8de37e2d62294458c8247b809c691b78fcca3341253",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-neutral_padding-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-neutral_padding-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:03d4f85525a9a693841510496483b8682fb6b78d81fb9e06231b8f07a233b801",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-neutral_padding-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-neutral_padding-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:d5b1fe4f803126897c5b84942089896990a3605590494103edb4e2a45953ec61",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-neutral_padding-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-semantic_distractor-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:52f5d8daa9670402b58c4add381fc822064ee3b276a5972d6a2d25c299f6ffe8",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-semantic_distractor-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-semantic_distractor-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:b6b5cd039c15b71ea17e739794241bada51ccccc779a212fdfb1522cdab7424b",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-semantic_distractor-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-4k-semantic_distractor-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:11dc2d10ae9788073465366f7c0a91c5e27300c897941e6788501511e52cb933",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-4k-semantic_distractor-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-neutral_padding-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:ea0df9fd45804932b08083202eef5606ad8b7bd86dcf5fc8c2159afac1581cfb",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-neutral_padding-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-neutral_padding-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:a371abd232a11ea8ada2c9406bc2a3a2e4123a9e0a68f1151c873379fd047a4e",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-neutral_padding-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-neutral_padding-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9ac804e5beac1a51d724cb7610b0ae61de902d95d22cd31333d989de589f629b",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-neutral_padding-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-semantic_distractor-s1337",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:ed5ee146b141d4337dfef8515c8d1e1e748e54f1819f6564faba01d353ac4b90",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-semantic_distractor-s1337"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-semantic_distractor-s2026",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:9a158b682aa750a24a8df500610e92b8e2eaa0b8a26b30487bf1b81034e21b29",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-semantic_distractor-s2026"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        },
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "action-64k-semantic_distractor-s42",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:6115411f6c4cf22a82f3adeda3f406ab671395dd70d153d354005982fede82dc",
+                "path": "/tmp/evallab-zai-overnight-tasks/action-64k-semantic_distractor-s42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 3,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/evallab-zai-opencode-auth-overnight.json",
+                        "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                        "read_only": true
+                    }
+                ],
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        }
+    ]
+}

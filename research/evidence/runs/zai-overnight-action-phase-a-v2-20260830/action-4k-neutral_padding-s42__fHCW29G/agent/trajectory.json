@@ -1,0 +1,326 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fae5f98afffeptokeFmxCM6Fzj",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 373 bytes, sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a>>",
+      "message_sha256": "sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a",
+      "message_chars": 373
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-30T07:44:28.864000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The user wants me to interact with a stateful MCP server at `http://mcp-service:8080/mcp`. The available tools I have include `memory_mcp_list_context_chunks`, `memory_mcp_get_context_chunk`, and `memory_mcp_execute_mutation`. Let me start by listing the available context handles.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_f14f3277d76d4ab1b146040d",
+          "function_name": "memory_mcp_list_context_chunks",
+          "arguments": {}
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_f14f3277d76d4ab1b146040d",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_ids\":[\"ctx_ee414b3827f477bdeae2f478\",\"ctx_4aef24e0c160ce0fd38c2049\",\"ctx_b457ebc89221ebc9f167bdcb\",\"ctx_e85adc90a3b5029f3465e7d7\",\"ctx_9a8251fa9c3e6568b9cfc289\",\"ctx_3ee100347ebef1f742a8bb0d\",\"ctx_c1e8563712fa36adc7351183\",\"ctx_ccfbe2aeffc5c74e9c14960a\",\"ctx_c0274e6ed2ce463ed17af342\",\"ctx_580ce9c54acdeb42af024d2f\",\"ctx_52e93b37848ce2b4ba7f1423\",\"ctx_f43e01e01f14b8ad5d1bf89e\",\"ctx_13a451e629e5a998db683e77\",\"ctx_d767453ba7cb0ec05d82a4fc\",\"ctx_a608f751873fd012c9a640f1\",\"ctx_a464c66b7902a27a53835a20\",\"ctx_112777d837d0813cbceabb19\"]}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7617,
+        "completion_tokens": 10,
+        "cached_tokens": 2304,
+        "extra": {
+          "reasoning_tokens": 67
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-30T07:44:36.434000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "17 handles found. Reading all context records now:",
+      "reasoning_content": "17 context handles. Now I need to read every one of them. Let me batch the reads in parallel.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_3ddfcbeb12e2407a99fc3045",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_ee414b3827f477bdeae2f478"
+          }
+        },
+        {
+          "tool_call_id": "call_de100eefb3e24258a4f86a43",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_b457ebc89221ebc9f167bdcb"
+          }
+        },
+        {
+          "tool_call_id": "call_d85f4b8e2e2c41479afc00e5",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_580ce9c54acdeb42af024d2f"
+          }
+        },
+        {
+          "tool_call_id": "call_ead148f0ceb84f4589e73fdd",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_e85adc90a3b5029f3465e7d7"
+          }
+        },
+        {
+          "tool_call_id": "call_7c4a6850d65f4e149b28de51",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c1e8563712fa36adc7351183"
+          }
+        },
+        {
+          "tool_call_id": "call_84404b42a4184f19affc5927",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_52e93b37848ce2b4ba7f1423"
+          }
+        },
+        {
+          "tool_call_id": "call_ede2e66981c84b9084c209c1",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_c0274e6ed2ce463ed17af342"
+          }
+        },
+        {
+          "tool_call_id": "call_def8358a84264e5da21a6b74",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_9a8251fa9c3e6568b9cfc289"
+          }
+        },
+        {
+          "tool_call_id": "call_1a0f43bed75942d2973bf658",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_f43e01e01f14b8ad5d1bf89e"
+          }
+        },
+        {
+          "tool_call_id": "call_0600afb3c5084a14ad2d25b8",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_4aef24e0c160ce0fd38c2049"
+          }
+        },
+        {
+          "tool_call_id": "call_76ddecce26e0425bb8307015",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_13a451e629e5a998db683e77"
+          }
+        },
+        {
+          "tool_call_id": "call_fd51b817822f495b8f2c13d8",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_d767453ba7cb0ec05d82a4fc"
+          }
+        },
+        {
+          "tool_call_id": "call_c0513da8c19e4f54acf084eb",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_a608f751873fd012c9a640f1"
+          }
+        },
+        {
+          "tool_call_id": "call_3bfecb139c5e4e0f906b45e1",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_a464c66b7902a27a53835a20"
+          }
+        },
+        {
+          "tool_call_id": "call_9255d408393b4f3cab503d37",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_112777d837d0813cbceabb19"
+          }
+        },
+        {
+          "tool_call_id": "call_cf3f052a664e4c49950fbbc6",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_ccfbe2aeffc5c74e9c14960a"
+          }
+        },
+        {
+          "tool_call_id": "call_e1b5326d431041b7864b8fa1",
+          "function_name": "memory_mcp_get_context_chunk",
+          "arguments": {
+            "chunk_id": "ctx_3ee100347ebef1f742a8bb0d"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_3ddfcbeb12e2407a99fc3045",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_ee414b3827f477bdeae2f478\",\"content\":\"[SYSTEM LOG 001]: Initializing configuration record for entity_852.\\nEntity attribute routing_key is permanently bound to 'f200cf8e_v1'.\\nAll subsequent telemetry routing must reference this active token unless explicitly updated.\\n\"}}"
+          },
+          {
+            "source_call_id": "call_de100eefb3e24258a4f86a43",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_b457ebc89221ebc9f167bdcb\",\"content\":\"[DIAGNOSTIC NOISE 0000] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_d85f4b8e2e2c41479afc00e5",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_580ce9c54acdeb42af024d2f\",\"content\":\"[DIAGNOSTIC NOISE 0007] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_ead148f0ceb84f4589e73fdd",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_e85adc90a3b5029f3465e7d7\",\"content\":\"[DIAGNOSTIC NOISE 0001] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_7c4a6850d65f4e149b28de51",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c1e8563712fa36adc7351183\",\"content\":\"[DIAGNOSTIC NOISE 0004] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_84404b42a4184f19affc5927",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_52e93b37848ce2b4ba7f1423\",\"content\":\"[DIAGNOSTIC NOISE 0008] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_ede2e66981c84b9084c209c1",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_c0274e6ed2ce463ed17af342\",\"content\":\"[DIAGNOSTIC NOISE 0006] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_def8358a84264e5da21a6b74",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_9a8251fa9c3e6568b9cfc289\",\"content\":\"[DIAGNOSTIC NOISE 0002] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_1a0f43bed75942d2973bf658",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_f43e01e01f14b8ad5d1bf89e\",\"content\":\"[DIAGNOSTIC NOISE 0009] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_0600afb3c5084a14ad2d25b8",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_4aef24e0c160ce0fd38c2049\",\"content\":\"[CRITICAL STATE INVERSION 091]: Configuration OVERRIDE event for entity_852.\\nSuperceding prior assignments, attribute routing_key is now mutated to 'f200cf8e_v2'.\\nMandatory action execution REQUIREMENT: Final mutation must supply latest bound token 'f200cf8e_v2'.\\n\"}}"
+          },
+          {
+            "source_call_id": "call_76ddecce26e0425bb8307015",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_13a451e629e5a998db683e77\",\"content\":\"[DIAGNOSTIC NOISE 0010] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_fd51b817822f495b8f2c13d8",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_d767453ba7cb0ec05d82a4fc\",\"content\":\"[DIAGNOSTIC NOISE 0011] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_c0513da8c19e4f54acf084eb",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_a608f751873fd012c9a640f1\",\"content\":\"[DIAGNOSTIC NOISE 0012] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_3bfecb139c5e4e0f906b45e1",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_a464c66b7902a27a53835a20\",\"content\":\"[DIAGNOSTIC NOISE 0013] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_9255d408393b4f3cab503d37",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_112777d837d0813cbceabb19\",\"content\":\"[DIAGNOSTIC NOISE 0\"}}"
+          },
+          {
+            "source_call_id": "call_cf3f052a664e4c49950fbbc6",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_ccfbe2aeffc5c74e9c14960a\",\"content\":\"[DIAGNOSTIC NOISE 0005] ........................................................................................................................................................................................................................................\"}}"
+          },
+          {
+            "source_call_id": "call_e1b5326d431041b7864b8fa1",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_id\":\"ctx_3ee100347ebef1f742a8bb0d\",\"content\":\"[DIAGNOSTIC NOISE 0003] ........................................................................................................................................................................................................................................\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8026,
+        "completion_tokens": 550,
+        "cached_tokens": 7616,
+        "extra": {
+          "reasoning_tokens": 22
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-30T07:44:43.382000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "All 17 records read. Two records carry state: entity `entity_852` has attribute `routing_key`, initially bound to `f200cf8e_v1`, then overridden to `f200cf8e_v2`. The remaining 15 are diagnostic noise. Applying the current state:",
+      "reasoning_content": "Reading the records:\n- ctx_ee414b3827f477bdeae2f478: entity_852, attribute `routing_key` initially bound to 'f200cf8e_v1'.\n- ctx_4aef24e0c160ce0fd38c2049: CRITICAL STATE INVERSION - OVERRIDE event for entity_852. `routing_key` is now mutated to 'f200cf8e_v2'. Mandatory: final mutation must supply 'f200cf8e_v2'.\n- Rest: diagnostic noise.\n\nSo the current state: entity_id = entity_852, attribute = routing_key, bound_value = 'f200cf8e_v2'.\n\nExecute the mutation.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_a2610dc1bbc1482f838a27e0",
+          "function_name": "memory_mcp_execute_mutation",
+          "arguments": {
+            "entity_id": "entity_852",
+            "attribute": "routing_key",
+            "bound_value": "f200cf8e_v2"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_a2610dc1bbc1482f838a27e0",
+            "content": "{\"status\":\"ok\",\"value\":{\"status\":\"executed\",\"target_entity\":\"entity_852\",\"target_attribute\":\"routing_key\",\"bound_value\":\"f200cf8e_v2\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 9538,
+        "completion_tokens": 101,
+        "cached_tokens": 8000,
+        "extra": {
+          "reasoning_tokens": 152
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-30T07:44:49.913000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Done. Mutation executed successfully:\n\n- **Listed**: 17 context handles\n- **Read**: all 17 records — 2 contained state, 15 were diagnostic noise\n- **Derived state**: `entity_852.routing_key` was bound to `f200cf8e_v1`, then overridden to `f200cf8e_v2` (CRITICAL STATE INVERSION 091)\n- **Executed**: `execute_mutation(entity_id=\"entity_852\", attribute=\"routing_key\", bound_value=\"f200cf8e_v2\")` → `status: executed`",
+      "reasoning_content": "Mutation executed successfully. Summarize concisely.",
+      "metrics": {
+        "prompt_tokens": 9832,
+        "completion_tokens": 125,
+        "cached_tokens": 9536,
+        "extra": {
+          "reasoning_tokens": 11
+        }
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 35013,
+    "total_completion_tokens": 786,
+    "total_cached_tokens": 27456,
+    "total_steps": 5
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

@@ -1,0 +1,78 @@
+{
+    "id": "e88edc7a-1da6-4259-95d8-ec97721070d8",
+    "started_at": "2026-08-30T03:19:54.157250",
+    "updated_at": "2026-08-30T03:58:27.654150",
+    "finished_at": "2026-08-30T03:58:27.654150",
+    "n_total_trials": 36,
+    "stats": {
+        "n_completed_trials": 36,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "opencode__glm-5.3-flash__adhoc": {
+                "n_trials": 36,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.5277777777777778
+                    }
+                ],
+                "pass_at_k": {
+                    "2": 0.7777777777777778
+                },
+                "reward_stats": {
+                    "reward": {
+                        "1.0": [
+                            "action-16k-neutral_padding-s1337__RyhboUY",
+                            "action-16k-neutral_padding-s2026__oZvu6eF",
+                            "action-16k-neutral_padding-s42__wAwQXC3",
+                            "action-16k-semantic_distractor-s__f4iZbmp",
+                            "action-4k-neutral_padding-s1337__7oQNAeC",
+                            "action-4k-neutral_padding-s2026__g7DNGyu",
+                            "action-4k-neutral_padding-s42__huvDBVJ",
+                            "action-16k-neutral_padding-s1337__WNCTjTp",
+                            "action-16k-neutral_padding-s2026__2dvmBtq",
+                            "action-16k-semantic_distractor-s__jzVivDR",
+                            "action-16k-semantic_distractor-s__w4D7Fk7",
+                            "action-16k-semantic_distractor-s__qA779fh",
+                            "action-4k-neutral_padding-s1337__c29mo9d",
+                            "action-4k-neutral_padding-s2026__45EV9kt",
+                            "action-4k-semantic_distractor-s2__RYbw3qU",
+                            "action-4k-semantic_distractor-s4__Zu9iVdi",
+                            "action-64k-neutral_padding-s2026__bbfDJyU",
+                            "action-64k-neutral_padding-s42__EpUT8FT",
+                            "action-64k-semantic_distractor-s__eFWYpcQ"
+                        ],
+                        "0.0": [
+                            "action-16k-semantic_distractor-s__WMfL9Ed",
+                            "action-16k-semantic_distractor-s__7vQAEX6",
+                            "action-4k-semantic_distractor-s1__V9ZDDrL",
+                            "action-4k-semantic_distractor-s2__LsbUJ8W",
+                            "action-4k-semantic_distractor-s4__zqVomHN",
+                            "action-64k-neutral_padding-s1337__FFSbF3C",
+                            "action-64k-neutral_padding-s2026__rHaqFij",
+                            "action-64k-neutral_padding-s42__KJNRb6i",
+                            "action-64k-semantic_distractor-s__8aYeUds",
+                            "action-64k-semantic_distractor-s__uEydwLT",
+                            "action-64k-semantic_distractor-s__GH67Boh",
+                            "action-16k-neutral_padding-s42__8nicjhA",
+                            "action-4k-neutral_padding-s42__fHCW29G",
+                            "action-4k-semantic_distractor-s1__eUGnBBL",
+                            "action-64k-neutral_padding-s1337__wPckzoW",
+                            "action-64k-semantic_distractor-s__3sAERpi",
+                            "action-64k-semantic_distractor-s__6vDNEHZ"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 6098162,
+        "n_cache_tokens": 5341120,
+        "n_output_tokens": 138349,
+        "cost_usd": null
+    }
+}

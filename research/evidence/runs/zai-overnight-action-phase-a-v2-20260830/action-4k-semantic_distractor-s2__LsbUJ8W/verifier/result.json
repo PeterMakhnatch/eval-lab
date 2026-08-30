@@ -1,0 +1,7 @@
+{
+  "expected_reads": 17,
+  "observed_reads": 17,
+  "reason": "incomplete_or_reordered_context_retrieval",
+  "reward": 0.0,
+  "truth_digest": "sha256:501c48366a16beef2741c46febb854d9d684c34434e01db6e233c5c4a426bd98"
+}

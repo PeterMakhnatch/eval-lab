@@ -376,10 +376,13 @@ def _load_verified_cas_members(store_root: Path, uri: str) -> dict[str, bytes]:
     """Read and content-verify a CAS archive without extracting it."""
     expected_digest = f"sha256:{uri.removeprefix('cas://sha256/')}"
     members: dict[str, bytes] = {}
-    with open_archive(store_root, uri) as blob, tarfile.open(
-        fileobj=blob,
-        mode="r:gz",
-    ) as archive:
+    with (
+        open_archive(store_root, uri) as blob,
+        tarfile.open(
+            fileobj=blob,
+            mode="r:gz",
+        ) as archive,
+    ):
         entries: list[tuple[str, tarfile.TarInfo]] = []
         for member in archive.getmembers():
             if not member.isfile():

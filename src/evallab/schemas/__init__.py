@@ -1765,16 +1765,18 @@ class AnalysisRecord(ContractModel):
 
     @model_validator(mode="after")
     def _validate_role_and_digests(self) -> AnalysisRecord:
-        if self.analysis_role in {"review_queue_review", "counterexample_review"}:
-            if (
-                self.source_manifest_digest is None
-                or self.source_snapshot_digest is None
-                or self.source_queue_digest is None
-            ):
-                raise ValueError(
-                    f"analysis_role={self.analysis_role!r} requires source_manifest_digest, "
-                    "source_snapshot_digest, and source_queue_digest to be non-None"
-                )
+        if self.analysis_role in {
+            "review_queue_review",
+            "counterexample_review",
+        } and (
+            self.source_manifest_digest is None
+            or self.source_snapshot_digest is None
+            or self.source_queue_digest is None
+        ):
+            raise ValueError(
+                f"analysis_role={self.analysis_role!r} requires source_manifest_digest, "
+                "source_snapshot_digest, and source_queue_digest to be non-None"
+            )
         return self
 
 

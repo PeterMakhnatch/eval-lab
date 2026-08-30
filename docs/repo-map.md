@@ -169,7 +169,7 @@ inputs:
   - path: src/evallab/interpretation/trajectory_recipes.py
     digest: sha256:ee344f58667fef5573da90d9a0fa9c5d81b95580ae777c7285ae70190ce3a0ed
   - path: src/evallab/interpretation/trajectory_runtime.py
-    digest: sha256:e4e42417299545504aeeff8ebfe8accda99560eff4f450c90ff7ce64b0b31f13
+    digest: sha256:74bdf9b462af460ef48876a272ce4b040e4208333db480c9e8b9c4f5b536a200
   - path: src/evallab/interpretation/trajectory_semantic_producers.py
     digest: sha256:f13a0cb0d4f2ba9291869658de4884f89d52685439971b9829342df35e2c53ce
   - path: src/evallab/interpretation/trajectory_semantics.py

@@ -38,7 +38,7 @@ from typing import Any, Literal
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 
 from evallab.database import ingest_interpretation_artifacts
 from evallab.evidence_store import (

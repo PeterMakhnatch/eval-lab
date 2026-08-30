@@ -703,6 +703,183 @@ def power_requirements(
     return rows
 
 
+def design_effect(*, icc: float, cluster_size: int) -> float:
+    """Between-cluster variance inflation factor ``DE = 1 + (cluster_size - 1) * icc``.
+
+    Refuses an absent or invalid ICC: the intraclass correlation must be a finite
+    value in ``[0, 1)``, and a cluster size below one is refused. ``icc == 0.0``
+    (rho=0) yields ``DE == 1.0``, exactly preserving independent (unclustered)
+    sizing so the clustered contract never inflates an already-independent plan.
+    """
+    if not math.isfinite(icc):
+        raise ValueError("icc must be a finite number")
+    if not 0.0 <= icc < 1.0:
+        raise ValueError("icc must be at least zero and below one")
+    cluster_size = _require_int("cluster_size", cluster_size)
+    if cluster_size < 1:
+        raise ValueError("cluster_size must be at least one")
+    return 1.0 + (cluster_size - 1) * icc
+
+
+def effective_sample_size(*, n_units: int, icc: float, cluster_size: int) -> float:
+    """Number of independent evidence units carried by ``n_units`` clustered observations.
+
+    ``n_units / design_effect(icc, cluster_size)``. Refuses absent/invalid ICC and
+    sub-one cluster sizes. rho=0 returns ``n_units`` unchanged. Repeated measures
+    within a cluster are never treated as independent trials.
+    """
+    n_units = _require_int("n_units", n_units)
+    if n_units < 1:
+        raise ValueError("n_units must be at least one")
+    return n_units / design_effect(icc=icc, cluster_size=cluster_size)
+
+
+def _scale_required_tasks(
+    independent: int | None, icc: float, cluster_size: int
+) -> tuple[int | None, float]:
+    """Scale an independent task requirement by the cluster design effect.
+
+    Returns ``(clustered_requirement, design_effect)``. A ``None`` independent
+    requirement stays ``None`` (nothing is achievable at any n); otherwise the
+    requirement is inflated to the next integer of at least two.
+    """
+    factor = design_effect(icc=icc, cluster_size=cluster_size)
+    if independent is None:
+        return None, factor
+    return max(2, math.ceil(independent * factor)), factor
+
+
+def clustered_required_tasks_for_effect(
+    *,
+    baseline: float,
+    attempt_effect: float,
+    k: int,
+    alpha: float = 0.05,
+    target_power: float = 0.8,
+    pair_correlation: float = 0.0,
+    icc: float,
+    cluster_size: int,
+) -> dict[str, float | int | None]:
+    """Clustered (repeated-measure) task requirement for a per-attempt effect.
+
+    Refuses to quote a clustered ``n`` without an explicit ``icc`` declaration.
+    Paired covariance (``pair_correlation``, the within-pair term of
+    ``_paired_variance``) is kept separate from between-cluster inflation
+    (``icc``/``cluster_size`` via ``design_effect``); both are applied. rho=0 keeps
+    the requirement identical to the independent plan.
+    """
+    independent = required_tasks_for_effect(
+        baseline=baseline,
+        attempt_effect=attempt_effect,
+        k=k,
+        alpha=alpha,
+        target_power=target_power,
+        pair_correlation=pair_correlation,
+    )
+    required, factor = _scale_required_tasks(independent, icc, cluster_size)
+    return {
+        "k": k,
+        "icc": icc,
+        "cluster_size": cluster_size,
+        "design_effect": factor,
+        "required_n_tasks_independent": independent,
+        "required_n_tasks_clustered": required,
+        "effective_n_tasks": (required / factor) if required is not None else None,
+    }
+
+
+def clustered_minimum_detectable_effect(
+    *,
+    n_tasks: int,
+    k: int,
+    baseline: float,
+    alpha: float = 0.05,
+    target_power: float = 0.8,
+    pair_correlation: float = 0.0,
+    icc: float,
+    cluster_size: int,
+) -> dict[str, float | int | None]:
+    """Minimum detectable per-attempt difference for ``n_tasks`` clustered observations.
+
+    The independent MDE scales by ``sqrt(design_effect)`` because the required n is
+    proportional to variance and the clustered variance is the independent variance
+    inflated by ``DE``. Also reports the effective (independent-equivalent) sample
+    size. Returns a ``None`` MDE when the effect is not detectable at this n/design.
+    """
+    factor = design_effect(icc=icc, cluster_size=cluster_size)
+    independent = minimum_detectable_effect(
+        n_tasks=n_tasks,
+        k=k,
+        baseline=baseline,
+        alpha=alpha,
+        target_power=target_power,
+        pair_correlation=pair_correlation,
+    )
+    mde = None
+    if independent is not None:
+        scaled = independent * math.sqrt(factor)
+        mde = scaled if scaled <= 1 - baseline else None
+    return {
+        "n_tasks": n_tasks,
+        "icc": icc,
+        "cluster_size": cluster_size,
+        "design_effect": factor,
+        "effective_n_tasks": n_tasks / factor,
+        "minimum_detectable_effect": mde,
+    }
+
+
+def clustered_power_requirements(
+    *,
+    baseline: float,
+    attempt_effect: float,
+    max_k: int,
+    alpha: float = 0.05,
+    target_power: float = 0.8,
+    pair_correlation: float = 0.0,
+    icc: float,
+    cluster_size: int,
+) -> list[dict[str, float | int | None]]:
+    """Clustered requirement table across ``k`` with design-effect columns.
+
+    Each row quotes the design-effect-inflated clustered requirement alongside the
+    independent requirement and the effective (independent-equivalent) sample size,
+    so clustered n is never presented as independent trials.
+    """
+    if max_k < 1:
+        raise ValueError("max_k must be positive")
+    factor = design_effect(icc=icc, cluster_size=cluster_size)
+    rows: list[dict[str, float | int | None]] = []
+    for k in range(1, max_k + 1):
+        p0 = pass_at_k_probability(baseline, k)
+        p1 = pass_at_k_probability(baseline + attempt_effect, k)
+        independent = required_tasks_for_effect(
+            baseline=baseline,
+            attempt_effect=attempt_effect,
+            k=k,
+            alpha=alpha,
+            target_power=target_power,
+            pair_correlation=pair_correlation,
+        )
+        required, _ = _scale_required_tasks(independent, icc, cluster_size)
+        rows.append(
+            {
+                "k": k,
+                "baseline_pass_at_k": p0,
+                "comparison_pass_at_k": p1,
+                "task_level_effect": p1 - p0,
+                "icc": icc,
+                "cluster_size": cluster_size,
+                "design_effect": factor,
+                "required_n_tasks_independent": independent,
+                "required_n_tasks_clustered": required,
+                "effective_n_tasks": (required / factor) if required is not None else None,
+                "total_attempts_two_cohorts": 2 * k * required if required else None,
+            }
+        )
+    return rows
+
+
 def _budget_exhaustion(member: CohortMember) -> bool:
     return member.exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES
 

@@ -39,6 +39,11 @@ from evallab.calibrate import (
 )
 from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
 from evallab.cohort import (
+    clustered_minimum_detectable_effect,
+    clustered_power_requirements,
+    clustered_required_tasks_for_effect,
+    design_effect,
+    effective_sample_size,
     index_comparison_associations,
     minimum_detectable_effect,
     pass_at_k_probability,
@@ -1097,6 +1102,16 @@ def _curve_command(
 def _power_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    clustered_requested = args.icc is not None or args.cluster_size is not None
+    if clustered_requested:
+        if args.icc is None or args.cluster_size is None:
+            print(
+                "refusing to quote clustered n without an explicit design-effect "
+                "declaration: both --icc and --cluster-size are required",
+                file=sys.stderr,
+            )
+            return 2
+        return _clustered_power_command(args, root, harbor=harbor)
     if args.n_tasks is not None:
         if args.k is None:
             raise ValueError("--k is required with --n-tasks")
@@ -1154,6 +1169,99 @@ def _power_command(
         f"pair correlation={args.pair_correlation:.3f}."
     )
     print("Assumption: attempts are independent for the pass@k transformation.")
+    print(
+        "pass_at_k_probability is a model-based independent-attempt planning "
+        "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
+    )
+    return 0
+
+
+def _clustered_power_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        factor = design_effect(icc=args.icc, cluster_size=args.cluster_size)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    if args.n_tasks is not None:
+        if args.k is None:
+            raise ValueError("--k is required with --n-tasks")
+        plan = clustered_minimum_detectable_effect(
+            n_tasks=args.n_tasks,
+            k=args.k,
+            baseline=args.baseline,
+            alpha=args.alpha,
+            target_power=args.target_power,
+            pair_correlation=args.pair_correlation,
+            icc=args.icc,
+            cluster_size=args.cluster_size,
+        )
+        baseline_pass = pass_at_k_probability(args.baseline, args.k)
+        print("Clustered pass@k power plan (design effect)")
+        print(f"n_tasks (clustered): {args.n_tasks}")
+        print(f"k: {args.k}")
+        print(
+            f"icc / cluster size / design effect: "
+            f"{args.icc:.3f} / {args.cluster_size} / {factor:.3f}"
+        )
+        print(f"effective (independent) n_tasks: {plan['effective_n_tasks']:.3f}")
+        print(f"baseline per-attempt pass rate: {args.baseline:.3f}")
+        print(f"baseline pass@{args.k}: {baseline_pass:.3f}")
+        print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
+        mde = plan["minimum_detectable_effect"]
+        if mde is None:
+            print(
+                "minimum detectable per-attempt difference: unavailable at this "
+                "n, k, and design"
+            )
+        else:
+            comparison_pass = pass_at_k_probability(args.baseline + mde, args.k)
+            print(f"minimum detectable per-attempt difference: {mde:.4f}")
+            print(f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}")
+        print(
+            "Design effect DE=1+(m-1)*rho inflates between-cluster variance; "
+            "it is separate from the paired covariance term (pair correlation)."
+        )
+        print(
+            "pass_at_k_probability is a model-based independent-attempt planning "
+            "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
+        )
+        return 0
+
+    rows = clustered_power_requirements(
+        baseline=args.baseline,
+        attempt_effect=args.target,
+        max_k=args.max_k,
+        alpha=args.alpha,
+        target_power=args.target_power,
+        pair_correlation=args.pair_correlation,
+        icc=args.icc,
+        cluster_size=args.cluster_size,
+    )
+    print(
+        "| k | baseline pass@k | comparison pass@k | task effect | independent n | "
+        "clustered n | effective n | attempts |"
+    )
+    print("|---:|---:|---:|---:|---:|---:|---:|---:|")
+    for row in rows:
+        print(
+            f"| {row['k']} | {row['baseline_pass_at_k']:.3f} | "
+            f"{row['comparison_pass_at_k']:.3f} | {row['task_level_effect']:.3f} | "
+            f"{row['required_n_tasks_independent']} | {row['required_n_tasks_clustered']} | "
+            f"{row['effective_n_tasks']:.3f} | {row['total_attempts_two_cohorts']} |"
+        )
+    print(
+        f"icc={args.icc:.3f}, cluster size={args.cluster_size}, "
+        f"design effect={factor:.3f}. "
+        f"alpha={args.alpha:.3f}, power={args.target_power:.3f}, "
+        f"pair correlation={args.pair_correlation:.3f}."
+    )
+    print(
+        "Clustered n is the design-effect-inflated requirement; effective n is the "
+        "independent-equivalent sample size, so clustered observations never "
+        "masquerade as independent trials."
+    )
     print(
         "pass_at_k_probability is a model-based independent-attempt planning "
         "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
@@ -3585,6 +3693,18 @@ def parser() -> argparse.ArgumentParser:
     power.add_argument("--alpha", type=float, default=0.05)
     power.add_argument("--power", dest="target_power", type=float, default=0.8)
     power.add_argument("--pair-correlation", type=float, default=0.0)
+    power.add_argument(
+        "--icc",
+        type=float,
+        default=None,
+        help="intraclass correlation (rho) for clustered/repeated-measure design-effect sizing",
+    )
+    power.add_argument(
+        "--cluster-size",
+        type=int,
+        default=None,
+        help="observations per cluster for clustered/repeated-measure design-effect sizing",
+    )
     power.set_defaults(func=_power_command)
 
     report = commands.add_parser("report", help="Render trajectory families and eval cards")

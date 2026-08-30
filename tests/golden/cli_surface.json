@@ -3790,6 +3790,20 @@
         "type": "float"
       },
       {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "cluster_size",
+        "flags": [
+          "--cluster-size"
+        ],
+        "help": "observations per cluster for clustered/repeated-measure design-effect sizing",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -3803,6 +3817,20 @@
         "nargs": 0,
         "required": false,
         "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "icc",
+        "flags": [
+          "--icc"
+        ],
+        "help": "intraclass correlation (rho) for clustered/repeated-measure design-effect sizing",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
       },
       {
         "action": "_StoreAction",

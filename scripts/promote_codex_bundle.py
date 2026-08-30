@@ -196,7 +196,7 @@ ARCHIVE_SUFFIXES = frozenset({
     ".rpm",
 })
 
-#: Allowlisted safe status enum strings that may survive under auth/status keys.
+#: Allowlisted safe status enum strings that may survive under status/result metadata keys.
 SAFE_STATUS_ENUMS = frozenset({
     "ok",
     "passed",
@@ -226,6 +226,30 @@ SAFE_STATUS_ENUMS = frozenset({
     "idle",
     "none",
     "null",
+})
+
+#: Allowlisted safe auth metadata enum strings that may survive under type/method metadata keys.
+SAFE_AUTH_METADATA_ENUMS = frozenset({
+    "bearer",
+    "oauth2",
+    "oauth",
+    "api_key",
+    "basic",
+    "jwt",
+    "session",
+    "none",
+    "token",
+    "password",
+    "oidc",
+    "custom",
+    "header",
+    "query",
+    "cookie",
+    "digest",
+    "hmac",
+    "hawk",
+    "aws4_hmac",
+    "internal",
 })
 
 #: Exact benign metric keys containing 'token' that only exempt numeric scalars.
@@ -270,52 +294,62 @@ _METRIC_COUNT_SUFFIXES = (
     "_counts",
 )
 
-#: Words and pattern matching secret-shaped auth/credential keys.
-_SECRET_CONTAINER_WORDS = frozenset({
+_STATUS_ENUM_SUFFIXES = ("_status", "_state", "_result", "status", "state", "result")
+_TYPE_METHOD_SUFFIXES = ("_type", "_method", "type", "method")
+
+#: Words and pattern matching direct secret container keys.
+_DIRECT_SECRET_WORDS = frozenset({
+    "auth",
+    "authorization",
+    "password",
+    "passwd",
+    "passphrase",
     "token",
     "tokens",
+    "credentials",
+    "credential",
     "api_key",
     "apikey",
     "access_key",
-    "access_token",
-    "access_tokens",
-    "auth",
-    "auth_secret",
-    "auth_token",
-    "auth_tokens",
-    "authorization",
-    "bearer",
-    "bearer_token",
+    "access_keys",
+    "secret_key",
+    "secret_keys",
     "client_secret",
-    "credential",
-    "credentials",
-    "github_token",
-    "gitlab_token",
-    "id_token",
-    "jwt",
-    "jwt_token",
-    "passphrase",
-    "password",
-    "passwd",
-    "private_key",
-    "pwd",
-    "refresh_token",
-    "refresh_tokens",
+    "client_secrets",
     "secret",
     "secrets",
-    "secret_key",
-    "session_key",
+    "access_token",
+    "access_tokens",
+    "refresh_token",
+    "refresh_tokens",
+    "auth_token",
+    "auth_tokens",
+    "bearer_token",
     "session_token",
+    "session_tokens",
+    "session_key",
     "signing_key",
     "ssh_key",
     "webhook_secret",
+    "id_token",
+    "jwt",
+    "jwt_token",
+    "private_key",
+    "pwd",
+    "auth_secret",
+    "github_token",
+    "gitlab_token",
 })
 
-_SECRET_CONTAINER_PATTERN = re.compile(
-    r"(?:^|_)(?:api_?key|access_?(?:key|tokens?)|auth(?:orization|_secret|_tokens?)?|bearer(?:_token)?|"
-    r"client_?secret|credential(?:s|_key)?|github_?token|gitlab_?token|id_?token|jwt(?:_token)?|"
-    r"passphrase|password|passwd|private_?key|pwd|refresh_?tokens?|secret(?:s|_key)?|"
-    r"session_?(?:key|token)|signing_?key|ssh_?key|tokens?|webhook_?secret)(?:$|_)"
+_DIRECT_SECRET_PATTERN = re.compile(
+    r"(?:^|_)(?:auth|authorization|api_?keys?|access_?(?:keys?|tokens?)|auth_?(?:secrets?|tokens?)|bearer_?token|"
+    r"client_?secrets?|credentials?|github_?token|gitlab_?token|id_?token|jwt(?:_token)?|"
+    r"passphrase|password|passwd|private_?keys?|pwd|refresh_?tokens?|secret_?keys?|"
+    r"session_?(?:keys?|tokens?)|signing_?keys?|ssh_?keys?|tokens?|webhook_?secrets?)(?:$|_)"
+)
+
+_AUTH_METADATA_PATTERN = re.compile(
+    r"(?:^|_)(?:auth|authorization|credential|token|secret|api_?key)(?:_|$)"
 )
 
 
@@ -360,56 +394,69 @@ def _normalize_key_name(key: str) -> str:
     return s3.strip("_").casefold()
 
 
-def _is_secret_word_match(normalized: str) -> bool:
-    if normalized in _SECRET_CONTAINER_WORDS:
+def _is_direct_secret_key(normalized: str) -> bool:
+    if normalized in _DIRECT_SECRET_WORDS:
         return True
-    return bool(_SECRET_CONTAINER_PATTERN.search(normalized))
+    return bool(_DIRECT_SECRET_PATTERN.search(normalized))
 
 
 def _should_redact_key_value(
-    key: str, node: object, under_secret: bool
+    key: str | None, node: object, under_secret: bool
 ) -> tuple[bool, bool]:
-    """Semantic value-shape-aware secret detection.
+    """Semantic key+value shape secret detection.
 
     Returns: (redact_leaf: bool, propagate_under_secret: bool)
     """
-    if under_secret:
-        if isinstance(node, bool):
-            return False, True
-        if isinstance(node, str) and node.strip().casefold() in SAFE_STATUS_ENUMS:
-            return False, True
-        return True, True
+    normalized = _normalize_key_name(key) if key is not None else ""
 
-    normalized = _normalize_key_name(key)
-
-    # 1. Exact metric keys & count suffixes: only exempt numeric scalars
-    if normalized in BENIGN_EXACT_METRIC_KEYS or (
-        normalized.endswith(_METRIC_COUNT_SUFFIXES) and not _is_secret_word_match(normalized)
-    ):
+    # 1. Metric / Count keys: only exempt numeric scalars
+    if normalized in BENIGN_EXACT_METRIC_KEYS or normalized.endswith(_METRIC_COUNT_SUFFIXES):
         if isinstance(node, (int, float)) and not isinstance(node, bool):
             return False, False
         return True, True
 
-    # 2. Boolean indicator shape check (has_, is_, _present, _exists, etc.)
+    # 2. Boolean indicators (has_*, is_*, *_present, *_exists, etc.)
     if (
         normalized.endswith(_INDICATOR_BOOLEAN_SUFFIXES)
         or normalized.startswith(_INDICATOR_BOOLEAN_PREFIXES)
-    ) and not _is_secret_word_match(normalized):
+    ):
         if isinstance(node, bool):
             return False, False
         return True, True
 
-    # 3. Secret-associated keys (auth, token, credential, secret, password, api_key, etc.)
-    if _is_secret_word_match(normalized):
-        if normalized.endswith(_METRIC_COUNT_SUFFIXES) and isinstance(node, (int, float)) and not isinstance(node, bool):
-            return False, False
+    # 3. Status / State / Result metadata keys
+    if normalized.endswith(_STATUS_ENUM_SUFFIXES) or normalized in {"status", "state", "result"}:
         if isinstance(node, bool):
             return False, False
         if isinstance(node, str) and node.strip().casefold() in SAFE_STATUS_ENUMS:
             return False, False
+        if isinstance(node, (dict, list)):
+            if _AUTH_METADATA_PATTERN.search(normalized):
+                return False, True
+            return False, False
         return True, True
 
-    # 4. Generic non-secret keys: recurse normally without propagating secret context
+    # 4. Type / Method metadata keys
+    if normalized.endswith(_TYPE_METHOD_SUFFIXES) or normalized in {"type", "method"}:
+        if isinstance(node, bool):
+            return False, False
+        if isinstance(node, str) and node.strip().casefold() in SAFE_AUTH_METADATA_ENUMS:
+            return False, False
+        return True, True
+
+    # 5. Under secret context: redact scalar leaves, propagate to children
+    if under_secret:
+        if isinstance(node, (str, int, float, bool)):
+            return True, True
+        return False, True
+
+    # 6. Direct secret container: always redact scalar leaves, propagate to children
+    if _is_direct_secret_key(normalized):
+        if isinstance(node, (str, int, float, bool)):
+            return True, True
+        return False, True
+
+    # 7. Generic key: recurse normally without propagating secret context
     return False, False
 
 

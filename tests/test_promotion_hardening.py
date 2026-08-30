@@ -710,37 +710,51 @@ def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
     trial = job / "evallab-zai-syn-hardening__synthetic"
 
     payload = {
-        # Legitimate benign metrics / indicators / status
-        "input_tokens": 8000,
-        "token_count": 12000,
-        "total_tokens": 12000,
-        "has_api_key": True,
-        "is_authenticated": False,
-        "credentials_count": 2,
-        "authorization_result": "passed",
-        "auth_status": "verified",
+        # 1. Direct secret container scalar even with 'ok' / 'active' / 'none' must redact
+        "credentials": {"value": "ok", "host": "127.0.0.1"},
+        "direct_secrets": {
+            "password": "none",
+            "api_key": "active",
+            "token": "ok",
+            "access_token": "ok",
+            "refresh_token": "ok",
+        },
+        # 2. auth_result preserves allowlisted status enum only, redacting value
         "auth_result": {
             "status": "ok",
-            "token": SECRET_TOKEN,
+            "value": SECRET_TOKEN,
         },
-        # Generic result structure that recurses normally
+        # 3. auth_type and auth_method survive
+        "auth_type": "bearer",
+        "auth_method": "oauth2",
+        # 4. authorization_result survives with allowlisted status enum, redacts non-enum string
+        "safe_auth": {
+            "authorization_result": "passed",
+            "auth_status": "verified",
+        },
+        "malicious_auth": {
+            "authorization_result": SECRET_TOKEN,
+            "auth_status": SECRET_TOKEN,
+        },
+        # 5. Benign metrics and indicators
+        "input_tokens": 8000,
+        "token_count": 12000,
+        "credentials_count": 2,
+        "has_api_key": True,
+        "is_authenticated": False,
+        # 6. Generic result structure that recurses normally
         "generic_result": {
             "status": "completed",
             "summary_text": "all tests passed",
             "leaked_token": SECRET_TOKEN,
         },
-        # Malicious smuggling under indicator/metric keys
+        # 7. Smuggled payloads under indicator/metric keys
         "smuggled": {
             "has_api_key": SECRET_TOKEN,
             "is_authenticated": [SECRET_TOKEN],
             "input_tokens": [SECRET_TOKEN],
             "token_count": SECRET_TOKEN,
             "credentials_count": SECRET_TOKEN,
-            "authorization_result": SECRET_TOKEN,  # Arbitrary secret string in status key
-            "auth_result": {
-                "status": "ok",
-                "value": SECRET_TOKEN,
-            },
         }
     }
     (trial / "verifier" / "value_shape.json").write_text(
@@ -753,32 +767,49 @@ def test_value_shape_aware_secret_exemptions(tmp_path: Path) -> None:
     promoted_file = next(b for n, b in promoted_bytes(bundle) if "value_shape" in n)
     doc = json.loads(promoted_file)
 
-    # Legitimate values preserved
+    # 1. credentials leaves are redacted
+    assert "evallab-redacted" in doc["credentials"]["value"]
+    assert "evallab-redacted" in doc["credentials"]["host"]
+    assert "evallab-redacted" in doc["direct_secrets"]["password"]
+    assert "evallab-redacted" in doc["direct_secrets"]["api_key"]
+    assert "evallab-redacted" in doc["direct_secrets"]["token"]
+    assert "evallab-redacted" in doc["direct_secrets"]["access_token"]
+    assert "evallab-redacted" in doc["direct_secrets"]["refresh_token"]
+
+    # 2. auth_result preserves status only
+    assert doc["auth_result"]["status"] == "ok"
+    assert "evallab-redacted" in doc["auth_result"]["value"]
+
+    # 3. auth_type and auth_method survive
+    assert doc["auth_type"] == "bearer"
+    assert doc["auth_method"] == "oauth2"
+
+    # 4. authorization_result
+    assert doc["safe_auth"]["authorization_result"] == "passed"
+    assert doc["safe_auth"]["auth_status"] == "verified"
+    assert "evallab-redacted" in doc["malicious_auth"]["authorization_result"]
+    assert "evallab-redacted" in doc["malicious_auth"]["auth_status"]
+
+    # 5. Legitimate metrics and indicators preserved
     assert doc["input_tokens"] == 8000
     assert doc["token_count"] == 12000
-    assert doc["total_tokens"] == 12000
+    assert doc["credentials_count"] == 2
     assert doc["has_api_key"] is True
     assert doc["is_authenticated"] is False
-    assert doc["credentials_count"] == 2
-    assert doc["authorization_result"] == "passed"
-    assert doc["auth_status"] == "verified"
-    assert doc["auth_result"]["status"] == "ok"
-    assert "evallab-redacted" in doc["auth_result"]["token"]
+
+    # 6. Generic result structure recurses normally
     assert doc["generic_result"]["status"] == "completed"
     assert doc["generic_result"]["summary_text"] == "all tests passed"
     assert "evallab-redacted" in doc["generic_result"]["leaked_token"]
 
-    # Smuggled values redacted
+    # 7. Smuggled values redacted
     assert "evallab-redacted" in doc["smuggled"]["has_api_key"]
     assert "evallab-redacted" in doc["smuggled"]["is_authenticated"][0]
     assert "evallab-redacted" in doc["smuggled"]["input_tokens"][0]
     assert "evallab-redacted" in doc["smuggled"]["token_count"]
     assert "evallab-redacted" in doc["smuggled"]["credentials_count"]
-    assert "evallab-redacted" in doc["smuggled"]["authorization_result"]
-    assert doc["smuggled"]["auth_result"]["status"] == "ok"
-    assert "evallab-redacted" in doc["smuggled"]["auth_result"]["value"]
 
-    # Sentinel must not leak
+    # Sentinel must not leak anywhere
     for name, body in promoted_bytes(bundle):
         assert SECRET_TOKEN.encode() not in body, f"SECRET_TOKEN leaked into {name}"
 
@@ -869,7 +900,7 @@ def test_oversized_session_rollout_extracts_quota_sidecar_via_streaming(
     sidecar_data = json.loads(sidecar_file.read_text(encoding="utf-8"))
     assert sidecar_data["snapshot_count"] == 1
     assert sidecar_data["snapshots"][0]["rate_limits"]["limit_id"] == "test_limit"
-    # Verify dropped field names are capped and overflow recorded
-    assert len(sidecar_data["dropped_field_names"]) <= PROMOTE.MAX_DROPPED_NAMES
-    assert sidecar_data.get("dropped_field_overflow_count", 0) > 0
+    # Verify dropped field names are capped and overflow recorded accurately
+    assert len(sidecar_data["dropped_field_names"]) == PROMOTE.MAX_DROPPED_NAMES
+    assert sidecar_data.get("dropped_field_overflow_count", 0) == 150
     assert len(sidecar_file.read_bytes()) <= PROMOTE.MAX_SIDECAR_BYTES

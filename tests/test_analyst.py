@@ -544,3 +544,69 @@ def test_analysis_rejects_out_of_rubric_category_before_persistence(
             derived_root=tmp_path / "derived",
         )
     assert not (tmp_path / "research" / "analysis").exists()
+
+
+def test_run_analysis_persists_bindings_and_decision_ineligible(tmp_path: Path) -> None:
+    """run_analysis binds source identities and decision_eligible remains False."""
+    _create_synthetic_trial(tmp_path)
+    derived = tmp_path / "derived" / "parquet"
+
+    manifest_digest = "sha256:" + "a" * 64
+    snapshot_digest = "sha256:" + "b" * 64
+    queue_digest = "sha256:" + "c" * 64
+
+    stub = StubAnalyzer(
+        category="parser_failure",
+        summary="Agent failed during parser test.",
+        evidence=[
+            EvidenceCitation(path="runs/job_01/trial_01/result.json", step=None),
+        ],
+    )
+
+    record, traj, rec_path, traj_path = run_analysis(
+        "trial_01",
+        analyzer=stub,
+        repo_root=tmp_path,
+        derived_root=derived,
+        analysis_role="review_queue_review",
+        source_manifest_digest=manifest_digest,
+        source_snapshot_digest=snapshot_digest,
+        source_queue_digest=queue_digest,
+    )
+
+    assert record.analysis_role == "review_queue_review"
+    assert record.source_manifest_digest == manifest_digest
+    assert record.source_snapshot_digest == snapshot_digest
+    assert record.source_queue_digest == queue_digest
+    assert record.decision_eligible is False
+
+    # Check persisted conclusion JSON
+    loaded_raw = json.loads(rec_path.read_text(encoding="utf-8"))
+    assert loaded_raw["analysis_role"] == "review_queue_review"
+    assert loaded_raw["source_manifest_digest"] == manifest_digest
+    assert loaded_raw["source_snapshot_digest"] == snapshot_digest
+    assert loaded_raw["source_queue_digest"] == queue_digest
+    assert loaded_raw["decision_eligible"] is False
+
+    # Check list_analyses projection
+    listed = list_analyses(tmp_path)
+    assert len(listed) == 1
+    assert listed[0]["analysis_role"] == "review_queue_review"
+    assert listed[0]["source_manifest_digest"] == manifest_digest
+    assert listed[0]["source_snapshot_digest"] == snapshot_digest
+    assert listed[0]["source_queue_digest"] == queue_digest
+    assert listed[0]["decision_eligible"] is False
+
+    # Check Parquet table projection
+    with duckdb.connect(":memory:") as con:
+        analyses_file = derived / "analyses" / "analyses.parquet"
+        con.execute(f"CREATE TABLE analyses AS SELECT * FROM read_parquet('{analyses_file}');")
+        row = con.execute(
+            "SELECT analysis_role, source_manifest_digest, source_snapshot_digest, source_queue_digest, decision_eligible FROM analyses"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "review_queue_review"
+        assert row[1] == manifest_digest
+        assert row[2] == snapshot_digest
+        assert row[3] == queue_digest
+        assert row[4] is False

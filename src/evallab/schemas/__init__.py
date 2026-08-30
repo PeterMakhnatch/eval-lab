@@ -1721,6 +1721,26 @@ class AnalysisRecord(ContractModel):
     confidence: ConfidenceClaim = Field(
         description="claim confidence with n/interval/provenance per T4"
     )
+    analysis_role: Literal["trial_review", "review_queue_review", "counterexample_review"] = Field(
+        default="trial_review",
+        description="Analysis role classification: trial_review, review_queue_review, or counterexample_review",
+    )
+    source_manifest_digest: str | None = Field(
+        default=None,
+        description="sha256: of source manifest, optional for trial_review but required for queue/counterexample reviews",
+    )
+    source_snapshot_digest: str | None = Field(
+        default=None,
+        description="sha256: of source snapshot, optional for trial_review but required for queue/counterexample reviews",
+    )
+    source_queue_digest: str | None = Field(
+        default=None,
+        description="sha256: of source queue, optional for trial_review but required for queue/counterexample reviews",
+    )
+    decision_eligible: Literal[False] = Field(
+        default=False,
+        description="Analysis records are strictly non-decision eligible",
+    )
 
     @field_validator("analysis_id", "trial_id")
     @classmethod
@@ -1731,6 +1751,31 @@ class AnalysisRecord(ContractModel):
     @classmethod
     def _rubric_digest(cls, v: str) -> str:
         return _validate_sha256_digest(v)
+
+    @field_validator(
+        "source_manifest_digest",
+        "source_snapshot_digest",
+        "source_queue_digest",
+    )
+    @classmethod
+    def _source_digests(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return _validate_sha256_digest(v)
+
+    @model_validator(mode="after")
+    def _validate_role_and_digests(self) -> AnalysisRecord:
+        if self.analysis_role in {"review_queue_review", "counterexample_review"}:
+            if (
+                self.source_manifest_digest is None
+                or self.source_snapshot_digest is None
+                or self.source_queue_digest is None
+            ):
+                raise ValueError(
+                    f"analysis_role={self.analysis_role!r} requires source_manifest_digest, "
+                    "source_snapshot_digest, and source_queue_digest to be non-None"
+                )
+        return self
 
 
 class ObservationRecord(ContractModel):

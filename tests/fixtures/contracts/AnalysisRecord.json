@@ -112,6 +112,17 @@
       "title": "Analysis Id",
       "type": "string"
     },
+    "analysis_role": {
+      "default": "trial_review",
+      "description": "Analysis role classification: trial_review, review_queue_review, or counterexample_review",
+      "enum": [
+        "trial_review",
+        "review_queue_review",
+        "counterexample_review"
+      ],
+      "title": "Analysis Role",
+      "type": "string"
+    },
     "category": {
       "description": "analysis category (e.g. failure mode, capability)",
       "minLength": 1,
@@ -121,6 +132,13 @@
     "confidence": {
       "$ref": "#/$defs/ConfidenceClaim",
       "description": "claim confidence with n/interval/provenance per T4"
+    },
+    "decision_eligible": {
+      "const": false,
+      "default": false,
+      "description": "Analysis records are strictly non-decision eligible",
+      "title": "Decision Eligible",
+      "type": "boolean"
     },
     "evidence": {
       "description": "cited evidence locations (path, optional step)",
@@ -146,6 +164,45 @@
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "source_manifest_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "sha256: of source manifest, optional for trial_review but required for queue/counterexample reviews",
+      "title": "Source Manifest Digest"
+    },
+    "source_queue_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "sha256: of source queue, optional for trial_review but required for queue/counterexample reviews",
+      "title": "Source Queue Digest"
+    },
+    "source_snapshot_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "sha256: of source snapshot, optional for trial_review but required for queue/counterexample reviews",
+      "title": "Source Snapshot Digest"
     },
     "trial_id": {
       "description": "ULID of the source trial (join spine)",

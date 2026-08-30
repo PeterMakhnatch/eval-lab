@@ -134,9 +134,20 @@ def exact_paired_binary_contrast(
             seen_units.add(item.assignment_unit_id)
             if item.arm_a_outcome is None or item.arm_b_outcome is None:
                 return _paired_refusal(RefusalCode.MISSING_PAIR_ARM)
-            if item.arm_a_outcome not in (True, False, 0, 1) or item.arm_b_outcome not in (True, False, 0, 1):
+            if item.arm_a_outcome not in (True, False, 0, 1) or item.arm_b_outcome not in (
+                True,
+                False,
+                0,
+                1,
+            ):
                 return _paired_refusal(RefusalCode.INVALID_BINARY_INPUT)
-            pairs.append((item.assignment_unit_id, int(bool(item.arm_a_outcome)), int(bool(item.arm_b_outcome))))
+            pairs.append(
+                (
+                    item.assignment_unit_id,
+                    int(bool(item.arm_a_outcome)),
+                    int(bool(item.arm_b_outcome)),
+                )
+            )
     else:
         by_unit: dict[str, dict[str, Any]] = defaultdict(dict)
         for item in obs_list:
@@ -194,13 +205,13 @@ def exact_paired_binary_contrast(
         design_floor_limited = False
     else:
         k = min(b, c)
-        prob_k = sum(math.comb(n_discordant, i) for i in range(k + 1)) * (0.5 ** n_discordant)
+        prob_k = sum(math.comb(n_discordant, i) for i in range(k + 1)) * (0.5**n_discordant)
         exact_p = min(1.0, 2.0 * prob_k)
-        min_attainable_p = 2.0 * (0.5 ** n_discordant)
-        is_design_floor = (k == 0)
-        design_floor_limited = (min_attainable_p > 0.05)
+        min_attainable_p = 2.0 * (0.5**n_discordant)
+        is_design_floor = k == 0
+        design_floor_limited = min_attainable_p > 0.05
 
-    design_floor_p = (2.0 * (0.5 ** n_pairs)) if n_pairs > 0 else 1.0
+    design_floor_p = (2.0 * (0.5**n_pairs)) if n_pairs > 0 else 1.0
 
     body = {
         "status": AnalysisStatus.VALID,
@@ -252,7 +263,6 @@ def fisher_exact_2x2(
     r1 = a + b
     r2 = c + d
     c1 = a + c
-    c2 = b + d
     n = r1 + r2
 
     if n == 0:
@@ -266,10 +276,7 @@ def fisher_exact_2x2(
         return FisherExact2x2Result(**body, result_digest=canonical_digest(body))
 
     # Odds ratio
-    if b * c == 0:
-        odds_ratio = 1.0 if a * d == 0 else float("inf")
-    else:
-        odds_ratio = (a * d) / (b * c)
+    odds_ratio = (1.0 if a * d == 0 else float("inf")) if b * c == 0 else (a * d) / (b * c)
 
     # Hypergeometric exact test
     min_x = max(0, c1 - r2)
@@ -279,7 +286,9 @@ def fisher_exact_2x2(
         return (math.comb(r1, x) * math.comb(r2, c1 - x)) / math.comb(n, c1)
 
     p_obs = hypergeom_pmf(a)
-    p_sum = sum(hypergeom_pmf(x) for x in range(min_x, max_x + 1) if hypergeom_pmf(x) <= p_obs + 1e-12)
+    p_sum = sum(
+        hypergeom_pmf(x) for x in range(min_x, max_x + 1) if hypergeom_pmf(x) <= p_obs + 1e-12
+    )
     exact_p = min(1.0, p_sum)
 
     body = {
@@ -423,7 +432,7 @@ def analyze_repeat_heterogeneity(
     # Expected distribution under binomial
     expected_dist: dict[int, float] = {}
     for k in range(m + 1):
-        prob_k = math.comb(m, k) * (p_bar ** k) * ((1.0 - p_bar) ** (m - k))
+        prob_k = math.comb(m, k) * (p_bar**k) * ((1.0 - p_bar) ** (m - k))
         expected_dist[k] = round(n_cells * prob_k, 6)
 
     # Variance and dispersion
@@ -458,7 +467,9 @@ def analyze_repeat_heterogeneity(
         return RepeatHeterogeneityReport(**body, result_digest=canonical_digest(body))
 
     # Pearson dispersion
-    pearson_stat = sum(((c.successes - m * p_bar) ** 2) / (m * p_bar * (1.0 - p_bar)) for c in cell_list)
+    pearson_stat = sum(
+        ((c.successes - m * p_bar) ** 2) / (m * p_bar * (1.0 - p_bar)) for c in cell_list
+    )
     df = n_cells - 1
     disp_ratio = pearson_stat / df if df > 0 else 1.0
 
@@ -470,7 +481,7 @@ def analyze_repeat_heterogeneity(
 
     if raw_icc <= 0.0:
         icc = 0.0
-        icc_clamped = (raw_icc < 0.0)
+        icc_clamped = raw_icc < 0.0
         no_detectable_het = True
     elif raw_icc > 1.0:
         icc = 1.0
@@ -570,7 +581,6 @@ def compute_sequence_fidelity(
     cov_b = len(inter) / len(set_b) if set_b else 1.0
 
     # Footrule & Kendall
-    common_items = [x for x in seq_a if x in seq_b]
     pos_b: dict[Any, int] = {}
     for idx, item in enumerate(seq_b):
         if item not in pos_b:
@@ -585,7 +595,7 @@ def compute_sequence_fidelity(
         # Exact permutation metrics
         fr = sum(abs(i - pos_b[item]) for i, item in enumerate(seq_a))
         footrule = float(fr)
-        max_fr = math.floor((len_a ** 2) / 2) if len_a > 1 else 1.0
+        max_fr = math.floor((len_a**2) / 2) if len_a > 1 else 1.0
         norm_footrule = footrule / max_fr if max_fr > 0 else 0.0
 
         b_indices = [pos_b[x] for x in seq_a]

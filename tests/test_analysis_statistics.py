@@ -5,13 +5,9 @@ import pytest
 from evallab.analysis_statistics import (
     AnalysisStatus,
     BinaryArmObservation,
-    FisherExact2x2Result,
-    PairedBinaryContrastResult,
     PairedBinaryInput,
     RefusalCode,
     RepeatCellInput,
-    RepeatHeterogeneityReport,
-    SequenceFidelityReport,
     analyze_repeat_heterogeneity,
     compute_design_effect,
     compute_sequence_fidelity,
@@ -86,7 +82,11 @@ def test_paired_refusals() -> None:
     assert exact_paired_binary_contrast([]).refusal_code == RefusalCode.ZERO_OPPORTUNITY
 
     # Capture incomplete
-    incomplete = [PairedBinaryInput(assignment_unit_id="u1", arm_a_outcome=1, arm_b_outcome=0, capture_complete=False)]
+    incomplete = [
+        PairedBinaryInput(
+            assignment_unit_id="u1", arm_a_outcome=1, arm_b_outcome=0, capture_complete=False
+        )
+    ]
     assert exact_paired_binary_contrast(incomplete).refusal_code == RefusalCode.CAPTURE_INCOMPLETE
 
     # Duplicate assignment unit
@@ -120,11 +120,14 @@ def test_repeat_heterogeneity_boundary_and_clamping() -> None:
     assert report.no_detectable_heterogeneity is True
     assert report.design_effect == 1.0
     assert report.effective_n == 20.0
+    assert compute_design_effect(2, 0.0) == 1.0
 
 
 def test_repeat_heterogeneity_overdispersed() -> None:
     # 5 cells with 2 successes, 5 cells with 0 successes (high between-cell variance)
-    cells = [RepeatCellInput(cell_id=f"c{i}", successes=2 if i < 5 else 0, repeats=2) for i in range(10)]
+    cells = [
+        RepeatCellInput(cell_id=f"c{i}", successes=2 if i < 5 else 0, repeats=2) for i in range(10)
+    ]
     report = analyze_repeat_heterogeneity(cells)
 
     assert report.status == AnalysisStatus.VALID

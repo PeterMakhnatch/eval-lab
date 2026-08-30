@@ -2284,9 +2284,7 @@ def test_phase_a_e0b_paired_batch_orchestration(
     for r in raw_rows:
         trial_name = r["trial_name"]
         reward = float(r["reward"])
-        trial_dir = _trial_tree(
-            tmp_path, trial_name=trial_name, unpaired=False, reward=reward
-        )
+        trial_dir = _trial_tree(tmp_path, trial_name=trial_name, unpaired=False, reward=reward)
         cas_uri = _archive_trial(trial_dir, store, trial_name)
         arm = "control" if "neutral" in r["arm"] else "treatment"
 

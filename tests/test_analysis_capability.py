@@ -806,22 +806,116 @@ def test_mixed_repeat_paired_aggregation() -> None:
     """Verify mixed repeats (e.g. [1, 0] vs [0, 0] is a win, [1, 0] vs [1, 0] is a tie)."""
     rows = [
         # Unit 1: control [1.0, 0.0] mean 0.5 vs treatment [0.0, 0.0] mean 0.0 -> control win (discordant)
-        {"trial_id": "u1_c1", "dose": 0, "seed": 1, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u1_c2", "dose": 0, "seed": 1, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u1_t1", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u1_t2", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-
+        {
+            "trial_id": "u1_c1",
+            "dose": 0,
+            "seed": 1,
+            "primary_reward": 1.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u1_c2",
+            "dose": 0,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u1_t1",
+            "dose": 1,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u1_t2",
+            "dose": 1,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
         # Unit 2: control [1.0, 0.0] mean 0.5 vs treatment [1.0, 0.0] mean 0.5 -> tie (concordant)
-        {"trial_id": "u2_c1", "dose": 0, "seed": 2, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u2_c2", "dose": 0, "seed": 2, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u2_t1", "dose": 1, "seed": 2, "primary_reward": 1.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u2_t2", "dose": 1, "seed": 2, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-
+        {
+            "trial_id": "u2_c1",
+            "dose": 0,
+            "seed": 2,
+            "primary_reward": 1.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u2_c2",
+            "dose": 0,
+            "seed": 2,
+            "primary_reward": 0.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u2_t1",
+            "dose": 1,
+            "seed": 2,
+            "primary_reward": 1.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u2_t2",
+            "dose": 1,
+            "seed": 2,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
         # Unit 3: control [0.0, 0.0] mean 0.0 vs treatment [1.0, 0.0] mean 0.5 -> treatment win (discordant)
-        {"trial_id": "u3_c1", "dose": 0, "seed": 3, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u3_c2", "dose": 0, "seed": 3, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u3_t1", "dose": 1, "seed": 3, "primary_reward": 1.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "u3_t2", "dose": 1, "seed": 3, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {
+            "trial_id": "u3_c1",
+            "dose": 0,
+            "seed": 3,
+            "primary_reward": 0.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u3_c2",
+            "dose": 0,
+            "seed": 3,
+            "primary_reward": 0.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u3_t1",
+            "dose": 1,
+            "seed": 3,
+            "primary_reward": 1.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "u3_t2",
+            "dose": 1,
+            "seed": 3,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
     ]
 
     spec = _paired_spec()
@@ -1302,6 +1396,7 @@ def test_all_zero_digest_rejected_at_contract_boundary() -> None:
     with pytest.raises(ValidationError):
         CampaignAnalysisConfigV1.model_validate(config_body)
 
+
 def test_malformed_source_digest_normalizes_to_none() -> None:
     spec = create_campaign_analysis_spec(
         spec_id="malformed-digest-test",
@@ -1347,4 +1442,3 @@ def test_malformed_source_digest_normalizes_to_none() -> None:
     assert len(res.source_refs) == 4
     for ref in res.source_refs:
         assert ref.digest is None
-

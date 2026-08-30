@@ -52,6 +52,7 @@ def _clean_source_digest(val: Any) -> str | None:
         return None
     return s
 
+
 ADMISSIBLE_CAPTURE_AUTHORITIES = frozenset(
     {
         CaptureAuthority.BENCHMARK_EVENTS,
@@ -1420,7 +1421,8 @@ def _paired_sign(
                     spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
                 )
             if dose in (0, "0", "control") or (
-                isinstance(dose, str) and dose.strip().lower() in ("control", "neutral", "neutral_padding")
+                isinstance(dose, str)
+                and dose.strip().lower() in ("control", "neutral", "neutral_padding")
             ):
                 arm = "control"
             else:

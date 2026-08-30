@@ -40,12 +40,17 @@ from evallab.mcp_substrate import (
 )
 
 from contract import (
+    ALTERNATIVE_REPAIR_MOVES,
     CAMPAIGN0_FAULTS,
     CAMPAIGN0_PERSISTENCE,
+    DESIGNATED_REPAIR_MOVES,
     FAMILY,
+    get_alternative_repair,
+    get_designated_repair,
     resolve_fault_class,
     slugify_fault,
 )
+from envelope import compute_mutation_digest
 from source import reject_committed_corpora, source_digest
 
 ROOT = Path(__file__).resolve().parent
@@ -172,8 +177,17 @@ def _recovery_tools() -> list[MCPToolDefinition]:
     ]
 
 
-def _recovery_prelude(fault_class: FaultClass, persistence: int, fault_id: str, task_id: str, is_clean_twin: bool) -> str:
+def _recovery_prelude(
+    fault_class: FaultClass,
+    persistence: int,
+    fault_id: str,
+    task_id: str,
+    is_clean_twin: bool,
+    seed: int = 42,
+    twin_task_id: str = "",
+) -> str:
     effective_persistence = 0 if is_clean_twin else persistence
+    designated_repair = get_designated_repair(fault_class)
     return f'''
 import hashlib
 import json
@@ -181,12 +195,16 @@ import os
 from pathlib import Path
 from typing import Any
 from fastmcp.tools import ToolResult
-from envelope import encrypt_envelope, write_atomic_envelope
+from envelope import compute_mutation_digest, encrypt_envelope, write_atomic_envelope
 
 TASK_ID = "{task_id}"
+TWIN_TASK_ID = "{twin_task_id}"
 FAULT_ID = "{fault_id}"
+FAULT_CLASS = "{fault_class.value}"
 PERSISTENCE = {effective_persistence}
 IS_CLEAN_TWIN = {str(is_clean_twin)}
+SEED = {seed}
+DESIGNATED_REPAIR = "{designated_repair}"
 
 KEY_FILE = Path(__file__).resolve().parent / "secret_key.txt"
 if not KEY_FILE.is_file():
@@ -216,7 +234,7 @@ def _load_db() -> dict[str, Any]:
             return json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    return {{"hits": 0, "strategy_used": False, "records": {{}}}}
+    return {{"hits": 0, "strategy_used": False, "designated_mutation_used": None, "records": {{}}}}
 
 
 def _save_db(state: dict[str, Any]) -> None:
@@ -228,12 +246,28 @@ def _record_and_seal(event: dict[str, Any], state: dict[str, Any]) -> None:
     global SEQUENCE, RECORDED_EVENTS
     SEQUENCE += 1
     RECORDED_EVENTS.append(event)
+    mut_tool = state.get("designated_mutation_used") if not IS_CLEAN_TWIN else None
+    mutation_digest = compute_mutation_digest(
+        fault_class=FAULT_CLASS,
+        persistence=PERSISTENCE,
+        seed=SEED,
+        is_clean_twin=IS_CLEAN_TWIN,
+        twin_task_id=TWIN_TASK_ID,
+        mutation_tool=mut_tool,
+    )
     payload = {{
         "sequence": SEQUENCE,
         "initial_digest": _digest({{}}),
         "final_digest": _digest(state.get("records", {{}})),
         "records": state.get("records", {{}}),
         "events": list(RECORDED_EVENTS),
+        "fault_class": FAULT_CLASS,
+        "persistence": PERSISTENCE,
+        "seed": SEED,
+        "is_clean_twin": IS_CLEAN_TWIN,
+        "twin_task_id": TWIN_TASK_ID,
+        "mutation_digest": mutation_digest,
+        "designated_repair": DESIGNATED_REPAIR,
     }}
     env = encrypt_envelope(
         SECRET_KEY,
@@ -242,6 +276,11 @@ def _record_and_seal(event: dict[str, Any], state: dict[str, Any]) -> None:
         fault_id=FAULT_ID,
         persistence=PERSISTENCE,
         sequence=SEQUENCE,
+        fault_class=FAULT_CLASS,
+        seed=SEED,
+        is_clean_twin=IS_CLEAN_TWIN,
+        twin_task_id=TWIN_TASK_ID,
+        mutation_digest=mutation_digest,
     )
     write_atomic_envelope(ENVELOPE_FILE, env)
 
@@ -249,8 +288,17 @@ def _record_and_seal(event: dict[str, Any], state: dict[str, Any]) -> None:
 def recovery_refresh_auth(scope: str) -> dict[str, Any]:
     state = _load_db()
     state["strategy_used"] = True
+    if DESIGNATED_REPAIR == "refresh_auth":
+        state["designated_mutation_used"] = "refresh_auth"
     _save_db(state)
-    event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "refresh_auth", "outcome": "ok", "fault_injected": False}}
+    event = {{
+        "event_index": len(RECORDED_EVENTS),
+        "event_type": "tool_executed",
+        "tool": "refresh_auth",
+        "outcome": "ok",
+        "fault_injected": False,
+        "is_designated_repair": (DESIGNATED_REPAIR == "refresh_auth"),
+    }}
     _record_and_seal(event, state)
     return {{"status": "authenticated", "scope": scope}}
 
@@ -258,8 +306,17 @@ def recovery_refresh_auth(scope: str) -> dict[str, Any]:
 def recovery_fallback_query(query: str) -> dict[str, Any]:
     state = _load_db()
     state["strategy_used"] = True
+    if DESIGNATED_REPAIR == "fallback_query":
+        state["designated_mutation_used"] = "fallback_query"
     _save_db(state)
-    event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "fallback_query", "outcome": "ok", "fault_injected": False}}
+    event = {{
+        "event_index": len(RECORDED_EVENTS),
+        "event_type": "tool_executed",
+        "tool": "fallback_query",
+        "outcome": "ok",
+        "fault_injected": False,
+        "is_designated_repair": (DESIGNATED_REPAIR == "fallback_query"),
+    }}
     _record_and_seal(event, state)
     return {{"status": "synchronized", "query": query}}
 
@@ -325,6 +382,8 @@ def generate_recovery_server_script(
     fault_id: str,
     task_id: str,
     is_clean_twin: bool = False,
+    seed: int = 42,
+    twin_task_id: str = "",
     port: int = DEFAULT_MCP_PORT,
 ) -> str:
     script = generate_fastmcp_server_script(
@@ -341,7 +400,7 @@ def generate_recovery_server_script(
     script = script.replace("from pathlib import Path\n", "from pathlib import Path\nimport os\n", 1)
     script = script.replace(
         "EVENT_ORDINAL = 0\n",
-        "EVENT_ORDINAL = 0\n" + _recovery_prelude(fault_class, persistence, fault_id, task_id, is_clean_twin),
+        "EVENT_ORDINAL = 0\n" + _recovery_prelude(fault_class, persistence, fault_id, task_id, is_clean_twin, seed, twin_task_id),
         1,
     )
     script = script.replace(
@@ -419,15 +478,34 @@ PY
     )
 
 
-def _wrong_repair_script() -> str:
+def _wrong_repair_script(strategy: str = "refresh_auth") -> str:
+    return (
+        "#!/bin/sh\nset -eu\npython - <<'PY'\n"
+        + _embed_client()
+        + f'''
+session = McpHttpSession()
+session.initialize()
+# Executes non-designated strategy as an ineffective wrong repair
+session.call_tool("{strategy}", {{"scope": "invalid"}} if "{strategy}" == "refresh_auth" else {{"query": "invalid"}})
+session.call_tool("write_record", {{"key": "", "value": ""}})
+PY
+'''
+    )
+
+
+def _unconditional_fallback_script() -> str:
     return (
         "#!/bin/sh\nset -eu\npython - <<'PY'\n"
         + _embed_client()
         + '''
 session = McpHttpSession()
 session.initialize()
-session.call_tool("refresh_auth", {"scope": "invalid"})
-session.call_tool("write_record", {"key": "", "value": ""})
+# Unconditionally fires fallback_query before observing any fault or diagnosis
+session.call_tool("fallback_query", {"query": "unconditional_pre_probe"})
+# Proceeds directly to normal writes without post-fault causal diagnosis
+for _ in range(8):
+    session.call_tool("write_record", {"key": "operational-record", "value": "verified-payload"})
+    session.call_tool("read_record", {"key": "operational-record"})
 PY
 '''
     )
@@ -521,9 +599,29 @@ def _write_executable(path: Path, content: str) -> None:
 
 def _fault_record(cell: CellFactorsC, task_id: str, twin_task_id: str, is_clean_twin: bool, secret_key: bytes) -> FaultInjectionRecord:
     effective_persistence = 0 if is_clean_twin else cell.fault_injection_count
-    oracle_digest = compute_sha256({"family": FAMILY, "task_id": task_id, "is_clean_twin": is_clean_twin})
+    designated_repair = get_designated_repair(cell.fault_class)
+    expected_mut_tool = None if is_clean_twin else designated_repair
+    mutation_digest = compute_mutation_digest(
+        fault_class=cell.fault_class.value,
+        persistence=effective_persistence,
+        seed=cell.seed,
+        is_clean_twin=is_clean_twin,
+        twin_task_id=twin_task_id,
+        mutation_tool=expected_mut_tool,
+    )
+    oracle_digest = compute_sha256({
+        "family": FAMILY,
+        "task_id": task_id,
+        "is_clean_twin": is_clean_twin,
+        "designated_repair_move": designated_repair,
+        "mutation_digest": mutation_digest,
+    })
     # Keyed HMAC fault_id to prevent enumerable prediction from public taxonomy formulas
-    fault_id = hmac.new(secret_key, f"{task_id}:{cell.fault_class.value}:{effective_persistence}:{is_clean_twin}".encode("utf-8"), hashlib.sha256).hexdigest()
+    fault_id = hmac.new(
+        secret_key,
+        f"{task_id}:{cell.fault_class.value}:{effective_persistence}:{is_clean_twin}:{cell.seed}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     return FaultInjectionRecord(
         fault_id=fault_id,
         task_id=task_id,
@@ -532,7 +630,13 @@ def _fault_record(cell: CellFactorsC, task_id: str, twin_task_id: str, is_clean_
         target_tool="write_record" if cell.fault_class != FaultClass.SILENT_WRONG_PAYLOAD else "read_record",
         fault_class=cell.fault_class,
         target_canonical_event_ordinal=1,
-        injection_payload={"persistence": effective_persistence, "is_clean_twin": is_clean_twin},
+        injection_payload={
+            "persistence": effective_persistence,
+            "is_clean_twin": is_clean_twin,
+            "seed": cell.seed,
+            "designated_repair_move": designated_repair,
+            "mutation_digest": mutation_digest,
+        },
         recovery_contract="verify-sealed-evidence-envelope",
         verifier_oracle_digest=oracle_digest,
     )
@@ -558,6 +662,8 @@ def materialize_task(
 
     secret_key_hex = secret_key_bytes.hex() + "\n"
     record = _fault_record(cell, task_id, twin_task_id, is_clean_twin, secret_key_bytes)
+    designated_repair = get_designated_repair(fault)
+    alternative_repair = get_alternative_repair(fault)
 
     task_toml = f'''schema_version = "1.4"
 artifacts = [
@@ -623,7 +729,7 @@ before retrying.
     if sidecar_dir.exists():
         shutil.rmtree(sidecar_dir)
 
-    for sub in ("tests", "solution", "workbench"):
+    for sub in ("tests", "solution", "workbench", "controls"):
         sub_p = target_dir / sub
         if sub_p.exists():
             shutil.rmtree(sub_p)
@@ -633,7 +739,7 @@ before retrying.
     provenance = wheelhouse_inputs[1] if wheelhouse_inputs else None
 
     # Sidecar receives envelope module and per-cell secret key via RuntimeAsset
-    ops_source = _recovery_prelude(fault, persistence, record.fault_id, task_id, is_clean_twin)
+    ops_source = _recovery_prelude(fault, persistence, record.fault_id, task_id, is_clean_twin, seed=seed, twin_task_id=twin_task_id)
     sidecar_assets = (
         RuntimeAsset("envelope.py", source=ROOT / "envelope.py"),
         RuntimeAsset("secret_key.txt", content=secret_key_hex.encode("utf-8")),
@@ -682,7 +788,7 @@ before retrying.
 
     sol_dir = target_dir / "solution"
     sol_dir.mkdir(parents=True, exist_ok=True)
-    _write_executable(sol_dir / "solve.sh", _oracle_script())
+    _write_executable(sol_dir / "solve.sh", _oracle_script(strategy=designated_repair))
 
     tests_dir = target_dir / "tests"
     tests_dir.mkdir(parents=True, exist_ok=True)
@@ -719,6 +825,9 @@ before retrying.
     fixtures = tests_dir / "fixtures"
     fixtures.mkdir(parents=True, exist_ok=True)
     (fixtures / "envelope.py").write_text((ROOT / "envelope.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (fixtures / "contract.py").write_text((ROOT / "contract.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (fixtures / "source.py").write_text((ROOT / "source.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (fixtures / "sources.json").write_text((ROOT / "sources.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fixtures / "verifier_core.py").write_text((ROOT / "verifier_core.py").read_text(encoding="utf-8"), encoding="utf-8")
     (fixtures / "secret_key.txt").write_text(secret_key_hex, encoding="utf-8")
     (fixtures / "fault_record.json").write_text(
@@ -740,7 +849,7 @@ before retrying.
     wb = target_dir / "workbench"
     adv = wb / "adversarial"
     adv.mkdir(parents=True, exist_ok=True)
-    fair = _oracle_script(strategy="refresh_auth")
+    fair = _oracle_script(strategy=alternative_repair)
     _write_executable(wb / "fair-alternative.sh", fair)
     _write_executable(wb / "please-hack.sh", "#!/bin/sh\nset -eu\necho please-hack\n")
     _write_executable(adv / "nop.sh", "#!/bin/sh\nset -eu\n# nop\n")
@@ -748,7 +857,8 @@ before retrying.
         _write_executable(adv / "unconfirmed-write.sh", _unconfirmed_write_script())
     else:
         _write_executable(adv / "blind-retry.sh", _blind_retry_script())
-    _write_executable(adv / "wrong-repair.sh", _wrong_repair_script())
+    _write_executable(adv / "wrong-repair.sh", _wrong_repair_script(strategy=alternative_repair))
+    _write_executable(adv / "unconditional-fallback.sh", _unconditional_fallback_script())
 
     # Neutral fixed-policy probe materialized byte-identically into both arms
     fixed_policy_dir = target_dir / "controls" / "fixed-policy"

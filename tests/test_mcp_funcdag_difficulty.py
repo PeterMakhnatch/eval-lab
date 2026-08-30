@@ -312,9 +312,66 @@ def test_negative_control_dead_end_and_mutants_rejected(tmp_path):
     ws_dead = tmp_path / "ws_dead_call"
     runtime = runtime_mod.MCPRuntime(spec_data, ev_dead)
     dead_tool = next(t for t in spec_data["tools"] if "dead_end" in t["name"])
-    runtime.call_tool(dead_tool["name"], {"a": 2, "b": 2})
+    args = {p["name"]: 2 for p in dead_tool["parameters"]}
+    call_res = runtime.call_tool(dead_tool["name"], args)
+    assert "result" in call_res
     templates_mod.run_oracle_solve(runtime, spec_data, ws_dead)
     res_dead = verifier_mod.verify_execution(task_dir, truth_path, ev_dead, ws_dead)
     assert res_dead["reward"] == 0.0
     assert res_dead["dag_structure_ok"] is False
     assert res_dead["dag_conformance"] is False
+
+
+def test_dead_end_decoys_invocation(tmp_path):
+    """Every dead-end decoy tool and node accepts conforming calls matching its op signature without crashing."""
+    dag_gen = _load_module("dag_generator")
+    runtime_mod = _load_module("runtime")
+
+    # Test across multiple seeds to sample diverse operation signatures (scale_factor, transform_signal, merge_checksums, etc.)
+    for seed in (42, 101, 2024, 7777, 9999):
+        spec = dag_gen.generate_dag_spec(seed=seed, depth=3, width=2, distractor_count=2, difficulty="dead_end")
+        assert len(spec.dead_end_tools) > 0
+        assert len(spec.dead_end_nodes) > 0
+
+        spec_dict = {
+            "tools": [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": [{"name": p.name, "type_name": p.type_name, "description": p.description, "required": p.required} for p in t.parameters],
+                    "output_type": t.output_type,
+                    "is_distractor": t.is_distractor,
+                    "op_kind": t.op_kind,
+                }
+                for t in spec.tools
+            ],
+            "nodes": [
+                {"node_id": n.node_id, "tool_name": n.tool_name, "op_name": n.op_name, "input_bindings": n.input_bindings}
+                for n in spec.nodes
+            ],
+            "initial_inputs": spec.initial_inputs,
+            "target_node_id": spec.target_node_id,
+            "topological_order": spec.topological_order,
+        }
+
+        ev_dir = tmp_path / f"ev_decoys_seed_{seed}"
+        runtime = runtime_mod.MCPRuntime(spec_dict, ev_dir)
+
+        # 1. Directly invoke every dead-end tool with arguments matching its derived parameter signature
+        for dead_tool in spec.dead_end_tools:
+            assert len(dead_tool.parameters) >= 2
+            args = {p.name: 5 for p in dead_tool.parameters}
+            call_out = runtime.call_tool(dead_tool.name, args)
+            assert "error" not in call_out, f"Decoy tool {dead_tool.name} crashed with params {args}: {call_out}"
+            assert "result" in call_out
+
+        # 2. Invoke dead-end graph steps following their input bindings
+        dead_node_values = dict(spec.initial_inputs)
+        for dn in spec.dead_end_nodes:
+            step_args = {}
+            for param_name, src_id in dn.input_bindings.items():
+                step_args[param_name] = dead_node_values.get(src_id, 3)
+            call_out = runtime.call_tool(dn.tool_name, step_args)
+            assert "error" not in call_out, f"Dead-end step {dn.node_id} invocation failed: {call_out}"
+            assert "result" in call_out
+            dead_node_values[dn.node_id] = 7  # mock intermediate value

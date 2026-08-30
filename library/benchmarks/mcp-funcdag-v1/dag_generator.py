@@ -80,6 +80,37 @@ OP_REGISTRY: dict[str, Callable[..., Any]] = {
     "merge_checksums": lambda u, v: (int(u) ^ int(v)) + (int(u) & int(v)) + 7,
 }
 
+OP_PARAM_SPECS: dict[str, list[ToolParameter]] = {
+    "add_integers": [
+        ToolParameter("x", "integer", "First operand integer value"),
+        ToolParameter("y", "integer", "Second operand integer value"),
+    ],
+    "multiply_integers": [
+        ToolParameter("x", "integer", "First operand integer value"),
+        ToolParameter("y", "integer", "Second operand integer value"),
+    ],
+    "subtract_integers": [
+        ToolParameter("x", "integer", "First operand integer value"),
+        ToolParameter("y", "integer", "Second operand integer value"),
+    ],
+    "scale_factor": [
+        ToolParameter("base", "integer", "Base integer to scale"),
+        ToolParameter("factor", "integer", "Scaling multiplier"),
+    ],
+    "combine_metrics": [
+        ToolParameter("a", "integer", "First primary metric"),
+        ToolParameter("b", "integer", "Second secondary metric"),
+    ],
+    "transform_signal": [
+        ToolParameter("val", "integer", "Signal value"),
+        ToolParameter("offset", "integer", "Signal offset"),
+    ],
+    "merge_checksums": [
+        ToolParameter("u", "integer", "Upper component"),
+        ToolParameter("v", "integer", "Lower component"),
+    ],
+}
+
 
 def _sha256_canonical(obj: Any) -> str:
     serialized = json.dumps(obj, sort_keys=True, separators=(",", ":"))
@@ -156,16 +187,17 @@ def _make_dead_end_branch(
     used_names: set[str],
 ) -> tuple[ToolSpec, list[DAGNode]]:
     """Create one deterministic dead-end branch: a real-shaped distractor tool plus a
-    short chain of nodes that never feeds the target node. Excluded from the real
-    topological order / node_expected_calls, preserving the unique correct DAG."""
+    short chain of nodes that never feeds the target node. Parameters and bindings are
+    derived from the selected operation signature so decoys accept conforming calls
+    without parameter-name mismatch. Excluded from the real topological order /
+    node_expected_calls, preserving the unique correct DAG."""
     input_ids = list(initial_inputs.keys())
     base = f"dead_end_metric_{branch_idx + 1}"
     tool_name = _unique_tool_name(base, used_names)
     used_names.add(tool_name)
-    params = [
-        ToolParameter("a", "integer", "First side-branch metric input"),
-        ToolParameter("b", "integer", "Second side-branch metric input"),
-    ]
+    op_name = rng.choice(list(OP_PARAM_SPECS.keys()))
+    params = OP_PARAM_SPECS[op_name]
+    p1_name, p2_name = params[0].name, params[1].name
     tool = ToolSpec(
         name=tool_name,
         description=(
@@ -178,12 +210,14 @@ def _make_dead_end_branch(
         op_kind="distractor",
     )
     nodes: list[DAGNode] = []
-    prev = input_ids[0]
+    prev1 = input_ids[0]
+    prev2 = input_ids[1 % len(input_ids)]
     for n in range(DEAD_END_NODES_PER_BRANCH):
         node_id = f"deadend_{branch_idx}_{n}"
-        bindings = {"a": prev, "b": prev}
-        nodes.append(DAGNode(node_id, tool_name, "dead_end", bindings, "integer"))
-        prev = node_id
+        bindings = {p1_name: prev1, p2_name: prev2}
+        nodes.append(DAGNode(node_id, tool_name, op_name, bindings, "integer"))
+        prev1 = node_id
+        prev2 = node_id
     return tool, nodes
 
 
@@ -241,47 +275,11 @@ def generate_dag_spec(
             v1 = node_values[p1]
             v2 = node_values[p2]
             op_fn = OP_REGISTRY[op_name]
-
-            if op_name in ("add_integers", "multiply_integers", "subtract_integers"):
-                params = [
-                    ToolParameter("x", "integer", "First operand integer value"),
-                    ToolParameter("y", "integer", "Second operand integer value"),
-                ]
-                bindings = {"x": p1, "y": p2}
-                val = op_fn(v1, v2)
-                expected_args = {"x": v1, "y": v2}
-            elif op_name == "scale_factor":
-                params = [
-                    ToolParameter("base", "integer", "Base integer to scale"),
-                    ToolParameter("factor", "integer", "Scaling multiplier"),
-                ]
-                bindings = {"base": p1, "factor": p2}
-                val = op_fn(v1, v2)
-                expected_args = {"base": v1, "factor": v2}
-            elif op_name == "combine_metrics":
-                params = [
-                    ToolParameter("a", "integer", "First primary metric"),
-                    ToolParameter("b", "integer", "Second secondary metric"),
-                ]
-                bindings = {"a": p1, "b": p2}
-                val = op_fn(v1, v2)
-                expected_args = {"a": v1, "b": v2}
-            elif op_name == "transform_signal":
-                params = [
-                    ToolParameter("val", "integer", "Signal value"),
-                    ToolParameter("offset", "integer", "Signal offset"),
-                ]
-                bindings = {"val": p1, "offset": p2}
-                val = op_fn(v1, v2)
-                expected_args = {"val": v1, "offset": v2}
-            else:
-                params = [
-                    ToolParameter("u", "integer", "Upper component"),
-                    ToolParameter("v", "integer", "Lower component"),
-                ]
-                bindings = {"u": p1, "v": p2}
-                val = op_fn(v1, v2)
-                expected_args = {"u": v1, "v": v2}
+            params = OP_PARAM_SPECS[op_name]
+            p1_name, p2_name = params[0].name, params[1].name
+            bindings = {p1_name: p1, p2_name: p2}
+            val = op_fn(**{p1_name: v1, p2_name: v2})
+            expected_args = {p1_name: v1, p2_name: v2}
 
             public_operation_desc = {
                 "add_integers": "Addition transformation: adds x + y.",

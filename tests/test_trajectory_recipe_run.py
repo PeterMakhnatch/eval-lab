@@ -677,7 +677,13 @@ def test_real_build_campaign_report_source_refs_select_only_report_trials(
                 }
             ],
             "accounting": {},
-            "analysis_config": {},
+            "analysis_config": {
+                "feature_registry_digest": "sha256:" + "2" * 64,
+                "producer_digests": {"fixture": "sha256:" + "3" * 64},
+                "cohort_policy_digest": "sha256:" + "4" * 64,
+                "redaction_policy_digest": "sha256:" + "5" * 64,
+            },
+            "analysis_snapshot_digest": "sha256:" + "6" * 64,
             "produced_at": "2026-08-15T00:00:00Z",
         }
     )

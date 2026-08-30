@@ -1,6 +1,7 @@
 """Focused unit tests for the Z.ai Action Memory campaign compiler and runner.
 
 Covers:
+- Default definition construction and canonical digest computation.
 - Deterministic 38-trial manifest compilation (36 phase A + 2 phase B).
 - Budget admission refusal on exceeded token ceilings and unmeasured doses.
 - Model allowlist enforcement and Highspeed access-gated classification.
@@ -9,8 +10,6 @@ Covers:
 - Cleanup in ``finally`` for staged auth and process locks.
 - Conditional phase-B gating on phase-A ceiling adherence.
 - Matched-contrast pairing and separate retrieval fidelity reporting.
-
-DO NOT RUN during the development loop: parent session and CI validate once.
 """
 
 from __future__ import annotations
@@ -39,19 +38,24 @@ from evallab.zai_campaign import (
     ZaiAuthShape,
     ZaiCampaignAuthError,
     ZaiCampaignBudgetError,
+    ZaiCampaignError,
     ZaiCampaignModelError,
     ZaiCampaignPreconditionError,
     ZaiCampaignRunner,
     ZaiCampaignState,
+    ZaiCampaignStatus,
     ZaiCampaignTaskError,
     ZaiPhaseSpec,
     ZaiTrial,
+    build_campaign_definition,
     build_default_definition,
+    campaign_design_digest,
     check_budget_admission,
     check_lane_preconditions,
     classify_attempt,
     classify_verifier_retrieval,
     compile_campaign,
+    default_campaign_limits,
     describe_auth_shape,
     filter_zai_auth,
     is_scored,
@@ -123,6 +127,35 @@ def _make_non_zai_auth_doc(tmp_path: Path) -> Path:
 
 
 # --------------------------------------------------------------------------- #
+# 0. Default Definition Construction & Digest Invariants
+# --------------------------------------------------------------------------- #
+
+
+def test_build_default_definition_validates_canonical_digest() -> None:
+    definition = build_default_definition()
+    assert definition.campaign_id == CAMPAIGN_ID
+    assert definition.design_digest.startswith("sha256:")
+    assert definition.design_digest == campaign_design_digest(definition)
+    assert definition.lane_model in ALLOWED_MODELS
+    assert len(definition.phases) == 2
+    assert definition.phase("a").name == "a"
+    assert definition.phase("b").name == "b"
+
+
+def test_build_campaign_definition_custom_limits() -> None:
+    custom_limits = default_campaign_limits(
+        host_isolation_enforced=True,
+        credential_proxy_holds_secret=True,
+        max_concurrency=2,
+    )
+    definition = build_campaign_definition(limits=custom_limits)
+    assert definition.limits.host_isolation_enforced is True
+    assert definition.limits.credential_proxy_holds_secret is True
+    assert definition.limits.max_concurrency == 2
+    assert definition.design_digest == campaign_design_digest(definition)
+
+
+# --------------------------------------------------------------------------- #
 # 1. Deterministic Manifest Compilation
 # --------------------------------------------------------------------------- #
 
@@ -142,6 +175,7 @@ def test_manifest_compilation_deterministic_38_trials(tmp_path: Path) -> None:
 
     # Deterministic trial ordering and properties
     for trial in manifest_1.trials:
+        assert trial.phase in {"a", "b"}
         assert trial.trial_id.startswith(f"{trial.phase}-")
         assert trial.job_identity.startswith("zai-am-campaign-")
         assert trial.prompt_token_ceiling > 0
@@ -178,8 +212,8 @@ def test_budget_admission_refuses_exceeded_phase_a_ceiling() -> None:
         reps=definition.phase("a").reps,
         ceiling_input_tokens=5_000_000,  # Below 6,291,672
     )
-    over_budget_def = definition.model_copy(
-        update={"phases": (low_phase_a, definition.phase("b"))}
+    over_budget_def = build_campaign_definition(
+        phases=(low_phase_a, definition.phase("b"))
     )
     with pytest.raises(ZaiCampaignBudgetError, match="exceeding its 5000000 ceiling"):
         check_budget_admission(over_budget_def)
@@ -196,18 +230,18 @@ def test_budget_admission_refuses_unmeasured_dose_in_phase_a() -> None:
         reps=definition.phase("a").reps,
         ceiling_input_tokens=PHASE_A_CEILING_INPUT_TOKENS,
     )
-    invalid_def = definition.model_copy(
-        update={"phases": (invalid_phase_a, definition.phase("b"))}
+    invalid_def = build_campaign_definition(
+        phases=(invalid_phase_a, definition.phase("b"))
     )
     with pytest.raises(ZaiCampaignBudgetError, match="unmeasured"):
         check_budget_admission(invalid_def)
 
 
 def test_budget_admission_refuses_low_provider_trial_ceiling() -> None:
-    definition = build_default_definition()
-    # Lower provider max_trials below 38
-    low_limits = definition.limits.model_copy(update={"max_trials": 20})
-    invalid_def = definition.model_copy(update={"limits": low_limits})
+    low_limits = default_campaign_limits(max_concurrency=1).model_copy(
+        update={"max_trials": 20}
+    )
+    invalid_def = build_campaign_definition(limits=low_limits)
     with pytest.raises(ZaiCampaignBudgetError, match="admits fewer than the 38 runnable trials"):
         check_budget_admission(invalid_def)
 

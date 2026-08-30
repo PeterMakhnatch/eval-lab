@@ -55,6 +55,7 @@ repo-owned Z.ai/OpenCode adapter and is only invoked under an explicit
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -668,6 +669,33 @@ def default_campaign_limits(
     )
 
 
+def build_campaign_definition(
+    *,
+    campaign_id: str = CAMPAIGN_ID,
+    lane_model: str = "zai-coding-plan/glm-5.3-flash",
+    phases: Sequence[ZaiPhaseSpec] | None = None,
+    limits: ZaiCampaignLimits | None = None,
+) -> ZaiCampaignDefinition:
+    """Build and validate a ZaiCampaignDefinition with a canonical design digest."""
+    validate_model(lane_model)
+    resolved_phases = (
+        tuple(phases)
+        if phases is not None
+        else (default_phase_a_spec(), default_phase_b_spec())
+    )
+    resolved_limits = limits if limits is not None else default_campaign_limits()
+    raw: dict[str, Any] = {
+        "schema_version": CAMPAIGN_DESIGN_VERSION,
+        "campaign_id": campaign_id,
+        "lane_model": lane_model,
+        "phases": [phase.model_dump(mode="json") for phase in resolved_phases],
+        "limits": resolved_limits.model_dump(mode="json"),
+    }
+    digest = campaign_design_digest(raw)
+    raw["design_digest"] = digest
+    return ZaiCampaignDefinition.model_validate(raw)
+
+
 def build_default_definition(
     *,
     lane_model: str = "zai-coding-plan/glm-5.3-flash",
@@ -676,20 +704,17 @@ def build_default_definition(
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
 ) -> ZaiCampaignDefinition:
     """Build the certified Action Memory campaign definition."""
-    validate_model(lane_model)
-    definition = ZaiCampaignDefinition(
+    limits = default_campaign_limits(
+        host_isolation_enforced=host_isolation_enforced,
+        credential_proxy_holds_secret=credential_proxy_holds_secret,
+        max_concurrency=max_concurrency,
+    )
+    return build_campaign_definition(
         campaign_id=CAMPAIGN_ID,
-        design_digest="sha256:" + "0" * 64,  # placeholder, recomputed below
         lane_model=lane_model,
         phases=(default_phase_a_spec(), default_phase_b_spec()),
-        limits=default_campaign_limits(
-            host_isolation_enforced=host_isolation_enforced,
-            credential_proxy_holds_secret=credential_proxy_holds_secret,
-            max_concurrency=max_concurrency,
-        ),
+        limits=limits,
     )
-    object.__setattr__(definition, "design_digest", campaign_design_digest(definition))
-    return definition
 
 
 def campaign_design_digest(
@@ -797,6 +822,8 @@ def compile_campaign(
     validate_task_root(task_root)
     phase_a = compile_phase_a(definition, task_root=task_root)
     phase_b = compile_phase_b(definition, task_root=task_root)
+    for trial in phase_a + phase_b:
+        require_trial_task(trial)
     raw: dict[str, Any] = {
         "schema_version": SCHEMA_MANIFEST,
         "campaign_id": CAMPAIGN_ID,
@@ -838,7 +865,7 @@ def project_phase_a_input_tokens(definition: ZaiCampaignDefinition) -> int:
         measured = dose_measured_input_tokens(dose)
         if measured is None:
             raise ZaiCampaignBudgetError(
-                f"phase A dose {dose} has no measured cost and cannot be budgeted"
+                f"phase A dose {dose} is unmeasured; an unmeasured dose cannot be budgeted"
             )
         total += measured * trials_at_dose
     return total
@@ -1050,12 +1077,17 @@ def matched_contrast_report(
             else:
                 row = _row_with(row, non_scored=row.non_scored + 1)
         fidelity = classify_verifier_retrieval(evidence_by_trial.get(trial.trial_id))
+        order_fidelity = (
+            fidelity.order_fidelity
+            if fidelity.order_fidelity is not None
+            else row.order_fidelity
+        )
         row = _row_with(
             row,
             unknown=row.unknown + fidelity.unknown,
             omitted=row.omitted + fidelity.omitted,
             duplicate=row.duplicate + fidelity.duplicate,
-            order_fidelity=fidelity.order_fidelity,
+            order_fidelity=order_fidelity,
         )
         by_key[key] = row
     return [by_key[key] for key in sorted(by_key)]
@@ -1139,11 +1171,11 @@ class ZaiCampaignState:
         self.root.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(self.lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            os.flock(descriptor, os.LOCK_EX)
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
             yield
         finally:
             with contextlib.suppress(OSError):
-                os.flock(descriptor, os.LOCK_UN)
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
             os.close(descriptor)
 
     def load(self) -> ZaiCampaignStatus | None:
@@ -1283,18 +1315,19 @@ class ZaiCampaignRunner:
                 return existing
             raise ZaiCampaignError("campaign already started; pass resume=True to continue")
 
-        attempts = self._settle_phase(
+        all_prior = existing.attempts if existing else ()
+        attempts_a = self._settle_phase(
             self.manifest.phase_a,
-            attempts=existing.attempts if existing else (),
+            attempts=all_prior,
             staged_auth_path=staged_auth_path,
         )
-        usage = sum(attempt.prompt_tokens or 0 for attempt in attempts)
+        usage = sum(attempt.prompt_tokens or 0 for attempt in attempts_a)
         if usage > self.definition.phase("a").ceiling_input_tokens:
             status = ZaiCampaignStatus(
                 campaign_id=self.definition.campaign_id,
                 manifest_digest=self.manifest.manifest_digest,
                 state="complete",
-                attempts=attempts,
+                attempts=tuple(attempts_a),
                 phase_b_skipped=True,
                 phase_b_reason="phase A exceeded its token ceiling; phase B is held",
                 prompt_tokens_used=usage,
@@ -1302,12 +1335,12 @@ class ZaiCampaignRunner:
             self.state.write(status)
             return status
 
-        if any(attempt.kind == "unresolved" for attempt in attempts):
+        if any(attempt.kind == "unresolved" for attempt in attempts_a):
             status = ZaiCampaignStatus(
                 campaign_id=self.definition.campaign_id,
                 manifest_digest=self.manifest.manifest_digest,
                 state="phase_a_complete",
-                attempts=attempts,
+                attempts=tuple(attempts_a),
                 phase_b_skipped=True,
                 phase_b_reason="phase A left unresolved attempts; phase B is held",
                 prompt_tokens_used=usage,
@@ -1317,10 +1350,10 @@ class ZaiCampaignRunner:
 
         phase_b_attempts = self._settle_phase(
             self.manifest.phase_b,
-            attempts=attempts,
+            attempts=all_prior,
             staged_auth_path=staged_auth_path,
         )
-        all_attempts = attempts + phase_b_attempts
+        all_attempts = tuple(attempts_a + phase_b_attempts)
         status = ZaiCampaignStatus(
             campaign_id=self.definition.campaign_id,
             manifest_digest=self.manifest.manifest_digest,

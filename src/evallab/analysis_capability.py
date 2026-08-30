@@ -788,10 +788,17 @@ def compute_spec_digest(spec: Mapping[str, Any] | CampaignAnalysisSpecV1) -> str
         normalized = {
             "schema_version": raw.get("schema_version", "campaign-analysis-spec/v1"),
             "spec_id": raw["spec_id"],
-            "method": raw["method"].value if isinstance(raw["method"], StrEnum) else str(raw["method"]),
+            "method": raw["method"].value
+            if isinstance(raw["method"], StrEnum)
+            else str(raw["method"]),
             "outcome_feature": raw["outcome_feature"],
-            "predictor_features": [f.value if isinstance(f, StrEnum) else str(f) for f in raw.get("predictor_features", ())],
-            "group_by": [g.value if isinstance(g, StrEnum) else str(g) for g in raw.get("group_by", ())],
+            "predictor_features": [
+                f.value if isinstance(f, StrEnum) else str(f)
+                for f in raw.get("predictor_features", ())
+            ],
+            "group_by": [
+                g.value if isinstance(g, StrEnum) else str(g) for g in raw.get("group_by", ())
+            ],
             "unit": raw["unit"].value if isinstance(raw["unit"], StrEnum) else str(raw["unit"]),
             "unit_keys": list(raw["unit_keys"]),
             "pair_keys": list(raw.get("pair_keys", ())),
@@ -833,7 +840,11 @@ class CampaignAnalysisSpecV1(ContractModel):
     @model_validator(mode="after")
     def _validate_spec_invariants(self) -> CampaignAnalysisSpecV1:
         _validate_non_zero_digest(self.spec_digest, "spec_digest")
-        if not self.unit_keys or len(self.unit_keys) != len(set(self.unit_keys)) or any(not k for k in self.unit_keys):
+        if (
+            not self.unit_keys
+            or len(self.unit_keys) != len(set(self.unit_keys))
+            or any(not k for k in self.unit_keys)
+        ):
             raise ValueError("unit_keys must be non-empty with unique non-empty string components")
         if self.method == AnalysisMethod.PAIRED_SIGN and (
             not self.pair_keys or any(not k for k in self.pair_keys)
@@ -846,7 +857,9 @@ class CampaignAnalysisSpecV1(ContractModel):
                 raise ValueError("cluster_bootstrap requires positive bootstrap_resamples")
         expected = compute_spec_digest(self)
         if self.spec_digest != expected:
-            raise ValueError(f"spec_digest {self.spec_digest!r} does not match canonical {expected!r}")
+            raise ValueError(
+                f"spec_digest {self.spec_digest!r} does not match canonical {expected!r}"
+            )
         return self
 
 
@@ -923,15 +936,21 @@ class CampaignAnalysisResultV1(ContractModel):
             if any(code != RefusalCode.UNDERPOWERED for code in self.refusals) and (
                 self.estimate is not None or self.interval is not None or self.p_value is not None
             ):
-                raise ValueError("Refusal that invalidates the estimand must set estimate, interval, and p_value to None")
+                raise ValueError(
+                    "Refusal that invalidates the estimand must set estimate, interval, and p_value to None"
+                )
             elif RefusalCode.UNDERPOWERED in self.refusals and (
                 self.interval is not None or self.p_value is not None
             ):
-                raise ValueError("UNDERPOWERED inferential claims must set interval and p_value to None")
+                raise ValueError(
+                    "UNDERPOWERED inferential claims must set interval and p_value to None"
+                )
         body = self.model_dump(mode="json", exclude={"result_digest"})
         expected = _canonical_digest(body)
         if self.result_digest != expected:
-            raise ValueError(f"result_digest {self.result_digest!r} does not match canonical {expected!r}")
+            raise ValueError(
+                f"result_digest {self.result_digest!r} does not match canonical {expected!r}"
+            )
         return self
 
 
@@ -971,7 +990,10 @@ def create_campaign_analysis_result(
         "mde": mde,
         "attainable_p_floor": attainable_p_floor,
         "design_effect": design_effect,
-        "source_refs": [ref.model_dump(mode="json") if isinstance(ref, ContractModel) else ref for ref in source_refs],
+        "source_refs": [
+            ref.model_dump(mode="json") if isinstance(ref, ContractModel) else ref
+            for ref in source_refs
+        ],
     }
     canonical = _canonical_digest(body)
     return CampaignAnalysisResultV1.model_validate({**body, "result_digest": canonical})
@@ -1022,7 +1044,9 @@ def compute_review_queue_digest(artifact: Mapping[str, Any] | ReviewQueueArtifac
             e.model_dump(mode="json") if isinstance(e, ContractModel) else dict(e)
             for e in raw.get("entries", ())
         ]
-        refusals_list = [r.value if isinstance(r, StrEnum) else str(r) for r in raw.get("refusals", ())]
+        refusals_list = [
+            r.value if isinstance(r, StrEnum) else str(r) for r in raw.get("refusals", ())
+        ]
         payload = {
             "schema_version": raw.get("schema_version", "review-queue/v1"),
             "queue_id": raw["queue_id"],
@@ -1066,7 +1090,9 @@ class ReviewQueueArtifactV1(ContractModel):
         body = self.model_dump(mode="json", exclude={"queue_digest"})
         expected = _canonical_digest(body)
         if self.queue_digest != expected:
-            raise ValueError(f"queue_digest {self.queue_digest!r} does not match canonical {expected!r}")
+            raise ValueError(
+                f"queue_digest {self.queue_digest!r} does not match canonical {expected!r}"
+            )
         return self
 
 
@@ -1118,7 +1144,9 @@ class NextRunFeedbackV1(ContractModel):
         body = self.model_dump(mode="json", exclude={"feedback_digest"})
         expected = _canonical_digest(body)
         if self.feedback_digest != expected:
-            raise ValueError(f"feedback_digest {self.feedback_digest!r} does not match canonical {expected!r}")
+            raise ValueError(
+                f"feedback_digest {self.feedback_digest!r} does not match canonical {expected!r}"
+            )
         return self
 
 
@@ -1140,7 +1168,9 @@ class CampaignAnalysisConfigV1(ContractModel):
             _validate_non_zero_digest(v, f"producer_digests.{k}")
         if self.retrieval is not None:
             _validate_non_zero_digest(self.retrieval.embedder_digest, "retrieval.embedder_digest")
-            _validate_non_zero_digest(self.retrieval.redaction_policy_digest, "retrieval.redaction_policy_digest")
+            _validate_non_zero_digest(
+                self.retrieval.redaction_policy_digest, "retrieval.redaction_policy_digest"
+            )
         spec_ids = [s.spec_id for s in self.specs]
         if len(spec_ids) != len(set(spec_ids)):
             raise ValueError("CampaignAnalysisConfigV1 spec_ids must be unique")
@@ -1263,17 +1293,31 @@ def _rate_wilson(
     source_refs = _extract_source_refs(rows, spec.outcome_feature)
     for row in rows:
         if row.get("capture_complete") is False:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
 
     if spec.denominator_policy == DenominatorPolicy.REQUIRED:
         denominators: list[Any] = []
         for row in rows:
             denom = row.get("denominator")
             if denom is None:
-                return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_DENOMINATOR_DECLARATION, len(rows), source_refs)
+                return _refusal_result(
+                    spec,
+                    snapshot_digest,
+                    RefusalCode.MISSING_DENOMINATOR_DECLARATION,
+                    len(rows),
+                    source_refs,
+                )
             denominators.append(denom)
         if any(not isinstance(d, (int, float)) or d < 0 for d in denominators):
-            return _refusal_result(spec, snapshot_digest, RefusalCode.INVALID_DENOMINATOR_DECLARATION, len(rows), source_refs)
+            return _refusal_result(
+                spec,
+                snapshot_digest,
+                RefusalCode.INVALID_DENOMINATOR_DECLARATION,
+                len(rows),
+                source_refs,
+            )
         total = sum(int(d) for d in denominators if d > 0)
         successes = 0
         for row, denom in zip(rows, denominators, strict=False):
@@ -1285,11 +1329,17 @@ def _rate_wilson(
         successes = sum(1 for v in values if v is True)
 
     if total <= 0:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+        )
 
     confidence_level = 1.0 - spec.alpha
     wilson = wilson_score_interval(successes, total, confidence_level=confidence_level)
-    interval = (wilson.lower, wilson.upper) if wilson.lower is not None and wilson.upper is not None else None
+    interval = (
+        (wilson.lower, wilson.upper)
+        if wilson.lower is not None and wilson.upper is not None
+        else None
+    )
     return create_campaign_analysis_result(
         spec_id=spec.spec_id,
         spec_digest=spec.spec_digest,
@@ -1319,27 +1369,45 @@ def _paired_sign(
 
     source_refs = _extract_source_refs(rows, spec.outcome_feature)
     if not spec.pair_keys or any(not str(k).strip() for k in spec.pair_keys):
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, len(rows), source_refs
+        )
 
     pair_cols = spec.pair_keys
     has_arm = any("arm" in row and row["arm"] is not None for row in rows)
     has_dose = any("dose" in row and row["dose"] is not None for row in rows)
     if not has_arm and not has_dose:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
+        )
 
     pairs: dict[str, dict[str, list[bool | None]]] = {}
     for row in rows:
         if row.get("capture_complete") is not True:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
         auth = row.get("capture_authority")
         if auth not in ADMISSIBLE_CAPTURE_AUTHORITIES:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_AUTHORITY_UNRESOLVED, len(rows), source_refs)
+            return _refusal_result(
+                spec,
+                snapshot_digest,
+                RefusalCode.CAPTURE_AUTHORITY_UNRESOLVED,
+                len(rows),
+                source_refs,
+            )
 
         key_parts: list[str] = []
         for k in pair_cols:
             val = row.get(k)
             if val is None or str(val).strip() == "":
-                return _refusal_result(spec, snapshot_digest, RefusalCode.PAIRING_IDENTITY_MISMATCH, len(rows), source_refs)
+                return _refusal_result(
+                    spec,
+                    snapshot_digest,
+                    RefusalCode.PAIRING_IDENTITY_MISMATCH,
+                    len(rows),
+                    source_refs,
+                )
             key_parts.append(str(val).strip())
         pair_id = ":".join(key_parts)
 
@@ -1350,29 +1418,41 @@ def _paired_sign(
             elif arm_raw in (1, "1", "treatment"):
                 arm = "treatment"
             else:
-                return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs)
+                return _refusal_result(
+                    spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
+                )
         else:
             dose = row.get("dose")
             if dose is None:
-                return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs)
-            if dose in (0, "0", "control") or (isinstance(dose, str) and dose.strip().lower() == "control"):
+                return _refusal_result(
+                    spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
+                )
+            if dose in (0, "0", "control") or (
+                isinstance(dose, str) and dose.strip().lower() == "control"
+            ):
                 arm = "control"
             else:
                 arm = "treatment"
 
         out = _to_bool(row.get(spec.outcome_feature))
         if out is None:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
         pairs.setdefault(pair_id, {"control": [], "treatment": []})[arm].append(out)
 
     inputs: list[PairedBinaryInput] = []
     for pair_id, arms in sorted(pairs.items()):
         if not arms["control"] or not arms["treatment"]:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.MISSING_PAIR_ARM, len(rows), source_refs
+            )
         control = _aggregate_arm(arms["control"])
         treatment = _aggregate_arm(arms["treatment"])
         if control is None or treatment is None:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
         inputs.append(
             PairedBinaryInput(
                 assignment_unit_id=pair_id,
@@ -1383,14 +1463,20 @@ def _paired_sign(
         )
 
     if not inputs:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+        )
 
     result = exact_paired_binary_contrast(inputs, arm_a_id="control", arm_b_id="treatment")
     status = AnalysisStatus.VALID
     refusals: tuple[RefusalCode, ...] = ()
     if result.status == AnalysisStatus.REFUSAL:
         status = AnalysisStatus.REFUSAL
-        refusals = (result.refusal_code,) if result.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        refusals = (
+            (result.refusal_code,)
+            if result.refusal_code
+            else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        )
         return create_campaign_analysis_result(
             spec_id=spec.spec_id,
             spec_digest=spec.spec_digest,
@@ -1411,7 +1497,8 @@ def _paired_sign(
         )
 
     if result.design_floor_limited or (
-        spec.minimum_informative_units is not None and result.n_discordant < spec.minimum_informative_units
+        spec.minimum_informative_units is not None
+        and result.n_discordant < spec.minimum_informative_units
     ):
         status = AnalysisStatus.REFUSAL
         refusals = (RefusalCode.UNDERPOWERED,)
@@ -1446,7 +1533,8 @@ def _paired_sign(
         effective_n=float(result.n_pairs),
         estimate=result.risk_difference,
         interval=(result.risk_difference_interval_lower, result.risk_difference_interval_upper)
-        if result.risk_difference_interval_lower is not None and result.risk_difference_interval_upper is not None
+        if result.risk_difference_interval_lower is not None
+        and result.risk_difference_interval_upper is not None
         else None,
         p_value=result.exact_p_value,
         mde=result.design_floor_p_value,
@@ -1465,14 +1553,24 @@ def _fisher_2x2(
 
     source_refs = _extract_source_refs(rows, spec.outcome_feature)
     if not spec.predictor_features:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows), source_refs
+        )
 
     for row in rows:
         if row.get("capture_complete") is not True:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
         auth = row.get("capture_authority")
         if auth not in ADMISSIBLE_CAPTURE_AUTHORITIES:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_AUTHORITY_UNRESOLVED, len(rows), source_refs)
+            return _refusal_result(
+                spec,
+                snapshot_digest,
+                RefusalCode.CAPTURE_AUTHORITY_UNRESOLVED,
+                len(rows),
+                source_refs,
+            )
 
     pred = spec.predictor_features[0]
     a = b = c = d = 0
@@ -1480,7 +1578,9 @@ def _fisher_2x2(
         pred_val = _to_bool(row.get(pred))
         out = _to_bool(row.get(spec.outcome_feature))
         if pred_val is None or out is None:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
         if not pred_val and out:
             a += 1
         elif not pred_val and not out:
@@ -1492,7 +1592,9 @@ def _fisher_2x2(
 
     total = a + b + c + d
     if total <= 0:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+        )
 
     result = fisher_exact_2x2([[a, b], [c, d]])
     status = result.status
@@ -1500,7 +1602,11 @@ def _fisher_2x2(
     estimate = result.odds_ratio
     p_value = result.exact_p_value
     if status == AnalysisStatus.REFUSAL:
-        refusals = (result.refusal_code,) if result.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        refusals = (
+            (result.refusal_code,)
+            if result.refusal_code
+            else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        )
         estimate = None
         p_value = None
 
@@ -1534,11 +1640,15 @@ def _repeat_heterogeneity(
     source_refs = _extract_source_refs(rows, spec.outcome_feature)
     cluster_cols = spec.cluster_keys or spec.unit_keys
     if not cluster_cols or any(not str(k).strip() for k in cluster_cols):
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, len(rows), source_refs
+        )
 
     for row in rows:
         if row.get("capture_complete") is False:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
 
     by_cell: dict[str, dict[str, int]] = {}
     for row in rows:
@@ -1546,7 +1656,13 @@ def _repeat_heterogeneity(
         for k in cluster_cols:
             val = row.get(k)
             if val is None or str(val).strip() == "":
-                return _refusal_result(spec, snapshot_digest, RefusalCode.PAIRING_IDENTITY_MISMATCH, len(rows), source_refs)
+                return _refusal_result(
+                    spec,
+                    snapshot_digest,
+                    RefusalCode.PAIRING_IDENTITY_MISMATCH,
+                    len(rows),
+                    source_refs,
+                )
             key_parts.append(str(val).strip())
         cell_id = ":".join(key_parts)
         if cell_id not in by_cell:
@@ -1558,12 +1674,19 @@ def _repeat_heterogeneity(
             by_cell[cell_id]["repeats"] += 1
 
     valid_cells = [
-        RepeatCellInput(cell_id=cell_id, successes=counts["successes"], repeats=counts["repeats"], capture_complete=True)
+        RepeatCellInput(
+            cell_id=cell_id,
+            successes=counts["successes"],
+            repeats=counts["repeats"],
+            capture_complete=True,
+        )
         for cell_id, counts in sorted(by_cell.items())
         if counts["repeats"] > 0
     ]
     if not valid_cells:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+        )
 
     report = analyze_repeat_heterogeneity(valid_cells)
     status = report.status
@@ -1571,10 +1694,17 @@ def _repeat_heterogeneity(
     estimate = report.pooled_probability
     p_value = report.dispersion_p_value
     if status == AnalysisStatus.REFUSAL:
-        refusals = (report.refusal_code,) if report.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        refusals = (
+            (report.refusal_code,)
+            if report.refusal_code
+            else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        )
         estimate = None
         p_value = None
-    elif spec.minimum_informative_units is not None and report.n_cells < spec.minimum_informative_units:
+    elif (
+        spec.minimum_informative_units is not None
+        and report.n_cells < spec.minimum_informative_units
+    ):
         status = AnalysisStatus.REFUSAL
         refusals = (RefusalCode.UNDERPOWERED,)
         p_value = None
@@ -1613,11 +1743,15 @@ def _order_distance(
         a_col = spec.outcome_feature
         b_col = spec.predictor_features[0]
     else:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows), source_refs
+        )
 
     for row in rows:
         if row.get("capture_complete") is False:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
 
     def _sort_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
         return tuple(row.get(k) for k in spec.unit_keys)
@@ -1626,7 +1760,9 @@ def _order_distance(
     seq_a = [r.get(a_col) for r in sorted_rows]
     seq_b = [r.get(b_col) for r in sorted_rows]
     if not seq_a or not seq_b:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+        )
 
     result = compute_sequence_fidelity(seq_a, seq_b)
     status = result.status
@@ -1635,7 +1771,11 @@ def _order_distance(
     if estimate is None:
         estimate = result.jaccard_similarity
     if status == AnalysisStatus.REFUSAL:
-        refusals = (result.refusal_code,) if result.refusal_code else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        refusals = (
+            (result.refusal_code,)
+            if result.refusal_code
+            else (RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,)
+        )
         estimate = None
 
     return create_campaign_analysis_result(
@@ -1666,14 +1806,18 @@ def _descriptive_counts(
     source_refs = _extract_source_refs(rows, spec.outcome_feature)
     for row in rows:
         if row.get("capture_complete") is False:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.CAPTURE_INCOMPLETE, len(rows), source_refs
+            )
 
     if not spec.group_by:
         values = [_to_bool(row.get(spec.outcome_feature)) for row in rows]
         total = sum(1 for v in values if v is not None)
         successes = sum(1 for v in values if v is True)
         if total <= 0:
-            return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+            return _refusal_result(
+                spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+            )
         estimate = successes / total
         return create_campaign_analysis_result(
             spec_id=spec.spec_id,
@@ -1708,7 +1852,9 @@ def _descriptive_counts(
     total = sum(v["n"] for v in by_group.values())
     successes = sum(v["successes"] for v in by_group.values())
     if total <= 0:
-        return _refusal_result(spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs)
+        return _refusal_result(
+            spec, snapshot_digest, RefusalCode.ZERO_OPPORTUNITY, len(rows), source_refs
+        )
     estimate = successes / total
     return create_campaign_analysis_result(
         spec_id=spec.spec_id,
@@ -1750,36 +1896,64 @@ def _validate_outcome_and_predictors(
     outcome = get(spec.outcome_feature)
     if outcome is None:
         return _refusal_result(
-            spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows, source_refs
+            spec,
+            snapshot_digest,
+            RefusalCode.MISSING_LINEAGE_DECLARATION,
+            observed_rows,
+            source_refs,
         )
     if outcome.verdict_coupling is None:
         return _refusal_result(
-            spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows, source_refs
+            spec,
+            snapshot_digest,
+            RefusalCode.MISSING_LINEAGE_DECLARATION,
+            observed_rows,
+            source_refs,
         )
     if outcome.verdict_coupling in ("defines", "correlates") and not (
         outcome.coupling_basis and outcome.coupling_basis.strip()
     ):
         return _refusal_result(
-            spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows, source_refs
+            spec,
+            snapshot_digest,
+            RefusalCode.MISSING_LINEAGE_DECLARATION,
+            observed_rows,
+            source_refs,
         )
 
     for pred in spec.predictor_features:
         if pred == spec.outcome_feature:
             return _refusal_result(
-                spec, snapshot_digest, RefusalCode.OUTCOME_LINEAGE_VIOLATION, observed_rows, source_refs
+                spec,
+                snapshot_digest,
+                RefusalCode.OUTCOME_LINEAGE_VIOLATION,
+                observed_rows,
+                source_refs,
             )
         feat = get(pred)
         if feat is None:
             return _refusal_result(
-                spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows, source_refs
+                spec,
+                snapshot_digest,
+                RefusalCode.MISSING_LINEAGE_DECLARATION,
+                observed_rows,
+                source_refs,
             )
         if feat.available_before_verdict is None:
             return _refusal_result(
-                spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows, source_refs
+                spec,
+                snapshot_digest,
+                RefusalCode.MISSING_LINEAGE_DECLARATION,
+                observed_rows,
+                source_refs,
             )
         if not feat.available_before_verdict:
             return _refusal_result(
-                spec, snapshot_digest, RefusalCode.OUTCOME_LINEAGE_VIOLATION, observed_rows, source_refs
+                spec,
+                snapshot_digest,
+                RefusalCode.OUTCOME_LINEAGE_VIOLATION,
+                observed_rows,
+                source_refs,
             )
         audit = audit_predictor_eligibility(feat, strict_independence=True)
         if audit:
@@ -1790,7 +1964,11 @@ def _validate_outcome_and_predictors(
                 "VERDICT_CORRELATED",
             ):
                 return _refusal_result(
-                    spec, snapshot_digest, RefusalCode.OUTCOME_LINEAGE_VIOLATION, observed_rows, source_refs
+                    spec,
+                    snapshot_digest,
+                    RefusalCode.OUTCOME_LINEAGE_VIOLATION,
+                    observed_rows,
+                    source_refs,
                 )
             if audit in (
                 "MISSING_TEMPORAL_AVAILABILITY",
@@ -1798,14 +1976,26 @@ def _validate_outcome_and_predictors(
                 "MISSING_COUPLING_EVIDENCE_BASIS",
             ):
                 return _refusal_result(
-                    spec, snapshot_digest, RefusalCode.MISSING_LINEAGE_DECLARATION, observed_rows, source_refs
+                    spec,
+                    snapshot_digest,
+                    RefusalCode.MISSING_LINEAGE_DECLARATION,
+                    observed_rows,
+                    source_refs,
                 )
             if audit == "NOT_APPLICABLE_FOR_PREDICTION":
                 return _refusal_result(
-                    spec, snapshot_digest, RefusalCode.ANALYSIS_UNIT_UNDECLARED, observed_rows, source_refs
+                    spec,
+                    snapshot_digest,
+                    RefusalCode.ANALYSIS_UNIT_UNDECLARED,
+                    observed_rows,
+                    source_refs,
                 )
             return _refusal_result(
-                spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, observed_rows, source_refs
+                spec,
+                snapshot_digest,
+                RefusalCode.UNSUPPORTED_ANALYSIS_METHOD,
+                observed_rows,
+                source_refs,
             )
     return None
 
@@ -1818,7 +2008,9 @@ def run_campaign_analysis(
     snapshot_digest: str,
 ) -> CampaignAnalysisResultV1:
     source_refs = _extract_source_refs(rows, spec.outcome_feature)
-    refusal = _validate_outcome_and_predictors(spec, feature_registry, snapshot_digest, len(rows), source_refs)
+    refusal = _validate_outcome_and_predictors(
+        spec, feature_registry, snapshot_digest, len(rows), source_refs
+    )
     if refusal is not None:
         return refusal
 
@@ -1834,7 +2026,9 @@ def run_campaign_analysis(
         return _order_distance(spec, rows, snapshot_digest)
     if spec.method == AnalysisMethod.DESCRIPTIVE_COUNTS:
         return _descriptive_counts(spec, rows, snapshot_digest)
-    return _refusal_result(spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows), source_refs)
+    return _refusal_result(
+        spec, snapshot_digest, RefusalCode.UNSUPPORTED_ANALYSIS_METHOD, len(rows), source_refs
+    )
 
 
 __all__ = [

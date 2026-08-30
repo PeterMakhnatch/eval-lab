@@ -701,9 +701,7 @@ def test_pack_specific_redaction_policy_rehydrates_selected_cas_bytes(
 
     tampered_config = dict(pack.redaction_policy_config)
     tampered_config["max_display_bytes"] = 6
-    tampered = _recompute_pack_digest(
-        replace(pack, redaction_policy_config=tampered_config)
-    )
+    tampered = _recompute_pack_digest(replace(pack, redaction_policy_config=tampered_config))
     tampered_judgment = build_machine_judgment(tampered, ir, [])
     tampered_gate = _schema_gate(ir, tampered, tampered_judgment, store)
     assert (tampered_gate.status, tampered_gate.reason_code) == (
@@ -714,9 +712,7 @@ def test_pack_specific_redaction_policy_rehydrates_selected_cas_bytes(
 
 def test_redaction_policy_digest_binds_regex_flags() -> None:
     case_sensitive = RedactionPolicy(secret_patterns=(re.compile("secret"),))
-    case_insensitive = RedactionPolicy(
-        secret_patterns=(re.compile("secret", re.IGNORECASE),)
-    )
+    case_insensitive = RedactionPolicy(secret_patterns=(re.compile("secret", re.IGNORECASE),))
 
     assert case_sensitive.compute_digest() != case_insensitive.compute_digest()
 
@@ -1255,9 +1251,7 @@ def test_cas_record_anti_join_ignores_foreign_record_with_expected_uri(
     record = tmp_path / "cas/records/job/job-foreign.json"
     record.parent.mkdir(parents=True)
     record.write_text(
-        json.dumps(
-            {"kind": "job", "record_id": "job-foreign", "uri": expected_uri}
-        ),
+        json.dumps({"kind": "job", "record_id": "job-foreign", "uri": expected_uri}),
         encoding="utf-8",
     )
 
@@ -1286,9 +1280,7 @@ def test_cas_record_anti_join_accepts_campaign_bound_legacy_job_name(
     record = tmp_path / "cas/records/job/legacy-job-name.json"
     record.parent.mkdir(parents=True)
     record.write_text(
-        json.dumps(
-            {"kind": "job", "record_id": "legacy-job-name", "uri": expected_uri}
-        ),
+        json.dumps({"kind": "job", "record_id": "legacy-job-name", "uri": expected_uri}),
         encoding="utf-8",
     )
 
@@ -1561,7 +1553,9 @@ def test_uncallable_pack_still_abstains(tmp_path: Path, monkeypatch: pytest.Monk
         kwargs["budget_tokens"] = 1
         return original(ir, **kwargs)
 
-    monkeypatch.setattr("evallab.interpretation.trajectory_runtime.build_evidence_pack", tiny_budget)
+    monkeypatch.setattr(
+        "evallab.interpretation.trajectory_runtime.build_evidence_pack", tiny_budget
+    )
     result = analyze_trial(
         trial_dir,
         repo_root=tmp_path,
@@ -1731,8 +1725,14 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
         ci_method="wilson",
     )
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+
     feature_reg_digest = canonical_json_digest(
-        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
+        [
+            asdict(f)
+            for f in sorted(
+                TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name
+            )
+        ]
     )
     cohort_policy_digest = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
     redaction_policy_digest = RedactionPolicy().compute_digest()
@@ -1976,8 +1976,14 @@ def test_feature_coupled_predictor_refusal_through_analyze_batch(tmp_path: Path)
         ci_method="none",
     )
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+
     feature_reg_digest = canonical_json_digest(
-        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
+        [
+            asdict(f)
+            for f in sorted(
+                TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name
+            )
+        ]
     )
     config = CampaignAnalysisConfigV1(
         feature_registry_digest=feature_reg_digest,
@@ -2062,11 +2068,51 @@ def test_next_run_feedback_in_report(tmp_path: Path) -> None:
 
     rows = []
     for seed in range(1, 5):
-        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
-        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
+        rows.append(
+            {
+                "trial_id": f"t_ctrl_{seed}",
+                "dose": 0,
+                "seed": seed,
+                "primary_reward": 1.0,
+                "arm": "control",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
+        rows.append(
+            {
+                "trial_id": f"t_trt_{seed}",
+                "dose": 1,
+                "seed": seed,
+                "primary_reward": 0.0,
+                "arm": "treatment",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
     for seed in range(5, 10):
-        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
-        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
+        rows.append(
+            {
+                "trial_id": f"t_ctrl_{seed}",
+                "dose": 0,
+                "seed": seed,
+                "primary_reward": 0.0,
+                "arm": "control",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
+        rows.append(
+            {
+                "trial_id": f"t_trt_{seed}",
+                "dose": 1,
+                "seed": seed,
+                "primary_reward": 0.0,
+                "arm": "treatment",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
 
     spec = create_campaign_analysis_spec(
         spec_id="paired-seed-test",
@@ -2113,19 +2159,21 @@ def test_next_run_feedback_in_report(tmp_path: Path) -> None:
         analysis_snapshot_digest=DIGEST_A,
         produced_at=datetime.now(UTC),
     )
-    per_trial = [{
-        "job_id": "j1",
-        "trial_id": "t1",
-        "source_cas_uri": "cas://sha256/" + "1" * 64,
-        "artifact_cas_uri": "cas://sha256/" + "2" * 64,
-        "ir_digest": DIGEST_A,
-        "pack_digest": DIGEST_B,
-        "judgment_id": DIGEST_C,
-        "decision_id": DIGEST_A,
-        "decision": "abstained",
-        "reason_codes": [],
-        "coverage_gaps": ["judge_execution_disabled"],
-    }]
+    per_trial = [
+        {
+            "job_id": "j1",
+            "trial_id": "t1",
+            "source_cas_uri": "cas://sha256/" + "1" * 64,
+            "artifact_cas_uri": "cas://sha256/" + "2" * 64,
+            "ir_digest": DIGEST_A,
+            "pack_digest": DIGEST_B,
+            "judgment_id": DIGEST_C,
+            "decision_id": DIGEST_A,
+            "decision": "abstained",
+            "reason_codes": [],
+            "coverage_gaps": ["judge_execution_disabled"],
+        }
+    ]
     report = build_campaign_report(manifest, per_trial, analysis_results=[result])
     assert report["schema_version"] == "campaign-report/v2"
     feedback = report["next_run_feedback"]
@@ -2210,8 +2258,11 @@ def test_end_to_end_zero_model_batch_spend(tmp_path: Path, monkeypatch: pytest.M
         assert result["snapshot_digest"] == report["analysis_snapshot_digest"]
 
 
-def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_phase_a_e0b_paired_batch_orchestration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """End-to-end proof: 18 repeat trials over 9 (dose, seed) pairs execute zero-model analysis."""
+
     def boom(*_args, **_kwargs):
         raise AssertionError("live model invoked")
 
@@ -2220,7 +2271,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
 
     store = tmp_path / "cas"
     items: list[CampaignAnalysisItem] = []
-    
+
     # 9 pairs (seed 1..9), 2 repeats per cell = 18 trials total
     # Seeds 1..4: control succeeds (reward 1.0), treatment fails (reward 0.0) -> 4 worse
     # Seeds 5..9: both fail (reward 0.0) -> 5 ties
@@ -2229,7 +2280,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
             arm = "control" if dose == 0 else "treatment"
             ctrl_success = seed <= 4 and arm == "control"
             reward = 1.0 if ctrl_success else 0.0
-            
+
             trial_name = f"phase_a_seed_{seed}_dose_{dose}"
             trial_dir = _trial_tree(tmp_path, trial_name=trial_name, unpaired=False, reward=reward)
             cas_uri = _archive_trial(trial_dir, store, trial_name)
@@ -2268,8 +2319,14 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
     )
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+
     feature_reg_digest = canonical_json_digest(
-        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
+        [
+            asdict(f)
+            for f in sorted(
+                TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name
+            )
+        ]
     )
     config = CampaignAnalysisConfigV1(
         feature_registry_digest=feature_reg_digest,

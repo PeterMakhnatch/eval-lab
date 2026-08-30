@@ -279,8 +279,13 @@ def compute_analysis_snapshot_digest(
 
     items = data.get("items", [])
     cohort = [
-        i for i in items
-        if (i.get("cohort_included") if isinstance(i, dict) else getattr(i, "cohort_included", False))
+        i
+        for i in items
+        if (
+            i.get("cohort_included")
+            if isinstance(i, dict)
+            else getattr(i, "cohort_included", False)
+        )
     ]
 
     def _item_body(item: Any) -> dict[str, Any]:
@@ -305,7 +310,9 @@ def compute_analysis_snapshot_digest(
             "capture_authority": d.get("capture_authority"),
         }
 
-    cohort_body = sorted((_item_body(i) for i in cohort), key=lambda d: (d["job_id"], d["trial_id"]))
+    cohort_body = sorted(
+        (_item_body(i) for i in cohort), key=lambda d: (d["job_id"], d["trial_id"])
+    )
     config_dict = config.model_dump(mode="json")
     producer_digests = dict(config_dict.get("producer_digests") or {})
     retrieval = config.retrieval
@@ -415,10 +422,14 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
         }
         computed_id = canonical_json_digest(body)
         if manifest.manifest_id != computed_id:
-            raise ValueError(f"manifest_id {manifest.manifest_id} does not match canonical {computed_id}")
+            raise ValueError(
+                f"manifest_id {manifest.manifest_id} does not match canonical {computed_id}"
+            )
         computed_digest = canonical_json_digest({**body, "manifest_id": computed_id})
         if manifest.manifest_digest != computed_digest:
-            raise ValueError(f"manifest_digest {manifest.manifest_digest} does not match canonical {computed_digest}")
+            raise ValueError(
+                f"manifest_digest {manifest.manifest_digest} does not match canonical {computed_digest}"
+            )
         return manifest
 
     # Case 2: Legacy inventory adapter
@@ -426,7 +437,9 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
     items: list[CampaignAnalysisItem] = []
     for raw in data.get("analysis_cohort_5_trials", []):
         role = raw.get("role", "")
-        attempt_role: CampaignAttemptRole = "retry" if role == "infrastructure_retry_1" else "primary"
+        attempt_role: CampaignAttemptRole = (
+            "retry" if role == "infrastructure_retry_1" else "primary"
+        )
         items.append(_make_campaign_item(raw, cohort_included=True, attempt_role=attempt_role))
 
     for raw in data.get("controls_and_quarantine_ledger", []):
@@ -490,8 +503,14 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
         raw_config = {}
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+
     feature_registry_digest = canonical_json_digest(
-        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
+        [
+            asdict(f)
+            for f in sorted(
+                TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name
+            )
+        ]
     )
     cohort_policy_digest = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
     redaction_policy_digest = RedactionPolicy().compute_digest()
@@ -1965,7 +1984,9 @@ def _validated_campaign_result_identities(
     return actual
 
 
-def _spec_for_result(manifest: CampaignAnalysisManifest, spec_id: str) -> CampaignAnalysisSpecV1 | None:
+def _spec_for_result(
+    manifest: CampaignAnalysisManifest, spec_id: str
+) -> CampaignAnalysisSpecV1 | None:
     for spec in manifest.analysis_config.specs:
         if spec.spec_id == spec_id:
             return spec
@@ -2001,14 +2022,19 @@ def _build_next_run_feedback(
         )
 
     underpowered = [
-        r for r in analysis_results
+        r
+        for r in analysis_results
         if r.status == AnalysisStatus.REFUSAL and RefusalCode.UNDERPOWERED in r.refusals
     ]
     for result in underpowered:
         spec = _spec_for_result(manifest, result.spec_id)
         target_estimand = spec.outcome_feature if spec else "outcome"
         target_unit = spec.unit if spec else AnalysisUnit.PAIRED_SEED
-        requested = spec.minimum_informative_units if spec and spec.minimum_informative_units is not None else result.informative_units
+        requested = (
+            spec.minimum_informative_units
+            if spec and spec.minimum_informative_units is not None
+            else result.informative_units
+        )
         recommendations.append(
             RunRecommendationV1(
                 action=NextRunAction.ADD_INDEPENDENT_SEEDS,
@@ -2110,7 +2136,9 @@ def build_campaign_report(
         "coverage_gap_counts": coverage_gap_counts,
         "source_refs": source_refs,
         "analysis_results": [r.model_dump(mode="json") for r in analysis_results],
-        "review_queue_ref": review_queue_ref.model_dump(mode="json") if review_queue_ref is not None else None,
+        "review_queue_ref": review_queue_ref.model_dump(mode="json")
+        if review_queue_ref is not None
+        else None,
         "accounting": {
             "total_planned_specs": manifest.accounting.get("total_planned_specs"),
             "total_executed_trials": manifest.accounting.get("total_executed_trials"),
@@ -2203,14 +2231,18 @@ def _extract_analysis_rows(
             if item.coverage_complete is not None
             else (res.get("coverage_gaps") == ["judge_execution_disabled"])
         )
-        row["order_exact"] = item.order_exact if item.order_exact is not None else res.get("order_exact")
+        row["order_exact"] = (
+            item.order_exact if item.order_exact is not None else res.get("order_exact")
+        )
         row["capture_complete"] = (
             item.capture_complete
             and (item.quality_status in ("pass", "warn"))
             and ("ATIF_UNPAIRED_TOOL_CALL" not in res.get("coverage_gaps", []))
         )
         row["capture_authority"] = (
-            item.capture_authority if item.capture_authority is not None else res.get("capture_authority")
+            item.capture_authority
+            if item.capture_authority is not None
+            else res.get("capture_authority")
         )
         if item.declared_features:
             for feat_k, feat_v in item.declared_features.items():
@@ -2225,9 +2257,15 @@ def _build_review_queue_artifact(
     store_root: Path,
 ) -> ReviewQueueRef:
     """Build an honest typed non-decision review queue refusal artifact."""
-    query_digest = canonical_json_digest({"purpose": retrieval.purpose, "manifest_id": manifest.manifest_id})
-    candidate_pool_digest = canonical_json_digest([{"trial_id": i.trial_id} for i in manifest.cohort_items()])
-    index_digest = canonical_json_digest({"embedder": retrieval.embedder_id, "dim": retrieval.dimension})
+    query_digest = canonical_json_digest(
+        {"purpose": retrieval.purpose, "manifest_id": manifest.manifest_id}
+    )
+    candidate_pool_digest = canonical_json_digest(
+        [{"trial_id": i.trial_id} for i in manifest.cohort_items()]
+    )
+    index_digest = canonical_json_digest(
+        {"embedder": retrieval.embedder_id, "dim": retrieval.dimension}
+    )
     body = {
         "schema_version": "review-queue/v1",
         "queue_id": f"{manifest.campaign_id}-review-queue",
@@ -2278,7 +2316,9 @@ def analyze_batch(
     derived = (derived_root or output_dir.parent).resolve()
 
     manifest = load_campaign_analysis_manifest(inventory_path)
-    recomputed_snapshot_digest = compute_analysis_snapshot_digest(manifest, manifest.analysis_config)
+    recomputed_snapshot_digest = compute_analysis_snapshot_digest(
+        manifest, manifest.analysis_config
+    )
     if recomputed_snapshot_digest != manifest.analysis_snapshot_digest:
         raise RuntimeError(
             f"STALE_SNAPSHOT: manifest snapshot digest {manifest.analysis_snapshot_digest} "
@@ -2333,7 +2373,10 @@ def analyze_batch(
         )
 
     review_queue_ref = None
-    if manifest.analysis_config.retrieval is not None and manifest.analysis_config.retrieval.enabled:
+    if (
+        manifest.analysis_config.retrieval is not None
+        and manifest.analysis_config.retrieval.enabled
+    ):
         review_queue_ref = _build_review_queue_artifact(
             manifest,
             manifest.analysis_config.retrieval,

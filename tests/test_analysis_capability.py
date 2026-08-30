@@ -805,43 +805,51 @@ def _paired_spec() -> CampaignAnalysisSpecV1:
 def test_exact_paired_units_aggregation() -> None:
     rows = []
     for seed in range(1, 5):  # 4 worse: control succeeds, treatment fails
-        rows.append({
-            "trial_id": f"t_ctrl_{seed}",
-            "dose": 0,
-            "seed": seed,
-            "primary_reward": 1.0,
-            "arm": "control",
-            "capture_complete": True,
-            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
-        })
-        rows.append({
-            "trial_id": f"t_trt_{seed}",
-            "dose": 1,
-            "seed": seed,
-            "primary_reward": 0.0,
-            "arm": "treatment",
-            "capture_complete": True,
-            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
-        })
+        rows.append(
+            {
+                "trial_id": f"t_ctrl_{seed}",
+                "dose": 0,
+                "seed": seed,
+                "primary_reward": 1.0,
+                "arm": "control",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
+        rows.append(
+            {
+                "trial_id": f"t_trt_{seed}",
+                "dose": 1,
+                "seed": seed,
+                "primary_reward": 0.0,
+                "arm": "treatment",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
     for seed in range(5, 10):  # 5 ties: both fail
-        rows.append({
-            "trial_id": f"t_ctrl_{seed}",
-            "dose": 0,
-            "seed": seed,
-            "primary_reward": 0.0,
-            "arm": "control",
-            "capture_complete": True,
-            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
-        })
-        rows.append({
-            "trial_id": f"t_trt_{seed}",
-            "dose": 1,
-            "seed": seed,
-            "primary_reward": 0.0,
-            "arm": "treatment",
-            "capture_complete": True,
-            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
-        })
+        rows.append(
+            {
+                "trial_id": f"t_ctrl_{seed}",
+                "dose": 0,
+                "seed": seed,
+                "primary_reward": 0.0,
+                "arm": "control",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
+        rows.append(
+            {
+                "trial_id": f"t_trt_{seed}",
+                "dose": 1,
+                "seed": seed,
+                "primary_reward": 0.0,
+                "arm": "treatment",
+                "capture_complete": True,
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+            }
+        )
 
     spec = _paired_spec()
     result = run_campaign_analysis(spec, rows, snapshot_digest=DIGEST_A)
@@ -943,9 +951,7 @@ def test_review_queue_entry_is_not_decision_result() -> None:
         "decision_eligible": False,
     }
     queue_digest = compute_review_queue_digest(artifact_body)
-    artifact = ReviewQueueArtifactV1.model_validate(
-        {**artifact_body, "queue_digest": queue_digest}
-    )
+    artifact = ReviewQueueArtifactV1.model_validate({**artifact_body, "queue_digest": queue_digest})
     with pytest.raises(ValidationError):
         CampaignAnalysisResultV1.model_validate(artifact.model_dump(mode="json"))
 
@@ -968,7 +974,11 @@ def test_next_run_feedback_is_unauthorized() -> None:
     }
     canonical_fb_digest = canonical_json_digest(feedback_body)
     feedback = NextRunFeedbackV1.model_validate(
-        {**feedback_body, "feedback_digest": canonical_fb_digest, "recommendations": (recommendation,)}
+        {
+            **feedback_body,
+            "feedback_digest": canonical_fb_digest,
+            "recommendations": (recommendation,),
+        }
     )
     assert feedback.execution_authorized is False
     assert feedback.authorizing_actor_required is True
@@ -990,7 +1000,9 @@ def test_run_campaign_analysis_refuses_unsupported_or_empty() -> None:
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
         ci_method="none",
     )
-    result = run_campaign_analysis(spec, [{"trial_id": "t1", "primary_reward": 1.0}], snapshot_digest=DIGEST_A)
+    result = run_campaign_analysis(
+        spec, [{"trial_id": "t1", "primary_reward": 1.0}], snapshot_digest=DIGEST_A
+    )
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.UNSUPPORTED_ANALYSIS_METHOD in result.refusals
 
@@ -1027,7 +1039,10 @@ def test_predictor_outcome_lineage_violation_refuses() -> None:
         ci_method="none",
     )
     result = run_campaign_analysis(
-        spec, [{"trial_id": "t1", "defines_outcome": 1}], feature_registry=registry, snapshot_digest=DIGEST_A
+        spec,
+        [{"trial_id": "t1", "defines_outcome": 1}],
+        feature_registry=registry,
+        snapshot_digest=DIGEST_A,
     )
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.OUTCOME_LINEAGE_VIOLATION in result.refusals
@@ -1048,7 +1063,10 @@ def test_predictor_missing_lineage_declaration_refuses() -> None:
         ci_method="none",
     )
     result = run_campaign_analysis(
-        spec, [{"trial_id": "t1", "unregistered_outcome": 1, "unregistered_pred": 1}], feature_registry=registry, snapshot_digest=DIGEST_A
+        spec,
+        [{"trial_id": "t1", "unregistered_outcome": 1, "unregistered_pred": 1}],
+        feature_registry=registry,
+        snapshot_digest=DIGEST_A,
     )
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.MISSING_LINEAGE_DECLARATION in result.refusals
@@ -1126,8 +1144,22 @@ def test_inferential_adapter_missing_or_unresolved_authority_refuses() -> None:
     )
     # Row with missing capture authority
     rows_missing = [
-        {"trial_id": "t1", "dose": 0, "seed": 1, "primary_reward": 1.0, "arm": "control", "capture_complete": True},
-        {"trial_id": "t2", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True},
+        {
+            "trial_id": "t1",
+            "dose": 0,
+            "seed": 1,
+            "primary_reward": 1.0,
+            "arm": "control",
+            "capture_complete": True,
+        },
+        {
+            "trial_id": "t2",
+            "dose": 1,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+        },
     ]
     res_missing = run_campaign_analysis(spec, rows_missing, snapshot_digest=DIGEST_A)
     assert res_missing.status == AnalysisStatus.REFUSAL
@@ -1135,8 +1167,24 @@ def test_inferential_adapter_missing_or_unresolved_authority_refuses() -> None:
 
     # Row with invalid/concordant string (not an authority)
     rows_concordant = [
-        {"trial_id": "t1", "dose": 0, "seed": 1, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": "concordant"},
-        {"trial_id": "t2", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": "concordant"},
+        {
+            "trial_id": "t1",
+            "dose": 0,
+            "seed": 1,
+            "primary_reward": 1.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": "concordant",
+        },
+        {
+            "trial_id": "t2",
+            "dose": 1,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": "concordant",
+        },
     ]
     res_concordant = run_campaign_analysis(spec, rows_concordant, snapshot_digest=DIGEST_A)
     assert res_concordant.status == AnalysisStatus.REFUSAL
@@ -1144,8 +1192,24 @@ def test_inferential_adapter_missing_or_unresolved_authority_refuses() -> None:
 
     # Row with unresolved capture authority
     rows_unresolved = [
-        {"trial_id": "t1", "dose": 0, "seed": 1, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": "unresolved"},
-        {"trial_id": "t2", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": "unresolved"},
+        {
+            "trial_id": "t1",
+            "dose": 0,
+            "seed": 1,
+            "primary_reward": 1.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": "unresolved",
+        },
+        {
+            "trial_id": "t2",
+            "dose": 1,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": "unresolved",
+        },
     ]
     res_unresolved = run_campaign_analysis(spec, rows_unresolved, snapshot_digest=DIGEST_A)
     assert res_unresolved.status == AnalysisStatus.REFUSAL
@@ -1153,8 +1217,24 @@ def test_inferential_adapter_missing_or_unresolved_authority_refuses() -> None:
 
     # Row with valid benchmark_events authority
     rows_valid = [
-        {"trial_id": "t1", "dose": 0, "seed": 1, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
-        {"trial_id": "t2", "dose": 1, "seed": 1, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value},
+        {
+            "trial_id": "t1",
+            "dose": 0,
+            "seed": 1,
+            "primary_reward": 1.0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
+        {
+            "trial_id": "t2",
+            "dose": 1,
+            "seed": 1,
+            "primary_reward": 0.0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
+        },
     ]
     res_valid = run_campaign_analysis(spec, rows_valid, snapshot_digest=DIGEST_A)
     assert res_valid.status in (AnalysisStatus.VALID, AnalysisStatus.REFUSAL)

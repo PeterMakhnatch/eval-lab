@@ -52,6 +52,9 @@ def test_production_operations_sql_is_select_only():
         token in f" {normalized} "
         for token in (" INSERT ", " UPDATE ", " DELETE ", " CREATE ", " DROP ", " ALTER ")
     )
+    # Fix 1: Verify SQL extracts exception_message (not .message)
+    assert "exception_message" in EXPERIMENT_OPERATIONS_SQL
+    assert "result_exception_message" in EXPERIMENT_OPERATIONS_SQL
 
 
 def test_classify_trial_outcome_invariants():
@@ -75,7 +78,7 @@ def test_refusal_reason_extraction_without_zero_coercion():
     # Scored trials have no refusal reason
     assert refusal_reason_for_trial({"primary_reward": 1.0, "exception_type": None}) is None
 
-    # Provider access gives explicit failure reason
+    # Provider access gives explicit failure reason from result_exception_message
     provider_trial = {
         "primary_reward": None,
         "exception_type": "transient_harness",
@@ -410,18 +413,34 @@ def test_model_access_vs_capability_separation():
             "is_passed": False,
             "primary_reward": None,
         },
+        # Model D: 1 scored pass, 1 harness failure (non-access un-scored attempt) -> accessible (0 access failures), basis notes non-access unscored
+        {
+            "agent_name": "cursor-cli",
+            "model_name": "cursor-small",
+            "outcome_class": OUTCOME_SCORED,
+            "is_passed": True,
+            "primary_reward": 1.0,
+        },
+        {
+            "agent_name": "cursor-cli",
+            "model_name": "cursor-small",
+            "outcome_class": OUTCOME_HARNESS_FAILURE,
+            "is_passed": False,
+            "primary_reward": None,
+        },
     ]
 
     report = model_access_vs_capability(trials_data)
     by_model = {r["model"]: r for r in report}
 
-    # Model A: accessible, 50% capability
+    # Model A: accessible, 50% capability, basis states all attempts reached and scored
     terra = by_model["gpt-5.6-terra"]
     assert terra["access_status"] == "accessible"
     assert terra["access_failures"] == 0
     assert terra["access_success_rate"] == 1.0
     assert terra["n_scored"] == 2
     assert terra["capability_pass_rate"] == 0.5
+    assert terra["access_vs_capability_basis"] == "all 2 attempts reached model and scored"
 
     # Model B: access_blocked, 0 scored trials, capability rate is None (NOT 0.0!)
     highspeed = by_model["zai-coding-plan/glm-5.3-highspeed"]
@@ -430,6 +449,7 @@ def test_model_access_vs_capability_separation():
     assert highspeed["access_success_rate"] == 0.0
     assert highspeed["n_scored"] == 0
     assert highspeed["capability_pass_rate"] is None  # Never coerced to 0 reward!
+    assert "3 provider access failure(s)" in highspeed["access_vs_capability_basis"]
 
     # Model C: degraded_access, 100% capability over scored
     glm = by_model["zai-coding-plan/glm-5.3"]
@@ -438,68 +458,107 @@ def test_model_access_vs_capability_separation():
     assert glm["access_success_rate"] == 0.5
     assert glm["n_scored"] == 1
     assert glm["capability_pass_rate"] == 1.0
+    assert "1 provider access failure(s)" in glm["access_vs_capability_basis"]
+
+    # Fix 4: Model D has 0 access failures but 1 harness failure -> basis does NOT claim "all attempts reached model"
+    cursor = by_model["cursor-small"]
+    assert cursor["access_status"] == "accessible"
+    assert cursor["access_failures"] == 0
+    assert cursor["n_scored"] == 1
+    assert cursor["total_attempts"] == 2
+    assert "non-access un-scored attempt(s)" in cursor["access_vs_capability_basis"]
+    assert "all 2 attempts reached model and scored" not in cursor["access_vs_capability_basis"]
 
 
 def test_action_memory_contrast_fidelity_reporting():
     am_trials = [
-        # Pair 1: complete matched contrast (clean vs neutral_padding), seed 42, dose 4096
+        # Pair 1: complete matched contrast (clean vs neutral_padding), seed 42, dose 4096 (as 4k suffix in task_name)
         {
             "task_family": "action-memory-v1",
-            "task_name": "action-memory-dose-ladder-4096",
+            "task_name": "action-memory-dose-ladder-4k",
             "task_block_id": "block-1",
-            "arm_id": "dl-clean-4096-s42",
+            "arm_id": "dl-clean-4k-s42",
             "generator_seed_json": json.dumps({"seed": 42}),
         },
         {
             "task_family": "action-memory-v1",
-            "task_name": "action-memory-dose-ladder-4096",
+            "task_name": "action-memory-dose-ladder-4k",
             "task_block_id": "block-1",
-            "arm_id": "dl-neutral-padding-4096-s42",
+            "arm_id": "dl-neutral-padding-4k-s42",
             "generator_seed_json": json.dumps({"seed": 42}),
         },
-        # Pair 2: incomplete contrast (only 1 arm observed), seed 42, dose 16384 -> 1 omitted arm
+        # Pair 2: incomplete contrast (only 1 arm observed), seed 42, dose 16384 (as 16k in arm_id) -> 1 omitted arm
         {
             "task_family": "action-memory-v1",
-            "task_name": "action-memory-dose-ladder-16384",
+            "task_name": "action-memory-dose-ladder-16k",
             "task_block_id": "block-2",
-            "arm_id": "dl-clean-16384-s42",
+            "arm_id": "dl-clean-16k-s42",
             "generator_seed_json": json.dumps({"seed": 42}),
         },
-        # Pair 3: duplicate trial for same arm, seed 1337, dose 65536
+        # Pair 3: duplicate trial for same arm, seed 1337, dose 65536 (as 64K) -> 1 duplicate arm, 1 omitted opposite arm
         {
             "task_family": "action-memory-v1",
-            "task_name": "action-memory-dose-ladder-65536",
+            "task_name": "action-memory-dose-ladder-64K",
             "task_block_id": "block-3",
-            "arm_id": "dl-clean-65536-s1337",
+            "arm_id": "dl-clean-64K-s1337",
             "generator_seed_json": json.dumps({"seed": 1337}),
         },
         {
             "task_family": "action-memory-v1",
-            "task_name": "action-memory-dose-ladder-65536",
+            "task_name": "action-memory-dose-ladder-64K",
             "task_block_id": "block-3",
-            "arm_id": "dl-clean-65536-s1337",  # Duplicate!
+            "arm_id": "dl-clean-64K-s1337",  # Duplicate!
             "generator_seed_json": json.dumps({"seed": 1337}),
         },
         # Trial 4: unknown contrast key (missing seed provenance)
         {
             "task_family": "action-memory-v1",
-            "task_name": "action-memory-dose-ladder-4096",
+            "task_name": "action-memory-dose-ladder-128k",
             "task_block_id": "block-4",
-            "arm_id": "dl-clean-4096-unknown",
+            "arm_id": "dl-clean-128k-unknown",
             "generator_seed_json": None,
+        },
+        # Trial 5 (Fix 2): Non-action-memory trial that happens to carry an arm_id must NOT be admitted!
+        {
+            "task_family": "mcp-recovery-v1",
+            "task_name": "recovery-retry-task",
+            "task_block_id": "block-99",
+            "arm_id": "dl-clean-4k-s42",
+            "generator_seed_json": json.dumps({"seed": 42}),
         },
     ]
 
     fidelity = action_memory_contrast_fidelity(am_trials)
 
+    # 6 action-memory trials (Trial 5 excluded by task_family filter)
     assert fidelity["total_trials"] == 6
-    assert fidelity["total_contrast_groups"] == 3  # block-1, block-2, block-3
+    assert fidelity["total_contrast_groups"] == 3  # block-1 (4096), block-2 (16384), block-3 (65536)
     assert fidelity["matched_pairs"] == 1  # block-1 is complete
     assert fidelity["coverage_fidelity"] == pytest.approx(1 / 3)
     assert fidelity["unknown_count"] == 1  # Trial 4 has no seed
-    assert fidelity["omitted_count"] == 1  # block-2 is missing its second arm
-    assert fidelity["duplicate_count"] == 1  # block-3 has 2 clean trials
+    # omitted_count: block-2 misses 1 arm, block-3 misses 1 arm -> total 2 omitted expected arms
+    assert fidelity["omitted_count"] == 2
+    # duplicate_count remains strictly separate: block-3 has 1 duplicate trial
+    assert fidelity["duplicate_count"] == 1
     assert fidelity["order_fidelity_rate"] == pytest.approx(1 / 3)  # only block-1 has perfect order distinction
+
+
+def test_action_memory_dose_ladder_string_parsing():
+    # Fix 3: Test 4k/16k/64k/128k as well as 4096/16384/65536/131072
+    trials = [
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-4k", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-16K", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-64k", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-128K", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-4096", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-16384", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-65536", "generator_seed_json": "1"},
+        {"task_family": "action-memory-v1", "task_block_id": "b1", "arm_id": "arm-131072", "generator_seed_json": "1"},
+    ]
+    report = action_memory_contrast_fidelity(trials)
+    assert report["unknown_count"] == 0
+    doses = {g["dose_bytes"] for g in report["contrast_groups"]}
+    assert doses == {4096, 16384, 65536, 131072}
 
 
 def test_zone_unavailable_on_unattached_z2(tmp_path):

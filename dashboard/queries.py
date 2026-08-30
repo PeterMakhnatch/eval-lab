@@ -35,6 +35,18 @@ OUTCOME_REFUSED = "refused"
 ELIGIBILITY_CAUSAL_ADMISSIBLE = "causal_admissible"
 ELIGIBILITY_CALIBRATION_ONLY = "calibration_only"
 
+_DOSE_LADDER_MAP: dict[str, int] = {
+    "4096": 4096,
+    "16384": 16384,
+    "65536": 65536,
+    "131072": 131072,
+    "4k": 4096,
+    "16k": 16384,
+    "64k": 65536,
+    "128k": 131072,
+}
+_DOSE_PATTERN = re.compile(r"\b(4096|16384|65536|131072|4k|16k|64k|128k)\b", re.IGNORECASE)
+
 
 class ZoneUnavailableError(RuntimeError):
     """Raised when a query requires a storage zone that is not attached."""
@@ -225,7 +237,7 @@ SELECT
     j.lab_metadata #>> '{host,platform}' AS host_platform,
     CASE WHEN j.lab_metadata #>> '{provider_usage}' IS NOT NULL THEN true ELSE false END AS has_credential_proxy,
     t.raw_result #>> '{exception_info,exception_type}' AS result_exception_type,
-    t.raw_result #>> '{exception_info,message}' AS result_exception_message,
+    t.raw_result #>> '{exception_info,exception_message}' AS result_exception_message,
     t.raw_result #>> '{agent_result,refusal_reason}' AS raw_refusal_reason,
     f.task_family,
     f.task_block_id,
@@ -468,6 +480,20 @@ def model_access_vs_capability(trials: list[dict[str, Any]]) -> list[dict[str, A
         else:
             access_status = "degraded_access"
 
+        if access_failures > 0:
+            basis = (
+                f"{n_scored} of {total_attempts} attempts scored "
+                f"({access_failures} provider access failure(s))"
+            )
+        elif total_attempts == n_scored:
+            basis = f"all {total_attempts} attempts reached model and scored"
+        else:
+            other_unscored = total_attempts - n_scored
+            basis = (
+                f"{n_scored} of {total_attempts} attempts scored "
+                f"({other_unscored} non-access un-scored attempt(s))"
+            )
+
         rows.append({
             "agent": agent,
             "model": model,
@@ -482,11 +508,7 @@ def model_access_vs_capability(trials: list[dict[str, Any]]) -> list[dict[str, A
             "capability_pass_rate": capability_rate,
             "ci_95_low": interval[0] if interval else None,
             "ci_95_high": interval[1] if interval else None,
-            "access_vs_capability_basis": (
-                f"{n_scored} scored, {access_failures} access failures"
-                if access_failures > 0
-                else f"all {n_scored} attempts reached model"
-            ),
+            "access_vs_capability_basis": basis,
         })
 
     return sorted(
@@ -512,9 +534,8 @@ def action_memory_contrast_fidelity(trials: list[dict[str, Any]]) -> dict[str, A
     """
     am_trials = [
         t for t in trials
-        if "action-memory" in str(t.get("task_family") or "")
-        or "action-memory" in str(t.get("task_name") or "")
-        or t.get("arm_id") is not None
+        if "action-memory" in str(t.get("task_family") or "").lower()
+        or "action-memory" in str(t.get("task_name") or "").lower()
     ]
 
     if not am_trials:
@@ -545,14 +566,11 @@ def action_memory_contrast_fidelity(trials: list[dict[str, Any]]) -> dict[str, A
         return None
 
     def extract_dose(trial: dict[str, Any]) -> int | None:
-        arm_id = str(trial.get("arm_id") or "")
-        match = re.search(r"\b(4096|16384|65536|131072)\b", arm_id)
-        if match:
-            return int(match.group(1))
-        task_name = str(trial.get("task_name") or "")
-        match_task = re.search(r"\b(4096|16384|65536|131072)\b", task_name)
-        if match_task:
-            return int(match_task.group(1))
+        for field in ("arm_id", "task_instance_id", "task_name"):
+            val = str(trial.get(field) or "")
+            match = _DOSE_PATTERN.search(val)
+            if match:
+                return _DOSE_LADDER_MAP[match.group(1).lower()]
         return None
 
     grouped: dict[tuple[str, int, int], list[dict[str, Any]]] = defaultdict(list)
@@ -592,7 +610,7 @@ def action_memory_contrast_fidelity(trials: list[dict[str, Any]]) -> dict[str, A
         else:
             total_omitted += (2 - distinct_arms)
 
-        has_order_fidelity = distinct_arms == len(group_trials) and duplicates == 0
+        has_order_fidelity = is_complete and distinct_arms == len(group_trials) and duplicates == 0
         if has_order_fidelity:
             order_consistent_count += 1
 

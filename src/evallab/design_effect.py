@@ -9,6 +9,14 @@ independent (unclustered) plan unchanged.
 
 from __future__ import annotations
 
+from evallab.analysis_statistics import (
+    AnalysisStatus,
+    RefusalCode,
+    RepeatCellInput,
+    RepeatHeterogeneityReport,
+    analyze_repeat_heterogeneity,
+    compute_design_effect,
+)
 from evallab.cohort import (
     clustered_minimum_detectable_effect,
     clustered_power_requirements,
@@ -18,9 +26,15 @@ from evallab.cohort import (
 )
 
 __all__ = [
+    "AnalysisStatus",
+    "RefusalCode",
+    "RepeatCellInput",
+    "RepeatHeterogeneityReport",
+    "analyze_repeat_heterogeneity",
     "clustered_minimum_detectable_effect",
     "clustered_power_requirements",
     "clustered_required_tasks_for_effect",
+    "compute_design_effect",
     "design_effect",
     "effective_sample_size",
 ]

@@ -376,10 +376,13 @@ def _load_verified_cas_members(store_root: Path, uri: str) -> dict[str, bytes]:
     """Read and content-verify a CAS archive without extracting it."""
     expected_digest = f"sha256:{uri.removeprefix('cas://sha256/')}"
     members: dict[str, bytes] = {}
-    with open_archive(store_root, uri) as blob, tarfile.open(
-        fileobj=blob,
-        mode="r:gz",
-    ) as archive:
+    with (
+        open_archive(store_root, uri) as blob,
+        tarfile.open(
+            fileobj=blob,
+            mode="r:gz",
+        ) as archive,
+    ):
         entries: list[tuple[str, tarfile.TarInfo]] = []
         for member in archive.getmembers():
             if not member.isfile():
@@ -913,6 +916,12 @@ def run_analysis(
     evidence_store_root: Path | None = None,
     cas_uri: str | None = None,
     analysis_id: str | None = None,
+    analysis_role: Literal[
+        "trial_review", "review_queue_review", "counterexample_review"
+    ] = "trial_review",
+    source_manifest_digest: str | None = None,
+    source_snapshot_digest: str | None = None,
+    source_queue_digest: str | None = None,
 ) -> tuple[AnalysisRecord, dict[str, Any], Path, Path]:
     """Execute analysis on a trial, validate evidence, and store artifacts.
 
@@ -1000,6 +1009,10 @@ def run_analysis(
         category=result.category,
         evidence=normalized_evidence,
         confidence=result.confidence,
+        analysis_role=analysis_role,
+        source_manifest_digest=source_manifest_digest,
+        source_snapshot_digest=source_snapshot_digest,
+        source_queue_digest=source_queue_digest,
     )
 
     # 7. Write conclusion JSON to research/analysis/<analysis_id>.json
@@ -1082,6 +1095,23 @@ def project_analyses(repo_root: Path, explicit_derived: Path | None = None) -> t
                     "confidence_interval_low": int_low,
                     "confidence_interval_high": int_high,
                     "confidence_provenance": conf.get("provenance_digest"),
+                    "analysis_role": str(data.get("analysis_role", "trial_review")),
+                    "source_manifest_digest": (
+                        str(data["source_manifest_digest"])
+                        if data.get("source_manifest_digest") is not None
+                        else None
+                    ),
+                    "source_snapshot_digest": (
+                        str(data["source_snapshot_digest"])
+                        if data.get("source_snapshot_digest") is not None
+                        else None
+                    ),
+                    "source_queue_digest": (
+                        str(data["source_queue_digest"])
+                        if data.get("source_queue_digest") is not None
+                        else None
+                    ),
+                    "decision_eligible": bool(data.get("decision_eligible", False)),
                     "created_at": str(data.get("created_at", "")),
                 }
             )
@@ -1127,6 +1157,11 @@ def project_analyses(repo_root: Path, explicit_derived: Path | None = None) -> t
             ("confidence_interval_low", pa.float64()),
             ("confidence_interval_high", pa.float64()),
             ("confidence_provenance", pa.string()),
+            ("analysis_role", pa.string()),
+            ("source_manifest_digest", pa.string()),
+            ("source_snapshot_digest", pa.string()),
+            ("source_queue_digest", pa.string()),
+            ("decision_eligible", pa.bool_()),
             ("created_at", pa.string()),
         ]
     )
@@ -1197,6 +1232,11 @@ def list_analyses(repo_root: Path, trial_id: str | None = None) -> list[dict[str
                     "category": data.get("category"),
                     "confidence": conf.get("level") if isinstance(conf, dict) else str(conf),
                     "evidence_count": len(data.get("evidence", [])),
+                    "analysis_role": data.get("analysis_role", "trial_review"),
+                    "source_manifest_digest": data.get("source_manifest_digest"),
+                    "source_snapshot_digest": data.get("source_snapshot_digest"),
+                    "source_queue_digest": data.get("source_queue_digest"),
+                    "decision_eligible": data.get("decision_eligible", False),
                     "created_at": data.get("created_at"),
                 }
             )

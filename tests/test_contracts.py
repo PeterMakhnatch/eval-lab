@@ -685,3 +685,125 @@ def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -
             f"ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS {column} text;"
         ) in schema
         assert f"{column} text NOT NULL" not in schema
+
+
+def test_analysis_record_backward_compatibility():
+    """Legacy / old AnalysisRecord payloads without new fields validate with expected defaults."""
+    raw = {
+        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "rubric_digest": "sha256:" + "a" * 64,
+        "model": "gpt-4o",
+        "category": "failure",
+        "confidence": {"level": "high"},
+    }
+    rec = AnalysisRecord.model_validate(raw)
+    assert rec.analysis_role == "trial_review"
+    assert rec.source_manifest_digest is None
+    assert rec.source_snapshot_digest is None
+    assert rec.source_queue_digest is None
+    assert rec.decision_eligible is False
+
+
+def test_analysis_record_decision_eligible_cannot_be_true():
+    """decision_eligible is strictly Literal[False]; True is impossible and rejected."""
+    raw = {
+        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "rubric_digest": "sha256:" + "a" * 64,
+        "model": "gpt-4o",
+        "category": "failure",
+        "confidence": {"level": "high"},
+        "decision_eligible": True,
+    }
+    with pytest.raises(ValidationError):
+        AnalysisRecord.model_validate(raw)
+
+    with pytest.raises(ValidationError):
+        AnalysisRecord(
+            analysis_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            rubric_digest="sha256:" + "a" * 64,
+            model="gpt-4o",
+            category="failure",
+            confidence=ConfidenceClaim(level="high"),
+            decision_eligible=True,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("role", ["review_queue_review", "counterexample_review"])
+def test_analysis_record_queue_and_counterexample_roles_require_all_three_digests(role):
+    """Queue and counterexample review roles require manifest, snapshot, and queue digests."""
+    base_kwargs = {
+        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "rubric_digest": "sha256:" + "a" * 64,
+        "model": "gpt-4o",
+        "category": "failure",
+        "confidence": ConfidenceClaim(level="high"),
+        "analysis_role": role,
+    }
+
+    # Missing all digests
+    with pytest.raises(ValueError, match="requires source_manifest_digest"):
+        AnalysisRecord(**base_kwargs)
+
+    # Missing queue digest only
+    with pytest.raises(ValueError, match="requires source_manifest_digest"):
+        AnalysisRecord(
+            **base_kwargs,
+            source_manifest_digest="sha256:" + "1" * 64,
+            source_snapshot_digest="sha256:" + "2" * 64,
+        )
+
+    # With all three valid digests -> succeeds
+    rec = AnalysisRecord(
+        **base_kwargs,
+        source_manifest_digest="sha256:" + "1" * 64,
+        source_snapshot_digest="sha256:" + "2" * 64,
+        source_queue_digest="sha256:" + "3" * 64,
+    )
+    assert rec.analysis_role == role
+    assert rec.source_manifest_digest == "sha256:" + "1" * 64
+    assert rec.source_snapshot_digest == "sha256:" + "2" * 64
+    assert rec.source_queue_digest == "sha256:" + "3" * 64
+    assert rec.decision_eligible is False
+
+
+def test_analysis_record_trial_review_supports_optional_digests():
+    """Trial review can bind manifest/snapshot while remaining valid without queue digest."""
+    rec = AnalysisRecord(
+        analysis_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        trial_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        rubric_digest="sha256:" + "a" * 64,
+        model="gpt-4o",
+        category="failure",
+        confidence=ConfidenceClaim(level="high"),
+        analysis_role="trial_review",
+        source_manifest_digest="sha256:" + "1" * 64,
+        source_snapshot_digest="sha256:" + "2" * 64,
+    )
+    assert rec.analysis_role == "trial_review"
+    assert rec.source_manifest_digest == "sha256:" + "1" * 64
+    assert rec.source_snapshot_digest == "sha256:" + "2" * 64
+    assert rec.source_queue_digest is None
+    assert rec.decision_eligible is False
+
+
+@pytest.mark.parametrize(
+    "digest_field",
+    ["source_manifest_digest", "source_snapshot_digest", "source_queue_digest"],
+)
+def test_analysis_record_source_digest_malformed_rejection(digest_field):
+    """Malformed or unprefixed source digests are rejected."""
+    kwargs = {
+        "analysis_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "trial_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "rubric_digest": "sha256:" + "a" * 64,
+        "model": "gpt-4o",
+        "category": "failure",
+        "confidence": ConfidenceClaim(level="high"),
+        digest_field: "not-a-sha256",
+    }
+    with pytest.raises(ValueError, match="digest must be sha256"):
+        AnalysisRecord(**kwargs)

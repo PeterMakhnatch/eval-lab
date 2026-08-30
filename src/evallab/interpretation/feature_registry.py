@@ -300,13 +300,18 @@ def feature_analysis_eligibility(feature: FeatureDefinition) -> FeatureAnalysisE
     """Resolve outcome, predictor, and descriptive eligibility without guessing."""
     coupling_audit = audit_verdict_coupling(feature)
     denominator_audit = audit_denominator_policy(feature)
-    governed = coupling_audit is None and denominator_audit is None
-    descriptive_allowed = governed and feature.verdict_coupling != "not_applicable"
-    outcome_allowed = descriptive_allowed and feature.category != "identity"
+    coupling_governed = coupling_audit is None
+    fully_governed = coupling_governed and denominator_audit is None
+    descriptive_allowed = fully_governed and feature.verdict_coupling != "not_applicable"
+    outcome_allowed = (
+        coupling_governed
+        and feature.verdict_coupling != "not_applicable"
+        and feature.category != "identity"
+    )
     predictor_refusal = audit_predictor_eligibility(feature, strict_independence=True)
     return FeatureAnalysisEligibility(
         outcome_allowed=outcome_allowed,
-        predictor_allowed=governed and predictor_refusal is None,
+        predictor_allowed=fully_governed and predictor_refusal is None,
         descriptive_allowed=descriptive_allowed,
         predictor_refusal=predictor_refusal,
     )

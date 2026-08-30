@@ -29,6 +29,7 @@ python -m evallab.craft scan --tb4                    # pinned TB4 corpus only
 python -m evallab.craft scan --all-local              # TB3 + in-repo library/
 python -m evallab.craft scan path/to/corpus --json    # any corpus root
 python -m evallab.craft plan --tb4 --tb4-root <v4>    # read-only 74→66 migration plan
+python -m evallab.craft compile --tb4-root <v4>       # executable pinned TB4 Harbor job plan
 ```
 
 Corpus roots and the output root are both injectable:
@@ -46,7 +47,10 @@ the distinct `terminal-bench/terminal-bench@4.0.0` identity. A `craft plan
 --tb4` validates the pin (refusing wrong dataset, floating refs, and wrong
 versions), scans the 66-task v4 inventory read-only (no Parquet write), and
 reports the exact 74→66 delta against the migration record at
-`src/evallab/data/terminal-bench-4-migration.json`. TB3 and TB4 scores are
+`src/evallab/data/terminal-bench-4-migration.json`. A `craft compile --tb4-root
+<v4>` turns the pinned adoption lane into an executable Harbor job plan with a
+flat 8-hour timeout, resumable per-task job identity, permitted Z.ai provider
+selection, and fail-closed upstream drift guards. TB3 and TB4 scores are
 **not** comparable.
 
 `scan` refuses to write into any root it is scanning (`ValueError`), so a
@@ -84,7 +88,7 @@ observation, not independently measured; **LLM** = out of deterministic reach.
 | `version` | observed / null | `[task].version` only. **Not** `schema_version`: that describes Harbor's manifest format, not the task, and reporting it as `version` would fill the column with a fact about the file format and call it task provenance. All 74 TB3 tasks carry `schema_version`; none carries `[task].version`, so the column is null across TB3 and populated on 43 of 477 library tasks. |
 | `task_digest` | observed | sha256 over the sorted inventory of relative paths, sizes, per-file content digests, directory entries, and symlink targets. Craft's own digest, not the upstream `dataset.toml` pin — the library corpora have no upstream manifest, and idempotence is defined against this value. |
 | `instruction_chars` | observed | Characters (not bytes) of `instruction.md`. |
-| `instruction_style` | **LLM** | Rhetorical register is a judgement about prose, and `imperative` / `narrative` / `spec` are not mutually exclusive in this corpus: most TB3 instructions open with narrative scene-setting and close with a numbered requirements list, so a verb-initial-sentence ratio mislabels the majority in whichever direction the threshold is set. A model would have to read `instruction.md` whole and pick the dominant register, ideally reporting a mix rather than one label. |
+| `instruction_style` | **LLM** | Rhetorical register is a judgement about prose, and `imperative` / `narrative` / `spec` are not mutually exclusive in this corpus: most TB3 instructions open with narrative scene-setting and close with a numbered requirements list, so any verb-initial-sentence ratio mislabels the majority in whichever direction the threshold is set. A model would have to read `instruction.md` whole and pick the dominant register, ideally reporting a mix rather than one label. |
 | `env_n_files` | observed | Recursive file count under `environment/`. |
 | `env_languages` | observed | Extension table. Excludes `Dockerfile`, YAML, JSON, Markdown: every environment has a Dockerfile, so recording it makes the column constant. `.v` is Coq only with a `_CoqProject` sibling and Verilog only with a SystemVerilog sibling; otherwise it contributes nothing, because the extension alone does not distinguish them. |
 | `env_services_n` | observed / null | `services` count in `environment/docker-compose.yaml`, else 1 for a lone Dockerfile, else null. |

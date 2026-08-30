@@ -9,18 +9,12 @@ import duckdb
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.evidence.parquet_io import write_table_atomic
-from evallab.interpretation.trajectory_judgment import canonical_json_digest
 from evallab.storage.incremental_ingest import (
     DIGEST_INDEX_FILENAME,
-    PERF_LEDGER_FILENAME,
     PROMOTED_BUNDLES_DIRNAME,
     compute_bundle_digest,
-    discover_promoted_bundles,
     ingest_promoted_bundles,
-    is_raw_log_path,
     load_digest_index,
-    validate_bundle_security,
 )
 
 
@@ -119,7 +113,9 @@ def _write_minimal_bundle(
             "source_path": f"{trial_name}/agent/sessions/rollout-01.jsonl",
             "snapshots": [{"timestamp": "2026-08-30T00:00:00Z", "used_percent": 10}],
         }
-        (quota_dir / "rollout-01.rate-limits.json").write_text(json.dumps(quota_payload), encoding="utf-8")
+        (quota_dir / "rollout-01.rate-limits.json").write_text(
+            json.dumps(quota_payload), encoding="utf-8"
+        )
 
     # Optional security defect: raw log or symlink
     if include_raw_log:
@@ -194,6 +190,7 @@ def _write_minimal_bundle(
 # --------------------------------------------------------------------------- #
 # Test Scenarios
 # --------------------------------------------------------------------------- #
+
 
 def test_cold_ingest_processes_all_bundles(tmp_path: Path) -> None:
     """Cold ingest on an empty index must project every candidate bundle."""
@@ -331,9 +328,7 @@ def test_r4_quota_sidecar_accepted_and_version_compatibility(tmp_path: Path) -> 
     derived_root = tmp_path / "derived"
 
     # Bundle with R4 quota sidecars and schema version 1 (supported)
-    _write_minimal_bundle(
-        runs_root, "bundle-quota", include_r4_sidecar=True, schema_version=1
-    )
+    _write_minimal_bundle(runs_root, "bundle-quota", include_r4_sidecar=True, schema_version=1)
 
     result = ingest_promoted_bundles(runs_root, derived_root)
     assert result.performance.rejected_bundles == 0
@@ -436,11 +431,19 @@ def test_sql_views_pre_aggregation_and_no_fan_out(tmp_path: Path) -> None:
     conn.execute("INSERT INTO jobs VALUES ('job-b1', 'b1', 1)")
     conn.execute("INSERT INTO trajectories VALUES ('job-b1', 't1', 'doc1', 'valid', 5, 2)")
     # 2 lineage records
-    conn.execute("INSERT INTO promotion_lineage VALUES ('b1', 'f1', 'f1', 'verbatim', 'R0', 10, 'sha256:a', 10, 'sha256:a')")
-    conn.execute("INSERT INTO promotion_lineage VALUES ('b1', 'f2', 'f2', 'redacted', 'R1', 20, 'sha256:b', 15, 'sha256:c')")
+    conn.execute(
+        "INSERT INTO promotion_lineage VALUES ('b1', 'f1', 'f1', 'verbatim', 'R0', 10, 'sha256:a', 10, 'sha256:a')"
+    )
+    conn.execute(
+        "INSERT INTO promotion_lineage VALUES ('b1', 'f2', 'f2', 'redacted', 'R1', 20, 'sha256:b', 15, 'sha256:c')"
+    )
     # 2 omissions records
-    conn.execute("INSERT INTO promotion_omissions VALUES ('b1', 'f3', 'R2', 'file', NULL, 30, 'sha256:d')")
-    conn.execute("INSERT INTO promotion_omissions VALUES ('b1', 'f4', 'R2', 'file', NULL, 40, 'sha256:e')")
+    conn.execute(
+        "INSERT INTO promotion_omissions VALUES ('b1', 'f3', 'R2', 'file', NULL, 30, 'sha256:d')"
+    )
+    conn.execute(
+        "INSERT INTO promotion_omissions VALUES ('b1', 'f4', 'R2', 'file', NULL, 40, 'sha256:e')"
+    )
 
     rows = conn.execute("SELECT * FROM v_incremental_ingest_reconciliation").fetchall()
     assert len(rows) == 1

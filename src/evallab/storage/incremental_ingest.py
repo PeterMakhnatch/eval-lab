@@ -19,7 +19,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -29,7 +28,7 @@ import pyarrow as pa
 from evallab.evidence.atif import PARQUET_SCHEMAS, ExportedTable, project_trial
 from evallab.evidence.parquet_io import write_table_atomic
 from evallab.interpretation.trajectory_judgment import canonical_json_digest
-from evallab.results import JobRecord, load_job, sha256_file
+from evallab.results import load_job, sha256_file
 from evallab.schemas import ContractModel
 
 SCHEMA_VERSION = "promoted-atif-incremental-ingest/v1"
@@ -75,6 +74,7 @@ OMISSIONS_SCHEMA = pa.schema(
 # Security Inspection
 # --------------------------------------------------------------------------- #
 
+
 def is_raw_log_path(relative: Path) -> bool:
     """Whether a path is raw model I/O or runtime state that R2 must omit."""
     parts = relative.parts
@@ -88,9 +88,7 @@ def is_raw_log_path(relative: Path) -> bool:
     if "quota" in parts or relative.name.endswith(".rate-limits.json"):
         return False
     return (
-        "sessions" in parts
-        or "opencode" in parts
-        or relative.name in {"codex.txt", "opencode.txt"}
+        "sessions" in parts or "opencode" in parts or relative.name in {"codex.txt", "opencode.txt"}
     )
 
 
@@ -133,8 +131,13 @@ def validate_bundle_security(bundle_dir: Path, manifest: dict[str, Any]) -> list
         promoted_path = entry.get("promoted_path")
 
         # Allow valid R4 quota sidecars derived from omitted rollouts
-        is_r4_sidecar = rule == "R4" and action == "redacted" and isinstance(promoted_path, str) and (
-            "quota" in Path(promoted_path).parts or promoted_path.endswith(".rate-limits.json")
+        is_r4_sidecar = (
+            rule == "R4"
+            and action == "redacted"
+            and isinstance(promoted_path, str)
+            and (
+                "quota" in Path(promoted_path).parts or promoted_path.endswith(".rate-limits.json")
+            )
         )
 
         if is_raw_log_path(Path(source_path)) and action != "omitted" and not is_r4_sidecar:
@@ -203,6 +206,7 @@ class IncrementalIngestResult:
 # Digest Computation & Discovery
 # --------------------------------------------------------------------------- #
 
+
 def compute_bundle_digest(manifest: dict[str, Any]) -> str:
     """Deterministic content digest for a promoted bundle from its manifest.
 
@@ -265,6 +269,7 @@ def discover_promoted_bundles(runs_root: Path) -> list[Path]:
 # Lineage & Omission Extraction
 # --------------------------------------------------------------------------- #
 
+
 def extract_lineage_and_omissions(
     bundle_name: str, manifest: dict[str, Any]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -319,6 +324,7 @@ def extract_lineage_and_omissions(
 # --------------------------------------------------------------------------- #
 # Atomic Bundle Ingestion
 # --------------------------------------------------------------------------- #
+
 
 def ingest_bundle_atomic(
     bundle_dir: Path,
@@ -431,6 +437,7 @@ def ingest_bundle_atomic(
 # Ledger Persistence
 # --------------------------------------------------------------------------- #
 
+
 def load_digest_index(index_path: Path) -> DigestIndex:
     """Load persistent digest index, or return empty."""
     if not index_path.is_file():
@@ -488,6 +495,7 @@ def save_performance_ledger(perf_path: Path, ledger: IngestPerformanceLedger) ->
 # Main Entry Point
 # --------------------------------------------------------------------------- #
 
+
 def ingest_promoted_bundles(
     runs_root: Path,
     derived_root: Path,
@@ -529,7 +537,9 @@ def ingest_promoted_bundles(
     promoted_files_ingested = 0
     promoted_files_skipped = 0
 
-    effective_run_id = run_id or f"run-{hashlib.sha256(str(scanned_bundles).encode()).hexdigest()[:16]}"
+    effective_run_id = (
+        run_id or f"run-{hashlib.sha256(str(scanned_bundles).encode()).hexdigest()[:16]}"
+    )
 
     for bundle_dir in bundle_dirs:
         bundle_name = bundle_dir.name

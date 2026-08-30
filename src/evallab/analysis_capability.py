@@ -20,6 +20,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from evallab.cohort import BOOTSTRAP_RESAMPLES
+from evallab.evidence.capture_authority import CaptureAuthority
 from evallab.schemas import ContractModel
 
 Digest = Annotated[str, Field(pattern=r"^sha256:(?!0{64})[0-9a-f]{64}$")]
@@ -39,7 +40,14 @@ _POST_VERDICT_INPUTS = frozenset(
     }
 )
 
-ADMISSIBLE_CAPTURE_AUTHORITIES = frozenset({"benchmark_events", "atif_trajectory", "concordant"})
+ADMISSIBLE_CAPTURE_AUTHORITIES = frozenset(
+    {
+        CaptureAuthority.BENCHMARK_EVENTS,
+        CaptureAuthority.ATIF_TRAJECTORY,
+        CaptureAuthority.BENCHMARK_EVENTS.value,
+        CaptureAuthority.ATIF_TRAJECTORY.value,
+    }
+)
 
 
 class Verdict(StrEnum):
@@ -1107,7 +1115,11 @@ def _extract_source_refs(
                 else str(row.get("ir_digest") or "")
             )
         )
-        digest = digest_val if digest_val and digest_val.startswith("sha256:") and digest_val != ("sha256:" + "0" * 64) else None
+        digest = (
+            digest_val
+            if digest_val and digest_val.startswith("sha256:") and digest_val != ("sha256:" + "0" * 64)
+            else None
+        )
         key = (path, digest)
         if key not in seen:
             seen.add(key)

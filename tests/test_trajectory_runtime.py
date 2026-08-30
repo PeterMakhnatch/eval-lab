@@ -17,6 +17,7 @@ import pytest
 
 from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts
+from evallab.evidence.capture_authority import CaptureAuthority
 from evallab.evidence_store import archive_evidence
 from evallab.interpretation.evidence_pack import OmittedRange, build_evidence_pack
 from evallab.interpretation.trajectory_acceptance import (
@@ -1766,7 +1767,7 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
         cas_uri=cas_uri,
         reward=1.0,
         capture_complete=True,
-        capture_authority="concordant",
+        capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
     )
     manifest_body = {
         "schema_version": "campaign-analysis-manifest/v1",
@@ -1875,7 +1876,7 @@ def test_snapshot_digest_binds_cohort_and_config_identities() -> None:
                 "seed": 1,
                 "reward": 0.0,
                 "capture_complete": True,
-                "capture_authority": "concordant",
+                "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value,
             }
         ],
     }
@@ -1995,7 +1996,7 @@ def test_feature_coupled_predictor_refusal_through_analyze_batch(tmp_path: Path)
         reward=1.0,
         declared_features={"order_exact": True},
         capture_complete=True,
-        capture_authority="concordant",
+        capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
     )
     manifest_body = {
         "schema_version": "campaign-analysis-manifest/v1",
@@ -2055,11 +2056,11 @@ def test_next_run_feedback_in_report(tmp_path: Path) -> None:
 
     rows = []
     for seed in range(1, 5):
-        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": "concordant"})
-        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": "concordant"})
+        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
+        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
     for seed in range(5, 10):
-        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": "concordant"})
-        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": "concordant"})
+        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
+        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": CaptureAuthority.BENCHMARK_EVENTS.value})
 
     spec = create_campaign_analysis_spec(
         spec_id="paired-seed-test",
@@ -2245,7 +2246,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
                 seed=seed,
                 reward=reward,
                 capture_complete=True,
-                capture_authority="concordant",
+                capture_authority=CaptureAuthority.BENCHMARK_EVENTS.value,
             )
             items.append(item)
 

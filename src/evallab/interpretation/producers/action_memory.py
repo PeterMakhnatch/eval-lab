@@ -10,8 +10,11 @@ Computes:
 
 from __future__ import annotations
 
+import contextlib
+import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from evallab.interpretation.benchmark_events import (
@@ -79,9 +82,14 @@ class ActionMemoryFeatures:
     valid_handle_count: int
     unknown_handle_count: int
     duplicate_handle_count: int
+    issued_handle_count: int
     handle_set_match: bool
     handle_order_match: bool
     handle_coverage_rate: float | None
+    handle_issuance_ratio: float | None
+    handle_order_concordance: bool | None
+    retrieval_authority: str
+    capture_concordance_status: str
     # L2 Derived Metrics (C0, C1) - NULL-preserving on zero denominator
     schema_conformance_rate: float | None
     binding_survival_rate: float | None
@@ -119,11 +127,247 @@ def _compute_cbv_slope(step_tokens: Sequence[int] | None) -> float | None:
     return float(slope)
 
 
+def _extract_handles_from_call(
+    call_obj: Any,
+    expected_chunk_ids: Sequence[str] | None = None,
+) -> list[str]:
+    """Extract individual chunk ID handles from a tool call (supporting single and batch/range)."""
+    if not isinstance(call_obj, dict):
+        return []
+
+    func_name = call_obj.get("tool_name") or call_obj.get("function_name") or call_obj.get("name")
+    if isinstance(call_obj.get("function"), dict):
+        func_name = func_name or call_obj["function"].get("name")
+    if isinstance(call_obj.get("action"), dict):
+        func_name = (
+            func_name or call_obj["action"].get("name") or call_obj["action"].get("tool_name")
+        )
+
+    single_tools = (
+        "read_chunk",
+        "get_context_chunk",
+        "memory_mcp_get_context_chunk",
+        "memory_read",
+    )
+    batch_tools = (
+        "get_context_chunks",
+        "memory_mcp_get_context_chunks",
+        "read_chunks",
+        "batch_read",
+    )
+
+    args = (
+        call_obj.get("arguments")
+        or call_obj.get("args")
+        or call_obj.get("parameters")
+        or call_obj.get("input")
+        or call_obj.get("payload")
+    )
+    if isinstance(call_obj.get("function"), dict) and "arguments" in call_obj["function"]:
+        args = args or call_obj["function"]["arguments"]
+    if isinstance(call_obj.get("action"), dict):
+        act = call_obj["action"]
+        args = args or act.get("arguments") or act.get("args") or act.get("parameters")
+
+    if isinstance(args, str):
+        with contextlib.suppress(ValueError, TypeError):
+            args = json.loads(args)
+
+    extracted: list[str] = []
+
+    if func_name in single_tools:
+        cid = None
+        if isinstance(args, dict):
+            cid = args.get("chunk_id") or args.get("key") or args.get("id")
+        elif "chunk_id" in call_obj or "key" in call_obj or "id" in call_obj:
+            cid = call_obj.get("chunk_id") or call_obj.get("key") or call_obj.get("id")
+        if cid is not None:
+            extracted.append(str(cid))
+    elif func_name in batch_tools:
+        if isinstance(args, dict):
+            # Check for chunk_ids list
+            chunk_ids = args.get("chunk_ids") or args.get("chunks") or args.get("ids")
+            if isinstance(chunk_ids, list):
+                for item in chunk_ids:
+                    if isinstance(item, str):
+                        extracted.append(item)
+                    elif isinstance(item, dict) and "chunk_id" in item:
+                        extracted.append(str(item["chunk_id"]))
+            # Check for range: {"start": int, "end": int}
+            rng = args.get("range")
+            if (
+                isinstance(rng, dict)
+                and isinstance(rng.get("start"), int)
+                and isinstance(rng.get("end"), int)
+            ):
+                start, end = rng["start"], rng["end"]
+                if expected_chunk_ids and 0 <= start <= end < len(expected_chunk_ids):
+                    extracted.extend(str(cid) for cid in expected_chunk_ids[start : end + 1])
+                elif start <= end:
+                    extracted.extend(f"chunk_{i:03d}" for i in range(start, end + 1))
+        # Also check result_payload if available
+        res = call_obj.get("result_payload") or call_obj.get("result") or call_obj.get("output")
+        if not extracted and isinstance(res, dict) and isinstance(res.get("chunks"), list):
+            for c in res["chunks"]:
+                if isinstance(c, dict) and "chunk_id" in c:
+                    extracted.append(str(c["chunk_id"]))
+
+    return extracted
+
+
+def _extract_atif_handles(
+    bundle: TrialBundle,
+    atif_trajectory: Any = None,
+    expected_chunk_ids: Sequence[str] | None = None,
+) -> list[str] | None:
+    """Extract chronological sequence of chunk_id handles from ATIF trajectory."""
+    raw_data: Any = None
+    if atif_trajectory is not None:
+        if isinstance(atif_trajectory, (str, Path)):
+            p = Path(atif_trajectory)
+            if p.is_file():
+                text = p.read_text(encoding="utf-8")
+                if str(p).endswith(".jsonl"):
+                    raw_data = [json.loads(line) for line in text.splitlines() if line.strip()]
+                else:
+                    raw_data = json.loads(text)
+            else:
+                return None
+        else:
+            raw_data = atif_trajectory
+    elif bundle.raw_dir is not None:
+        raw_path = Path(bundle.raw_dir)
+        candidates = (
+            raw_path / "agent" / "trajectory.json",
+            raw_path / "trajectory.json",
+            raw_path / "agent" / "trajectory.jsonl",
+        )
+        for c in candidates:
+            if c.is_file():
+                text = c.read_text(encoding="utf-8")
+                if str(c).endswith(".jsonl"):
+                    raw_data = [json.loads(line) for line in text.splitlines() if line.strip()]
+                else:
+                    raw_data = json.loads(text)
+                break
+        if raw_data is None:
+            return None
+    else:
+        return None
+
+    handles: list[str] = []
+
+    def _process_call(call_obj: Any) -> None:
+        if not isinstance(call_obj, dict):
+            return
+        extracted = _extract_handles_from_call(call_obj, expected_chunk_ids)
+        handles.extend(extracted)
+
+    def _process_step(step: Any) -> None:
+        if not isinstance(step, dict):
+            return
+        for nested_key in ("tool_calls", "calls", "actions", "tools"):
+            nested = step.get(nested_key)
+            if isinstance(nested, list):
+                for sub in nested:
+                    _process_call(sub)
+        _process_call(step)
+
+    if isinstance(raw_data, list):
+        for item in raw_data:
+            _process_step(item)
+    elif isinstance(raw_data, dict):
+        steps = (
+            raw_data.get("steps")
+            or raw_data.get("trajectory")
+            or raw_data.get("messages")
+            or raw_data.get("tool_calls")
+        )
+        if isinstance(steps, list):
+            for item in steps:
+                _process_step(item)
+        else:
+            _process_step(raw_data)
+
+    return handles
+
+
+def _compute_handle_metrics(
+    observed_handles: list[str],
+    expected_chunk_ids: Sequence[str] | None,
+    opp_counts: dict[str, Any],
+    cell_factors: dict[str, Any],
+    successful_handles: list[str] | None = None,
+) -> dict[str, Any]:
+    """Compute deterministic handle metrics from an authoritative handle sequence."""
+    expected_list = list(expected_chunk_ids) if isinstance(expected_chunk_ids, list) else []
+    expected_set = set(expected_list)
+    expected_handle_count = (
+        len(expected_list)
+        if expected_list
+        else int(
+            opp_counts.get("read_opportunity_count", cell_factors.get("read_opportunity_count", 0))
+        )
+    )
+
+    issued_handle_count = len(observed_handles)
+
+    if successful_handles is not None:
+        valid_stream = [h for h in successful_handles if (not expected_set or h in expected_set)]
+    else:
+        valid_stream = [h for h in observed_handles if (not expected_set or h in expected_set)]
+
+    valid_handle_count = len(set(valid_stream))
+    unknown_handles = [h for h in observed_handles if h not in expected_set] if expected_set else []
+    unknown_handle_count = len(unknown_handles)
+    duplicate_handle_count = max(len(observed_handles) - len(set(observed_handles)), 0)
+
+    if expected_set:
+        handle_set_match = set(valid_stream) == expected_set and len(unknown_handles) == 0
+        expected_handle_count = len(expected_set)
+    elif expected_handle_count > 0:
+        if valid_handle_count > 0:
+            valid_handle_count = min(valid_handle_count, expected_handle_count)
+        handle_set_match = valid_handle_count >= expected_handle_count and unknown_handle_count == 0
+    else:
+        handle_set_match = len(observed_handles) == 0
+
+    if expected_list:
+        handle_order_match = valid_stream == expected_list and len(unknown_handles) == 0
+    else:
+        handle_order_match = (
+            handle_set_match and duplicate_handle_count == 0 and unknown_handle_count == 0
+        )
+
+    handle_coverage_rate: float | None = None
+    if expected_handle_count > 0:
+        handle_coverage_rate = float(
+            min(valid_handle_count, expected_handle_count) / expected_handle_count
+        )
+
+    handle_issuance_ratio: float | None = None
+    if expected_handle_count > 0:
+        handle_issuance_ratio = float(issued_handle_count / expected_handle_count)
+
+    return {
+        "expected_handle_count": expected_handle_count,
+        "valid_handle_count": valid_handle_count,
+        "unknown_handle_count": unknown_handle_count,
+        "duplicate_handle_count": duplicate_handle_count,
+        "issued_handle_count": issued_handle_count,
+        "handle_set_match": handle_set_match,
+        "handle_order_match": handle_order_match,
+        "handle_coverage_rate": handle_coverage_rate,
+        "handle_issuance_ratio": handle_issuance_ratio,
+    }
+
+
 def extract_action_memory_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
+    atif_trajectory: Any = None,
 ) -> ActionMemoryFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an action-memory trial bundle."""
     contract = bundle.contract
@@ -215,78 +459,90 @@ def extract_action_memory_features(
         cell_factors.get("chunk_ids") or cell_factors.get("expected_chunk_ids") or []
     )
     expected_set = set(expected_chunk_ids) if isinstance(expected_chunk_ids, list) else set()
-    expected_handle_count = (
-        len(expected_chunk_ids)
-        if isinstance(expected_chunk_ids, list) and expected_chunk_ids
-        else int(
-            opp_counts.get("read_opportunity_count", cell_factors.get("read_opportunity_count", 0))
-        )
-    )
-    observed_handles: list[str] = []
-    successful_valid_handles: list[str] = []
+
+    observed_event_handles: list[str] = []
+    successful_valid_event_handles: list[str] = []
+
     if calls:
         for call in calls:
-            if call.tool_name in (
-                "read_chunk",
-                "get_context_chunk",
-                "memory_mcp_get_context_chunk",
-                "memory_read",
-            ):
-                cid = (
-                    call.arguments.get("chunk_id")
-                    or call.arguments.get("key")
-                    or call.arguments.get("id")
-                )
-                if cid is not None:
-                    cid_str = str(cid)
-                    observed_handles.append(cid_str)
-                    call_error = bool(call.is_error or is_application_error(call.result_payload))
-                    if not call_error and (not expected_set or cid_str in expected_set):
-                        successful_valid_handles.append(cid_str)
+            call_dict = {
+                "tool_name": call.tool_name,
+                "arguments": call.arguments,
+                "result_payload": call.result_payload,
+            }
+            c_handles = _extract_handles_from_call(call_dict, expected_chunk_ids)
+            if c_handles:
+                observed_event_handles.extend(c_handles)
+                call_error = bool(call.is_error or is_application_error(call.result_payload))
+                if not call_error:
+                    for cid_str in c_handles:
+                        if not expected_set or cid_str in expected_set:
+                            successful_valid_event_handles.append(cid_str)
     else:
         for ev in events:
-            if (
-                ev.event_type == "read_chunk"
-                and isinstance(ev.payload, dict)
-                and "chunk_id" in ev.payload
-            ):
-                cid_str = str(ev.payload["chunk_id"])
-                observed_handles.append(cid_str)
-                if not is_application_error(ev.payload) and (
-                    not expected_set or cid_str in expected_set
-                ):
-                    successful_valid_handles.append(cid_str)
-    valid_handle_count = len(set(successful_valid_handles))
-    unknown_handles = [h for h in observed_handles if h not in expected_set] if expected_set else []
-    unknown_handle_count = len(unknown_handles)
-    duplicate_handle_count = max(len(observed_handles) - len(set(observed_handles)), 0)
+            ev_dict = {
+                "tool_name": (
+                    ev.event_type
+                    if ev.event_type in ("read_chunk", "get_context_chunk", "get_context_chunks")
+                    else (
+                        ev.payload.get("tool_name")
+                        if isinstance(ev.payload, dict)
+                        else ev.event_type
+                    )
+                ),
+                "arguments": ev.payload if isinstance(ev.payload, dict) else {},
+                "result_payload": ev.payload if isinstance(ev.payload, dict) else {},
+            }
+            c_handles = _extract_handles_from_call(ev_dict, expected_chunk_ids)
+            if c_handles:
+                observed_event_handles.extend(c_handles)
+                if not is_application_error(ev.payload):
+                    for cid_str in c_handles:
+                        if not expected_set or cid_str in expected_set:
+                            successful_valid_event_handles.append(cid_str)
 
-    if expected_set:
-        handle_set_match = (
-            set(successful_valid_handles) == expected_set and len(unknown_handles) == 0
+    atif_handles = _extract_atif_handles(bundle, atif_trajectory, expected_chunk_ids)
+
+    has_event_retrieval = bool(observed_event_handles)
+
+    if atif_handles is not None and has_event_retrieval:
+        handle_order_concordance: bool | None = atif_handles == observed_event_handles
+        retrieval_authority = "benchmark_events"
+        capture_concordance_status = "concordant" if handle_order_concordance else "mismatch"
+        metrics = _compute_handle_metrics(
+            observed_event_handles,
+            expected_chunk_ids,
+            opp_counts,
+            cell_factors,
+            successful_handles=successful_valid_event_handles,
         )
-        expected_handle_count = len(expected_set)
-    elif expected_handle_count > 0:
-        if valid_handle_count > 0:
-            valid_handle_count = min(valid_handle_count, expected_handle_count)
-        handle_set_match = valid_handle_count >= expected_handle_count and unknown_handle_count == 0
+    elif atif_handles is not None and not has_event_retrieval:
+        handle_order_concordance = None
+        retrieval_authority = "atif_trajectory"
+        capture_concordance_status = "benchmark_events_unavailable"
+        metrics = _compute_handle_metrics(
+            atif_handles,
+            expected_chunk_ids,
+            opp_counts,
+            cell_factors,
+            successful_handles=atif_handles,
+        )
     else:
-        handle_set_match = len(observed_handles) == 0
+        handle_order_concordance = None
+        retrieval_authority = (
+            "benchmark_events" if (calls or events or observed_event_handles) else "unavailable"
+        )
+        capture_concordance_status = (
+            "atif_unavailable" if (calls or events or observed_event_handles) else "unavailable"
+        )
+        metrics = _compute_handle_metrics(
+            observed_event_handles,
+            expected_chunk_ids,
+            opp_counts,
+            cell_factors,
+            successful_handles=successful_valid_event_handles,
+        )
 
-    if isinstance(expected_chunk_ids, list) and expected_chunk_ids:
-        handle_order_match = (
-            successful_valid_handles == expected_chunk_ids and len(unknown_handles) == 0
-        )
-    else:
-        handle_order_match = (
-            handle_set_match and duplicate_handle_count == 0 and unknown_handle_count == 0
-        )
-
-    handle_coverage_rate: float | None = None
-    if expected_handle_count > 0:
-        handle_coverage_rate = float(
-            min(valid_handle_count, expected_handle_count) / expected_handle_count
-        )
     # Also inspect final state mutations if no tool calls were explicitly parsed
     if not mutation_calls and final_state.mutations:
         for mut in final_state.mutations:
@@ -370,13 +626,18 @@ def extract_action_memory_features(
         bound_target_value=bound_value,
         binding_matched=binding_matched,
         stale_value_bound=stale_value_bound,
-        expected_handle_count=expected_handle_count,
-        valid_handle_count=valid_handle_count,
-        unknown_handle_count=unknown_handle_count,
-        duplicate_handle_count=duplicate_handle_count,
-        handle_set_match=handle_set_match,
-        handle_order_match=handle_order_match,
-        handle_coverage_rate=handle_coverage_rate,
+        expected_handle_count=metrics["expected_handle_count"],
+        valid_handle_count=metrics["valid_handle_count"],
+        unknown_handle_count=metrics["unknown_handle_count"],
+        duplicate_handle_count=metrics["duplicate_handle_count"],
+        issued_handle_count=metrics["issued_handle_count"],
+        handle_set_match=metrics["handle_set_match"],
+        handle_order_match=metrics["handle_order_match"],
+        handle_coverage_rate=metrics["handle_coverage_rate"],
+        handle_issuance_ratio=metrics["handle_issuance_ratio"],
+        handle_order_concordance=handle_order_concordance,
+        retrieval_authority=retrieval_authority,
+        capture_concordance_status=capture_concordance_status,
         schema_conformance_rate=schema_conformance_rate,
         binding_survival_rate=binding_survival_rate,
         stale_value_override_rate=stale_value_override_rate,

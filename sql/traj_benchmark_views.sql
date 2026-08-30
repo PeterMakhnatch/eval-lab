@@ -34,9 +34,14 @@ CREATE TABLE IF NOT EXISTS action_memory_features (
     valid_handle_count BIGINT NOT NULL,
     unknown_handle_count BIGINT NOT NULL,
     duplicate_handle_count BIGINT NOT NULL,
+    issued_handle_count BIGINT,
     handle_set_match BOOLEAN NOT NULL,
     handle_order_match BOOLEAN NOT NULL,
     handle_coverage_rate DOUBLE,
+    handle_issuance_ratio DOUBLE,
+    handle_order_concordance BOOLEAN,
+    retrieval_authority VARCHAR,
+    capture_concordance_status VARCHAR,
     schema_conformance_rate DOUBLE,
     binding_survival_rate DOUBLE,
     stale_value_override_rate DOUBLE,
@@ -139,6 +144,11 @@ ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS duplicate_handle_cou
 ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_set_match BOOLEAN;
 ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_order_match BOOLEAN;
 ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_coverage_rate DOUBLE;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS issued_handle_count BIGINT;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_issuance_ratio DOUBLE;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS handle_order_concordance BOOLEAN;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS retrieval_authority VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS capture_concordance_status VARCHAR;
 
 ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS job_id VARCHAR;
 ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS cas_uri VARCHAR;

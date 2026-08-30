@@ -10,8 +10,10 @@ Computes:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from evallab.interpretation.benchmark_events import (
@@ -79,9 +81,14 @@ class ActionMemoryFeatures:
     valid_handle_count: int
     unknown_handle_count: int
     duplicate_handle_count: int
+    issued_handle_count: int
     handle_set_match: bool
     handle_order_match: bool
     handle_coverage_rate: float | None
+    handle_issuance_ratio: float | None
+    handle_order_concordance: bool | None
+    retrieval_authority: str
+    capture_concordance_status: str
     # L2 Derived Metrics (C0, C1) - NULL-preserving on zero denominator
     schema_conformance_rate: float | None
     binding_survival_rate: float | None
@@ -119,11 +126,133 @@ def _compute_cbv_slope(step_tokens: Sequence[int] | None) -> float | None:
     return float(slope)
 
 
+def _extract_atif_handles(bundle: TrialBundle, atif_trajectory: Any = None) -> list[str] | None:
+    """Extract chronological sequence of chunk_id handles from ATIF trajectory."""
+    raw_data: Any = None
+    if atif_trajectory is not None:
+        if isinstance(atif_trajectory, (str, Path)):
+            p = Path(atif_trajectory)
+            if p.is_file():
+                text = p.read_text(encoding="utf-8")
+                if str(p).endswith(".jsonl"):
+                    raw_data = [json.loads(line) for line in text.splitlines() if line.strip()]
+                else:
+                    raw_data = json.loads(text)
+            else:
+                return None
+        else:
+            raw_data = atif_trajectory
+    elif bundle.raw_dir is not None:
+        raw_path = Path(bundle.raw_dir)
+        candidates = (
+            raw_path / "agent" / "trajectory.json",
+            raw_path / "trajectory.json",
+            raw_path / "agent" / "trajectory.jsonl",
+        )
+        for c in candidates:
+            if c.is_file():
+                text = c.read_text(encoding="utf-8")
+                if str(c).endswith(".jsonl"):
+                    raw_data = [json.loads(line) for line in text.splitlines() if line.strip()]
+                else:
+                    raw_data = json.loads(text)
+                break
+        if raw_data is None:
+            return None
+    else:
+        return None
+
+    target_tools = (
+        "read_chunk",
+        "get_context_chunk",
+        "memory_mcp_get_context_chunk",
+        "memory_read",
+    )
+    handles: list[str] = []
+
+    def _process_call(call_obj: Any) -> None:
+        if not isinstance(call_obj, dict):
+            return
+        func_name = (
+            call_obj.get("tool_name")
+            or call_obj.get("function_name")
+            or call_obj.get("name")
+        )
+        if isinstance(call_obj.get("function"), dict):
+            func_name = func_name or call_obj["function"].get("name")
+        if isinstance(call_obj.get("action"), dict):
+            func_name = (
+                func_name
+                or call_obj["action"].get("name")
+                or call_obj["action"].get("tool_name")
+            )
+
+        if func_name in target_tools:
+            args = (
+                call_obj.get("arguments")
+                or call_obj.get("args")
+                or call_obj.get("parameters")
+                or call_obj.get("input")
+                or call_obj.get("payload")
+            )
+            if isinstance(call_obj.get("function"), dict) and "arguments" in call_obj["function"]:
+                args = args or call_obj["function"]["arguments"]
+            if isinstance(call_obj.get("action"), dict):
+                act = call_obj["action"]
+                args = (
+                    args
+                    or act.get("arguments")
+                    or act.get("args")
+                    or act.get("parameters")
+                )
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (ValueError, TypeError):
+                    pass
+            cid = None
+            if isinstance(args, dict):
+                cid = args.get("chunk_id") or args.get("key") or args.get("id")
+            elif "chunk_id" in call_obj or "key" in call_obj or "id" in call_obj:
+                cid = call_obj.get("chunk_id") or call_obj.get("key") or call_obj.get("id")
+            if cid is not None:
+                handles.append(str(cid))
+
+    def _process_step(step: Any) -> None:
+        if not isinstance(step, dict):
+            return
+        for nested_key in ("tool_calls", "calls", "actions", "tools"):
+            nested = step.get(nested_key)
+            if isinstance(nested, list):
+                for sub in nested:
+                    _process_call(sub)
+        _process_call(step)
+
+    if isinstance(raw_data, list):
+        for item in raw_data:
+            _process_step(item)
+    elif isinstance(raw_data, dict):
+        steps = (
+            raw_data.get("steps")
+            or raw_data.get("trajectory")
+            or raw_data.get("messages")
+            or raw_data.get("tool_calls")
+        )
+        if isinstance(steps, list):
+            for item in steps:
+                _process_step(item)
+        else:
+            _process_step(raw_data)
+
+    return handles
+
+
 def extract_action_memory_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
+    atif_trajectory: Any = None,
 ) -> ActionMemoryFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an action-memory trial bundle."""
     contract = bundle.contract
@@ -287,6 +416,33 @@ def extract_action_memory_features(
         handle_coverage_rate = float(
             min(valid_handle_count, expected_handle_count) / expected_handle_count
         )
+
+    issued_handle_count = len(observed_handles)
+    handle_issuance_ratio: float | None = None
+    if expected_handle_count > 0:
+        handle_issuance_ratio = float(
+            (valid_handle_count + unknown_handle_count + duplicate_handle_count)
+            / expected_handle_count
+        )
+
+    atif_handles = _extract_atif_handles(bundle, atif_trajectory)
+    if atif_handles is not None and (calls or events or observed_handles):
+        handle_order_concordance = (atif_handles == observed_handles)
+        retrieval_authority = "benchmark_events"
+        capture_concordance_status = "concordant" if handle_order_concordance else "mismatch"
+    elif atif_handles is not None and not (calls or events or observed_handles):
+        handle_order_concordance = None
+        retrieval_authority = "atif_trajectory"
+        capture_concordance_status = "benchmark_events_unavailable"
+    else:
+        handle_order_concordance = None
+        retrieval_authority = (
+            "benchmark_events" if (calls or events or observed_handles) else "unavailable"
+        )
+        capture_concordance_status = (
+            "atif_unavailable" if (calls or events or observed_handles) else "unavailable"
+        )
+
     # Also inspect final state mutations if no tool calls were explicitly parsed
     if not mutation_calls and final_state.mutations:
         for mut in final_state.mutations:
@@ -374,9 +530,14 @@ def extract_action_memory_features(
         valid_handle_count=valid_handle_count,
         unknown_handle_count=unknown_handle_count,
         duplicate_handle_count=duplicate_handle_count,
+        issued_handle_count=issued_handle_count,
         handle_set_match=handle_set_match,
         handle_order_match=handle_order_match,
         handle_coverage_rate=handle_coverage_rate,
+        handle_issuance_ratio=handle_issuance_ratio,
+        handle_order_concordance=handle_order_concordance,
+        retrieval_authority=retrieval_authority,
+        capture_concordance_status=capture_concordance_status,
         schema_conformance_rate=schema_conformance_rate,
         binding_survival_rate=binding_survival_rate,
         stale_value_override_rate=stale_value_override_rate,

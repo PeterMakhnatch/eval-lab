@@ -55,6 +55,7 @@ FeatureCategory = Literal[
 ]
 FeatureDataType = Literal["VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN"]
 DenominatorPolicy = Literal["required", "not_applicable"]
+VerdictCoupling = Literal["defines", "correlates", "independent", "not_applicable"]
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,8 @@ class FeatureDefinition:
     denominator_policy: DenominatorPolicy | None = None
     declared_inputs: tuple[str, ...] | None = None
     available_before_verdict: bool | None = None
+    verdict_coupling: VerdictCoupling | None = None
+    coupling_basis: str | None = None
     binary_projection: bool = False
     is_new_feature: bool = False
     producer_module: str = "evallab.traj"
@@ -107,6 +110,17 @@ class FeatureDefinition:
             errors.append(
                 f"Feature {self.column_name!r} requires null_on_zero_denominator=True but has no denominator_sibling declared"
             )
+        if self.verdict_coupling is not None:
+            if self.verdict_coupling not in ("defines", "correlates", "independent", "not_applicable"):
+                errors.append(
+                    f"Feature {self.column_name!r} has invalid verdict_coupling={self.verdict_coupling!r}"
+                )
+            if self.verdict_coupling in ("defines", "correlates") and not (
+                self.coupling_basis and self.coupling_basis.strip()
+            ):
+                errors.append(
+                    f"Feature {self.column_name!r} with verdict_coupling={self.verdict_coupling!r} requires non-empty coupling_basis"
+                )
         return errors
 
 
@@ -222,6 +236,61 @@ def audit_registry_denominator_policies() -> dict[str, str]:
     }
 
 
+def audit_predictor_eligibility(feature: FeatureDefinition, *, strict_independence: bool = False) -> str | None:
+    """Return the registry verdict for candidate predictor eligibility.
+
+    Refuses predictor eligibility when:
+    - temporal availability is undeclared or post-verdict (distinguished from verdict coupling)
+    - verdict coupling is undeclared or 'defines'
+    - coupling is 'defines' or 'correlates' but lacks an evidence basis
+    - feature is 'not_applicable' (e.g. identity / projection metadata)
+    """
+    if feature.available_before_verdict is None:
+        return "MISSING_TEMPORAL_AVAILABILITY"
+    if feature.available_before_verdict is False:
+        return "POST_VERDICT_TEMPORAL_VIOLATION"
+    if feature.verdict_coupling is None:
+        return "UNDECLARED_VERDICT_COUPLING"
+    if feature.verdict_coupling == "defines":
+        return "REWARD_DEFINITION_LEAKAGE"
+    if feature.verdict_coupling in ("defines", "correlates") and not (
+        feature.coupling_basis and feature.coupling_basis.strip()
+    ):
+        return "MISSING_COUPLING_EVIDENCE_BASIS"
+    if feature.verdict_coupling == "not_applicable":
+        return "NOT_APPLICABLE_FOR_PREDICTION"
+    if strict_independence and feature.verdict_coupling == "correlates":
+        return "VERDICT_CORRELATED"
+    return None
+
+
+def audit_verdict_coupling(feature: FeatureDefinition) -> str | None:
+    """Return the verdict-coupling audit code for a feature."""
+    if feature.verdict_coupling is None:
+        return "UNDECLARED_VERDICT_COUPLING"
+    if feature.verdict_coupling not in ("defines", "correlates", "independent", "not_applicable"):
+        return "INVALID_VERDICT_COUPLING"
+    if feature.verdict_coupling in ("defines", "correlates") and not (
+        feature.coupling_basis and feature.coupling_basis.strip()
+    ):
+        return "MISSING_COUPLING_EVIDENCE_BASIS"
+    return None
+
+
+def audit_registry_predictor_eligibility(*, family: str | None = None) -> dict[str, str]:
+    """Report predictor eligibility refusals across registered features."""
+    target = (
+        TRAJECTORY_FEATURE_REGISTRY.by_family(family)
+        if family
+        else TRAJECTORY_FEATURE_REGISTRY.all_features()
+    )
+    return {
+        feature.column_name: verdict
+        for feature in target.values()
+        if (verdict := audit_predictor_eligibility(feature)) is not None
+    }
+
+
 # Global pre-populated registry instance
 TRAJECTORY_FEATURE_REGISTRY = FeatureRegistry()
 
@@ -241,6 +310,9 @@ def register_trajectory_feature(
     denominator_policy: DenominatorPolicy | None = None,
     declared_inputs: tuple[str, ...] | None = None,
     available_before_verdict: bool | None = None,
+    verdict_coupling: VerdictCoupling | None = None,
+    coupling_basis: str | None = None,
+    verdict_coupling_basis: str | None = None,
     binary_projection: bool = False,
     is_new_feature: bool = False,
     producer_module: str = "evallab.traj",
@@ -252,6 +324,7 @@ def register_trajectory_feature(
     family: str | None = None,
 ) -> FeatureDefinition:
     """Helper to register a trajectory feature in the global registry."""
+    actual_coupling_basis = coupling_basis if coupling_basis is not None else verdict_coupling_basis
     feat = FeatureDefinition(
         column_name=column_name,
         data_type=data_type,
@@ -266,6 +339,8 @@ def register_trajectory_feature(
         denominator_policy=denominator_policy,
         declared_inputs=declared_inputs,
         available_before_verdict=available_before_verdict,
+        verdict_coupling=verdict_coupling,
+        coupling_basis=actual_coupling_basis,
         binary_projection=binary_projection,
         is_new_feature=is_new_feature,
         producer_module=producer_module,
@@ -1011,6 +1086,11 @@ register_trajectory_feature(
     formula_or_rule="Count of tool call requests initiated during trial",
     null_condition="0 by default",
     description="Total count of tool requests initiated in benchmark trial.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Total tool requests initiated during trial correlates with search depth and budget consumption",
     producer_module="evallab.interpretation.producers",
     construct="Benchmark Observables",
     causal_grade="C0",
@@ -1031,6 +1111,7 @@ register_trajectory_feature(
     denominator_policy="required",
     declared_inputs=("prompt_tokens", "step_count"),
     available_before_verdict=True,
+    verdict_coupling="independent",
     producer_module="evallab.interpretation.producers",
     construct="Benchmark Observables",
     causal_grade="C0",
@@ -1051,6 +1132,7 @@ register_trajectory_feature(
     denominator_policy="required",
     declared_inputs=("cached_tokens", "prompt_tokens"),
     available_before_verdict=True,
+    verdict_coupling="independent",
     producer_module="evallab.interpretation.producers",
     construct="Benchmark Observables",
     causal_grade="C1",
@@ -1066,6 +1148,10 @@ register_trajectory_feature(
     formula_or_rule="Opportunity count for target entity binding from contract",
     null_condition="Never NULL for action-memory trials",
     description="Opportunity count for target entity binding (denominator for binding_survival_rate).",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="independent",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1082,6 +1168,10 @@ register_trajectory_feature(
     formula_or_rule="Opportunity count for conflicting/stale entity binding from contract",
     null_condition="Never NULL for action-memory trials",
     description="Opportunity count for conflicting entity binding (denominator for stale_value_override_rate).",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="independent",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1098,6 +1188,10 @@ register_trajectory_feature(
     formula_or_rule="Entity identifier bound in mutations",
     null_condition="NULL if no entity mutation occurred",
     description="Target entity identifier mutated by the agent.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C0",
@@ -1112,6 +1206,10 @@ register_trajectory_feature(
     formula_or_rule="Attribute identifier bound in mutations",
     null_condition="NULL if no attribute mutation occurred",
     description="Target attribute identifier mutated by the agent.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C0",
@@ -1126,6 +1224,10 @@ register_trajectory_feature(
     formula_or_rule="Value string bound in mutations",
     null_condition="NULL if no value was bound",
     description="Target value bound in state mutations.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C0",
@@ -1140,6 +1242,11 @@ register_trajectory_feature(
     formula_or_rule="Boolean flag indicating bound value matched latest target entity ground truth",
     null_condition="False if unfulfilled",
     description="Whether the bound value matched the latest target value.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="defines",
+    coupling_basis="Verifier reward contract directly evaluates whether bound target value matches ground truth latest value",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1156,6 +1263,11 @@ register_trajectory_feature(
     formula_or_rule="Boolean flag indicating bound value matched initial/stale value instead of latest",
     null_condition="False if unfulfilled",
     description="Whether the agent bound an outdated/stale value.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Binding an outdated stale value indicates context override failure and correlates strongly with zero verifier reward",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1174,6 +1286,7 @@ register_trajectory_feature(
     denominator_policy="not_applicable",
     declared_inputs=(),
     available_before_verdict=True,
+    verdict_coupling="independent",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1239,6 +1352,27 @@ register_trajectory_feature(
     family="action-memory-v1",
 )
 register_trajectory_feature(
+    "issued_handle_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of total handle retrieval requests issued during trial (valid + unknown + duplicate)",
+    null_condition="0 by default",
+    description="Total count of context retrieval handles requested by the agent.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Total handle retrieval requests correlate with search breadth and trial budget consumption",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
     "handle_set_match",
     data_type="BOOLEAN",
     category="benchmark_l1_fact",
@@ -1250,6 +1384,8 @@ register_trajectory_feature(
     denominator_policy="not_applicable",
     declared_inputs=(),
     available_before_verdict=True,
+    verdict_coupling="defines",
+    coupling_basis="Verifier contract requires complete retrieval of expected contract handle universe for task success",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1269,6 +1405,8 @@ register_trajectory_feature(
     denominator_policy="not_applicable",
     declared_inputs=(),
     available_before_verdict=True,
+    verdict_coupling="defines",
+    coupling_basis="Verifier contract requires canonical chronological handle retrieval order for task success",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1290,12 +1428,97 @@ register_trajectory_feature(
     denominator_policy="required",
     declared_inputs=("valid_handle_count", "expected_handle_count"),
     available_before_verdict=True,
+    verdict_coupling="defines",
+    coupling_basis="Verifier reward is directly conditioned on complete retrieval coverage (handle_coverage_rate == 1.0)",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
     evidence_grade="Grade A",
     metric_order=2,
     eligibility_precondition="expected_handle_count > 0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "handle_issuance_ratio",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="(valid_handle_count + unknown_handle_count + duplicate_handle_count) / expected_handle_count",
+    null_condition="NULL when expected_handle_count == 0",
+    description="Ratio of total issued retrieval handles to expected contract handles (measures over/under-issuance).",
+    denominator_sibling="expected_handle_count",
+    null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("valid_handle_count", "unknown_handle_count", "duplicate_handle_count", "expected_handle_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of total issued handles to expected contract handles correlates with retrieval efficiency and thrashing",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="expected_handle_count > 0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "handle_order_concordance",
+    data_type="BOOLEAN",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="atif_handles == event_handles when both available, NULL if ATIF absent",
+    null_condition="NULL when ATIF trajectory is absent or unavailable",
+    description="Whether ATIF-issued and benchmark-event-issued handle sequences match in exact chronological order.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Concordance between ATIF trace and benchmark events validates capture integrity without defining verifier reward",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "retrieval_authority",
+    data_type="VARCHAR",
+    category="identity",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Declared authority for handle retrieval sequence ('benchmark_events', 'atif_trajectory', or 'unavailable')",
+    null_condition="Never NULL",
+    description="Declared source of truth for context handle retrieval sequences.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "capture_concordance_status",
+    data_type="VARCHAR",
+    category="identity",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="'concordant', 'mismatch', 'atif_unavailable', or 'unavailable'",
+    null_condition="Never NULL",
+    description="Status of capture fidelity comparison between ATIF trajectory and benchmark events.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    metric_order=1,
     family="action-memory-v1",
 )
 register_trajectory_feature(
@@ -1309,6 +1532,11 @@ register_trajectory_feature(
     description="Rate of tool requests conforming to benchmark schema without syntax/schema error.",
     denominator_sibling="total_tool_calls",
     null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("total_tool_calls",),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Schema conformance rate correlates with execution validity without defining task success",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1328,6 +1556,11 @@ register_trajectory_feature(
     description="Fraction of target entity binding opportunities correctly surviving to final state.",
     denominator_sibling="raw_binding_opportunities",
     null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("binding_matched", "raw_binding_opportunities"),
+    available_before_verdict=True,
+    verdict_coupling="defines",
+    coupling_basis="Binding survival rate is directly computed from binding_matched, which defines verifier outcome",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1347,6 +1580,11 @@ register_trajectory_feature(
     description="Rate of successfully overriding stale memory values when conflicting updates occurred.",
     denominator_sibling="raw_conflicting_opportunities",
     null_on_zero_denominator=True,
+    denominator_policy="required",
+    declared_inputs=("stale_value_bound", "binding_matched", "raw_conflicting_opportunities"),
+    available_before_verdict=True,
+    verdict_coupling="defines",
+    coupling_basis="Stale value override rate directly measures whether latest value overcame conflicting updates to satisfy verifier contract",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1364,6 +1602,10 @@ register_trajectory_feature(
     formula_or_rule="OLS slope of prompt tokens across trajectory step sequence",
     null_condition="NULL when step count < 2",
     description="Prompt token accumulation velocity (tokens per step slope).",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="independent",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C0",
@@ -1379,6 +1621,11 @@ register_trajectory_feature(
     formula_or_rule="Context byte/token occupancy ratio at step of first failure",
     null_condition="NULL if no failure occurred",
     description="Context buffer occupancy fraction when first failure was observed.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Occupancy at first failure correlates with memory pressure and degradation",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C0",
@@ -1893,5 +2140,6 @@ for _name, _type, _rule in (
         denominator_policy="not_applicable",
         declared_inputs=(),
         available_before_verdict=True,
+        verdict_coupling="not_applicable",
         producer_module="evallab.interpretation.benchmark_projection",
     )

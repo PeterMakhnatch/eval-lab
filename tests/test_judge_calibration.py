@@ -195,7 +195,16 @@ def test_model_arm_fails_closed_without_lane_identity(
     """Assert model arm requires explicit lane/model identity."""
     mock_grader = MagicMock(return_value="correct")
 
-    with pytest.raises(E1MissingLaneIdentityError, match="lane identity must be specified"):
+    # Constructor check
+    with pytest.raises(E1MissingLaneIdentityError, match="(?i)lane identity must be specified"):
+        AuthorizedModelGrader(
+            grader_fn=mock_grader,
+            authorization=sample_authorization,
+            lane_id="",
+        )
+
+    # Runner check
+    with pytest.raises(E1MissingLaneIdentityError, match="(?i)lane identity must be specified"):
         run_model_grader_arm(
             repo_root=repo_root,
             grader=mock_grader,

@@ -597,7 +597,7 @@ class AuthorizedModelGrader:
                 "Model grader arm requires a valid PaidRunAuthorization to compile and run."
             )
         if not lane_id or not lane_id.strip():
-            raise E1MissingLaneIdentityError("Grader lane identity must be non-empty.")
+            raise E1MissingLaneIdentityError("lane identity must be specified.")
 
         self.grader_fn = grader_fn
         self.authorization = authorization
@@ -720,7 +720,7 @@ def run_lexical_control_arm(
 ) -> E1CalibrationReport:
     """Run the free deterministic lexical control arm over all 44 items."""
     if not lane_id or not lane_id.strip():
-        raise E1MissingLaneIdentityError("Lane identity must be non-empty.")
+        raise E1MissingLaneIdentityError("lane identity must be specified.")
 
     corpus = load_keyed_corpus(repo_root)
     grader = LexicalControlGrader(lane_id=lane_id)
@@ -775,7 +775,7 @@ def run_model_grader_arm(
         )
 
     if not lane_id or not lane_id.strip():
-        raise E1MissingLaneIdentityError("Lane identity must be specified.")
+        raise E1MissingLaneIdentityError("lane identity must be specified.")
 
     if repetitions != REPETITIONS_PER_ARM:
         raise E1IncompleteRepetitionsError(

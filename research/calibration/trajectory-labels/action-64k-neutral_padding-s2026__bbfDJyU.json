@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "action-64k-neutral_padding-s2026__bbfDJyU",
+  "source": "research/evidence/runs/zai-overnight-action-phase-a-v2-20260830/action-64k-neutral_padding-s2026__bbfDJyU",
+  "primary_category": "unknown",
+  "summary": "GLM-5.3-Flash preserved the complete required read sequence and received verifier reward 1.0; no failure taxonomy class applies.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 14,
+      "supports": "The ATIF trajectory records the successful agent execution and final completion step."
+    },
+    {
+      "path": "verifier/reward.txt",
+      "step": null,
+      "supports": "reward.txt records reward 1.0 for this completed trial."
+    }
+  ],
+  "agent": "opencode / zai-coding-plan/glm-5.3-flash",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Reward-1.0 convention: unknown means no failure mechanism applies; this is deterministic triage, not a human gold label.",
+  "labelled_by": "Main, 2026-08-30, deterministic post-run taxonomy triage for PR #324",
+  "parent_trajectory_sha256": "sha256:aaf5834b5344249e11d355ee82155aecd247ca294d7365cd5f1546de3ab13af1"
+}

@@ -8,6 +8,7 @@ from evallab.analysis_capability import (
     AnalysisStatus,
     AnalysisUnit,
     Basis,
+    CampaignAnalysisConfigV1,
     CampaignAnalysisResultV1,
     CampaignAnalysisSpecV1,
     CascadeStatus,
@@ -23,6 +24,7 @@ from evallab.analysis_capability import (
     RefusalCode,
     ReviewQueueEntryV1,
     ReviewQueueArtifactV1,
+    ReviewQueueRef,
     RunRecommendationV1,
     Verdict,
     analyze_cascade_distance,
@@ -783,9 +785,6 @@ def test_t13_conjunctive_refusals(trial: CascadeTrialInput, expected_code: Refus
 # =============================================================================
 
 
-ZERO_DIGEST = "sha256:" + "0" * 64
-
-
 def _paired_spec() -> CampaignAnalysisSpecV1:
     return create_campaign_analysis_spec(
         spec_id="paired-seed-test",
@@ -803,14 +802,46 @@ def _paired_spec() -> CampaignAnalysisSpecV1:
 def test_exact_paired_units_aggregation() -> None:
     rows = []
     for seed in range(1, 5):  # 4 worse: control succeeds, treatment fails
-        rows.append({"dose": 0, "seed": seed, "outcome": 1, "arm": "control", "capture_complete": True})
-        rows.append({"dose": 1, "seed": seed, "outcome": 0, "arm": "treatment", "capture_complete": True})
+        rows.append({
+            "trial_id": f"t_ctrl_{seed}",
+            "dose": 0,
+            "seed": seed,
+            "outcome": 1,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": "concordant",
+        })
+        rows.append({
+            "trial_id": f"t_trt_{seed}",
+            "dose": 1,
+            "seed": seed,
+            "outcome": 0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": "concordant",
+        })
     for seed in range(5, 10):  # 5 ties: both fail
-        rows.append({"dose": 0, "seed": seed, "outcome": 0, "arm": "control", "capture_complete": True})
-        rows.append({"dose": 1, "seed": seed, "outcome": 0, "arm": "treatment", "capture_complete": True})
+        rows.append({
+            "trial_id": f"t_ctrl_{seed}",
+            "dose": 0,
+            "seed": seed,
+            "outcome": 0,
+            "arm": "control",
+            "capture_complete": True,
+            "capture_authority": "concordant",
+        })
+        rows.append({
+            "trial_id": f"t_trt_{seed}",
+            "dose": 1,
+            "seed": seed,
+            "outcome": 0,
+            "arm": "treatment",
+            "capture_complete": True,
+            "capture_authority": "concordant",
+        })
 
     spec = _paired_spec()
-    result = run_campaign_analysis(spec, rows, snapshot_digest=ZERO_DIGEST)
+    result = run_campaign_analysis(spec, rows, snapshot_digest=DIGEST_A)
 
     assert result.observed_rows == 18
     assert result.analysis_units == 9
@@ -820,6 +851,7 @@ def test_exact_paired_units_aggregation() -> None:
     assert result.p_value is None
     assert result.attainable_p_floor == pytest.approx(0.125)
     assert result.estimate == pytest.approx(4 / 9)
+    assert len(result.source_refs) == 18
 
 
 def test_spec_digest_excludes_spec_digest_field() -> None:
@@ -853,7 +885,7 @@ def test_result_digest_binds_content_identity() -> None:
         "refusals": (),
         "observed_rows": 10,
         "analysis_units": 10,
-        "source_refs": (ContextCitation(path="test.json", digest=DIGEST_A),),
+        "source_refs": (ContextCitation(path="test/result.json", digest=DIGEST_A),),
     }
     r1 = create_campaign_analysis_result(**body)
     r2 = create_campaign_analysis_result(**body)
@@ -879,7 +911,7 @@ def test_review_queue_entry_is_not_decision_result() -> None:
         job_id="j1",
         trial_id="t1",
         source_cas_uri="cas://sha256/" + "1" * 64,
-        citation=ContextCitation(path="test.json"),
+        citation=ContextCitation(path="test/result.json"),
         window_start_step=0,
         window_end_step=1,
         window_digest=DIGEST_A,
@@ -954,7 +986,7 @@ def test_run_campaign_analysis_refuses_unsupported_or_empty() -> None:
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
         ci_method="none",
     )
-    result = run_campaign_analysis(spec, [{"outcome": 1}])
+    result = run_campaign_analysis(spec, [{"trial_id": "t1", "outcome": 1}], snapshot_digest=DIGEST_A)
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.UNSUPPORTED_ANALYSIS_METHOD in result.refusals
 
@@ -986,7 +1018,9 @@ def test_predictor_outcome_lineage_violation_refuses() -> None:
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
         ci_method="none",
     )
-    result = run_campaign_analysis(spec, [{"defines_outcome": 1}], feature_registry=registry)
+    result = run_campaign_analysis(
+        spec, [{"trial_id": "t1", "defines_outcome": 1}], feature_registry=registry, snapshot_digest=DIGEST_A
+    )
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.OUTCOME_LINEAGE_VIOLATION in result.refusals
 
@@ -1006,7 +1040,116 @@ def test_predictor_missing_lineage_declaration_refuses() -> None:
         ci_method="none",
     )
     result = run_campaign_analysis(
-        spec, [{"unregistered_outcome": 1, "unregistered_pred": 1}], feature_registry=registry
+        spec, [{"trial_id": "t1", "unregistered_outcome": 1, "unregistered_pred": 1}], feature_registry=registry, snapshot_digest=DIGEST_A
     )
     assert result.status == AnalysisStatus.REFUSAL
     assert RefusalCode.MISSING_LINEAGE_DECLARATION in result.refusals
+
+
+def test_correlated_predictor_refuses_under_strict_independence() -> None:
+    from evallab.interpretation.feature_registry import FeatureDefinition, FeatureRegistry
+
+    registry = FeatureRegistry()
+    registry.register(
+        FeatureDefinition(
+            column_name="target_outcome",
+            category="action_memory",
+            data_type="BOOLEAN",
+            description="Outcome target",
+            declared_inputs=("invariants_passed",),
+            available_before_verdict=False,
+            denominator_policy="not_applicable",
+            verdict_coupling="defines",
+            coupling_basis="exact verifier rule",
+        )
+    )
+    registry.register(
+        FeatureDefinition(
+            column_name="correlated_feature",
+            category="action_memory",
+            data_type="BOOLEAN",
+            description="Feature that correlates with verdict",
+            declared_inputs=("step_count",),
+            available_before_verdict=True,
+            denominator_policy="not_applicable",
+            verdict_coupling="correlates",
+            coupling_basis="observed empirical correlation",
+        )
+    )
+
+    spec = create_campaign_analysis_spec(
+        spec_id="correlated-predictor-test",
+        method=AnalysisMethod.FISHER_2X2,
+        outcome_feature="target_outcome",
+        predictor_features=("correlated_feature",),
+        unit=AnalysisUnit.TRIAL,
+        unit_keys=("trial_id",),
+        denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
+        ci_method="none",
+    )
+    result = run_campaign_analysis(
+        spec,
+        [{"trial_id": "t1", "target_outcome": 1, "correlated_feature": 1}],
+        feature_registry=registry,
+        snapshot_digest=DIGEST_A,
+    )
+    assert result.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.OUTCOME_LINEAGE_VIOLATION in result.refusals
+
+
+def test_inferential_adapter_missing_or_unresolved_authority_refuses() -> None:
+    spec = create_campaign_analysis_spec(
+        spec_id="authority-test",
+        method=AnalysisMethod.PAIRED_SIGN,
+        outcome_feature="outcome",
+        unit=AnalysisUnit.PAIRED_SEED,
+        unit_keys=("dose", "seed"),
+        pair_keys=("seed",),
+        denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
+        ci_method="none",
+    )
+    # Row with missing capture authority
+    rows_missing = [
+        {"trial_id": "t1", "dose": 0, "seed": 1, "outcome": 1, "arm": "control", "capture_complete": True},
+        {"trial_id": "t2", "dose": 1, "seed": 1, "outcome": 0, "arm": "treatment", "capture_complete": True},
+    ]
+    res_missing = run_campaign_analysis(spec, rows_missing, snapshot_digest=DIGEST_A)
+    assert res_missing.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.CAPTURE_AUTHORITY_UNRESOLVED in res_missing.refusals
+
+    # Row with unresolved capture authority
+    rows_unresolved = [
+        {"trial_id": "t1", "dose": 0, "seed": 1, "outcome": 1, "arm": "control", "capture_complete": True, "capture_authority": "unresolved"},
+        {"trial_id": "t2", "dose": 1, "seed": 1, "outcome": 0, "arm": "treatment", "capture_complete": True, "capture_authority": "unresolved"},
+    ]
+    res_unresolved = run_campaign_analysis(spec, rows_unresolved, snapshot_digest=DIGEST_A)
+    assert res_unresolved.status == AnalysisStatus.REFUSAL
+    assert RefusalCode.CAPTURE_AUTHORITY_UNRESOLVED in res_unresolved.refusals
+
+
+def test_all_zero_digest_rejected_at_contract_boundary() -> None:
+    zero = "sha256:" + "0" * 64
+    body = {
+        "schema_version": "campaign-analysis-spec/v1",
+        "spec_id": "zero-digest-test",
+        "method": AnalysisMethod.RATE_WILSON,
+        "outcome_feature": "primary_reward",
+        "unit": AnalysisUnit.TRIAL,
+        "unit_keys": ("trial_id",),
+        "denominator_policy": DenominatorPolicy.NOT_APPLICABLE,
+        "ci_method": "wilson",
+        "spec_digest": zero,
+    }
+    with pytest.raises(ValidationError):
+        CampaignAnalysisSpecV1.model_validate(body)
+
+    config_body = {
+        "schema_version": "campaign-analysis-config/v1",
+        "feature_registry_digest": zero,
+        "producer_digests": {"ir_builder": DIGEST_A},
+        "cohort_policy_digest": DIGEST_A,
+        "redaction_policy_digest": DIGEST_A,
+        "specs": (),
+    }
+    with pytest.raises(ValidationError):
+        CampaignAnalysisConfigV1.model_validate(config_body)

@@ -13,7 +13,7 @@ import json
 import os
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -300,6 +300,8 @@ def compute_analysis_snapshot_digest(
             "coverage_complete": d.get("coverage_complete"),
             "order_exact": d.get("order_exact"),
             "declared_features": d.get("declared_features") or {},
+            "capture_complete": bool(d.get("capture_complete", True)),
+            "capture_authority": d.get("capture_authority"),
         }
 
     cohort_body = sorted((_item_body(i) for i in cohort), key=lambda d: (d["job_id"], d["trial_id"]))
@@ -482,7 +484,7 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
     feature_registry_digest = canonical_json_digest(
-        sorted([f.column_name for f in TRAJECTORY_FEATURE_REGISTRY.all_features().values()])
+        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
     )
     cohort_policy_digest = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
     redaction_policy_digest = RedactionPolicy().compute_digest()
@@ -1968,16 +1970,28 @@ def _extract_analysis_rows(
         row["task_name"] = item.task_name
         row["task_digest"] = item.task_digest
         row["verifier_digest"] = item.verifier_digest
-        row["reward"] = item.reward if item.reward is not None else res.get("reward")
+        reward_val = item.reward if item.reward is not None else res.get("reward")
+        row["reward"] = reward_val
+        row["primary_reward"] = reward_val
         row["decision"] = res.get("decision")
-        row["task_success"] = (row["reward"] is not None and row["reward"] > 0) or (res.get("decision") == "accepted")
-        row["arm"] = item.arm or res.get("arm")
-        row["dose"] = item.dose or res.get("dose")
-        row["seed"] = item.seed or res.get("seed")
-        row["coverage_complete"] = item.coverage_complete if item.coverage_complete is not None else (res.get("coverage_gaps") == ["judge_execution_disabled"])
+        row["task_success"] = bool(reward_val > 0) if reward_val is not None else None
+        row["arm"] = item.arm if item.arm is not None else res.get("arm")
+        row["dose"] = item.dose if item.dose is not None else res.get("dose")
+        row["seed"] = item.seed if item.seed is not None else res.get("seed")
+        row["coverage_complete"] = (
+            item.coverage_complete
+            if item.coverage_complete is not None
+            else (res.get("coverage_gaps") == ["judge_execution_disabled"])
+        )
         row["order_exact"] = item.order_exact if item.order_exact is not None else res.get("order_exact")
-        row["capture_complete"] = item.capture_complete and (item.quality_status in ("pass", "warn")) and ("ATIF_UNPAIRED_TOOL_CALL" not in res.get("coverage_gaps", []))
-        row["capture_authority"] = item.capture_authority or "concordant"
+        row["capture_complete"] = (
+            item.capture_complete
+            and (item.quality_status in ("pass", "warn"))
+            and ("ATIF_UNPAIRED_TOOL_CALL" not in res.get("coverage_gaps", []))
+        )
+        row["capture_authority"] = (
+            item.capture_authority if item.capture_authority is not None else res.get("capture_authority")
+        )
         if item.declared_features:
             for feat_k, feat_v in item.declared_features.items():
                 row.setdefault(feat_k, feat_v)
@@ -1990,93 +2004,10 @@ def _build_review_queue_artifact(
     retrieval: RetrievalPolicyV1,
     store_root: Path,
 ) -> ReviewQueueRef:
-    """Build a non-decision review queue artifact using deterministic lexical HashingEmbedder."""
-    from evallab.lance import HashingEmbedder
-
-    cohort = manifest.cohort_items()
-    analysis_ready = [i for i in cohort if i.quality_status in ("pass", "warn") and i.cas_uri]
-    if len(analysis_ready) < len(cohort) or not analysis_ready:
-        query_digest = canonical_json_digest({"purpose": retrieval.purpose, "manifest_id": manifest.manifest_id})
-        candidate_pool_digest = canonical_json_digest([{"trial_id": i.trial_id} for i in analysis_ready])
-        index_digest = canonical_json_digest({"embedder": "hashing_embedder", "dim": retrieval.dimension})
-        body = {
-            "schema_version": "review-queue/v1",
-            "queue_id": f"{manifest.campaign_id}-review-queue",
-            "manifest_digest": manifest.manifest_digest,
-            "snapshot_digest": manifest.analysis_snapshot_digest,
-            "policy": retrieval.model_dump(mode="json"),
-            "query_digest": query_digest,
-            "candidate_pool_digest": candidate_pool_digest,
-            "index_digest": index_digest,
-            "coverage_complete": False,
-            "entries": [],
-            "refusals": [RefusalCode.REVIEW_QUEUE_INELIGIBLE],
-            "decision_eligible": False,
-        }
-        queue_digest = canonical_json_digest(body)
-        artifact = ReviewQueueArtifactV1.model_validate({**body, "queue_digest": queue_digest})
-        queue_dir = store_root.parent / "review_queues" / str(queue_digest).removeprefix("sha256:")
-        queue_path = queue_dir / "review_queue.json"
-        _write_artifact_sidecar(queue_path, artifact.model_dump(mode="json"))
-        archive = archive_evidence(
-            source=queue_dir,
-            store_root=store_root,
-            record_id=str(queue_digest),
-            kind="review_queue",
-        )
-        return ReviewQueueRef(
-            queue_id=artifact.queue_id,
-            queue_digest=queue_digest,
-            queue_cas_uri=archive.uri,
-            decision_eligible=False,
-        )
-
-    embedder = HashingEmbedder(dim=retrieval.dimension)
-    query_text = f"review queue {retrieval.purpose} for {manifest.campaign_id}"
-    query_vec = embedder.embed([query_text])[0]
-
-    item_texts = [f"{i.task_name} {i.trial_name} {' '.join(i.quality_findings)}" for i in analysis_ready]
-    item_vecs = embedder.embed(item_texts)
-
-    scored: list[tuple[float, CampaignAnalysisItem]] = []
-    for item, vec in zip(analysis_ready, item_vecs, strict=False):
-        dist = 1.0 - sum(q * v for q, v in zip(query_vec, vec, strict=False))
-        scored.append((dist, item))
-
-    scored.sort(key=lambda pair: (pair[0], pair[1].trial_id))
-    top_entries: list[ReviewQueueEntryV1] = []
-    for rank, (dist, item) in enumerate(scored[: retrieval.k], start=1):
-        window_digest = item.verifier_digest or item.task_digest or ("sha256:" + "0" * 64)
-        citation = ContextCitation(path=f"{item.trial_id}/evidence_pack.json", digest=item.task_digest)
-        top_entries.append(
-            ReviewQueueEntryV1(
-                rank=rank,
-                job_id=item.job_id,
-                trial_id=item.trial_id,
-                source_cas_uri=item.cas_uri or "",
-                citation=citation,
-                window_start_step=0,
-                window_end_step=item.atif_steps_count or 1,
-                window_digest=window_digest,
-                distance=round(float(dist), 6),
-                reason=retrieval.purpose,
-            )
-        )
-
-    candidate_pool = [
-        {
-            "job_id": item.job_id,
-            "trial_id": item.trial_id,
-            "cas_uri": item.cas_uri,
-            "task_digest": item.task_digest,
-            "verifier_digest": item.verifier_digest,
-        }
-        for item in sorted(analysis_ready, key=lambda i: (i.job_id, i.trial_id))
-    ]
-    candidate_pool_digest = canonical_json_digest(candidate_pool)
-    query_digest = canonical_json_digest({"query": query_text, "purpose": retrieval.purpose})
-    index_digest = canonical_json_digest({"embedder": embedder.digest, "dim": retrieval.dimension})
-
+    """Build an honest typed non-decision review queue refusal artifact."""
+    query_digest = canonical_json_digest({"purpose": retrieval.purpose, "manifest_id": manifest.manifest_id})
+    candidate_pool_digest = canonical_json_digest([{"trial_id": i.trial_id} for i in manifest.cohort_items()])
+    index_digest = canonical_json_digest({"embedder": retrieval.embedder_id, "dim": retrieval.dimension})
     body = {
         "schema_version": "review-queue/v1",
         "queue_id": f"{manifest.campaign_id}-review-queue",
@@ -2086,14 +2017,13 @@ def _build_review_queue_artifact(
         "query_digest": query_digest,
         "candidate_pool_digest": candidate_pool_digest,
         "index_digest": index_digest,
-        "coverage_complete": True,
-        "entries": [e.model_dump(mode="json") for e in top_entries],
-        "refusals": [],
+        "coverage_complete": False,
+        "entries": [],
+        "refusals": [RefusalCode.REVIEW_QUEUE_INELIGIBLE],
         "decision_eligible": False,
     }
     queue_digest = canonical_json_digest(body)
     artifact = ReviewQueueArtifactV1.model_validate({**body, "queue_digest": queue_digest})
-
     queue_dir = store_root.parent / "review_queues" / str(queue_digest).removeprefix("sha256:")
     queue_path = queue_dir / "review_queue.json"
     _write_artifact_sidecar(queue_path, artifact.model_dump(mode="json"))
@@ -2168,6 +2098,8 @@ def analyze_batch(
         store_root=store_root,
     )
 
+    from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+
     analysis_results: list[CampaignAnalysisResultV1] = []
     rows = _extract_analysis_rows(manifest, results, output_dir, store_root)
     for spec in manifest.analysis_config.specs:
@@ -2175,6 +2107,7 @@ def analyze_batch(
             run_campaign_analysis(
                 spec,
                 rows,
+                feature_registry=TRAJECTORY_FEATURE_REGISTRY,
                 snapshot_digest=manifest.analysis_snapshot_digest,
             )
         )

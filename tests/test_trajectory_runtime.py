@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -63,6 +63,7 @@ from evallab.interpretation.trajectory_runtime import (
     CampaignAnalysisManifest,
     _build_review_queue_artifact,
     _data_contract_digest,
+    _extract_analysis_rows,
     _pack_structure_errors,
     analyze_batch,
     analyze_calibrate,
@@ -88,6 +89,9 @@ REAL_INVENTORY = (
 )
 
 FAKE_CITATION = "sha256:" + "ab" * 32
+DIGEST_A = "sha256:" + "a" * 64
+DIGEST_B = "sha256:" + "b" * 64
+DIGEST_C = "sha256:" + "c" * 64
 
 
 def _report_payload() -> dict:
@@ -1722,7 +1726,7 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
     spec = create_campaign_analysis_spec(
         spec_id="rate-success",
         method=AnalysisMethod.RATE_WILSON,
-        outcome_feature="decision",
+        outcome_feature="primary_reward",
         unit=AnalysisUnit.TRIAL,
         unit_keys=("trial_id",),
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
@@ -1730,14 +1734,14 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
     )
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
     feature_reg_digest = canonical_json_digest(
-        sorted([f.column_name for f in TRAJECTORY_FEATURE_REGISTRY.all_features().values()])
+        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
     )
     cohort_policy_digest = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
     redaction_policy_digest = RedactionPolicy().compute_digest()
     producer_digests = {
-        "ir_builder": "sha256:" + "1" * 64,
-        "pack_builder": "sha256:" + "2" * 64,
-        "acceptance_policy": "sha256:" + "3" * 64,
+        "ir_builder": DIGEST_A,
+        "pack_builder": DIGEST_B,
+        "acceptance_policy": DIGEST_C,
     }
 
     config = CampaignAnalysisConfigV1(
@@ -1756,16 +1760,18 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
         trial_id=trial_id,
         trial_name=trial_id,
         task_name="runtime-task",
-        task_digest="sha256:" + "a" * 64,
-        verifier_digest="sha256:" + "b" * 64,
+        task_digest=DIGEST_A,
+        verifier_digest=DIGEST_B,
         quality_status="pass",
         cas_uri=cas_uri,
         reward=1.0,
+        capture_complete=True,
+        capture_authority="concordant",
     )
     manifest_body = {
         "schema_version": "campaign-analysis-manifest/v1",
         "campaign_id": "rerun-campaign",
-        "source_campaign_manifest_digest": "sha256:" + "4" * 64,
+        "source_campaign_manifest_digest": DIGEST_C,
         "source_commit": "c0ffee",
         "authorizing_actor": "test",
         "cas_store_root": str(tmp_path / "cas"),
@@ -1796,7 +1802,7 @@ def _make_manifest_with_spec(tmp_path: Path, cas_uri: str) -> Path:
 
 
 def test_deterministic_batch_rerun_identities(tmp_path: Path) -> None:
-    trial_dir = _trial_tree(tmp_path, trial_name="rerun-trial")
+    trial_dir = _trial_tree(tmp_path, trial_name="rerun-trial", reward=1.0)
     store = tmp_path / "cas"
     cas_uri = _archive_trial(trial_dir, store, "rerun-trial")
     manifest_path = _make_manifest_with_spec(tmp_path, cas_uri)
@@ -1819,6 +1825,7 @@ def test_deterministic_batch_rerun_identities(tmp_path: Path) -> None:
     assert report1["report_digest"] == report2["report_digest"]
     assert report1["analysis_snapshot_digest"] == report2["analysis_snapshot_digest"]
     assert report1["report_cas_uri"] == report2["report_cas_uri"]
+    assert report1["analysis_results"][0]["source_refs"]
 
 
 def test_stale_snapshot_refuses_before_trial_interpretation(
@@ -1849,11 +1856,9 @@ def test_stale_snapshot_refuses_before_trial_interpretation(
 
 
 def test_snapshot_digest_binds_cohort_and_config_identities() -> None:
-    zero = "sha256:" + "0" * 64
-    one = "sha256:" + "1" * 64
     base = {
         "campaign_id": "c1",
-        "source_campaign_manifest_digest": zero,
+        "source_campaign_manifest_digest": DIGEST_A,
         "source_commit": None,
         "items": [
             {
@@ -1861,33 +1866,37 @@ def test_snapshot_digest_binds_cohort_and_config_identities() -> None:
                 "trial_id": "t1",
                 "attempt_role": "primary",
                 "cohort_included": True,
-                "task_digest": zero,
-                "verifier_digest": zero,
-                "quality_report_digest": zero,
-                "cas_uri": "cas://sha256/" + "0" * 64,
+                "task_digest": DIGEST_A,
+                "verifier_digest": DIGEST_B,
+                "quality_report_digest": DIGEST_C,
+                "cas_uri": "cas://sha256/" + "1" * 64,
                 "arm": "control",
                 "dose": 0,
                 "seed": 1,
                 "reward": 0.0,
+                "capture_complete": True,
+                "capture_authority": "concordant",
             }
         ],
     }
     config = CampaignAnalysisConfigV1(
-        feature_registry_digest=zero,
-        producer_digests={"capture_policy": zero},
-        cohort_policy_digest=zero,
-        redaction_policy_digest=zero,
+        feature_registry_digest=DIGEST_A,
+        producer_digests={"capture_policy": DIGEST_B},
+        cohort_policy_digest=DIGEST_C,
+        redaction_policy_digest=DIGEST_A,
     )
     d1 = compute_analysis_snapshot_digest(base, config)
 
     mutations = [
-        ("cas_uri", "cas://sha256/" + "1" * 64),
-        ("task_digest", one),
-        ("verifier_digest", one),
+        ("cas_uri", "cas://sha256/" + "2" * 64),
+        ("task_digest", DIGEST_B),
+        ("verifier_digest", DIGEST_C),
         ("arm", "treatment"),
         ("dose", 1),
         ("seed", 2),
         ("reward", 1.0),
+        ("capture_complete", False),
+        ("capture_authority", "unresolved"),
     ]
     for field, value in mutations:
         mutated = json.loads(json.dumps(base))
@@ -1896,30 +1905,174 @@ def test_snapshot_digest_binds_cohort_and_config_identities() -> None:
         assert d2 != d1, f"snapshot digest did not change for item field {field}"
 
 
+def test_dose_0_preserved_and_accepted_decision_cannot_flip_reward() -> None:
+    item = CampaignAnalysisItem(
+        source_role="analysis",
+        cohort_included=True,
+        attempt_role="primary",
+        job_id="job-0",
+        job_name="job-0",
+        trial_id="trial-0",
+        trial_name="trial-0",
+        task_name="task-0",
+        quality_status="pass",
+        cas_uri="cas://sha256/" + "1" * 64,
+        dose=0,
+        reward=0.0,
+    )
+    manifest = CampaignAnalysisManifest(
+        schema_version="campaign-analysis-manifest/v1",
+        manifest_id="m-1",
+        manifest_digest=DIGEST_A,
+        campaign_id="camp-0",
+        source_campaign_manifest_digest=DIGEST_B,
+        source_commit=None,
+        authorizing_actor="test",
+        cas_store_root="cas",
+        items=[item],
+        accounting={},
+        analysis_config=CampaignAnalysisConfigV1(
+            feature_registry_digest=DIGEST_A,
+            producer_digests={},
+            cohort_policy_digest=DIGEST_B,
+            redaction_policy_digest=DIGEST_C,
+        ),
+        analysis_snapshot_digest=DIGEST_A,
+        produced_at=datetime.now(UTC),
+    )
+    mock_result = {
+        "decision": "accepted",
+        "reward": 0.0,
+        "coverage_gaps": ["judge_execution_disabled"],
+        "quality_status": "pass",
+    }
+    rows = _extract_analysis_rows(manifest, [mock_result], Path("."), Path("."))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["dose"] == 0
+    assert row["task_success"] is False
+
+
+def test_feature_coupled_predictor_refusal_through_analyze_batch(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="lineage-batch-trial", reward=1.0)
+    store = tmp_path / "cas"
+    cas_uri = _archive_trial(trial_dir, store, "lineage-batch-trial")
+
+    spec = create_campaign_analysis_spec(
+        spec_id="leakage-spec",
+        method=AnalysisMethod.FISHER_2X2,
+        outcome_feature="primary_reward",
+        predictor_features=("order_exact",),
+        unit=AnalysisUnit.TRIAL,
+        unit_keys=("trial_id",),
+        denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
+        ci_method="none",
+    )
+    from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+    feature_reg_digest = canonical_json_digest(
+        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
+    )
+    config = CampaignAnalysisConfigV1(
+        feature_registry_digest=feature_reg_digest,
+        producer_digests={"ir_builder": DIGEST_A},
+        cohort_policy_digest=DIGEST_B,
+        redaction_policy_digest=RedactionPolicy().compute_digest(),
+        specs=(spec,),
+    )
+    item = CampaignAnalysisItem(
+        source_role="analysis",
+        cohort_included=True,
+        attempt_role="primary",
+        job_id="j1",
+        job_name="j1",
+        trial_id="lineage-batch-trial",
+        trial_name="lineage-batch-trial",
+        task_name="runtime-task",
+        task_digest=DIGEST_A,
+        verifier_digest=DIGEST_B,
+        quality_status="pass",
+        cas_uri=cas_uri,
+        reward=1.0,
+        declared_features={"order_exact": True},
+        capture_complete=True,
+        capture_authority="concordant",
+    )
+    manifest_body = {
+        "schema_version": "campaign-analysis-manifest/v1",
+        "campaign_id": "lineage-campaign",
+        "source_campaign_manifest_digest": DIGEST_C,
+        "source_commit": "c0ffee",
+        "authorizing_actor": "test",
+        "cas_store_root": str(store),
+        "items": [item.model_dump(mode="json")],
+        "accounting": {
+            "total_planned_specs": 1,
+            "total_executed_trials": 1,
+            "valid_analysis_ready_trials": 1,
+            "quarantined_infrastructure_attempts": 0,
+            "free_local_controls": 0,
+            "unresolved_evidence_count": 0,
+        },
+        "analysis_config": config.model_dump(mode="json"),
+    }
+    snapshot_digest = compute_analysis_snapshot_digest(manifest_body, config)
+    manifest_body["analysis_snapshot_digest"] = snapshot_digest
+    manifest_id = canonical_json_digest(manifest_body)
+    manifest_digest = canonical_json_digest({**manifest_body, "manifest_id": manifest_id})
+    manifest = CampaignAnalysisManifest(
+        manifest_id=manifest_id,
+        manifest_digest=manifest_digest,
+        produced_at=datetime.now(UTC),
+        items=[item],
+        accounting=manifest_body["accounting"],
+        analysis_config=config,
+        analysis_snapshot_digest=snapshot_digest,
+        schema_version="campaign-analysis-manifest/v1",
+        campaign_id="lineage-campaign",
+        source_campaign_manifest_digest=DIGEST_C,
+        source_commit="c0ffee",
+        authorizing_actor="test",
+        cas_store_root=str(store),
+    )
+    manifest_path = tmp_path / "lineage_manifest.json"
+    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+
+    report = analyze_batch(
+        manifest_path,
+        repo_root=tmp_path,
+        store_root=store,
+        output_dir=tmp_path / "interpretation",
+        derived_root=tmp_path / "derived",
+    )
+    assert len(report["analysis_results"]) == 1
+    res = report["analysis_results"][0]
+    assert res["status"] == AnalysisStatus.REFUSAL
+    assert RefusalCode.OUTCOME_LINEAGE_VIOLATION in res["refusals"]
+
+
 def test_next_run_feedback_in_report(tmp_path: Path) -> None:
     from evallab.analysis_capability import run_campaign_analysis
 
     rows = []
     for seed in range(1, 5):
-        rows.append({"dose": 0, "seed": seed, "outcome": 1, "arm": "control", "capture_complete": True})
-        rows.append({"dose": 1, "seed": seed, "outcome": 0, "arm": "treatment", "capture_complete": True})
+        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 1.0, "arm": "control", "capture_complete": True, "capture_authority": "concordant"})
+        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": "concordant"})
     for seed in range(5, 10):
-        rows.append({"dose": 0, "seed": seed, "outcome": 0, "arm": "control", "capture_complete": True})
-        rows.append({"dose": 1, "seed": seed, "outcome": 0, "arm": "treatment", "capture_complete": True})
+        rows.append({"trial_id": f"t_ctrl_{seed}", "dose": 0, "seed": seed, "primary_reward": 0.0, "arm": "control", "capture_complete": True, "capture_authority": "concordant"})
+        rows.append({"trial_id": f"t_trt_{seed}", "dose": 1, "seed": seed, "primary_reward": 0.0, "arm": "treatment", "capture_complete": True, "capture_authority": "concordant"})
 
     spec = create_campaign_analysis_spec(
         spec_id="paired-seed-test",
         method=AnalysisMethod.PAIRED_SIGN,
-        outcome_feature="outcome",
+        outcome_feature="primary_reward",
         unit=AnalysisUnit.PAIRED_SEED,
         unit_keys=("dose", "seed"),
         pair_keys=("seed",),
         denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
         ci_method="none",
     )
-    result = run_campaign_analysis(spec, rows)
+    result = run_campaign_analysis(spec, rows, snapshot_digest=DIGEST_A)
 
-    zero = "sha256:" + "0" * 64
     item = CampaignAnalysisItem(
         source_role="analysis",
         cohort_included=True,
@@ -1930,38 +2083,38 @@ def test_next_run_feedback_in_report(tmp_path: Path) -> None:
         trial_name="t1",
         task_name="task",
         quality_status="pass",
-        cas_uri="cas://sha256/" + "0" * 64,
+        cas_uri="cas://sha256/" + "1" * 64,
     )
     manifest = CampaignAnalysisManifest(
         schema_version="campaign-analysis-manifest/v1",
         manifest_id="m-1",
-        manifest_digest="sha256:" + "1" * 64,
+        manifest_digest=DIGEST_A,
         campaign_id="c1",
-        source_campaign_manifest_digest=zero,
+        source_campaign_manifest_digest=DIGEST_B,
         source_commit=None,
         authorizing_actor="test",
         cas_store_root=str(tmp_path / "cas"),
         items=[item],
         accounting={},
         analysis_config=CampaignAnalysisConfigV1(
-            feature_registry_digest=zero,
-            producer_digests={"ir_builder": zero},
-            cohort_policy_digest=zero,
-            redaction_policy_digest=zero,
+            feature_registry_digest=DIGEST_A,
+            producer_digests={"ir_builder": DIGEST_B},
+            cohort_policy_digest=DIGEST_C,
+            redaction_policy_digest=DIGEST_A,
             specs=(spec,),
         ),
-        analysis_snapshot_digest=zero,
+        analysis_snapshot_digest=DIGEST_A,
         produced_at=datetime.now(UTC),
     )
     per_trial = [{
         "job_id": "j1",
         "trial_id": "t1",
-        "source_cas_uri": "cas://sha256/" + "0" * 64,
-        "artifact_cas_uri": "cas://sha256/" + "1" * 64,
-        "ir_digest": zero,
-        "pack_digest": zero,
-        "judgment_id": zero,
-        "decision_id": zero,
+        "source_cas_uri": "cas://sha256/" + "1" * 64,
+        "artifact_cas_uri": "cas://sha256/" + "2" * 64,
+        "ir_digest": DIGEST_A,
+        "pack_digest": DIGEST_B,
+        "judgment_id": DIGEST_C,
+        "decision_id": DIGEST_A,
         "decision": "abstained",
         "reason_codes": [],
         "coverage_gaps": ["judge_execution_disabled"],
@@ -1976,8 +2129,7 @@ def test_next_run_feedback_in_report(tmp_path: Path) -> None:
     assert NextRunAction.HOLD_SEMANTIC_DECISION_ANALYSIS.value in actions
 
 
-def test_review_queue_ref_is_non_decision(tmp_path: Path) -> None:
-    zero = "sha256:" + "0" * 64
+def test_review_queue_ref_is_non_decision_and_ineligible(tmp_path: Path) -> None:
     item = CampaignAnalysisItem(
         source_role="analysis",
         cohort_included=True,
@@ -1988,32 +2140,32 @@ def test_review_queue_ref_is_non_decision(tmp_path: Path) -> None:
         trial_name="t1",
         task_name="task",
         quality_status="pass",
-        cas_uri="cas://sha256/" + "0" * 64,
+        cas_uri="cas://sha256/" + "1" * 64,
     )
     retrieval = RetrievalPolicyV1(
-        embedder_digest=zero,
-        redaction_policy_digest=zero,
+        embedder_digest=DIGEST_A,
+        redaction_policy_digest=DIGEST_B,
         enabled=True,
     )
     manifest = CampaignAnalysisManifest(
         schema_version="campaign-analysis-manifest/v1",
         manifest_id="m-1",
-        manifest_digest="sha256:" + "1" * 64,
+        manifest_digest=DIGEST_A,
         campaign_id="rq-campaign",
-        source_campaign_manifest_digest=zero,
+        source_campaign_manifest_digest=DIGEST_B,
         source_commit=None,
         authorizing_actor="test",
         cas_store_root=str(tmp_path / "cas"),
         items=[item],
         accounting={},
         analysis_config=CampaignAnalysisConfigV1(
-            feature_registry_digest=zero,
-            producer_digests={"ir_builder": zero},
-            cohort_policy_digest=zero,
-            redaction_policy_digest=zero,
+            feature_registry_digest=DIGEST_A,
+            producer_digests={"ir_builder": DIGEST_B},
+            cohort_policy_digest=DIGEST_C,
+            redaction_policy_digest=DIGEST_A,
             retrieval=retrieval,
         ),
-        analysis_snapshot_digest=zero,
+        analysis_snapshot_digest=DIGEST_A,
         produced_at=datetime.now(UTC),
     )
     ref = _build_review_queue_artifact(manifest, retrieval, tmp_path / "cas")
@@ -2029,7 +2181,7 @@ def test_end_to_end_zero_model_batch_spend(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr("evallab.evidence.facts.run_trial_analysis", boom)
     monkeypatch.setattr("evallab.analysis_worker.default_worker", boom)
 
-    trial_dir = _trial_tree(tmp_path, trial_name="zero-model-batch")
+    trial_dir = _trial_tree(tmp_path, trial_name="zero-model-batch", reward=1.0)
     store = tmp_path / "cas"
     cas_uri = _archive_trial(trial_dir, store, "zero-model-batch")
     manifest_path = _make_manifest_with_spec(tmp_path, cas_uri)
@@ -2052,15 +2204,7 @@ def test_end_to_end_zero_model_batch_spend(tmp_path: Path, monkeypatch: pytest.M
 
 
 def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """End-to-end proof: 18 repeat trials over 9 (dose, seed) pairs execute zero-model analysis.
-
-    Demonstrates:
-    - 18 repeat observations aggregate to exactly 9 independent units
-    - Observed 4 worse / 5 ties yields risk diff 4/9, exact p=0.125, attainable p-floor 0.125, UNDERPOWERED
-    - NextRunFeedbackV1 generates ADD_INDEPENDENT_SEEDS with requested_units=4 and HOLD_SEMANTIC_DECISION_ANALYSIS
-    - execution_authorized is strictly False
-    - Rerun produces identical snapshot and report digests.
-    """
+    """End-to-end proof: 18 repeat trials over 9 (dose, seed) pairs execute zero-model analysis."""
     def boom(*_args, **_kwargs):
         raise AssertionError("live model invoked")
 
@@ -2108,7 +2252,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
     spec = create_campaign_analysis_spec(
         spec_id="action-memory-arm-contrast",
         method=AnalysisMethod.PAIRED_SIGN,
-        outcome_feature="reward",
+        outcome_feature="primary_reward",
         unit=AnalysisUnit.PAIRED_SEED,
         unit_keys=("dose", "seed"),
         pair_keys=("seed",),
@@ -2118,16 +2262,16 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
     feature_reg_digest = canonical_json_digest(
-        sorted([f.column_name for f in TRAJECTORY_FEATURE_REGISTRY.all_features().values()])
+        [asdict(f) for f in sorted(TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name)]
     )
     config = CampaignAnalysisConfigV1(
         feature_registry_digest=feature_reg_digest,
         producer_digests={
-            "ir_builder": "sha256:" + "a" * 64,
-            "pack_builder": "sha256:" + "b" * 64,
-            "acceptance_policy": "sha256:" + "c" * 64,
+            "ir_builder": DIGEST_A,
+            "pack_builder": DIGEST_B,
+            "acceptance_policy": DIGEST_C,
         },
-        cohort_policy_digest="sha256:" + "d" * 64,
+        cohort_policy_digest=DIGEST_A,
         redaction_policy_digest=RedactionPolicy().compute_digest(),
         specs=(spec,),
     )
@@ -2135,7 +2279,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
     manifest_body = {
         "schema_version": "campaign-analysis-manifest/v1",
         "campaign_id": "phase-a-arm-contrast",
-        "source_campaign_manifest_digest": "sha256:" + "e" * 64,
+        "source_campaign_manifest_digest": DIGEST_B,
         "source_commit": "abcdef12",
         "authorizing_actor": "peter",
         "cas_store_root": str(store),
@@ -2165,7 +2309,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
         analysis_snapshot_digest=snapshot_digest,
         schema_version="campaign-analysis-manifest/v1",
         campaign_id="phase-a-arm-contrast",
-        source_campaign_manifest_digest="sha256:" + "e" * 64,
+        source_campaign_manifest_digest=DIGEST_B,
         source_commit="abcdef12",
         authorizing_actor="peter",
         cas_store_root=str(store),
@@ -2199,6 +2343,7 @@ def test_phase_a_e0b_paired_batch_orchestration(tmp_path: Path, monkeypatch: pyt
     assert paired_res["estimate"] == pytest.approx(4 / 9)
     assert paired_res["p_value"] is None
     assert paired_res["attainable_p_floor"] == pytest.approx(0.125)
+    assert len(paired_res["source_refs"]) == 18
 
     feedback = report["next_run_feedback"]
     assert feedback["execution_authorized"] is False

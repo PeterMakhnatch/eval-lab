@@ -58,6 +58,8 @@ def _linux_policy():  # type: ignore[no-untyped-def]
 class _StubConnection:
     provider: str | None = None
     api_key: str | None = field(default=None, repr=False)
+    base_url: str | None = None
+    configured_base_url: str | None = None
     env: dict[str, str] = field(default_factory=dict, repr=False)
 
 
@@ -106,12 +108,22 @@ def _package(name: str) -> ModuleType:
 
 @pytest.fixture
 def adapter_module(monkeypatch: pytest.MonkeyPatch):
-    for name in ("harbor", "harbor.agents", "harbor.agents.installed"):
+    for name in ("harbor", "harbor.agents", "harbor.agents.installed", "harbor.environments"):
         monkeypatch.setitem(sys.modules, name, _package(name))
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.installed.opencode",
         _module("harbor.agents.installed.opencode", OpenCode=_StubOpenCode),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "harbor.agents.model_connection",
+        _module("harbor.agents.model_connection", ResolvedModelConnection=_StubConnection),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "harbor.environments.base",
+        _module("harbor.environments.base", BaseEnvironment=object),
     )
     sys.modules.pop("evallab.harbor_zai_opencode", None)
     try:

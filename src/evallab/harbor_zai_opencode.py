@@ -1,49 +1,35 @@
-"""Trusted-task-only Harbor adapter for the Z.ai Coding Plan via OpenCode.
+"""Harbor adapter for the Z.ai Coding Plan via OpenCode.
 
-SECURITY BOUNDARY — read before using this lane.
-
-This adapter links a filtered, Z.ai-only auth document into OpenCode's XDG
-auth store inside the task container for the duration of one run. The
-credential is expected to arrive as a read-only mount (docker secret) at
-``AUTH_SECRET_MOUNT`` and is never read, copied, or logged by host code.
-Because the *agent* can read the mounted credential during its turn, this
-mount-based lane is acceptable ONLY for reviewed, trusted tasks. It is NOT
-proxy-grade credential isolation: for untrusted or adversarial tasks use a
-credential-isolating proxy lane (see ``harbor_deepseek``) instead, and never
-present runs from this adapter as enforced-isolation evidence.
-
-What the adapter guarantees mechanically:
-
-- OpenCode is pinned to ``PINNED_OPENCODE_VERSION`` (reproducible installs)
-  unless the caller passes an explicit ``version`` override.
-- The model selector must be under the ``zai-coding-plan/`` provider prefix,
-  so a misconfigured run cannot point the Z.ai credential at another vendor.
-- Exactly one symlink — the constant ``AUTH_LINK_PATH`` — is created before
-  the run and removed in ``finally``, including when the agent run raises;
-  the cleanup failure is suppressed so it cannot mask the original error.
-- No secret value is ever placed in a command, environment variable, or log:
-  the only strings executed are the two constant paths below.
-
-Observed provider behavior (2026-08-29 pilot, Coding Plan subscription):
-
-- ``zai-coding-plan/glm-5.3`` and ``zai-coding-plan/glm-5.3-flash`` run
-  successfully through this pinned adapter.
-- ``zai-coding-plan/glm-5.3-highspeed`` is NOT included in the current
-  subscription and the provider answers HTTP 429 "current subscription plan
-  does not yet include access".
-
-Provider access failures are execution errors, never model outcomes: this
-adapter deliberately adds NO retry, fallback, or model substitution, so a
-429/plan-access error surfaces as a raised Harbor error class and the trial
-is not scored as agent capability. Never relabel such errors as reward 0.0.
+Provides two execution lanes:
+1. ``ZaiOpenCodeAgent``: Trusted-task-only mount-based adapter (links auth.json).
+2. ``SecretSafeZaiOpenCodeAgent``: Proxy-grade credential isolation adapter.
+   Untrusted task/agent containers talk only to the internal credential broker
+   (``zai-secret-proxy``) and receive a placeholder capability token, never
+   the real provider secret.
 """
 
 from __future__ import annotations
 
 import contextlib
+import copy
+import json
+import os
+from collections.abc import Mapping
+from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from harbor.agents.installed.opencode import OpenCode  # ty: ignore[unresolved-import]
+from harbor.agents.model_connection import (  # ty: ignore[unresolved-import]
+    ResolvedModelConnection,
+)
+from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
+
+from evallab.execution_contracts import (
+    REDACTED_SECRET_VALUE,
+    collected_secret_values,
+    persist_private_bytes,
+)
 
 ADAPTER_VERSION = "1.0.0"
 
@@ -53,7 +39,7 @@ PINNED_OPENCODE_VERSION = "1.18.25"
 #: The only accepted provider prefix; the Z.ai credential is scoped to it.
 REQUIRED_MODEL_PREFIX = "zai-coding-plan/"
 
-#: Read-only mount of the filtered, Z.ai-only OpenCode auth document.
+#: Read-only mount of the filtered, Z.ai-only OpenCode auth document (trusted lane).
 AUTH_SECRET_MOUNT = "/run/secrets/evallab_zai_opencode_auth.json"
 
 #: OpenCode reads ``$XDG_DATA_HOME/opencode/auth.json``; Harbor's pinned
@@ -61,10 +47,41 @@ AUTH_SECRET_MOUNT = "/run/secrets/evallab_zai_opencode_auth.json"
 AUTH_LINK_DIR = "/logs/agent/opencode/xdg-data/opencode"
 AUTH_LINK_PATH = f"{AUTH_LINK_DIR}/auth.json"
 
-#: The only commands this adapter executes. Both are composed exclusively of
-#: the constant paths above — never of credential material.
+#: The only commands the trusted-lane adapter executes for auth mounting.
 CREATE_AUTH_LINK_COMMAND = f"mkdir -p {AUTH_LINK_DIR} && ln -sfn {AUTH_SECRET_MOUNT} {AUTH_LINK_PATH}"
 REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
+
+# --------------------------------------------------------------------------
+# Proxy lane constants
+# --------------------------------------------------------------------------
+
+ZAI_PROXY_HOST = "zai-secret-proxy"
+ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
+ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
+ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
+ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
+ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
+ZAI_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
+    {
+        "ZAI_CODING_PLAN_API_KEY",
+        "ZAI_API_KEY",
+        "ZAI_CODING_PLAN_KEY",
+        "ZAI_KEY",
+    }
+)
+ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
+
+SENSITIVE_CONFIG_KEYS = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "api-key",
+        "api_key",
+        "x-api-key",
+        "access_token",
+        "apikey",
+    }
+)
 
 
 def validate_model_name(model_name: str | None) -> str:
@@ -91,6 +108,89 @@ def validate_model_name(model_name: str | None) -> str:
             f"{REQUIRED_MODEL_PREFIX!r}; got {model_name!r}"
         )
     return model_name
+
+
+def collected_zai_secret_values(
+    environment: Mapping[str, str] | None = None,
+) -> frozenset[str]:
+    """Return non-placeholder Z.ai provider secret strings present in environment."""
+    source = os.environ if environment is None else environment
+    values: set[str] = set()
+    for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
+        value = source.get(key)
+        if value and value != ZAI_PROXY_TOKEN:
+            values.add(value)
+    for env_var in (ZAI_SECRET_FILE_ENV, ZAI_SECRET_PATH_ENV):
+        secret_file = source.get(env_var)
+        if secret_file:
+            try:
+                p = Path(secret_file)
+                if p.is_file():
+                    file_value = p.read_text(encoding="utf-8").strip()
+                    if file_value and file_value != ZAI_PROXY_TOKEN:
+                        values.add(file_value)
+            except OSError:
+                pass
+    capability = source.get(ZAI_PROXY_CAPABILITY_ENV)
+    if capability and capability != ZAI_PROXY_TOKEN:
+        values.add(capability)
+    values.update(collected_secret_values(environment))
+    return frozenset(values)
+
+
+def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: (
+                REDACTED_SECRET_VALUE
+                if str(key).casefold() in SENSITIVE_CONFIG_KEYS
+                else _redact_sensitive_values(item, secrets)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_sensitive_values(item, secrets) for item in value]
+    if isinstance(value, str) and (value in secrets or any(s and s in value for s in secrets)):
+        return REDACTED_SECRET_VALUE
+    return value
+
+
+def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None) -> None:
+    """Rewrite a native trajectory on disk only after in-memory redaction."""
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_bytes().decode("utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        persist_private_bytes(
+            path,
+            (json.dumps({"redacted": "unparseable native trajectory removed"}) + "\n").encode(),
+            secrets=(),
+        )
+        return
+    known = secrets if secrets is not None else collected_zai_secret_values()
+    sanitized = _redact_sensitive_values(payload, known)
+    persist_private_bytes(
+        path,
+        (json.dumps(sanitized, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
+        secrets=tuple(secret.encode() for secret in known),
+    )
+
+
+def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, str]:
+    env = {
+        name: value
+        for name, value in dict(connection.env).items()
+        if name not in ZAI_CREDENTIAL_ENVIRONMENT_KEYS
+        and name not in {"ZAI_BASE_URL", "OPENAI_BASE_URL", "OPENAI_API_BASE"}
+    }
+    token = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
+    env["ZAI_CODING_PLAN_API_KEY"] = token
+    env["ZAI_API_KEY"] = token
+    env["ZAI_BASE_URL"] = ZAI_PROXY_URL
+    env["OPENAI_BASE_URL"] = ZAI_PROXY_URL
+    env["OPENAI_API_BASE"] = ZAI_PROXY_URL
+    return env
 
 
 class ZaiOpenCodeAgent(OpenCode):
@@ -126,3 +226,101 @@ class ZaiOpenCodeAgent(OpenCode):
             # are suppressed so the original agent error is never masked.
             with contextlib.suppress(Exception):
                 await self.exec_as_agent(environment, command=REMOVE_AUTH_LINK_COMMAND)
+
+
+class SecretSafeZaiOpenCodeAgent(OpenCode):
+    """OpenCode agent that talks only to the internal Z.ai credential broker.
+
+    Proxy-grade credential isolation: the container receives a per-trial
+    capability token and an internal endpoint, never the real Z.ai secret.
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        version: str | None = None,
+        opencode_config: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        model_name = kwargs.get("model_name")
+        if model_name is not None:
+            validate_model_name(model_name)
+
+        config = copy.deepcopy(opencode_config or {})
+        # Wire the zai-coding-plan provider baseURL to the internal proxy
+        provider_cfg = config.setdefault("provider", {}).setdefault("zai-coding-plan", {})
+        provider_cfg.setdefault("options", {})["baseURL"] = ZAI_PROXY_URL
+
+        super().__init__(
+            *args,
+            version=version or PINNED_OPENCODE_VERSION,
+            opencode_config=config,
+            **kwargs,
+        )
+
+        model_name = getattr(self, "model_name", None)
+        if model_name is not None:
+            validate_model_name(model_name)
+
+    @property
+    def model_connection(self) -> ResolvedModelConnection:
+        connection = super().model_connection
+        if connection.provider != "zai-coding-plan" and connection.provider != "zai":
+            # Also check if provider is part of model name
+            model = getattr(self, "model_name", None)
+            if model:
+                validate_model_name(model)
+            elif connection.provider:
+                validate_model_name(f"{connection.provider}/placeholder")
+        token = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
+        return replace(
+            connection,
+            api_key=token,
+            base_url=ZAI_PROXY_URL,
+            configured_base_url=ZAI_PROXY_URL,
+            env=_scrubbed_connection_env(connection),
+        )
+
+    async def exec_as_agent(
+        self,
+        environment: BaseEnvironment,
+        command: str,
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
+        timeout_sec: int | None = None,
+    ) -> Any:
+        runtime_env = dict(env or {})
+        capability = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
+        allowed_tokens = {ZAI_PROXY_TOKEN, capability}
+        host_secrets = collected_zai_secret_values() - allowed_tokens
+        for name in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
+            value = runtime_env.get(name)
+            if value and value not in allowed_tokens:
+                raise ValueError(
+                    "Z.ai provider credential cannot enter the task exec environment"
+                )
+        if any(
+            value and value in host_secrets
+            for value in runtime_env.values()
+        ):
+            raise ValueError(
+                "Z.ai provider credential cannot enter the task exec environment"
+            )
+        if "cat /run/secrets/" in command or any(
+            f'{key}="$(cat' in command for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS
+        ):
+            raise ValueError("Z.ai provider credential cannot enter the task exec command")
+        return await super().exec_as_agent(
+            environment,
+            command,
+            env=runtime_env,
+            cwd=cwd,
+            timeout_sec=timeout_sec,
+        )
+
+    def populate_context_post_run(self, context: Any) -> None:
+        secrets = collected_zai_secret_values()
+        logs = self.logs_dir
+        sanitize_native_trajectory(logs / "trajectory.json", secrets)
+        super().populate_context_post_run(context)
+        sanitize_native_trajectory(logs / "trajectory.json", secrets)

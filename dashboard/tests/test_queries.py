@@ -14,6 +14,7 @@ from dashboard.queries import (
     ATIF_SUMMARY_SQL,
     CALIBRATION_SQL,
     CANARY_SQL,
+    EXPERIMENT_OPERATIONS_SQL,
     LEADERBOARD_SQL,
     PANES,
     SPEND_SQL,
@@ -63,7 +64,15 @@ class FixtureSource:
 
 
 def test_panes_mapping_declared_and_covers_views():
-    expected_panes = {"leaderboard", "canaries", "spend", "calibrations", "atif", "discoveries"}
+    expected_panes = {
+        "leaderboard",
+        "canaries",
+        "spend",
+        "calibrations",
+        "atif",
+        "discoveries",
+        "experiment_operations",
+    }
     assert set(PANES.keys()) == expected_panes
     assert PANES["leaderboard"] == "z2.trials"
     assert PANES["canaries"] == "z2.canary_drift_observations"
@@ -71,6 +80,7 @@ def test_panes_mapping_declared_and_covers_views():
     assert PANES["calibrations"] == "z2.judge_calibrations"
     assert PANES["atif"] == "trial_facts"
     assert PANES["discoveries"] == "z4.front_matter"
+    assert PANES["experiment_operations"] == "z2.trials"
 
 
 def test_production_queries_are_select_only():
@@ -81,6 +91,7 @@ def test_production_queries_are_select_only():
         CALIBRATION_SQL,
         ATIF_SUMMARY_SQL,
         TOOL_USAGE_SQL,
+        EXPERIMENT_OPERATIONS_SQL,
     ):
         normalized = " ".join(statement.upper().split())
         assert normalized.startswith("SELECT ")

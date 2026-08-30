@@ -1,0 +1,176 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "ses_fac6ce820ffewsFZGhTJS6PtD2",
+  "agent": {
+    "name": "opencode",
+    "version": "1.18.25",
+    "model_name": "zai-coding-plan/glm-5.3-flash"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "<<evallab-redacted: 373 bytes, sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a>>",
+      "message_sha256": "sha256:ebaa3b2c7440099f88f14b0f4cfd156b83d18e7001e308285b1eb14a5f1b613a",
+      "message_chars": 373
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-30T16:49:14.391000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "The user wants me to work with an MCP server at http://mcp-service:8080/mcp. I have memory MCP tools available: list_context_chunks, get_context_chunk(s), and execute_mutation. Let me start by listing the context handles.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_a339883523ac48b0b9f905eb",
+          "function_name": "memory_mcp_list_context_chunks",
+          "arguments": {}
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_a339883523ac48b0b9f905eb",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunk_ids\":[\"chunk_000\",\"chunk_001\",\"chunk_002\",\"chunk_003\",\"chunk_004\",\"chunk_005\",\"chunk_006\",\"chunk_007\",\"chunk_008\",\"chunk_009\",\"chunk_010\",\"chunk_011\",\"chunk_012\",\"chunk_013\",\"chunk_014\",\"chunk_015\",\"chunk_016\"],\"representation\":\"range_batch\",\"range\":{\"start\":0,\"end\":16,\"unit\":\"chunk\"}}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7709,
+        "completion_tokens": 10,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 53
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-30T16:49:23.777000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "",
+      "reasoning_content": "17 chunks to read. Let me batch read them.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_71a178c2322545eb847f5505",
+          "function_name": "memory_mcp_get_context_chunks",
+          "arguments": {
+            "chunk_ids": [
+              "chunk_000",
+              "chunk_001",
+              "chunk_002",
+              "chunk_003",
+              "chunk_004",
+              "chunk_005",
+              "chunk_006",
+              "chunk_007",
+              "chunk_008"
+            ]
+          }
+        },
+        {
+          "tool_call_id": "call_f97f1614afe64ddcbe75d641",
+          "function_name": "memory_mcp_get_context_chunks",
+          "arguments": {
+            "chunk_ids": [
+              "chunk_009",
+              "chunk_010",
+              "chunk_011",
+              "chunk_012",
+              "chunk_013",
+              "chunk_014",
+              "chunk_015",
+              "chunk_016"
+            ]
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_71a178c2322545eb847f5505",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunks\":[{\"chunk_id\":\"chunk_000\",\"content\":\"[SYSTEM LOG 001]: Initializing configuration record for entity_563.\\nEntity attribute routing_key is permanently bound to 'cf6135fc_v1'.\\nAll subsequent telemetry routing must reference this active token unless explicitly updated.\\n\"},{\"chunk_id\":\"chunk_001\",\"content\":\"[CRITICAL STATE INVERSION 091]: Configuration OVERRIDE event for entity_563.\\nSuperceding prior assignments, attribute routing_key is now mutated to 'cf6135fc_v2'.\\nMandatory action execution REQUIREMENT: Final mutation must supply latest bound token 'cf6135fc_v2'.\\n\"},{\"chunk_id\":\"chunk_002\",\"content\":\"[DIAGNOSTIC NOISE 0000] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_003\",\"content\":\"[DIAGNOSTIC NOISE 0001] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_004\",\"content\":\"[DIAGNOSTIC NOISE 0002] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_005\",\"content\":\"[DIAGNOSTIC NOISE 0003] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_006\",\"content\":\"[DIAGNOSTIC NOISE 0004] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_007\",\"content\":\"[DIAGNOSTIC NOISE 0005] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_008\",\"content\":\"[DIAGNOSTIC NOISE 0006] ........................................................................................................................................................................................................................................\"}]}}"
+          },
+          {
+            "source_call_id": "call_f97f1614afe64ddcbe75d641",
+            "content": "{\"status\":\"ok\",\"value\":{\"chunks\":[{\"chunk_id\":\"chunk_009\",\"content\":\"[DIAGNOSTIC NOISE 0007] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_010\",\"content\":\"[DIAGNOSTIC NOISE 0008] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_011\",\"content\":\"[DIAGNOSTIC NOISE 0009] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_012\",\"content\":\"[DIAGNOSTIC NOISE 0010] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_013\",\"content\":\"[DIAGNOSTIC NOISE 0011] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_014\",\"content\":\"[DIAGNOSTIC NOISE 0012] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_015\",\"content\":\"[DIAGNOSTIC NOISE 0013] ........................................................................................................................................................................................................................................\"},{\"chunk_id\":\"chunk_016\",\"content\":\"[DIAGNOSTIC NOISE 0\"}]}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 7886,
+        "completion_tokens": 127,
+        "cached_tokens": 7680,
+        "extra": {
+          "reasoning_tokens": 11
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-30T16:49:32+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "State derived: `entity_563.routing_key` was bound to `cf6135fc_v1`, then overridden to `cf6135fc_v2` (latest wins). Applying the mutation:",
+      "reasoning_content": "The state: entity_563, attribute routing_key, latest bound value 'cf6135fc_v2' (override supersedes the earlier 'cf6135fc_v1'). Execute the mutation.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_84d057de514a4770814fb9d5",
+          "function_name": "memory_mcp_execute_mutation",
+          "arguments": {
+            "attribute": "routing_key",
+            "bound_value": "cf6135fc_v2",
+            "entity_id": "entity_563"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call_84d057de514a4770814fb9d5",
+            "content": "{\"status\":\"ok\",\"value\":{\"status\":\"executed\",\"target_entity\":\"entity_563\",\"target_attribute\":\"routing_key\",\"bound_value\":\"cf6135fc_v2\"}}"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 8600,
+        "completion_tokens": 83,
+        "cached_tokens": 7872,
+        "extra": {
+          "reasoning_tokens": 44
+        }
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-30T16:49:39.763000+00:00",
+      "source": "agent",
+      "model_name": "zai-coding-plan/glm-5.3-flash",
+      "message": "Done. Mutation executed: `entity_563.routing_key = cf6135fc_v2` — the latest token per the chunk_001 override, superseding chunk_000's `cf6135fc_v1`.",
+      "metrics": {
+        "prompt_tokens": 8768,
+        "completion_tokens": 49,
+        "cached_tokens": 8576
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 32963,
+    "total_completion_tokens": 269,
+    "total_cached_tokens": 31808,
+    "total_steps": 5
+  },
+  "evallab_redaction": {
+    "rule": "R1",
+    "removed": "verbatim message text of every system-source and user-source step",
+    "reason": "AGENTS.md forbids committing unredacted model prompts",
+    "steps_redacted": 1,
+    "recover": "message_sha256 identifies the original text; the unredacted parent digest is in PROMOTION.json"
+  }
+}

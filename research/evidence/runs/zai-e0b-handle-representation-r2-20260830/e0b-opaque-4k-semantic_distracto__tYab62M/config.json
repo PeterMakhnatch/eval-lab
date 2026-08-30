@@ -1,0 +1,24 @@
+{
+    "task": {
+        "path": "/tmp/evallab-zai-e0b-tasks/e0b-opaque-4k-semantic_distractor-s42"
+    },
+    "trial_name": "e0b-opaque-4k-semantic_distracto__tYab62M",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/zai-opencode-experiments/runs/zai-opencode-e0b/zai-e0b-handle-representation-r2-20260830",
+    "agent": {
+        "name": "evallab.harbor_zai_opencode:ZaiOpenCodeAgent",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 3
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/evallab-zai-e0b-auth.json",
+                "target": "/run/secrets/evallab_zai_opencode_auth.json",
+                "read_only": true
+            }
+        ]
+    },
+    "job_id": "6c5df612-7f71-4bbf-be7f-0f7e2058b043"
+}

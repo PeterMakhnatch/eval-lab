@@ -29,10 +29,11 @@ classify for several facets. See `docs/craft.md` for the facet-by-facet split
 between what this module determines and what genuinely needs the model.
 
 Entry point: `python -m evallab.craft scan --tb3` (or `--tb4` for the pinned
-v4.0.0 lane) and `python -m evallab.craft plan --tb4` for the read-only
-migration inventory. CLI wiring into `evallab craft ...` is described in
-`docs/craft.md` and left undone here because `cli.py` is leased to another
-mission this round.
+v4.0.0 lane), `python -m evallab.craft plan --tb4` for the read-only
+migration inventory, and `python -m evallab.craft compile --tb4-root <v4>` for
+the executable pinned TB4 Harbor job plan. CLI wiring into `evallab craft ...`
+is described in `docs/craft.md` and left undone here because `cli.py` is leased
+to another mission this round.
 """
 
 from __future__ import annotations
@@ -57,6 +58,7 @@ import pyarrow.parquet as pq
 import yaml
 from pydantic import Field
 
+from evallab.execution_contracts import new_ulid
 from evallab.schemas import ContractModel
 from evallab.storage.paths import derived_root_from_environment
 
@@ -126,6 +128,17 @@ FLOATING_REF_TOKENS = frozenset({"latest", "head", "main", "master"})
 MIGRATION_RECORD = (
     Path(__file__).resolve().parent / "data" / "terminal-bench-4-migration.json"
 )
+
+#: Pinned TB4 resource contract: flat 8-hour agent timeout on all 66 tasks.
+TB4_TIMEOUT_SECONDS: int = 28_800
+
+#: Permitted Z.ai model selectors for TB4 Harbor compilation.
+ZAI_ALLOWED_MODELS: frozenset[str] = frozenset(
+    {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
+)
+ZAI_DEFAULT_MODEL: str = "zai-coding-plan/glm-5.3"
+ZAI_DEFAULT_AGENT: str = "zai-opencode"
+ZAI_MODEL_PREFIX: str = "zai-coding-plan/"
 
 #: A task directory is one that carries both files. Harbor's own layout adds
 #: `environment/`, `tests/`, and `solution/`, but those are checked per facet
@@ -1129,7 +1142,7 @@ def repository_root() -> Path:
 
 
 # --------------------------------------------------------------------------- #
-# TB4 pin validation and migration planning
+# TB4 pin validation, migration planning, and job compilation
 # --------------------------------------------------------------------------- #
 
 
@@ -1330,6 +1343,216 @@ def _render_plan(plan: dict[str, Any]) -> str:
     lines.append(f"  v3 non-comparable: {plan['v3_non_comparable']}")
     for discrepancy in plan["discrepancies"]:
         lines.append(f"  discrepancy: {discrepancy}")
+    return "\n".join(lines)
+
+
+def deterministic_tb4_task_id(dataset_ref: str, task_ref: str) -> str:
+    """Deterministic, Crockford-encoded 26-char ULID-compatible job identity.
+
+    Derived from sha256(f"{dataset_ref}\\0{task_ref}"):
+    - Upper 48 bits map to the timestamp field.
+    - Next 80 bits map to the randomness field.
+    Guarantees stable, collision-free per-task identity across recompilations
+    so partial runs can be resumed without re-keying jobs.
+    """
+    digest = hashlib.sha256(f"{dataset_ref}\0{task_ref}".encode("utf-8")).digest()
+    millis = int.from_bytes(digest[:6], "big") & ((1 << 48) - 1)
+    randomness = int.from_bytes(digest[6:16], "big") & ((1 << 80) - 1)
+    return new_ulid(timestamp_ms=millis, randomness=randomness)
+
+
+def compile_tb4(
+    tb4_path: Path,
+    *,
+    ref: str | None = None,
+    out: Path | None = None,
+    model: str = ZAI_DEFAULT_MODEL,
+    agent: str = ZAI_DEFAULT_AGENT,
+    tb3_path: Path | None = None,
+) -> dict[str, Any]:
+    """Compile the pinned TB4 v4.0.0 adoption lane into an executable Harbor job plan.
+
+    Fails closed on:
+    - Task count or inventory drift against the immutable 66-task manifest.
+    - Upstream digest drift if a prior compiled plan exists at `out`.
+    - Accidental TB3/TB4 aggregation (refuses if TB3 root is supplied).
+    - Invalid or highspeed model selector (only permitted Z.ai models allowed).
+    - Floating refs, wrong dataset name, or unpinned version.
+    """
+    if not tb4_path.is_dir():
+        raise FileNotFoundError(f"TB4 corpus root not found: {tb4_path}")
+
+    # 1. TB3/TB4 aggregation refusal
+    if tb3_path is not None:
+        raise ValueError(
+            "accidental TB3/TB4 aggregation refused: TB3 and TB4 cohorts are non-comparable "
+            "and cannot be aggregated or mixed into a single compile pass"
+        )
+
+    # 2. Model & provider validation (fail closed)
+    if (
+        "highspeed" in model.lower()
+        or model not in ZAI_ALLOWED_MODELS
+        or not model.startswith(ZAI_MODEL_PREFIX)
+    ):
+        raise ValueError(
+            f"invalid model selector {model!r}: must be one of {sorted(ZAI_ALLOWED_MODELS)}; "
+            "highspeed and non-Z.ai models are refused at compile time (fail closed)"
+        )
+
+    # 3. Pin validation (refuses wrong dataset, floating refs, wrong version)
+    effective_ref = resolve_tb4_ref(tb4_path, ref=ref)
+    record = load_migration_record()
+
+    # 4. Scan the TB4 corpus
+    result = scan([tb4_source(tb4_path)])
+    actual_records = {r.task_ref: r for r in result.records}
+    actual_refs = sorted(actual_records.keys())
+    expected_refs = list(record["expected_inventory"])
+
+    # 5. Inventory and task-count checks (fail closed on ANY discrepancy)
+    if len(actual_refs) != len(expected_refs):
+        raise ValueError(
+            f"task count drift: actual {len(actual_refs)} != expected {len(expected_refs)}"
+        )
+    missing = sorted(set(expected_refs) - set(actual_refs))
+    unexpected = sorted(set(actual_refs) - set(expected_refs))
+    if missing:
+        raise ValueError(f"inventory drift: missing expected task(s): {missing}")
+    if unexpected:
+        raise ValueError(f"inventory drift: unexpected task(s): {unexpected}")
+
+    # 6. Canonical manifest digest
+    manifest_bytes = json.dumps(
+        {
+            "dataset_ref": effective_ref,
+            "expected_inventory": expected_refs,
+            "pin": {
+                "commit": TB4_PIN_COMMIT,
+                "tag": TB4_PIN_TAG,
+            },
+            "resource_contract": record.get("resource_contract"),
+            "task_count": len(expected_refs),
+            "versions": {
+                "from": record.get("from_version"),
+                "to": record.get("to_version"),
+            },
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    manifest_digest = f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}"
+
+    # 7. Construct task entries
+    task_entries: list[dict[str, Any]] = []
+    current_digests: dict[str, str] = {}
+    for task_ref in expected_refs:
+        rec = actual_records[task_ref]
+        task_id = deterministic_tb4_task_id(effective_ref, task_ref)
+        task_digest_val = rec.task_digest
+        current_digests[task_ref] = task_digest_val
+        task_entries.append(
+            {
+                "task_id": task_id,
+                "task_ref": task_ref,
+                "task_digest": task_digest_val,
+                "timeout_seconds": TB4_TIMEOUT_SECONDS,
+                "agent": agent,
+                "model": model,
+            }
+        )
+
+    # 8. Upstream digest drift check against existing plan if present
+    if out is not None and out.is_file():
+        try:
+            prior_plan = json.loads(out.read_text(encoding="utf-8"))
+            if isinstance(prior_plan, dict) and "tasks" in prior_plan:
+                prior_tasks = {
+                    t["task_ref"]: t
+                    for t in prior_plan["tasks"]
+                    if isinstance(t, dict) and "task_ref" in t
+                }
+                # Check for task set drift
+                if set(prior_tasks.keys()) != set(current_digests.keys()):
+                    raise ValueError(
+                        f"upstream task set drift detected against prior plan at {out}"
+                    )
+                # Check for per-task digest drift
+                drifted: list[str] = []
+                for t_ref, cur_dig in current_digests.items():
+                    prior_dig = prior_tasks.get(t_ref, {}).get("task_digest")
+                    if prior_dig and prior_dig != cur_dig:
+                        drifted.append(f"{t_ref} (prior={prior_dig}, current={cur_dig})")
+                if drifted:
+                    raise ValueError(
+                        f"upstream digest drift detected for {len(drifted)} task(s) against prior plan at {out}: {drifted}"
+                    )
+        except (json.JSONDecodeError, UnicodeError):
+            pass
+
+    # 9. Build complete plan dictionary
+    plan: dict[str, Any] = {
+        "plan_version": "tb4-job-plan/1",
+        "command": "craft compile",
+        "dataset_ref": effective_ref,
+        "source_identity": record.get("source_identity", TB4_FALLBACK_SOURCE_REPO),
+        "versions": {
+            "from": record.get("from_version", "3.0.0"),
+            "to": record.get("to_version", "4.0.0"),
+        },
+        "pin": {
+            "tag": TB4_PIN_TAG,
+            "commit": TB4_PIN_COMMIT,
+            "license": record.get("license", "Apache-2.0"),
+            "schema_unchanged": record.get("schema_unchanged", True),
+        },
+        "resource_contract": record.get(
+            "resource_contract",
+            f"flat 8-hour agent timeout on all {len(expected_refs)} tasks",
+        ),
+        "timeout_seconds": TB4_TIMEOUT_SECONDS,
+        "task_count": len(expected_refs),
+        "non_comparable": record.get("v3_non_comparable", True),
+        "comparability_note": record.get("comparability_note", ""),
+        "floating_refs_forbidden": record.get("floating_refs_forbidden", True),
+        "provider": {
+            "agent": agent,
+            "model_prefix": ZAI_MODEL_PREFIX,
+            "allowed_models": sorted(ZAI_ALLOWED_MODELS),
+            "selected_model": model,
+            "highspeed": "refused",
+        },
+        "refuses": {
+            "tb3_mixing": True,
+            "floating_refs": True,
+            "digest_drift": True,
+        },
+        "manifest_digest": manifest_digest,
+        "tasks": task_entries,
+    }
+
+    # 10. Write plan to disk if out is given
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        rendered_json = json.dumps(plan, indent=2, sort_keys=True) + "\n"
+        out.write_text(rendered_json, encoding="utf-8")
+        plan["out_path"] = str(out)
+
+    return plan
+
+
+def _render_compile(plan: dict[str, Any]) -> str:
+    lines = [
+        f"craft compile {FACETS_SCHEMA_VERSION}",
+        f"  dataset_ref: {plan['dataset_ref']}",
+        f"  pin: tag={plan['pin']['tag']} commit={plan['pin']['commit']} license={plan['pin'].get('license')}",
+        f"  tasks: {plan['task_count']} tasks, flat timeout {plan['timeout_seconds']}s (8h)",
+        f"  provider: agent={plan['provider']['agent']} model={plan['provider']['selected_model']}",
+        f"  v3 non-comparable: {plan['non_comparable']}",
+        f"  manifest_digest: {plan['manifest_digest']}",
+    ]
+    if "out_path" in plan:
+        lines.append(f"  plan written: {plan['out_path']}")
     return "\n".join(lines)
 
 
@@ -1581,6 +1804,46 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"pinned dataset ref (default: {TB4_DATASET_REF} or from dataset.toml)",
     )
     plan_parser.add_argument("--json", action="store_true", help="emit the plan as JSON")
+
+    compile_parser = subparsers.add_parser(
+        "compile",
+        help="compile pinned TB4 v4.0.0 Harbor job plan with flat 8h timeout and drift guards",
+    )
+    compile_parser.add_argument(
+        "--tb4-root", type=Path, default=None, help="override the TB4 root"
+    )
+    compile_parser.add_argument(
+        "--tb3-root",
+        type=Path,
+        default=None,
+        help="TB3 root; if supplied, compile validates TB3/TB4 non-aggregation guards",
+    )
+    compile_parser.add_argument(
+        "--ref",
+        type=str,
+        default=None,
+        help=f"pinned dataset ref (default: {TB4_DATASET_REF} or from dataset.toml)",
+    )
+    compile_parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="output path for the compiled job plan JSON",
+    )
+    compile_parser.add_argument(
+        "--model",
+        type=str,
+        default=ZAI_DEFAULT_MODEL,
+        help=f"Z.ai model selector (default: {ZAI_DEFAULT_MODEL})",
+    )
+    compile_parser.add_argument(
+        "--agent",
+        type=str,
+        default=ZAI_DEFAULT_AGENT,
+        help=f"agent identifier for trusted-task execution (default: {ZAI_DEFAULT_AGENT})",
+    )
+    compile_parser.add_argument("--json", action="store_true", help="emit the plan as JSON")
+
     return parser
 
 
@@ -1618,10 +1881,43 @@ def _main_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _main_compile(args: argparse.Namespace) -> int:
+    tb4 = tb4_root(args.tb4_root)
+    if not tb4.is_dir():
+        print(f"craft compile: TB4 corpus root not found: {tb4}", file=sys.stderr)
+        return 2
+    tb3 = tb3_root(args.tb3_root) if args.tb3_root is not None else None
+    repo_root = repository_root()
+    out_path = (
+        args.out.expanduser().resolve()
+        if args.out is not None
+        else derived_root_from_environment(repo_root) / "jobs" / "terminal-bench-4.0.0-plan.json"
+    )
+    try:
+        plan = compile_tb4(
+            tb4,
+            ref=args.ref,
+            out=out_path,
+            model=args.model,
+            agent=args.agent,
+            tb3_path=tb3,
+        )
+    except (ValueError, RuntimeError, FileNotFoundError) as error:
+        print(f"craft compile: {error}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+    else:
+        print(_render_compile(plan))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "plan":
         return _main_plan(args)
+    if args.command == "compile":
+        return _main_compile(args)
     repo_root = repository_root()
     sources = _sources_from_args(args, repo_root)
     if not sources:

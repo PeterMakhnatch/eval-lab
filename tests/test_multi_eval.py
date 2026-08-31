@@ -8,18 +8,14 @@ from pydantic import ValidationError
 from evallab.multi_eval import (
     ExecutionIntent,
     HarnessIdentity,
-    MultiEvalParityResult,
-    MultiEvalPlan,
     MultiEvalTaskSpec,
     ParityStatus,
-    PlanningRefusal,
     RefusalCode,
     RunnerCapabilities,
     RunnerKind,
     RunnerOutcome,
     ScaffoldEquivalence,
     TaskRequirements,
-    TrajectoryMeasurements,
     get_runner_capabilities,
     plan_multi_eval_execution,
     reconcile_parity_results,
@@ -211,7 +207,9 @@ def test_plan_multi_eval_cross_runner_comparison_refusals() -> None:
         scaffold_equivalence=None,
     )
     assert plan_no_equiv.is_refused is True
-    assert any(r.code == RefusalCode.UNDECLARED_SCAFFOLD_EQUIVALENCE for r in plan_no_equiv.refusals)
+    assert any(
+        r.code == RefusalCode.UNDECLARED_SCAFFOLD_EQUIVALENCE for r in plan_no_equiv.refusals
+    )
 
     # With declared equivalence
     equiv = ScaffoldEquivalence(
@@ -239,7 +237,9 @@ def test_plan_multi_eval_cross_runner_comparison_refusals() -> None:
         harness_identities=harnesses,
     )
     assert plan_mismatch.is_refused is True
-    assert any(r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in plan_mismatch.refusals)
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in plan_mismatch.refusals
+    )
 
 
 def test_plan_digest_determinism() -> None:

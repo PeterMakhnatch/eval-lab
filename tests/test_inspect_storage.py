@@ -4,8 +4,8 @@ import json
 import tempfile
 from pathlib import Path
 
-import duckdb
 import pyarrow.parquet as pq
+import pytest
 
 from evallab.evidence_store import restore_evidence
 from evallab.inspect_adapter import (
@@ -14,9 +14,11 @@ from evallab.inspect_adapter import (
     project_inspect_eval_log,
     write_inspect_projection,
 )
+from evallab.storage.attach import attach
 from evallab.storage.inspect_storage import (
     InspectSourceManifestV1,
 )
+from evallab.storage.paths import discover_parquet_partitions
 
 
 def _sample_inspect_log() -> dict:
@@ -82,7 +84,9 @@ def _sample_inspect_log() -> dict:
     }
 
 
-def test_write_inspect_projection_writes_only_source_tables(tmp_path: Path) -> None:
+def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
+    tmp_path: Path,
+) -> None:
     payload = _sample_inspect_log()
     projection = project_inspect_eval_log(payload, source_path="test_log.json")
     output_root = tmp_path / "derived"
@@ -96,8 +100,8 @@ def test_write_inspect_projection_writes_only_source_tables(tmp_path: Path) -> N
         raw_cas_uri="cas://sha256/1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
 
-    # Verify partition folder
-    partition_dir = output_root / "source=inspect" / f"job_id={projection.run.job_id}"
+    # Verify partition folder is discoverable root/job_id=<job_id>
+    partition_dir = output_root / f"job_id={projection.run.job_id}"
     assert partition_dir.is_dir()
 
     # Verify only inspect_* tables are written, not canonical tables
@@ -122,6 +126,10 @@ def test_write_inspect_projection_writes_only_source_tables(tmp_path: Path) -> N
     assert manifest.source_revision == "git-sha-storage123"
     assert manifest.source_file == "test_log.json"
     assert manifest.rebuild_digest == projection.rebuild_digest
+    assert (
+        manifest.raw_cas_uri
+        == "cas://sha256/1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    )
     assert manifest.sample_count == 1
     assert manifest.attempt_count == 2  # 1 retry + 1 terminal attempt
     assert manifest.score_count == 1
@@ -134,44 +142,96 @@ def test_write_inspect_projection_writes_only_source_tables(tmp_path: Path) -> N
         expected_schema = INSPECT_SCHEMAS[table_name]
         assert schema.names == expected_schema.names
 
-    # DuckDB read test
-    conn = duckdb.connect()
-    attempts_count = conn.execute(
-        f"SELECT count(*) FROM read_parquet('{table_paths['inspect_attempts']}')"
-    ).fetchone()[0]
-    assert attempts_count == 2
+    # Test discovery and unified attach
+    discovery = discover_parquet_partitions(output_root)
+    assert len(discovery.partitions) == 5
+    partition_tables = {p.table for p in discovery.partitions}
+    assert partition_tables == {
+        "inspect_runs",
+        "inspect_attempts",
+        "inspect_scores",
+        "inspect_events",
+        "inspect_attachments",
+    }
+
+    # Test attach views
+    attach_res = attach(explicit_derived=output_root)
+    conn = attach_res.connection
+    runs_rows = conn.execute("SELECT count(*) FROM inspect_runs").fetchone()[0]
+    assert runs_rows == 1
+    attempts_rows = conn.execute("SELECT count(*) FROM inspect_attempts").fetchone()[0]
+    assert attempts_rows == 2
+    conn.close()
 
 
-def test_ingest_inspect_eval_log_with_mandatory_cas_store(tmp_path: Path) -> None:
-    log_file = tmp_path / "inspect-eval.json"
-    raw_data = _sample_inspect_log()
-    raw_bytes = json.dumps(raw_data, indent=2).encode("utf-8")
-    log_file.write_bytes(raw_bytes)
+def test_ingest_inspect_eval_log_with_official_eval_and_cas_restoration(tmp_path: Path) -> None:
+    import inspect_ai.log as inspect_log
+    from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+    from inspect_ai.scorer import Score
+
+    eval_spec = inspect_log.EvalSpec(
+        eval_id="eval_storage_live_01",
+        task="storage-smoke-task",
+        model="openai/gpt-4o",
+        created="2026-08-31T00:00:00Z",
+        dataset=inspect_log.EvalDataset(name="live_data", location="loc", samples=1),
+        config=inspect_log.EvalConfig(),
+        revision=inspect_log.EvalRevision(
+            type="git", origin="https://github.com/repo", commit="livecommit123"
+        ),
+        solver="live_solver",
+    )
+    sample = inspect_log.EvalSample(
+        id="sample_live_1",
+        epoch=1,
+        uuid="88888888-8888-8888-8888-888888888888",
+        input="Live test input",
+        target="Live test target",
+        messages=[
+            ChatMessageUser(content="User input"),
+            ChatMessageAssistant(content="Assistant output"),
+        ],
+        scores={"accuracy": Score(value=1.0, answer="Assistant output", explanation="Correct")},
+    )
+    eval_log_obj = inspect_log.EvalLog(
+        version=3,
+        status="success",
+        eval=eval_spec,
+        samples=[sample],
+        stats=inspect_log.EvalStats(
+            started_at="2026-08-31T00:00:00Z", completed_at="2026-08-31T00:01:00Z"
+        ),
+    )
+
+    eval_file = tmp_path / "live_sample.eval"
+    inspect_log.write_eval_log(eval_log_obj, eval_file)
 
     derived_dir = tmp_path / "derived"
     store_dir = tmp_path / "store"
 
     result = ingest_inspect_eval_log(
-        log_file,
+        eval_file,
         output_root=derived_dir,
         store_root=store_dir,
     )
 
-    assert result.raw_cas_uri is not None
     assert result.raw_cas_uri.startswith("cas://sha256/")
     assert result.source_manifest is not None
     assert result.source_manifest.evidence_only is True
     assert result.source_manifest.raw_cas_uri == result.raw_cas_uri
-    assert result.source_manifest.source_bytes_size == len(raw_bytes)
+    assert result.source_manifest.raw_cas_uri != "pending"
 
-    # Restore CAS archive and verify contents
+    # Restore CAS archive and verify raw source bytes ONLY (no pending manifest inside CAS)
     with tempfile.TemporaryDirectory() as unpack_temp:
         unpack_target = Path(unpack_temp)
         restore_evidence(store_dir, result.raw_cas_uri, unpack_target)
-        assert (unpack_target / "inspect-eval.json").is_file()
-        assert (unpack_target / "source-manifest.json").is_file()
+        assert (unpack_target / "live_sample.eval").is_file()
+        assert not (unpack_target / "source-manifest.json").exists()
 
-        unpacked_manifest = json.loads((unpack_target / "source-manifest.json").read_text())
-        assert unpacked_manifest["rebuild_digest"] == result.projection.rebuild_digest
-        assert unpacked_manifest["source_digest"] == result.projection.run.source_digest
-        assert unpacked_manifest["evidence_only"] is True
+    # Rejection test for non-.eval
+    fake_json = tmp_path / "fake.json"
+    fake_json.write_text("{}", encoding="utf-8")
+    with pytest.raises(
+        ValueError, match="Production Inspect ingest accepts official .eval files only"
+    ):
+        ingest_inspect_eval_log(fake_json, output_root=derived_dir, store_root=store_dir)

@@ -118,10 +118,10 @@ def write_inspect_projection(
     source_bytes_size: int | None = None,
     raw_cas_uri: str | None = None,
 ) -> dict[str, Path]:
-    """Write Inspect-native source tables into one partitioned Parquet root."""
+    """Write Inspect-native source tables into one discoverable partitioned Parquet root."""
     from evallab.inspect_adapter import INSPECT_SCHEMAS
 
-    root = output_root.resolve() / "source=inspect" / f"job_id={projection.run.job_id}"
+    root = output_root.resolve() / f"job_id={projection.run.job_id}"
     root.mkdir(parents=True, exist_ok=True)
 
     table_rows: dict[str, list[dict[str, Any]]] = {
@@ -140,14 +140,17 @@ def write_inspect_projection(
         paths[name] = path
 
     if write_manifest:
+        if not raw_cas_uri:
+            raise ValueError(
+                "write_inspect_projection with write_manifest requires a valid raw_cas_uri"
+            )
         src_name = source_file or projection.run.source_path
         src_size = source_bytes_size if source_bytes_size is not None else 0
-        cas_uri = raw_cas_uri or "pending"
         manifest = create_inspect_source_manifest(
             projection,
             source_file=src_name,
             source_bytes_size=src_size,
-            raw_cas_uri=cas_uri,
+            raw_cas_uri=raw_cas_uri,
             table_paths=paths,
         )
         manifest_path = root / "source-manifest.json"
@@ -165,48 +168,34 @@ def ingest_inspect_eval_log(
     output_root: Path,
     store_root: Path,
 ) -> InspectIngestResult:
-    """Read official .eval (or fixture JSON), archive to CAS, normalize, and project Inspect source tables."""
+    """Read official .eval log, archive to CAS, normalize, and project Inspect source tables."""
     from evallab.inspect_adapter import (
         InspectIngestResult,
-        load_inspect_eval_fixture_json,
         load_inspect_eval_log,
         project_inspect_eval_log,
     )
 
     path = path.resolve()
-    source_bytes = path.read_bytes()
-    if path.suffix == ".eval":
-        payload = load_inspect_eval_log(path)
-        validator = "inspect_ai.log.read_eval_log"
-    elif path.suffix == ".json":
-        payload = load_inspect_eval_fixture_json(path)
-        validator = "evallab.inspect_adapter.fixture_loader"
-    else:
-        raise ValueError(f"Unsupported log file extension: {path.suffix}")
+    if path.suffix != ".eval":
+        raise ValueError(
+            f"Production Inspect ingest accepts official .eval files only (got {path.name}); "
+            "use load_inspect_eval_fixture_json/project_inspect_eval_log for test fixtures"
+        )
 
+    source_bytes = path.read_bytes()
+    payload = load_inspect_eval_log(path)
     projection = project_inspect_eval_log(
         payload,
         source_path=path.name,
         source_bytes=source_bytes,
-        validator=validator,
+        validator="inspect_ai.log.read_eval_log",
     )
 
-    # Archive to CAS (mandatory)
+    # Archive raw source bytes only to CAS (mandatory)
     store_root = store_root.resolve()
     with tempfile.TemporaryDirectory(prefix="evallab-inspect-") as temporary:
         staging = Path(temporary)
         shutil.copy2(path, staging / path.name)
-        # Preliminary manifest for archive
-        prelim_manifest = create_inspect_source_manifest(
-            projection,
-            source_file=path.name,
-            source_bytes_size=len(source_bytes),
-            raw_cas_uri="pending",
-        )
-        (staging / "source-manifest.json").write_text(
-            prelim_manifest.model_dump_json(indent=2) + "\n",
-            encoding="utf-8",
-        )
         archive = archive_evidence(
             staging,
             store_root,
@@ -215,7 +204,7 @@ def ingest_inspect_eval_log(
         )
         cas_uri = archive.uri
 
-    # Final manifest and Parquet writes with real CAS URI
+    # Final manifest beside Parquet with real CAS URI (never pending)
     manifest = create_inspect_source_manifest(
         projection,
         source_file=path.name,

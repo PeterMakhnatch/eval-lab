@@ -5,14 +5,17 @@ Invariants:
    preserving source-native epochs, multi-score entries, sample UUIDs, limits, retry error chains, and events.
    JSON fixtures are explicitly segregated into test-only fixture loaders and never attributed official validation.
 2. No Flattening / No Silent Coercion: Inspect epochs and retry attempts are distinct ordered attempts
-   (with ordinal, retry_of, and terminal indicators), never flattened into Harbor retries; arbitrary scorer
+   (with 1-based ordinal, retry_of, and terminal indicators), never flattened into Harbor retries; arbitrary scorer
    outputs remain non-decision evidence in the 'inspect' outcome namespace under 'non_decision' authority with
    is_deterministic=False and are never coerced into primary benchmark reward.
-3. Stable Run Identity: Run identity is derived from official eval_id (or run_id) domain-separated from
-   source revision digest, with content-scoped fallback preserved for evidence-only runs.
-4. Source Evidence Storage: Storage writes only inspect_* source tables in discoverable partition roots,
-   avoiding premature or unverified mapping into canonical trajectory tables.
-5. Content-Addressed Lineage: Source manifests explicitly declare evidence_only=True, projector identity,
+3. Stable Run Identity: Run identity is derived from official eval_id (or run_id) domain key excluding source revision,
+   with content-scoped fallback preserved for evidence-only runs.
+4. Domain-Separated Attempt & Trial Identities: Trial IDs are domain-separated from job_id, sample_id, epoch,
+   and native uuid (e.g. `_stable_id("inspect:trial", job_id, sample_id, str(epoch), sample_uuid or "")`).
+   Attempt IDs are uniquely domain-separated (`_stable_id("inspect:attempt", trial_id, str(ordinal))`).
+5. Source Evidence Storage: Storage writes only inspect_* source tables in discoverable root/job_id=<id>/*.parquet
+   partition roots, avoiding premature or unverified mapping into canonical trajectory tables.
+6. Content-Addressed Lineage: Source manifests explicitly declare evidence_only=True, projector identity,
    source revision, rebuild digests, and mandatory CAS archive linkage.
 """
 
@@ -165,7 +168,7 @@ class InspectAttemptFactV1(ContractModel):
     job_id: str
     trial_id: str
     attempt_id: str
-    ordinal: int = Field(ge=0)
+    ordinal: int = Field(ge=1)
     retry_of: str | None = None
     terminal: bool = True
     sample_id: str
@@ -623,15 +626,13 @@ def project_inspect_eval_log(
     else:
         source_revision = None
 
-    # Derive stable run identity domain-separated from revision
+    # Derive stable run identity domain key EXCLUDING revision
     if eval_id:
         identity_source = "eval_id"
-        job_id = _stable_id("inspect:eval_id", str(eval_id), source_revision or "")
+        job_id = _stable_id("inspect:eval_id", str(eval_id))
     elif run_id:
         identity_source = "run_id"
-        job_id = _stable_id(
-            "inspect:run_id", str(run_id), str(task_name or ""), source_revision or ""
-        )
+        job_id = _stable_id("inspect:run_id", str(run_id), str(task_name or ""))
     else:
         identity_source = "content_digest_fallback"
         job_id = _stable_id("inspect:content_digest", source_digest, str(task_name or ""))
@@ -670,11 +671,10 @@ def project_inspect_eval_log(
     scores: list[InspectScoreFactV1] = []
     inspect_events: list[InspectEventFactV1] = []
     attachment_facts: list[InspectAttachmentFactV1] = []
-
     seen_trial_ids: set[str] = set()
     seen_sample_epoch_identities: set[tuple[str, int]] = set()
+    seen_sample_uuids: set[str] = set()
     attachment_tracker: dict[str, int] = {}
-
     # Register log-level attachments
     for att_name, att_val in sorted(log_attachments.items()):
         att_bytes = _canonical_bytes(att_val) if not isinstance(att_val, str) else att_val.encode()
@@ -709,12 +709,15 @@ def project_inspect_eval_log(
         seen_sample_epoch_identities.add(identity_pair)
 
         sample_uuid = str(sample["uuid"]) if sample.get("uuid") else None
-        trial_id = sample_uuid or _stable_id(job_id, sample_id, str(epoch))
+        if sample_uuid:
+            if sample_uuid in seen_sample_uuids:
+                raise ValueError(f"Duplicate sample uuid collision detected: {sample_uuid}")
+            seen_sample_uuids.add(sample_uuid)
+        trial_id = _stable_id("inspect:trial", job_id, sample_id, str(epoch), sample_uuid or "")
 
         if trial_id in seen_trial_ids:
             raise ValueError(f"Duplicate trial_id collision detected: {trial_id}")
         seen_trial_ids.add(trial_id)
-
         sample_attachments = _mapping(sample.get("attachments"))
         for att_name, att_val in sorted(sample_attachments.items()):
             att_bytes = (
@@ -769,21 +772,22 @@ def project_inspect_eval_log(
         if not sample_status:
             sample_status = "error" if error else "success"
 
-        # Emit ordered retry attempts
+        # Emit ordered retry attempts (1-based ordinal)
         prior_attempt_id: str | None = None
-        for retry_index, retry_item in enumerate(retry_errors):
+        for retry_idx_0, retry_item in enumerate(retry_errors):
+            retry_ordinal = retry_idx_0 + 1
             retry_map = _mapping(retry_item)
             retry_err_msg = (
                 retry_map.get("message") or retry_map.get("error") or retry_map.get("traceback")
             )
             retry_err_type = retry_map.get("type") or retry_map.get("error_type") or "RetryError"
-            curr_attempt_id = _stable_id(trial_id, f"retry_{retry_index}")
+            curr_attempt_id = _stable_id("inspect:attempt", trial_id, str(retry_ordinal))
             attempts.append(
                 InspectAttemptFactV1(
                     job_id=job_id,
                     trial_id=trial_id,
                     attempt_id=curr_attempt_id,
-                    ordinal=retry_index,
+                    ordinal=retry_ordinal,
                     retry_of=prior_attempt_id,
                     terminal=False,
                     sample_id=sample_id,
@@ -802,14 +806,15 @@ def project_inspect_eval_log(
             )
             prior_attempt_id = curr_attempt_id
 
-        # Emit terminal attempt
-        terminal_attempt_id = trial_id
+        # Emit terminal attempt (1-based ordinal)
+        terminal_ordinal = len(retry_errors) + 1
+        terminal_attempt_id = _stable_id("inspect:attempt", trial_id, str(terminal_ordinal))
         attempts.append(
             InspectAttemptFactV1(
                 job_id=job_id,
                 trial_id=trial_id,
                 attempt_id=terminal_attempt_id,
-                ordinal=len(retry_errors),
+                ordinal=terminal_ordinal,
                 retry_of=prior_attempt_id,
                 terminal=True,
                 sample_id=sample_id,
@@ -842,7 +847,9 @@ def project_inspect_eval_log(
             event_type = str(
                 event.get("event") or event.get("event_type") or event.get("type") or "unknown"
             )
-            event_id = _stable_id(trial_id, str(event_index), _digest_bytes(event_bytes))
+            event_id = _stable_id(
+                "inspect:event", trial_id, str(event_index), _digest_bytes(event_bytes)
+            )
             if event_id in seen_event_ids:
                 raise ValueError(f"Duplicate event_id collision: {event_id} in trial {trial_id}")
             seen_event_ids.add(event_id)
@@ -951,7 +958,7 @@ def ingest_inspect_eval_log(
     output_root: Path,
     store_root: Path,
 ) -> InspectIngestResult:
-    """Read official .eval, archive to CAS, normalize, and project Inspect source tables."""
+    """Read official .eval log, archive to CAS, normalize, and project Inspect source tables."""
     from evallab.storage.inspect_storage import (
         ingest_inspect_eval_log as _ingest_inspect_eval_log,
     )

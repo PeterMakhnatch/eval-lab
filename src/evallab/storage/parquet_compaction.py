@@ -28,6 +28,7 @@ import pyarrow.parquet as pq
 from evallab.evidence.atif import PARQUET_SCHEMAS
 from evallab.evidence.event_mart import EVENT_MART_SCHEMAS
 from evallab.evidence.facts import FACT_SCHEMAS
+from evallab.inspect_adapter import INSPECT_SCHEMAS
 from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
 from evallab.storage.paths import (
     ParquetPartitionDiscovery,
@@ -47,6 +48,7 @@ TABLE_SCHEMAS: dict[str, pa.Schema] = {
     **FACT_SCHEMAS,
     **EVENT_MART_SCHEMAS,
     **SEMANTIC_FACT_SCHEMAS,
+    **INSPECT_SCHEMAS,
 }
 
 PROJECTED_TABLE_NAMES: tuple[str, ...] = (
@@ -123,6 +125,11 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "paired_condition_facts": ("trial_id", "pair_id", "condition"),
     "session_dependency_facts": ("trial_id", "episode_id", "dependency_edge"),
     "evidence_coverage": ("trial_id", "benchmark", "construct"),
+    "inspect_runs": ("job_id",),
+    "inspect_attempts": ("attempt_id",),
+    "inspect_scores": ("job_id", "trial_id", "score_name"),
+    "inspect_events": ("event_id",),
+    "inspect_attachments": ("job_id", "trial_id", "attachment_id"),
 }
 
 

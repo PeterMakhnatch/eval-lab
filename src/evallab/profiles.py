@@ -1178,6 +1178,12 @@ def evaluate_profile_readiness(
         state = ProfileState.INSTALLED
     else:
         state = ProfileState.DECLARED
+    network_isolation_status = (
+        saved_record.network_isolation_status if saved_record is not None else "unknown"
+    )
+    network_isolation_reason = (
+        saved_record.network_isolation_reason if saved_record is not None else None
+    )
 
     return AgentReadinessRecord(
         schema_version=1,
@@ -1190,5 +1196,7 @@ def evaluate_profile_readiness(
         blocker=active_blocker,
         last_smoke=last_smoke,
         qualification=qualification,
+        network_isolation_status=network_isolation_status,
+        network_isolation_reason=network_isolation_reason,
         updated_at=datetime.now(UTC),
     )

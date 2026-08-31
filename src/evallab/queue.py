@@ -2380,6 +2380,27 @@ class Executor:
             )
         return task_path, member.task_digest
 
+    @staticmethod
+    def _network_isolation_evidence(job_dir: Path) -> tuple[str, str | None]:
+        """Resolve effective egress isolation from the runner's persisted adaptation."""
+        metadata_path = job_dir / "lab-metadata.json"
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return "unknown", "network_isolation_unknown:runner-metadata-unavailable"
+        adaptation = metadata.get("network_adaptation")
+        if not isinstance(adaptation, dict):
+            return "unknown", "network_isolation_unknown:adaptation-evidence-unavailable"
+        if adaptation.get("network_isolation_enforced") is True:
+            return "enforced", None
+        reason = adaptation.get("network_isolation_reason")
+        return (
+            "unavailable",
+            str(reason)
+            if reason
+            else "network_isolation_unavailable:effective-egress-policy-not-enforced",
+        )
+
     def execute_agent_smoke(
         self,
         profile: AgentProfile,
@@ -2512,6 +2533,9 @@ class Executor:
             native_evidence_digest = (
                 "sha256:" + hashlib.sha256(native_path.read_bytes()).hexdigest()
             )
+        network_isolation_status, network_isolation_reason = self._network_isolation_evidence(
+            job_dir
+        )
 
         smoke_record = AgentSmokeRecord(
             schema_version=2,
@@ -2534,6 +2558,8 @@ class Executor:
             transport_status="complete",
             capture_status="complete",
             secret_safety_status="pass",
+            network_isolation_status=network_isolation_status,
+            network_isolation_reason=network_isolation_reason,
             executed_at=datetime.now(UTC),
         )
 
@@ -2563,6 +2589,8 @@ class Executor:
                     canary="blocked",
                 ),
                 last_smoke=smoke_record,
+                network_isolation_status=network_isolation_status,
+                network_isolation_reason=network_isolation_reason,
                 updated_at=datetime.now(UTC),
             ),
         )
@@ -2600,6 +2628,24 @@ class Executor:
                 return False, None, f"Repeat {index + 1}/{repeats} failed: {err}"
             smoke_records.append(smoke_rec)
 
+        network_isolation_status = (
+            "enforced"
+            if all(record.network_isolation_status == "enforced" for record in smoke_records)
+            else (
+                "unavailable"
+                if any(record.network_isolation_status == "unavailable" for record in smoke_records)
+                else "unknown"
+            )
+        )
+        network_isolation_reason = next(
+            (
+                record.network_isolation_reason
+                for record in smoke_records
+                if record.network_isolation_status != "enforced"
+                and record.network_isolation_reason is not None
+            ),
+            None,
+        )
         qualification = AgentQualificationDigest(
             schema_version=2,
             profile_id=profile.profile_id,
@@ -2610,6 +2656,8 @@ class Executor:
             smoke_records=smoke_records,
             qualification_digest=compute_qualification_digest(smoke_records),
             qualified_at=datetime.now(UTC),
+            network_isolation_status=network_isolation_status,
+            network_isolation_reason=network_isolation_reason,
         )
 
         updated_readiness = evaluate_profile_readiness(
@@ -2639,6 +2687,8 @@ class Executor:
                 ),
                 last_smoke=smoke_records[-1],
                 qualification=qualification,
+                network_isolation_status=network_isolation_status,
+                network_isolation_reason=network_isolation_reason,
                 updated_at=datetime.now(UTC),
             ),
         )

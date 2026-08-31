@@ -336,6 +336,9 @@ def _readiness_rows(
                 record.gates.structured_trajectory,
                 record.gates.smoke,
                 record.gates.canary,
+                record.network_isolation_status,
+                record.network_isolation_reason,
+                record.network_isolation_status == "enforced",
                 blocker.gate if blocker else None,
                 blocker.reason if blocker else None,
                 blocker.remediation if blocker else None,
@@ -558,6 +561,9 @@ def materialize_analysis_control_views(
             structured_trajectory VARCHAR NOT NULL,
             smoke VARCHAR NOT NULL,
             canary VARCHAR NOT NULL,
+            network_isolation_status VARCHAR NOT NULL,
+            network_isolation_reason VARCHAR,
+            causal_isolation_eligible BOOLEAN NOT NULL,
             blocker_gate VARCHAR,
             blocker_reason VARCHAR,
             remediation VARCHAR,
@@ -571,7 +577,7 @@ def materialize_analysis_control_views(
     )
     readiness_rows = _readiness_rows(root, readiness_evaluator)
     connection.executemany(
-        "INSERT INTO analysis_agent_readiness VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO analysis_agent_readiness VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         readiness_rows,
     )
 

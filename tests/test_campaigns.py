@@ -66,6 +66,7 @@ from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentMatrix,
     ExperimentSpec,
+    NetworkIsolationStatus,
     QueueEvent,
     TaskControlEvidence,
     TaskLimits,
@@ -80,7 +81,12 @@ QUALIFIED_PROFILE_IDS = (
 )
 
 
-def _qualification_for(profile_id: str) -> tuple[AgentQualificationDigest, AgentSmokeRecord]:
+def _qualification_for(
+    profile_id: str,
+    *,
+    network_isolation_status: NetworkIsolationStatus = "enforced",
+    network_isolation_reason: str | None = None,
+) -> tuple[AgentQualificationDigest, AgentSmokeRecord]:
     profile = builtin_profiles()[profile_id]
     records = [
         AgentSmokeRecord(
@@ -101,6 +107,8 @@ def _qualification_for(profile_id: str) -> tuple[AgentQualificationDigest, Agent
             transport_status="complete",
             capture_status="complete",
             secret_safety_status="pass",
+            network_isolation_status=network_isolation_status,
+            network_isolation_reason=network_isolation_reason,
             executed_at=NOW,
         )
         for index in range(1, 4)
@@ -114,6 +122,8 @@ def _qualification_for(profile_id: str) -> tuple[AgentQualificationDigest, Agent
         success_count=3,
         smoke_records=records,
         qualification_digest=compute_qualification_digest(records),
+        network_isolation_status=network_isolation_status,
+        network_isolation_reason=network_isolation_reason,
         qualified_at=NOW,
     )
     return qualification, records[-1]
@@ -124,9 +134,19 @@ QUALIFICATIONS = {
 }
 
 
-def _write_qualified_readiness(root: Path, profile_id: str) -> None:
+def _write_qualified_readiness(
+    root: Path,
+    profile_id: str,
+    *,
+    network_isolation_status: NetworkIsolationStatus = "enforced",
+    network_isolation_reason: str | None = None,
+) -> None:
     profile = builtin_profiles()[profile_id]
-    qualification, last_smoke = QUALIFICATIONS[profile_id]
+    qualification, last_smoke = _qualification_for(
+        profile_id,
+        network_isolation_status=network_isolation_status,
+        network_isolation_reason=network_isolation_reason,
+    )
     save_readiness_record(
         AgentReadinessRecord(
             schema_version=1,
@@ -145,6 +165,8 @@ def _write_qualified_readiness(root: Path, profile_id: str) -> None:
                 smoke="pass",
                 canary="pass",
             ),
+            network_isolation_status=network_isolation_status,
+            network_isolation_reason=network_isolation_reason,
             last_smoke=last_smoke,
             qualification=qualification,
             updated_at=NOW,
@@ -993,6 +1015,87 @@ def test_analysis_cell_requires_two_distinct_declared_repeat_seeds(
     assert [attempt.repeat_seed for attempt in manifest.attempts] == [11, 22]
     assert manifest.attempts[0].analysis_cell == manifest.attempts[1].analysis_cell
     assert len(manifest.attempts) == 2
+
+
+def test_causal_campaign_refuses_unavailable_network_isolation(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    reason = (
+        "network_isolation_unavailable:darwin-docker-public-egress-allows-"
+        "hostname-direct-ip-alternate-port-redirect-dns-rebinding"
+    )
+    _write_qualified_readiness(
+        root,
+        "mini-swe-agent-deepseek-v4-flash",
+        network_isolation_status="unavailable",
+        network_isolation_reason=reason,
+    )
+    qualification, _ = _qualification_for(
+        "mini-swe-agent-deepseek-v4-flash",
+        network_isolation_status="unavailable",
+        network_isolation_reason=reason,
+    )
+    definition = _analysis_definition(repeats=2)
+    definition = definition.model_copy(
+        update={
+            "attempts": tuple(
+                attempt.model_copy(
+                    update={"readiness_evidence_digest": qualification.qualification_digest}
+                )
+                for attempt in definition.attempts
+            )
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="network_isolation_unavailable: causal/isolation campaign admission",
+    ):
+        build_campaign_manifest(definition, repo_root=root)
+
+
+def test_calibration_campaign_preserves_execution_with_unavailable_isolation(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    reason = (
+        "network_isolation_unavailable:darwin-docker-public-egress-allows-"
+        "hostname-direct-ip-alternate-port-redirect-dns-rebinding"
+    )
+    _write_qualified_readiness(
+        root,
+        "mini-swe-agent-deepseek-v4-flash",
+        network_isolation_status="unavailable",
+        network_isolation_reason=reason,
+    )
+    qualification, _ = _qualification_for(
+        "mini-swe-agent-deepseek-v4-flash",
+        network_isolation_status="unavailable",
+        network_isolation_reason=reason,
+    )
+    definition = _definition(billable=True)
+    definition = definition.model_copy(
+        update={
+            "attempts": tuple(
+                attempt.model_copy(
+                    update={
+                        "spec": attempt.spec.model_copy(update={"purpose": "calibration"}),
+                        "readiness_evidence_digest": qualification.qualification_digest,
+                    }
+                )
+                for attempt in definition.attempts
+            )
+        }
+    )
+
+    manifest = build_campaign_manifest(definition, repo_root=root)
+
+    identity = manifest.attempts[0].runtime_identity
+    assert identity is not None
+    assert identity.network_isolation_status == "unavailable"
+    assert identity.network_isolation_reason == reason
+    assert identity.analysis_eligibility == "calibration-only"
 
 
 def test_incomplete_analysis_cell_holds_before_dispatch(tmp_path: Path) -> None:

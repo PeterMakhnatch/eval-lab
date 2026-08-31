@@ -2355,6 +2355,7 @@ ReadinessState = Literal[
     "smoke-passed",
     "canary-qualified",
 ]
+NetworkIsolationStatus = Literal["enforced", "unavailable", "unknown"]
 
 
 class AgentGateEvaluations(ContractModel):
@@ -2404,6 +2405,8 @@ class AgentSmokeRecord(ContractModel):
     transport_status: Literal["complete"] = "complete"
     capture_status: Literal["complete"] = "complete"
     secret_safety_status: Literal["pass"] = "pass"
+    network_isolation_status: NetworkIsolationStatus = "unknown"
+    network_isolation_reason: str | None = None
     executed_at: datetime
 
     @model_validator(mode="after")
@@ -2425,6 +2428,8 @@ class AgentQualificationDigest(ContractModel):
     smoke_records: list[AgentSmokeRecord] = Field(min_length=3)
     qualification_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     qualified_at: datetime
+    network_isolation_status: NetworkIsolationStatus = "unknown"
+    network_isolation_reason: str | None = None
 
     @model_validator(mode="after")
     def _validate_complete_repeats(self) -> AgentQualificationDigest:
@@ -2451,4 +2456,6 @@ class AgentReadinessRecord(ContractModel):
     blocker: AgentBlocker | None = None
     last_smoke: AgentSmokeRecord | None = None
     qualification: AgentQualificationDigest | None = None
+    network_isolation_status: NetworkIsolationStatus = "unknown"
+    network_isolation_reason: str | None = None
     updated_at: datetime

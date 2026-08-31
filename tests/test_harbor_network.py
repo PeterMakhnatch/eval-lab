@@ -10,6 +10,7 @@ import tomllib
 import pytest
 
 from evallab.harbor_network import (
+    DARWIN_ISOLATION_UNAVAILABLE_REASON,
     HarborNetworkPolicy,
     NetworkAdaptation,
     _set_network_sentinel,
@@ -29,7 +30,7 @@ def _set_system(monkeypatch: pytest.MonkeyPatch, system: str) -> None:
         policy = HarborNetworkPolicy(
             network_mode="public",
             network_isolation_enforced=False,
-            network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+            network_isolation_reason=DARWIN_ISOLATION_UNAVAILABLE_REASON,
         )
     monkeypatch.setattr(
         "evallab.harbor_network.host_harbor_network_policy",
@@ -117,7 +118,7 @@ def test_darwin_adapts_no_network_verifier_to_public(
     assert adaptation.requested_verifier_network == "no-network"
     assert adaptation.effective_verifier_network == "public"
     assert adaptation.network_isolation_enforced is False
-    assert adaptation.network_isolation_reason == "darwin-docker-cannot-enforce-no-network"
+    assert adaptation.network_isolation_reason == DARWIN_ISOLATION_UNAVAILABLE_REASON
     assert re.search(
         r'^\[verifier\.environment\]\nnetwork_mode = "public"',
         new_text,
@@ -239,7 +240,7 @@ def test_darwin_records_unsupported_agent_allowlist_without_passing_it_to_harbor
     policy = HarborNetworkPolicy(
         network_mode="public",
         network_isolation_enforced=False,
-        network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+        network_isolation_reason=DARWIN_ISOLATION_UNAVAILABLE_REASON,
     )
 
     new_text, adaptation = adapt_task_toml_for_host(
@@ -253,6 +254,10 @@ def test_darwin_records_unsupported_agent_allowlist_without_passing_it_to_harbor
     assert adaptation.effective_agent_network == "public"
     assert adaptation.requested_agent_allowed_hosts == ("zai-secret-proxy",)
     assert adaptation.agent_allowlist_enforced is False
+    assert adaptation.network_isolation_enforced is False
+    assert adaptation.network_isolation_reason is not None
+    for bypass in ("hostname", "direct-ip", "alternate-port", "redirect", "dns-rebinding"):
+        assert bypass in adaptation.network_isolation_reason
     assert 'network_mode = "allowlist"' not in new_text
     assert 'allowed_hosts = ["zai-secret-proxy"]' not in new_text
 
@@ -274,5 +279,7 @@ def test_linux_applies_agent_allowlist_when_harbor_can_enforce_it() -> None:
     assert adaptation.requested_agent_network == "allowlist"
     assert adaptation.effective_agent_network == "allowlist"
     assert adaptation.agent_allowlist_enforced is True
+    assert adaptation.network_isolation_enforced is True
+    assert adaptation.network_isolation_reason is None
     assert 'network_mode = "allowlist"' in new_text
     assert 'allowed_hosts = ["zai-secret-proxy"]' in new_text

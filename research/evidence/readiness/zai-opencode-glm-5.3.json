@@ -35,6 +35,8 @@
     "trial_name": "smoke-zai-opencode-glm-5-3-01m1c__X42mZ85"
   },
   "model": "zai-coding-plan/glm-5.3",
+  "network_isolation_reason": "network_isolation_unavailable:darwin-docker-public-egress-allows-hostname-direct-ip-alternate-port-redirect-dns-rebinding",
+  "network_isolation_status": "unavailable",
   "profile_digest": "sha256:31838ef0a8a37a75811edcceb6694d81a17dc8435b64144eb4232d9d36e6fc9c",
   "profile_id": "zai-opencode-glm-5.3",
   "qualification": {

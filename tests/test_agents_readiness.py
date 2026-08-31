@@ -51,6 +51,8 @@ def make_mock_job_dir(
     step_count: int = 5,
     tool_calls_per_step: int = 2,
     native_opencode: bool = False,
+    network_isolation_enforced: bool | None = None,
+    network_isolation_reason: str | None = None,
 ) -> Path:
     """Create a realistic Harbor job directory fixture."""
     job_dir = tmp_path / "runs" / job_name
@@ -80,6 +82,17 @@ def make_mock_job_dir(
     (job_dir / "result.json").write_text(json.dumps(result_data))
     (job_dir / "config.json").write_text(json.dumps({}))
     (job_dir / "lock.json").write_text(json.dumps({}))
+    if network_isolation_enforced is not None:
+        (job_dir / "lab-metadata.json").write_text(
+            json.dumps(
+                {
+                    "network_adaptation": {
+                        "network_isolation_enforced": network_isolation_enforced,
+                        "network_isolation_reason": network_isolation_reason,
+                    }
+                }
+            )
+        )
 
     trial_result_data = {
         "id": "trial-123",
@@ -565,6 +578,11 @@ def test_zai_smoke_requires_and_records_native_opencode_evidence(
             request.name,
             reward=0.0,
             native_opencode=True,
+            network_isolation_enforced=False,
+            network_isolation_reason=(
+                "network_isolation_unavailable:darwin-docker-public-egress-allows-"
+                "hostname-direct-ip-alternate-port-redirect-dns-rebinding"
+            ),
         )
 
     executor = Executor(
@@ -588,6 +606,13 @@ def test_zai_smoke_requires_and_records_native_opencode_evidence(
     assert smoke_record.native_evidence_path == "agent/opencode.txt"
     assert smoke_record.native_evidence_digest is not None
     assert smoke_record.native_evidence_digest.startswith("sha256:")
+    assert smoke_record.network_isolation_status == "unavailable"
+    assert smoke_record.network_isolation_reason is not None
+    assert "direct-ip" in smoke_record.network_isolation_reason
+    persisted = load_readiness_record(profile.profile_id, root=tmp_path)
+    assert persisted is not None
+    assert persisted.state == ProfileState.SMOKE_PASSED.value
+    assert persisted.network_isolation_status == "unavailable"
 
 
 # ---------------------------------------------------------------------------

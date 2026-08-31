@@ -344,6 +344,9 @@ class CampaignRuntimeIdentity(_FrozenContract):
     readiness_evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     adapter: str = Field(min_length=1)
     model: str = Field(min_length=1)
+    network_isolation_status: Literal["enforced", "unavailable", "unknown"]
+    network_isolation_reason: str | None = None
+    analysis_eligibility: Literal["calibration-only", "causal-eligible"]
 
 
 class CampaignDefinitionAttempt(_FrozenContract):
@@ -771,12 +774,29 @@ def _resolve_campaign_runtime_identity(
         or qualification.qualification_basis != "transport-capture"
     ):
         raise ValueError("campaign readiness evidence is not a transport/capture qualification")
+    network_isolation_status = readiness.network_isolation_status
+    network_isolation_reason = readiness.network_isolation_reason
+    causal_scope = item.spec.purpose in {"comparison", "elicitation"}
+    if causal_scope and network_isolation_status != "enforced":
+        reason = network_isolation_reason or (
+            "network_isolation_unknown:qualification-has-no-effective-egress-evidence"
+        )
+        raise ValueError(
+            "network_isolation_unavailable: causal/isolation campaign admission "
+            f"requires an isolated Linux network-policy runner ({reason})"
+        )
+    analysis_eligibility = (
+        "causal-eligible" if network_isolation_status == "enforced" else "calibration-only"
+    )
     return CampaignRuntimeIdentity(
         profile_id=profile.profile_id,
         profile_digest=profile.digest,
         readiness_evidence_digest=qualification.qualification_digest,
         adapter=profile.adapter,
         model=profile.model or "",
+        network_isolation_status=network_isolation_status,
+        network_isolation_reason=network_isolation_reason,
+        analysis_eligibility=analysis_eligibility,
     )
 
 

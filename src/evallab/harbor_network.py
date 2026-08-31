@@ -27,7 +27,11 @@ from typing import Any, Literal
 
 NetworkMode = Literal["public", "no-network", "allowlist"]
 
-ADAPTER_VERSION = "1.0.0"
+ADAPTER_VERSION = "1.1.0"
+DARWIN_ISOLATION_UNAVAILABLE_REASON = (
+    "network_isolation_unavailable:darwin-docker-public-egress-allows-"
+    "hostname-direct-ip-alternate-port-redirect-dns-rebinding"
+)
 
 
 def adapter_digest() -> str:
@@ -67,7 +71,7 @@ def host_harbor_network_policy() -> HarborNetworkPolicy:
         return HarborNetworkPolicy(
             network_mode="public",
             network_isolation_enforced=False,
-            network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+            network_isolation_reason=DARWIN_ISOLATION_UNAVAILABLE_REASON,
         )
     return HarborNetworkPolicy(
         network_mode="public",
@@ -256,13 +260,23 @@ def adapt_task_toml_for_host(
     allowlist_enforced = bool(agent_allowed_hosts and host.network_isolation_enforced)
     effective_agent = "allowlist" if allowlist_enforced else effective_environment
 
-    all_effective_no_network = (
-        effective_agent == "no-network"
-        and effective_verifier == "no-network"
-        and (effective_phase is None or effective_phase == "no-network")
+    agent_policy_enforced = (
+        allowlist_enforced
+        if agent_allowed_hosts
+        else effective_agent == "no-network" and host.network_isolation_enforced
     )
-    isolation_enforced = all_effective_no_network and host.network_isolation_enforced
-    isolation_reason = None if isolation_enforced else host.network_isolation_reason
+    verifier_policy_enforced = (
+        effective_verifier == "no-network"
+        and (effective_phase is None or effective_phase == "no-network")
+        and host.network_isolation_enforced
+    )
+    isolation_enforced = agent_policy_enforced and verifier_policy_enforced
+    isolation_reason = (
+        None
+        if isolation_enforced
+        else host.network_isolation_reason
+        or "network_isolation_unavailable:effective-policy-public"
+    )
 
     if (
         not agent_allowed_hosts

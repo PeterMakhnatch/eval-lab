@@ -45,6 +45,15 @@ def test_materializes_all_stable_control_views() -> None:
 
         for view_name in CONTROL_VIEW_NAMES:
             connection.execute(f"SELECT * FROM {view_name} LIMIT 1").fetchall()
+        isolation_rows = connection.execute(
+            "SELECT profile_id, network_isolation_status, causal_isolation_eligible "
+            "FROM v_agent_readiness"
+        ).fetchall()
+        assert isolation_rows
+        assert all(row[1] in {"unknown", "unavailable"} for row in isolation_rows)
+        assert all(row[2] is False for row in isolation_rows)
+        zai_row = next(row for row in isolation_rows if row[0] == "zai-opencode-glm-5.3")
+        assert zai_row[1:] == ("unavailable", False)
 
 
 def test_bbo_and_game2048_authority_bindings() -> None:

@@ -14,7 +14,9 @@ from evallab.interpretation.benchmark_events import (
     BenchmarkEventRecord,
     FinalStateRecord,
     TrialBundle,
+    correlate_tool_calls,
 )
+from evallab.interpretation.evidence_pack import compute_evidence_coverage_metrics
 from evallab.interpretation.producers.action_memory import extract_action_memory_features
 from evallab.semantic_facts import PairedConditionFact
 
@@ -34,6 +36,8 @@ canary = _load("control_canary")
 CANARY_DOSE_BYTES = canary.CANARY_DOSE_BYTES
 CANARY_PAIR_ID = canary.CANARY_PAIR_ID
 CANARY_SEED = canary.CANARY_SEED
+CANARY_TASK_NON_INVERTED = canary.CANARY_TASK_NON_INVERTED
+CANARY_TASK_INVERTED = canary.CANARY_TASK_INVERTED
 CanaryPairSpec = canary.CanaryPairSpec
 build_canary_pair_spec = canary.build_canary_pair_spec
 emit_canary_paired_condition_fact = canary.emit_canary_paired_condition_fact
@@ -50,9 +54,11 @@ def test_canary_pair_spec_freezes_exact_single_contrast(canary_spec: CanaryPairS
     assert canary_spec.pair_id == CANARY_PAIR_ID
     assert canary_spec.seed == 42
     assert canary_spec.dose_bytes == 4096
+    assert canary_spec.total_realized_context_bytes == 4096
     assert canary_spec.target_entity.startswith("entity_")
     assert canary_spec.target_attribute == "routing_key"
     assert canary_spec.initial_value != canary_spec.inverted_value
+    assert canary_spec.tool_inventory_digest.startswith("sha256:")
 
     arm0 = canary_spec.non_inverted_scenario
     arm1 = canary_spec.inverted_scenario
@@ -66,6 +72,14 @@ def test_canary_pair_spec_freezes_exact_single_contrast(canary_spec: CanaryPairS
     assert arm0["mutation_opportunity_count"] == arm1["mutation_opportunity_count"] == 1
     assert len(arm0["chunks"]) == len(arm1["chunks"]) == 7
 
+    # Exact realized byte parity
+    assert sum(c["byte_count"] for c in arm0["chunks"]) == 4096
+    assert sum(c["byte_count"] for c in arm1["chunks"]) == 4096
+    for c0, c1 in zip(arm0["chunks"], arm1["chunks"], strict=True):
+        assert c0["byte_count"] == c1["byte_count"], (
+            "Every chunk position must have matching byte length"
+        )
+
     # Declared single contrast variable: inversion_count and latest_value
     assert arm0["inversion_count"] == 0
     assert arm1["inversion_count"] == 1
@@ -73,6 +87,26 @@ def test_canary_pair_spec_freezes_exact_single_contrast(canary_spec: CanaryPairS
     assert arm1["latest_value"] == canary_spec.inverted_value
     assert arm0["inversion_steps"] == []
     assert arm1["inversion_steps"] == [canary_spec.inverted_value]
+
+    # Structural diff allowlist: only declared inversion keys may differ
+    differing_keys = {k for k in arm0 if arm0[k] != arm1[k]}
+    assert differing_keys == {
+        "arm",
+        "cell_id",
+        "inversion_count",
+        "inversion_steps",
+        "latest_value",
+        "update_opportunity_count",
+        "expected_mutation_call",
+        "chunks",
+    }
+    # For chunks: chunk 0 and chunks 2-6 must be completely identical
+    assert arm0["chunks"][0] == arm1["chunks"][0]
+    for i in range(2, 7):
+        assert arm0["chunks"][i] == arm1["chunks"][i]
+    # Chunk 1 differs only in content, id, and type, with matching byte_count
+    assert arm0["chunks"][1]["byte_count"] == arm1["chunks"][1]["byte_count"] == 256
+    assert arm0["chunks"][1]["content"] != arm1["chunks"][1]["content"]
 
 
 def _build_bundle_from_synthesized(synth: dict) -> TrialBundle:
@@ -103,8 +137,6 @@ def _build_bundle_from_synthesized(synth: dict) -> TrialBundle:
         )
         for e in synth["events"]
     ]
-    from evallab.interpretation.benchmark_events import correlate_tool_calls
-
     calls = correlate_tool_calls(event_recs)
     return TrialBundle(
         trial_id=synth["trial_id"],
@@ -194,7 +226,7 @@ def test_canary_nop_and_stale_mutant_controls_fail_closed(canary_spec: CanaryPai
 def test_state_journal_absence_classified_as_observability_failure(
     canary_spec: CanaryPairSpec, tmp_path: Path
 ):
-    """State journal absence must be classified as observability failure / hold, NOT task failure or zero state change."""
+    """State journal absence must be classified as observability failure / hold and prevent paired verdict emission."""
     arm0_oracle = synthesize_canary_trial_artifacts(
         canary_spec, arm="non_inverted", control_type="oracle", include_state_journal=False
     )
@@ -218,46 +250,55 @@ def test_state_journal_absence_classified_as_observability_failure(
         json.dumps(arm0_oracle["final_state"]), encoding="utf-8"
     )
 
-    from evallab.interpretation.evidence_pack import compute_evidence_coverage_metrics
-
     coverage = compute_evidence_coverage_metrics(trial_dir=trial_dir)
     assert coverage.has_state_journal is False
     assert coverage.has_result is True
 
+    # Crucially, emit_canary_paired_condition_fact MUST NOT emit satisfied without valid state journal
+    fact = emit_canary_paired_condition_fact(arm0_oracle)
+    assert fact.primary_verdict == "unknown", (
+        "Absent state journal must force paired condition verdict to unknown (HOLD)"
+    )
+    assert fact.secondary_verdict == "unknown"
+
 
 def test_canonical_paired_condition_facts_emission(canary_spec: CanaryPairSpec):
-    """Canonical PairedConditionFact rows must capture lineage, condition, and state diff for both arms."""
+    """Canonical PairedConditionFact rows must capture lineage, condition, source digest, and state diff for both arms."""
     arm0_oracle = synthesize_canary_trial_artifacts(
-        canary_spec, arm="non_inverted", control_type="oracle"
+        canary_spec, arm="non_inverted", control_type="oracle", include_state_journal=True
     )
     fact0 = emit_canary_paired_condition_fact(arm0_oracle)
 
     assert isinstance(fact0, PairedConditionFact)
     assert fact0.pair_id == CANARY_PAIR_ID
-    assert fact0.task_id == canary_spec.non_inverted_task_id
+    assert fact0.task_id == CANARY_TASK_NON_INVERTED
     assert fact0.variant == "non_inverted"
     assert fact0.condition == "baseline_clean"
     assert fact0.trigger == "initial_fact_binding"
     assert fact0.critical_action == "execute_mutation"
     assert fact0.primary_verdict == "satisfied"
+    assert fact0.secondary_verdict == "satisfied"
+    assert fact0.source_digest.startswith("sha256:")
     assert (
         fact0.state_diff
         == f"{canary_spec.target_entity}.{canary_spec.target_attribute}={canary_spec.initial_value}"
     )
 
     arm1_oracle = synthesize_canary_trial_artifacts(
-        canary_spec, arm="state_inverted", control_type="oracle"
+        canary_spec, arm="state_inverted", control_type="oracle", include_state_journal=True
     )
     fact1 = emit_canary_paired_condition_fact(arm1_oracle)
 
     assert isinstance(fact1, PairedConditionFact)
     assert fact1.pair_id == CANARY_PAIR_ID
-    assert fact1.task_id == canary_spec.inverted_task_id
+    assert fact1.task_id == CANARY_TASK_INVERTED
     assert fact1.variant == "state_inverted"
     assert fact1.condition == "stale_value_override"
     assert fact1.trigger == "inversion_override_binding"
     assert fact1.critical_action == "execute_mutation"
     assert fact1.primary_verdict == "satisfied"
+    assert fact1.secondary_verdict == "satisfied"
+    assert fact1.source_digest.startswith("sha256:")
     assert (
         fact1.state_diff
         == f"{canary_spec.target_entity}.{canary_spec.target_attribute}={canary_spec.inverted_value}"
@@ -276,9 +317,9 @@ def test_campaign_spec_validity_and_zero_billable_guard():
     assert spec_path.is_file(), f"Missing campaign spec: {spec_path}"
 
     data = json.loads(spec_path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == "campaign-definition/v2"
+    assert data["schema_version"] == "campaign-design-spec/v1"
     assert data["campaign_id"] == "campaign-action-memory-controls-canary-v1"
-    assert data["status"] == "designed"
+    assert data["status"] == "designed-fixture-only"
     assert data["execution_policy"]["allow_billable"] is False
     assert data["execution_policy"]["max_cost_usd"] == 0.0
     assert data["execution_policy"]["max_wall_clock_seconds"] == 600
@@ -288,8 +329,11 @@ def test_campaign_spec_validity_and_zero_billable_guard():
     assert pair["pair_id"] == CANARY_PAIR_ID
     assert pair["seed"] == 42
     assert pair["dose_bytes"] == 4096
+    assert pair["realized_context_bytes"] == 4096
     assert pair["contrast_variable"] == "state_inversion_status"
     assert len(pair["arms"]) == 2
+    assert pair["arms"][0]["task_id"] == CANARY_TASK_NON_INVERTED
+    assert pair["arms"][1]["task_id"] == CANARY_TASK_INVERTED
     assert pair["arms"][0]["inversion_count"] == 0
     assert pair["arms"][1]["inversion_count"] == 1
     assert pair["arms"][0]["repeats"] == 1

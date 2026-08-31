@@ -991,6 +991,48 @@ def _ingest_command(
     return 1 if result.failures else 0
 
 
+def _inspect_ingest_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Archive and project one Inspect AI EvalLog into the shared evidence spine."""
+    from evallab.inspect_adapter import ingest_inspect_eval_log
+
+    log_path = _resolve(root, args.log)
+    derived_root = derived_root_from_environment(root, explicit=args.derived_dir)
+    store_root = None if args.no_cas else _resolve(root, args.store)
+    result = ingest_inspect_eval_log(
+        log_path,
+        output_root=derived_root,
+        store_root=store_root,
+    )
+    summary = {
+        "job_id": result.projection.run.job_id,
+        "status": result.projection.run.status,
+        "samples": result.projection.run.sample_count,
+        "attempts": len(result.projection.attempts),
+        "scores": len(result.projection.scores),
+        "events": len(result.projection.events),
+        "steps": len(result.projection.trajectories.steps),
+        "tool_calls": len(result.projection.trajectories.tool_calls),
+        "observations": len(result.projection.trajectories.observations),
+        "raw_cas_uri": result.raw_cas_uri,
+        "tables": {name: str(path) for name, path in sorted(result.table_paths.items())},
+    }
+    if args.json:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+    else:
+        print(f"inspect job: {summary['job_id']}")
+        print(f"samples: {summary['samples']}; attempts: {summary['attempts']}")
+        print(
+            f"events: {summary['events']}; steps: {summary['steps']}; "
+            f"tool calls: {summary['tool_calls']}"
+        )
+        print(f"scores: {summary['scores']}; observations: {summary['observations']}")
+        if result.raw_cas_uri:
+            print(f"raw log CAS: {result.raw_cas_uri}")
+    return 0
+
+
 def _trajectories_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3675,6 +3717,30 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root for this invocation",
     )
     ingest.set_defaults(func=_ingest_command)
+
+    inspect_ingest = commands.add_parser(
+        "inspect-ingest",
+        help="Archive and project an Inspect AI .eval or JSON log",
+    )
+    inspect_ingest.add_argument("log", type=Path)
+    inspect_ingest.add_argument(
+        "--derived-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
+    inspect_ingest.add_argument(
+        "--store",
+        type=Path,
+        default=Path("derived/evidence-cas"),
+        help="CAS root for the raw Inspect log",
+    )
+    inspect_ingest.add_argument(
+        "--no-cas",
+        action="store_true",
+        help="project without archiving the raw log",
+    )
+    inspect_ingest.add_argument("--json", action="store_true")
+    inspect_ingest.set_defaults(func=_inspect_ingest_command)
 
     trajectories = commands.add_parser(
         "trajectories",

@@ -18,7 +18,9 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
@@ -128,6 +130,74 @@ class ScoreScaleBindingV1(ContractModel):
                 f"ScoreScaleBindingV1 digest mismatch: expected {expected}, got {self.binding_digest}"
             )
         return self
+
+    def verify_against_artifacts(
+        self,
+        *,
+        task_dir: Path | str | None = None,
+        metric_config: Mapping[str, Any] | None = None,
+        visible_outcome: Mapping[str, Any] | None = None,
+        hidden_outcome: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """Verify declared input digests against actual resolved task and configuration artifacts.
+
+        Raises ValueError if any provided artifact does not match its declared digest,
+        or if no artifacts are provided for verification.
+        Returns True when all provided artifacts match exactly.
+        """
+        checked = 0
+        if task_dir is not None:
+            from evallab.registry import compute_task_digests
+
+            p = Path(task_dir).resolve()
+            if not p.is_dir():
+                raise ValueError(f"task directory not found: {p}")
+            digests = compute_task_digests(p)
+            if digests.package != self.task_digest:
+                raise ValueError(
+                    f"task_digest mismatch for {self.metric_name}: "
+                    f"expected {self.task_digest}, got {digests.package}"
+                )
+            if digests.verifier != self.verifier_digest:
+                raise ValueError(
+                    f"verifier_digest mismatch for {self.metric_name}: "
+                    f"expected {self.verifier_digest}, got {digests.verifier}"
+                )
+            checked += 1
+
+        if metric_config is not None:
+            computed_metric = _digest(metric_config)
+            if computed_metric != self.metric_config_digest:
+                raise ValueError(
+                    f"metric_config_digest mismatch for {self.metric_name}: "
+                    f"expected {self.metric_config_digest}, got {computed_metric}"
+                )
+            checked += 1
+
+        if visible_outcome is not None:
+            computed_vis = _digest(visible_outcome)
+            if computed_vis != self.visible_outcome_binding_digest:
+                raise ValueError(
+                    f"visible_outcome_binding_digest mismatch for {self.metric_name}: "
+                    f"expected {self.visible_outcome_binding_digest}, got {computed_vis}"
+                )
+            checked += 1
+
+        if hidden_outcome is not None:
+            computed_hid = _digest(hidden_outcome)
+            if computed_hid != self.hidden_outcome_binding_digest:
+                raise ValueError(
+                    f"hidden_outcome_binding_digest mismatch for {self.metric_name}: "
+                    f"expected {self.hidden_outcome_binding_digest}, got {computed_hid}"
+                )
+            checked += 1
+
+        if checked == 0:
+            raise ValueError(
+                f"no artifacts provided to verify ScoreScaleBindingV1 for {self.metric_name}; "
+                "refusing uncertified score transfer"
+            )
+        return True
 
 
 class ResearchIterationV1(ContractModel):

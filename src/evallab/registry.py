@@ -105,7 +105,7 @@ class TaskInventoryPolicyError(RegistryError):
     """Raised when the canary policy cannot support deterministic inventory."""
 
 def _should_ignore_file(path: Path) -> bool:
-    if path.name in IGNORED_FILE_NAMES:
+    if any(part in IGNORED_FILE_NAMES for part in path.parts):
         return True
     return path.suffix in IGNORED_EXTENSIONS
 

@@ -77,17 +77,41 @@ class LanceIndexManifest:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> LanceIndexManifest:
+        table_name = str(d["table_name"])
+        snapshot_digest = str(d["snapshot_digest"])
+        candidate_pool_digest = str(d["candidate_pool_digest"])
+        embedder_id = str(d["embedder_id"])
+        embedder_version = str(d["embedder_version"])
+        embedder_digest = str(d["embedder_digest"])
+        redaction_policy_digest = str(d["redaction_policy_digest"])
+        row_count = int(d["row_count"])
+        declared_index_digest = str(d["index_digest"])
+        decision_eligible = bool(d.get("decision_eligible", False))
+
+        expected_index_digest = cls.compute_index_digest(
+            table_name=table_name,
+            snapshot_digest=snapshot_digest,
+            candidate_pool_digest=candidate_pool_digest,
+            embedder_digest=embedder_digest,
+            redaction_policy_digest=redaction_policy_digest,
+            row_count=row_count,
+        )
+        if declared_index_digest != expected_index_digest:
+            raise ValueError(
+                f"LanceIndexManifest index_digest mismatch: expected {expected_index_digest}, got {declared_index_digest}"
+            )
+
         return cls(
-            table_name=str(d["table_name"]),
-            snapshot_digest=str(d["snapshot_digest"]),
-            candidate_pool_digest=str(d["candidate_pool_digest"]),
-            embedder_id=str(d["embedder_id"]),
-            embedder_version=str(d["embedder_version"]),
-            embedder_digest=str(d["embedder_digest"]),
-            redaction_policy_digest=str(d["redaction_policy_digest"]),
-            row_count=int(d["row_count"]),
-            index_digest=str(d["index_digest"]),
-            decision_eligible=bool(d.get("decision_eligible", False)),
+            table_name=table_name,
+            snapshot_digest=snapshot_digest,
+            candidate_pool_digest=candidate_pool_digest,
+            embedder_id=embedder_id,
+            embedder_version=embedder_version,
+            embedder_digest=embedder_digest,
+            redaction_policy_digest=redaction_policy_digest,
+            row_count=row_count,
+            index_digest=declared_index_digest,
+            decision_eligible=decision_eligible,
         )
 
     def to_json(self) -> str:

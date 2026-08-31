@@ -171,6 +171,7 @@ class AutonomousResearchFeatures:
     # 8. Artifact Replay & Reproducibility (RSI-Exam, CORE-Bench, PaperBench)
     final_artifact_digest: str | None
     artifact_replay_verified: bool | None
+    reproducibility_evaluated_count: int
     reproducible_iteration_count: int
     reproducibility_rate: float | None
 
@@ -424,11 +425,16 @@ def extract_autonomous_research_features(
         transfer_gap = trace.hidden_score - final_visible
 
     # 8. Artifact Replay & Reproducibility
+    reproducibility_evaluated_count = sum(
+        1 for iteration in iterations if iteration.is_reproducible is not None
+    )
     reproducible_iteration_count = sum(
         1 for iteration in iterations if iteration.is_reproducible is True
     )
     reproducibility_rate = (
-        reproducible_iteration_count / iteration_count if iteration_count > 0 else None
+        reproducible_iteration_count / reproducibility_evaluated_count
+        if reproducibility_evaluated_count > 0
+        else None
     )
     final_artifact_digest = trace.final_artifact_digest
     if final_artifact_digest is None and iterations:
@@ -530,6 +536,7 @@ def extract_autonomous_research_features(
         # 8. Artifact Replay & Reproducibility
         "final_artifact_digest": final_artifact_digest,
         "artifact_replay_verified": trace.artifact_replay_verified,
+        "reproducibility_evaluated_count": reproducibility_evaluated_count,
         "reproducible_iteration_count": reproducible_iteration_count,
         "reproducibility_rate": reproducibility_rate,
         # 9. Environment Reconstruction & Dependency Repair

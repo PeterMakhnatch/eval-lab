@@ -1,15 +1,24 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from datetime import date, datetime
+from collections.abc import Iterable, Sequence
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal, LiteralString, cast
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from evallab.results import JobRecord, duration_seconds
+from evallab.outcome_authority import (
+    AgentOutcomeStatus,
+    ArtifactOutcomeStatus,
+    OutcomeAuthorityResolution,
+    OutcomeRecord,
+    outcome_record_from_regrade,
+    resolve_outcome_authority,
+)
+from evallab.results import JobRecord, TrialRecord, duration_seconds
 from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
 
@@ -80,6 +89,8 @@ def _executemany(
 
 
 def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Path) -> None:
+    from evallab.evidence.facts import extract_outcome_records
+
     stats = job.result.get("stats") or {}
     evidence_path = _relative_or_absolute(job.path, root)
     # A named local evidence directory can be intentionally regenerated before
@@ -257,6 +268,8 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                     for item in trial.artifacts
                 ],
             )
+
+        ingest_trial_outcomes(connection, extract_outcome_records(job, trial))
 
 
 def ingest(database_url: str, jobs: Iterable[JobRecord], *, root: Path) -> int:
@@ -559,3 +572,161 @@ def quota_today(database_url: str) -> list[tuple[str, int, int]]:
                 """
             ).fetchall()
         )
+
+
+_TRIAL_OUTCOME_COLUMNS = (
+    "outcome_id",
+    "trial_id",
+    "source_trial_id",
+    "outcome_kind",
+    "outcome_namespace",
+    "outcome_name",
+    "reward_value",
+    "is_valid_reward",
+    "valid_fraction",
+    "agent_status",
+    "agent_exception",
+    "verifier_status",
+    "artifact_status",
+    "artifact_digest",
+    "source_digest",
+    "verifier_digest",
+    "evidence_digest",
+    "authority_state",
+    "superseded_by_outcome_id",
+    "supersession_reason",
+    "is_summable",
+    "cas_uri",
+    "evidence_path",
+    "recorded_at",
+)
+
+
+def _outcome_record_to_row(record: OutcomeRecord) -> tuple[Any, ...]:
+    data = record.model_dump(mode="json")
+    return tuple(data[col] for col in _TRIAL_OUTCOME_COLUMNS)
+
+
+def ingest_trial_outcomes(
+    connection: psycopg.Connection[Any],
+    outcomes: Sequence[OutcomeRecord],
+) -> None:
+    """Insert immutable outcome facts, ignoring exact re-ingestion duplicates."""
+    if not outcomes:
+        return
+    columns = ", ".join(_TRIAL_OUTCOME_COLUMNS)
+    placeholders = ", ".join(["%s"] * len(_TRIAL_OUTCOME_COLUMNS))
+    query = cast(
+        LiteralString,
+        f"""
+        INSERT INTO trial_outcomes ({columns})
+        VALUES ({placeholders})
+        ON CONFLICT (outcome_id) DO NOTHING
+        """,
+    )
+    _executemany(connection, query, [_outcome_record_to_row(outcome) for outcome in outcomes])
+
+
+def ingest_regrade(
+    connection: psycopg.Connection[Any],
+    regrade_trial: TrialRecord,
+    source_trial_id: str,
+    *,
+    root: Path,
+) -> OutcomeRecord:
+    """Ingest a verifier-only regrade while preserving independently observed lineage.
+
+    Source identity and source artifact preservation come from the original
+    outcome. The regrade's verifier and evaluated-artifact digests come from
+    the regrade evidence itself; neither is copied from the source.
+    """
+    with connection.cursor(row_factory=dict_row) as cursor:
+        cursor.execute(
+            """
+            SELECT
+                outcomes.trial_id,
+                outcomes.source_digest,
+                outcomes.artifact_digest,
+                outcomes.artifact_status,
+                outcomes.agent_status,
+                outcomes.agent_exception
+            FROM trial_outcomes AS outcomes
+            LEFT JOIN trials ON trials.id::text = outcomes.trial_id
+            WHERE (outcomes.trial_id = %s OR trials.trial_name = %s)
+              AND outcomes.outcome_kind IN ('original_verifier', 'manual_audit')
+            ORDER BY
+                CASE outcomes.outcome_kind WHEN 'original_verifier' THEN 0 ELSE 1 END,
+                outcomes.recorded_at NULLS LAST
+            LIMIT 1
+            """,
+            (source_trial_id, source_trial_id),
+        )
+        source = cursor.fetchone()
+    if source is None:
+        raise ValueError(
+            f"source trial {source_trial_id} has no outcome record for regrade linkage"
+        )
+
+    canonical_source_trial_id = str(source["trial_id"])
+    record = outcome_record_from_regrade(
+        regrade_trial,
+        canonical_source_trial_id,
+        source_digest=source["source_digest"],
+        source_artifact_digest=source["artifact_digest"],
+        source_artifact_status=ArtifactOutcomeStatus(source["artifact_status"]),
+        source_agent_status=(
+            AgentOutcomeStatus(source["agent_status"]) if source["agent_status"] else None
+        ),
+        source_agent_exception=source["agent_exception"],
+        recorded_at=datetime.now(UTC).isoformat(),
+    ).model_copy(
+        update={
+            "evidence_path": _relative_or_absolute(regrade_trial.path, root),
+        }
+    )
+
+    ingest_trial_outcomes(connection, [record])
+    return record
+
+
+def ingest_regrades(
+    database_url: str,
+    regrade_trials: Iterable[TrialRecord],
+    *,
+    root: Path,
+) -> int:
+    """Append all linkable standalone regrades in one transaction."""
+    count = 0
+    with psycopg.connect(database_url) as connection:
+        for regrade_trial in regrade_trials:
+            if regrade_trial.source_trial_id is None:
+                continue
+            ingest_regrade(
+                connection,
+                regrade_trial,
+                regrade_trial.source_trial_id,
+                root=root,
+            )
+            count += 1
+    return count
+
+
+def resolve_trial_authority(
+    connection: psycopg.Connection[Any],
+    trial_id: str,
+) -> OutcomeAuthorityResolution | None:
+    """Resolve the source-neutral outcome authority for a trial from the catalog."""
+    with connection.cursor(row_factory=dict_row) as cursor:
+        cursor.execute(
+            """
+            SELECT {}
+            FROM trial_outcomes
+            WHERE trial_id = %s OR source_trial_id = %s
+            """.format(", ".join(_TRIAL_OUTCOME_COLUMNS)),
+            (trial_id, trial_id),
+        )
+        rows = cursor.fetchall()
+    if not rows:
+        return None
+    outcomes = [OutcomeRecord.model_validate(row) for row in rows]
+    return resolve_outcome_authority(outcomes, {"trial_id": trial_id})

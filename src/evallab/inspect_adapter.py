@@ -38,6 +38,7 @@ from uuid import UUID
 import pyarrow as pa
 from pydantic import Field
 
+from evallab.outcome_authority import OutcomeRecord, outcome_record_from_inspect_score
 from evallab.schemas import ContractModel
 
 ATTACHMENT_PROTOCOLS = ("attachment://", "tc://")
@@ -214,6 +215,7 @@ class InspectScoreFactV1(ContractModel):
     outcome_namespace: Literal["inspect"] = "inspect"
     authority: Literal["non_decision", "inspect_scorer", "unknown"] = "non_decision"
     is_deterministic: bool = False
+    is_summable: bool = False
 
 
 class InspectEventFactV1(ContractModel):
@@ -255,6 +257,29 @@ class InspectProjection:
     events: tuple[InspectEventFactV1, ...]
     attachments: tuple[InspectAttachmentFactV1, ...]
     rebuild_digest: str
+
+
+def project_inspect_outcomes(projection: InspectProjection) -> tuple[OutcomeRecord, ...]:
+    """Adapt Inspect scores into canonical non-decision outcome facts."""
+    records = []
+    for score in projection.scores:
+        records.append(
+            outcome_record_from_inspect_score(
+                trial_id=score.trial_id,
+                score_name=score.score_name,
+                value=json.loads(score.value_json),
+                source_digest=projection.run.source_digest,
+                verifier_digest=_digest_json(
+                    {
+                        "score_name": score.score_name,
+                        "scorer": score.scorer,
+                        "metadata_digest": score.metadata_digest,
+                    }
+                ),
+                recorded_at=projection.run.completed_at or projection.run.created_at,
+            )
+        )
+    return tuple(records)
 
 
 @dataclass(frozen=True)
@@ -331,6 +356,7 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
             pa.field("outcome_namespace", pa.string(), nullable=False),
             pa.field("authority", pa.string(), nullable=False),
             pa.field("is_deterministic", pa.bool_(), nullable=False),
+            pa.field("is_summable", pa.bool_(), nullable=False),
         ]
     ),
     "inspect_events": pa.schema(

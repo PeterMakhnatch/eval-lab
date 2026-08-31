@@ -67,19 +67,35 @@ The brief requires explicit denominators and no silent counts. The headline coun
 | **Benchmark outcome** | The verifier's own contract. **This is the target, not a feature of it** | `benchmark_verifier` | **No — it is the thing being predicted** | Verifier invalid → **null**, never 0 | `hidden_score` and `primary_reward`, both `verdict_coupling="defines"` |
 | **Decision feature** | An outcome plus its admissibility context, sufficient to act on | composite | n/a — it *is* the decision | Any input null → decision **refuses** | `visible_hidden_transfer_gap`: present ($-0.0233$) for BBO, **null with a recorded reason** for Game2048 |
 
-`[INFERENCE]` The distinction that actually bites is **benchmark outcome vs derived feature**, and the registry now encodes it. `[OBSERVED]` On `origin/main`, `feature_registry.py` carries `verdict_coupling` across **226** registered features:
+`[INFERENCE]` The distinction that actually bites is **benchmark outcome vs derived feature**, and the registry now encodes it. `[OBSERVED]` I executed `audit_registry_predictor_eligibility()` and `audit_registry_denominator_policies()` at `58c9b592` in a throwaway worktree. **The registry holds 240 features** — a first pass counting literal call sites by AST gave 226 and undercounted by 14, so every number below is the audits' own:
 
 | `verdict_coupling` | Count |
 |---|---:|
-| `defines` — is the verdict; can never be a predictor | **28** |
+| `defines` — is the verdict; can never be a predictor | **27** |
 | `correlates` | 71 |
-| `independent` | 41 |
-| `not_applicable` | 10 |
-| **unlabelled (`None`)** | **76** |
+| `independent` | 40 |
+| `not_applicable` | 27 |
+| **unlabelled (`None`)** | **75** |
 
-`[OBSERVED]` The 28 `defines` carry justifying `coupling_basis` strings and include exactly the right members — `primary_reward`, `handle_set_match`, `handle_order_match`, `handle_coverage_rate`, `hidden_score`, `leakage_detected_flag`, `milestone_progress_rate`, `dag_edge_conformance_rate`. Backed by `audit_verdict_coupling`, `audit_predictor_eligibility`, and `audit_registry_predictor_eligibility`. **This is the single most valuable thing built since the last review.**
+`[OBSERVED]` The 27 `defines` carry justifying `coupling_basis` strings and include exactly the right members — `primary_reward`, `handle_set_match`, `handle_order_match`, `handle_coverage_rate`, `hidden_score`, `leakage_detected_flag`, `milestone_progress_rate`, `dag_edge_conformance_rate`. **This is the single most valuable thing built since the last review.**
 
-`[OBSERVED]` The 76 unlabelled are predominantly identity and mechanical columns (`trial_id`, `job_id`, `trial_name`, `task_name`, `agent_version`, `status`, `source_sha256`, `step_count`, …). `[INFERENCE]` So the residual debt is largely benign — but `None` is indistinguishable from *"not yet considered"*, which is the exact ambiguity the field exists to remove. **Label them `not_applicable` explicitly.** Cheap, mechanical, and it turns 76 unknowns into 76 decisions.
+### The audits, executed — and they redirect Stage A
+
+`[OBSERVED]` `audit_registry_predictor_eligibility()` returns **131 refusals over 240 features, leaving 109 eligible predictors**:
+
+| Refusal code | Count | Reading |
+|---|---:|---|
+| `MISSING_TEMPORAL_AVAILABILITY` | **72** | `available_before_verdict` undeclared — **the actual binding gap** |
+| `NOT_APPLICABLE_FOR_PREDICTION` | 27 | Correctly excluded, and declared |
+| `REWARD_DEFINITION_LEAKAGE` | **19** | The leakage gate actively firing |
+| `POST_VERDICT_TEMPORAL_VIOLATION` | 10 | Declared unavailable pre-verdict; correctly refused |
+| `UNDECLARED_VERDICT_COUPLING` | **3** | |
+
+`[OBSERVED]` `audit_registry_denominator_policies()` returns **73 refusals**, all `MISSING_DENOMINATOR_APPLICABILITY_DECLARATION`, leaving **167 declared**.
+
+`[INFERENCE]` **This corrects my own recommendation.** I had written that the 75 unlabelled `verdict_coupling` rows were the Stage-A debt and should be labelled `not_applicable`. The audit shows only **3** features refuse for undeclared coupling. The real gap is **`available_before_verdict`, undeclared on 72** — a different field. Labelling coupling clears 3 refusals; declaring temporal availability clears 72. **Stage A should target `available_before_verdict` first.** Static counts could not have shown this, which is the argument for running a repository's own audits before quoting numbers back to it.
+
+`[INFERENCE]` Two further readings. `REWARD_DEFINITION_LEAKAGE = 19` means the gate is not decorative — it refuses 19 real features today. And **109 eligible predictors** is a large improvement on the "effectively zero admissible predictors" I reported against the 138-feature registry: declaring coupling properly *expanded* the admissible set rather than shrinking it.
 
 ---
 
@@ -235,7 +251,7 @@ Six findings. Every one is a missing *analysis* capability, not a missing featur
 
 | Stage | Build | Depends on | Behavioural acceptance |
 |---|---|---|---|
-| **A** | **Reconcile counts and enums.** Add `environment_setup_seconds` to the inventory; state $78 = 74 + 4$; label the 76 unlabelled `verdict_coupling` as `not_applicable`; reconcile the two `RefusalCode` enums | — | Inventory `feature_count` equals inventory length equals construct sum; `verdict_coupling=None` count is **0** |
+| **A** | **Close the declaration gaps the audits name.** Declare `available_before_verdict` on the **72** `MISSING_TEMPORAL_AVAILABILITY` features (highest leverage); declare denominator applicability on the **73** refusals; label the **3** `UNDECLARED_VERDICT_COUPLING` features; add `environment_setup_seconds` to the inventory and state $78 = 74 + 4$; reconcile the two `RefusalCode` enums | — | `audit_registry_predictor_eligibility()` refusals drop from **131** to the **56** that are genuine exclusions (`NOT_APPLICABLE` 27 + `LEAKAGE` 19 + `POST_VERDICT` 10); denominator refusals reach **0**; inventory `feature_count` equals inventory length equals construct sum |
 | **B** | **Composite outcome resolver.** `(agent, verifier, artifact, authority)` axes; regrade lineage with superseded records retained | A | The Game2048 record resolves to **0.378**, never 0.0, and the superseded 0.0 is present but unsummable |
 | **C** | **Declared headline binding** per outcome axis, written into the artifact | B | BBO's transfer gap cites `selected` explicitly; switching to `final` changes a **declaration**, not a silent producer default |
 | **D** | **Scale-binding gate.** `score_scale_compatible` blocks cross-axis arithmetic without a validated `scale_binding_digest` | C | Game2048's transfer gap stays null with its reason; a forced computation **refuses** |
@@ -317,7 +333,7 @@ Seven questions, each answerable from a view rather than a script. Naming follow
 **Two operator tables worth building first**, because they are cheap and immediately load-bearing:
 
 - **Feature activation map (#6).** `[DERIVED]` Today it would read: 73 present, 5 null-with-denominator, 15 zero, 18 dormant across 4 constructs. That single table replaces the "are 74 features too many?" argument with a coverage fact.
-- **Predictor eligibility (#7).** `[OBSERVED]` Today: 28 `defines`, 71 `correlates`, 41 `independent`, 10 `not_applicable`, 76 unlabelled. One `GROUP BY` tells an operator exactly what they may regress on — and after Stage A the last column is zero.
+- **Predictor eligibility (#7).** `[OBSERVED]` Today, from the audits: **240** features, **131** refusals, **109 eligible**. The refusal mix is `MISSING_TEMPORAL_AVAILABILITY` 72, `NOT_APPLICABLE_FOR_PREDICTION` 27, `REWARD_DEFINITION_LEAKAGE` 19, `POST_VERDICT_TEMPORAL_VIOLATION` 10, `UNDECLARED_VERDICT_COUPLING` 3. This view is **already computable** — `audit_registry_predictor_eligibility()` is the query. It needs surfacing, not building.
 
 `[INFERENCE]` Deliberately **not** on this list: any single-number capability dashboard, any cross-benchmark leaderboard, and any embedding-cluster view. The first two are unsupported by §3.4; the third is `not_decision_ready` by the inventory's own tiering, and correctly so.
 
@@ -338,15 +354,15 @@ Seven questions, each answerable from a view rather than a script. Naming follow
 1. `[INFERENCE]` **$n=2$, both timed out.** Every generalisation here rests on two runs that both hit `AgentTimeoutError` with `budget_utilization_rate > 1`. The features' behaviour under a *clean completion* is untested, and the timeout path may be over-represented in what looks like normal operation.
 2. `[OBSERVED]` **Audit depth is inconsistent** between the two calibration records (4 findings vs 0; validation flags set vs `None`) under the same schema version. Conclusions drawn by comparing them inherit that asymmetry.
 3. `[INFERENCE]` **`_hypothesis_key` sensitivity is unmeasured.** `unique_hypothesis_count` (1 vs 4) and `hypothesis_turnover_rate` depend entirely on that normalisation. Until it is perturbation-tested, treat both as screening.
-4. `[FORECAST]` **The 76 unlabelled `verdict_coupling` rows will not stay benign.** They are identity columns today; the next producer that lands will add outcome-adjacent features into an unlabelled default. Close it in Stage A while it is still cheap.
+4. `[FORECAST]` **The 72 undeclared `available_before_verdict` rows are the live exposure**, not the coupling field I first named. They refuse today, so nothing unsafe is passing — but a refusal that blocks 72 features is also a standing incentive to relax the gate rather than declare the field. Declare them in Stage A while the pressure is low.
 
 ---
 
 ## Verification note
 
-`[OBSERVED]` Read at `origin/main` `58c9b592`: the feature inventory (schema `agentic-benchmark-feature-inventory/v1`, 10 benchmarks, 4 tiers, 1 family, 73 inventory entries); both calibration records (schema `evallab-rsi-calibration-evidence/v1`) in full including `run.outcome_axes`, `scores`, `research_process`, `feature_findings`, `harbor_ingestion_smoke`; `autonomous_research.py` (833 lines, 4 classes) via AST; `feature_registry.py` (4,478 lines, 226 `register_trajectory_feature` call sites) via AST; `multi_eval.py` (14 classes, 27 `RefusalCode` values).
+`[OBSERVED]` Read at `origin/main` `58c9b592`: the feature inventory (schema `agentic-benchmark-feature-inventory/v1`, 10 benchmarks, 4 tiers, 1 family, 73 inventory entries); both calibration records (schema `evallab-rsi-calibration-evidence/v1`) in full including `run.outcome_axes`, `scores`, `research_process`, `feature_findings`, `harbor_ingestion_smoke`; `autonomous_research.py` (833 lines, 4 classes) via AST; `feature_registry.py` (4,478 lines) via AST **and by executing its own audit functions at 240 registered features**; `multi_eval.py` (14 classes, 27 `RefusalCode` values).
 
-`[DERIVED]` Computed here: the 78/74/73 reconciliation and the five undocumented fields; `verdict_coupling` / `causal_grade` / `available_before_verdict` distributions over 226 call sites; the 28 `defines` list with bases; per-pilot null and zero counts with denominator pairing; the transfer-gap solve identifying `selected` as the binding scalar and the 5.6× swing to `final`; `budget_utilization_rate > 1` on both runs; BBO's selected-version-is-unlogged finding.
+`[DERIVED]` Computed here: the 78/74/73 reconciliation and the five undocumented fields; the 27 `defines` list with bases; per-pilot null and zero counts with denominator pairing; the transfer-gap solve identifying `selected` as the binding scalar and the 5.6× swing to `final`; `budget_utilization_rate > 1` on both runs; BBO's selected-version-is-unlogged finding.
 
 **Three things I checked because I did not believe them, and one that changed:**
 
@@ -356,4 +372,13 @@ Seven questions, each answerable from a view rather than a script. Naming follow
 | 2 | 5 null features are missing measurements | **Correct null-on-zero-denominator behaviour** — all five denominators verified as 0 |
 | 3 | BBO's `final_selection_regret=0.0` is a good result | **Degenerate** — `iteration_count=1`, so regret is 0 by construction |
 
-**One thing I did not do.** `[INFERENCE]` I did not run the `audit_registry_predictor_eligibility` or `audit_registry_denominator_policies` functions to enumerate current refusals — the brief prohibits running suites, and my local checkout is too stale to import them meaningfully. Those two functions almost certainly already quantify the Stage-A debt precisely, and whoever executes Stage A should run them first rather than trusting my static counts.
+**Correction applied after first delivery.** `[OBSERVED]` I initially shipped this note with static AST counts and flagged that the repository's own audit functions should be run before trusting them. I then ran them, in a detached throwaway worktree at `58c9b592` (no test suite, no production edit, user working tree untouched). Four published numbers were wrong and are corrected above:
+
+| Published first | Audit truth |
+|---|---|
+| 226 registered features | **240** |
+| 28 `defines` / 41 `independent` / 10 `not_applicable` / 76 unlabelled | **27 / 40 / 27 / 75** |
+| "the 76 unlabelled `verdict_coupling` rows are the Stage-A debt" | **Only 3 refuse for that. 72 refuse for undeclared `available_before_verdict`** |
+| Stage A targets `verdict_coupling` | **Stage A targets `available_before_verdict`** |
+
+`[INFERENCE]` The third row is the one that mattered: my recommendation would have cleared 3 of 131 refusals. The audits already quantified the debt correctly, and I had been reading the registry instead of asking it.

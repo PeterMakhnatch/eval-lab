@@ -128,13 +128,24 @@ class ConstraintFact(FactRow):
 class ContextOperationFact(FactRow):
     trial_id: str = Field(min_length=1)
     operation_id: str = Field(min_length=1)
-    operation: Literal["compaction", "clear", "evict", "memory_read", "memory_write"]
+    operation: Literal[
+        "compaction",
+        "clear",
+        "evict",
+        "memory_read",
+        "memory_write",
+        "memory_use",
+        "session_boundary",
+    ]
     configured_size: int | None = Field(default=None, ge=0)
     realized_size: int | None = Field(default=None, ge=0)
     prompt_tokens: int | None = Field(default=None, ge=0)
     before_token_count: int | None = Field(default=None, ge=0)
     after_token_count: int | None = Field(default=None, ge=0)
     content_digest: Digest | None = None
+    session_id: str | None = None
+    step_index: int | None = Field(default=None, ge=0)
+    context_position_tokens: int | None = Field(default=None, ge=0)
 
     @field_validator("content_digest")
     @classmethod

@@ -21,16 +21,22 @@ from evallab.interpretation.producers.mcp_recovery import (
     build_recovery_persistence_curve,
     extract_mcp_recovery_features,
 )
+from evallab.interpretation.producers.memory_continuity import (
+    MemoryContinuityFeatures,
+    extract_memory_continuity_features,
+)
 
 __all__ = [
     "ActionMemoryFeatures",
     "McpFuncDagFeatures",
     "McpRecoveryFeatures",
+    "MemoryContinuityFeatures",
     "RecoveryPersistencePoint",
     "build_recovery_persistence_curve",
     "compute_prompt_cache_hit_rate",
     "extract_action_memory_features",
     "extract_mcp_funcdag_features",
+    "extract_memory_continuity_features",
     "extract_mcp_recovery_features",
     "extract_benchmark_features",
 ]

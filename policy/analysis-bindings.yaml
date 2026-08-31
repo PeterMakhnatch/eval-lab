@@ -1,0 +1,20 @@
+schema_version: analysis-bindings/v1
+bindings:
+  - run_id: bbo_noisy_continuous__y6S5nSJ
+    evidence_path: research/evidence/rsi-bbo-codex56-calibration-2026-08-31.json
+    headline_visible_scalar: selected
+    visible_alternatives:
+      - baseline
+      - anytime
+      - final
+      - selected
+    job_summary_fallback_reward: null
+  - run_id: game2048_policy_search__QzNuUbN
+    evidence_path: research/evidence/rsi-game2048-codex56-calibration-2026-08-31.json
+    headline_visible_scalar: selected_artifact_full_suite_score
+    job_summary_fallback_reward: 0.0
+    visible_alternatives:
+      - baseline_raw_mean
+      - best_comparable_raw_mean
+      - selected_artifact_full_suite_score
+      - v5_single_seed_diagnostic_score

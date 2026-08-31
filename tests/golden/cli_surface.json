@@ -599,6 +599,65 @@
       }
     ]
   },
+  "analyze control": {
+    "options": [
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "evidence",
+        "flags": [
+          "--evidence"
+        ],
+        "help": "Calibration evidence JSON; repeat to override policy defaults",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "limit",
+        "flags": [
+          "--limit"
+        ],
+        "help": "Maximum rows to return",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "view",
+        "flags": [],
+        "help": "Stable control view name; unknown names are refused",
+        "metavar": "VIEW",
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "analyze ingest-sidecar": {
     "options": [
       {

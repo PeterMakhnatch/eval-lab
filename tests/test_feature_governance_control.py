@@ -28,9 +28,9 @@ def test_feature_registry_zero_contract_errors() -> None:
 
 
 def test_feature_registry_zero_temporal_gaps() -> None:
-    """All 240 features in the registry have an explicit temporal availability declaration."""
+    """All governed features have an explicit temporal availability declaration."""
     features = TRAJECTORY_FEATURE_REGISTRY.all_features()
-    assert len(features) == 240
+    assert len(features) == 260
     missing_temp = [
         name for name, feat in features.items() if feat.available_before_verdict is None
     ]
@@ -143,10 +143,10 @@ def test_reward_definition_and_post_verdict_exclusions_refused() -> None:
 def test_predictor_eligibility_operator_view_surface() -> None:
     """Operator projection view returns exactly one row per registered feature with exact fields."""
     rows = predictor_eligibility_view()
-    assert len(rows) == 240
+    assert len(rows) == 260
 
     names = {r.feature_name for r in rows}
-    assert len(names) == 240
+    assert len(names) == 260
     assert names == set(TRAJECTORY_FEATURE_REGISTRY.all_features().keys())
 
     # Check row contracts
@@ -176,8 +176,8 @@ def test_predictor_eligibility_operator_view_surface() -> None:
 def test_predictor_eligibility_summary_counts() -> None:
     """Summary counts match exact cleared counts without requiring custom scripts."""
     summary = predictor_eligibility_summary()
-    assert summary.total_features == 240
-    assert summary.eligible_predictors == 171
+    assert summary.total_features == 260
+    assert summary.eligible_predictors == 191
     assert summary.refused_predictors == 69
     assert summary.missing_temporal_count == 0
     assert summary.missing_denominator_count == 0
@@ -195,12 +195,12 @@ def test_duckdb_v_predictor_eligibility_view_materialization() -> None:
     create_predictor_eligibility_duckdb_view(conn)
 
     total = conn.execute("SELECT count(*) FROM v_predictor_eligibility").fetchone()[0]
-    assert total == 240
+    assert total == 260
 
     eligible = conn.execute(
         "SELECT count(*) FROM v_predictor_eligibility WHERE predictor_eligible"
     ).fetchone()[0]
-    assert eligible == 171
+    assert eligible == 191
 
     refused = conn.execute(
         "SELECT count(*) FROM v_predictor_eligibility WHERE NOT predictor_eligible"

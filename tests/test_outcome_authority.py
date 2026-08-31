@@ -39,9 +39,11 @@ from evallab.outcome_authority import (
     check_scale_binding,
     outcome_record_from_dict,
     outcome_record_from_inspect_score,
+    outcome_record_from_trial,
     resolve_outcome_authority,
 )
 from evallab.results import (
+    ArtifactRecord,
     JobRecord,
     TrialRecord,
     discover_regrade_trials,
@@ -582,6 +584,53 @@ class TestInspectScorerNonDecision:
         assert record.authority_state == AuthorityState.non_decision
         assert record.is_summable is False
         assert record.verifier_status == VerifierOutcomeStatus.not_run
+
+    def test_harbor_and_inspect_share_one_canonical_outcome_contract(self, tmp_path: Path) -> None:
+        harbor_trial = TrialRecord(
+            path=tmp_path / "harbor-trial",
+            result={
+                "id": "shared-trial",
+                "trial_name": "shared-trial",
+                "verifier_result": {
+                    "rewards": {"reward": 1.0},
+                    "valid_fraction": 1.0,
+                },
+            },
+            config={},
+            lock={},
+            rewards={"reward": 1.0},
+            artifacts=(
+                ArtifactRecord(
+                    source="/agent/output",
+                    destination=None,
+                    artifact_type="file",
+                    status="saved",
+                    service=None,
+                    host_relative_path="artifact/output.json",
+                    exists=True,
+                    size_bytes=1,
+                    sha256="a" * 64,
+                ),
+            ),
+        )
+        harbor = outcome_record_from_trial(harbor_trial)
+        inspect = outcome_record_from_inspect_score(
+            trial_id="shared-trial",
+            score_name="accuracy",
+            value=0.9,
+            source_digest="sha256:inspect-source",
+            verifier_digest="sha256:inspect-scorer",
+        )
+
+        assert type(harbor) is type(inspect) is OutcomeRecord
+        assert harbor.outcome_namespace == "harbor_verifier"
+        assert harbor.is_summable is True
+        assert inspect.outcome_namespace == "inspect"
+        assert inspect.authority_state == AuthorityState.non_decision
+        assert inspect.is_summable is False
+        resolution = resolve_outcome_authority([harbor, inspect])
+        assert resolution.authoritative_outcome is not None
+        assert resolution.authoritative_outcome.outcome_id == harbor.outcome_id
 
 
 class TestCryptographicLineage:

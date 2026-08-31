@@ -94,6 +94,10 @@ class McpRecoveryFeatures:
     fault_detection_rate: float | None
     blind_retry_rate: float | None
     fault_recovery_latency: float | None
+    tool_call_prompt_tokens_total: int | None
+    failed_prefix_prompt_tokens: int | None
+    failed_prefix_cost: float | None
+    failed_prefix_cost_status: str
 
     # Provenance / citations
     citation: str
@@ -143,6 +147,7 @@ def extract_mcp_recovery_features(
     step_tokens: Sequence[int] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
+    tool_call_step_indices: Sequence[int] | None = None,
 ) -> McpRecoveryFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an mcp-recovery trial bundle."""
     contract = bundle.contract
@@ -326,6 +331,43 @@ def extract_mcp_recovery_features(
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
     prompt_cache_hit_rate = compute_prompt_cache_hit_rate(step_tokens, cached_step_tokens)
+    tool_call_prompt_tokens_total: int | None = None
+    failed_prefix_prompt_tokens: int | None = None
+    failed_prefix_cost: float | None = None
+    if injected_fault_count == 0:
+        failed_prefix_cost_status = "not_exposed"
+    elif step_to_recovery is None:
+        failed_prefix_cost_status = "not_recovered"
+    elif (
+        not step_tokens
+        or tool_call_step_indices is None
+        or len(tool_call_step_indices) != total_tool_calls
+        or any(
+            not isinstance(step_index, int)
+            or isinstance(step_index, bool)
+            or step_index < 1
+            or step_index > len(step_tokens)
+            for step_index in tool_call_step_indices
+        )
+        or any(
+            right < left
+            for left, right in zip(
+                tool_call_step_indices,
+                tool_call_step_indices[1:],
+                strict=False,
+            )
+        )
+    ):
+        failed_prefix_cost_status = "missing_token_alignment"
+    else:
+        tool_call_prompt_tokens_total = sum(step_tokens)
+        if tool_call_prompt_tokens_total <= 0:
+            failed_prefix_cost_status = "zero_total_tokens"
+        else:
+            recovery_trajectory_step = tool_call_step_indices[step_to_recovery - 1]
+            failed_prefix_prompt_tokens = sum(step_tokens[: recovery_trajectory_step - 1])
+            failed_prefix_cost = failed_prefix_prompt_tokens / tool_call_prompt_tokens_total
+            failed_prefix_cost_status = "observed"
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None
@@ -401,6 +443,10 @@ def extract_mcp_recovery_features(
         fault_detection_rate=fault_detection_rate,
         blind_retry_rate=blind_retry_rate,
         fault_recovery_latency=fault_recovery_latency,
+        tool_call_prompt_tokens_total=tool_call_prompt_tokens_total,
+        failed_prefix_prompt_tokens=failed_prefix_prompt_tokens,
+        failed_prefix_cost=failed_prefix_cost,
+        failed_prefix_cost_status=failed_prefix_cost_status,
         citation=citation,
         verifier_truth_digest=contract.verifier_truth_digest,
     )

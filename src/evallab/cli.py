@@ -1922,6 +1922,40 @@ def _analyze_quality_command(
     return 0
 
 
+def _analyze_control_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Materialize and query the governed analysis control plane."""
+    del harbor
+    import duckdb
+
+    from evallab.analysis_control import materialize_analysis_control_views, query_control_view
+
+    evidence_paths = [_resolve(root, path) for path in args.evidence] if args.evidence else None
+    with duckdb.connect(":memory:") as connection:
+        materialization = materialize_analysis_control_views(
+            connection,
+            root=root,
+            evidence_paths=evidence_paths,
+        )
+        rows = query_control_view(connection, args.view, limit=args.limit)
+    print(
+        json.dumps(
+            {
+                "materialization": asdict(materialization),
+                "row_count": len(rows),
+                "rows": rows,
+                "view": args.view,
+            },
+            default=str,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
 def _data_backfill_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4241,6 +4275,28 @@ def parser() -> argparse.ArgumentParser:
         help="Select named report paths using {name:.path,...} syntax",
     )
     analyze_quality.set_defaults(func=_analyze_quality_command)
+
+    analyze_control = analyze_commands.add_parser(
+        "control",
+        help="Materialize and query governed readiness, authority, binding, and feature views",
+    )
+    analyze_control.add_argument(
+        "view",
+        metavar="VIEW",
+        help="Stable control view name; unknown names are refused",
+    )
+    analyze_control.add_argument(
+        "--evidence",
+        type=Path,
+        action="append",
+        help="Calibration evidence JSON; repeat to override policy defaults",
+    )
+    analyze_control.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum rows to return",
+    )
+    analyze_control.set_defaults(func=_analyze_control_command)
 
     data = commands.add_parser(
         "data",

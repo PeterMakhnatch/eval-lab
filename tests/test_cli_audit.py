@@ -11,6 +11,7 @@ from evallab.evidence import atif
 
 TOP_LEVEL_COMMANDS = (
     "claims",
+    "agents",
     "doctor",
     "dashboard",
     "status",
@@ -61,6 +62,10 @@ TOP_LEVEL_COMMANDS = (
 )
 NESTED_COMMANDS = (
     ("claims", "pack"),
+    ("agents", "list"),
+    ("agents", "doctor"),
+    ("agents", "smoke"),
+    ("agents", "qualify"),
     ("campaign", "plan"),
     ("campaign", "status"),
     ("campaign", "run"),
@@ -79,6 +84,8 @@ NESTED_COMMANDS = (
     ("analyze", "batch"),
     ("analyze", "inspect"),
     ("analyze", "calibrate"),
+    ("analyze", "quality"),
+    ("analyze", "control"),
     ("analyze", "stub"),
     ("analyze", "ingest-sidecar"),
     ("analyze", "review"),

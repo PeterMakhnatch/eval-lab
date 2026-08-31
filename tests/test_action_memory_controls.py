@@ -305,7 +305,7 @@ def test_canonical_paired_condition_facts_emission(canary_spec: CanaryPairSpec):
     )
 
 
-def test_campaign_spec_validity_and_zero_billable_guard():
+def test_campaign_spec_validity_and_zero_billable_guard(canary_spec: CanaryPairSpec):
     """Future campaign spec must be well-formed, bounded to 1 pair / 1 repeat, and strictly non-billable."""
     spec_path = (
         Path(__file__).parents[1]
@@ -331,6 +331,8 @@ def test_campaign_spec_validity_and_zero_billable_guard():
     assert pair["dose_bytes"] == 4096
     assert pair["realized_context_bytes"] == 4096
     assert pair["contrast_variable"] == "state_inversion_status"
+    assert pair["tool_schema_digest"] == canary_spec.tool_inventory_digest
+    assert pair["verifier_truth_digest"] == canary_spec.verifier_truth_digest
     assert len(pair["arms"]) == 2
     assert pair["arms"][0]["task_id"] == CANARY_TASK_NON_INVERTED
     assert pair["arms"][1]["task_id"] == CANARY_TASK_INVERTED

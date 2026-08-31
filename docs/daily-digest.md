@@ -2,8 +2,7 @@
 status: living
 audience:
   - operator
-  - researcher
-  - developer
+  - builder
 ---
 # Automated Self-Repairing Daily Digest
 
@@ -59,7 +58,7 @@ A Markdown table with relative links verified to exist on disk:
 ```markdown
 | Time | Author | Document | Summary |
 |---|---|---|---|
-| 14:30:00 | researcher | [trajectory-analysis](../research/analysis/trajectory-analysis.md) | Initial benchmark comparison findings. |
+| 00:00:00 | researcher | [trajectory-analysis](../research/analysis/trajectory-analysis.md) | Initial benchmark comparison findings. |
 ```
 
 ---

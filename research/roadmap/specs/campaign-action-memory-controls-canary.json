@@ -1,0 +1,52 @@
+{
+  "schema_version": "campaign-definition/v2",
+  "campaign_id": "campaign-action-memory-controls-canary-v1",
+  "roadmap_ref": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
+  "evidence_pin": "6eebed8751c74133bc76400a5c2d69a4911a2be3",
+  "author": "data-engineer",
+  "date": "2026-08-31",
+  "status": "designed",
+  "execution_policy": {
+    "allow_billable": false,
+    "require_human_approval": true,
+    "max_concurrent_trials": 1,
+    "max_transient_retries": 0,
+    "max_wall_clock_seconds": 600,
+    "max_input_tokens": 100000,
+    "max_cost_usd": 0.0
+  },
+  "benchmark_family": "action-memory-v1",
+  "construct": "actionable_entity_memory_and_value_binding",
+  "pair_definition": {
+    "pair_id": "am-state-inversion-canary-s42-4k",
+    "seed": 42,
+    "dose_bytes": 4096,
+    "contrast_variable": "state_inversion_status",
+    "arms": [
+      {
+        "arm_id": "control_non_inverted",
+        "task_id": "am-state-inversion-canary-s42-4k-arm0-non-inverted",
+        "condition": "baseline_clean_non_inverted",
+        "inversion_count": 0,
+        "repeats": 1
+      },
+      {
+        "arm_id": "treatment_state_inverted",
+        "task_id": "am-state-inversion-canary-s42-4k-arm1-inverted",
+        "condition": "stale_value_override_inversion",
+        "inversion_count": 1,
+        "repeats": 1
+      }
+    ]
+  },
+  "candidate_profile": {
+    "profile_id": "generic-qualified-profile",
+    "agent": "zai-opencode",
+    "model": "glm-4-flash",
+    "note": "Executable through generic qualified-profile path post-qualification. Zero billable executions in control lane."
+  },
+  "lineage": {
+    "control_module": "library/benchmarks/action-memory-v1/control_canary.py",
+    "tests": "tests/test_action_memory_controls.py"
+  }
+}

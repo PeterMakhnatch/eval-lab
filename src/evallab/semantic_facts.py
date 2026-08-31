@@ -33,11 +33,80 @@ def _digest(value: Any) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
+CONTEXT_OPERATION_PAYLOAD_DOMAIN: bytes = b"evallab.context-operation-payload.v1\x00"
+REQUIRED_CONTEXT_PAYLOAD_KEYS: frozenset[str] = frozenset(
+    {"summary", "forgotten_message_indices", "compression_metadata"}
+)
+
+
 def context_operation_content_digest(payload: Mapping[str, Any]) -> Digest:
-    """Digest one exact canonical context-operation payload without reordering arrays."""
-    if not all(isinstance(key, str) for key in payload):
-        raise ValueError("context operation payload keys must be strings")
-    return _digest(dict(payload))
+    """Digest one exact canonical context-operation payload with versioned domain separation.
+
+    Requires exact keys:
+        - summary: str
+        - forgotten_message_indices: Sequence[int] of non-negative strict integers
+        - compression_metadata: Mapping[str, Any] with string keys and JSON-serializable values
+
+    Rejects missing keys, extra keys, non-string keys, invalid index types (bool, float, str, negative),
+    or non-JSON metadata.
+    """
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"context operation payload must be a mapping, got {type(payload).__name__}")
+
+    payload_keys = set(payload.keys())
+    if payload_keys != REQUIRED_CONTEXT_PAYLOAD_KEYS:
+        missing = sorted(REQUIRED_CONTEXT_PAYLOAD_KEYS - payload_keys)
+        extra = sorted(payload_keys - REQUIRED_CONTEXT_PAYLOAD_KEYS)
+        details = []
+        if missing:
+            details.append(f"missing={missing}")
+        if extra:
+            details.append(f"extra={extra}")
+        raise ValueError(f"context operation payload keys mismatch: {', '.join(details)}")
+
+    summary = payload["summary"]
+    if not isinstance(summary, str):
+        raise ValueError(f"summary must be a string, got {type(summary).__name__}")
+
+    raw_indices = payload["forgotten_message_indices"]
+    if not isinstance(raw_indices, (list, tuple)) or isinstance(raw_indices, (str, bytes)):
+        raise ValueError(
+            f"forgotten_message_indices must be a list or tuple of integers, got {type(raw_indices).__name__}"
+        )
+    validated_indices: list[int] = []
+    for idx, item in enumerate(raw_indices):
+        if isinstance(item, bool) or not isinstance(item, int) or item < 0:
+            raise ValueError(
+                f"forgotten_message_indices[{idx}] must be a strict non-negative integer, got {item!r} ({type(item).__name__})"
+            )
+        validated_indices.append(item)
+
+    compression_metadata = payload["compression_metadata"]
+    if not isinstance(compression_metadata, Mapping) or isinstance(compression_metadata, str):
+        raise ValueError(
+            f"compression_metadata must be a mapping, got {type(compression_metadata).__name__}"
+        )
+    if not all(isinstance(k, str) for k in compression_metadata):
+        raise ValueError("compression_metadata keys must all be strings")
+
+    canonical_obj = {
+        "summary": summary,
+        "forgotten_message_indices": validated_indices,
+        "compression_metadata": dict(compression_metadata),
+    }
+
+    try:
+        canonical_json_bytes = json.dumps(
+            canonical_obj,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"compression_metadata contains non-JSON serializable values: {exc}") from exc
+
+    digest_bytes = CONTEXT_OPERATION_PAYLOAD_DOMAIN + canonical_json_bytes
+    return f"sha256:{hashlib.sha256(digest_bytes).hexdigest()}"
 
 
 class FactRow(ContractModel):
@@ -479,6 +548,7 @@ __all__ = [
     "RetrievalFact",
     "ConstraintFact",
     "ContextOperationFact",
+    "CONTEXT_OPERATION_PAYLOAD_DOMAIN",
     "context_operation_content_digest",
     "PairedConditionFact",
     "SessionDependencyFact",

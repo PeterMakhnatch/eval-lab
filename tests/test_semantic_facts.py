@@ -253,3 +253,43 @@ def test_context_payload_digest_binds_summary_order_and_compression_metadata() -
     assert baseline != context_operation_content_digest(summary_changed)
     assert baseline != context_operation_content_digest(order_changed)
     assert baseline != context_operation_content_digest(metadata_changed)
+
+
+def test_context_payload_digest_domain_separation_and_rejections() -> None:
+    payload = {
+        "summary": "The user selected the red key.",
+        "forgotten_message_indices": [2, 5, 8],
+        "compression_metadata": {"method": "summary", "input_tokens": 1200},
+    }
+    digest_val = context_operation_content_digest(payload)
+
+    # 1. Assert domain separation from bare JSON hash
+    bare_json_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    bare_digest = "sha256:" + hashlib.sha256(bare_json_bytes).hexdigest()
+    assert digest_val != bare_digest, "context_operation_content_digest must be domain-separated"
+
+    # 2. Reject missing required fields
+    with pytest.raises(ValueError, match="missing="):
+        context_operation_content_digest({})
+    with pytest.raises(ValueError, match="missing="):
+        context_operation_content_digest({"summary": "hello"})
+
+    # 3. Reject extra fields
+    with pytest.raises(ValueError, match="extra="):
+        context_operation_content_digest({**payload, "extra_field": 123})
+
+    # 4. Reject malformed indices
+    with pytest.raises(ValueError, match="strict non-negative integer"):
+        context_operation_content_digest({**payload, "forgotten_message_indices": [True, 2]})
+    with pytest.raises(ValueError, match="strict non-negative integer"):
+        context_operation_content_digest({**payload, "forgotten_message_indices": [2.5, 5]})
+    with pytest.raises(ValueError, match="strict non-negative integer"):
+        context_operation_content_digest({**payload, "forgotten_message_indices": [-1, 5]})
+    with pytest.raises(ValueError, match="strict non-negative integer"):
+        context_operation_content_digest({**payload, "forgotten_message_indices": ["2", 5]})
+
+    # 5. Reject non-dict or non-string-keyed compression_metadata
+    with pytest.raises(ValueError, match="compression_metadata must be a mapping"):
+        context_operation_content_digest({**payload, "compression_metadata": "not-a-map"})
+    with pytest.raises(ValueError, match="compression_metadata keys must all be strings"):
+        context_operation_content_digest({**payload, "compression_metadata": {1: "val"}})

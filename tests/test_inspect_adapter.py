@@ -11,6 +11,7 @@ from evallab.inspect_adapter import (
     load_inspect_eval_fixture_json,
     load_inspect_eval_log,
     project_inspect_eval_log,
+    project_inspect_outcomes,
 )
 
 
@@ -483,6 +484,13 @@ def test_scores_authority_defaults_to_non_decision() -> None:
         assert score.outcome_namespace == "inspect"
         assert score.authority == "non_decision"
         assert score.is_deterministic is False
+    outcomes = project_inspect_outcomes(projection)
+    assert len(outcomes) == len(projection.scores)
+    assert all(outcome.outcome_kind.value == "inspect_scorer" for outcome in outcomes)
+    assert all(outcome.authority_state.value == "non_decision" for outcome in outcomes)
+    assert all(outcome.is_valid_reward is False for outcome in outcomes)
+    assert all(outcome.is_summable is False for outcome in outcomes)
+    assert all(outcome.source_digest == projection.run.source_digest for outcome in outcomes)
 
 
 def test_cli_ingest_requires_cas_with_eval_file(tmp_path: Path, capsys) -> None:

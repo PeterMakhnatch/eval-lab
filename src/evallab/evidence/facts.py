@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import subprocess
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,14 @@ from pydantic import ValidationError
 
 from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
 from evallab.evidence.parquet_io import write_table_atomic
+from evallab.outcome_authority import (
+    OutcomeRecord,
+    VerifierOutcomeStatus,
+    outcome_record_from_regrade,
+    outcome_record_from_trial,
+    resolve_outcome_authority,
+    synthetic_fallback_record,
+)
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
@@ -335,8 +344,6 @@ class RebuildResult:
         )
 
 
-
-
 def _invalid_state_journal(status: str, reason: str) -> StateJournalRecord:
     return StateJournalRecord("invalid" if status == "available" else status, reason, ())
 
@@ -352,9 +359,10 @@ def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
         return StateJournalRecord("invalid", f"status_unreadable:{type(exc).__name__}", ())
     if not isinstance(status_payload, dict):
         return StateJournalRecord("invalid", "status_invalid", ())
-    if type(status_payload.get("schema_version")) is not int or status_payload.get(
-        "schema_version"
-    ) != 1:
+    if (
+        type(status_payload.get("schema_version")) is not int
+        or status_payload.get("schema_version") != 1
+    ):
         return StateJournalRecord("invalid", "status_schema_invalid", ())
     status_value = status_payload.get("status")
     status = status_value if isinstance(status_value, str) and status_value else "invalid"
@@ -483,6 +491,7 @@ def extract_trial_fact(
         verifier_digest=verifier_digest,
         environment_digest=environment_digest,
     )
+    resolved_reward, _ = resolve_trial_primary_reward(job, trial)
     return TrialFact(
         experiment_id=experiment_id(job),
         job_id=job.id,
@@ -522,7 +531,7 @@ def extract_trial_fact(
         agent_name=_string(agent_info.get("name")),
         agent_version=_string(agent_info.get("version")),
         model_name=_string(model_info.get("name") or model_info.get("model_name")),
-        primary_reward=trial.primary_reward,
+        primary_reward=resolved_reward,
         exception_class=exception_class,
         exception_phase=_exception_phase(exception_class),
         duration_seconds=duration_seconds(
@@ -1149,6 +1158,93 @@ def _source_digests(trial: TrialRecord, cited_paths: set[str]) -> AnalysisSource
         trajectory=(_analysis_file_digest(trajectory_path) if trajectory_path.is_file() else None),
         files=files,
     )
+
+
+def _explicit_job_summary_reward(job: JobRecord, trial: TrialRecord) -> float | None:
+    """Return a job-summary reward only when Harbor binds it to this trial name."""
+    stats = job.result.get("stats")
+    evals = stats.get("evals") if isinstance(stats, dict) else None
+    if not isinstance(evals, dict):
+        return None
+    for eval_stats in evals.values():
+        if not isinstance(eval_stats, dict):
+            continue
+        reward_stats = eval_stats.get("reward_stats")
+        reward_distribution = reward_stats.get("reward") if isinstance(reward_stats, dict) else None
+        if not isinstance(reward_distribution, dict):
+            continue
+        for raw_value, trial_names in reward_distribution.items():
+            if not isinstance(trial_names, list) or trial.name not in trial_names:
+                continue
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                return None
+            return value if math.isfinite(value) else None
+    return None
+
+
+def extract_outcome_records(
+    job: JobRecord,
+    trial: TrialRecord,
+    regrade_trials: Sequence[TrialRecord] = (),
+) -> list[OutcomeRecord]:
+    """Build immutable outcome facts for a source trial and explicit regrades."""
+    source_digest = _analysis_file_digest(trial.path / "result.json")
+    verifier_digest = _verifier_digest(job, trial)
+    original = outcome_record_from_trial(
+        trial,
+        source_digest=source_digest,
+        verifier_digest=verifier_digest,
+    )
+    records = [original]
+
+    fallback_reward = _explicit_job_summary_reward(job, trial)
+    if (
+        original.verifier_status == VerifierOutcomeStatus.timed_out_without_result
+        and original.reward_value is None
+        and fallback_reward is not None
+    ):
+        records.append(
+            synthetic_fallback_record(
+                original,
+                reward_value=fallback_reward,
+                evidence_path=str(job.path / "result.json"),
+            )
+        )
+
+    for regrade in regrade_trials:
+        records.append(
+            outcome_record_from_regrade(
+                regrade,
+                trial.id,
+                source_digest=source_digest,
+                source_artifact_digest=original.artifact_digest,
+                source_artifact_status=original.artifact_status,
+                source_agent_status=original.agent_status,
+                source_agent_exception=original.agent_exception,
+            )
+        )
+    return records
+
+
+def resolve_trial_primary_reward(
+    job: JobRecord,
+    trial: TrialRecord,
+    regrade_trials: Sequence[TrialRecord] = (),
+) -> tuple[float | None, list[OutcomeRecord]]:
+    """Return the authoritative reward and the outcome records for a trial."""
+    outcomes = extract_outcome_records(job, trial, regrade_trials)
+    resolution = resolve_outcome_authority(
+        outcomes,
+        {
+            "trial_id": trial.id,
+            "source_digest": _analysis_file_digest(trial.path / "result.json"),
+            "verifier_digest": _verifier_digest(job, trial),
+            "artifact_digest": outcomes[0].artifact_digest,
+        },
+    )
+    return resolution.composite_vector.resolved_reward, outcomes
 
 
 def _load_trajectory_steps(path: Path) -> list[JsonObject] | None:

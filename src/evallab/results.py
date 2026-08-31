@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -89,10 +89,14 @@ class TrialRecord:
     lock: JsonObject
     rewards: dict[str, float]
     artifacts: tuple[ArtifactRecord, ...]
+    is_regrade: bool = False
+    source_trial_id: str | None = None
+    valid_fraction: float | None = None
+    verifier_status: str | None = None
 
     @property
     def id(self) -> str:
-        return str(self.result["id"])
+        return str(self.result.get("id", self.path.name))
 
     @property
     def name(self) -> str:
@@ -205,6 +209,38 @@ def _load_artifacts(trial_dir: Path) -> tuple[ArtifactRecord, ...]:
     return tuple(records)
 
 
+def _optional_float(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def _is_regrade_trial_result(result: JsonObject) -> bool:
+    """Detect a standalone verifier-only regrade trial result."""
+    if not isinstance(result, dict):
+        return False
+    if "task_name" not in result or "trial_name" not in result:
+        return False
+    # Job-level roll-ups carry n_total_trials and stats; regrades do not.
+    if "n_total_trials" in result or "stats" in result:
+        return False
+    if result.get("is_regrade"):
+        return True
+    if result.get("source_trial_id") or result.get("source_trial"):
+        return True
+    return str(result.get("trial_name", "")).endswith("_regrade")
+
+
+def _source_trial_id_for_regrade(trial_dir: Path, result: JsonObject) -> str | None:
+    source = result.get("source_trial_id") or result.get("source_trial")
+    if source:
+        return str(source)
+    trial_name = str(result.get("trial_name", trial_dir.name))
+    if trial_name.endswith("_regrade"):
+        return trial_name[: -len("_regrade")]
+    return None
+
+
 def load_trial(trial_dir: Path) -> TrialRecord:
     result = _load_object(trial_dir / "result.json")
     verifier_result = result.get("verifier_result") or {}
@@ -214,6 +250,8 @@ def load_trial(trial_dir: Path) -> TrialRecord:
         for name, value in raw_rewards.items()
         if isinstance(value, int | float)
     }
+    is_regrade = _is_regrade_trial_result(result)
+    source_trial_id = _source_trial_id_for_regrade(trial_dir, result) if is_regrade else None
     return TrialRecord(
         path=trial_dir,
         result=result,
@@ -221,7 +259,29 @@ def load_trial(trial_dir: Path) -> TrialRecord:
         lock=_load_object(trial_dir / "lock.json"),
         rewards=rewards,
         artifacts=_load_artifacts(trial_dir),
+        is_regrade=is_regrade,
+        source_trial_id=source_trial_id,
+        valid_fraction=_optional_float(verifier_result.get("valid_fraction")),
+        verifier_status=verifier_result.get("status"),
     )
+
+
+def load_regrade_trial(trial_dir: Path) -> TrialRecord:
+    """Load a standalone verifier-only regrade trial and link it to its source."""
+    trial = load_trial(trial_dir)
+    updates: dict[str, Any] = {"is_regrade": True}
+    if trial.source_trial_id is None:
+        source_id = _source_trial_id_for_regrade(trial_dir, trial.result)
+        if source_id is not None:
+            updates["source_trial_id"] = source_id
+    if not trial.result.get("id"):
+        # Regrades may not carry a UUID; derive a stable id from the path.
+        result = dict(trial.result)
+        result["id"] = trial.path.name
+        updates["result"] = result
+    if updates:
+        trial = replace(trial, **updates)
+    return trial
 
 
 def load_job(job_dir: Path) -> JobRecord:
@@ -317,6 +377,28 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
             # abort the scan.
             result = _try_load_object(result_path)
             if "n_total_trials" in result and "stats" in result and result.get("finished_at"):
+                discovered[candidate] = None
+    return sorted(discovered)
+
+
+def discover_regrade_trials(roots: Iterable[Path]) -> list[Path]:
+    """Discover standalone verifier-only regrade trial directories.
+
+    Regrade directories are not Harbor jobs: they have no ``n_total_trials``
+    roll-up and are linked to a source trial by ``source_trial_id`` or by a
+    ``_regrade`` trial-name suffix.
+    """
+    discovered: dict[Path, None] = {}
+    for raw_root in roots:
+        root = raw_root.expanduser().resolve()
+        if not root.exists():
+            continue
+        for result_path in root.rglob("result.json"):
+            candidate = result_path.parent
+            if _is_bookkeeping(candidate.relative_to(root)):
+                continue
+            result = _try_load_object(result_path)
+            if _is_regrade_trial_result(result):
                 discovered[candidate] = None
     return sorted(discovered)
 

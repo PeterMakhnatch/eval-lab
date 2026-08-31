@@ -14,7 +14,13 @@ from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
 from evallab.evidence.parquet_io import write_table_atomic
-from evallab.results import JobRecord, TrialRecord, sha256_file
+from evallab.results import (
+    JobRecord,
+    TrialRecord,
+    discover_regrade_trials,
+    load_regrade_trial,
+    sha256_file,
+)
 
 JsonObject = dict[str, Any]
 ValidationStatus = Literal["valid", "invalid", "unsupported"]
@@ -241,7 +247,6 @@ class ProjectionInvariant:
             )
             base += breakdown
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
-
 
 
 class _HarborTrajectory(Protocol):
@@ -845,6 +850,17 @@ def ingest_and_project(
     derived_root = output_root.resolve()
     database.initialize(database_url)
     cataloged_jobs = database.ingest(database_url, ordered_jobs, root=root)
+    regrade_roots = {
+        root / "runs",
+        root / "research/evidence/runs",
+        root / "evidence/runs",
+    }
+    regrade_roots.update(
+        job.path.parent for job in ordered_jobs if isinstance(getattr(job, "path", None), Path)
+    )
+    regrades = [load_regrade_trial(path) for path in discover_regrade_trials(sorted(regrade_roots))]
+    if regrades:
+        database.ingest_regrades(database_url, regrades, root=root)
     # Index document-level and deterministic facts before touching Parquet. The
     # paths describe the deterministic target even when a later write is recorded
     # as a projection exception.

@@ -40,6 +40,7 @@ from evallab.schemas import (
     TaskLimits,
     TaskRegistryRecord,
 )
+from evallab.synthetic_contracts import SyntheticCertificate
 
 
 def _make_dummy_task(
@@ -1156,6 +1157,36 @@ def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path:
     assert loaded is not None
     assert loaded.state == "candidate"
     assert loaded.digests.package == record.digests.package
+
+def test_synthetic_certificate_cannot_bypass_canonical_registration_packet(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/synthetic/zero-mutant-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    certificate = SyntheticCertificate(
+        spec_id="sha256:" + "1" * 64,
+        status="experimental",
+        static_reachability=True,
+        clean_reset_passed=True,
+        oracle_3x_passed=True,
+        nop_failed=True,
+        mutants_tested_count=0,
+        mutants_failed_count=0,
+        alignment_audit_passed=True,
+        regeneration_idempotent=True,
+        secret_isolation_passed=True,
+    )
+
+    assert certificate.is_passing is False
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
+        promote_task(
+            "library/synthetic/zero-mutant-task",
+            tmp_path,
+            state="registered",
+            actor="independent-reviewer",
+            allowed_uses=["measurement"],
+        )
 
 
 def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> None:

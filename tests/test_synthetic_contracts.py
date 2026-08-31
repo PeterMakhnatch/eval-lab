@@ -182,6 +182,28 @@ def test_synthetic_certificate_mutant_bounds_validation() -> None:
         )
 
 
+@pytest.mark.parametrize("mutants_tested", [0, 1, 2])
+def test_synthetic_certificate_requires_three_mutants_to_pass(
+    mutants_tested: int,
+) -> None:
+    certificate = SyntheticCertificate(
+        spec_id=SAMPLE_SHA256_1,
+        status="experimental",
+        static_reachability=True,
+        clean_reset_passed=True,
+        oracle_3x_passed=True,
+        nop_failed=True,
+        mutants_tested_count=mutants_tested,
+        mutants_failed_count=mutants_tested,
+        alignment_audit_passed=True,
+        regeneration_idempotent=True,
+        secret_isolation_passed=True,
+    )
+
+    assert certificate.status == "experimental"
+    assert certificate.is_passing is False
+
+
 def test_transformation_and_lineage_fact() -> None:
     t1 = TransformationFact(
         step_order=0,

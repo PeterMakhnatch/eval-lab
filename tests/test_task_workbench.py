@@ -1851,6 +1851,55 @@ def test_packet_can_write_isolated_root_under_candidate_boundary(tmp_path: Path)
     assert certification_path == packet_dir / "certification.json"
     assert json.loads(certification_path.read_text())["certified"] is True
 
+def test_canonical_envelope_refuses_zero_adversarial_controls(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    record = _bound_registry_record(repo, task, certification_path)
+    body = json.loads(certification_path.read_bytes())
+    invalid_ids = {
+        item["control_id"]
+        for item in body["control_plan"]
+        if item["kind"] == "adversarial"
+    }
+    body["control_plan"] = [
+        item for item in body["control_plan"] if item["control_id"] not in invalid_ids
+    ]
+    observations = [
+        item
+        for item in body["control_bundle"]["observations"]
+        if item["control_id"] not in invalid_ids
+    ]
+    body["control_bundle"]["observations"] = observations
+    body["control_summary"]["invalid_probe_runs"] = 0
+    body["control_summary"]["result_digests"] = [
+        _digest(_canonical(item)) for item in observations
+    ]
+    body["check_vector"]["invalid_outputs_rejected"] = False
+    body.pop("certification_id")
+    body["certification_id"] = (
+        "cert-" + hashlib.sha256(_canonical(body)).hexdigest()[:24]
+    )
+    certification_path.write_bytes(_canonical(body))
+
+    with pytest.raises(
+        TaskCertificationError,
+        match="required check vector is not fully satisfied",
+    ):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+
 
 def test_certificate_binds_registry_reload_and_rejects_tamper_replay_and_circularity(
     tmp_path: Path,

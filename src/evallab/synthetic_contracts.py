@@ -228,7 +228,7 @@ class SyntheticCertificate(ContractModel):
 
     @property
     def is_passing(self) -> bool:
-        """Evaluate if all verification checks passed successfully."""
+        """Evaluate the non-vacuous experimental certification relation."""
         return (
             self.status == "experimental"
             and self.static_reachability
@@ -238,7 +238,8 @@ class SyntheticCertificate(ContractModel):
             and self.alignment_audit_passed
             and self.regeneration_idempotent
             and self.secret_isolation_passed
-            and (self.mutants_failed_count >= self.mutants_tested_count)
+            and self.mutants_tested_count >= 3
+            and self.mutants_failed_count == self.mutants_tested_count
         )
 
 

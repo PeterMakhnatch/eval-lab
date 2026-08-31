@@ -1,0 +1,132 @@
+{
+  "schema_version": "memory-tool-factorial-design/v1",
+  "status": "dependency_hold",
+  "family_id": "memory-tool-use-2x2-candidate-v1",
+  "construct": "executing_agent_memory_continuity_x_tool_dependency",
+  "factors": [
+    {
+      "name": "memory_continuity",
+      "levels": ["absent", "present"],
+      "semantics": {
+        "absent": "All decision-critical state is supplied in the current execution episode; any prior episode contains only length-matched neutral material.",
+        "present": "At least one decision-critical state binding is available only through executing-agent state retained from a prior episode."
+      }
+    },
+    {
+      "name": "tool_dependency",
+      "levels": ["absent", "present"],
+      "semantics": {
+        "absent": "The task is solvable and verifiable without invoking an exposed tool.",
+        "present": "At least one declared tool result or state transition is necessary for a valid solution."
+      }
+    }
+  ],
+  "cells": [
+    {
+      "cell_id": "memory-absent__tool-absent",
+      "memory_continuity": "absent",
+      "tool_dependency": "absent"
+    },
+    {
+      "cell_id": "memory-absent__tool-present",
+      "memory_continuity": "absent",
+      "tool_dependency": "present"
+    },
+    {
+      "cell_id": "memory-present__tool-absent",
+      "memory_continuity": "present",
+      "tool_dependency": "absent"
+    },
+    {
+      "cell_id": "memory-present__tool-present",
+      "memory_continuity": "present",
+      "tool_dependency": "present"
+    }
+  ],
+  "matched_axes": [
+    "context_length",
+    "tool_schema",
+    "tool_inventory",
+    "task_template",
+    "verifier_implementation",
+    "execution_profile",
+    "generator_version",
+    "seed"
+  ],
+  "generator_calibration": {
+    "designer_history_and_hint_regret_use": "generator_curriculum_only",
+    "executing_agent_memory_factor_source": "runtime_condition_only",
+    "executing_agent_memory_is_generator_memory": false,
+    "heldout_measurement_failures_used": false
+  },
+  "required_upstream_identities": [
+    {
+      "owner_lane": "action-memory",
+      "artifact": "stable action-memory source task identity",
+      "required_fields": [
+        "task_ref",
+        "source_task_digest",
+        "task_template_digest",
+        "verifier_digest",
+        "profile_digest"
+      ],
+      "status": "pending"
+    },
+    {
+      "owner_lane": "mcp-funcdag",
+      "artifact": "stable MCP/tool-use source task identity",
+      "required_fields": [
+        "task_ref",
+        "source_task_digest",
+        "tool_schema_digest",
+        "tool_inventory_digest",
+        "verifier_digest"
+      ],
+      "status": "pending"
+    }
+  ],
+  "lineage": {
+    "paired_lineage_spec_status": "not_created_dependency_hold",
+    "source_task_digests": null,
+    "generated_task_digests": null,
+    "base_task_pair": null,
+    "template_lineage_id": null,
+    "oracle_owner": null,
+    "verifier_owner": null,
+    "mutation_coverage": null
+  },
+  "partition": {
+    "status": "not_assigned_dependency_hold",
+    "assignment_precedes_generation": true,
+    "grouping_unit": "source_task_family_and_template_lineage",
+    "algorithm": null,
+    "salt_digest": null,
+    "manifest_digest": null
+  },
+  "negative_controls_required": [
+    "zero_mutants",
+    "no_op_mutant",
+    "verifier_leak_mutant",
+    "known_unsolvable_mutant",
+    "reset_failure",
+    "lineage_partition_overlap",
+    "insufficient_independent_oracle_evidence"
+  ],
+  "canonical_admission": {
+    "path": [
+      "task_workbench certification packet",
+      "TaskCertificationEnvelope",
+      "registry.promote_task / TaskRegistryRecord"
+    ],
+    "minimum_adversarial_invalid_probes": 3,
+    "synthetic_certificate_is_passing_direct_measurement_consumer": false,
+    "new_promotion_schema_added": false
+  },
+  "execution": {
+    "model_runs": 0,
+    "certification_runs": 0,
+    "registration_attempts": 0,
+    "measurement_authorized": false,
+    "replication_authorized": false
+  }
+}

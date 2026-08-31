@@ -28,18 +28,23 @@ def _sample_scale_binding(
     authority_kind: Literal["benchmark_contract", "deterministic_verifier"] = "benchmark_contract",
     visible_split_id: str = "val",
     hidden_split_id: str = "test",
+    task_digest: str = "sha256:" + "1" * 64,
+    verifier_digest: str = "sha256:" + "2" * 64,
+    metric_config_digest: str = "sha256:" + "3" * 64,
+    visible_outcome_binding_digest: str = "sha256:" + "4" * 64,
+    hidden_outcome_binding_digest: str = "sha256:" + "5" * 64,
 ) -> ScoreScaleBindingV1:
     return ScoreScaleBindingV1.create(
         authority_kind=authority_kind,
         metric_name=metric_name,
         direction=direction,
-        task_digest="sha256:" + "1" * 64,
-        verifier_digest="sha256:" + "2" * 64,
-        metric_config_digest="sha256:" + "3" * 64,
+        task_digest=task_digest,
+        verifier_digest=verifier_digest,
+        metric_config_digest=metric_config_digest,
         visible_split_id=visible_split_id,
         hidden_split_id=hidden_split_id,
-        visible_outcome_binding_digest="sha256:" + "4" * 64,
-        hidden_outcome_binding_digest="sha256:" + "5" * 64,
+        visible_outcome_binding_digest=visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=hidden_outcome_binding_digest,
     )
 
 
@@ -53,6 +58,11 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
         source_record_id="rec-123",
         source_revision_id="rev-456",
         source_digest="sha256:" + "1" * 64,
+        task_digest=scale_binding.task_digest,
+        verifier_digest=scale_binding.verifier_digest,
+        metric_config_digest=scale_binding.metric_config_digest,
+        visible_outcome_binding_digest=scale_binding.visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=scale_binding.hidden_outcome_binding_digest,
         baseline_visible_score=10.0,
         score_direction="higher",
         score_scale_binding=scale_binding,
@@ -133,6 +143,13 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
     assert features.source_record_id == "rec-123"
     assert features.source_revision_id == "rev-456"
     assert features.score_direction == "higher"
+
+    # Provenance digests
+    assert features.task_digest == scale_binding.task_digest
+    assert features.verifier_digest == scale_binding.verifier_digest
+    assert features.metric_config_digest == scale_binding.metric_config_digest
+    assert features.visible_outcome_binding_digest == scale_binding.visible_outcome_binding_digest
+    assert features.hidden_outcome_binding_digest == scale_binding.hidden_outcome_binding_digest
 
     # 1. Experiment Throughput & Validity
     assert features.iteration_count == 5
@@ -231,6 +248,7 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
     assert record["visible_improvement"] == 4.0
     assert record["selected_iteration_id"] == "v5"
     assert record["scale_binding_digest"] == scale_binding.binding_digest
+    assert record["task_digest"] == scale_binding.task_digest
 
 
 def test_selected_iteration_id_governs_final_visible_score_and_regret() -> None:
@@ -409,6 +427,11 @@ def test_score_scale_binding_validation_and_transfer_gap_gate() -> None:
             run_id="mismatch-run",
             benchmark_family="paperbench",
             source_digest="sha256:" + "3" * 64,
+            task_digest=binding.task_digest,
+            verifier_digest=binding.verifier_digest,
+            metric_config_digest=binding.metric_config_digest,
+            visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+            hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
             score_direction="lower",
             score_scale_binding=binding,  # binding has direction="higher"
             selected_iteration_id="v1",
@@ -429,6 +452,140 @@ def test_score_scale_binding_validation_and_transfer_gap_gate() -> None:
         hidden_outcome_binding_digest="sha256:" + "5" * 64,
     )
     assert binding.binding_digest != binding_alt.binding_digest
+
+
+def test_cross_binding_digest_parity_and_unbound_hidden_score() -> None:
+    binding = _sample_scale_binding(metric_name="loss", direction="lower")
+
+    # 1. Missing task_digest on trace when binding is supplied -> ValueError
+    with pytest.raises(
+        ValueError, match="task_digest is required on trace when score_scale_binding is supplied"
+    ):
+        ResearchRunTraceV1(
+            run_id="missing-task-dig",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "0" * 64,
+            score_direction="lower",
+            score_scale_binding=binding,
+            selected_iteration_id="i1",
+            iterations=(ResearchIterationV1(iteration_id="i1", visible_score=1.0),),
+        )
+
+    # 2. task_digest mismatch between trace and binding -> ValueError
+    with pytest.raises(ValueError, match="trace task_digest .* does not match score_scale_binding"):
+        ResearchRunTraceV1(
+            run_id="mismatch-task-dig",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "0" * 64,
+            task_digest="sha256:" + "9" * 64,  # mismatch with binding.task_digest
+            verifier_digest=binding.verifier_digest,
+            metric_config_digest=binding.metric_config_digest,
+            visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+            hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
+            score_direction="lower",
+            score_scale_binding=binding,
+            selected_iteration_id="i1",
+            iterations=(ResearchIterationV1(iteration_id="i1", visible_score=1.0),),
+        )
+
+    # 3. verifier_digest mismatch -> ValueError
+    with pytest.raises(
+        ValueError, match="trace verifier_digest .* does not match score_scale_binding"
+    ):
+        ResearchRunTraceV1(
+            run_id="mismatch-ver-dig",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "0" * 64,
+            task_digest=binding.task_digest,
+            verifier_digest="sha256:" + "9" * 64,  # mismatch
+            metric_config_digest=binding.metric_config_digest,
+            visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+            hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
+            score_direction="lower",
+            score_scale_binding=binding,
+            selected_iteration_id="i1",
+            iterations=(ResearchIterationV1(iteration_id="i1", visible_score=1.0),),
+        )
+
+    # 4. metric_config_digest mismatch -> ValueError
+    with pytest.raises(
+        ValueError, match="trace metric_config_digest .* does not match score_scale_binding"
+    ):
+        ResearchRunTraceV1(
+            run_id="mismatch-met-dig",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "0" * 64,
+            task_digest=binding.task_digest,
+            verifier_digest=binding.verifier_digest,
+            metric_config_digest="sha256:" + "9" * 64,  # mismatch
+            visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+            hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
+            score_direction="lower",
+            score_scale_binding=binding,
+            selected_iteration_id="i1",
+            iterations=(ResearchIterationV1(iteration_id="i1", visible_score=1.0),),
+        )
+
+    # 5. visible_outcome_binding_digest mismatch -> ValueError
+    with pytest.raises(
+        ValueError,
+        match="trace visible_outcome_binding_digest .* does not match score_scale_binding",
+    ):
+        ResearchRunTraceV1(
+            run_id="mismatch-vis-dig",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "0" * 64,
+            task_digest=binding.task_digest,
+            verifier_digest=binding.verifier_digest,
+            metric_config_digest=binding.metric_config_digest,
+            visible_outcome_binding_digest="sha256:" + "9" * 64,  # mismatch
+            hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
+            score_direction="lower",
+            score_scale_binding=binding,
+            selected_iteration_id="i1",
+            iterations=(ResearchIterationV1(iteration_id="i1", visible_score=1.0),),
+        )
+
+    # 6. hidden_outcome_binding_digest mismatch -> ValueError
+    with pytest.raises(
+        ValueError,
+        match="trace hidden_outcome_binding_digest .* does not match score_scale_binding",
+    ):
+        ResearchRunTraceV1(
+            run_id="mismatch-hid-dig",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "0" * 64,
+            task_digest=binding.task_digest,
+            verifier_digest=binding.verifier_digest,
+            metric_config_digest=binding.metric_config_digest,
+            visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+            hidden_outcome_binding_digest="sha256:" + "9" * 64,  # mismatch
+            score_direction="lower",
+            score_scale_binding=binding,
+            selected_iteration_id="i1",
+            iterations=(ResearchIterationV1(iteration_id="i1", visible_score=1.0),),
+        )
+
+    # 7. Game2048 scenario: hidden_score exists WITHOUT score_scale_binding (non-comparable scales)
+    game2048_trace = ResearchRunTraceV1(
+        run_id="game2048-unbound-hidden",
+        benchmark_family="rsi-exam/game2048",
+        source_digest="sha256:" + "e" * 64,
+        baseline_visible_score=10.0,
+        score_direction="higher",
+        score_scale_binding=None,  # NO binding
+        hidden_score=1500.0,  # hidden score in raw game score scale vs visible normalized 10.0
+        selected_iteration_id="v1",
+        iterations=(ResearchIterationV1(iteration_id="v1", visible_score=12.0),),
+    )
+    features_game2048 = extract_autonomous_research_features(game2048_trace)
+    assert features_game2048.hidden_score == 1500.0
+    assert features_game2048.final_visible_score == 12.0
+    assert features_game2048.score_scale_compatible is False
+    assert features_game2048.scale_binding_digest is None
+    assert (
+        features_game2048.visible_hidden_transfer_gap is None
+    )  # MUST be NULL, refuses incomparable transfer!
 
 
 def test_jsonl_experiment_log_parser_refuses_ambiguous_prose() -> None:
@@ -543,6 +700,11 @@ def test_lower_is_better_score_direction_semantics() -> None:
         run_id="loss-opt-run",
         benchmark_family="mle-bench/loss-minimization",
         source_digest="sha256:" + "6" * 64,
+        task_digest=scale_binding.task_digest,
+        verifier_digest=scale_binding.verifier_digest,
+        metric_config_digest=scale_binding.metric_config_digest,
+        visible_outcome_binding_digest=scale_binding.visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=scale_binding.hidden_outcome_binding_digest,
         baseline_visible_score=2.5,
         score_direction="lower",
         score_scale_binding=scale_binding,
@@ -672,8 +834,8 @@ def test_unmeasured_revert_calculates_rollback_rate_correctly() -> None:
 
 def test_feature_registry_governance_for_autonomous_research_family() -> None:
     family_features = TRAJECTORY_FEATURE_REGISTRY.by_family("autonomous-research-v1")
-    assert len(family_features) == 69, (
-        f"Expected 69 registered features, got {len(family_features)}"
+    assert len(family_features) == 74, (
+        f"Expected 74 registered features, got {len(family_features)}"
     )
 
     # Audit denominator policies and verdict coupling for all features in family
@@ -711,6 +873,11 @@ def test_benchmark_feature_coverage_and_yield() -> None:
         source_record_id="rec-1",
         source_revision_id="rev-1",
         source_digest="sha256:" + "9" * 64,
+        task_digest=scale_binding.task_digest,
+        verifier_digest=scale_binding.verifier_digest,
+        metric_config_digest=scale_binding.metric_config_digest,
+        visible_outcome_binding_digest=scale_binding.visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=scale_binding.hidden_outcome_binding_digest,
         baseline_visible_score=5.0,
         score_scale_binding=scale_binding,
         hidden_score=8.0,
@@ -760,7 +927,7 @@ def test_benchmark_feature_coverage_and_yield() -> None:
 
     yield_diag = compute_benchmark_feature_yield([record], family="autonomous-research-v1")
     assert yield_diag["total_records"] == 1
-    assert len(yield_diag["feature_stats"]) == 69
+    assert len(yield_diag["feature_stats"]) == 74
 
 
 def test_trace_validation_rejects_duplicate_iteration_ids_and_non_finite_scores() -> None:

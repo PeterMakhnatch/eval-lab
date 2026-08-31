@@ -6,6 +6,7 @@ import math
 import posixpath
 import re
 from datetime import date, datetime
+from pathlib import PurePosixPath
 from typing import Any, Literal, cast, get_args
 from uuid import UUID
 
@@ -1340,6 +1341,124 @@ class CertificationCheckVector(ContractModel):
     isolation: bool
 
 
+DURABLE_EXTERNAL_IMPORT_PREFIX = "research/registration/imports/"
+
+
+def _external_import_path(value: str, label: str) -> str:
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"{label} must stay repository-relative")
+    if not value.startswith(DURABLE_EXTERNAL_IMPORT_PREFIX):
+        raise ValueError(f"{label} must be under {DURABLE_EXTERNAL_IMPORT_PREFIX!r}")
+    return value
+
+
+class ExternalImportLineageV1(ContractModel):
+    schema_version: Literal[1] = 1
+    source_task_id: str = Field(min_length=1)
+    source_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_checkpoint_ref: str = Field(min_length=1)
+    transformation_record_path: str = Field(min_length=1)
+    transformation_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("transformation_record_path")
+    @classmethod
+    def transformation_record_is_durable(cls, value: str) -> str:
+        value = _external_import_path(value, "transformation_record_path")
+        if not value.endswith(".json"):
+            raise ValueError("transformation_record_path must name a JSON record")
+        return value
+
+
+class ExternalImportSourceV1(ContractModel):
+    source_uri: str = Field(min_length=1)
+    source_ref: str = Field(min_length=1)
+    source_task_id: str = Field(min_length=1)
+    source_checkpoint_ref: str = Field(min_length=1)
+    source_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class ExternalImportTransformerV1(ContractModel):
+    name: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    code_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    configuration_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class ExternalImportTransformationFactV1(ContractModel):
+    sequence: int = Field(ge=1)
+    operation: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    affected_paths: list[str] = Field(default_factory=list)
+
+    @field_validator("affected_paths")
+    @classmethod
+    def affected_paths_are_relative(cls, values: list[str]) -> list[str]:
+        for value in values:
+            path = PurePosixPath(value)
+            if not value or path.is_absolute() or ".." in path.parts:
+                raise ValueError("transformation affected_paths must be safe relative paths")
+        return values
+
+
+class ExternalImportOutputV1(ContractModel):
+    task_id: str = Field(min_length=1)
+    task_version: str = Field(min_length=1)
+    registry_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class ExternalImportReproducibilityV1(ContractModel):
+    clean_build_output_digests: tuple[str, str]
+
+    @field_validator("clean_build_output_digests")
+    @classmethod
+    def clean_build_digests_are_sha256(cls, values: tuple[str, str]) -> tuple[str, str]:
+        if any(not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values):
+            raise ValueError("clean build output digests must be sha256 values")
+        return values
+
+
+class ExternalImportSemanticEquivalenceV1(ContractModel):
+    status: Literal["equivalent"]
+    evidence_path: str = Field(min_length=1)
+    evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("evidence_path")
+    @classmethod
+    def evidence_path_is_durable(cls, value: str) -> str:
+        return _external_import_path(value, "semantic equivalence evidence_path")
+
+
+class ExternalImportTransformationRecordV1(ContractModel):
+    schema_version: Literal[1] = 1
+    import_mode: Literal["no-op", "transformed"]
+    source: ExternalImportSourceV1
+    transformer: ExternalImportTransformerV1
+    transformations: list[ExternalImportTransformationFactV1] = Field(min_length=1)
+    output: ExternalImportOutputV1
+    reproducibility: ExternalImportReproducibilityV1
+    semantic_equivalence: ExternalImportSemanticEquivalenceV1
+
+    @model_validator(mode="after")
+    def validate_transformation_invariants(self) -> ExternalImportTransformationRecordV1:
+        sequences = [item.sequence for item in self.transformations]
+        if sequences != list(range(1, len(sequences) + 1)):
+            raise ValueError("transformation facts must have contiguous ordered sequence values")
+        source_digest = self.source.source_package_digest
+        output_digest = self.output.registry_package_digest
+        if self.import_mode == "no-op" and source_digest != output_digest:
+            raise ValueError("no-op import requires equal source and output package digests")
+        if self.import_mode == "transformed" and source_digest == output_digest:
+            raise ValueError(
+                "transformed import requires unequal source and output package digests"
+            )
+        if any(
+            digest != output_digest for digest in self.reproducibility.clean_build_output_digests
+        ):
+            raise ValueError("both clean builds must reproduce the output package digest")
+        return self
+
+
 class CertificationControlSummary(ContractModel):
     oracle_runs: int = Field(ge=0)
     nop_runs: int = Field(ge=0)
@@ -1494,6 +1613,7 @@ class TaskRegistryRecord(ContractModel):
     digests: TaskDigests
     source_uri: str = Field(min_length=1)
     source_ref: str | None = None
+    external_import_lineage: ExternalImportLineageV1 | None = None
     license: str | None = None
     provenance_zone: Literal[
         "01-external",

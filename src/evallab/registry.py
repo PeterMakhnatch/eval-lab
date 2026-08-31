@@ -22,6 +22,8 @@ from pydantic import ValidationError
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
+    ExternalImportLineageV1,
+    ExternalImportTransformationRecordV1,
     TaskAdmissionState,
     TaskAllowedUse,
     TaskCertificationEnvelope,
@@ -39,7 +41,7 @@ from evallab.task_workbench import (
 
 IGNORED_FILE_NAMES = {".DS_Store", ".git", "__pycache__", ".pytest_cache"}
 IGNORED_EXTENSIONS = {".pyc", ".pyo", ".tmp"}
-SUPPORTED_TASK_WORKBENCH_VERSIONS = frozenset({"m049-v1"})
+SUPPORTED_TASK_WORKBENCH_VERSIONS = frozenset({"m049-v1", "m049-v2"})
 
 
 def task_directory_digest(path: Path) -> str:
@@ -103,6 +105,7 @@ class TaskComponentMissingError(RegistryError):
 
 class TaskInventoryPolicyError(RegistryError):
     """Raised when the canary policy cannot support deterministic inventory."""
+
 
 def _should_ignore_file(path: Path) -> bool:
     if any(part in IGNORED_FILE_NAMES for part in path.parts):
@@ -168,6 +171,7 @@ def compute_task_digests(task_dir: Path) -> TaskDigests:
         package=package_digest,
     )
 
+
 def harbor_task_digest(task_dir: Path) -> str:
     """Reproduce Harbor's default local-task package digest."""
     files: list[Path] = []
@@ -210,15 +214,106 @@ def _digest_bytes(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
 
 
+def _external_import_artifact(repo_root: Path, relative: str, label: str) -> Path:
+    path = Path(relative)
+    resolved = (repo_root / path).resolve()
+    imports_root = (repo_root / "research/registration/imports").resolve()
+    try:
+        resolved.relative_to(imports_root)
+    except ValueError as exc:
+        raise TaskCertificationError(f"{label} is outside research/registration/imports") from exc
+    if path.is_absolute() or ".." in path.parts or not resolved.is_file():
+        raise TaskCertificationError(f"{label} is missing or has an unsafe path")
+    return resolved
+
+
+def _verify_external_import_binding(
+    repo_root: Path,
+    lineage: ExternalImportLineageV1,
+    *,
+    source_uri: str,
+    source_ref: str,
+    task_id: str,
+    task_version: str,
+    package_digest: str,
+) -> None:
+    record_path = _external_import_artifact(
+        repo_root, lineage.transformation_record_path, "transformation record"
+    )
+    raw_bytes = record_path.read_bytes()
+    if _digest_bytes(raw_bytes) != lineage.transformation_record_digest:
+        raise TaskCertificationError("transformation record digest mismatch")
+    try:
+        record = ExternalImportTransformationRecordV1.model_validate_json(raw_bytes)
+    except ValidationError as exc:
+        raise TaskCertificationError(f"transformation record is invalid: {exc}") from exc
+    exact_source = {
+        "source_uri": source_uri,
+        "source_ref": source_ref,
+        "source_task_id": lineage.source_task_id,
+        "source_checkpoint_ref": lineage.source_checkpoint_ref,
+        "source_package_digest": lineage.source_package_digest,
+    }
+    if record.source.model_dump(mode="json") != exact_source:
+        raise TaskCertificationError("transformation record input source lineage mismatch")
+    if (
+        record.output.task_id != task_id
+        or record.output.task_version != task_version
+        or record.output.registry_package_digest != package_digest
+    ):
+        raise TaskCertificationError("transformation record output runtime package mismatch")
+    evidence_path = _external_import_artifact(
+        repo_root,
+        record.semantic_equivalence.evidence_path,
+        "semantic equivalence evidence",
+    )
+    if evidence_path == record_path:
+        raise TaskCertificationError(
+            "semantic equivalence evidence and transformation record paths are ambiguous"
+        )
+    if _digest_bytes(evidence_path.read_bytes()) != record.semantic_equivalence.evidence_digest:
+        raise TaskCertificationError("semantic equivalence evidence digest mismatch")
+
+
+def verify_external_import_lineage(repo_root: Path, record: TaskRegistryRecord) -> None:
+    """Reopen and verify a registry record's external transformation lineage."""
+    lineage = record.external_import_lineage
+    successor_external = (
+        record.provenance_zone == "01-external"
+        and record.certification.workbench_version == "m049-v2"
+    )
+    if lineage is None:
+        if successor_external:
+            raise TaskCertificationError(
+                "m049-v2 external registry record requires external import lineage"
+            )
+        return
+    if record.provenance_zone != "01-external":
+        raise TaskCertificationError(
+            "external import lineage is only valid for 01-external registry records"
+        )
+    if record.source_ref is None:
+        raise TaskCertificationError(
+            "external import lineage requires an exact registry source_ref"
+        )
+    _verify_external_import_binding(
+        repo_root.resolve(),
+        lineage,
+        source_uri=record.source_uri,
+        source_ref=record.source_ref,
+        task_id=record.task_id,
+        task_version=record.version,
+        package_digest=record.digests.package,
+    )
+
+
 def _packet_mapping(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TaskCertificationError(f"{label} must be an object")
     return value
 
 
-def _verify_packet_artifacts(
-    repo_root: Path, packet_dir: Path, items: Any, label: str
-) -> None:
+def _verify_packet_artifacts(repo_root: Path, packet_dir: Path, items: Any, label: str) -> None:
     if not isinstance(items, list):
         raise TaskCertificationError(f"{label} must be a list")
     for raw in items:
@@ -246,6 +341,7 @@ def certification_envelope_from_packet(
     task_version: str,
     task_path: str,
     package_digest: str,
+    external_import_lineage: ExternalImportLineageV1 | None = None,
 ) -> TaskCertificationEnvelope:
     """Read and validate a durable workbench packet against one exact task identity."""
     repo_root = repo_root.resolve()
@@ -326,30 +422,61 @@ def certification_envelope_from_packet(
     ):
         raise TaskCertificationError("candidate packet was created for another task")
     candidate_digests = _packet_mapping(candidate.get("digests"), "candidate digests")
-    if (
-        binding.get("candidate_package_digest") != candidate_digests.get("package")
-        or binding.get("package_digest") != candidate_digests.get("registry_package")
-    ):
+    if binding.get("candidate_package_digest") != candidate_digests.get("package") or binding.get(
+        "package_digest"
+    ) != candidate_digests.get("registry_package"):
         raise TaskCertificationError("certificate package digest lineage is inconsistent")
+    source = _packet_mapping(candidate.get("source"), "candidate source")
+    raw_lineage = source.get("external_import_lineage")
+    packet_version = body.get("workbench_version")
+    external_source = source.get("provenance_zone") == "01-external"
+    if packet_version == "m049-v2" and external_source and raw_lineage is None:
+        raise TaskCertificationError("m049-v2 external packet requires external import lineage")
+    if packet_version == "m049-v2" and not external_source and raw_lineage is not None:
+        raise TaskCertificationError(
+            "external import lineage is ambiguous on a non-external packet"
+        )
+    if raw_lineage is None:
+        if external_import_lineage is not None:
+            raise TaskCertificationError(
+                "promotion lineage does not match candidate source metadata"
+            )
+    else:
+        try:
+            candidate_lineage = ExternalImportLineageV1.model_validate(raw_lineage)
+        except ValidationError as exc:
+            raise TaskCertificationError(
+                f"candidate external import lineage is invalid: {exc}"
+            ) from exc
+        if external_import_lineage is None or candidate_lineage != external_import_lineage:
+            raise TaskCertificationError(
+                "promotion lineage does not match candidate source metadata"
+            )
+        source_uri = source.get("source_uri")
+        source_ref = source.get("source_ref")
+        if not isinstance(source_uri, str) or not isinstance(source_ref, str):
+            raise TaskCertificationError("candidate external import source URI/ref is invalid")
+        _verify_external_import_binding(
+            repo_root,
+            candidate_lineage,
+            source_uri=source_uri,
+            source_ref=source_ref,
+            task_id=task_id,
+            task_version=task_version,
+            package_digest=package_digest,
+        )
 
     generator = _packet_mapping(body.get("generator_identity"), "generator_identity")
     validator = _packet_mapping(body.get("validator_identity"), "validator_identity")
     if generator == validator:
         raise TaskCertificationError("circular generator/validator self-check is not admissible")
-    if (
-        generator.get("model") is not None
-        and generator.get("model") == validator.get("model")
-    ):
+    if generator.get("model") is not None and generator.get("model") == validator.get("model"):
         raise TaskCertificationError("same-model generator/validator claims are circular")
 
     retained_evidence = body.get("retained_evidence")
     retained_replays = body.get("retained_replays")
-    _verify_packet_artifacts(
-        repo_root, packet.parent, retained_evidence, "retained evidence"
-    )
-    _verify_packet_artifacts(
-        repo_root, packet.parent, retained_replays, "retained replay"
-    )
+    _verify_packet_artifacts(repo_root, packet.parent, retained_evidence, "retained evidence")
+    _verify_packet_artifacts(repo_root, packet.parent, retained_replays, "retained replay")
     if not isinstance(retained_evidence, list) or not isinstance(retained_replays, list):
         raise TaskCertificationError("retained evidence and replay claims must be lists")
     evidence_ids = {
@@ -357,13 +484,16 @@ def certification_envelope_from_packet(
         for item in retained_evidence
     }
     replay_ids = {
-        _packet_mapping(item, "retained replay item").get("control_id")
-        for item in retained_replays
+        _packet_mapping(item, "retained replay item").get("control_id") for item in retained_replays
     }
-    if "please-hack" not in evidence_ids or {
-        "fair-alternative",
-        "please-hack",
-    } - replay_ids:
+    if (
+        "please-hack" not in evidence_ids
+        or {
+            "fair-alternative",
+            "please-hack",
+        }
+        - replay_ids
+    ):
         raise TaskCertificationError(
             "certificate lacks replayable fair-alternative or please-hack evidence"
         )
@@ -376,10 +506,7 @@ def certification_envelope_from_packet(
         _packet_mapping(item, "control observation").get("control_id"): item
         for item in observations
     }
-    if (
-        len(observation_by_id) != len(observations)
-        or len(observations) != len(plan)
-    ):
+    if len(observation_by_id) != len(observations) or len(observations) != len(plan):
         raise TaskCertificationError("control observations are duplicate or incomplete")
 
     def controls(kind: str) -> list[dict[str, Any]]:
@@ -427,30 +554,27 @@ def certification_envelope_from_packet(
             diagnostic.get("severity") not in {"error", "warning", "info"}
             or diagnostic.get("classification")
             not in {"task_defect", "harness_defect", "agent_failure", "expected"}
-            or any(
-                not isinstance(diagnostic.get(key), str)
-                for key in ("code", "path", "message")
-            )
+            or any(not isinstance(diagnostic.get(key), str) for key in ("code", "path", "message"))
         ):
             raise TaskCertificationError("certificate diagnostic values are invalid")
         normalized_diagnostics.append(diagnostic)
-    plan_ids = {
-        _packet_mapping(item, "control plan entry").get("control_id") for item in plan
-    }
+    plan_ids = {_packet_mapping(item, "control plan entry").get("control_id") for item in plan}
     bundle_valid = not any(
         item["severity"] == "error" and item["path"] == "$controls"
         for item in normalized_diagnostics
     )
     static = not any(
-        item["severity"] == "error"
-        and item["path"] not in plan_ids
-        and item["path"] != "$controls"
+        item["severity"] == "error" and item["path"] not in plan_ids and item["path"] != "$controls"
         for item in normalized_diagnostics
     )
-    all_controls_completed = bundle_valid and bool(observations) and all(
-        _packet_mapping(item, "control observation").get("status") == "completed"
-        and _packet_mapping(item, "control observation").get("exception_type") is None
-        for item in observations
+    all_controls_completed = (
+        bundle_valid
+        and bool(observations)
+        and all(
+            _packet_mapping(item, "control observation").get("status") == "completed"
+            and _packet_mapping(item, "control observation").get("exception_type") is None
+            for item in observations
+        )
     )
     derived = {
         "all_controls_completed": all_controls_completed,
@@ -459,24 +583,17 @@ def certification_envelope_from_packet(
         and len(set(oracle_outputs)) == 1
         and oracle_outputs[0] is not None,
         "nop_exact_0_x2": exact(nop, 2, 0.0),
-        "invalid_outputs_rejected": len(invalid) >= 3
-        and exact(invalid, len(invalid), 0.0),
+        "invalid_outputs_rejected": len(invalid) >= 3 and exact(invalid, len(invalid), 0.0),
         "fair_alternative_exact_1": exact(fair, 1, 1.0),
         "please_hack_executed": exact(hack, 1, 0.0),
         "hack_detected": False,
         "static": bundle_valid and static,
         "leakage_scan_clean": bundle_valid
         and static
-        and not any(
-            item["code"] in LEAKAGE_DIAGNOSTIC_CODES
-            for item in normalized_diagnostics
-        ),
+        and not any(item["code"] in LEAKAGE_DIAGNOSTIC_CODES for item in normalized_diagnostics),
         "isolation": static
         and all_controls_completed
-        and not any(
-            item["code"] in ISOLATION_DIAGNOSTIC_CODES
-            for item in normalized_diagnostics
-        ),
+        and not any(item["code"] in ISOLATION_DIAGNOSTIC_CODES for item in normalized_diagnostics),
     }
     summary = _packet_mapping(body.get("control_summary"), "control_summary")
     expected_summary = {
@@ -485,9 +602,7 @@ def certification_envelope_from_packet(
         "invalid_probe_runs": len(invalid),
         "fair_alternative_runs": len(fair),
         "please_hack_runs": len(hack),
-        "result_digests": [
-            _digest_bytes(_canonical_bytes(item)) for item in observations
-        ],
+        "result_digests": [_digest_bytes(_canonical_bytes(item)) for item in observations],
     }
     if summary != expected_summary:
         raise TaskCertificationError("control summary contradicts digest-verified observations")
@@ -545,6 +660,7 @@ def certification_envelope_from_packet(
 
 def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> None:
     """Re-read a bound packet and require its strict envelope to match the registry."""
+    verify_external_import_lineage(repo_root, record)
     if record.certification.state == "legacy_missing":
         return
     rebuilt = certification_envelope_from_packet(
@@ -554,11 +670,10 @@ def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> 
         task_version=record.version,
         task_path=record.task_path,
         package_digest=record.digests.package,
+        external_import_lineage=record.external_import_lineage,
     )
     if rebuilt != record.certification:
         raise TaskCertificationError("stored certification envelope does not match packet bytes")
-
-
 
 
 def _extract_reward_and_agent(
@@ -697,6 +812,7 @@ def _verify_control_result(
             f"control evidence result identity mismatch for {record.task_id!r}"
         )
 
+
 def discover_control_evidence(
     task_dir: Path,
     repo_root: Path,
@@ -772,19 +888,13 @@ def discover_control_evidence(
             if not isinstance(agent_info, dict) or agent_info.get("name") != agent_name:
                 continue
             verifier_result = data.get("verifier_result")
-            rewards = (
-                verifier_result.get("rewards")
-                if isinstance(verifier_result, dict)
-                else None
-            )
+            rewards = verifier_result.get("rewards") if isinstance(verifier_result, dict) else None
             reward = rewards.get("reward") if isinstance(rewards, dict) else None
             if not isinstance(reward, (int, float)):
                 continue
             result_task_id = data.get("task_id")
             result_config = data.get("config")
-            result_task = (
-                result_config.get("task") if isinstance(result_config, dict) else None
-            )
+            result_task = result_config.get("task") if isinstance(result_config, dict) else None
             identity_paths = (
                 result_task_id.get("path") if isinstance(result_task_id, dict) else None,
                 result_task.get("path") if isinstance(result_task, dict) else None,
@@ -800,9 +910,7 @@ def discover_control_evidence(
                 continue
             observed_at_str = data.get("finished_at") or data.get("started_at")
             try:
-                observed_at = datetime.fromisoformat(
-                    str(observed_at_str).replace("Z", "+00:00")
-                )
+                observed_at = datetime.fromisoformat(str(observed_at_str).replace("Z", "+00:00"))
             except ValueError:
                 continue
             evidence_path = result_path.relative_to(repo_root).as_posix()
@@ -812,9 +920,7 @@ def discover_control_evidence(
                 trial_name=data["trial_name"],
                 reward=float(reward),
                 evidence_path=evidence_path,
-                evidence_digest=(
-                    f"sha256:{hashlib.sha256(result_path.read_bytes()).hexdigest()}"
-                ),
+                evidence_digest=(f"sha256:{hashlib.sha256(result_path.read_bytes()).hexdigest()}"),
                 lock_digest=f"sha256:{hashlib.sha256(lock_path.read_bytes()).hexdigest()}",
                 observed_at=observed_at,
                 task_id=task_id,
@@ -846,6 +952,7 @@ def discover_control_evidence(
         )
     return TaskControlEvidence(oracle=oracle_ref, nop=nop_ref)
 
+
 def promote_task(
     task_path: Path | str,
     repo_root: Path,
@@ -856,6 +963,7 @@ def promote_task(
     version: str | None = None,
     source_uri: str | None = None,
     source_ref: str | None = None,
+    external_import_lineage: ExternalImportLineageV1 | None = None,
     license_str: str | None = None,
     provenance_zone: (
         Literal["01-external", "02-local-evidence", "03-synthetic", "04-curated"] | None
@@ -881,70 +989,39 @@ def promote_task(
         else Path(task_path).resolve()
     )
     if not target_path.is_dir():
-        raise TaskComponentMissingError(
-            f"task directory not found on disk: {target_path}"
-        )
+        raise TaskComponentMissingError(f"task directory not found on disk: {target_path}")
 
     # Verify completeness
     if not (target_path / "task.toml").is_file():
         raise TaskComponentMissingError(f"task.toml missing in {target_path}")
     if not (
-        (target_path / "instruction.md").is_file()
-        or (target_path / "instructions.md").is_file()
+        (target_path / "instruction.md").is_file() or (target_path / "instructions.md").is_file()
     ):
         raise TaskComponentMissingError(f"instruction.md missing in {target_path}")
-    if not (
-        (target_path / "environment").exists() or (target_path / "Dockerfile").is_file()
-    ):
-        raise TaskComponentMissingError(
-            f"environment/Dockerfile missing in {target_path}"
-        )
+    if not ((target_path / "environment").exists() or (target_path / "Dockerfile").is_file()):
+        raise TaskComponentMissingError(f"environment/Dockerfile missing in {target_path}")
     if not ((target_path / "tests").exists() or (target_path / "verifier").exists()):
-        raise TaskComponentMissingError(
-            f"verifier (tests/ or verifier/) missing in {target_path}"
-        )
+        raise TaskComponentMissingError(f"verifier (tests/ or verifier/) missing in {target_path}")
 
     # Parse task.toml
     try:
-        toml_data = tomllib.loads(
-            (target_path / "task.toml").read_text(encoding="utf-8")
-        )
+        toml_data = tomllib.loads((target_path / "task.toml").read_text(encoding="utf-8"))
     except Exception as exc:
         raise ValueError(f"failed to parse task.toml in {target_path}: {exc}") from exc
 
-    task_table = (
-        toml_data.get("task", {})
-        if isinstance(toml_data.get("task"), dict)
-        else {}
-    )
+    task_table = toml_data.get("task", {}) if isinstance(toml_data.get("task"), dict) else {}
     meta_table = (
-        toml_data.get("metadata", {})
-        if isinstance(toml_data.get("metadata"), dict)
-        else {}
+        toml_data.get("metadata", {}) if isinstance(toml_data.get("metadata"), dict) else {}
     )
     env_table = (
-        toml_data.get("environment", {})
-        if isinstance(toml_data.get("environment"), dict)
-        else {}
+        toml_data.get("environment", {}) if isinstance(toml_data.get("environment"), dict) else {}
     )
-    ver_table = (
-        toml_data.get("verifier", {})
-        if isinstance(toml_data.get("verifier"), dict)
-        else {}
-    )
-    agent_table = (
-        toml_data.get("agent", {})
-        if isinstance(toml_data.get("agent"), dict)
-        else {}
-    )
+    ver_table = toml_data.get("verifier", {}) if isinstance(toml_data.get("verifier"), dict) else {}
+    agent_table = toml_data.get("agent", {}) if isinstance(toml_data.get("agent"), dict) else {}
 
     if not task_id:
         task_id = target_path.name
-    declared_task_family = (
-        task_family
-        or task_table.get("family")
-        or meta_table.get("task_family")
-    )
+    declared_task_family = task_family or task_table.get("family") or meta_table.get("task_family")
     if not isinstance(declared_task_family, str) or not declared_task_family.strip():
         raise ValueError(
             "task promotion requires an explicit task_family or task.family declaration"
@@ -952,9 +1029,7 @@ def promote_task(
     task_family = declared_task_family.strip()
 
     if version is None:
-        version = str(
-            task_table.get("version") or toml_data.get("version") or "1.0.0"
-        )
+        version = str(task_table.get("version") or toml_data.get("version") or "1.0.0")
 
     try:
         rel_task_path = target_path.relative_to(repo_root).as_posix()
@@ -1006,9 +1081,7 @@ def promote_task(
                 human_minutes = int(float(meta_table["expert_time_estimate_min"]))
         elif "expert_time_estimate_hours" in meta_table:
             with contextlib.suppress(ValueError, TypeError):
-                human_minutes = int(
-                    float(meta_table["expert_time_estimate_hours"]) * 60
-                )
+                human_minutes = int(float(meta_table["expert_time_estimate_hours"]) * 60)
 
     if allowed_uses is None:
         allowed_uses = ["measurement", "training"]
@@ -1023,11 +1096,11 @@ def promote_task(
             task_version=version,
             task_path=rel_task_path,
             package_digest=digests.package,
+            external_import_lineage=external_import_lineage,
         )
         if certification_path is not None
         else TaskCertificationEnvelope()
     )
-
 
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"
@@ -1059,6 +1132,10 @@ def promote_task(
                     f"registered task family {existing_record.task_family!r} does not match "
                     f"requested family {task_family!r}"
                 )
+            if existing_record.external_import_lineage != external_import_lineage:
+                raise TaskCertificationError(
+                    "requested external import lineage does not match the existing registry record"
+                )
 
             if existing_record.state == "candidate":
                 try:
@@ -1081,13 +1158,10 @@ def promote_task(
                     updates["certification"] = certification
                 if state == "registered":
                     if not actor or not actor.strip():
-                        raise ValueError(
-                            "registered task records require approved_by / --actor"
-                        )
+                        raise ValueError("registered task records require approved_by / --actor")
                     if certification.state != "bound":
                         raise TaskCertificationError(
-                            "new registered promotion requires a valid "
-                            "--certification-packet"
+                            "new registered promotion requires a valid --certification-packet"
                         )
                     updates.update(
                         {
@@ -1118,9 +1192,7 @@ def promote_task(
     )
     if state == "registered":
         if not actor or not actor.strip():
-            raise ValueError(
-                "registered task records require approved_by / --actor"
-            )
+            raise ValueError("registered task records require approved_by / --actor")
         if certification.state != "bound":
             raise TaskCertificationError(
                 "new registered promotion requires a valid --certification-packet"
@@ -1139,6 +1211,7 @@ def promote_task(
         digests=digests,
         source_uri=source_uri,
         source_ref=source_ref,
+        external_import_lineage=external_import_lineage,
         license=license_str,
         provenance_zone=provenance_zone,
         is_synthetic=is_synthetic,
@@ -1156,11 +1229,10 @@ def promote_task(
         approved_by=approved_by,
         approved_at=approved_timestamp,
     )
+    verify_external_import_lineage(repo_root, record)
 
     reg_dir.mkdir(parents=True, exist_ok=True)
-    record_file.write_text(
-        json.dumps(record.model_dump(mode="json"), indent=2) + "\n"
-    )
+    record_file.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
     return record
 
 
@@ -1181,9 +1253,7 @@ def register_task(
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"
     if not record_file.is_file():
-        raise TaskNotRegisteredError(
-            f"task {task_id!r} is not present in registry {reg_dir}"
-        )
+        raise TaskNotRegisteredError(f"task {task_id!r} is not present in registry {reg_dir}")
 
     raw = json.loads(record_file.read_text())
     record = TaskRegistryRecord.model_validate(raw)
@@ -1195,21 +1265,18 @@ def register_task(
             task_version=record.version,
             task_path=record.task_path,
             package_digest=record.digests.package,
+            external_import_lineage=record.external_import_lineage,
         )
         record = TaskRegistryRecord.model_validate(
             record.model_copy(update={"certification": certification}).model_dump()
         )
     if record.state != "registered" and record.certification.state != "bound":
-        raise TaskCertificationError(
-            "new registration requires a valid --certification-packet"
-        )
+        raise TaskCertificationError("new registration requires a valid --certification-packet")
 
     if record.state == "registered" and record.approved_by == actor:
         verify_certification_packet(repo_root, record)
         if certification_path is not None:
-            record_file.write_text(
-                json.dumps(record.model_dump(mode="json"), indent=2) + "\n"
-            )
+            record_file.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
         return record
 
     target_path = (repo_root / record.task_path).resolve()
@@ -1247,9 +1314,7 @@ def register_task(
     verify_certification_packet(repo_root, final_record)
 
     reg_dir.mkdir(parents=True, exist_ok=True)
-    record_file.write_text(
-        json.dumps(final_record.model_dump(mode="json"), indent=2) + "\n"
-    )
+    record_file.write_text(json.dumps(final_record.model_dump(mode="json"), indent=2) + "\n")
     return final_record
 
 
@@ -1288,8 +1353,7 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             ) from exc
         if not evidence_path.is_file():
             raise TaskControlEvidenceError(
-                f"{agent_name} control evidence file missing on disk: "
-                f"{evidence_ref.evidence_path}"
+                f"{agent_name} control evidence file missing on disk: {evidence_ref.evidence_path}"
             )
         if evidence_path.parent.parent.name != evidence_ref.job_name:
             raise TaskControlEvidenceError(
@@ -1300,12 +1364,8 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             raise TaskControlEvidenceError(
                 f"{agent_name} control evidence trial lock missing on disk"
             )
-        current_evidence_digest = (
-            f"sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}"
-        )
-        current_lock_digest = (
-            f"sha256:{hashlib.sha256(lock_path.read_bytes()).hexdigest()}"
-        )
+        current_evidence_digest = f"sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}"
+        current_lock_digest = f"sha256:{hashlib.sha256(lock_path.read_bytes()).hexdigest()}"
         if current_evidence_digest != evidence_ref.evidence_digest:
             raise TaskControlEvidenceError(
                 f"{agent_name} control evidence digest mismatch for {record.task_id!r}"
@@ -1323,9 +1383,7 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             ) from exc
         observed_at_raw = data.get("finished_at") or data.get("started_at")
         try:
-            observed_at = datetime.fromisoformat(
-                str(observed_at_raw).replace("Z", "+00:00")
-            )
+            observed_at = datetime.fromisoformat(str(observed_at_raw).replace("Z", "+00:00"))
         except ValueError as exc:
             raise TaskControlEvidenceError(
                 f"{agent_name} control evidence has no valid observation timestamp"
@@ -1348,6 +1406,7 @@ def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
     """Verify that a task package contains runnable task.toml, instruction, environment,
     and separate verifier.
     """
+    verify_external_import_lineage(root, record)
     target_path = (root / record.task_path).resolve()
     if not target_path.is_dir():
         primary = shared_checkout_root(root)
@@ -1363,10 +1422,9 @@ def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
             f"task.toml missing in package directory: {record.task_path}"
         )
 
-    has_instruction = (
-        (target_path / "instruction.md").is_file()
-        or (target_path / "instructions.md").is_file()
-    )
+    has_instruction = (target_path / "instruction.md").is_file() or (
+        target_path / "instructions.md"
+    ).is_file()
     if not has_instruction:
         raise TaskComponentMissingError(
             f"instruction.md missing in package directory: {record.task_path}"
@@ -1412,7 +1470,10 @@ class TaskRegistry:
 
     @classmethod
     def from_repo(cls, repo_root: Path) -> TaskRegistry:
-        return cls.from_dir(repo_root / "library/registry")
+        registry = cls.from_dir(repo_root / "library/registry")
+        for record in registry.records.values():
+            verify_external_import_lineage(repo_root, record)
+        return registry
 
     def get(self, task_id: str) -> TaskRegistryRecord | None:
         return self.records.get(task_id)
@@ -1543,6 +1604,8 @@ class TaskRegistry:
         dest.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
         self.records[record.task_id] = record
         return dest
+
+
 @dataclass(frozen=True)
 class AuditFinding:
     severity: Literal["error", "warning", "info"]
@@ -1735,6 +1798,17 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                     message=record.certification.reason,
                 )
             )
+            try:
+                verify_external_import_lineage(root, record)
+            except TaskCertificationError as exc:
+                findings.append(
+                    AuditFinding(
+                        severity="error",
+                        category="invalid_external_import_lineage",
+                        target=record.task_id,
+                        message=str(exc),
+                    )
+                )
         else:
             try:
                 verify_certification_packet(root, record)
@@ -1997,9 +2071,7 @@ def inventory_tasks(root: Path) -> TaskInventory:
     # Canary membership is policy truth; malformed or missing policy cannot mean zero.
     canary_policy = root / "policy/canary-suite.yaml"
     if not canary_policy.is_file():
-        raise TaskInventoryPolicyError(
-            "canary inventory requires policy/canary-suite.yaml"
-        )
+        raise TaskInventoryPolicyError("canary inventory requires policy/canary-suite.yaml")
     import yaml
 
     try:
@@ -2013,9 +2085,7 @@ def inventory_tasks(root: Path) -> TaskInventory:
     for index, member in enumerate(members):
         task_path = member.get("task_path") if isinstance(member, dict) else None
         if not isinstance(task_path, str) or not task_path:
-            raise TaskInventoryPolicyError(
-                f"canary policy member {index} requires task_path"
-            )
+            raise TaskInventoryPolicyError(f"canary policy member {index} requires task_path")
         canary_paths.add(task_path)
 
     # 1. Scan library/ for all task.toml packages
@@ -2043,9 +2113,7 @@ def inventory_tasks(root: Path) -> TaskInventory:
 
             reg_record = reg.get(task_id)
             reg_state = (
-                reg_record.state
-                if reg_record and reg_record.task_path == rel_path
-                else None
+                reg_record.state if reg_record and reg_record.task_path == rel_path else None
             )
 
             items.append(
@@ -2074,9 +2142,7 @@ def inventory_tasks(root: Path) -> TaskInventory:
                 task_id = card_subdir.name
                 reg_record = reg.get(task_id)
                 reg_state = (
-                    reg_record.state
-                    if reg_record and reg_record.task_path == rel_path
-                    else None
+                    reg_record.state if reg_record and reg_record.task_path == rel_path else None
                 )
 
                 items.append(

@@ -19,6 +19,8 @@ from rename_dated_docs import (  # noqa: E402
     build_link_rewrite_plan,
     infer_date_for_undated_doc,
     inventory_repo_documents,
+    is_living_or_navigational_doc,
+    is_task_package_file,
     is_valid_iso_date,
     parse_front_matter,
     run_migration,
@@ -68,12 +70,34 @@ def test_to_kebab_slug() -> None:
     assert to_kebab_slug("--leading-and-trailing--") == "leading-and-trailing"
 
 
+def test_to_kebab_slug_strips_embedded_dates() -> None:
+    """Verify embedded dates and partial dates are stripped from slugs to prevent doubling."""
+    assert (
+        to_kebab_slug("repo-custodian-state-report-2026-08-29-reply")
+        == "repo-custodian-state-report-reply"
+    )
+    assert to_kebab_slug("tutor-state-report-2026-08-29-reply") == "tutor-state-report-reply"
+    assert to_kebab_slug("pstack-agent-standards-2026-08") == "pstack-agent-standards"
+    assert to_kebab_slug("TUTOR_ADVERSARIAL_REVIEW_2026-08-26") == "tutor-adversarial-review"
+
+
 def test_is_valid_iso_date() -> None:
     assert is_valid_iso_date("2026-08-31") is True
     assert is_valid_iso_date("2026-02-29") is False  # 2026 is not a leap year
     assert is_valid_iso_date("2026-13-01") is False
     assert is_valid_iso_date("2026-08") is False
     assert is_valid_iso_date("invalid") is False
+
+
+def test_living_docs_and_task_packages_filters() -> None:
+    assert is_living_or_navigational_doc("README.md") is True
+    assert is_living_or_navigational_doc("INDEX.md") is True
+    assert is_living_or_navigational_doc("TAXONOMY.md") is True
+    assert is_living_or_navigational_doc("report.md") is False
+
+    assert is_task_package_file(Path("instruction.md"), Path("tasks/01/instruction.md")) is True
+    assert is_task_package_file(Path("step.md"), Path("demos/steps/greet/step.md")) is True
+    assert is_task_package_file(Path("note.md"), Path("research/inbox/note.md")) is False
 
 
 def test_parse_front_matter() -> None:
@@ -141,19 +165,31 @@ def test_inventory_classification(temp_git_repo: Path) -> None:
     commit_file(temp_git_repo, "research/inbox/TUTOR_REVIEW_2026-08-27.md", "# Suffix")
     commit_file(
         temp_git_repo,
+        "research/inbox/repo-custodian-state-report-2026-08-29-reply.md",
+        "# Embedded",
+    )
+    commit_file(
+        temp_git_repo,
         "research/analysis/some-analysis.md",
         "---\ndate: 2026-08-15\n---\n# Analysis",
     )
     commit_file(temp_git_repo, "research/inbox/QUEUE.md", "# Exempt queue")
+    commit_file(temp_git_repo, "research/analysis/INDEX.md", "# Index living doc")
+    commit_file(
+        temp_git_repo, "research/explorations/harbor/tasks/echo/instruction.md", "# Harbor task"
+    )
 
     items = inventory_repo_documents(
         repo_id="eval-lab",
         repo_root=temp_git_repo,
-        target_dirs=["research/inbox", "research/analysis"],
+        target_dirs=["research/inbox", "research/analysis", "research/explorations"],
     )
 
     names = {it.filename: it for it in items}
-    assert "QUEUE.md" not in names  # Exempt
+    assert "QUEUE.md" not in names  # Exempt living doc
+    assert "INDEX.md" not in names  # Exempt living doc
+    assert "instruction.md" not in names  # Exempt task package
+
     assert "2026-08-26-already-good.md" in names
     assert names["2026-08-26-already-good.md"].classification == "already-conformant"
     assert names["2026-08-26-already-good.md"].needs_rename is False
@@ -161,6 +197,13 @@ def test_inventory_classification(temp_git_repo: Path) -> None:
     assert "TUTOR_REVIEW_2026-08-27.md" in names
     assert names["TUTOR_REVIEW_2026-08-27.md"].classification == "date-suffixed"
     assert names["TUTOR_REVIEW_2026-08-27.md"].proposed_filename == "2026-08-27-tutor-review.md"
+
+    # Verify embedded date is stripped cleanly without doubling
+    assert "repo-custodian-state-report-2026-08-29-reply.md" in names
+    assert (
+        names["repo-custodian-state-report-2026-08-29-reply.md"].proposed_filename
+        == "2026-08-29-repo-custodian-state-report-reply.md"
+    )
 
     assert "some-analysis.md" in names
     assert names["some-analysis.md"].classification == "undated"
@@ -170,22 +213,22 @@ def test_inventory_classification(temp_git_repo: Path) -> None:
 # --- Refusal Safety Audit Tests ---
 
 
-def test_refused_target_collision(temp_git_repo: Path) -> None:
-    # Two files that would rename to the exact same proposed filename
+def test_refused_global_basename_collision(temp_git_repo: Path) -> None:
+    """Verify duplicate proposed basenames across directories/repos are marked as REFUSED."""
     commit_file(temp_git_repo, "research/analysis/doc-one-2026-08-26.md", "# One")
-    commit_file(temp_git_repo, "research/analysis/DOC_ONE_2026-08-26.md", "# Two")
+    commit_file(temp_git_repo, "research/inbox/DOC_ONE_2026-08-26.md", "# Two in another dir")
 
     items = inventory_repo_documents(
         repo_id="eval-lab",
         repo_root=temp_git_repo,
-        target_dirs=["research/analysis"],
+        target_dirs=["research/analysis", "research/inbox"],
     )
     audit_collisions(items)
 
     assert len(items) == 2
     for it in items:
         assert it.refused is True
-        assert any("Target collision" in r for r in it.refusal_reasons)
+        assert any("duplicate global basename" in r for r in it.refusal_reasons)
 
 
 def test_refused_open_pr_diff(temp_git_repo: Path) -> None:

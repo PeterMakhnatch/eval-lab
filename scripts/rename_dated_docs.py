@@ -2,8 +2,9 @@
 """Dated document naming migration tool for eval-lab and research-context.
 
 Standardizes dated markdown documents to canonical YYYY-MM-DD-<kebab-slug>.md format,
-infers dates for undated documents, checks safety/collision preconditions, builds an
-inbound link rewrite plan, and generates a comprehensive migration report.
+infers dates for undated documents, checks safety/collision preconditions across the
+entire Obsidian vault, builds an inbound link rewrite plan, and generates a comprehensive
+migration report.
 
 Defaults to --dry-run. Requires --apply to mutate files.
 """
@@ -26,7 +27,8 @@ import yaml
 
 # Standard regexes
 CONFORMANT_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-([a-z0-9-]+)\.md$")
-SUFFIX_RE = re.compile(r"^(.*?)[-_](\d{4}-\d{2}-\d{2})\.md$", re.IGNORECASE)
+DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
+MONTH_PATTERN = re.compile(r"(\d{4}-\d{2})")
 FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
@@ -49,7 +51,45 @@ EXCLUDED_SCAN_DIRS = frozenset(
     }
 )
 
-INBOX_EXEMPT_NAMES = frozenset({"QUEUE.md", "README.md"})
+NEVER_RENAME_BASENAMES = frozenset(
+    {
+        "readme.md",
+        "index.md",
+        "queue.md",
+        "inventory.md",
+        "taxonomy.md",
+        "map.md",
+        "active.md",
+        "template.md",
+        "structure.md",
+        "checks.md",
+        "roles.md",
+        "owners.md",
+        "workflow.md",
+        "agents.md",
+        "discoveries.md",
+        "ledger.md",
+        "context.md",
+    }
+)
+
+TASK_PACKAGE_FILENAMES = frozenset(
+    {
+        "instruction.md",
+        "solution.md",
+        "verify.md",
+    }
+)
+
+TASK_PACKAGE_PATH_SEGMENTS = frozenset(
+    {
+        "tasks",
+        "steps",
+        "environment",
+        "solution",
+    }
+)
+
 INBOX_REQUIRED_FIELDS = (
     "source_url",
     "source_type",
@@ -97,6 +137,20 @@ class LinkRewrite:
     link_type: str  # 'markdown' or 'wikilink'
 
 
+def is_task_package_file(file_path: Path, rel_path: Path) -> bool:
+    """Check if markdown file is part of a task package (e.g. Harbor)."""
+    if file_path.name.lower() in TASK_PACKAGE_FILENAMES:
+        return True
+    if any(part.lower() in TASK_PACKAGE_PATH_SEGMENTS for part in rel_path.parts):
+        return True
+    return bool((file_path.parent / "task.toml").exists())
+
+
+def is_living_or_navigational_doc(filename: str) -> bool:
+    """Check if file is a living / navigational entry point that should never be renamed."""
+    return filename.lower() in NEVER_RENAME_BASENAMES
+
+
 def _normalize_yaml_values(data: Any) -> Any:
     """Normalize date/datetime objects to ISO string representation in parsed yaml."""
     if isinstance(data, dict):
@@ -126,8 +180,12 @@ def parse_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
 
 
 def to_kebab_slug(stem: str) -> str:
-    """Normalize arbitrary title / filename stem to lower-case kebab-slug."""
-    s = stem.lower()
+    """Normalize arbitrary title / filename stem to lower-case kebab-slug, stripping embedded dates."""
+    # Strip full dates YYYY-MM-DD
+    s = DATE_PATTERN.sub("", stem)
+    # Strip partial dates YYYY-MM
+    s = MONTH_PATTERN.sub("", s)
+    s = s.lower()
     s = re.sub(r"[\s_]+", "-", s)
     s = re.sub(r"[^a-z0-9-]", "", s)
     s = re.sub(r"-+", "-", s)
@@ -299,8 +357,12 @@ def inventory_repo_documents(
             rel_path = file_path.relative_to(repo_root)
             filename = file_path.name
 
-            # Check inbox exemptions
-            if "research/inbox" in str(rel_path.parent) and filename in INBOX_EXEMPT_NAMES:
+            # Skip living / navigational documents
+            if is_living_or_navigational_doc(filename):
+                continue
+
+            # Skip task package files (e.g. Harbor instructions / steps)
+            if is_task_package_file(file_path, rel_path):
                 continue
 
             content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -308,7 +370,7 @@ def inventory_repo_documents(
 
             # Classify
             conformant_match = CONFORMANT_RE.match(filename)
-            suffix_match = SUFFIX_RE.match(filename)
+            date_in_name_match = DATE_PATTERN.search(filename)
 
             refusal_reasons: list[str] = []
 
@@ -317,12 +379,12 @@ def inventory_repo_documents(
                 inferred_date = conformant_match.group(1)
                 date_source = "filename-prefix"
                 proposed_filename = filename
-            elif suffix_match and is_valid_iso_date(suffix_match.group(2)):
+            elif date_in_name_match and is_valid_iso_date(date_in_name_match.group(1)):
                 classification = "date-suffixed"
-                inferred_date = suffix_match.group(2)
-                date_source = "filename-suffix"
-                slug = to_kebab_slug(suffix_match.group(1))
-                proposed_filename = f"{inferred_date}-{slug}.md"
+                inferred_date = date_in_name_match.group(1)
+                date_source = "filename-embedded"
+                slug = to_kebab_slug(file_path.stem)
+                proposed_filename = f"{inferred_date}-{slug}.md" if slug else f"{inferred_date}.md"
             else:
                 classification = "undated"
                 inferred_date, date_source, reasons = infer_date_for_undated_doc(
@@ -335,7 +397,7 @@ def inventory_repo_documents(
                         f"Ambiguous date: inferred {inferred_date!r} is not a valid ISO date"
                     )
                 slug = to_kebab_slug(file_path.stem)
-                proposed_filename = f"{inferred_date}-{slug}.md"
+                proposed_filename = f"{inferred_date}-{slug}.md" if slug else f"{inferred_date}.md"
 
             proposed_rel_path = rel_path.parent / proposed_filename
 
@@ -377,19 +439,21 @@ def inventory_repo_documents(
 
 
 def audit_collisions(items: list[DocItem]) -> None:
-    """Detect target filename collisions across proposed renames and mark as refused."""
-    targets: dict[tuple[str, str], list[DocItem]] = defaultdict(list)
+    """Detect global target basename collisions across the entire Obsidian vault and mark as refused."""
+    # Obsidian resolves short wikilinks by basename globally across the entire vault (~/Developer).
+    # Therefore, basename uniqueness is mandatory across all audited items.
+    global_basenames: dict[str, list[DocItem]] = defaultdict(list)
     for item in items:
-        target_key = (item.repo_id, str(item.proposed_rel_path))
-        targets[target_key].append(item)
+        target_basename = item.proposed_filename.lower()
+        global_basenames[target_basename].append(item)
 
-    for target_key, doc_group in targets.items():
+    for target_basename, doc_group in global_basenames.items():
         if len(doc_group) > 1:
-            sources = ", ".join(str(d.rel_path) for d in doc_group)
+            sources = ", ".join(f"{d.repo_id}:{d.rel_path}" for d in doc_group)
             for d in doc_group:
                 d.refused = True
                 d.refusal_reasons.append(
-                    f"Target collision: multiple files map to {target_key[1]} ({sources})"
+                    f"Target collision: duplicate global basename '{target_basename}' across vault ({sources})"
                 )
         else:
             doc = doc_group[0]
@@ -614,9 +678,11 @@ def generate_migration_report(
         "> **The PR queue on `eval-lab` (currently 9 open PRs) must be completely drained before executing `--apply`.**  ",
         "> Main merges frequently and multiple worktrees are active. Executing mass document renames while PRs are open will cause widespread merge conflicts. Execution of this migration is strictly gated on a quiet main branch with zero open PRs touching research directories.",
         "",
-        "This dry-run migration audits all markdown documents across:",
+        "This dry-run migration audits all dated markdown documents across:",
         "- **Repo A (`eval-lab`)**: `research/inbox`, `research/analysis`, `research/explorations`",
         "- **Repo B (`research-context`)**: `trajectory-analysis` (including subdirectories)",
+        "",
+        "Living / navigational documents (`README.md`, `INDEX.md`, `INVENTORY.md`, `TAXONOMY.md`, `QUEUE.md`, etc.) and task package files (`instruction.md`, `steps/`, `tasks/`) are preserved as stable entry points and skipped from renaming.",
         "",
         "## File Inventory and Classification Breakdown",
         "",
@@ -662,10 +728,10 @@ def generate_migration_report(
         [
             "",
             "### Key Statistics",
-            f"- **Total Documents Scanned:** {total_all}",
+            f"- **Total Audited Documents:** {total_all}",
             f"- **Already Conformant:** {total_conformant} (no rename needed)",
             f"- **Proposed Renames (Ready):** {len(ready_renames)}",
-            f"- **Refused Unsafe Cases:** {total_refused}",
+            f"- **Refused Unsafe Cases (Collisions/PR Conflicts):** {total_refused}",
             f"- **Inbound Link Rewrites Planned:** {len(link_rewrites)}",
             "",
             "## Refused Files and Safety Audit",
@@ -676,7 +742,7 @@ def generate_migration_report(
     if refused_items:
         report_lines.extend(
             [
-                "The following documents were refused from automated renaming to prevent collisions, broken links, or merge conflicts:",
+                "The following documents were refused from automated renaming to prevent global vault basename collisions, broken links, or merge conflicts:",
                 "",
                 "| Repository | Original Path | Inferred Date | Date Source | Refusal Reason |",
                 "|---|---|---|---|---|",

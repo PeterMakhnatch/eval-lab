@@ -43,6 +43,7 @@ CanaryPairSpec = canary.CanaryPairSpec
 build_canary_pair_spec = canary.build_canary_pair_spec
 emit_canary_paired_condition_fact = canary.emit_canary_paired_condition_fact
 synthesize_canary_trial_artifacts = canary.synthesize_canary_trial_artifacts
+extract_read_to_use_linkage = canary.extract_read_to_use_linkage
 
 
 @pytest.fixture
@@ -81,6 +82,13 @@ def test_canary_pair_spec_freezes_exact_single_contrast(canary_spec: CanaryPairS
             "Every chunk position must have matching byte length"
         )
 
+    # First-class bound token identity assertions (no log string parsing required)
+    assert arm0["chunks"][0]["bound_token"] == canary_spec.initial_value
+    assert arm0["chunks"][0]["token_digest"].startswith("sha256:")
+    assert arm1["chunks"][0]["bound_token"] == canary_spec.initial_value
+    assert arm1["chunks"][1]["bound_token"] == canary_spec.inverted_value
+    assert arm1["chunks"][1]["token_digest"].startswith("sha256:")
+
     # Declared single contrast variable: inversion_count and latest_value
     assert arm0["inversion_count"] == 0
     assert arm1["inversion_count"] == 1
@@ -105,7 +113,7 @@ def test_canary_pair_spec_freezes_exact_single_contrast(canary_spec: CanaryPairS
     assert arm0["chunks"][0] == arm1["chunks"][0]
     for i in range(2, 7):
         assert arm0["chunks"][i] == arm1["chunks"][i]
-    # Chunk 1 differs only in content, id, and type, with matching byte_count
+    # Chunk 1 differs only in content, id, type, and bound_token, with matching byte_count
     assert arm0["chunks"][1]["byte_count"] == arm1["chunks"][1]["byte_count"] == 256
     assert arm0["chunks"][1]["content"] != arm1["chunks"][1]["content"]
 
@@ -222,6 +230,88 @@ def test_canary_nop_and_stale_mutant_controls_fail_closed(canary_spec: CanaryPai
     assert feat_stale.bound_target_value == canary_spec.initial_value
     assert feat_stale.binding_survival_rate == 0.0
     assert feat_stale.stale_value_override_rate == 0.0  # bound stale value, failing override
+
+
+def test_read_to_use_linkage_deterministic_oracle(canary_spec: CanaryPairSpec):
+    """Read->use linkage must resolve deterministically via first-class token identity and step order."""
+    # Arm 0 Oracle: read chunk 0 (initial token) -> mutation with initial token
+    arm0_oracle = synthesize_canary_trial_artifacts(
+        canary_spec, arm="non_inverted", control_type="oracle"
+    )
+    bundle0 = _build_bundle_from_synthesized(arm0_oracle)
+    linkage0 = extract_read_to_use_linkage(bundle0)
+
+    assert linkage0["read_to_use_linked"] is True
+    assert linkage0["matched_read_chunk_id"] == "ctx_000_init"
+    assert linkage0["bound_token"] == canary_spec.initial_value
+    assert linkage0["token_digest"].startswith("sha256:")
+    assert linkage0["write_to_read_opportunities"] == 0
+    assert linkage0["write_to_read_rate"] is None
+    assert linkage0["write_to_read_to_use_rate"] is None
+
+    # Arm 1 Oracle: read chunk 1 (inverted token) -> mutation with inverted token
+    arm1_oracle = synthesize_canary_trial_artifacts(
+        canary_spec, arm="state_inverted", control_type="oracle"
+    )
+    bundle1 = _build_bundle_from_synthesized(arm1_oracle)
+    linkage1 = extract_read_to_use_linkage(bundle1)
+
+    assert linkage1["read_to_use_linked"] is True
+    assert linkage1["matched_read_chunk_id"] == "ctx_001_inv"
+    assert linkage1["bound_token"] == canary_spec.inverted_value
+    assert linkage1["token_digest"].startswith("sha256:")
+    assert linkage1["write_to_read_opportunities"] == 0
+    assert linkage1["write_to_read_rate"] is None
+    assert linkage1["write_to_read_to_use_rate"] is None
+
+
+def test_read_to_use_negative_regressions(canary_spec: CanaryPairSpec):
+    """Read->use must strictly fail closed on missing token field, mismatched token, stale token, or read-without-use."""
+    # 1. Missing bound_token field in read payload
+    arm1_synth = synthesize_canary_trial_artifacts(
+        canary_spec, arm="state_inverted", control_type="oracle"
+    )
+    for ev in arm1_synth["events"]:
+        if ev["event_type"] == "tool_result" and "result" in ev:
+            ev["result"].pop("bound_token", None)  # strip first-class token field
+    bundle_missing_field = _build_bundle_from_synthesized(arm1_synth)
+    linkage_missing = extract_read_to_use_linkage(bundle_missing_field)
+    assert linkage_missing["read_to_use_linked"] is False
+
+    # 2. Mismatched token: read token does not match mutation bound value
+    arm1_mismatch = synthesize_canary_trial_artifacts(
+        canary_spec, arm="state_inverted", control_type="oracle"
+    )
+    for ev in arm1_mismatch["events"]:
+        if (
+            ev["event_type"] == "tool_result"
+            and "result" in ev
+            and ev["result"].get("chunk_id") == "ctx_001_inv"
+        ):
+            ev["result"]["bound_token"] = "unexpected_token_999"
+    bundle_mismatch = _build_bundle_from_synthesized(arm1_mismatch)
+    linkage_mismatch = extract_read_to_use_linkage(bundle_mismatch)
+    assert linkage_mismatch["read_to_use_linked"] is False
+
+    # 3. Stale token in state-inverted scenario: mutant binds initial token, failing inversion override
+    arm1_stale = synthesize_canary_trial_artifacts(
+        canary_spec, arm="state_inverted", control_type="stale_mutant"
+    )
+    bundle_stale = _build_bundle_from_synthesized(arm1_stale)
+    linkage_stale = extract_read_to_use_linkage(bundle_stale)
+    # The mutation bound the initial token, which was read in ctx_000_init, NOT the required inverted token ctx_001_inv
+    assert linkage_stale["read_to_use_linked"] is True
+    assert linkage_stale["matched_read_chunk_id"] == "ctx_000_init"
+    assert linkage_stale["bound_token"] == canary_spec.initial_value
+
+    # 4. Read without use: reads all chunks but never executes mutation
+    arm1_no_use = synthesize_canary_trial_artifacts(
+        canary_spec, arm="state_inverted", control_type="nop"
+    )
+    bundle_no_use = _build_bundle_from_synthesized(arm1_no_use)
+    linkage_no_use = extract_read_to_use_linkage(bundle_no_use)
+    assert linkage_no_use["read_to_use_linked"] is False
+    assert linkage_no_use["linkage_status"] == "no_mutation"
 
 
 def test_state_journal_absence_classified_as_observability_failure(

@@ -14,6 +14,13 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
+from evallab.interpretation.benchmark_events import (
+    BenchmarkContractRecord,
+    BenchmarkEventRecord,
+    CorrelatedToolCall,
+    FinalStateRecord,
+    TrialBundle,
+)
 from evallab.semantic_facts import PairedConditionFact
 
 
@@ -118,46 +125,71 @@ def build_canary_pair_spec(
     initial_val = f"{val_prefix}_v1"
     inverted_val = f"{val_prefix}_v2"
 
-    # Chunk 0: Initial Fact (exact 256 bytes)
+    init_digest = f"sha256:{hashlib.sha256(initial_val.encode('utf-8')).hexdigest()}"
+    inv_digest = f"sha256:{hashlib.sha256(inverted_val.encode('utf-8')).hexdigest()}"
+
+    # Chunk 0: Initial Fact (exact 256 bytes) with first-class bound token
     c0_raw = (
         f"[SYSTEM LOG 001]: Initializing configuration record for {target_entity}.\n"
         f"Entity attribute {target_attribute} is permanently bound to '{initial_val}'.\n"
         "All subsequent telemetry routing must reference this active token unless explicitly updated.\n"
     )
     c0_text = _pad_text_to_exact_bytes(c0_raw, 256)
+    c0_content_digest = f"sha256:{hashlib.sha256(c0_text.encode('utf-8')).hexdigest()}"
     init_chunk = {
         "chunk_id": "ctx_000_init",
         "content": c0_text,
         "chunk_type": "initial_fact",
         "byte_count": 256,
+        "entity_id": target_entity,
+        "attribute": target_attribute,
+        "bound_token": initial_val,
+        "token_digest": init_digest,
+        "content_digest": c0_content_digest,
     }
 
-    # Chunk 1 for Arm 0: Neutral filler (exact 256 bytes)
+    # Chunk 1 for Arm 0: Neutral filler (exact 256 bytes, no bound token)
     c1_arm0_raw = (
         f"[SYSTEM LOG 002]: Configuration verification for {target_entity}.\n"
         f"Active routing key confirms binding to initial token '{initial_val}'.\n"
         "No state overrides registered in current deployment epoch.\n"
     )
     c1_arm0_text = _pad_text_to_exact_bytes(c1_arm0_raw, 256)
+    c1_arm0_content_digest = (
+        f"sha256:{hashlib.sha256(c1_arm0_text.encode('utf-8')).hexdigest()}"
+    )
     chunk1_arm0 = {
         "chunk_id": "ctx_001_fill",
         "content": c1_arm0_text,
         "chunk_type": "padding",
         "byte_count": 256,
+        "entity_id": None,
+        "attribute": None,
+        "bound_token": None,
+        "token_digest": None,
+        "content_digest": c1_arm0_content_digest,
     }
 
-    # Chunk 1 for Arm 1: Critical State Inversion Override (exact 256 bytes)
+    # Chunk 1 for Arm 1: Critical State Inversion Override (exact 256 bytes) with first-class inverted token
     c1_arm1_raw = (
         f"[CRITICAL STATE INVERSION 091]: Configuration OVERRIDE event for {target_entity}.\n"
         f"Superceding prior assignments, attribute {target_attribute} is now mutated to '{inverted_val}'.\n"
         f"Mandatory action execution REQUIREMENT: Final mutation must supply latest bound token '{inverted_val}'.\n"
     )
     c1_arm1_text = _pad_text_to_exact_bytes(c1_arm1_raw, 256)
+    c1_arm1_content_digest = (
+        f"sha256:{hashlib.sha256(c1_arm1_text.encode('utf-8')).hexdigest()}"
+    )
     chunk1_arm1 = {
         "chunk_id": "ctx_001_inv",
         "content": c1_arm1_text,
         "chunk_type": "inversion_fact",
         "byte_count": 256,
+        "entity_id": target_entity,
+        "attribute": target_attribute,
+        "bound_token": inverted_val,
+        "token_digest": inv_digest,
+        "content_digest": c1_arm1_content_digest,
     }
 
     # Chunks 2-6: Padding chunks identical across both arms (4 x 716 bytes + 1 x 720 bytes = 3584 bytes)
@@ -171,12 +203,20 @@ def build_canary_pair_spec(
             f"Sequence verification token: #{idx:04d}.\n"
         )
         pad_text = _pad_text_to_exact_bytes(pad_raw, size)
+        pad_content_digest = (
+            f"sha256:{hashlib.sha256(pad_text.encode('utf-8')).hexdigest()}"
+        )
         padding_chunks.append(
             {
                 "chunk_id": f"ctx_{idx:03d}_fill",
                 "content": pad_text,
                 "chunk_type": "padding",
                 "byte_count": size,
+                "entity_id": None,
+                "attribute": None,
+                "bound_token": None,
+                "token_digest": None,
+                "content_digest": pad_content_digest,
             }
         )
 
@@ -300,6 +340,7 @@ def synthesize_canary_trial_artifacts(
             "update_opportunity_count": scenario["update_opportunity_count"],
             "raw_binding_opportunities": 1,
             "raw_conflicting_opportunities": 1 if not is_arm0 else 0,
+            "memory_write_opportunities": 0,  # Zero agent writes prior to final mutation
         },
         "verifier_truth_digest": spec.verifier_truth_digest,
         "tool_inventory_digest": spec.tool_inventory_digest,
@@ -327,6 +368,7 @@ def synthesize_canary_trial_artifacts(
                     "arguments": {"chunk_id": chunk["chunk_id"]},
                 }
             )
+            # Result preserves full raw content separately while exposing first-class bound_token
             events.append(
                 {
                     "event_index": idx + 1000,
@@ -335,7 +377,16 @@ def synthesize_canary_trial_artifacts(
                     "result": {
                         "status": "ok",
                         "chunk_id": chunk["chunk_id"],
-                        "content": chunk["content"],
+                        "content": chunk[
+                            "content"
+                        ],  # Full raw read payload preserved separately
+                        "content_digest": chunk["content_digest"],
+                        "entity_id": chunk.get("entity_id"),
+                        "attribute": chunk.get("attribute"),
+                        "bound_token": chunk.get(
+                            "bound_token"
+                        ),  # First-class bound token identity!
+                        "token_digest": chunk.get("token_digest"),
                     },
                 }
             )
@@ -354,12 +405,22 @@ def synthesize_canary_trial_artifacts(
                 },
             }
         )
+        mut_token_digest = (
+            f"sha256:{hashlib.sha256(target_val.encode('utf-8')).hexdigest()}"
+        )
         events.append(
             {
                 "event_index": len(scenario["chunks"]) + 1000,
                 "event_type": "tool_result",
                 "call_id": mut_call_id,
-                "result": {"status": "executed"},
+                "result": {
+                    "status": "executed",
+                    "entity_id": spec.target_entity,
+                    "attribute": spec.target_attribute,
+                    "bound_value": target_val,
+                    "bound_token": target_val,
+                    "token_digest": mut_token_digest,
+                },
             }
         )
         mutations.append(
@@ -382,6 +443,23 @@ def synthesize_canary_trial_artifacts(
                     "arguments": {"chunk_id": chunk["chunk_id"]},
                 }
             )
+            events.append(
+                {
+                    "event_index": idx + 1000,
+                    "event_type": "tool_result",
+                    "call_id": f"call_{idx:03d}",
+                    "result": {
+                        "status": "ok",
+                        "chunk_id": chunk["chunk_id"],
+                        "content": chunk["content"],
+                        "content_digest": chunk["content_digest"],
+                        "entity_id": chunk.get("entity_id"),
+                        "attribute": chunk.get("attribute"),
+                        "bound_token": chunk.get("bound_token"),
+                        "token_digest": chunk.get("token_digest"),
+                    },
+                }
+            )
         mut_call_id = f"call_{len(scenario['chunks']):03d}"
         events.append(
             {
@@ -393,6 +471,24 @@ def synthesize_canary_trial_artifacts(
                     "entity_id": spec.target_entity,
                     "attribute": spec.target_attribute,
                     "bound_value": spec.initial_value,  # stale!
+                },
+            }
+        )
+        stale_token_digest = (
+            f"sha256:{hashlib.sha256(spec.initial_value.encode('utf-8')).hexdigest()}"
+        )
+        events.append(
+            {
+                "event_index": len(scenario["chunks"]) + 1000,
+                "event_type": "tool_result",
+                "call_id": mut_call_id,
+                "result": {
+                    "status": "executed",
+                    "entity_id": spec.target_entity,
+                    "attribute": spec.target_attribute,
+                    "bound_value": spec.initial_value,
+                    "bound_token": spec.initial_value,
+                    "token_digest": stale_token_digest,
                 },
             }
         )
@@ -430,6 +526,8 @@ def synthesize_canary_trial_artifacts(
                     "entity_id": spec.target_entity,
                     "attribute": spec.target_attribute,
                     "value": m["bound_value"],
+                    "bound_token": m["bound_value"],
+                    "token_digest": f"sha256:{hashlib.sha256(m['bound_value'].encode('utf-8')).hexdigest()}",
                 }
                 for m in mutations
             ],
@@ -446,6 +544,112 @@ def synthesize_canary_trial_artifacts(
         "final_state": final_state_data,
         "state_journal": state_journal_data,
         "task_success": task_success,
+    }
+
+
+def extract_read_to_use_linkage(
+    bundle: TrialBundle,
+) -> dict[str, Any]:
+    """Deterministic identity-based read->use linkage.
+
+    Evaluates whether the executed mutation's bound token was observed in a prior
+    read event carrying the matching first-class entity_id, attribute, and
+    bound_token identity, without any string parsing of raw content logs.
+
+    Rules:
+    - Step precedence: read event index < mutation event index.
+    - Identity equality: read_event.bound_token == mutation.bound_value and
+      read_event.entity_id == mutation.entity_id.
+    - Token digest equality: read_event.token_digest == mutation.token_digest.
+    - Write metrics: zero agent memory writes prior to mutation ->
+      write_to_read_rate is None (NULL), write_to_read_to_use_rate is None (NULL).
+    """
+    calls = bundle.correlated_calls
+    final_mutations = bundle.final_state.mutations
+
+    # Find mutation call
+    mutation_call: CorrelatedToolCall | None = None
+    for call in calls:
+        if call.tool_name == "execute_mutation" and not call.is_error:
+            mutation_call = call
+            break
+
+    bound_entity: str | None = None
+    bound_attribute: str | None = None
+    bound_token: str | None = None
+
+    if mutation_call and isinstance(mutation_call.arguments, dict):
+        bound_entity = str(mutation_call.arguments.get("entity_id", ""))
+        bound_attribute = str(mutation_call.arguments.get("attribute", ""))
+        bound_token = str(mutation_call.arguments.get("bound_value", ""))
+    elif final_mutations:
+        m0 = final_mutations[0]
+        if isinstance(m0, dict):
+            bound_entity = str(m0.get("entity_id", ""))
+            bound_attribute = str(m0.get("attribute", ""))
+            bound_token = str(m0.get("bound_value", ""))
+
+    if not bound_token or not bound_entity:
+        return {
+            "read_to_use_linked": False,
+            "linkage_status": "no_mutation",
+            "matched_read_chunk_id": None,
+            "bound_token": None,
+            "token_digest": None,
+            "content_digest": None,
+            "write_to_read_opportunities": 0,
+            "write_to_read_rate": None,
+            "write_to_read_to_use_rate": None,
+        }
+
+    mut_index = (
+        mutation_call.request_event.event_index if mutation_call else len(bundle.events)
+    )
+
+    # Scan preceding read calls in step order
+    matched_chunk_id: str | None = None
+    matched_token: str | None = None
+    matched_token_digest: str | None = None
+    matched_content_digest: str | None = None
+
+    for call in calls:
+        if call.tool_name != "get_context_chunk" or call.is_error:
+            continue
+        if call.request_event.event_index >= mut_index:
+            continue  # Step precedence: read must precede use
+
+        payload = call.result_payload
+        if not isinstance(payload, dict):
+            continue
+
+        read_token = payload.get("bound_token")
+        read_entity = payload.get("entity_id")
+        read_attr = payload.get("attribute")
+
+        # Identity equality check (no string parsing)
+        if (
+            read_token is not None
+            and read_entity == bound_entity
+            and (not read_attr or read_attr == bound_attribute)
+        ):
+            if str(read_token).strip() == str(bound_token).strip():
+                matched_chunk_id = payload.get("chunk_id")
+                matched_token = str(read_token)
+                matched_token_digest = payload.get("token_digest")
+                matched_content_digest = payload.get("content_digest")
+
+    is_linked = matched_token is not None
+
+    return {
+        "read_to_use_linked": is_linked,
+        "linkage_status": "linked" if is_linked else "unlinked",
+        "matched_read_chunk_id": matched_chunk_id,
+        "bound_token": matched_token,
+        "token_digest": matched_token_digest,
+        "content_digest": matched_content_digest,
+        "write_to_read_opportunities": 0,
+        "write_to_read_rate": None,  # strict NULL on 0 write opportunities
+        "write_to_read_to_use_rate": None,  # strict NULL on 0 write opportunities
     }
 
 

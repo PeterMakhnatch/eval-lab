@@ -1,0 +1,282 @@
+{
+  "artifact_digests": {
+    "baseline_solver": "sha256:e6d5f2e80575d5f1cf03188bd5c4545b4ea099a8327b85f25bf0118677055c00",
+    "job_result": "sha256:ec1e5a93b63868c5892eae8b1e58e922337e0cfe3157f8732e19e6a232f3d35e",
+    "sealed_score_details": "sha256:178831bb645a3756e3b438ada47f95b238fa54803b1ceebea2faf3e1a1dc44ae",
+    "selected_solver": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
+    "trajectory": "sha256:9a3d268f491b7d5f24db7509f74641e898ee3aeb2aac274fc87c018c7ccb805a",
+    "trial_result": "sha256:a65f69bb8dca9f993859c79840375318896d26233fedca30c1637cc684dba22f"
+  },
+  "autonomous_research_trace": {
+    "artifact_replay_verified": true,
+    "baseline_visible_score": 0.0,
+    "benchmark_family": "rsi-exam/bbo_noisy_continuous",
+    "budget_seconds": 302.4,
+    "completed_milestones": 0,
+    "completed_rubric_subtasks": 0,
+    "dependency_repair_attempts": 0,
+    "dependency_repair_successes": 0,
+    "elapsed_seconds": 302.58024,
+    "environment_setup_seconds": 2.300652,
+    "final_artifact_digest": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
+    "hidden_score": 0.18143598030936073,
+    "iterations": [
+      {
+        "artifact_digest": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
+        "changed_bytes": 4195,
+        "changed_file_count": 1,
+        "cost_usd": 0.3127192,
+        "dependency_repair_attempted": false,
+        "dependency_repair_succeeded": false,
+        "disposition": "kept",
+        "elapsed_seconds": 275.957377,
+        "execution_success": true,
+        "hypothesis": "Use a compact bounded CMA-style evolution strategy with population ranking for smooth noisy 10D search.",
+        "is_reproducible": null,
+        "iteration_id": "v1",
+        "leakage_detected": false,
+        "milestone_progress": null,
+        "rubric_subtasks_passed": 0,
+        "schema_version": "research-iteration/v1",
+        "tokens_used": 204811,
+        "visible_score": 0.2047548822462361
+      }
+    ],
+    "leakage_flag": false,
+    "leakage_warning_count": 0,
+    "required_milestones": 0,
+    "run_id": "bbo_noisy_continuous__y6S5nSJ",
+    "schema_version": "research-run-trace/v1",
+    "score_direction": "higher",
+    "score_scale_binding": {
+      "binding_digest": "sha256:516102184e9110624e68a93a2788aec49b53745f4bbd37c0fe1f78dd12912e57",
+      "direction": "higher",
+      "hidden_split_id": "RSI-Exam/bbo_noisy_continuous:sealed-20x20",
+      "metric_name": "oracle_normalized_auc70_final30",
+      "normalization_digest": "sha256:0b5b3be247fe52e942eb773c3909fc3998c17e4cf5665cb35f79afd7d94b9749",
+      "schema_version": "score-scale-binding/v1",
+      "visible_split_id": "RSI-Exam/bbo_noisy_continuous:visible-12x20"
+    },
+    "selected_iteration_id": "v1",
+    "source_digest": "sha256:9a3d268f491b7d5f24db7509f74641e898ee3aeb2aac274fc87c018c7ccb805a",
+    "source_kind": "harbor",
+    "source_record_id": "33c8a1fc-6e3d-4718-b991-5b9647dd1434",
+    "source_revision_id": "sha256:ec1e5a93b63868c5892eae8b1e58e922337e0cfe3157f8732e19e6a232f3d35e",
+    "source_version": "0.21.0",
+    "total_cost_usd": 0.3127192,
+    "total_rubric_subtasks": 0,
+    "total_tokens": 204811,
+    "train_val_split_intact": true
+  },
+  "benchmark": {
+    "family": "RSI-Exam",
+    "metric": "oracle_normalized_auc70_final30",
+    "score_direction": "higher",
+    "source": "https://huggingface.co/datasets/RSI-Exam/RSI-Exam",
+    "source_revision": "7d0f2b04d17909a9fefdcf398707626eb749ea92",
+    "task": "autoresearch-arena/bbo_noisy_continuous",
+    "task_checksum": "0b5b3be247fe52e942eb773c3909fc3998c17e4cf5665cb35f79afd7d94b9749"
+  },
+  "comparability": {
+    "evidence_class": "calibration_only_darwin_public_egress",
+    "official_leaderboard_comparable": false,
+    "reasons": [
+      "Agent and verifier network_mode changed from no-network to public because Harbor Docker on Darwin rejects no-network.",
+      "Agent timeout reduced from the official 12-hour budget to 302.4 seconds.",
+      "Verifier timeout multiplier reduced to 0.2."
+    ]
+  },
+  "derived_features": {
+    "artifact_replay_verified": true,
+    "baseline_visible_score": 0.0,
+    "benchmark_family": "rsi-exam/bbo_noisy_continuous",
+    "best_improvement_iteration": 1,
+    "best_visible_score": 0.2047548822462361,
+    "budget_seconds": 302.4,
+    "budget_utilization_rate": 1.0005960317460318,
+    "changed_bytes_per_improvement": 20487.911955892396,
+    "completed_milestones": 0,
+    "completed_rubric_subtasks": 0,
+    "cost_per_improvement": 1.5272856821256506,
+    "dependency_repair_attempts": 0,
+    "dependency_repair_success_rate": null,
+    "dependency_repair_successes": 0,
+    "elapsed_seconds": 302.58024,
+    "environment_setup_seconds": 2.300652,
+    "experiment_throughput_per_hour": 11.897670515430882,
+    "feature_digest": "sha256:92bc923463f21b18360ffd22c9bd9a4e9cd4da63de0688341bb5cefb46ef2b48",
+    "final_artifact_digest": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
+    "final_selection_regret": 0.0,
+    "final_visible_score": 0.2047548822462361,
+    "first_improvement_iteration": 1,
+    "hidden_score": 0.18143598030936073,
+    "hypothesis_turnover_rate": 1.0,
+    "improvement_per_experiment": 0.2047548822462361,
+    "invalid_iteration_count": 0,
+    "iteration_count": 1,
+    "kept_iteration_count": 1,
+    "late_improvement_share": 0.0,
+    "leakage_detected_flag": false,
+    "leakage_warning_count": 0,
+    "max_consecutive_regressions": 0,
+    "measured_iteration_count": 1,
+    "milestone_completion_rate": null,
+    "optimal_selection_flag": true,
+    "plateau_streak_max": 0,
+    "regression_count": 0,
+    "regression_rate": null,
+    "repeated_hypothesis_count": 0,
+    "reproducibility_evaluated_count": 0,
+    "reproducibility_rate": null,
+    "reproducible_iteration_count": 0,
+    "required_milestones": 0,
+    "reverted_iteration_count": 0,
+    "rollback_rate": 0.0,
+    "rubric_completion_rate": null,
+    "run_id": "bbo_noisy_continuous__y6S5nSJ",
+    "runtime_environment_repaired": true,
+    "scale_binding_digest": "sha256:516102184e9110624e68a93a2788aec49b53745f4bbd37c0fe1f78dd12912e57",
+    "score_direction": "higher",
+    "score_scale_compatible": true,
+    "selected_iteration_id": "v1",
+    "source_digest": "sha256:9a3d268f491b7d5f24db7509f74641e898ee3aeb2aac274fc87c018c7ccb805a",
+    "source_kind": "harbor",
+    "source_record_id": "33c8a1fc-6e3d-4718-b991-5b9647dd1434",
+    "source_revision_id": "sha256:ec1e5a93b63868c5892eae8b1e58e922337e0cfe3157f8732e19e6a232f3d35e",
+    "source_version": "0.21.0",
+    "stalled_iteration_count": 0,
+    "stalled_iteration_rate": 0.0,
+    "time_to_best_score_seconds": 275.957377,
+    "time_to_first_improvement_seconds": 275.957377,
+    "tokens_per_experiment": 204811.0,
+    "total_changed_bytes": 4195,
+    "total_cost_usd": 0.3127192,
+    "total_rubric_subtasks": 0,
+    "total_tokens": 204811,
+    "train_val_split_intact": true,
+    "unique_hypothesis_count": 1,
+    "valid_experiment_count": 1,
+    "valid_experiment_rate": 1.0,
+    "visible_hidden_transfer_gap": -0.023318901936875358,
+    "visible_improvement": 0.2047548822462361
+  },
+  "harbor_ingestion_smoke": {
+    "derived_dir": "/tmp/evallab-rsi-bbo-derived",
+    "jobs": 1,
+    "llm_calls": 10,
+    "observations": 9,
+    "reward_facts": 1,
+    "steps": 15,
+    "tool_calls": 9,
+    "trajectories": 1,
+    "trajectory_events": 33,
+    "trial_facts": 1
+  },
+  "next_feature_priorities": [
+    {
+      "feature": "composite_outcome_validity",
+      "rank": 1,
+      "reason": "This pilot is simultaneously agent-timed-out, Harbor-error-marked, verifier-completed, and validly scored; a scalar success/error status loses the usable evidence."
+    },
+    {
+      "feature": "experiment_log_artifact_conformance",
+      "rank": 2,
+      "reason": "The selected v1 artifact exists and was scored, but experiment_log.md records only v0; missing lineage is directly observable and affects auditability."
+    },
+    {
+      "feature": "anytime_final_score_gap",
+      "rank": 3,
+      "reason": "The selected solver final component 0.3122 materially exceeds anytime 0.1587, identifying early localization as the next optimization target."
+    }
+  ],
+  "recorded_at": "2026-08-31T09:37:16Z",
+  "registry_comparison": {
+    "covered": [
+      "research-loop throughput and validity",
+      "hypothesis turnover",
+      "score-time improvement",
+      "final selection regret",
+      "visible-hidden transfer gap",
+      "artifact replay",
+      "budget and cost efficiency",
+      "generic error and recovery counts"
+    ],
+    "missing": [
+      "composite outcome validity separating agent timeout from verifier completion and usable reward",
+      "artifact-version to experiment-log conformance rate",
+      "anytime versus final score decomposition and localization gap"
+    ],
+    "partial": [
+      "generic recovery features exist, but arbitrary RSI tool-error opportunity labeling is not yet produced automatically",
+      "artifact replay is captured, but artifact-version to experiment-log reconciliation is not"
+    ]
+  },
+  "research_process": {
+    "artifact_versions": [
+      "v0",
+      "v1"
+    ],
+    "experiment_log_version_coverage": 0.5,
+    "notes": [
+      "The first patch attempt was rejected and replaced with a structurally valid two-step patch.",
+      "The /usr/bin/time attempt failed because the binary was absent and was replaced with shell built-in time.",
+      "The bounded timeout preserved the selected artifact and the separate verifier scored it successfully."
+    ],
+    "observed_failed_attempts": 2,
+    "observed_strategy_changes_after_failure": 2,
+    "selected_hypothesis": "Use a compact bounded CMA-style evolution strategy with population ranking for smooth noisy 10D search.",
+    "selected_version": "v1",
+    "substantive_iterations": 1,
+    "tool_calls": 9,
+    "unlogged_artifact_versions": [
+      "v1"
+    ],
+    "versions_recorded_in_experiment_log": [
+      "v0"
+    ]
+  },
+  "run": {
+    "agent": "codex",
+    "agent_execution_seconds": 302.58024,
+    "agent_timeout_seconds": 302.4,
+    "agent_version": "0.151.0",
+    "cache_tokens": 169728,
+    "cost_usd": 0.3127192,
+    "input_tokens": 198280,
+    "job_id": "33c8a1fc-6e3d-4718-b991-5b9647dd1434",
+    "model": "gpt-5.6-sol",
+    "outcome_axes": {
+      "agent_exception": "AgentTimeoutError",
+      "agent_status": "timed_out",
+      "harbor_trial_marked_error": true,
+      "verifier_reward_valid": true,
+      "verifier_status": "completed"
+    },
+    "output_tokens": 6531,
+    "total_runtime_seconds": 398.631039,
+    "trial_id": "bbo_noisy_continuous__y6S5nSJ"
+  },
+  "schema_version": "evallab-rsi-calibration-evidence/v1",
+  "scores": {
+    "retained_visible_fraction": 0.8861130846744241,
+    "sealed": {
+      "floor": 49.52502634047086,
+      "instances": 20,
+      "raw_metric": 34.758809106371984,
+      "reward": 0.18143598030936073,
+      "seeds_per_instance": 20,
+      "total_runs": 400,
+      "upper_bound": 0.0
+    },
+    "visible": {
+      "anytime": 0.1586937007082396,
+      "baseline": 0.0,
+      "final": 0.3122309725015611,
+      "instances": 12,
+      "mean_final_latent_objective": 33.6912267855138,
+      "seeds_per_instance": 20,
+      "selected": 0.2047548822462361
+    },
+    "visible_hidden_transfer_gap": -0.023318901936875358
+  }
+}

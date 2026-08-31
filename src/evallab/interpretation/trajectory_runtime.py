@@ -499,8 +499,13 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
     if accounting["unresolved"] != 0:
         raise ValueError(f"campaign manifest has unresolved evidence: {accounting['unresolved']}")
 
-    raw_config = data.get("analysis_config") or {}
-    if not isinstance(raw_config, dict):
+    if "analysis_config" in data and data["analysis_config"] is not None:
+        if not isinstance(data["analysis_config"], dict):
+            raise ValueError(
+                f"analysis_config must be a dictionary when provided, got {type(data['analysis_config']).__name__}"
+            )
+        raw_config = data["analysis_config"]
+    else:
         raw_config = {}
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY

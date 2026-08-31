@@ -377,9 +377,6 @@ def _ignore_copy(_directory: str, names: list[str]) -> set[str]:
     return {name for name in names if name in _IGNORE_COPY}
 
 
-# _sha256_tree replaced by canonical evallab.registry.task_directory_digest
-
-
 def _atomic_write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -16,37 +16,28 @@ _ANNOUNCED: set[tuple[str, str]] = set()
 
 def shared_checkout_root(repo_root: Path) -> Path:
     """Return the primary checkout for a repository or linked worktree."""
-    resolved = repo_root.resolve()
-    git_dir = resolved / ".git"
-    if not git_dir.exists():
-        return resolved
-    if git_dir.is_dir():
-        return resolved
-    if not git_dir.is_file():
-        return resolved
+    root = repo_root.resolve()
+    git_marker = root / ".git"
+    if git_marker.is_dir():
+        return root
+    if not git_marker.is_file():
+        return root
 
-    try:
-        content = git_dir.read_text().strip()
-    except OSError:
-        return resolved
-
-    if not content.startswith("gitdir:"):
-        return resolved
-
-    gitdir_path = Path(content.removeprefix("gitdir:").strip())
-    if not gitdir_path.is_absolute():
-        gitdir_path = (resolved / gitdir_path).resolve()
-
-    common_dir_file = gitdir_path / "commondir"
-    if not common_dir_file.is_file():
-        return resolved
-
-    try:
-        common_rel = common_dir_file.read_text().strip()
-    except OSError:
-        return resolved
-
-    common_dir = (gitdir_path / common_rel).resolve()
+    prefix = "gitdir:"
+    marker = git_marker.read_text().strip()
+    if not marker.lower().startswith(prefix):
+        return root
+    git_dir = Path(marker[len(prefix) :].strip())
+    if not git_dir.is_absolute():
+        git_dir = (root / git_dir).resolve()
+    common_marker = git_dir / "commondir"
+    if not common_marker.is_file():
+        return root
+    common_dir = Path(common_marker.read_text().strip())
+    if not common_dir.is_absolute():
+        common_dir = (git_dir / common_dir).resolve()
+    if common_dir.name != ".git":
+        return root
     return common_dir.parent.resolve()
 
 
@@ -54,106 +45,92 @@ def shared_checkout_root(repo_root: Path) -> Path:
 class DerivedRootResolution:
     """Where the derived Parquet root came from, and whose tree it belongs to.
 
-    Attributes
-    ----------
-    path:
-        The absolute Path that parquet reads and writes should target.
-    source:
-        How the path was reached:
-        - "explicit"     — passed via --derived-dir or equivalent parameter.
-        - "environment"  — read from EVALLAB_DERIVED_ROOT.
-        - "shared_repo"  — computed from the primary git checkout of a linked
-                           worktree.
-        - "local_repo"   — resolved to <invoking_root>/derived/parquet because
-                           this checkout is already the primary, or because git
-                           discovery could not locate a parent checkout.
-    invoking_root:
-        The repo root (or linked worktree root) where the call originated.
-    owner_root:
-        The repo root that owns `path`. Equals invoking_root for "local_repo"
-        and "explicit"; differs when a linked worktree redirects to the
-        primary checkout.
+    The lab keeps one derived store per machine because it is a rebuildable
+    projection of the single PostgreSQL catalog: a per-worktree copy would
+    disagree with the catalog every worktree shares. Sharing is therefore kept,
+    but it is never implied — `implicit` marks a resolution that crossed into
+    another checkout without anybody naming it, and `describe()` is the line an
+    operator reads instead of guessing.
     """
 
     path: Path
-    source: Literal["explicit", "environment", "shared_repo", "local_repo"]
+    origin: str
     invoking_root: Path
-    owner_root: Path
+    base_root: Path
+    implicit: bool
 
     @property
-    def is_cross_checkout(self) -> bool:
-        """True when this resolution points outside the invoking worktree."""
-        return self.invoking_root.resolve() != self.owner_root.resolve()
+    def is_foreign(self) -> bool:
+        """True when the resolved root lies outside the invoking checkout."""
+        return not self.path.is_relative_to(self.invoking_root)
 
-    def announce_cross_checkout(self, notifier: Notifier | None = None) -> None:
-        """Emit a one-line notification to stderr if pointing to another tree."""
-        if not self.is_cross_checkout:
-            return
-        notice = (
-            f"[evallab] Using shared Parquet root from primary checkout: "
-            f"{self.path} (invoked from {self.invoking_root})"
+    def describe(self) -> str:
+        if not self.is_foreign:
+            return f"{self.path} (this checkout, {self.origin})"
+        return f"{self.path} (shared, owned by {self.base_root}, {self.origin})"
+
+    def notice(self) -> str | None:
+        """The operator-facing line for an unnamed cross-checkout resolution."""
+        if not (self.is_foreign and self.implicit):
+            return None
+        return (
+            f"evallab: derived root {self.path} belongs to {self.base_root}, "
+            f"not to this checkout {self.invoking_root}; "
+            f"set {DERIVED_ROOT_ENV} to an absolute path to choose another."
         )
-        if notifier is not None:
-            notifier(notice)
-        else:
-            _announce_once(notice, self)
 
 
 def resolve_derived_root(
-    repo_root: Path | None = None,
+    repo_root: Path,
     *,
     explicit: Path | None = None,
-    environ: dict[str, str] | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> DerivedRootResolution:
     """Resolve the derived Parquet root and record how the answer was reached.
 
-    Precedence:
-    1. `explicit` parameter (e.g. from --derived-dir).
-    2. `EVALLAB_DERIVED_ROOT` environment variable.
-    3. Primary git checkout's `derived/parquet` when in a linked worktree.
-    4. `<repo_root>/derived/parquet` (local default).
+    Pure: it reads the environment mapping and the worktree's Git markers, and
+    reports. Explicit caller paths stay relative to the invoking checkout; the
+    environment override and the default are relative to the primary checkout
+    so every linked worktree observes the same derived store as the shared
+    PostgreSQL catalog.
     """
-    invoking = (repo_root or Path.cwd()).resolve()
-
+    root = repo_root.resolve()
     if explicit is not None:
-        explicit_resolved = (
-            explicit.resolve() if explicit.is_absolute() else (invoking / explicit).resolve()
-        )
+        path = explicit.resolve() if explicit.is_absolute() else (root / explicit).resolve()
         return DerivedRootResolution(
-            path=explicit_resolved,
-            source="explicit",
-            invoking_root=invoking,
-            owner_root=invoking,
+            path=path,
+            origin="explicit path",
+            invoking_root=root,
+            base_root=root,
+            implicit=False,
         )
 
-    env_map = environ if environ is not None else os.environ
-    env_val = env_map.get(DERIVED_ROOT_ENV)
-    if env_val:
-        env_path = Path(env_val)
-        env_resolved = (
-            env_path.resolve() if env_path.is_absolute() else (invoking / env_path).resolve()
-        )
+    environment = os.environ if environ is None else environ
+    configured = environment.get(DERIVED_ROOT_ENV)
+    shared_root = shared_checkout_root(root)
+    if configured:
+        candidate = Path(configured).expanduser()
+        if candidate.is_absolute():
+            return DerivedRootResolution(
+                path=candidate.resolve(),
+                origin=f"${DERIVED_ROOT_ENV}",
+                invoking_root=root,
+                base_root=root,
+                implicit=False,
+            )
         return DerivedRootResolution(
-            path=env_resolved,
-            source="environment",
-            invoking_root=invoking,
-            owner_root=invoking,
+            path=(shared_root / candidate).resolve(),
+            origin=f"${DERIVED_ROOT_ENV} relative to the primary checkout",
+            invoking_root=root,
+            base_root=shared_root,
+            implicit=True,
         )
-
-    primary = shared_checkout_root(invoking)
-    if primary != invoking:
-        return DerivedRootResolution(
-            path=(primary / "derived" / "parquet").resolve(),
-            source="shared_repo",
-            invoking_root=invoking,
-            owner_root=primary,
-        )
-
     return DerivedRootResolution(
-        path=(invoking / "derived" / "parquet").resolve(),
-        source="local_repo",
-        invoking_root=invoking,
-        owner_root=invoking,
+        path=(shared_root / "derived/parquet").resolve(),
+        origin="default",
+        invoking_root=root,
+        base_root=shared_root,
+        implicit=True,
     )
 
 
@@ -166,21 +143,28 @@ def _announce_once(notice: str, resolution: DerivedRootResolution) -> None:
 
 
 def derived_root_from_environment(
-    repo_root: Path | None = None,
+    repo_root: Path,
     *,
     explicit: Path | None = None,
-    announce: bool = True,
-    environ: dict[str, str] | None = None,
+    environ: Mapping[str, str] | None = None,
+    notify: Notifier | None = None,
 ) -> Path:
     """Resolve the one shared Parquet root, announcing a cross-checkout answer.
 
-    Backward-compatible convenience function. Returns just the Path.
-    Callers that need metadata about the resolution should call
-    `resolve_derived_root()` directly.
+    Every caller reaches the derived store through this function, so this is
+    where the sharing is made visible: when a linked worktree silently inherits
+    another checkout's derived root, `notify` receives one line saying whose
+    root it is. The default notifier writes to stderr once per invoking
+    tree and root, so an interactive command says it and a nightly loop does
+    not repeat it. Pass `notify` (tests do) to capture instead of print.
     """
     resolution = resolve_derived_root(repo_root, explicit=explicit, environ=environ)
-    if announce:
-        resolution.announce_cross_checkout()
+    notice = resolution.notice()
+    if notice is not None:
+        if notify is None:
+            _announce_once(notice, resolution)
+        else:
+            notify(notice)
     return resolution.path
 
 
@@ -240,9 +224,7 @@ class ParquetPartitionDiscovery:
             and (revision_id is None or partition.revision_id == revision_id)
             and (dt is None or partition.dt == dt)
         ]
-        if prefer_job_level and any(
-            partition.layout in {"job", "revision"} for partition in selected
-        ):
+        if prefer_job_level and any(partition.layout == "job" for partition in selected):
             selected = [partition for partition in selected if partition.layout != "hot"]
         return tuple(partition.path for partition in selected)
 
@@ -263,15 +245,11 @@ class ParquetPartitionDiscovery:
                 for partition in self.partitions
             )
         ]
-        if prefer_job_level and any(lay in selected for lay in {"job", "revision"}):
+        if prefer_job_level and "job" in selected:
             selected = [layout for layout in selected if layout != "hot"]
         if not selected and fallback:
             selected = list(permitted)
-            if (
-                prefer_job_level
-                and any(lay in selected for lay in {"job", "revision"})
-                and "hot" in selected
-            ):
+            if prefer_job_level and "job" in selected and "hot" in selected:
                 selected.remove("hot")
         return tuple(str(self.root / _parquet_layout_pattern(layout, table)) for layout in selected)
 

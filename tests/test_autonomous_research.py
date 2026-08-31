@@ -300,10 +300,70 @@ def test_leakage_and_contamination_detection() -> None:
     assert features.train_val_split_intact is False
 
 
+def test_lower_is_better_score_direction_semantics() -> None:
+    trace = ResearchRunTraceV1(
+        run_id="loss-opt-run",
+        benchmark_family="mle-bench/loss-minimization",
+        source_digest="sha256:" + "6" * 64,
+        baseline_visible_score=2.5,
+        score_direction="lower",
+        hidden_score=1.7,
+        score_scale_compatible=True,
+        iterations=(
+            ResearchIterationV1(
+                iteration_id="i1",
+                hypothesis="reduce learning rate",
+                visible_score=2.2,
+                disposition="kept",
+                elapsed_seconds=10.0,
+            ),
+            ResearchIterationV1(
+                iteration_id="i2",
+                hypothesis="add weight decay",
+                visible_score=2.4,
+                disposition="reverted",
+                elapsed_seconds=10.0,
+            ),
+            ResearchIterationV1(
+                iteration_id="i3",
+                hypothesis="cosine schedule",
+                visible_score=1.8,
+                disposition="kept",
+                elapsed_seconds=15.0,
+            ),
+            ResearchIterationV1(
+                iteration_id="i4",
+                hypothesis="increase batch size",
+                visible_score=1.9,
+                disposition="observed",
+                elapsed_seconds=15.0,
+            ),
+        ),
+    )
+    features = extract_autonomous_research_features(trace)
+
+    assert features.score_direction == "lower"
+    assert features.baseline_visible_score == 2.5
+    assert features.best_visible_score == 1.8  # minimum loss is best
+    assert features.final_visible_score == 1.9
+    assert features.visible_improvement == pytest.approx(2.5 - 1.8)  # +0.7 positive improvement
+    assert features.final_selection_regret == pytest.approx(1.9 - 1.8)  # +0.1 positive regret
+    assert features.optimal_selection_flag is False
+    assert features.regression_count == 2  # i1->i2 (2.2->2.4 is worse), i3->i4 (1.8->1.9 is worse)
+    assert features.max_consecutive_regressions == 1
+    assert features.first_improvement_iteration == 1  # i1 (2.2 < 2.5)
+    assert features.best_improvement_iteration == 3  # i3 (1.8)
+    assert features.stalled_iteration_count == 1  # i4 after i3
+    assert features.plateau_streak_max == 1  # i2 did not beat running best of 2.2
+    assert features.late_improvement_share == pytest.approx((2.2 - 1.8) / (2.5 - 1.8))  # 0.4 / 0.7
+    # Raw visible-hidden transfer gap is preserved as hidden - final
+    assert features.visible_hidden_transfer_gap == pytest.approx(1.7 - 1.9)
+
+
 def test_feature_registry_governance_for_autonomous_research_family() -> None:
     family_features = TRAJECTORY_FEATURE_REGISTRY.by_family("autonomous-research-v1")
-    assert len(family_features) == 60, (
-        f"Expected 60 registered features, got {len(family_features)}"
+    assert len(family_features) == 61, (
+        f"Expected 61 registered features, got {len(family_features)}"
     )
 
     # Audit denominator policies and verdict coupling for all features in family
@@ -379,7 +439,7 @@ def test_benchmark_feature_coverage_and_yield() -> None:
 
     yield_diag = compute_benchmark_feature_yield([record], family="autonomous-research-v1")
     assert yield_diag["total_records"] == 1
-    assert len(yield_diag["feature_stats"]) == 60
+    assert len(yield_diag["feature_stats"]) == 61
 
 
 def test_trace_validation_rejects_duplicate_iteration_ids_and_non_finite_scores() -> None:

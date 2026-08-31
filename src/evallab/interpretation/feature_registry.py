@@ -2763,6 +2763,26 @@ register_trajectory_feature(
 # -----------------------------------------------------------------------------
 # 4. Autonomous Research (autonomous-research-v1 / Autonomous Research & Method Improvement)
 # -----------------------------------------------------------------------------
+register_trajectory_feature(
+    "score_direction",
+    data_type="VARCHAR",
+    category="benchmark_ground_truth",
+    is_screening=False,
+    source_table="autonomous_research_runs",
+    formula_or_rule="Optimization direction declared by benchmark contract ('higher' or 'lower')",
+    null_condition="Never NULL ('higher' by default)",
+    description="Direction of visible score optimization: 'higher' for reward/accuracy, 'lower' for loss/error.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="independent",
+    producer_module="evallab.autonomous_research",
+    construct="Autonomous Research & Method Improvement",
+    causal_grade="C0",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="autonomous-research-v1",
+)
 # 4.1 Experiment Throughput & Validity (RSI-Exam, MLE-bench, RE-Bench)
 register_trajectory_feature(
     "iteration_count",

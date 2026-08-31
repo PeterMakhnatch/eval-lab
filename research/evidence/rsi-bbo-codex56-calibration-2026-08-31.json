@@ -19,6 +19,7 @@
     "elapsed_seconds": 302.58024,
     "environment_setup_seconds": 2.300652,
     "final_artifact_digest": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
+    "hidden_outcome_binding_digest": "sha256:fd669e2402548b7fd1e91db6683cf7721b9898344cce2b34881d1e1d8c9e974c",
     "hidden_score": 0.18143598030936073,
     "iterations": [
       {
@@ -44,6 +45,7 @@
     ],
     "leakage_flag": false,
     "leakage_warning_count": 0,
+    "metric_config_digest": "sha256:f63376719f843cfd94d009f0243d95f0b35cedeaedd3219d42f0b4f1d08c4dd1",
     "required_milestones": 0,
     "run_id": "bbo_noisy_continuous__y6S5nSJ",
     "schema_version": "research-run-trace/v1",
@@ -68,10 +70,13 @@
     "source_record_id": "33c8a1fc-6e3d-4718-b991-5b9647dd1434",
     "source_revision_id": "sha256:ec1e5a93b63868c5892eae8b1e58e922337e0cfe3157f8732e19e6a232f3d35e",
     "source_version": "0.21.0",
+    "task_digest": "sha256:0b5b3be247fe52e942eb773c3909fc3998c17e4cf5665cb35f79afd7d94b9749",
     "total_cost_usd": 0.3127192,
     "total_rubric_subtasks": 0,
     "total_tokens": 204811,
-    "train_val_split_intact": true
+    "train_val_split_intact": true,
+    "verifier_digest": "sha256:1a7bce0442be3193deba53d8be506d63a7769a3549e7d04cfae8261f707d9e9e",
+    "visible_outcome_binding_digest": "sha256:84c947a472264a9fdaedb8b8c24e6cd3008438fd133451bdd250e94da6d72d81"
   },
   "benchmark": {
     "family": "RSI-Exam",
@@ -109,11 +114,12 @@
     "elapsed_seconds": 302.58024,
     "environment_setup_seconds": 2.300652,
     "experiment_throughput_per_hour": 11.897670515430882,
-    "feature_digest": "sha256:a25325ba59e42622d74f7481fe0ba6ab594a862a3c02bb8c3031dc55398db3c0",
+    "feature_digest": "sha256:34f0aa26bd7ee18f9073e2b0c3b27ee24c53f8a2b1dd3df3ef48715c96e54b8b",
     "final_artifact_digest": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
     "final_selection_regret": 0.0,
     "final_visible_score": 0.2047548822462361,
     "first_improvement_iteration": 1,
+    "hidden_outcome_binding_digest": "sha256:fd669e2402548b7fd1e91db6683cf7721b9898344cce2b34881d1e1d8c9e974c",
     "hidden_score": 0.18143598030936073,
     "hypothesis_turnover_rate": 1.0,
     "improvement_per_experiment": 0.2047548822462361,
@@ -125,6 +131,7 @@
     "leakage_warning_count": 0,
     "max_consecutive_regressions": 0,
     "measured_iteration_count": 1,
+    "metric_config_digest": "sha256:f63376719f843cfd94d009f0243d95f0b35cedeaedd3219d42f0b4f1d08c4dd1",
     "milestone_completion_rate": null,
     "optimal_selection_flag": true,
     "plateau_streak_max": 0,
@@ -152,6 +159,7 @@
     "source_version": "0.21.0",
     "stalled_iteration_count": 0,
     "stalled_iteration_rate": 0.0,
+    "task_digest": "sha256:0b5b3be247fe52e942eb773c3909fc3998c17e4cf5665cb35f79afd7d94b9749",
     "time_to_best_score_seconds": 275.957377,
     "time_to_first_improvement_seconds": 275.957377,
     "tokens_per_experiment": 204811.0,
@@ -163,8 +171,10 @@
     "unique_hypothesis_count": 1,
     "valid_experiment_count": 1,
     "valid_experiment_rate": 1.0,
+    "verifier_digest": "sha256:1a7bce0442be3193deba53d8be506d63a7769a3549e7d04cfae8261f707d9e9e",
     "visible_hidden_transfer_gap": -0.023318901936875358,
-    "visible_improvement": 0.2047548822462361
+    "visible_improvement": 0.2047548822462361,
+    "visible_outcome_binding_digest": "sha256:84c947a472264a9fdaedb8b8c24e6cd3008438fd133451bdd250e94da6d72d81"
   },
   "harbor_ingestion_smoke": {
     "derived_dir": "/tmp/evallab-rsi-bbo-derived",

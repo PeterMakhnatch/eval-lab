@@ -24,6 +24,7 @@
     "elapsed_seconds": 2160.162282,
     "environment_setup_seconds": 1.968015,
     "final_artifact_digest": "sha256:7cee2b413e7c3cc63857a0c20dfecbc0aaa54071f0c7406daecf8fb8782f4bad",
+    "hidden_outcome_binding_digest": "sha256:1dde7cff14d0d460c19982287a3bb1d842ab845592f2096908947f2ab487730e",
     "hidden_score": 0.37800819,
     "iterations": [
       {
@@ -109,6 +110,7 @@
     ],
     "leakage_flag": false,
     "leakage_warning_count": 0,
+    "metric_config_digest": "sha256:a1b9373bc98b9c36edda73461f7283e5e21c99a66608a5abe1365890c286a075",
     "required_milestones": 0,
     "run_id": "game2048_policy_search__QzNuUbN",
     "schema_version": "research-run-trace/v1",
@@ -120,10 +122,13 @@
     "source_record_id": "8f48e025-c55e-4f98-9d8a-70c1d717904c",
     "source_revision_id": "sha256:9d311453d507d66187a737a5ae6cac27c2b766853be1138b43d80e4f61ec5a3b",
     "source_version": "0.21.0",
+    "task_digest": "sha256:93c13dcb77baa76fdddba1381c6e913f26fe9af364b7dd4e76a632d82a629ecf",
     "total_cost_usd": 1.5695951999999995,
     "total_rubric_subtasks": 0,
     "total_tokens": 2006962,
-    "train_val_split_intact": true
+    "train_val_split_intact": true,
+    "verifier_digest": "sha256:306f51a90598317567879c7de6665c884957f477c384f83bf540a352bee51081",
+    "visible_outcome_binding_digest": "sha256:13c328bb66084c2f2897dacd1ea5aef59687fd306f527fe2c2404ab24dc5f2fa"
   },
   "benchmark": {
     "family": "RSI-Exam",
@@ -162,11 +167,12 @@
     "elapsed_seconds": 2160.162282,
     "environment_setup_seconds": 1.968015,
     "experiment_throughput_per_hour": 6.666165833924139,
-    "feature_digest": "sha256:996736f5c491abd777cdf8b8283f4a22e50833ab25761f59807f9c1dcc91eba8",
+    "feature_digest": "sha256:afdf9453df33e86496b684d34d2afbc56bb3b12e12867327d19aff227647c26d",
     "final_artifact_digest": "sha256:7cee2b413e7c3cc63857a0c20dfecbc0aaa54071f0c7406daecf8fb8782f4bad",
     "final_selection_regret": null,
     "final_visible_score": null,
     "first_improvement_iteration": 2,
+    "hidden_outcome_binding_digest": "sha256:1dde7cff14d0d460c19982287a3bb1d842ab845592f2096908947f2ab487730e",
     "hidden_score": 0.37800819,
     "hypothesis_turnover_rate": 1.0,
     "improvement_per_experiment": 15173.5,
@@ -178,6 +184,7 @@
     "leakage_warning_count": 0,
     "max_consecutive_regressions": 0,
     "measured_iteration_count": 1,
+    "metric_config_digest": "sha256:a1b9373bc98b9c36edda73461f7283e5e21c99a66608a5abe1365890c286a075",
     "milestone_completion_rate": null,
     "optimal_selection_flag": null,
     "plateau_streak_max": 0,
@@ -205,6 +212,7 @@
     "source_version": "0.21.0",
     "stalled_iteration_count": 2,
     "stalled_iteration_rate": 0.5,
+    "task_digest": "sha256:93c13dcb77baa76fdddba1381c6e913f26fe9af364b7dd4e76a632d82a629ecf",
     "time_to_best_score_seconds": null,
     "time_to_first_improvement_seconds": null,
     "tokens_per_experiment": 501740.5,
@@ -216,8 +224,10 @@
     "unique_hypothesis_count": 4,
     "valid_experiment_count": 1,
     "valid_experiment_rate": 0.25,
+    "verifier_digest": "sha256:306f51a90598317567879c7de6665c884957f477c384f83bf540a352bee51081",
     "visible_hidden_transfer_gap": null,
-    "visible_improvement": 15173.5
+    "visible_improvement": 15173.5,
+    "visible_outcome_binding_digest": "sha256:13c328bb66084c2f2897dacd1ea5aef59687fd306f527fe2c2404ab24dc5f2fa"
   },
   "feature_findings": [
     {

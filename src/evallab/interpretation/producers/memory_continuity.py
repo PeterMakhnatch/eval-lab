@@ -7,12 +7,17 @@ import json
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Literal
 
 from evallab.semantic_facts import ContextOperationFact
 
 _MEMORY_OPERATIONS = frozenset({"memory_write", "memory_read", "memory_use"})
 _BOUNDARY_OPERATIONS = frozenset({"compaction", "clear", "evict", "session_boundary"})
+MemoryContinuityStatus = Literal[
+    "observed",
+    "missing_step_order",
+    "missing_content_identity",
+]
 
 
 @dataclass(frozen=True)
@@ -36,7 +41,7 @@ class MemoryContinuityFeatures:
     memory_read_context_position_coverage: float | None
     mean_memory_read_context_position_tokens: float | None
     max_memory_read_context_position_tokens: int | None
-    memory_continuity_status: str
+    memory_continuity_status: MemoryContinuityStatus
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -63,7 +68,7 @@ def _mean(values: Sequence[int]) -> float | None:
 def _empty_links(
     facts: Sequence[ContextOperationFact],
     *,
-    status: str,
+    status: MemoryContinuityStatus,
 ) -> MemoryContinuityFeatures:
     reads = [fact for fact in facts if fact.operation == "memory_read"]
     positions = [
@@ -93,6 +98,9 @@ def _empty_links(
 
 def _extract_trial(facts: Sequence[ContextOperationFact]) -> MemoryContinuityFeatures:
     if any(fact.step_index is None for fact in facts):
+        return _empty_links(facts, status="missing_step_order")
+    step_indices = [fact.step_index for fact in facts]
+    if len(step_indices) != len(set(step_indices)):
         return _empty_links(facts, status="missing_step_order")
     if any(fact.operation in _MEMORY_OPERATIONS and fact.content_digest is None for fact in facts):
         return _empty_links(facts, status="missing_content_identity")
@@ -211,4 +219,8 @@ def extract_memory_continuity_features(
     return tuple(_extract_trial(grouped[trial_id]) for trial_id in sorted(grouped))
 
 
-__all__ = ["MemoryContinuityFeatures", "extract_memory_continuity_features"]
+__all__ = [
+    "MemoryContinuityFeatures",
+    "MemoryContinuityStatus",
+    "extract_memory_continuity_features",
+]

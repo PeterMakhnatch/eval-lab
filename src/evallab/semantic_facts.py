@@ -33,6 +33,13 @@ def _digest(value: Any) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
+def context_operation_content_digest(payload: Mapping[str, Any]) -> Digest:
+    """Digest one exact canonical context-operation payload without reordering arrays."""
+    if not all(isinstance(key, str) for key in payload):
+        raise ValueError("context operation payload keys must be strings")
+    return _digest(dict(payload))
+
+
 class FactRow(ContractModel):
     """Common immutable source identity carried by every semantic fact row."""
 
@@ -144,7 +151,7 @@ class ContextOperationFact(FactRow):
     after_token_count: int | None = Field(default=None, ge=0)
     content_digest: Digest | None = None
     session_id: str | None = None
-    step_index: int | None = Field(default=None, ge=0)
+    step_index: int | None = Field(default=None, ge=0, strict=True)
     context_position_tokens: int | None = Field(default=None, ge=0)
 
     @field_validator("content_digest")
@@ -472,6 +479,7 @@ __all__ = [
     "RetrievalFact",
     "ConstraintFact",
     "ContextOperationFact",
+    "context_operation_content_digest",
     "PairedConditionFact",
     "SessionDependencyFact",
     "EvidenceCoverage",

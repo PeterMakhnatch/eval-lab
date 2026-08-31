@@ -3,13 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 
+import pyarrow.parquet as pq
 import pytest
 
 from evallab.semantic_facts import (
     CapabilityOpportunity,
+    ContextOperationFact,
     EvidenceCoverage,
     NormalizedFactBundle,
+    ProcessStepFact,
     RetrievalFact,
+    context_operation_content_digest,
     load_fact_bundle,
     normalize_bundle,
     project_fact_bundle,
@@ -164,3 +168,88 @@ def test_json_bundle_loader_does_not_invent_absent_facts(tmp_path) -> None:
     assert len(loaded.capability_opportunities) == 1
     assert loaded.retrieval_facts == ()
     project_fact_bundle(loaded, tmp_path / "projected")
+
+
+def test_context_operation_step_index_round_trips_projection(tmp_path) -> None:
+    fact = ContextOperationFact(
+        source_ref="runs/trial-1/condensation.json#step=17",
+        source_digest=digest("condensation-source"),
+        provenance_kind="mechanical",
+        trial_id="trial-1",
+        operation_id="condensation-17",
+        operation="compaction",
+        step_index=17,
+        content_digest=digest("condensation-content"),
+    )
+    serialized = fact.model_dump_json()
+    assert ContextOperationFact.model_validate_json(serialized).step_index == 17
+
+    paths = project_fact_bundle(
+        NormalizedFactBundle(context_operation_facts=(fact,)),
+        tmp_path / "projected",
+    )
+
+    assert pq.read_table(paths["context_operation_facts"]).to_pylist()[0]["step_index"] == 17
+
+
+def test_historical_context_operation_order_remains_absent_without_step_join() -> None:
+    fact = ContextOperationFact(
+        source_ref="runs/trial-1/legacy.json",
+        source_digest=digest("legacy"),
+        provenance_kind="mechanical",
+        trial_id="trial-1",
+        operation_id="legacy-compaction",
+        operation="compaction",
+    )
+    process_step = ProcessStepFact(
+        source_ref="runs/trial-1/trajectory.json#step=9",
+        source_digest=digest("trajectory"),
+        provenance_kind="mechanical",
+        trial_id="trial-1",
+        source_trajectory_id="trajectory-1",
+        source_step_id="9",
+        label="neutral",
+    )
+
+    normalized = normalize_bundle(
+        NormalizedFactBundle(
+            process_step_facts=(process_step,),
+            context_operation_facts=(fact,),
+        )
+    )
+
+    assert normalized.context_operation_facts[0].step_index is None
+
+
+@pytest.mark.parametrize("value", [-1, "1", 1.5, True])
+def test_context_operation_rejects_invalid_step_index(value: object) -> None:
+    with pytest.raises(ValueError, match="step_index"):
+        ContextOperationFact(
+            source_ref="runs/trial-1/context.json",
+            source_digest=digest(),
+            provenance_kind="mechanical",
+            trial_id="trial-1",
+            operation_id="invalid-step",
+            operation="compaction",
+            step_index=value,
+        )
+
+
+def test_context_payload_digest_binds_summary_order_and_compression_metadata() -> None:
+    payload = {
+        "summary": "The user selected the red key.",
+        "forgotten_message_indices": [2, 5, 8],
+        "compression_metadata": {"method": "summary", "input_tokens": 1200},
+    }
+    baseline = context_operation_content_digest(payload)
+
+    summary_changed = {**payload, "summary": "The user selected the blue key."}
+    order_changed = {**payload, "forgotten_message_indices": [5, 2, 8]}
+    metadata_changed = {
+        **payload,
+        "compression_metadata": {"method": "summary", "input_tokens": 1201},
+    }
+
+    assert baseline != context_operation_content_digest(summary_changed)
+    assert baseline != context_operation_content_digest(order_changed)
+    assert baseline != context_operation_content_digest(metadata_changed)

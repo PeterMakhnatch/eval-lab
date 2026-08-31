@@ -10,7 +10,14 @@ from typing import Any
 
 import pytest
 
-from evallab.autonomous_research import ScoreScaleBindingV1
+from evallab.autonomous_research import (
+    ResearchIterationV1,
+    ResearchRunTraceV1,
+    ScoreScaleBindingV1,
+    ScoreScaleVerificationResult,
+    extract_autonomous_research_features,
+    verified_score_scale_result,
+)
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.interpretation.trajectory_runtime import (
     DETERMINISTIC_GATE_ORDER,
@@ -18,6 +25,7 @@ from evallab.interpretation.trajectory_runtime import (
     build_evidence_pack,
     build_trajectory_ir,
     canonical_json_digest,
+    load_campaign_analysis_manifest,
 )
 from evallab.lance import LanceIndexManifest
 from evallab.registry import compute_task_digests, task_directory_digest
@@ -55,8 +63,6 @@ def _compute_canonical_feature_registry_digest() -> str:
 
 def test_trajectory_runtime_analysis_config_matching_digests_pass(tmp_path: Path) -> None:
     """Declared analysis config digests that match canonical values must pass validation."""
-    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
-
     canonical_frd = _compute_canonical_feature_registry_digest()
     canonical_producers = _compute_canonical_producer_digests()
     canonical_cohort = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
@@ -83,10 +89,45 @@ def test_trajectory_runtime_analysis_config_matching_digests_pass(tmp_path: Path
     assert manifest.analysis_config.producer_digests == canonical_producers
 
 
+def test_trajectory_runtime_analysis_config_absent_synthesizes_canonical(tmp_path: Path) -> None:
+    """Absent or None analysis_config synthesizes canonical digests for backwards compatibility."""
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "commit_sha": "abc1234",
+        "authorizing_actor": "analyst",
+        "cas_store_root": "derived/evidence-cas",
+        "items": [],
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    manifest = load_campaign_analysis_manifest(manifest_file)
+    assert (
+        manifest.analysis_config.feature_registry_digest
+        == _compute_canonical_feature_registry_digest()
+    )
+    assert manifest.analysis_config.producer_digests == _compute_canonical_producer_digests()
+
+
+@pytest.mark.parametrize("invalid_config", [[], "invalid-string", 123, True])
+def test_trajectory_runtime_analysis_config_non_dict_raises(
+    tmp_path: Path, invalid_config: Any
+) -> None:
+    """Non-dict analysis_config declaration must fail closed with a clear ValueError."""
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "items": [],
+        "analysis_config": invalid_config,
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="analysis_config must be a dictionary when provided"):
+        load_campaign_analysis_manifest(manifest_file)
+
+
 def test_trajectory_runtime_stale_feature_registry_digest_raises(tmp_path: Path) -> None:
     """Declared feature registry digest that differs from in-tree registry must fail closed."""
-    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
-
     manifest_file = tmp_path / "manifest.json"
     manifest_data = {
         "campaign": "test-campaign",
@@ -103,8 +144,6 @@ def test_trajectory_runtime_stale_feature_registry_digest_raises(tmp_path: Path)
 
 def test_trajectory_runtime_producer_digests_missing_key_raises(tmp_path: Path) -> None:
     """Declared producer digests missing required producer keys must fail closed."""
-    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
-
     manifest_file = tmp_path / "manifest.json"
     manifest_data = {
         "campaign": "test-campaign",
@@ -121,8 +160,6 @@ def test_trajectory_runtime_producer_digests_missing_key_raises(tmp_path: Path) 
 
 def test_trajectory_runtime_producer_digests_extra_key_raises(tmp_path: Path) -> None:
     """Declared producer digests with extra unknown keys must fail closed."""
-    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
-
     canonical_producers = _compute_canonical_producer_digests()
     tampered_producers = dict(canonical_producers)
     tampered_producers["unauthorized_producer"] = "sha256:" + "2" * 64
@@ -143,8 +180,6 @@ def test_trajectory_runtime_producer_digests_extra_key_raises(tmp_path: Path) ->
 
 def test_trajectory_runtime_producer_digests_value_mismatch_raises(tmp_path: Path) -> None:
     """Declared producer digest with wrong hash value must fail closed."""
-    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
-
     canonical_producers = _compute_canonical_producer_digests()
     tampered_producers = dict(canonical_producers)
     tampered_producers["ir_builder"] = "sha256:" + "f" * 64
@@ -292,7 +327,7 @@ def test_authoring_tree_digest_detects_real_source_change(tmp_path: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
-# F4: Score Scale Binding Artifact Verification
+# F4: Score Scale Binding Artifact Verification & Transfer Refusal
 # ---------------------------------------------------------------------------
 
 
@@ -302,7 +337,7 @@ def _sha256_json(obj: Any) -> str:
 
 
 def test_score_scale_binding_verify_against_artifacts_exact_match(tmp_path: Path) -> None:
-    """ScoreScaleBindingV1.verify_against_artifacts must return True when all artifacts match."""
+    """ScoreScaleBindingV1.verify_against_artifacts must return verified status when all artifacts match."""
     task_dir = tmp_path / "eval-task"
     task_dir.mkdir()
     (task_dir / "task.toml").write_text("name = 'eval-task'\n", encoding="utf-8")
@@ -330,15 +365,44 @@ def test_score_scale_binding_verify_against_artifacts_exact_match(tmp_path: Path
         hidden_outcome_binding_digest=_sha256_json(hid_outcome),
     )
 
-    assert (
-        binding.verify_against_artifacts(
-            task_dir=task_dir,
-            metric_config=metric_cfg,
-            visible_outcome=vis_outcome,
-            hidden_outcome=hid_outcome,
-        )
-        is True
+    res = binding.verify_against_artifacts(
+        task_dir=task_dir,
+        metric_config=metric_cfg,
+        visible_outcome=vis_outcome,
+        hidden_outcome=hid_outcome,
     )
+    assert isinstance(res, ScoreScaleVerificationResult)
+    assert res.verified is True
+    assert res.status == "verified"
+    assert res.task_status == "verified"
+    assert res.verifier_status == "verified"
+    assert res.metric_config_status == "verified"
+    assert res.visible_outcome_status == "verified"
+    assert res.hidden_outcome_status == "verified"
+
+
+def test_score_scale_binding_partial_artifacts_returns_unresolved(tmp_path: Path) -> None:
+    """Missing required artifact sources must return status='unresolved' with verified=False."""
+    binding = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="accuracy",
+        direction="higher",
+        task_digest="sha256:" + "1" * 64,
+        verifier_digest="sha256:" + "2" * 64,
+        metric_config_digest="sha256:" + "3" * 64,
+        visible_split_id="split_v1",
+        hidden_split_id="split_h1",
+        visible_outcome_binding_digest="sha256:" + "4" * 64,
+        hidden_outcome_binding_digest="sha256:" + "5" * 64,
+    )
+
+    # Only metric config supplied, others missing
+    res = binding.verify_against_artifacts(
+        metric_config={"some": "config"},
+        fail_closed=False,
+    )
+    assert res.verified is False
+    assert res.status in ("unresolved", "mismatch")
 
 
 def test_score_scale_binding_verify_mismatched_task_digest_raises(tmp_path: Path) -> None:
@@ -385,20 +449,45 @@ def test_score_scale_binding_verify_mismatched_metric_config_raises() -> None:
         binding.verify_against_artifacts(metric_config=tampered_cfg)
 
 
-def test_score_scale_binding_verify_no_artifacts_raises() -> None:
-    """verify_against_artifacts must raise ValueError when called with no artifacts to verify."""
+def test_score_scale_binding_unverified_trace_refuses_transfer_arithmetic() -> None:
+    """A trace with an unverified score scale binding must deserialize cleanly but emit None transfer gap."""
     binding = ScoreScaleBindingV1.create(
         authority_kind="benchmark_contract",
-        metric_name="accuracy",
+        metric_name="score",
         direction="higher",
-        task_digest="sha256:" + "a" * 64,
-        verifier_digest="sha256:" + "b" * 64,
-        metric_config_digest="sha256:" + "c" * 64,
-        visible_split_id="split_v1",
-        hidden_split_id="split_h1",
-        visible_outcome_binding_digest="sha256:" + "d" * 64,
-        hidden_outcome_binding_digest="sha256:" + "e" * 64,
+        task_digest="sha256:" + "1" * 64,
+        verifier_digest="sha256:" + "2" * 64,
+        metric_config_digest="sha256:" + "3" * 64,
+        visible_split_id="val",
+        hidden_split_id="test",
+        visible_outcome_binding_digest="sha256:" + "4" * 64,
+        hidden_outcome_binding_digest="sha256:" + "5" * 64,
+    )
+    trace = ResearchRunTraceV1(
+        run_id="unverified-rsi-run",
+        benchmark_family="paperbench",
+        source_digest="sha256:" + "3" * 64,
+        task_digest=binding.task_digest,
+        verifier_digest=binding.verifier_digest,
+        metric_config_digest=binding.metric_config_digest,
+        visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
+        score_direction="higher",
+        score_scale_binding=binding,
+        hidden_score=12.0,
+        selected_iteration_id="v1",
+        iterations=(ResearchIterationV1(iteration_id="v1", visible_score=10.0),),
     )
 
-    with pytest.raises(ValueError, match="no artifacts provided to verify ScoreScaleBindingV1"):
-        binding.verify_against_artifacts()
+    # Calling extract without verified binding result
+    features = extract_autonomous_research_features(trace)
+    assert features.score_scale_compatible is False
+    assert features.visible_hidden_transfer_gap is None  # REFUSED without verification!
+    assert features.scale_binding_digest == binding.binding_digest
+
+    # Now calling with full verification result emits the transfer arithmetic
+    features_verified = extract_autonomous_research_features(
+        trace, binding_verification=verified_score_scale_result()
+    )
+    assert features_verified.score_scale_compatible is True
+    assert features_verified.visible_hidden_transfer_gap == 2.0

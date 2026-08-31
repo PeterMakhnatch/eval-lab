@@ -40,6 +40,34 @@ def _digest(value: Any) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
+@dataclass(frozen=True)
+class ScoreScaleVerificationResult:
+    """Detailed verification status for a ScoreScaleBindingV1 against source artifacts."""
+
+    verified: bool
+    status: Literal["verified", "mismatch", "unresolved"]
+    task_status: Literal["verified", "mismatch", "unresolved"]
+    verifier_status: Literal["verified", "mismatch", "unresolved"]
+    metric_config_status: Literal["verified", "mismatch", "unresolved"]
+    visible_outcome_status: Literal["verified", "mismatch", "unresolved"]
+    hidden_outcome_status: Literal["verified", "mismatch", "unresolved"]
+    reason: str | None = None
+
+
+def verified_score_scale_result() -> ScoreScaleVerificationResult:
+    """Convenience factory for a fully verified score scale result."""
+    return ScoreScaleVerificationResult(
+        verified=True,
+        status="verified",
+        task_status="verified",
+        verifier_status="verified",
+        metric_config_status="verified",
+        visible_outcome_status="verified",
+        hidden_outcome_status="verified",
+        reason=None,
+    )
+
+
 class ScoreScaleBindingV1(ContractModel):
     """Cryptographically validated binding proving visible and hidden score comparability."""
 
@@ -138,66 +166,138 @@ class ScoreScaleBindingV1(ContractModel):
         metric_config: Mapping[str, Any] | None = None,
         visible_outcome: Mapping[str, Any] | None = None,
         hidden_outcome: Mapping[str, Any] | None = None,
-    ) -> bool:
+        fail_closed: bool = True,
+    ) -> ScoreScaleVerificationResult:
         """Verify declared input digests against actual resolved task and configuration artifacts.
 
-        Raises ValueError if any provided artifact does not match its declared digest,
-        or if no artifacts are provided for verification.
-        Returns True when all provided artifacts match exactly.
+        All five components (task, verifier, metric config, visible outcome, hidden outcome)
+        must be supplied and match their declared cryptographic digests to achieve 'verified' status.
+        If any supplied component does not match its declared digest:
+            - raises ValueError if fail_closed is True (default)
+            - returns ScoreScaleVerificationResult with status='mismatch' if fail_closed is False
+        If any component artifact is omitted/None:
+            - returns ScoreScaleVerificationResult with status='unresolved' and verified=False.
         """
-        checked = 0
+        task_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        verifier_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        metric_config_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        visible_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        hidden_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+
+        # 1. Task package and verifier verification
         if task_dir is not None:
             from evallab.registry import compute_task_digests
 
             p = Path(task_dir).resolve()
             if not p.is_dir():
-                raise ValueError(f"task directory not found: {p}")
-            digests = compute_task_digests(p)
-            if digests.package != self.task_digest:
-                raise ValueError(
-                    f"task_digest mismatch for {self.metric_name}: "
-                    f"expected {self.task_digest}, got {digests.package}"
-                )
-            if digests.verifier != self.verifier_digest:
-                raise ValueError(
-                    f"verifier_digest mismatch for {self.metric_name}: "
-                    f"expected {self.verifier_digest}, got {digests.verifier}"
-                )
-            checked += 1
+                if fail_closed:
+                    raise ValueError(f"task directory not found: {p}")
+                task_status = "mismatch"
+                verifier_status = "mismatch"
+            else:
+                digests = compute_task_digests(p)
+                if digests.package != self.task_digest:
+                    if fail_closed:
+                        raise ValueError(
+                            f"task_digest mismatch for {self.metric_name}: "
+                            f"expected {self.task_digest}, got {digests.package}"
+                        )
+                    task_status = "mismatch"
+                else:
+                    task_status = "verified"
 
+                if digests.verifier != self.verifier_digest:
+                    if fail_closed:
+                        raise ValueError(
+                            f"verifier_digest mismatch for {self.metric_name}: "
+                            f"expected {self.verifier_digest}, got {digests.verifier}"
+                        )
+                    verifier_status = "mismatch"
+                else:
+                    verifier_status = "verified"
+
+        # 2. Metric config verification
         if metric_config is not None:
             computed_metric = _digest(metric_config)
             if computed_metric != self.metric_config_digest:
-                raise ValueError(
-                    f"metric_config_digest mismatch for {self.metric_name}: "
-                    f"expected {self.metric_config_digest}, got {computed_metric}"
-                )
-            checked += 1
+                if fail_closed:
+                    raise ValueError(
+                        f"metric_config_digest mismatch for {self.metric_name}: "
+                        f"expected {self.metric_config_digest}, got {computed_metric}"
+                    )
+                metric_config_status = "mismatch"
+            else:
+                metric_config_status = "verified"
 
+        # 3. Visible outcome binding verification
         if visible_outcome is not None:
             computed_vis = _digest(visible_outcome)
             if computed_vis != self.visible_outcome_binding_digest:
-                raise ValueError(
-                    f"visible_outcome_binding_digest mismatch for {self.metric_name}: "
-                    f"expected {self.visible_outcome_binding_digest}, got {computed_vis}"
-                )
-            checked += 1
+                if fail_closed:
+                    raise ValueError(
+                        f"visible_outcome_binding_digest mismatch for {self.metric_name}: "
+                        f"expected {self.visible_outcome_binding_digest}, got {computed_vis}"
+                    )
+                visible_outcome_status = "mismatch"
+            else:
+                visible_outcome_status = "verified"
 
+        # 4. Hidden outcome binding verification
         if hidden_outcome is not None:
             computed_hid = _digest(hidden_outcome)
             if computed_hid != self.hidden_outcome_binding_digest:
-                raise ValueError(
-                    f"hidden_outcome_binding_digest mismatch for {self.metric_name}: "
-                    f"expected {self.hidden_outcome_binding_digest}, got {computed_hid}"
-                )
-            checked += 1
+                if fail_closed:
+                    raise ValueError(
+                        f"hidden_outcome_binding_digest mismatch for {self.metric_name}: "
+                        f"expected {self.hidden_outcome_binding_digest}, got {computed_hid}"
+                    )
+                hidden_outcome_status = "mismatch"
+            else:
+                hidden_outcome_status = "verified"
 
-        if checked == 0:
-            raise ValueError(
-                f"no artifacts provided to verify ScoreScaleBindingV1 for {self.metric_name}; "
-                "refusing uncertified score transfer"
+        all_statuses = [
+            ("task", task_status),
+            ("verifier", verifier_status),
+            ("metric_config", metric_config_status),
+            ("visible_outcome", visible_outcome_status),
+            ("hidden_outcome", hidden_outcome_status),
+        ]
+        mismatched = [k for k, s in all_statuses if s == "mismatch"]
+        unresolved = [k for k, s in all_statuses if s == "unresolved"]
+
+        if mismatched:
+            return ScoreScaleVerificationResult(
+                verified=False,
+                status="mismatch",
+                task_status=task_status,
+                verifier_status=verifier_status,
+                metric_config_status=metric_config_status,
+                visible_outcome_status=visible_outcome_status,
+                hidden_outcome_status=hidden_outcome_status,
+                reason=f"mismatched_components: {mismatched}",
             )
-        return True
+        if unresolved:
+            return ScoreScaleVerificationResult(
+                verified=False,
+                status="unresolved",
+                task_status=task_status,
+                verifier_status=verifier_status,
+                metric_config_status=metric_config_status,
+                visible_outcome_status=visible_outcome_status,
+                hidden_outcome_status=hidden_outcome_status,
+                reason=f"unresolved_components: {unresolved}",
+            )
+
+        return ScoreScaleVerificationResult(
+            verified=True,
+            status="verified",
+            task_status="verified",
+            verifier_status="verified",
+            metric_config_status="verified",
+            visible_outcome_status="verified",
+            hidden_outcome_status="verified",
+            reason=None,
+        )
 
 
 class ResearchIterationV1(ContractModel):
@@ -518,6 +618,12 @@ def _hypothesis_key(value: str) -> str:
 
 def extract_autonomous_research_features(
     trace: ResearchRunTraceV1,
+    *,
+    binding_verification: ScoreScaleVerificationResult | None = None,
+    task_dir: Path | str | None = None,
+    metric_config: Mapping[str, Any] | None = None,
+    visible_outcome: Mapping[str, Any] | None = None,
+    hidden_outcome: Mapping[str, Any] | None = None,
 ) -> AutonomousResearchFeatures:
     """Compute research-loop efficiency, selection, and generalization features."""
     iterations = list(trace.iterations)
@@ -733,13 +839,32 @@ def extract_autonomous_research_features(
         optimal_selection_flag = None
         final_selection_regret = None
 
-    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when validated ScoreScaleBindingV1 exists AND selected candidate has score)
+    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when verified ScoreScaleBindingV1 exists AND selected candidate has score)
     transfer_gap = None
     scale_binding_digest: str | None = None
+    score_scale_compatible = False
     if trace.score_scale_binding is not None:
         scale_binding_digest = trace.score_scale_binding.binding_digest
-        if trace.hidden_score is not None and final_visible is not None:
-            transfer_gap = trace.hidden_score - final_visible
+
+        # Re-verify if artifacts are provided directly
+        if binding_verification is None and any(
+            x is not None for x in (task_dir, metric_config, visible_outcome, hidden_outcome)
+        ):
+            binding_verification = trace.score_scale_binding.verify_against_artifacts(
+                task_dir=task_dir,
+                metric_config=metric_config,
+                visible_outcome=visible_outcome,
+                hidden_outcome=hidden_outcome,
+                fail_closed=False,
+            )
+
+        if binding_verification is not None and binding_verification.verified is True:
+            score_scale_compatible = True
+            if trace.hidden_score is not None and final_visible is not None:
+                transfer_gap = trace.hidden_score - final_visible
+        else:
+            score_scale_compatible = False
+            transfer_gap = None
 
     # 8. Artifact Replay & Reproducibility
     reproducibility_evaluated_count = sum(
@@ -856,7 +981,7 @@ def extract_autonomous_research_features(
         "final_selection_regret": final_selection_regret,
         # 7. Hidden-Transfer Gap & Generalization
         "scale_binding_digest": scale_binding_digest,
-        "score_scale_compatible": trace.score_scale_compatible,
+        "score_scale_compatible": score_scale_compatible,
         "hidden_score": trace.hidden_score,
         "visible_hidden_transfer_gap": transfer_gap,
         # 8. Artifact Replay & Reproducibility

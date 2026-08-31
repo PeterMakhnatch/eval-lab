@@ -10,6 +10,7 @@ from evallab.autonomous_research import (
     ScoreScaleBindingV1,
     extract_autonomous_research_features,
     parse_jsonl_experiment_log,
+    verified_score_scale_result,
 )
 from evallab.interpretation.feature_registry import (
     TRAJECTORY_FEATURE_REGISTRY,
@@ -135,7 +136,9 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
             ),
         ),
     )
-    features = extract_autonomous_research_features(trace)
+    features = extract_autonomous_research_features(
+        trace, binding_verification=verified_score_scale_result()
+    )
 
     # Identity & Source
     assert features.source_kind == "harbor"
@@ -764,7 +767,9 @@ def test_lower_is_better_score_direction_semantics() -> None:
             ),
         ),
     )
-    features = extract_autonomous_research_features(trace)
+    features = extract_autonomous_research_features(
+        trace, binding_verification=verified_score_scale_result()
+    )
 
     assert features.score_direction == "lower"
     assert features.baseline_visible_score == 2.5

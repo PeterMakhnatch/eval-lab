@@ -96,7 +96,7 @@ These become informative when a run has multiple comparable experiments:
 - changed bytes, tokens and cost per improvement;
 - final-selection regret.
 
-Do not over-read them at tiny opportunity counts. BBO has one selection decision, so regret `0` is largely structural, not evidence of excellent selection.
+BBO has one selection decision, so regret and the optimal-selection flag now remain `null`; there is no comparison opportunity to summarize.
 
 ### 3.3 Dormant, benchmark-activated modules
 

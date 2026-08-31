@@ -3686,7 +3686,10 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--allow-billable",
         action="store_true",
-        help="Acknowledge that the selected adapter/model may incur charges",
+        help=(
+            "Record billable acknowledgement; direct 'evallab run' remains control-only, "
+            "and paid agents must use the standing-policy queue"
+        ),
     )
     run.set_defaults(func=_run_command)
 

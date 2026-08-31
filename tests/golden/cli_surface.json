@@ -4819,7 +4819,7 @@
         "flags": [
           "--allow-billable"
         ],
-        "help": "Acknowledge that the selected adapter/model may incur charges",
+        "help": "Record billable acknowledgement; direct 'evallab run' remains control-only, and paid agents must use the standing-policy queue",
         "metavar": null,
         "nargs": 0,
         "required": false,

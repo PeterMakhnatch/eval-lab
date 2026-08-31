@@ -123,9 +123,9 @@ def executor(
         ingester=ingester or (lambda path: None),
         spent_today=lambda: spent,
         consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: credentials
-        if credentials is not None
-        else frozenset({"claude_oauth", "codex_auth"}),
+        credential_probe=lambda: (
+            credentials if credentials is not None else frozenset({"claude_oauth", "codex_auth"})
+        ),
         sleeper=sleeper,
         max_transient_retries=max_transient_retries,
         parallel=parallel,
@@ -196,9 +196,7 @@ def test_event_rotation_is_consistent_across_writer_processes_and_reader(
 
     events = load_events(root / "events.jsonl")
     assert len(events) == 20
-    assert {event.event_id for event in events} == {
-        f"event-{index}" for index in range(20)
-    }
+    assert {event.event_id for event in events} == {f"event-{index}" for index in range(20)}
 
 
 def test_event_reader_checks_for_first_append_under_lock(
@@ -217,9 +215,7 @@ def test_event_reader_checks_for_first_append_under_lock(
 
     lines = eventlog.read_event_log_lines(queue.events_path)
 
-    assert [(line_number, line) for _, line_number, line in lines] == [
-        (1, first.model_dump_json())
-    ]
+    assert [(line_number, line) for _, line_number, line in lines] == [(1, first.model_dump_json())]
 
 
 def test_two_agents_submit_concurrently_without_interference(tmp_path: Path) -> None:
@@ -243,9 +239,7 @@ def test_two_agents_submit_concurrently_without_interference(tmp_path: Path) -> 
 def test_out_of_policy_spec_waits_with_a_reason(tmp_path: Path) -> None:
     service = executor(tmp_path)
 
-    path, decision = service.submit(
-        spec("unmatched-control", policy_rule="no-such-standing-rule")
-    )
+    path, decision = service.submit(spec("unmatched-control", policy_rule="no-such-standing-rule"))
 
     assert path.parent.name == "waiting"
     assert decision.reason_code == "out_of_policy"
@@ -397,6 +391,8 @@ def test_direct_execution_cannot_bypass_policy_for_billable_agent(tmp_path: Path
         service.execute_direct(request)
     except ValueError as exc:
         assert "standing-policy queue" in str(exc)
+        assert "--allow-billable" in str(exc)
+        assert "does not bypass" in str(exc)
     else:
         raise AssertionError("billable direct execution unexpectedly bypassed policy")
 
@@ -469,16 +465,12 @@ def test_tick_defers_only_the_agent_with_a_missing_credential(
 
     assert service.tick() == 3
 
-    expected_dispatched = {
-        item.name for item in submissions if item.agent != missing_agent
-    }
+    expected_dispatched = {item.name for item in submissions if item.agent != missing_agent}
     assert {request.name for request in requests} == expected_dispatched
     approved = [item for _, item in service.queue.list_specs("approved")]
     assert [(item.name, item.agent) for item in approved] == [
         (
-            "credential-scope-codex"
-            if missing_agent == "codex"
-            else "credential-scope-claude",
+            "credential-scope-codex" if missing_agent == "codex" else "credential-scope-claude",
             missing_agent,
         )
     ]
@@ -557,12 +549,10 @@ def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
     assert calls == ["provider-recovers"] * 3
     assert sleeps == [5.0, 10.0]
     assert (
-        tmp_path
-        / "runs/.transient-attempts/provider-recovers/attempt-1/attempt.txt"
+        tmp_path / "runs/.transient-attempts/provider-recovers/attempt-1/attempt.txt"
     ).read_text() == "1"
     assert (
-        tmp_path
-        / "runs/.transient-attempts/provider-recovers/attempt-2/attempt.txt"
+        tmp_path / "runs/.transient-attempts/provider-recovers/attempt-2/attempt.txt"
     ).read_text() == "2"
     events = load_events(service.queue.events_path)
     assert [event.reason_code for event in events if event.event == "dispatch_retry_scheduled"] == [
@@ -627,9 +617,7 @@ def test_billable_transient_retry_reserves_budget_before_another_call(
         for event in load_events(service.queue.events_path)
         if event.event == "dispatch_retry_refused"
     ]
-    assert [event.reason_code for event in refused] == [
-        "transient_retry:daily_cost_ceiling"
-    ]
+    assert [event.reason_code for event in refused] == ["transient_retry:daily_cost_ceiling"]
 
 
 def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) -> None:
@@ -707,8 +695,7 @@ def test_running_reconciliation_settles_the_final_attempt_reservation(
     job_dir = tmp_path / queued.jobs_dir / queued.name
     job_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}, '
-        '"finished_at": "2026-08-15T00:00:00Z"}\n'
+        '{"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-15T00:00:00Z"}\n'
     )
     trial_dir = job_dir / "trial-0"
     trial_dir.mkdir()
@@ -768,8 +755,7 @@ def test_reconciliation_never_settles_completed_header_missing_trial(
     job_dir = tmp_path / queued.jobs_dir / queued.name
     job_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}, '
-        '"finished_at": "2026-08-15T00:00:00Z"}\n'
+        '{"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-15T00:00:00Z"}\n'
     )
 
     service.reconcile_running()
@@ -838,8 +824,7 @@ def test_reconciliation_fails_closed_on_terminal_transient_job(
     trial_dir = job_dir / "event-summary__trial"
     trial_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}, '
-        '"finished_at": "2026-08-15T00:00:00Z"}\n'
+        '{"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-15T00:00:00Z"}\n'
     )
     (trial_dir / "result.json").write_text(
         '{"task_name": "event-summary", '
@@ -880,13 +865,7 @@ def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
         event="dispatch_started",
     )
     service._reserve_attempt(queued, 1)
-    archive = (
-        tmp_path
-        / queued.jobs_dir
-        / ".transient-attempts"
-        / queued.name
-        / "attempt-1"
-    )
+    archive = tmp_path / queued.jobs_dir / ".transient-attempts" / queued.name / "attempt-1"
     archive.mkdir(parents=True)
 
     service.reconcile_running()
@@ -913,12 +892,8 @@ def test_reservation_policy_day_is_utc_at_local_evening_boundary(
         )
     )
 
-    assert service._reserved_attempt_spend_today(
-        now=datetime(2026, 8, 15, 1, 0, tzinfo=UTC)
-    ) == 2
-    assert service._reserved_attempt_spend_today(
-        now=datetime(2026, 8, 14, 23, 59, tzinfo=UTC)
-    ) == 0
+    assert service._reserved_attempt_spend_today(now=datetime(2026, 8, 15, 1, 0, tzinfo=UTC)) == 2
+    assert service._reserved_attempt_spend_today(now=datetime(2026, 8, 14, 23, 59, tzinfo=UTC)) == 0
 
 
 def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -> None:
@@ -961,11 +936,13 @@ def test_global_dispatch_capacity_bounds_internal_trial_slots(tmp_path: Path) ->
         capacity=DispatchCapacity(max_specs_per_tick=4, max_active_trials=3),
     )
     for index in range(4):
-        service.submit(spec(
-            f"capacity-{index}",
-            attempts=3,
-            concurrency=2,
-        ))
+        service.submit(
+            spec(
+                f"capacity-{index}",
+                attempts=3,
+                concurrency=2,
+            )
+        )
 
     assert service.tick() == 1
     assert len(calls) == 1
@@ -1094,6 +1071,7 @@ def test_stale_lease_is_reclaimed_on_acquire(tmp_path: Path) -> None:
     assert queue.is_lease_stale(lease_path, stale_seconds=300.0) is False
     queue.release_lease(s)
 
+
 def test_cancel_marker_survives_failed_claimant_and_stale_reclaim(tmp_path: Path) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
     s = spec("cancel-reclaim-control")
@@ -1115,6 +1093,7 @@ def test_cancel_marker_survives_failed_claimant_and_stale_reclaim(tmp_path: Path
     reclaimed = queue.acquire_lease(s, stale_seconds=300.0, lease_generation="e" * 32)
     assert reclaimed == lease_path
     assert marker.is_file()
+
 
 def test_lease_generation_readers_fail_closed_on_malformed_records(tmp_path: Path) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
@@ -1181,6 +1160,7 @@ def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert not result.timed_out
     assert lease_path.stat().st_mtime_ns > past_ns
+
 
 def test_runner_wrapper_keeps_periodic_lease_heartbeat(tmp_path: Path) -> None:
     from evallab.runner import run_harbor_process
@@ -1276,34 +1256,36 @@ def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> Non
 def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> None:
     requests: list[RunRequest] = []
     service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
-    item = spec("bound-factor", concurrency=2).model_copy(update={
-        "timeout_seconds": 60,
-        "grid_id": "grid-1",
-        "grid_point": {
-            "point_id": canonical_grid_point_id(
-                task_ref="library/tasks/event-summary",
-                agent_key="oracle",
-                preamble=None,
-                k=1,
-                arm_id=None,
-                factor_values={"parallelism": 2, "wall_clock": 60},
-                factor_bindings={
+    item = spec("bound-factor", concurrency=2).model_copy(
+        update={
+            "timeout_seconds": 60,
+            "grid_id": "grid-1",
+            "grid_point": {
+                "point_id": canonical_grid_point_id(
+                    task_ref="library/tasks/event-summary",
+                    agent_key="oracle",
+                    preamble=None,
+                    k=1,
+                    arm_id=None,
+                    factor_values={"parallelism": 2, "wall_clock": 60},
+                    factor_bindings={
+                        "parallelism": "concurrency",
+                        "wall_clock": "timeout_seconds",
+                    },
+                ),
+                "task_ref": "library/tasks/event-summary",
+                "agent": "oracle",
+                "preamble": None,
+                "k": 1,
+                "factors": {"parallelism": 2, "wall_clock": 60},
+                "factor_bindings": {
                     "parallelism": "concurrency",
                     "wall_clock": "timeout_seconds",
                 },
-            ),
-            "task_ref": "library/tasks/event-summary",
-            "agent": "oracle",
-            "preamble": None,
-            "k": 1,
-            "factors": {"parallelism": 2, "wall_clock": 60},
-            "factor_bindings": {
-                "parallelism": "concurrency",
-                "wall_clock": "timeout_seconds",
+                "bindings": {"concurrency": 2, "timeout_seconds": 60},
             },
-            "bindings": {"concurrency": 2, "timeout_seconds": 60},
-        },
-    })
+        }
+    )
 
     service.execute_spec(item)
 
@@ -1318,28 +1300,31 @@ def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> Non
 
 def test_dispatch_refuses_unhonored_and_tampered_factor_bindings(tmp_path: Path) -> None:
     service = executor(tmp_path)
-    unhonored = spec("unhonored-factor").model_copy(update={
-        "timeout_seconds": 120,
-        "grid_point": {
-            "factors": {"wall_clock": 60},
-            "factor_bindings": {"wall_clock": "timeout_seconds"},
-            "bindings": {"timeout_seconds": 60},
-        },
-    })
+    unhonored = spec("unhonored-factor").model_copy(
+        update={
+            "timeout_seconds": 120,
+            "grid_point": {
+                "factors": {"wall_clock": 60},
+                "factor_bindings": {"wall_clock": "timeout_seconds"},
+                "bindings": {"timeout_seconds": 60},
+            },
+        }
+    )
     with pytest.raises(ExecutionFailure, match="requested 60"):
         service.execute_spec(unhonored)
 
-    tampered = spec("tampered-factor").model_copy(update={
-        "timeout_seconds": 60,
-        "grid_point": {
-            "factors": {"wall_clock": 60},
-            "factor_bindings": {"wall_clock": "concurrency"},
-            "bindings": {"timeout_seconds": 60},
-        },
-    })
+    tampered = spec("tampered-factor").model_copy(
+        update={
+            "timeout_seconds": 60,
+            "grid_point": {
+                "factors": {"wall_clock": 60},
+                "factor_bindings": {"wall_clock": "concurrency"},
+                "bindings": {"timeout_seconds": 60},
+            },
+        }
+    )
     with pytest.raises(ExecutionFailure, match="does not match bound execution"):
         service.execute_spec(tampered)
-
 
 
 def test_dispatch_refuses_stale_point_identity_after_consistent_edit(
@@ -1355,31 +1340,34 @@ def test_dispatch_refuses_stale_point_identity_after_consistent_edit(
         factor_values={"wall_clock": 60},
         factor_bindings={"wall_clock": "timeout_seconds"},
     )
-    consistently_edited = spec("stale-point").model_copy(update={
-        "timeout_seconds": 120,
-        "grid_point": {
-            "point_id": stale_point,
-            "task_ref": "library/tasks/event-summary",
-            "agent": "oracle",
-            "preamble": None,
-            "k": 1,
-            "factors": {"wall_clock": 120},
-            "factor_bindings": {"wall_clock": "timeout_seconds"},
-            "bindings": {"timeout_seconds": 120},
-        },
-    })
+    consistently_edited = spec("stale-point").model_copy(
+        update={
+            "timeout_seconds": 120,
+            "grid_point": {
+                "point_id": stale_point,
+                "task_ref": "library/tasks/event-summary",
+                "agent": "oracle",
+                "preamble": None,
+                "k": 1,
+                "factors": {"wall_clock": 120},
+                "factor_bindings": {"wall_clock": "timeout_seconds"},
+                "bindings": {"timeout_seconds": 120},
+            },
+        }
+    )
     with pytest.raises(ExecutionFailure, match="stored point_id"):
         service.execute_spec(consistently_edited)
-
 
 
 def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
     preamble = tmp_path / "instructions.txt"
     preamble.write_text("changed after generation\n")
-    item = spec("preamble-drift").model_copy(update={
-        "extra_instruction_path": "instructions.txt",
-        "extra_instruction_sha256": "sha256:" + "0" * 64,
-    })
+    item = spec("preamble-drift").model_copy(
+        update={
+            "extra_instruction_path": "instructions.txt",
+            "extra_instruction_sha256": "sha256:" + "0" * 64,
+        }
+    )
 
     with pytest.raises(ExecutionFailure, match="no longer matches"):
         executor(tmp_path).execute_spec(item)

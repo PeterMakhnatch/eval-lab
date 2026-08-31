@@ -209,8 +209,7 @@ def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
 HeadroomReader = Callable[[], Headroom]
 
 QUOTA_READER_UNCONFIGURED_REASON = (
-    "this gate was built without a quota reader, so the subscription allowance "
-    "was never looked up"
+    "this gate was built without a quota reader, so the subscription allowance was never looked up"
 )
 
 #: Marks a `human_approved` event whose actor accepted the recorded quota state.
@@ -643,9 +642,7 @@ class PolicyGate:
                 # Whoever authorised this is entitled to see, in the admission
                 # itself, the allowance they just spent against.
                 admitted_headroom = self.headroom(spec.agent)
-                notes.append(
-                    render_headroom_notice(admitted_headroom, agent=spec.agent)
-                )
+                notes.append(render_headroom_notice(admitted_headroom, agent=spec.agent))
                 if authorization.quota_override and (
                     provider_reported_exhaustion(admitted_headroom)
                     or lab_threshold_reached(
@@ -801,9 +798,7 @@ class DirectoryQueue:
 
     def locate(self, spec_id: str, states: Iterable[QueueState] = QUEUE_STATES) -> Path:
         matches = [
-            path
-            for state in states
-            for path in self.state_dir(state).glob(f"*-{spec_id}.json")
+            path for state in states for path in self.state_dir(state).glob(f"*-{spec_id}.json")
         ]
         if len(matches) != 1:
             raise ValueError(f"Expected exactly one queued spec {spec_id}, found {len(matches)}")
@@ -883,16 +878,12 @@ class DirectoryQueue:
                 os.close(descriptor)
 
     def _rotate_events(self) -> None:
-        oldest = self.events_path.with_name(
-            f"{self.events_path.name}.{self.event_backups}"
-        )
+        oldest = self.events_path.with_name(f"{self.events_path.name}.{self.event_backups}")
         oldest.unlink(missing_ok=True)
         for index in range(self.event_backups - 1, 0, -1):
             source = self.events_path.with_name(f"{self.events_path.name}.{index}")
             if source.exists():
-                source.replace(
-                    self.events_path.with_name(f"{self.events_path.name}.{index + 1}")
-                )
+                source.replace(self.events_path.with_name(f"{self.events_path.name}.{index + 1}"))
         self.events_path.replace(self.events_path.with_name(f"{self.events_path.name}.1"))
 
     def authorizations(self) -> dict[str, PaidRunAuthorization]:
@@ -1018,6 +1009,7 @@ class DirectoryQueue:
                     return self.state_dir("running") / f"{matches_json[0].stem}.lease"
                 filename = f"{spec_str}.lease"
         return self.state_dir("running") / filename
+
     def cancel_path(
         self,
         spec: ExperimentSpec | Path | str,
@@ -1077,7 +1069,6 @@ class DirectoryQueue:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
             os.close(descriptor)
 
-
     def is_lease_stale(
         self,
         lease: Path | ExperimentSpec | str,
@@ -1111,9 +1102,8 @@ class DirectoryQueue:
         timestamp = now or datetime.now(UTC)
         spec_id = spec.spec_id if isinstance(spec, ExperimentSpec) else str(spec)
         generation = lease_generation or secrets.token_hex(16)
-        if (
-            len(generation) != 32
-            or any(character not in "0123456789abcdef" for character in generation)
+        if len(generation) != 32 or any(
+            character not in "0123456789abcdef" for character in generation
         ):
             raise ValueError("lease_generation must be 32 lowercase hexadecimal characters")
         payload = (
@@ -1190,11 +1180,7 @@ class DirectoryQueue:
             try:
                 descriptor = os.open(
                     marker,
-                    os.O_WRONLY
-                    | os.O_CREAT
-                    | os.O_EXCL
-                    | os.O_NOFOLLOW
-                    | os.O_CLOEXEC,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
                     0o600,
                 )
             except FileExistsError:
@@ -1402,6 +1388,7 @@ class Executor:
             progress=progress,
             max_transient_retries=max_transient_retries,
         )
+
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
         return self.queue.submit(
             spec,
@@ -1437,13 +1424,10 @@ class Executor:
     ) -> EvidenceArchive:
         return archive_evidence(
             job_dir,
-            self._safe_repo_path(
-                spec.campaign_evidence_store or "derived/evidence-cas"
-            ),
+            self._safe_repo_path(spec.campaign_evidence_store or "derived/evidence-cas"),
             record_id=str(spec.campaign_attempt_id or spec.spec_id),
             kind="post-run-compliance",
         )
-
 
     def _evaluate_post_run_compliance(
         self,
@@ -1493,9 +1477,7 @@ class Executor:
         report = evaluate_trial_compliance(bundle)
         payload = (report.model_dump_json(indent=2) + "\n").encode()
         report_dir = (
-            self._safe_repo_path(
-                spec.campaign_evidence_store or "derived/evidence-cas"
-            )
+            self._safe_repo_path(spec.campaign_evidence_store or "derived/evidence-cas")
             / "records/trial-compliance"
         )
         report_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -1571,16 +1553,11 @@ class Executor:
                     return PolicyDecision(
                         admitted=False,
                         reason_code=f"post_run_compliance_{disposition.casefold()}",
-                        message=(
-                            "post-run compliance refused queue completion: "
-                            f"{disposition}"
-                        ),
+                        message=(f"post-run compliance refused queue completion: {disposition}"),
                     )
         except Exception as exc:
             reason_code = (
-                exc.reason_code
-                if isinstance(exc, ExecutionFailure)
-                else f"{stage}_failed"
+                exc.reason_code if isinstance(exc, ExecutionFailure) else f"{stage}_failed"
             )
             return PolicyDecision(
                 admitted=False,
@@ -1591,7 +1568,6 @@ class Executor:
                 ),
             )
         return None
-
 
     def _validate_campaign_dispatch_spec(
         self,
@@ -1626,10 +1602,7 @@ class Executor:
         from evallab.campaigns import CampaignManifest, experiment_spec_digest
 
         manifest_path = (
-            self.repo_root
-            / "runs/campaigns"
-            / spec.campaign_ledger.ledger_id
-            / "manifest.json"
+            self.repo_root / "runs/campaigns" / spec.campaign_ledger.ledger_id / "manifest.json"
         )
         try:
             descriptor = os.open(manifest_path, os.O_RDONLY | os.O_NOFOLLOW)
@@ -1656,7 +1629,6 @@ class Executor:
                 "campaign_spec_drifted",
                 "queued campaign spec differs from its frozen attempt",
             )
-
 
     def _dispatch_one(
         self,
@@ -1701,8 +1673,7 @@ class Executor:
         authorization = authorizations.get(str(spec.spec_id))
         if authorization is not None and (
             authorization.approved_spec_digest != approved_spec_digest(spec)
-            or authorization.campaign_manifest_digest
-            != spec.campaign_manifest_digest
+            or authorization.campaign_manifest_digest != spec.campaign_manifest_digest
             or authorization.campaign_spec_digest != spec.campaign_spec_digest
         ):
             failure = PolicyDecision(
@@ -1757,9 +1728,7 @@ class Executor:
         except (FileNotFoundError, FileExistsError, ValueError):
             self.queue.release_lease(spec, lease_generation=lease_generation)
             return False
-        self._report_progress(
-            f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})"
-        )
+        self._report_progress(f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})")
         self._report_progress(
             f"child started for {spec.name}; progress log: "
             f"{self.repo_root / spec.jobs_dir / '.executor' / (spec.name + '.log')}"
@@ -1798,9 +1767,7 @@ class Executor:
                     reason_code=failure.reason_code,
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
-                self._report_progress(
-                    f"failed {spec.name} ({failure.reason_code}); state: failed"
-                )
+                self._report_progress(f"failed {spec.name} ({failure.reason_code}); state: failed")
             else:
                 failure = self._settle_post_run(
                     job_dir,
@@ -1866,7 +1833,6 @@ class Executor:
             self.last_tick_reason = "capacity_no_approved_spec_fits"
         return selected
 
-
     def _tick_locked(
         self,
         parallel: int = 1,
@@ -1897,9 +1863,7 @@ class Executor:
                 spec.campaign_ledger is not None for _path, spec in approved_specs
             )
             approved_specs = [
-                (path, spec)
-                for path, spec in approved_specs
-                if spec.campaign_ledger is None
+                (path, spec) for path, spec in approved_specs if spec.campaign_ledger is None
             ]
             if campaign_specs_present and not approved_specs:
                 self.last_tick_reason = "campaign_specs_require_campaign_resume"
@@ -1964,47 +1928,37 @@ class Executor:
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
         elif spec.task_package_digest is not None:
             digests = compute_task_digests(task_path)
-            if (
-                digests.package != spec.task_package_digest
-                or (
-                    spec.verifier_digest is not None
-                    and digests.verifier != spec.verifier_digest
-                )
+            if digests.package != spec.task_package_digest or (
+                spec.verifier_digest is not None and digests.verifier != spec.verifier_digest
             ):
                 raise ExecutionFailure(
                     "task_digest_mismatch",
                     "local campaign task package differs from its frozen digest",
                 )
             package_digest = digests.package
-        if (
-            spec.task_package_digest is not None
-            and package_digest != spec.task_package_digest
-        ):
+        if spec.task_package_digest is not None and package_digest != spec.task_package_digest:
             raise ExecutionFailure(
                 "task_digest_mismatch",
                 "resolved task package differs from the frozen campaign digest",
             )
         grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
         bound_values = (
-            dict(grid_point["bindings"])
-            if isinstance(grid_point.get("bindings"), dict)
-            else {}
+            dict(grid_point["bindings"]) if isinstance(grid_point.get("bindings"), dict) else {}
         )
         factor_values = (
-            dict(grid_point["factors"])
-            if isinstance(grid_point.get("factors"), dict)
-            else {}
+            dict(grid_point["factors"]) if isinstance(grid_point.get("factors"), dict) else {}
         )
         factor_bindings = (
             dict(grid_point["factor_bindings"])
             if isinstance(grid_point.get("factor_bindings"), dict)
             else {}
         )
-        factor_bindings_digest = "sha256:" + hashlib.sha256(
-            json.dumps(
-                factor_bindings, sort_keys=True, separators=(",", ":")
-            ).encode()
-        ).hexdigest()
+        factor_bindings_digest = (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(factor_bindings, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+        )
         declared_binding_digest = grid_point.get("factor_bindings_digest")
         if (
             declared_binding_digest is not None
@@ -2051,23 +2005,13 @@ class Executor:
                 else point_agent
             )
             expected_point_id = canonical_grid_point_id(
-                task_ref=str(
-                    grid_point.get("task_ref")
-                    or grid_point.get("task")
-                    or spec.task
-                ),
+                task_ref=str(grid_point.get("task_ref") or grid_point.get("task") or spec.task),
                 agent_key=point_agent_key,
                 preamble=(
-                    str(grid_point["preamble"])
-                    if grid_point.get("preamble") is not None
-                    else None
+                    str(grid_point["preamble"]) if grid_point.get("preamble") is not None else None
                 ),
                 k=int(grid_point.get("k") or spec.attempts),
-                arm_id=(
-                    str(grid_point["arm_id"])
-                    if grid_point.get("arm_id")
-                    else None
-                ),
+                arm_id=(str(grid_point["arm_id"]) if grid_point.get("arm_id") else None),
                 factor_values=factor_values,
                 factor_bindings=factor_bindings,
             )
@@ -2091,9 +2035,7 @@ class Executor:
             else None
         )
         declared_preamble_hash = spec.extra_instruction_sha256 or (
-            str(grid_point["preamble_sha256"])
-            if grid_point.get("preamble_sha256")
-            else None
+            str(grid_point["preamble_sha256"]) if grid_point.get("preamble_sha256") else None
         )
         if extra_instruction_path is not None and actual_preamble_hash is None:
             raise ExecutionFailure(
@@ -2136,15 +2078,11 @@ class Executor:
                 package_digest=package_digest,
                 task_path=canonical_task_path,
                 grid_id=spec.grid_id,
-                point_id=(
-                    str(grid_point["point_id"]) if grid_point.get("point_id") else None
-                ),
+                point_id=(str(grid_point["point_id"]) if grid_point.get("point_id") else None),
                 arm_id=str(grid_point["arm_id"]) if grid_point.get("arm_id") else None,
                 factor_values=factor_values or None,
                 factor_bindings=factor_bindings or None,
-                factor_bindings_digest=(
-                    factor_bindings_digest if factor_bindings else None
-                ),
+                factor_bindings_digest=(factor_bindings_digest if factor_bindings else None),
                 bound_execution_values=bound_values or None,
                 preamble_path=spec.extra_instruction_path,
                 preamble_sha256=actual_preamble_hash,
@@ -2265,13 +2203,8 @@ class Executor:
         for event in load_events(self.queue.events_path):
             if event.occurred_at.astimezone(UTC).date() != today:
                 continue
-            if (
-                event.event == "dispatch_attempt_reserved"
-                and event.estimated_cost_usd is not None
-            ):
-                reservations.setdefault(event.spec_id, []).append(
-                    event.estimated_cost_usd
-                )
+            if event.event == "dispatch_attempt_reserved" and event.estimated_cost_usd is not None:
+                reservations.setdefault(event.spec_id, []).append(event.estimated_cost_usd)
             elif event.event in {"dispatch_completed", "running_reconciled"}:
                 completed.add(event.spec_id)
         total = 0.0
@@ -2297,10 +2230,7 @@ class Executor:
             return None
         self._assert_persistent_artifacts_safe(spec, job_dir)
         archive = (
-            request.jobs_dir
-            / ".transient-attempts"
-            / request.name
-            / f"attempt-{retry_number}"
+            request.jobs_dir / ".transient-attempts" / request.name / f"attempt-{retry_number}"
         )
         archive.parent.mkdir(parents=True, exist_ok=True)
         if archive.exists():
@@ -2340,8 +2270,8 @@ class Executor:
     def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> Path:
         if request.agent not in CONTROL_AGENTS:
             raise ValueError(
-                "direct execution is restricted to oracle/nop; submit billable work "
-                "through the standing-policy queue"
+                "direct execution is restricted to oracle/nop; --allow-billable records "
+                "spend consent but does not bypass the standing-policy queue"
             )
         job_dir = self._runner(request)
         if ingest:
@@ -2353,9 +2283,7 @@ class Executor:
                     ingest_result,
                     actor="executor-direct",
                     spec_id=(
-                        provenance.spec_id
-                        if provenance is not None
-                        else f"system-{new_ulid()}"
+                        provenance.spec_id if provenance is not None else f"system-{new_ulid()}"
                     ),
                 )
         return job_dir
@@ -2382,9 +2310,7 @@ class Executor:
                     env=subscription_environment(),
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
-                checks.append(
-                    ("docker-daemon", False, f"unavailable: {type(exc).__name__}")
-                )
+                checks.append(("docker-daemon", False, f"unavailable: {type(exc).__name__}"))
             else:
                 output = (completed.stdout or completed.stderr).strip().splitlines()
                 detail = output[0] if output else "no version output"
@@ -2392,11 +2318,7 @@ class Executor:
         return checks
 
     def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
-        state_path = (
-            self._safe_repo_path(spec.jobs_dir)
-            / ".executor"
-            / f"{spec.name}.state.json"
-        )
+        state_path = self._safe_repo_path(spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"
         try:
             state = json.loads(state_path.read_text())
             started = datetime.fromisoformat(str(state["started_at"]))
@@ -2432,11 +2354,7 @@ class Executor:
                 )
                 continue
             job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
-            archive_root = (
-                self._safe_repo_path(spec.jobs_dir)
-                / ".transient-attempts"
-                / spec.name
-            )
+            archive_root = self._safe_repo_path(spec.jobs_dir) / ".transient-attempts" / spec.name
             if not job_dir.exists():
                 try:
                     interrupted_retry = archive_root.is_dir() and any(
@@ -2603,9 +2521,7 @@ def load_events(path: Path) -> list[QueueEvent]:
         try:
             events.append(QueueEvent.model_validate_json(line))
         except ValidationError as exc:
-            raise ValueError(
-                f"Invalid queue event at {segment}:{line_number}: {exc}"
-            ) from exc
+            raise ValueError(f"Invalid queue event at {segment}:{line_number}: {exc}") from exc
     return events
 
 

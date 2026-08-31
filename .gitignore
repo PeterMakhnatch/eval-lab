@@ -26,6 +26,10 @@ auth.json
 /notebooks/.ipynb_checkpoints/
 /excalidraw.log
 
+# Generated daily digests (reproducible views derived from git history/PRs)
+/digests/*.md
+!/digests/DISCOVERIES.md
+
 # Authoring quarantine: proposals are unqualified until a human registers them,
 # so they must never be committable from the working tree.
 /library/tasks/_proposed/

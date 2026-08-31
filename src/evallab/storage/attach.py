@@ -79,6 +79,11 @@ TABLES = (
     "interpretation_artifacts",
     "machine_judgments",
     "acceptance_decisions",
+    "inspect_runs",
+    "inspect_attempts",
+    "inspect_scores",
+    "inspect_events",
+    "inspect_attachments",
 )
 Z3_TABLE_LAYOUTS: tuple[ParquetLayout, ...] = (
     "hot",
@@ -103,20 +108,31 @@ SEMANTIC_COMPARISON_LAYOUTS: tuple[ParquetLayout, ...] = (
 )
 
 
+INSPECT_TABLES: frozenset[str] = frozenset(
+    {
+        "inspect_runs",
+        "inspect_attempts",
+        "inspect_scores",
+        "inspect_events",
+        "inspect_attachments",
+    }
+)
+
+
 def _z3_table_patterns(
     discovery: ParquetPartitionDiscovery,
     table: str,
     *,
     fallback: bool = False,
 ) -> tuple[str, ...]:
-    layouts = Z3_JOB_LAYOUTS if table == "jobs" else Z3_TABLE_LAYOUTS
+    is_job_level = table == "jobs" or table in INSPECT_TABLES
+    layouts = Z3_JOB_LAYOUTS if is_job_level else Z3_TABLE_LAYOUTS
     return discovery.table_patterns(
         table,
         layouts=layouts,
-        prefer_job_level=table == "jobs",
+        prefer_job_level=is_job_level,
         fallback=fallback,
     )
-
 
 def _z3_select_sql(
     discovery: ParquetPartitionDiscovery,

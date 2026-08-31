@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 
 from evallab.cli import run_cli
 from evallab.inspect_adapter import (
@@ -289,7 +290,7 @@ def test_official_eval_log_reading_and_projection(tmp_path: Path) -> None:
     # 3. Check attempts and scores
     assert len(projection.attempts) == 1
     attempt = projection.attempts[0]
-    assert attempt.ordinal == 0
+    assert attempt.ordinal == 1
     assert attempt.terminal is True
     assert attempt.retry_of is None
     assert attempt.sample_uuid == "99999999-9999-9999-9999-999999999999"
@@ -318,7 +319,7 @@ def test_production_loader_refuses_json_files(tmp_path: Path) -> None:
 
 
 def test_domain_separated_run_identity() -> None:
-    # 1. Official eval_id
+    # 1. Official eval_id (domain key excludes revision)
     payload_eval_id = {
         "version": 2,
         "status": "success",
@@ -332,7 +333,7 @@ def test_domain_separated_run_identity() -> None:
     proj1 = project_inspect_eval_log(payload_eval_id, source_path="run1.eval")
     assert proj1.run.identity_source == "eval_id"
 
-    # Same eval_id but different revision produces different job_id (domain-separated)
+    # Same eval_id with different revision preserves same stable job_id
     payload_eval_id_rev2 = {
         "version": 2,
         "status": "success",
@@ -344,7 +345,8 @@ def test_domain_separated_run_identity() -> None:
         "samples": [],
     }
     proj2 = project_inspect_eval_log(payload_eval_id_rev2, source_path="run2.eval")
-    assert proj2.run.job_id != proj1.run.job_id
+    assert proj2.run.job_id == proj1.run.job_id
+    assert proj2.run.source_revision == "rev_commit_2"
 
     # 2. Run_id fallback
     payload_run_id = {
@@ -376,28 +378,28 @@ def test_ordered_retry_attempts_and_terminal_outcome() -> None:
     fixture = _condensed_attachment_fixture()
     projection = project_inspect_eval_log(fixture, source_path="condensed.eval")
 
-    # Sample alpha has 2 error retries -> 3 attempts total (ordinal 0, 1, 2)
+    # Sample alpha has 2 error retries -> 3 attempts total (ordinal 1, 2, 3)
     assert len(projection.attempts) == 3
 
-    att0, att1, att2 = projection.attempts
-    assert att0.ordinal == 0
-    assert att0.terminal is False
-    assert att0.retry_of is None
-    assert att0.status == "error"
-    assert att0.error_type == "ConnectionError"
-
+    att1, att2, att3 = projection.attempts
     assert att1.ordinal == 1
     assert att1.terminal is False
-    assert att1.retry_of == att0.attempt_id
+    assert att1.retry_of is None
     assert att1.status == "error"
-    assert att1.error_type == "GatewayTimeout"
+    assert att1.error_type == "ConnectionError"
 
     assert att2.ordinal == 2
-    assert att2.terminal is True
+    assert att2.terminal is False
     assert att2.retry_of == att1.attempt_id
-    assert att2.status == "success"
-    assert att2.total_time == 239.0
-    assert att2.working_time == 200.0
+    assert att2.status == "error"
+    assert att2.error_type == "GatewayTimeout"
+
+    assert att3.ordinal == 3
+    assert att3.terminal is True
+    assert att3.retry_of == att2.attempt_id
+    assert att3.status == "success"
+    assert att3.total_time == 239.0
+    assert att3.working_time == 200.0
 
 
 def test_scores_authority_defaults_to_non_decision() -> None:
@@ -411,16 +413,46 @@ def test_scores_authority_defaults_to_non_decision() -> None:
         assert score.is_deterministic is False
 
 
-def test_cli_ingest_requires_cas(tmp_path: Path, capsys) -> None:
-    log_path = tmp_path / "inspect-log.json"
-    log_path.write_text(json.dumps(_inspect_fixture_dict()), encoding="utf-8")
+def test_cli_ingest_requires_cas_with_eval_file(tmp_path: Path, capsys) -> None:
+    import inspect_ai.log as inspect_log
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.scorer import Score
+
+    eval_spec = inspect_log.EvalSpec(
+        eval_id="cli_eval_01",
+        task="cli-task",
+        model="openai/gpt-4o",
+        created="2026-08-31T00:00:00Z",
+        dataset=inspect_log.EvalDataset(name="cli_data", location="loc", samples=1),
+        config=inspect_log.EvalConfig(),
+        solver="cli_solver",
+    )
+    sample = inspect_log.EvalSample(
+        id="sample_cli_1",
+        epoch=1,
+        uuid="77777777-7777-7777-7777-777777777777",
+        input="CLI question",
+        target="CLI answer",
+        messages=[ChatMessageUser(content="CLI question")],
+        scores={"accuracy": Score(value=1.0, answer="CLI answer")},
+    )
+    eval_log_obj = inspect_log.EvalLog(
+        version=3,
+        status="success",
+        eval=eval_spec,
+        samples=[sample],
+    )
+
+    eval_path = tmp_path / "inspect-run.eval"
+    inspect_log.write_eval_log(eval_log_obj, eval_path)
+
     derived_dir = tmp_path / "derived"
     store_dir = tmp_path / "evidence-cas"
 
     code = run_cli(
         [
             "inspect-ingest",
-            str(log_path),
+            str(eval_path),
             "--derived-dir",
             str(derived_dir),
             "--store",
@@ -433,9 +465,7 @@ def test_cli_ingest_requires_cas(tmp_path: Path, capsys) -> None:
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "success"
     assert output["raw_cas_uri"].startswith("cas://sha256/")
-    assert (
-        output["attempts"] == 3
-    )  # sample 1 epoch 1 has 1 retry + 1 terminal; epoch 2 has 1 terminal
+    assert output["attempts"] == 1
 
 
 def test_malformed_input_refusals() -> None:
@@ -484,8 +514,8 @@ def test_malformed_input_refusals() -> None:
             source_path="bad.json",
         )
 
-    # 8. Duplicate trial_id collision
-    with pytest.raises(ValueError, match="Duplicate trial_id collision"):
+    # 8. Duplicate sample uuid collision
+    with pytest.raises(ValueError, match="Duplicate sample uuid collision"):
         project_inspect_eval_log(
             {
                 "version": 2,
@@ -510,3 +540,47 @@ def test_rebuild_digest_determinism() -> None:
     fixture_modified["samples"][0]["scores"]["accuracy"]["value"] = 0.99
     proj_mod = project_inspect_eval_log(fixture_modified, source_path="test.eval")
     assert proj_mod.rebuild_digest != proj1.rebuild_digest
+
+
+def test_pydantic_model_dump_object_projection() -> None:
+    class MockEvalSpec(BaseModel):
+        task: str
+        model: str
+        run_id: str
+
+    class MockSample(BaseModel):
+        id: str
+        epoch: int
+        scores: dict[str, float]
+        messages: list[dict[str, str]]
+
+    class MockEvalLog(BaseModel):
+        version: int
+        status: str
+        eval: MockEvalSpec
+        samples: list[MockSample]
+
+    mock_log = MockEvalLog(
+        version=2,
+        status="success",
+        eval=MockEvalSpec(task="pydantic-test", model="gpt-4o", run_id="pydantic-001"),
+        samples=[
+            MockSample(
+                id="sample-p1",
+                epoch=1,
+                scores={"accuracy": 1.0},
+                messages=[
+                    {"role": "user", "content": "Question"},
+                    {"role": "assistant", "content": "Answer"},
+                ],
+            )
+        ],
+    )
+
+    projection = project_inspect_eval_log(mock_log, source_path="pydantic.eval")
+    assert projection.run.task_name == "pydantic-test"
+    assert projection.run.model_name == "gpt-4o"
+    assert len(projection.attempts) == 1
+    assert len(projection.scores) == 1
+    assert projection.scores[0].score_name == "accuracy"
+    assert projection.scores[0].authority == "non_decision"

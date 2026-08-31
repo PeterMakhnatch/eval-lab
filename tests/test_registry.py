@@ -64,6 +64,7 @@ def _make_dummy_task(
     (tests_dir / "test_task.py").write_text(verifier)
     return task_dir
 
+
 def _make_canary_policy(root: Path, task_paths: list[str] | None = None) -> None:
     members = task_paths or []
     policy = root / "policy/canary-suite.yaml"
@@ -139,9 +140,7 @@ def _make_control_evidence(
             trial_name=trial_name,
             reward=reward,
             evidence_path=result_file.relative_to(root).as_posix(),
-            evidence_digest=(
-                f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"
-            ),
+            evidence_digest=(f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"),
             lock_digest=f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}",
             observed_at=observed_at,
             task_id=task_id,
@@ -395,9 +394,7 @@ def test_changed_verifier_bytes_causes_refusal(tmp_path: Path) -> None:
 def test_task_path_redirection_causes_refusal(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/original-task")
     _make_dummy_task(tmp_path, "library/tasks/other-task")
-    record = _make_registry_record(
-        task_dir, tmp_path, task_id="original-task", state="registered"
-    )
+    record = _make_registry_record(task_dir, tmp_path, task_id="original-task", state="registered")
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "original-task.json").write_text(record.model_dump_json(indent=2))
@@ -582,9 +579,7 @@ def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
     gate = PolicyGate(policy, repo_root=tmp_path)
     spec = ExperimentSpec(
@@ -683,9 +678,7 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
 
     captured_requests = []
@@ -751,9 +744,7 @@ def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path:
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
     loop = ResearcherLoop(
         repo_root=tmp_path,
@@ -878,6 +869,7 @@ def test_inventory_refuses_missing_or_malformed_canary_policy(tmp_path: Path) ->
     with pytest.raises(TaskInventoryPolicyError, match="members list"):
         inventory_tasks(tmp_path)
 
+
 def _make_control_job(
     root: Path,
     task_dir: Path,
@@ -925,6 +917,7 @@ def _make_control_job(
     (trial_dir / "result.json").write_text(json.dumps(payload, indent=2))
     (trial_dir / "lock.json").write_text(json.dumps(lock, indent=2))
     return job_dir
+
 
 def test_registered_control_evidence_rejects_ignored_run_path(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/path-bound-task")
@@ -1125,8 +1118,7 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 
     assert not drifted_report.passed
     assert any(
-        finding.category == "registration_inventory_drift"
-        for finding in drifted_report.findings
+        finding.category == "registration_inventory_drift" for finding in drifted_report.findings
     )
 
 
@@ -1157,6 +1149,7 @@ def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path:
     assert loaded is not None
     assert loaded.state == "candidate"
     assert loaded.digests.package == record.digests.package
+
 
 def test_synthetic_certificate_cannot_bypass_canonical_registration_packet(
     tmp_path: Path,
@@ -1198,6 +1191,7 @@ def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> No
 
     assert "missing durable trial-level oracle control evidence" in str(exc_info.value)
 
+
 def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/no-nop-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
@@ -1207,6 +1201,7 @@ def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
 
     assert "missing durable trial-level nop control evidence" in str(exc_info.value)
 
+
 def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/broken-oracle-task")
     _make_control_job(tmp_path, task_dir, "oracle", 0.0)  # Oracle failed!
@@ -1215,9 +1210,7 @@ def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> N
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-oracle-task", tmp_path)
 
-    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(
-        exc_info.value
-    )
+    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(exc_info.value)
 
 
 def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None:
@@ -1228,9 +1221,7 @@ def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-nop-task", tmp_path)
 
-    assert "nop control evidence for 'broken-nop-task' did not fail" in str(
-        exc_info.value
-    )
+    assert "nop control evidence for 'broken-nop-task' did not fail" in str(exc_info.value)
 
 
 def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> None:
@@ -1322,9 +1313,7 @@ def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Pa
         task_version="1.0.1",
     )
     # Bumping version succeeds
-    record_v2 = promote_task(
-        "library/tasks/tampered-bump-task", tmp_path, version="1.0.1"
-    )
+    record_v2 = promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.1")
     assert record_v2.version == "1.0.1"
 
 
@@ -1395,9 +1384,7 @@ def test_cli_registry_promote_and_register_e2e(
 
     inventory_path = tmp_path / "research/registration/inventory.json"
     inventory_path.parent.mkdir(parents=True, exist_ok=True)
-    inventory_path.write_text(
-        json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n"
-    )
+    inventory_path.write_text(json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n")
     # 4. Audit passes with an explicit legacy-certificate warning.
     audit_args = argparse.Namespace(json=False)
     exit_code = _registry_audit_command(audit_args, tmp_path)

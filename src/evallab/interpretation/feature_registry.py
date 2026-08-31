@@ -7,8 +7,10 @@ typed, documented, and declare its denominator sibling for null-on-zero invarian
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from enum import StrEnum
 from typing import Any, Literal
 
 import pyarrow as pa
@@ -56,6 +58,24 @@ FeatureCategory = Literal[
 FeatureDataType = Literal["VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN"]
 DenominatorPolicy = Literal["required", "not_applicable"]
 VerdictCoupling = Literal["defines", "correlates", "independent", "not_applicable"]
+
+
+class FeatureRefusalCode(StrEnum):
+    """Canonical refusal and eligibility codes for feature governance and predictor gating."""
+
+    MISSING_TEMPORAL_AVAILABILITY = "MISSING_TEMPORAL_AVAILABILITY"
+    POST_VERDICT_TEMPORAL_VIOLATION = "POST_VERDICT_TEMPORAL_VIOLATION"
+    UNDECLARED_VERDICT_COUPLING = "UNDECLARED_VERDICT_COUPLING"
+    INVALID_VERDICT_COUPLING = "INVALID_VERDICT_COUPLING"
+    REWARD_DEFINITION_LEAKAGE = "REWARD_DEFINITION_LEAKAGE"
+    MISSING_COUPLING_EVIDENCE_BASIS = "MISSING_COUPLING_EVIDENCE_BASIS"
+    NOT_APPLICABLE_FOR_PREDICTION = "NOT_APPLICABLE_FOR_PREDICTION"
+    VERDICT_CORRELATED = "VERDICT_CORRELATED"
+    MISSING_DENOMINATOR_APPLICABILITY_DECLARATION = "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+    MISSING_DENOMINATOR_DECLARATION = "MISSING_DENOMINATOR_DECLARATION"
+    MISSING_NULL_ON_ZERO_DECLARATION = "MISSING_NULL_ON_ZERO_DECLARATION"
+    INVALID_DENOMINATOR_DECLARATION = "INVALID_DENOMINATOR_DECLARATION"
+    ELIGIBLE = "ELIGIBLE"
 
 
 @dataclass(frozen=True)
@@ -110,6 +130,20 @@ class FeatureDefinition:
             errors.append(
                 f"Feature {self.column_name!r} requires null_on_zero_denominator=True but has no denominator_sibling declared"
             )
+        if self.denominator_policy == "required":
+            if not self.denominator_sibling:
+                errors.append(
+                    f"Feature {self.column_name!r} has denominator_policy='required' but no denominator_sibling declared"
+                )
+            if not self.null_on_zero_denominator:
+                errors.append(
+                    f"Feature {self.column_name!r} has denominator_policy='required' but null_on_zero_denominator=False"
+                )
+        elif self.denominator_policy == "not_applicable":
+            if self.denominator_sibling or self.null_on_zero_denominator:
+                errors.append(
+                    f"Feature {self.column_name!r} has denominator_policy='not_applicable' but declares denominator_sibling or null_on_zero_denominator"
+                )
         if self.verdict_coupling is not None:
             if self.verdict_coupling not in (
                 "defines",
@@ -203,18 +237,18 @@ class FeatureRegistry:
         return errors
 
 
-def audit_denominator_policy(feature: FeatureDefinition) -> str | None:
+def audit_denominator_policy(feature: FeatureDefinition) -> FeatureRefusalCode | None:
     """Return the T1.1 registry verdict for an explicit denominator declaration."""
     if feature.denominator_policy is None:
-        return "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        return FeatureRefusalCode.MISSING_DENOMINATOR_APPLICABILITY_DECLARATION
     if feature.denominator_policy == "required" and not feature.denominator_sibling:
-        return "MISSING_DENOMINATOR_DECLARATION"
+        return FeatureRefusalCode.MISSING_DENOMINATOR_DECLARATION
     if feature.denominator_policy == "required" and not feature.null_on_zero_denominator:
-        return "MISSING_NULL_ON_ZERO_DECLARATION"
+        return FeatureRefusalCode.MISSING_NULL_ON_ZERO_DECLARATION
     if feature.denominator_policy == "not_applicable" and (
         feature.denominator_sibling or feature.null_on_zero_denominator
     ):
-        return "INVALID_DENOMINATOR_DECLARATION"
+        return FeatureRefusalCode.INVALID_DENOMINATOR_DECLARATION
     return None
 
 
@@ -232,7 +266,7 @@ def feature_contract_row(feature: FeatureDefinition) -> FeatureContractRow:
     )
 
 
-def audit_registry_denominator_policies() -> dict[str, str]:
+def audit_registry_denominator_policies() -> dict[str, FeatureRefusalCode]:
     """Report legacy denominator-policy debt without tightening import-time validation."""
     return {
         feature.column_name: verdict
@@ -243,7 +277,7 @@ def audit_registry_denominator_policies() -> dict[str, str]:
 
 def audit_predictor_eligibility(
     feature: FeatureDefinition, *, strict_independence: bool = False
-) -> str | None:
+) -> FeatureRefusalCode | None:
     """Return the registry verdict for candidate predictor eligibility.
 
     Refuses predictor eligibility when:
@@ -253,36 +287,36 @@ def audit_predictor_eligibility(
     - feature is 'not_applicable' (e.g. identity / projection metadata)
     """
     if feature.available_before_verdict is None:
-        return "MISSING_TEMPORAL_AVAILABILITY"
+        return FeatureRefusalCode.MISSING_TEMPORAL_AVAILABILITY
     if feature.available_before_verdict is False:
-        return "POST_VERDICT_TEMPORAL_VIOLATION"
+        return FeatureRefusalCode.POST_VERDICT_TEMPORAL_VIOLATION
     if feature.verdict_coupling is None:
-        return "UNDECLARED_VERDICT_COUPLING"
+        return FeatureRefusalCode.UNDECLARED_VERDICT_COUPLING
     if feature.verdict_coupling not in ("defines", "correlates", "independent", "not_applicable"):
-        return "INVALID_VERDICT_COUPLING"
+        return FeatureRefusalCode.INVALID_VERDICT_COUPLING
     if feature.verdict_coupling == "defines":
-        return "REWARD_DEFINITION_LEAKAGE"
+        return FeatureRefusalCode.REWARD_DEFINITION_LEAKAGE
     if feature.verdict_coupling in ("defines", "correlates") and not (
         feature.coupling_basis and feature.coupling_basis.strip()
     ):
-        return "MISSING_COUPLING_EVIDENCE_BASIS"
+        return FeatureRefusalCode.MISSING_COUPLING_EVIDENCE_BASIS
     if feature.verdict_coupling == "not_applicable":
-        return "NOT_APPLICABLE_FOR_PREDICTION"
+        return FeatureRefusalCode.NOT_APPLICABLE_FOR_PREDICTION
     if strict_independence and feature.verdict_coupling == "correlates":
-        return "VERDICT_CORRELATED"
+        return FeatureRefusalCode.VERDICT_CORRELATED
     return None
 
 
-def audit_verdict_coupling(feature: FeatureDefinition) -> str | None:
+def audit_verdict_coupling(feature: FeatureDefinition) -> FeatureRefusalCode | None:
     """Return the verdict-coupling audit code for a feature."""
     if feature.verdict_coupling is None:
-        return "UNDECLARED_VERDICT_COUPLING"
+        return FeatureRefusalCode.UNDECLARED_VERDICT_COUPLING
     if feature.verdict_coupling not in ("defines", "correlates", "independent", "not_applicable"):
-        return "INVALID_VERDICT_COUPLING"
+        return FeatureRefusalCode.INVALID_VERDICT_COUPLING
     if feature.verdict_coupling in ("defines", "correlates") and not (
         feature.coupling_basis and feature.coupling_basis.strip()
     ):
-        return "MISSING_COUPLING_EVIDENCE_BASIS"
+        return FeatureRefusalCode.MISSING_COUPLING_EVIDENCE_BASIS
     return None
 
 
@@ -293,7 +327,7 @@ class FeatureAnalysisEligibility:
     outcome_allowed: bool
     predictor_allowed: bool
     descriptive_allowed: bool
-    predictor_refusal: str | None
+    predictor_refusal: FeatureRefusalCode | None
 
 
 def feature_analysis_eligibility(feature: FeatureDefinition) -> FeatureAnalysisEligibility:
@@ -317,7 +351,9 @@ def feature_analysis_eligibility(feature: FeatureDefinition) -> FeatureAnalysisE
     )
 
 
-def audit_registry_predictor_eligibility(*, family: str | None = None) -> dict[str, str]:
+def audit_registry_predictor_eligibility(
+    *, family: str | None = None
+) -> dict[str, FeatureRefusalCode]:
     """Report predictor eligibility refusals across registered features."""
     target = (
         TRAJECTORY_FEATURE_REGISTRY.by_family(family)
@@ -329,6 +365,224 @@ def audit_registry_predictor_eligibility(*, family: str | None = None) -> dict[s
         for feature in target.values()
         if (verdict := audit_predictor_eligibility(feature)) is not None
     }
+
+
+@dataclass(frozen=True)
+class PredictorEligibilityRow:
+    """Stable operator view row for a single registered feature's predictor eligibility."""
+
+    feature_name: str
+    data_type: FeatureDataType
+    category: FeatureCategory
+    family: str | None
+    construct: str | None
+    producer_module: str
+    available_before_verdict: bool | None
+    verdict_coupling: VerdictCoupling | None
+    coupling_basis: str | None
+    denominator_policy: DenominatorPolicy | None
+    denominator_sibling: str | None
+    null_on_zero_denominator: bool
+    causal_grade: str | None
+    is_screening: bool
+    predictor_eligible: bool
+    predictor_refusal_code: str
+    outcome_allowed: bool
+    descriptive_allowed: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class PredictorEligibilitySummary:
+    """Aggregated summary counts across all registered features for predictor eligibility."""
+
+    total_features: int
+    eligible_predictors: int
+    refused_predictors: int
+    refusals_by_code: dict[str, int]
+    denominator_policies_by_code: dict[str, int]
+    verdict_couplings_by_code: dict[str, int]
+    missing_temporal_count: int
+    missing_denominator_count: int
+    undeclared_coupling_count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def predictor_eligibility_view(
+    *,
+    family: str | None = None,
+    registry: FeatureRegistry | None = None,
+) -> tuple[PredictorEligibilityRow, ...]:
+    """Return stable operator projection rows for predictor eligibility."""
+    reg = registry or TRAJECTORY_FEATURE_REGISTRY
+    target = reg.by_family(family) if family else reg.all_features()
+    rows: list[PredictorEligibilityRow] = []
+    for feat in target.values():
+        eligibility = feature_analysis_eligibility(feat)
+        refusal = audit_predictor_eligibility(feat, strict_independence=False)
+        refusal_code = refusal.value if refusal is not None else FeatureRefusalCode.ELIGIBLE.value
+        predictor_eligible = refusal is None and audit_denominator_policy(feat) is None
+        rows.append(
+            PredictorEligibilityRow(
+                feature_name=feat.column_name,
+                data_type=feat.data_type,
+                category=feat.category,
+                family=feat.family,
+                construct=feat.construct,
+                producer_module=feat.producer_module,
+                available_before_verdict=feat.available_before_verdict,
+                verdict_coupling=feat.verdict_coupling,
+                coupling_basis=feat.coupling_basis,
+                denominator_policy=feat.denominator_policy,
+                denominator_sibling=feat.denominator_sibling,
+                null_on_zero_denominator=feat.null_on_zero_denominator,
+                causal_grade=feat.causal_grade,
+                is_screening=feat.is_screening,
+                predictor_eligible=predictor_eligible,
+                predictor_refusal_code=refusal_code,
+                outcome_allowed=eligibility.outcome_allowed,
+                descriptive_allowed=eligibility.descriptive_allowed,
+            )
+        )
+    return tuple(rows)
+
+
+def predictor_eligibility_summary(
+    *,
+    family: str | None = None,
+    registry: FeatureRegistry | None = None,
+) -> PredictorEligibilitySummary:
+    """Return exact refusal and eligibility summary counts across registered features."""
+    rows = predictor_eligibility_view(family=family, registry=registry)
+    refusals_by_code: dict[str, int] = defaultdict(int)
+    denom_by_code: dict[str, int] = defaultdict(int)
+    coupling_by_code: dict[str, int] = defaultdict(int)
+    missing_temp = 0
+    missing_denom = 0
+    undeclared_coup = 0
+
+    for r in rows:
+        if r.predictor_refusal_code != FeatureRefusalCode.ELIGIBLE.value:
+            refusals_by_code[r.predictor_refusal_code] += 1
+        if r.denominator_policy is not None:
+            denom_by_code[r.denominator_policy] += 1
+        else:
+            denom_by_code["unspecified"] += 1
+            missing_denom += 1
+        if r.verdict_coupling is not None:
+            coupling_by_code[r.verdict_coupling] += 1
+        else:
+            coupling_by_code["unspecified"] += 1
+            undeclared_coup += 1
+        if r.available_before_verdict is None:
+            missing_temp += 1
+
+    eligible_count = sum(1 for r in rows if r.predictor_eligible)
+    refused_count = len(rows) - eligible_count
+
+    return PredictorEligibilitySummary(
+        total_features=len(rows),
+        eligible_predictors=eligible_count,
+        refused_predictors=refused_count,
+        refusals_by_code=dict(sorted(refusals_by_code.items())),
+        denominator_policies_by_code=dict(sorted(denom_by_code.items())),
+        verdict_couplings_by_code=dict(sorted(coupling_by_code.items())),
+        missing_temporal_count=missing_temp,
+        missing_denominator_count=missing_denom,
+        undeclared_coupling_count=undeclared_coup,
+    )
+
+
+def create_predictor_eligibility_duckdb_view(
+    conn: Any,
+    *,
+    table_name: str = "trajectory_feature_catalog",
+    view_name: str = "v_predictor_eligibility",
+    registry: FeatureRegistry | None = None,
+) -> None:
+    """Materialize the trajectory_feature_catalog table and v_predictor_eligibility view in DuckDB."""
+    reg = registry or TRAJECTORY_FEATURE_REGISTRY
+    rows = [
+        (
+            feat.column_name,
+            feat.data_type,
+            feat.category,
+            feat.family or "",
+            feat.construct or "",
+            feat.producer_module,
+            feat.available_before_verdict,
+            feat.verdict_coupling or "",
+            feat.coupling_basis or "",
+            feat.denominator_policy or "",
+            feat.denominator_sibling or "",
+            feat.null_on_zero_denominator,
+            feat.causal_grade or "",
+            feat.is_screening,
+        )
+        for feat in reg.all_features().values()
+    ]
+    conn.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            column_name VARCHAR PRIMARY KEY,
+            data_type VARCHAR NOT NULL,
+            category VARCHAR NOT NULL,
+            family VARCHAR,
+            construct VARCHAR,
+            producer_module VARCHAR NOT NULL,
+            available_before_verdict BOOLEAN,
+            verdict_coupling VARCHAR,
+            coupling_basis VARCHAR,
+            denominator_policy VARCHAR,
+            denominator_sibling VARCHAR,
+            null_on_zero_denominator BOOLEAN NOT NULL,
+            causal_grade VARCHAR,
+            is_screening BOOLEAN NOT NULL
+        );
+        """
+    )
+    conn.execute(f"DELETE FROM {table_name};")
+    conn.executemany(
+        f"""
+        INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """,
+        rows,
+    )
+    conn.execute(
+        f"""
+        CREATE OR REPLACE VIEW {view_name} AS
+        SELECT
+            column_name AS feature_name,
+            data_type,
+            category,
+            family,
+            construct,
+            producer_module,
+            available_before_verdict,
+            verdict_coupling,
+            coupling_basis,
+            denominator_policy,
+            denominator_sibling,
+            causal_grade,
+            is_screening,
+            (available_before_verdict = TRUE AND verdict_coupling IN ('independent', 'correlates') AND (verdict_coupling = 'independent' OR (coupling_basis IS NOT NULL AND coupling_basis != '')) AND (denominator_policy IS NOT NULL AND denominator_policy != '')) AS predictor_eligible,
+            CASE
+                WHEN available_before_verdict IS NULL THEN 'MISSING_TEMPORAL_AVAILABILITY'
+                WHEN available_before_verdict = FALSE THEN 'POST_VERDICT_TEMPORAL_VIOLATION'
+                WHEN verdict_coupling IS NULL OR verdict_coupling = '' THEN 'UNDECLARED_VERDICT_COUPLING'
+                WHEN verdict_coupling = 'defines' THEN 'REWARD_DEFINITION_LEAKAGE'
+                WHEN verdict_coupling = 'not_applicable' THEN 'NOT_APPLICABLE_FOR_PREDICTION'
+                WHEN verdict_coupling = 'correlates' AND (coupling_basis IS NULL OR coupling_basis = '') THEN 'MISSING_COUPLING_EVIDENCE_BASIS'
+                WHEN denominator_policy IS NULL OR denominator_policy = '' THEN 'MISSING_DENOMINATOR_APPLICABILITY_DECLARATION'
+                ELSE 'ELIGIBLE'
+            END AS predictor_refusal_code
+        FROM {table_name};
+        """
+    )
 
 
 # Global pre-populated registry instance
@@ -404,6 +658,10 @@ register_trajectory_feature(
     formula_or_rule="Deterministic sha256 digest of (job_id, trial_name)",
     null_condition="Never NULL for valid trials",
     description="Unique identifier for the trial.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "job_id",
@@ -413,6 +671,10 @@ register_trajectory_feature(
     formula_or_rule="Job execution identifier from runner metadata",
     null_condition="Never NULL for valid trials",
     description="Identifier of the containing job.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "trial_name",
@@ -422,6 +684,10 @@ register_trajectory_feature(
     formula_or_rule="Trial directory or record name",
     null_condition="Never NULL",
     description="Human-readable name of the trial.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "job_name",
@@ -431,6 +697,10 @@ register_trajectory_feature(
     formula_or_rule="Job directory or record name",
     null_condition="Never NULL",
     description="Human-readable name of the job.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "task_name",
@@ -440,6 +710,10 @@ register_trajectory_feature(
     formula_or_rule="Task identifier extracted from result.json or config.json",
     null_condition="Never NULL",
     description="Evaluated task name.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "agent_name",
@@ -449,6 +723,10 @@ register_trajectory_feature(
     formula_or_rule="Agent identifier from trial config/result",
     null_condition="Never NULL",
     description="Name of the evaluated agent.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "agent_version",
@@ -458,6 +736,10 @@ register_trajectory_feature(
     formula_or_rule="Agent version string from config or 'unknown'",
     null_condition="Never NULL",
     description="Version string of the agent.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "model_name",
@@ -467,6 +749,10 @@ register_trajectory_feature(
     formula_or_rule="Model name from trial config/steps or 'unknown'",
     null_condition="Never NULL",
     description="Underlying foundation model identifier.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "status",
@@ -476,6 +762,10 @@ register_trajectory_feature(
     formula_or_rule="'featured' when trajectory.json exists, else 'accounted_unavailable'",
     null_condition="Never NULL",
     description="Availability status of the trajectory.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "unavailable_reason",
@@ -485,6 +775,10 @@ register_trajectory_feature(
     formula_or_rule="Reason code when status='accounted_unavailable', else NULL",
     null_condition="NULL when status='featured'",
     description="Detailed reason when trajectory is unavailable.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "source_path",
@@ -494,6 +788,10 @@ register_trajectory_feature(
     formula_or_rule="Path to raw source trajectory file",
     null_condition="Never NULL",
     description="Filesystem path of source trajectory.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "source_sha256",
@@ -503,6 +801,10 @@ register_trajectory_feature(
     formula_or_rule="SHA-256 hash of source trajectory file",
     null_condition="Never NULL",
     description="Content digest of source trajectory.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 register_trajectory_feature(
     "primary_reward",
@@ -512,6 +814,8 @@ register_trajectory_feature(
     formula_or_rule="Primary numeric reward from result.json (1.0 = pass, 0.0 = fail)",
     null_condition="NULL when result.json reward is absent",
     description="Deterministic primary evaluation reward.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
     available_before_verdict=False,
     verdict_coupling="defines",
     coupling_basis="Primary deterministic reward from verifier (1.0 = pass, 0.0 = fail)",
@@ -524,6 +828,11 @@ register_trajectory_feature(
     formula_or_rule="Class name of unhandled exception if execution failed",
     null_condition="NULL when trial executed without uncaught exception",
     description="Exception class name on execution failure.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Class of unhandled exception indicates runtime failure mode without defining verdict",
 )
 register_trajectory_feature(
     "duration_seconds",
@@ -533,6 +842,11 @@ register_trajectory_feature(
     formula_or_rule="Wall-clock duration of trial execution in seconds",
     null_condition="NULL when duration is missing or unparseable",
     description="Total execution duration in seconds.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Wall-clock duration reflects execution latency and timeout risk",
 )
 
 # 2. Step metrics
@@ -544,6 +858,11 @@ register_trajectory_feature(
     formula_or_rule="Total count of steps in the trajectory outline",
     null_condition="0 by default",
     description="Total number of steps in the trajectory.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Total step count reflects trajectory length and search complexity",
 )
 register_trajectory_feature(
     "agent_step_count",
@@ -553,6 +872,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps where source='agent'",
     null_condition="0 by default",
     description="Count of agent-initiated steps.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Agent step count reflects model deliberation volume",
 )
 register_trajectory_feature(
     "system_step_count",
@@ -562,6 +886,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps where source='system'",
     null_condition="0 by default",
     description="Count of system/environment steps.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="System step count reflects environment event volume",
 )
 register_trajectory_feature(
     "user_step_count",
@@ -571,6 +900,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps where source='user'",
     null_condition="0 by default",
     description="Count of user-initiated steps.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="User step count reflects external steering volume",
 )
 
 # 3. Tool & Command metrics
@@ -582,6 +916,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps with non-null tool_name",
     null_condition="0 by default",
     description="Total tool calls executed.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Tool call volume reflects operational activity and search depth",
 )
 register_trajectory_feature(
     "unique_tools_count",
@@ -591,6 +930,11 @@ register_trajectory_feature(
     formula_or_rule="Count of distinct tool_name values across steps",
     null_condition="0 by default",
     description="Number of unique tools invoked.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of distinct tools reflects breadth of tool usage",
 )
 register_trajectory_feature(
     "repeated_command_count",
@@ -600,6 +944,11 @@ register_trajectory_feature(
     formula_or_rule="Count of consecutive identical command executions",
     null_condition="0 by default",
     description="Count of repeated identical commands.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Repeated command count indicates looping or retry behavior",
 )
 
 # 4. Error & Recovery metrics
@@ -611,6 +960,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps with true error status (excluding expected probe misses)",
     null_condition="0 by default",
     description="Total error step count.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of error steps measures execution friction and failure frequency",
 )
 register_trajectory_feature(
     "recovery_count",
@@ -620,6 +974,11 @@ register_trajectory_feature(
     formula_or_rule="Count of successful error-to-success step transitions",
     null_condition="0 by default",
     description="Count of error recoveries.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of error recoveries measures fault tolerance",
 )
 register_trajectory_feature(
     "is_expected_negative",
@@ -629,6 +988,11 @@ register_trajectory_feature(
     formula_or_rule="Boolean flag indicating expected negative probes were observed",
     null_condition="False by default",
     description="Flag indicating expected negative probe presence.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="independent",
+    coupling_basis="Expected negative probes are declared by benchmark task structure",
 )
 register_trajectory_feature(
     "expected_probe_count",
@@ -638,6 +1002,11 @@ register_trajectory_feature(
     formula_or_rule="Count of reconnaissance/probe commands that exit non-zero by design",
     null_condition="0 by default",
     description="Count of expected probe misses.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="independent",
+    coupling_basis="Expected probe count is determined by task design",
 )
 register_trajectory_feature(
     "step_to_first_error",
@@ -647,6 +1016,11 @@ register_trajectory_feature(
     formula_or_rule="1-based step ordinal of the first non-probe error",
     null_condition="NULL when no errors occur",
     description="Step index of first observed error.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Step index of first error onset reflects early execution stability",
 )
 register_trajectory_feature(
     "time_to_first_error_seconds",
@@ -656,6 +1030,11 @@ register_trajectory_feature(
     formula_or_rule="Elapsed time from start to first error in seconds",
     null_condition="NULL when no errors occur",
     description="Time to first error onset in seconds.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Elapsed time to first error onset reflects latency before failure",
 )
 register_trajectory_feature(
     "recovery_latency_steps",
@@ -665,6 +1044,11 @@ register_trajectory_feature(
     formula_or_rule="Step difference between first error and first recovery",
     null_condition="NULL when no recovery occurs",
     description="Steps required to achieve first recovery.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Steps required to recover reflects error remediation speed",
 )
 register_trajectory_feature(
     "recovery_latency_seconds",
@@ -674,6 +1058,11 @@ register_trajectory_feature(
     formula_or_rule="Elapsed seconds between first error and first recovery",
     null_condition="NULL when no recovery occurs",
     description="Wall time required to achieve first recovery.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Wall time required to recover reflects error remediation latency",
 )
 register_trajectory_feature(
     "unrecovered_at_terminal",
@@ -683,6 +1072,11 @@ register_trajectory_feature(
     formula_or_rule="True if final step was in error or trial ended without recovering",
     null_condition="False by default",
     description="Flag indicating trial ended in unrecovered error state.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Unrecovered terminal state correlates strongly with failure without defining verdict",
 )
 
 # 5. Intervention provenance
@@ -694,6 +1088,11 @@ register_trajectory_feature(
     formula_or_rule="'autonomous' | 'user_assisted' | 'system_assisted'",
     null_condition="Never NULL ('autonomous' by default)",
     description="Intervention classification of trial execution.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Intervention classification reflects autonomy level",
 )
 register_trajectory_feature(
     "autonomous_step_count",
@@ -703,6 +1102,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps executed by the agent/assistant",
     null_condition="0 by default",
     description="Number of autonomous agent steps.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of autonomous steps reflects self-directed progress",
 )
 register_trajectory_feature(
     "assisted_step_count",
@@ -712,6 +1116,11 @@ register_trajectory_feature(
     formula_or_rule="Count of steps originating from human or user input",
     null_condition="0 by default",
     description="Number of human/user assisted steps.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of assisted steps reflects operator guidance volume",
 )
 register_trajectory_feature(
     "intervention_count",
@@ -721,6 +1130,11 @@ register_trajectory_feature(
     formula_or_rule="Count of human intervention steps occurring at or after initial error",
     null_condition="0 by default",
     description="Count of interventions following error onset.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Intervention count after error onset reflects assistance dependency",
 )
 
 # 6. State & Edit metrics (State-Journal-grounded)
@@ -732,6 +1146,11 @@ register_trajectory_feature(
     formula_or_rule="State journal document status: 'available' | 'missing' | 'malformed' | 'not_observed'",
     null_condition="Never NULL ('not_observed' by default)",
     description="Validation status of state-journal and state-diff.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="State journal observation status reflects file tracking telemetry validity",
 )
 register_trajectory_feature(
     "state_journal_reason",
@@ -741,6 +1160,11 @@ register_trajectory_feature(
     formula_or_rule="Detailed failure or hold reason when state-journal is malformed or missing",
     null_condition="NULL when state-journal status is 'available' or 'not_observed'",
     description="Explanation of state-journal unavailability.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Failure reason for state journal reflects environment capture integrity",
 )
 register_trajectory_feature(
     "state_events_count",
@@ -750,6 +1174,11 @@ register_trajectory_feature(
     formula_or_rule="Count of raw filesystem state events recorded by state-journal",
     null_condition="0 by default",
     description="Total count of state journal events.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Raw state events count reflects filesystem activity level",
 )
 register_trajectory_feature(
     "state_mutations_count",
@@ -759,6 +1188,11 @@ register_trajectory_feature(
     formula_or_rule="Count of mutating state events (added, modified, deleted)",
     null_condition="0 by default",
     description="Total count of filesystem mutations.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Mutating filesystem events count reflects environmental footprint",
 )
 register_trajectory_feature(
     "state_files_created_count",
@@ -768,6 +1202,11 @@ register_trajectory_feature(
     formula_or_rule="Count of files added in state-diff",
     null_condition="0 by default",
     description="Count of files created during trial.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of created files reflects artifact generation volume",
 )
 register_trajectory_feature(
     "state_files_modified_count",
@@ -777,6 +1216,11 @@ register_trajectory_feature(
     formula_or_rule="Count of existing files modified in state-diff",
     null_condition="0 by default",
     description="Count of files modified during trial.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of modified files reflects workspace modification volume",
 )
 register_trajectory_feature(
     "state_files_deleted_count",
@@ -786,6 +1230,11 @@ register_trajectory_feature(
     formula_or_rule="Count of files deleted in state-diff",
     null_condition="0 by default",
     description="Count of files deleted during trial.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of deleted files reflects cleanup or destructive actions",
 )
 register_trajectory_feature(
     "state_diff_observed",
@@ -795,6 +1244,11 @@ register_trajectory_feature(
     formula_or_rule="True when validated state-diff.json was loaded",
     null_condition="False by default",
     description="Flag indicating validated state-diff observation.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="State diff observation flag reflects environment capture availability",
 )
 register_trajectory_feature(
     "state_diff_path_count",
@@ -804,6 +1258,11 @@ register_trajectory_feature(
     formula_or_rule="Count of distinct paths recorded in state-diff.json",
     null_condition="0 by default",
     description="Number of distinct paths changed in state diff.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of modified paths reflects scope of state changes",
 )
 register_trajectory_feature(
     "state_diff_bytes_delta",
@@ -813,6 +1272,11 @@ register_trajectory_feature(
     formula_or_rule="Net sum of size deltas (after - before) across all state-diff changes",
     null_condition="0 by default",
     description="Net byte size change across all changed paths.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Net byte change reflects magnitude of file modifications",
 )
 register_trajectory_feature(
     "edit_tool_call_count",
@@ -822,6 +1286,11 @@ register_trajectory_feature(
     formula_or_rule="Count of tool calls executing file edits or writes",
     null_condition="0 by default",
     description="Denominator for edit efficiency screening.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Edit tool call count reflects file editing effort",
 )
 register_trajectory_feature(
     "edit_efficiency_screening",
@@ -830,8 +1299,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="state_diff_path_count / edit_tool_call_count",
     null_condition="NULL when edit_tool_call_count == 0",
+    denominator_policy="required",
     denominator_sibling="edit_tool_call_count",
     null_on_zero_denominator=True,
+    declared_inputs=("state_diff_path_count", "edit_tool_call_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of distinct changed paths to edit tool calls measures edit efficiency and economy",
     description="Ratio of distinct changed paths to edit tool calls.",
 )
 register_trajectory_feature(
@@ -842,6 +1316,11 @@ register_trajectory_feature(
     formula_or_rule="Count of state-diff mutations on paths never referenced in agent tool calls",
     null_condition="0 by default",
     description="Count of filesystem changes with no corresponding agent tool reference.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Unreferenced mutations reflect indirect side effects or build artifacts",
 )
 
 # 7. Reference validity metrics
@@ -853,6 +1332,11 @@ register_trajectory_feature(
     formula_or_rule="Count of file/path arguments passed to agent tools",
     null_condition="0 by default",
     description="Denominator for path reference validity screening.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Path reference count reflects file targeting opportunity volume",
 )
 register_trajectory_feature(
     "valid_path_reference_count",
@@ -862,6 +1346,11 @@ register_trajectory_feature(
     formula_or_rule="Count of path references that resolved or executed without missing-file errors",
     null_condition="0 by default",
     description="Count of valid path references.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Valid path reference count reflects correct filesystem targeting",
 )
 register_trajectory_feature(
     "invalid_path_reference_count",
@@ -871,6 +1360,11 @@ register_trajectory_feature(
     formula_or_rule="Count of path references that produced missing-file errors",
     null_condition="0 by default",
     description="Count of invalid or missing path references.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Invalid path reference count reflects missing path errors or hallucinations",
 )
 register_trajectory_feature(
     "path_reference_validity_rate_screening",
@@ -879,8 +1373,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="valid_path_reference_count / path_reference_count",
     null_condition="NULL when path_reference_count == 0",
+    denominator_policy="required",
     denominator_sibling="path_reference_count",
     null_on_zero_denominator=True,
+    declared_inputs=("valid_path_reference_count", "path_reference_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of valid path references measures filesystem grounding accuracy",
     description="Ratio of valid path references to total path references.",
 )
 register_trajectory_feature(
@@ -891,6 +1390,11 @@ register_trajectory_feature(
     formula_or_rule="Count of citations cited in trajectory / evidence pack",
     null_condition="0 by default",
     description="Denominator for citation reference validity screening.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Citation reference count reflects evidence citation opportunities",
 )
 register_trajectory_feature(
     "valid_citation_reference_count",
@@ -900,6 +1404,11 @@ register_trajectory_feature(
     formula_or_rule="Count of citations with valid path and 64-hex sha256 digest",
     null_condition="0 by default",
     description="Count of valid citation references.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Valid citation count reflects grounded evidence citations",
 )
 register_trajectory_feature(
     "invalid_citation_reference_count",
@@ -909,6 +1418,11 @@ register_trajectory_feature(
     formula_or_rule="Count of citations with missing or malformed digest",
     null_condition="0 by default",
     description="Count of invalid citation references.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Invalid citation count reflects malformed or unverified evidence citations",
 )
 register_trajectory_feature(
     "citation_reference_validity_rate_screening",
@@ -917,8 +1431,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="valid_citation_reference_count / citation_reference_count",
     null_condition="NULL when citation_reference_count == 0",
+    denominator_policy="required",
     denominator_sibling="citation_reference_count",
     null_on_zero_denominator=True,
+    declared_inputs=("valid_citation_reference_count", "citation_reference_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of valid citation references measures evidence provenance integrity",
     description="Ratio of valid citations to total citations.",
 )
 
@@ -930,8 +1449,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="unique_tools_count / tool_call_count",
     null_condition="NULL when tool_call_count == 0",
+    denominator_policy="required",
     denominator_sibling="tool_call_count",
     null_on_zero_denominator=True,
+    declared_inputs=("unique_tools_count", "tool_call_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of unique tools to total tool calls measures tool diversity and exploration breadth",
     description="Linear innocence screening metric (unique tools / tool calls).",
 )
 register_trajectory_feature(
@@ -941,8 +1465,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="error_count / tool_call_count",
     null_condition="NULL when tool_call_count == 0",
+    denominator_policy="required",
     denominator_sibling="tool_call_count",
     null_on_zero_denominator=True,
+    declared_inputs=("error_count", "tool_call_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of tool errors to total tool calls measures tool execution reliability",
     description="Tool error rate screening metric (errors / tool calls).",
 )
 register_trajectory_feature(
@@ -952,8 +1481,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="recovery_count / error_count",
     null_condition="NULL when error_count == 0",
+    denominator_policy="required",
     denominator_sibling="error_count",
     null_on_zero_denominator=True,
+    declared_inputs=("recovery_count", "error_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of successful recoveries to total errors measures resilience under failure",
     description="Ratio of successful recoveries to total errors.",
 )
 register_trajectory_feature(
@@ -963,8 +1497,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="autonomous_step_count / step_count",
     null_condition="NULL when step_count == 0",
+    denominator_policy="required",
     denominator_sibling="step_count",
     null_on_zero_denominator=True,
+    declared_inputs=("autonomous_step_count", "step_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of autonomous steps to total steps measures degree of unassisted execution",
     description="Ratio of autonomous steps to total steps.",
 )
 register_trajectory_feature(
@@ -974,8 +1513,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="assisted_step_count / step_count",
     null_condition="NULL when step_count == 0",
+    denominator_policy="required",
     denominator_sibling="step_count",
     null_on_zero_denominator=True,
+    declared_inputs=("assisted_step_count", "step_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of assisted steps to total steps measures human/user intervention dependence",
     description="Ratio of human-assisted steps to total steps.",
 )
 register_trajectory_feature(
@@ -985,8 +1529,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="cached_tokens / prompt_tokens",
     null_condition="NULL when prompt_tokens == 0 or prompt_tokens is NULL",
+    denominator_policy="required",
     denominator_sibling="prompt_tokens",
     null_on_zero_denominator=True,
+    declared_inputs=("cached_tokens", "prompt_tokens"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of cached prompt tokens to total prompt tokens measures prompt caching efficiency",
     description="Prompt token cache hit rate screening.",
 )
 register_trajectory_feature(
@@ -996,8 +1545,13 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="subagent_steps / step_count",
     null_condition="NULL when step_count == 0",
+    denominator_policy="required",
     denominator_sibling="step_count",
     null_on_zero_denominator=True,
+    declared_inputs=("subagent_steps", "step_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Ratio of subagent delegation steps to total steps measures delegation overhead",
     description="Ratio of subagent steps to total steps.",
 )
 register_trajectory_feature(
@@ -1007,6 +1561,11 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="Regression slope of prompt_tokens over step_ordinal",
     null_condition="NULL when fewer than 2 steps have prompt_tokens or zero variance",
+    denominator_policy="not_applicable",
+    declared_inputs=("prompt_tokens", "step_count"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Regression slope of prompt tokens across steps measures context accumulation rate",
     description="Context burn velocity screening slope.",
 )
 register_trajectory_feature(
@@ -1016,6 +1575,11 @@ register_trajectory_feature(
     is_screening=True,
     formula_or_rule="Maximum consecutive run of steps with non-zero exit codes or errors",
     null_condition="0 by default",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Maximum consecutive run of error exit codes measures fault cascade persistence",
     description="Longest consecutive exit-code error streak.",
 )
 
@@ -1028,6 +1592,11 @@ register_trajectory_feature(
     formula_or_rule="Sum of prompt tokens across all steps",
     null_condition="NULL when not reported",
     description="Total prompt tokens consumed.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Prompt token volume reflects context consumption and input complexity",
 )
 register_trajectory_feature(
     "completion_tokens",
@@ -1037,6 +1606,11 @@ register_trajectory_feature(
     formula_or_rule="Sum of completion tokens across all steps",
     null_condition="NULL when not reported",
     description="Total completion tokens generated.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Completion token volume reflects model generation length",
 )
 register_trajectory_feature(
     "cached_tokens",
@@ -1046,6 +1620,11 @@ register_trajectory_feature(
     formula_or_rule="Sum of prompt tokens read from cache",
     null_condition="NULL when not reported",
     description="Total cached prompt tokens.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Cached token volume reflects prompt reuse",
 )
 register_trajectory_feature(
     "total_tokens",
@@ -1055,6 +1634,11 @@ register_trajectory_feature(
     formula_or_rule="prompt_tokens + completion_tokens",
     null_condition="NULL when either prompt or completion tokens are missing",
     description="Total token consumption.",
+    denominator_policy="not_applicable",
+    declared_inputs=("prompt_tokens", "completion_tokens"),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Total token volume reflects aggregate model inference footprint",
 )
 register_trajectory_feature(
     "cost_usd",
@@ -1064,6 +1648,11 @@ register_trajectory_feature(
     formula_or_rule="Sum of dollar cost across all steps",
     null_condition="NULL when not reported",
     description="Total execution cost in USD.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Financial cost in USD reflects computational resource expenditure",
 )
 
 # 10. Loop Suspicion metrics
@@ -1075,6 +1664,11 @@ register_trajectory_feature(
     formula_or_rule="Weighted heuristic score based on repeated commands, errors, and cycles",
     null_condition="0.0 by default",
     description="Composite loop suspicion score [0.0, 1.0].",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Loop suspicion score reflects repetitive non-progressing behavior",
 )
 register_trajectory_feature(
     "loop_suspicion_detected",
@@ -1084,6 +1678,11 @@ register_trajectory_feature(
     formula_or_rule="Boolean flag indicating loop_suspicion_score >= 0.5",
     null_condition="False by default",
     description="Thresholded loop detection flag.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Loop detection threshold reflects identified execution thrashing",
 )
 register_trajectory_feature(
     "loop_reasons_json",
@@ -1093,6 +1692,11 @@ register_trajectory_feature(
     formula_or_rule="JSON array of detected loop pattern reasons",
     null_condition="'[]' by default",
     description="List of detected loop trigger reasons in JSON.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="JSON array of loop triggers provides structured diagnosis of execution thrashing",
 )
 register_trajectory_feature(
     "created_at",
@@ -1102,6 +1706,10 @@ register_trajectory_feature(
     formula_or_rule="ISO-8601 UTC timestamp of record creation",
     null_condition="Never NULL",
     description="Timestamp when baseline record was generated.",
+    denominator_policy="not_applicable",
+    declared_inputs=(),
+    available_before_verdict=True,
+    verdict_coupling="not_applicable",
 )
 
 
@@ -1349,6 +1957,8 @@ register_trajectory_feature(
     denominator_policy="not_applicable",
     declared_inputs=(),
     available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of requested handles matching expected contract universe measures grounding fidelity",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1368,6 +1978,8 @@ register_trajectory_feature(
     denominator_policy="not_applicable",
     declared_inputs=(),
     available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Count of ungrounded handle requests measures context hallucination",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C1",
@@ -1387,6 +1999,8 @@ register_trajectory_feature(
     denominator_policy="not_applicable",
     declared_inputs=(),
     available_before_verdict=True,
+    verdict_coupling="correlates",
+    coupling_basis="Repeated redundant requests for identical handles measure retrieval inefficiency",
     producer_module="evallab.interpretation.producers.action_memory",
     construct="Context & Actionable Memory",
     causal_grade="C0",

@@ -134,6 +134,7 @@ def _z3_table_patterns(
         fallback=fallback,
     )
 
+
 def _z3_select_sql(
     discovery: ParquetPartitionDiscovery,
     table: str,

@@ -2,7 +2,8 @@
 
 The producer consumes structured experiment iterations rather than asking an LLM
 to infer research quality from prose. Visible/hidden transfer is emitted only
-when an explicit, cryptographically validated ScoreScaleBindingV1 is attached.
+when an explicit, cryptographically validated ScoreScaleBindingV1 is attached
+and matches the trace-side task, verifier, metric config, and split outcome digests.
 Final visible score and selection regret are derived strictly from the explicitly
 selected candidate iteration, never the last measured score.
 
@@ -171,6 +172,11 @@ class ResearchRunTraceV1(ContractModel):
     source_record_id: str | None = None
     source_revision_id: str | None = None
     source_digest: str
+    task_digest: str | None = None
+    verifier_digest: str | None = None
+    metric_config_digest: str | None = None
+    visible_outcome_binding_digest: str | None = None
+    hidden_outcome_binding_digest: str | None = None
     baseline_visible_score: float | None = None
     score_direction: Literal["higher", "lower"] = "higher"
     score_scale_binding: ScoreScaleBindingV1 | None = None
@@ -211,10 +217,16 @@ class ResearchRunTraceV1(ContractModel):
             if value is not None and not math.isfinite(value):
                 raise ValueError("research run numeric fields must be finite")
 
-        if self.final_artifact_digest is not None and not _SHA256_PATTERN.match(
-            self.final_artifact_digest
+        for name, value in (
+            ("final_artifact_digest", self.final_artifact_digest),
+            ("task_digest", self.task_digest),
+            ("verifier_digest", self.verifier_digest),
+            ("metric_config_digest", self.metric_config_digest),
+            ("visible_outcome_binding_digest", self.visible_outcome_binding_digest),
+            ("hidden_outcome_binding_digest", self.hidden_outcome_binding_digest),
         ):
-            raise ValueError("final_artifact_digest must match sha256:[0-9a-f]{64} syntax")
+            if value is not None and not _SHA256_PATTERN.match(value):
+                raise ValueError(f"{name} must match sha256:[0-9a-f]{{64}} syntax")
 
         iteration_map: dict[str, ResearchIterationV1] = {}
         for iteration in self.iterations:
@@ -249,14 +261,69 @@ class ResearchRunTraceV1(ContractModel):
                         f"does not match final_artifact_digest {self.final_artifact_digest!r}"
                     )
 
-        if (
-            self.score_scale_binding is not None
-            and self.score_scale_binding.direction != self.score_direction
-        ):
-            raise ValueError(
-                f"score_scale_binding direction {self.score_scale_binding.direction!r} "
-                f"does not match trace score_direction {self.score_direction!r}"
-            )
+        # Cross-binding cryptographic parity validation
+        if self.score_scale_binding is not None:
+            if self.task_digest is None:
+                raise ValueError(
+                    "task_digest is required on trace when score_scale_binding is supplied"
+                )
+            if self.task_digest != self.score_scale_binding.task_digest:
+                raise ValueError(
+                    f"trace task_digest {self.task_digest!r} does not match "
+                    f"score_scale_binding task_digest {self.score_scale_binding.task_digest!r}"
+                )
+
+            if self.verifier_digest is None:
+                raise ValueError(
+                    "verifier_digest is required on trace when score_scale_binding is supplied"
+                )
+            if self.verifier_digest != self.score_scale_binding.verifier_digest:
+                raise ValueError(
+                    f"trace verifier_digest {self.verifier_digest!r} does not match "
+                    f"score_scale_binding verifier_digest {self.score_scale_binding.verifier_digest!r}"
+                )
+
+            if self.metric_config_digest is None:
+                raise ValueError(
+                    "metric_config_digest is required on trace when score_scale_binding is supplied"
+                )
+            if self.metric_config_digest != self.score_scale_binding.metric_config_digest:
+                raise ValueError(
+                    f"trace metric_config_digest {self.metric_config_digest!r} does not match "
+                    f"score_scale_binding metric_config_digest {self.score_scale_binding.metric_config_digest!r}"
+                )
+
+            if self.visible_outcome_binding_digest is None:
+                raise ValueError(
+                    "visible_outcome_binding_digest is required on trace when score_scale_binding is supplied"
+                )
+            if (
+                self.visible_outcome_binding_digest
+                != self.score_scale_binding.visible_outcome_binding_digest
+            ):
+                raise ValueError(
+                    f"trace visible_outcome_binding_digest {self.visible_outcome_binding_digest!r} does not match "
+                    f"score_scale_binding visible_outcome_binding_digest {self.score_scale_binding.visible_outcome_binding_digest!r}"
+                )
+
+            if self.hidden_outcome_binding_digest is None:
+                raise ValueError(
+                    "hidden_outcome_binding_digest is required on trace when score_scale_binding is supplied"
+                )
+            if (
+                self.hidden_outcome_binding_digest
+                != self.score_scale_binding.hidden_outcome_binding_digest
+            ):
+                raise ValueError(
+                    f"trace hidden_outcome_binding_digest {self.hidden_outcome_binding_digest!r} does not match "
+                    f"score_scale_binding hidden_outcome_binding_digest {self.score_scale_binding.hidden_outcome_binding_digest!r}"
+                )
+
+            if self.score_scale_binding.direction != self.score_direction:
+                raise ValueError(
+                    f"score_scale_binding direction {self.score_scale_binding.direction!r} "
+                    f"does not match trace score_direction {self.score_direction!r}"
+                )
 
         return self
 
@@ -271,6 +338,13 @@ class AutonomousResearchFeatures:
     source_record_id: str | None
     source_revision_id: str | None
     score_direction: str
+
+    # Trace provenance & verification digests
+    task_digest: str | None
+    verifier_digest: str | None
+    metric_config_digest: str | None
+    visible_outcome_binding_digest: str | None
+    hidden_outcome_binding_digest: str | None
 
     # 1. Experiment Throughput & Validity (RSI-Exam, MLE-bench, RE-Bench)
     iteration_count: int
@@ -656,6 +730,11 @@ def extract_autonomous_research_features(
         "source_record_id": trace.source_record_id,
         "source_revision_id": trace.source_revision_id,
         "score_direction": trace.score_direction,
+        "task_digest": trace.task_digest,
+        "verifier_digest": trace.verifier_digest,
+        "metric_config_digest": trace.metric_config_digest,
+        "visible_outcome_binding_digest": trace.visible_outcome_binding_digest,
+        "hidden_outcome_binding_digest": trace.hidden_outcome_binding_digest,
         # 1. Experiment Throughput & Validity
         "iteration_count": iteration_count,
         "measured_iteration_count": measured_count,

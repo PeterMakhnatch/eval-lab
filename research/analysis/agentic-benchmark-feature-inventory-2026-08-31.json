@@ -82,7 +82,7 @@
     "autonomous-research-v1": {
       "producer_module": "evallab.autonomous_research",
       "source_table": "autonomous_research_runs",
-      "feature_count": 69,
+      "feature_count": 74,
       "constructs": [
         "Autonomous Research & Method Improvement",
         "Score-Time Dynamics & Budget Scaling",
@@ -106,6 +106,11 @@
         {"name": "source_record_id", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "source_revision_id", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "score_direction", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "task_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "verifier_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "metric_config_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "visible_outcome_binding_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "hidden_outcome_binding_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "measured_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "valid_experiment_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},

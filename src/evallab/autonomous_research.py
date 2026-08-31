@@ -3,8 +3,8 @@
 The producer consumes structured experiment iterations rather than asking an LLM
 to infer research quality from prose. Visible/hidden transfer is emitted only
 when an explicit, cryptographically validated ScoreScaleBindingV1 is attached.
-Final visible score and selection regret are derived from the explicitly selected
-or artifact-bound candidate iteration, never the last measured score.
+Final visible score and selection regret are derived strictly from the explicitly
+selected candidate iteration, never the last measured score.
 
 Grounded in research-loop methodology across RSI-Exam, RE-Bench, PaperBench,
 MLE-bench, CORE-Bench, and AgentBoard.
@@ -16,12 +16,15 @@ import dataclasses
 import hashlib
 import json
 import math
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from evallab.schemas import ContractModel
+
+_SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _digest(value: Any) -> str:
@@ -38,49 +41,84 @@ class ScoreScaleBindingV1(ContractModel):
     """Cryptographically validated binding proving visible and hidden score comparability."""
 
     schema_version: Literal["score-scale-binding/v1"] = "score-scale-binding/v1"
+    authority_kind: Literal["benchmark_contract", "deterministic_verifier"]
     metric_name: str = Field(min_length=1)
     direction: Literal["higher", "lower"]
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    metric_config_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     visible_split_id: str = Field(min_length=1)
     hidden_split_id: str = Field(min_length=1)
-    normalization_digest: str = Field(min_length=1)
-    binding_digest: str
+    visible_outcome_binding_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    hidden_outcome_binding_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    binding_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
     @classmethod
     def create(
         cls,
         *,
+        authority_kind: Literal[
+            "benchmark_contract", "deterministic_verifier"
+        ] = "benchmark_contract",
         metric_name: str,
         direction: Literal["higher", "lower"],
+        task_digest: str,
+        verifier_digest: str,
+        metric_config_digest: str,
         visible_split_id: str,
         hidden_split_id: str,
-        normalization_digest: str,
+        visible_outcome_binding_digest: str,
+        hidden_outcome_binding_digest: str,
     ) -> ScoreScaleBindingV1:
-        if not normalization_digest or not normalization_digest.strip():
-            raise ValueError("normalization_digest must be non-empty")
+        for name, value in (
+            ("task_digest", task_digest),
+            ("verifier_digest", verifier_digest),
+            ("metric_config_digest", metric_config_digest),
+            ("visible_outcome_binding_digest", visible_outcome_binding_digest),
+            ("hidden_outcome_binding_digest", hidden_outcome_binding_digest),
+        ):
+            if not _SHA256_PATTERN.match(value):
+                raise ValueError(f"{name} must match sha256:[0-9a-f]{{64}} syntax")
+
         body = {
+            "authority_kind": authority_kind,
             "direction": direction,
+            "hidden_outcome_binding_digest": hidden_outcome_binding_digest,
             "hidden_split_id": hidden_split_id,
+            "metric_config_digest": metric_config_digest,
             "metric_name": metric_name,
-            "normalization_digest": normalization_digest,
+            "task_digest": task_digest,
+            "verifier_digest": verifier_digest,
+            "visible_outcome_binding_digest": visible_outcome_binding_digest,
             "visible_split_id": visible_split_id,
         }
         digest = _digest(body)
         return cls(
+            authority_kind=authority_kind,
             metric_name=metric_name,
             direction=direction,
+            task_digest=task_digest,
+            verifier_digest=verifier_digest,
+            metric_config_digest=metric_config_digest,
             visible_split_id=visible_split_id,
             hidden_split_id=hidden_split_id,
-            normalization_digest=normalization_digest,
+            visible_outcome_binding_digest=visible_outcome_binding_digest,
+            hidden_outcome_binding_digest=hidden_outcome_binding_digest,
             binding_digest=digest,
         )
 
     @model_validator(mode="after")
     def _validate_digest(self) -> ScoreScaleBindingV1:
         body = {
+            "authority_kind": self.authority_kind,
             "direction": self.direction,
+            "hidden_outcome_binding_digest": self.hidden_outcome_binding_digest,
             "hidden_split_id": self.hidden_split_id,
+            "metric_config_digest": self.metric_config_digest,
             "metric_name": self.metric_name,
-            "normalization_digest": self.normalization_digest,
+            "task_digest": self.task_digest,
+            "verifier_digest": self.verifier_digest,
+            "visible_outcome_binding_digest": self.visible_outcome_binding_digest,
             "visible_split_id": self.visible_split_id,
         }
         expected = _digest(body)
@@ -119,6 +157,8 @@ class ResearchIterationV1(ContractModel):
             raise ValueError("elapsed seconds must be finite")
         if self.cost_usd is not None and not math.isfinite(self.cost_usd):
             raise ValueError("cost_usd must be finite")
+        if self.artifact_digest is not None and not _SHA256_PATTERN.match(self.artifact_digest):
+            raise ValueError("artifact_digest must match sha256:[0-9a-f]{64} syntax")
         return self
 
 
@@ -171,11 +211,25 @@ class ResearchRunTraceV1(ContractModel):
             if value is not None and not math.isfinite(value):
                 raise ValueError("research run numeric fields must be finite")
 
+        if self.final_artifact_digest is not None and not _SHA256_PATTERN.match(
+            self.final_artifact_digest
+        ):
+            raise ValueError("final_artifact_digest must match sha256:[0-9a-f]{64} syntax")
+
         iteration_map: dict[str, ResearchIterationV1] = {}
         for iteration in self.iterations:
             if iteration.iteration_id in iteration_map:
                 raise ValueError(f"research iteration ID {iteration.iteration_id!r} is not unique")
             iteration_map[iteration.iteration_id] = iteration
+
+        # Fail-closed candidate selection requirements
+        if self.final_artifact_digest is not None and self.selected_iteration_id is None:
+            raise ValueError(
+                "selected_iteration_id is required when final_artifact_digest is supplied"
+            )
+
+        if self.hidden_score is not None and self.selected_iteration_id is None:
+            raise ValueError("selected_iteration_id is required when hidden_score is supplied")
 
         if self.selected_iteration_id is not None:
             if self.selected_iteration_id not in iteration_map:
@@ -183,15 +237,17 @@ class ResearchRunTraceV1(ContractModel):
                     f"selected_iteration_id {self.selected_iteration_id!r} not found in trace iterations"
                 )
             selected_it = iteration_map[self.selected_iteration_id]
-            if (
-                self.final_artifact_digest is not None
-                and selected_it.artifact_digest is not None
-                and selected_it.artifact_digest != self.final_artifact_digest
-            ):
-                raise ValueError(
-                    f"selected iteration artifact digest {selected_it.artifact_digest!r} "
-                    f"does not match final_artifact_digest {self.final_artifact_digest!r}"
-                )
+            if self.final_artifact_digest is not None:
+                if selected_it.artifact_digest is None:
+                    raise ValueError(
+                        f"selected iteration {self.selected_iteration_id!r} must have a non-null artifact_digest "
+                        f"when final_artifact_digest is supplied"
+                    )
+                if selected_it.artifact_digest != self.final_artifact_digest:
+                    raise ValueError(
+                        f"selected iteration artifact digest {selected_it.artifact_digest!r} "
+                        f"does not match final_artifact_digest {self.final_artifact_digest!r}"
+                    )
 
         if (
             self.score_scale_binding is not None
@@ -374,6 +430,7 @@ def extract_autonomous_research_features(
     rollback_rate = (
         reverted_count / selection_decision_count if selection_decision_count > 0 else None
     )
+
     measured_scores = [
         iteration.visible_score for iteration in iterations if iteration.visible_score is not None
     ]
@@ -403,7 +460,7 @@ def extract_autonomous_research_features(
     else:
         best_visible = None
 
-    # Derive selected candidate iteration (explicit ID, or matching final_artifact_digest, or last iteration)
+    # Derive selected candidate iteration strictly (NO last-iteration fallback)
     selected_id = trace.selected_iteration_id
     selected_iteration: ResearchIterationV1 | None = None
     if selected_id is not None:
@@ -411,16 +468,6 @@ def extract_autonomous_research_features(
             if it.iteration_id == selected_id:
                 selected_iteration = it
                 break
-    elif trace.final_artifact_digest is not None:
-        for it in reversed(iterations):
-            if it.artifact_digest == trace.final_artifact_digest:
-                selected_iteration = it
-                selected_id = it.iteration_id
-                break
-    elif iterations:
-        # If not explicitly named, bind to the final executed iteration
-        selected_iteration = iterations[-1]
-        selected_id = selected_iteration.iteration_id
 
     final_visible = selected_iteration.visible_score if selected_iteration is not None else None
 
@@ -527,20 +574,17 @@ def extract_autonomous_research_features(
         completed_rubric_subtasks / total_rubric_subtasks if total_rubric_subtasks > 0 else None
     )
 
-    # 6. Final-Selection Regret (non-negative loss from choosing selected candidate instead of best)
-    optimal_selection_flag = (
-        (final_visible == best_visible)
-        if final_visible is not None and best_visible is not None
-        else None
-    )
-    if best_visible is not None and final_visible is not None:
+    # 6. Final-Selection Regret (derived strictly from selected candidate, NULL if no selection)
+    if selected_iteration is not None and final_visible is not None and best_visible is not None:
+        optimal_selection_flag = final_visible == best_visible
         final_selection_regret = (
             (final_visible - best_visible) if is_lower else (best_visible - final_visible)
         )
     else:
+        optimal_selection_flag = None
         final_selection_regret = None
 
-    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when validated ScoreScaleBindingV1 exists)
+    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when validated ScoreScaleBindingV1 exists AND selected candidate has score)
     transfer_gap = None
     scale_binding_digest: str | None = None
     if trace.score_scale_binding is not None:
@@ -560,11 +604,8 @@ def extract_autonomous_research_features(
         if reproducibility_evaluated_count > 0
         else None
     )
+    # Final artifact digest: never infer from last kept iteration
     final_artifact_digest = trace.final_artifact_digest
-    if final_artifact_digest is None and iterations:
-        last_kept = [it for it in iterations if it.disposition == "kept" and it.artifact_digest]
-        if last_kept:
-            final_artifact_digest = last_kept[-1].artifact_digest
 
     # 9. Environment Reconstruction & Dependency Repair
     dep_attempts = trace.dependency_repair_attempts + sum(

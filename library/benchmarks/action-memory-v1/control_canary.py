@@ -1,24 +1,19 @@
-"""Deterministic control canary and paired-condition certification for action-memory-v1."""
+"""Deterministic control canary and paired-condition certification for action-memory-v1.
+
+NOTE: This module provides deterministic unit test fixtures and paired contrast
+specifications for the action-memory state-inversion control lane. Real task
+packaging, container execution, and registry admission land in follow-up lanes
+once runtime profile qualification is complete.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import random
-from dataclasses import asdict, dataclass
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any
 
-from evallab.interpretation.benchmark_events import (
-    BenchmarkContractRecord,
-    BenchmarkEventRecord,
-    FinalStateRecord,
-    TrialBundle,
-)
-from evallab.interpretation.producers.action_memory import (
-    ActionMemoryFeatures,
-    extract_action_memory_features,
-)
 from evallab.semantic_facts import PairedConditionFact
 
 
@@ -27,6 +22,64 @@ CANARY_SEED = 42
 CANARY_DOSE_BYTES = 4096
 CANARY_TASK_NON_INVERTED = "am-canary-non-inverted-4k-s42"
 CANARY_TASK_INVERTED = "am-canary-state-inverted-4k-s42"
+
+# Canonical FastMCP tool inventory and schema definition
+CANARY_TOOL_INVENTORY = [
+    {
+        "name": "list_context_chunks",
+        "description": "List all available context chunk identifiers in canonical order.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_context_chunk",
+        "description": "Retrieve content for a specific context chunk handle.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"chunk_id": {"type": "string"}},
+            "required": ["chunk_id"],
+        },
+    },
+    {
+        "name": "execute_mutation",
+        "description": "Execute final state mutation with target entity attribute binding.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string"},
+                "attribute": {"type": "string"},
+                "bound_value": {"type": "string"},
+            },
+            "required": ["entity_id", "attribute", "bound_value"],
+        },
+    },
+]
+
+
+def compute_tool_inventory_digest(inventory: list[dict[str, Any]]) -> str:
+    """Compute deterministic SHA-256 digest of tool schemas."""
+    serialized = json.dumps(inventory, sort_keys=True, separators=(",", ":"))
+    return f"sha256:{hashlib.sha256(serialized.encode('utf-8')).hexdigest()}"
+
+
+CANARY_TOOL_SCHEMA_DIGEST = compute_tool_inventory_digest(CANARY_TOOL_INVENTORY)
+
+
+def _pad_text_to_exact_bytes(text: str, target_bytes: int) -> str:
+    """Pad or trim UTF-8 text to exact byte length."""
+    encoded = text.encode("utf-8")
+    if len(encoded) == target_bytes:
+        return text
+    if len(encoded) < target_bytes:
+        padding = " " * (target_bytes - len(encoded))
+        return text + padding
+    # If longer, truncate cleanly
+    trimmed = encoded[:target_bytes]
+    while trimmed:
+        try:
+            return trimmed.decode("utf-8")
+        except UnicodeDecodeError:
+            trimmed = trimmed[:-1]
+    return " " * target_bytes
 
 
 @dataclass(frozen=True)
@@ -45,14 +98,16 @@ class CanaryPairSpec:
     non_inverted_scenario: dict[str, Any]
     inverted_scenario: dict[str, Any]
     verifier_truth_digest: str
+    tool_inventory_digest: str
+    total_realized_context_bytes: int
 
 
 def build_canary_pair_spec(
     seed: int = CANARY_SEED,
     dose_bytes: int = CANARY_DOSE_BYTES,
 ) -> CanaryPairSpec:
-    """Build matched non-inverted vs state-inverted canary scenario pair."""
-    pair_id = f"am-state-inversion-canary-s{seed}-{dose_bytes // 1024}k"
+    """Build matched non-inverted vs state-inverted canary scenario pair with exact byte parity."""
+    pair_id = CANARY_PAIR_ID
     rng = random.Random(f"action_memory_canary:{seed}:{dose_bytes}")
 
     target_entity = f"entity_{rng.randint(100, 999)}"
@@ -63,60 +118,76 @@ def build_canary_pair_spec(
     initial_val = f"{val_prefix}_v1"
     inverted_val = f"{val_prefix}_v2"
 
-    # Common init text
-    c0_text = (
+    # Chunk 0: Initial Fact (exact 256 bytes)
+    c0_raw = (
         f"[SYSTEM LOG 001]: Initializing configuration record for {target_entity}.\n"
         f"Entity attribute {target_attribute} is permanently bound to '{initial_val}'.\n"
         "All subsequent telemetry routing must reference this active token unless explicitly updated.\n"
     )
+    c0_text = _pad_text_to_exact_bytes(c0_raw, 256)
     init_chunk = {
         "chunk_id": "ctx_000_init",
         "content": c0_text,
         "chunk_type": "initial_fact",
-        "byte_count": len(c0_text.encode("utf-8")),
+        "byte_count": 256,
     }
 
-    # Arm 0: Non-inverted (no override, filler padding only)
-    fill_arm0_text = (
-        f"[SYSTEM TELEMETRY]: Partition heartbeat check passed for cluster node 0.\n"
-        f"Latency envelope: 12ms p50, 45ms p99. Network interfaces active.\n"
+    # Chunk 1 for Arm 0: Neutral filler (exact 256 bytes)
+    c1_arm0_raw = (
+        f"[SYSTEM LOG 002]: Configuration verification for {target_entity}.\n"
+        f"Active routing key confirms binding to initial token '{initial_val}'.\n"
+        "No state overrides registered in current deployment epoch.\n"
     )
-    # Target 7 total chunks to match standard 4k chunk grid
-    chunks_arm0 = [init_chunk]
-    for i in range(1, 7):
-        content = fill_arm0_text + f"Heartbeat sequence token #{i:04d}.\n"
-        chunks_arm0.append(
-            {
-                "chunk_id": f"ctx_{i:03d}_fill",
-                "content": content,
-                "chunk_type": "padding",
-                "byte_count": len(content.encode("utf-8")),
-            }
-        )
+    c1_arm0_text = _pad_text_to_exact_bytes(c1_arm0_raw, 256)
+    chunk1_arm0 = {
+        "chunk_id": "ctx_001_fill",
+        "content": c1_arm0_text,
+        "chunk_type": "padding",
+        "byte_count": 256,
+    }
 
-    # Arm 1: State Inverted (override chunk replacing one filler)
-    inv_text = (
+    # Chunk 1 for Arm 1: Critical State Inversion Override (exact 256 bytes)
+    c1_arm1_raw = (
         f"[CRITICAL STATE INVERSION 091]: Configuration OVERRIDE event for {target_entity}.\n"
         f"Superceding prior assignments, attribute {target_attribute} is now mutated to '{inverted_val}'.\n"
         f"Mandatory action execution REQUIREMENT: Final mutation must supply latest bound token '{inverted_val}'.\n"
     )
-    inv_chunk = {
+    c1_arm1_text = _pad_text_to_exact_bytes(c1_arm1_raw, 256)
+    chunk1_arm1 = {
         "chunk_id": "ctx_001_inv",
-        "content": inv_text,
+        "content": c1_arm1_text,
         "chunk_type": "inversion_fact",
-        "byte_count": len(inv_text.encode("utf-8")),
+        "byte_count": 256,
     }
-    chunks_arm1 = [init_chunk, inv_chunk]
-    for i in range(2, 7):
-        content = fill_arm0_text + f"Heartbeat sequence token #{i:04d}.\n"
-        chunks_arm1.append(
+
+    # Chunks 2-6: Padding chunks identical across both arms (4 x 716 bytes + 1 x 720 bytes = 3584 bytes)
+    # Total context = 256 + 256 + 3584 = 4096 bytes exactly!
+    padding_chunks: list[dict[str, Any]] = []
+    pad_sizes = [716, 716, 716, 716, 720]
+    for idx, size in enumerate(pad_sizes, start=2):
+        pad_raw = (
+            f"[SYSTEM TELEMETRY]: Partition heartbeat check passed for cluster node {idx - 2}.\n"
+            f"Latency envelope: 12ms p50, 45ms p99. Network interfaces active.\n"
+            f"Sequence verification token: #{idx:04d}.\n"
+        )
+        pad_text = _pad_text_to_exact_bytes(pad_raw, size)
+        padding_chunks.append(
             {
-                "chunk_id": f"ctx_{i:03d}_fill",
-                "content": content,
+                "chunk_id": f"ctx_{idx:03d}_fill",
+                "content": pad_text,
                 "chunk_type": "padding",
-                "byte_count": len(content.encode("utf-8")),
+                "byte_count": size,
             }
         )
+
+    chunks_arm0 = [init_chunk, chunk1_arm0] + padding_chunks
+    chunks_arm1 = [init_chunk, chunk1_arm1] + padding_chunks
+
+    total_bytes_arm0 = sum(c["byte_count"] for c in chunks_arm0)
+    total_bytes_arm1 = sum(c["byte_count"] for c in chunks_arm1)
+    assert total_bytes_arm0 == total_bytes_arm1 == 4096, (
+        "Realized context bytes must equal exactly 4096"
+    )
 
     scenario_arm0 = {
         "seed": seed,
@@ -182,11 +253,13 @@ def build_canary_pair_spec(
         target_attribute=target_attribute,
         initial_value=initial_val,
         inverted_value=inverted_val,
-        non_inverted_task_id=f"{pair_id}-arm0-non-inverted",
-        inverted_task_id=f"{pair_id}-arm1-inverted",
+        non_inverted_task_id=CANARY_TASK_NON_INVERTED,
+        inverted_task_id=CANARY_TASK_INVERTED,
         non_inverted_scenario=scenario_arm0,
         inverted_scenario=scenario_arm1,
         verifier_truth_digest=truth_digest,
+        tool_inventory_digest=CANARY_TOOL_SCHEMA_DIGEST,
+        total_realized_context_bytes=4096,
     )
 
 
@@ -229,6 +302,7 @@ def synthesize_canary_trial_artifacts(
             "raw_conflicting_opportunities": 1 if not is_arm0 else 0,
         },
         "verifier_truth_digest": spec.verifier_truth_digest,
+        "tool_inventory_digest": spec.tool_inventory_digest,
         "artifact_paths": {
             "benchmark_events": "/app/output/benchmark-events.jsonl",
             "final_state": "/app/output/final-state.json",
@@ -378,7 +452,11 @@ def synthesize_canary_trial_artifacts(
 def emit_canary_paired_condition_fact(
     trial_data: dict[str, Any],
 ) -> PairedConditionFact:
-    """Emit verified canonical PairedConditionFact for a canary trial."""
+    """Emit verified canonical PairedConditionFact for a canary trial.
+
+    Enforces that when state journal observability is absent or degraded, the
+    emitted verdict is unknown (HOLD), preventing ungrounded claims.
+    """
     is_arm0 = trial_data["arm"] in ("non_inverted", "arm0", "clean_non_inverted")
     variant = "non_inverted" if is_arm0 else "state_inverted"
     condition = "baseline_clean" if is_arm0 else "stale_value_override"
@@ -391,10 +469,23 @@ def emit_canary_paired_condition_fact(
         else "unbound"
     )
     diff = f"{target_ent}.{target_attr}={bound_val}"
-    source_digest = (
-        f"sha256:{hashlib.sha256(trial_data['task_id'].encode('utf-8')).hexdigest()}"
+
+    # Source digest is the canonical SHA-256 digest of the contract evidence
+    contract_bytes = json.dumps(
+        trial_data["contract"], sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    source_digest = f"sha256:{hashlib.sha256(contract_bytes).hexdigest()}"
+
+    # State Observability Gate: If state journal is absent, verdict must be unknown (HOLD)
+    state_journal = trial_data.get("state_journal")
+    has_valid_state_journal = (
+        isinstance(state_journal, dict) and state_journal.get("status") == "available"
     )
-    verdict = "satisfied" if trial_data["task_success"] else "violated"
+
+    if not has_valid_state_journal:
+        verdict = "unknown"
+    else:
+        verdict = "satisfied" if trial_data["task_success"] else "violated"
 
     return PairedConditionFact(
         source_ref=f"benchmark_contract:{trial_data['task_id']}",

@@ -1,11 +1,12 @@
 {
-  "schema_version": "campaign-definition/v2",
+  "schema_version": "campaign-design-spec/v1",
+  "schema_note": "Data Engineer roadmap spec, REPORT ONLY. Fixture-only, non-executable design artifact. Not an execution authorization and not an edit to any shared campaign queue. allow_billable stays false and max_cost_usd is 0.0. Real execution requires post-qualification profile binding and full task packaging.",
   "campaign_id": "campaign-action-memory-controls-canary-v1",
   "roadmap_ref": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
   "evidence_pin": "6eebed8751c74133bc76400a5c2d69a4911a2be3",
   "author": "data-engineer",
   "date": "2026-08-31",
-  "status": "designed",
+  "status": "designed-fixture-only",
   "execution_policy": {
     "allow_billable": false,
     "require_human_approval": true,
@@ -13,6 +14,9 @@
     "max_transient_retries": 0,
     "max_wall_clock_seconds": 600,
     "max_input_tokens": 100000,
+    "max_output_tokens": 4000,
+    "max_total_tokens": 104000,
+    "max_requests": 20,
     "max_cost_usd": 0.0
   },
   "benchmark_family": "action-memory-v1",
@@ -21,29 +25,33 @@
     "pair_id": "am-state-inversion-canary-s42-4k",
     "seed": 42,
     "dose_bytes": 4096,
+    "realized_context_bytes": 4096,
     "contrast_variable": "state_inversion_status",
+    "tool_schema_digest": "sha256:49aa3b28b7e2898cf85d95610e75a3ba2e8e97f0a719c8f108865d648c66e95b",
+    "verifier_truth_digest": "sha256:b134c7e7dc127002289f37148e246aea02c84ab439b92951dc09a9297b1ca8c6",
     "arms": [
       {
         "arm_id": "control_non_inverted",
-        "task_id": "am-state-inversion-canary-s42-4k-arm0-non-inverted",
+        "task_id": "am-canary-non-inverted-4k-s42",
         "condition": "baseline_clean_non_inverted",
         "inversion_count": 0,
         "repeats": 1
       },
       {
         "arm_id": "treatment_state_inverted",
-        "task_id": "am-state-inversion-canary-s42-4k-arm1-inverted",
+        "task_id": "am-canary-state-inverted-4k-s42",
         "condition": "stale_value_override_inversion",
         "inversion_count": 1,
         "repeats": 1
       }
     ]
   },
-  "candidate_profile": {
-    "profile_id": "generic-qualified-profile",
+  "target_candidate_profile": {
+    "profile_id": "zai-opencode-glm-5.3",
     "agent": "zai-opencode",
-    "model": "glm-4-flash",
-    "note": "Executable through generic qualified-profile path post-qualification. Zero billable executions in control lane."
+    "model": "glm-5.3",
+    "readiness_status": "qualification_pending",
+    "note": "Non-executable roadmap design. Zero billable executions in control lane."
   },
   "lineage": {
     "control_module": "library/benchmarks/action-memory-v1/control_canary.py",

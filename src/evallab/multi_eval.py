@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from pydantic import Field
 
@@ -385,10 +386,7 @@ def plan_multi_eval_execution(
         task_spec.requirements.requires_docker_compose
         or task_spec.requirements.requires_hidden_verifier_containers
         or task_spec.requirements.requires_network_allowlist
-    ):
-        canonical_runner = RunnerKind.HARBOR
-    elif (
-        task_spec.benchmark_family.startswith("rsi-")
+        or task_spec.benchmark_family.startswith("rsi-")
         or task_spec.benchmark_family.startswith("harbor-")
         or task_spec.benchmark_family in ("rsi", "harbor")
     ):
@@ -398,10 +396,12 @@ def plan_multi_eval_execution(
             canonical_runner = RunnerKind.HARBOR
         else:
             canonical_runner = task_spec.canonical_runner_hint
-    elif (
-        task_spec.benchmark_family.startswith("inspect")
-        or task_spec.benchmark_family in {"gaia", "swe_bench", "cybermetric", "intercode"}
-    ):
+    elif task_spec.benchmark_family.startswith("inspect") or task_spec.benchmark_family in {
+        "gaia",
+        "swe_bench",
+        "cybermetric",
+        "intercode",
+    }:
         canonical_runner = RunnerKind.INSPECT
     else:
         canonical_runner = RunnerKind.HARBOR
@@ -414,9 +414,7 @@ def plan_multi_eval_execution(
             raw_parity_runners.append(kind)
     else:
         if execution_intent == ExecutionIntent.PARITY_RUN:
-            if canonical_runner == RunnerKind.HARBOR:
-                raw_parity_runners = [RunnerKind.INSPECT_HARBOR]
-            elif canonical_runner == RunnerKind.INSPECT:
+            if canonical_runner in (RunnerKind.HARBOR, RunnerKind.INSPECT):
                 raw_parity_runners = [RunnerKind.INSPECT_HARBOR]
         elif execution_intent == ExecutionIntent.CROSS_RUNNER_COMPARISON:
             if canonical_runner == RunnerKind.HARBOR:
@@ -450,16 +448,17 @@ def plan_multi_eval_execution(
             refusals.extend(validate_runner_capabilities(p_caps, task_spec.requirements))
 
     # Scaffold equivalence requirement for cross runner comparison
-    if execution_intent == ExecutionIntent.CROSS_RUNNER_COMPARISON:
-        if scaffold_equivalence is None or not scaffold_equivalence.declared_equivalent:
-            refusals.append(
-                PlanningRefusal(
-                    code=RefusalCode.UNDECLARED_SCAFFOLD_EQUIVALENCE,
-                    message="Cross-runner comparison requires declared scaffold equivalence",
-                    runner_kind=None,
-                    missing_capabilities=["declared_equivalent"],
-                )
+    if execution_intent == ExecutionIntent.CROSS_RUNNER_COMPARISON and (
+        scaffold_equivalence is None or not scaffold_equivalence.declared_equivalent
+    ):
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.UNDECLARED_SCAFFOLD_EQUIVALENCE,
+                message="Cross-runner comparison requires declared scaffold equivalence",
+                runner_kind=None,
+                missing_capabilities=["declared_equivalent"],
             )
+        )
 
     # Normalize harness identities
     normalized_identities: dict[str, HarnessIdentity] = {}
@@ -658,9 +657,7 @@ def reconcile_parity_results(
         )
 
     # Reconcile verifier passed status
-    verifier_passed_reconciled = (
-        canonical_outcome.verifier_passed == parity_outcome.verifier_passed
-    )
+    verifier_passed_reconciled = canonical_outcome.verifier_passed == parity_outcome.verifier_passed
 
     # Reconcile artifact digests
     artifact_digests_reconciled = (
@@ -699,11 +696,7 @@ def reconcile_parity_results(
     # Parity status determination
     if not scaffold_equivalent or len(refusals) > 0:
         parity_status = ParityStatus.REFUSED
-    elif (
-        verifier_reward_reconciled
-        and verifier_passed_reconciled
-        and artifact_digests_reconciled
-    ):
+    elif verifier_reward_reconciled and verifier_passed_reconciled and artifact_digests_reconciled:
         parity_status = ParityStatus.PARITY_VERIFIED
     else:
         parity_status = ParityStatus.PARITY_DIVERGENT

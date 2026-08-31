@@ -32,6 +32,7 @@ from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project, project_trial
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
+    ZAI_OPENCODE_AGENT,
     DispatchCapacity,
     PaidRunAuthorization,
     is_lease_generation,
@@ -2390,7 +2391,7 @@ class Executor:
         security_runner: SecurityRunner | None = None,
         environment: Mapping[str, str] | None = None,
     ) -> tuple[bool, AgentSmokeRecord | None, str | None]:
-        """Run one fixed-budget, digest-pinned canary after all pre-trial gates pass."""
+        """Run one fixed-budget fresh-container transport and capture smoke."""
         readiness = evaluate_profile_readiness(
             profile,
             root=self.repo_root,
@@ -2421,7 +2422,8 @@ class Executor:
         except ValueError as exc:
             return False, None, str(exc)
 
-        job_name = f"smoke-{profile.profile_id}-{new_ulid().lower()}"
+        job_profile_id = profile.profile_id.replace(".", "-").replace("_", "-")
+        job_name = f"smoke-{job_profile_id}-{new_ulid().lower()}"
         request = RunRequest(
             task=task_path,
             agent=profile.adapter,
@@ -2429,7 +2431,7 @@ class Executor:
             name=job_name,
             jobs_dir=self.repo_root / "runs",
             timeout_seconds=300,
-            cost_limit_usd=1.0,
+            cost_limit_usd=1.0 if profile.adapter == "mini-swe-agent" else None,
             allow_billable=True,
             concurrency=1,
             attempts=1,
@@ -2452,8 +2454,11 @@ class Executor:
 
         trial = job.trials[0]
         exception_info = trial.result.get("exception_info")
-        if isinstance(exception_info, dict) and exception_info.get("exception_type"):
-            return False, None, f"Smoke agent failed: {exception_info['exception_type']}"
+        agent_exception_type = (
+            str(exception_info["exception_type"])
+            if isinstance(exception_info, dict) and exception_info.get("exception_type")
+            else None
+        )
 
         reward = trial.primary_reward
         if reward is None:
@@ -2463,10 +2468,8 @@ class Executor:
                     reward = float(reward_txt.read_text().strip())
                 except ValueError:
                     reward = None
-        if reward is None or not math.isfinite(reward):
-            return False, None, "Smoke verifier produced no valid reward"
-        if reward < 1.0:
-            return False, None, f"Smoke run scored reward {reward} (< 1.0)"
+        if reward is not None and not math.isfinite(reward):
+            reward = None
 
         runtime_seconds = duration_seconds(
             trial.result.get("started_at"), trial.result.get("finished_at")
@@ -2490,9 +2493,23 @@ class Executor:
             for step in projection.steps
             if step.document_id == trajectory.document_id
         )
+        native_evidence_path: str | None = None
+        native_evidence_digest: str | None = None
+        if profile.adapter == ZAI_OPENCODE_AGENT:
+            native_path = trial.path / "agent/opencode.txt"
+            if not native_path.is_file() or native_path.stat().st_size == 0:
+                return (
+                    False,
+                    None,
+                    "OpenCode runtime smoke did not capture native opencode.txt evidence",
+                )
+            native_evidence_path = native_path.relative_to(trial.path).as_posix()
+            native_evidence_digest = (
+                "sha256:" + hashlib.sha256(native_path.read_bytes()).hexdigest()
+            )
 
         smoke_record = AgentSmokeRecord(
-            schema_version=1,
+            schema_version=2,
             profile_id=profile.profile_id,
             profile_digest=profile.digest,
             task=task_ref,
@@ -2500,11 +2517,18 @@ class Executor:
             job_name=job.name,
             trial_name=trial.name,
             reward=reward,
+            agent_exception_type=agent_exception_type,
             runtime_seconds=runtime_seconds,
             step_count=trajectory.step_count,
             tool_call_count=tool_call_count,
             atif_path=trajectory.source_path,
             atif_digest=trajectory.source_sha256,
+            native_evidence_path=native_evidence_path,
+            native_evidence_digest=native_evidence_digest,
+            fresh_container=True,
+            transport_status="complete",
+            capture_status="complete",
+            secret_safety_status="pass",
             executed_at=datetime.now(UTC),
         )
 
@@ -2552,9 +2576,9 @@ class Executor:
         security_runner: SecurityRunner | None = None,
         environment: Mapping[str, str] | None = None,
     ) -> tuple[bool, AgentQualificationDigest | None, str | None]:
-        """Require exactly three fixed-budget canary passes for qualification."""
+        """Require exactly three fresh-container transport/capture smokes."""
         if repeats != 3:
-            return False, None, "Qualification requires exactly 3 canary repeats"
+            return False, None, "Qualification requires exactly 3 fresh-container smokes"
 
         smoke_records: list[AgentSmokeRecord] = []
         for index in range(repeats):
@@ -2572,9 +2596,10 @@ class Executor:
             smoke_records.append(smoke_rec)
 
         qualification = AgentQualificationDigest(
-            schema_version=1,
+            schema_version=2,
             profile_id=profile.profile_id,
             profile_digest=profile.digest,
+            qualification_basis="transport-capture",
             repeats=repeats,
             success_count=len(smoke_records),
             smoke_records=smoke_records,

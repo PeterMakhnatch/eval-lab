@@ -35,6 +35,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from evallab.execution_contracts import (
+    OPENCODE_AUTH_RELATIVE_PATH,
+    ZAI_AUTH_PROVIDER,
+    ZAI_OPENCODE_AGENT,
+    read_owner_secret_file,
+)
+
 if TYPE_CHECKING:
     from evallab.schemas import AgentReadinessRecord, AgentSmokeRecord
 
@@ -300,6 +307,40 @@ class AuthFileProbe:
 
 
 @dataclass(frozen=True)
+class OpenCodeProviderAuthProbe:
+    """Check one provider entry in OpenCode's owner-only auth store.
+
+    Only provider identity and credential presence influence the result. Secret
+    values are never returned, logged, or attached to the readiness record.
+    """
+
+    home: Path
+    relative_path: str
+    provider: str
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        del profile
+        path = self.home / self.relative_path
+        try:
+            payload = json.loads(read_owner_secret_file(path))
+        except OSError:
+            return ProbeResult(
+                ok=False,
+                reason=f"OpenCode auth file missing or not owner-only: ~/{self.relative_path}",
+            )
+        except json.JSONDecodeError:
+            return ProbeResult(ok=False, reason="OpenCode auth file is not valid JSON")
+        entry = payload.get(self.provider) if isinstance(payload, dict) else None
+        key = entry.get("key") if isinstance(entry, dict) else None
+        if not isinstance(key, str) or not key:
+            return ProbeResult(
+                ok=False,
+                reason=f"OpenCode auth has no credential for provider '{self.provider}'",
+            )
+        return ProbeResult(ok=True)
+
+
+@dataclass(frozen=True)
 class EnvironmentPresenceProbe:
     """Check admitted credential names for non-empty values without returning them."""
 
@@ -492,6 +533,29 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-08-06: successful harbor-practice codex run "
                     "(transaction-reconciliation) recorded this exact model",
+                ),
+            ),
+            AgentProfile(
+                profile_id="zai-opencode-glm-5.3",
+                adapter=ZAI_OPENCODE_AGENT,
+                adapter_version="1.0.0+opencode-1.18.25",
+                model="zai-coding-plan/glm-5.3",
+                auth_mode="subscription-auth-file",
+                secret_source=f"file:{OPENCODE_AUTH_RELATIVE_PATH.as_posix()}",
+                required_files=(OPENCODE_AUTH_RELATIVE_PATH.as_posix(),),
+                capabilities=(
+                    "credential-transport:proxy-isolated",
+                    "structured-trajectory:ATIF-v1.7",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-08-31: Harbor 0.21 OpenCode declares SUPPORTS_ATIF and emits ATIF-v1.7",
+                    "2026-08-31: host OpenCode auth contains the zai-coding-plan "
+                    "provider entry without exposing its value",
                 ),
             ),
             AgentProfile(
@@ -697,6 +761,13 @@ def default_probe_for(
             )
         expect = "gemini" if command[0] == "agy" else "logged in"
         return CliSessionProbe(argv=tuple(command), expect=expect, runner=cli_runner)
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        relative = (profile.secret_source or "file:")[len("file:") :]
+        return OpenCodeProviderAuthProbe(
+            home=home,
+            relative_path=relative,
+            provider=ZAI_AUTH_PROVIDER,
+        )
     relative = (profile.secret_source or "file:")[len("file:") :]
     return AuthFileProbe(home=home, relative_path=relative, clock=clock)
 
@@ -732,6 +803,7 @@ ADAPTER_CLI_BINARIES: dict[str, str] = {
     "claude-code": "claude",
     "gemini-cli": "gemini",
     "grok-cli": "grok",
+    "zai-opencode": "opencode",
 }
 
 
@@ -797,6 +869,14 @@ def check_harbor_transport(
     if profile.adapter == "claude-code":
         return True, None, None
 
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        if "credential-transport:proxy-isolated" not in profile.capabilities:
+            return (
+                False,
+                "Z.ai OpenCode profile does not declare proxy-isolated credential transport",
+                "Declare the canonical proxy-isolated transport capability",
+            )
+        return True, None, None
     return True, None, None
 
 
@@ -829,6 +909,10 @@ def check_structured_trajectory(profile: AgentProfile) -> tuple[bool, str | None
     """Check whether adapter produces structured ATIF trajectory stream events."""
     if profile.adapter in CONTROL_ADAPTERS:
         return True, None
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        if "structured-trajectory:ATIF-v1.7" in profile.capabilities:
+            return True, None
+        return False, "Z.ai OpenCode profile does not declare ATIF-v1.7 capture"
     structured_adapters = frozenset({"codex", "antigravity-cli", "mini-swe-agent", "oracle", "nop"})
     if profile.adapter in structured_adapters:
         return True, None
@@ -1038,15 +1122,17 @@ def evaluate_profile_readiness(
     if active_blocker is None:
         if (
             last_smoke is not None
-            and last_smoke.reward >= 1.0
             and last_smoke.profile_digest == profile.digest
+            and last_smoke.transport_status == "complete"
+            and last_smoke.capture_status == "complete"
+            and last_smoke.secret_safety_status == "pass"
         ):
             gates[GATE_SMOKE] = "pass"
         else:
             gates[GATE_SMOKE] = "blocked"
             active_blocker = AgentBlocker(
                 gate=GATE_SMOKE,
-                reason=f"No verified smoke run on record; run 'evallab agents smoke {profile.profile_id}'",
+                reason=f"No verified transport/capture smoke on record; run 'evallab agents smoke {profile.profile_id}'",
                 remediation=f"Run 'evallab agents smoke {profile.profile_id}'",
             )
     else:

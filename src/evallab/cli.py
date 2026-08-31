@@ -439,12 +439,12 @@ def _agents_smoke_command(
     executor = Executor.from_repo(effective_root)
     ok, smoke_rec, err = executor.execute_agent_smoke(profile, task_ref=args.task)
     if not ok or smoke_rec is None:
-        print(f"Smoke failed for {profile.profile_id}: {err}", file=sys.stderr)
+        print(f"Transport/capture smoke failed for {profile.profile_id}: {err}", file=sys.stderr)
         return 1
     print(
-        f"Smoke passed for {profile.profile_id} on {smoke_rec.task}: reward={smoke_rec.reward} "
-        f"runtime={smoke_rec.runtime_seconds:.1f}s steps={smoke_rec.step_count} "
-        f"tool_calls={smoke_rec.tool_call_count}"
+        f"Transport/capture smoke passed for {profile.profile_id} on {smoke_rec.task}: "
+        f"reward={smoke_rec.reward} runtime={smoke_rec.runtime_seconds:.1f}s "
+        f"steps={smoke_rec.step_count} tool_calls={smoke_rec.tool_call_count}"
     )
     return 0
 
@@ -467,10 +467,11 @@ def _agents_qualify_command(
         task_ref=args.task,
     )
     if not ok or qual_digest is None:
-        print(f"Qualification failed for {profile.profile_id}: {err}", file=sys.stderr)
+        print(f"Runtime qualification failed for {profile.profile_id}: {err}", file=sys.stderr)
         return 1
     print(
-        f"Qualification succeeded for {profile.profile_id}: {qual_digest.repeats} repeats passed "
+        f"Runtime qualification succeeded for {profile.profile_id}: "
+        f"{qual_digest.repeats} fresh-container transport/capture smokes passed "
         f"(digest: {qual_digest.qualification_digest})"
     )
     return 0

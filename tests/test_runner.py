@@ -11,7 +11,13 @@ import pytest
 import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
-from evallab.execution_contracts import ProxyTrialLimits
+from evallab.execution_contracts import (
+    ZAI_PROXY_CAPABILITY_ENV,
+    ZAI_SECRET_FILE_ENV,
+    ProxyTrialLimits,
+    materialize_zai_secret_file,
+    read_owner_secret_file,
+)
 from evallab.harbor_network import HarborNetworkPolicy
 from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
@@ -153,6 +159,64 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
     assert "max_tokens=8192" in command
 
 
+def test_zai_opencode_routes_through_proxy_isolated_pinned_adapter(
+    tmp_path: Path,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3",
+        name="zai-opencode-pinned-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    command = build_command(request)
+
+    assert resolve_harbor_agent("zai-opencode") == (
+        "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent"
+    )
+    assert command[command.index("--agent") + 1] == resolve_harbor_agent("zai-opencode")
+    assert command[command.index("--model") + 1] == "zai-coding-plan/glm-5.3"
+    assert command[command.index("--n-concurrent-agents") + 1] == "1"
+    assert command[command.index("--n-tasks") + 1] == "1"
+    assert command[command.index("--max-retries") + 1] == "0"
+
+    wrapped = subscription_command(
+        request,
+        command,
+        repo_root=Path(__file__).resolve().parents[1],
+    )
+    assert "--extra-docker-compose" in wrapped
+    assert wrapped[-1].endswith("containers/zai-secret.compose.yaml")
+
+
+def test_zai_secret_materializes_only_opencode_provider_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    zai_secret = "zai-provider-secret"
+    foreign_secret = "foreign-provider-secret"
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(
+        json.dumps(
+            {
+                "xai": {"type": "api", "key": foreign_secret},
+                "zai-coding-plan": {"type": "api", "key": zai_secret},
+            }
+        )
+    )
+    auth.chmod(0o600)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+    destination = tmp_path / "staged/key"
+    materialize_zai_secret_file(destination, home=tmp_path)
+
+    assert read_owner_secret_file(destination) == zai_secret
+    assert foreign_secret not in destination.read_text()
+
+
 def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
     tmp_path: Path,
 ) -> None:
@@ -240,6 +304,50 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
     assert secret not in deepseek_log.read_text()
     assert control.returncode == 0
     assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
+
+
+def test_zai_opencode_host_process_receives_only_proxy_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "zai-secret-never-enters-agent-environment"
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(json.dumps({"zai-coding-plan": {"type": "api", "key": secret}}))
+    auth.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    script = (
+        "import os; "
+        "cap=os.environ['ZAI_API_KEY']; "
+        "print('capability=' + str(bool(cap) and cap != " + repr(secret) + ")); "
+        "print('secret-file=' + str(bool(os.environ.get('" + ZAI_SECRET_FILE_ENV + "')))); "
+        "print('proxy-capability=' + str(cap == os.environ['" + ZAI_PROXY_CAPABILITY_ENV + "']))"
+    )
+    log_path = tmp_path / "zai-host.log"
+
+    result = run_harbor_process(
+        [
+            sys.executable,
+            "-c",
+            script,
+            resolve_harbor_agent("zai-opencode"),
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=log_path,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text().splitlines() == [
+        "capability=True",
+        "secret-file=True",
+        "proxy-capability=True",
+    ]
+    assert secret not in log_path.read_text()
+    assert not list(tmp_path.glob("evallab-zai-secret.*"))
+
 
 def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
     tmp_path: Path,
@@ -350,6 +458,8 @@ def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
     assert result.timed_out is False
     assert result.returncode != 0
     assert time.monotonic() - started < 2
+
+
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
     tmp_path: Path,
 ) -> None:

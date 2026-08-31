@@ -51,9 +51,18 @@ from evallab.execution_contracts import (
 )
 from evallab.ops_continuous import main as operator_main
 from evallab.ops_continuous import write_mode
+from evallab.profiles import (
+    builtin_profiles,
+    compute_qualification_digest,
+    save_readiness_record,
+)
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
+    AgentGateEvaluations,
+    AgentQualificationDigest,
+    AgentReadinessRecord,
+    AgentSmokeRecord,
     ControlEvidenceRef,
     ExperimentMatrix,
     ExperimentSpec,
@@ -65,6 +74,83 @@ from evallab.schemas import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
+QUALIFIED_PROFILE_IDS = (
+    "mini-swe-agent-deepseek-v4-flash",
+    "zai-opencode-glm-5.3",
+)
+
+
+def _qualification_for(profile_id: str) -> tuple[AgentQualificationDigest, AgentSmokeRecord]:
+    profile = builtin_profiles()[profile_id]
+    records = [
+        AgentSmokeRecord(
+            schema_version=2,
+            profile_id=profile.profile_id,
+            profile_digest=profile.digest,
+            task="canary/event-summary",
+            task_digest="sha256:" + "a" * 64,
+            job_name=f"runtime-smoke-{profile.profile_id}-{index}",
+            trial_name=f"runtime-smoke-{index}__{profile.adapter}",
+            reward=0.0 if index == 2 else 1.0,
+            runtime_seconds=1.0,
+            step_count=2,
+            tool_call_count=1,
+            atif_path="agent/trajectory.json",
+            atif_digest="sha256:" + f"{index:064x}",
+            fresh_container=True,
+            transport_status="complete",
+            capture_status="complete",
+            secret_safety_status="pass",
+            executed_at=NOW,
+        )
+        for index in range(1, 4)
+    ]
+    qualification = AgentQualificationDigest(
+        schema_version=2,
+        profile_id=profile.profile_id,
+        profile_digest=profile.digest,
+        qualification_basis="transport-capture",
+        repeats=3,
+        success_count=3,
+        smoke_records=records,
+        qualification_digest=compute_qualification_digest(records),
+        qualified_at=NOW,
+    )
+    return qualification, records[-1]
+
+
+QUALIFICATIONS = {
+    profile_id: _qualification_for(profile_id) for profile_id in QUALIFIED_PROFILE_IDS
+}
+
+
+def _write_qualified_readiness(root: Path, profile_id: str) -> None:
+    profile = builtin_profiles()[profile_id]
+    qualification, last_smoke = QUALIFICATIONS[profile_id]
+    save_readiness_record(
+        AgentReadinessRecord(
+            schema_version=1,
+            profile_id=profile.profile_id,
+            adapter=profile.adapter,
+            model=profile.model,
+            profile_digest=profile.digest,
+            state="canary-qualified",
+            gates=AgentGateEvaluations(
+                declared="pass",
+                installed="pass",
+                host_credential="pass",
+                harbor_transport="pass",
+                environment_network="pass",
+                structured_trajectory="pass",
+                smoke="pass",
+                canary="pass",
+            ),
+            last_smoke=last_smoke,
+            qualification=qualification,
+            updated_at=NOW,
+        ),
+        root=root,
+    )
 
 
 class Clock:
@@ -160,13 +246,16 @@ def _repo(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     validated_matrix = ExperimentMatrix.model_validate(matrix)
-    matrix_digest = "sha256:" + hashlib.sha256(
-        json.dumps(
-            validated_matrix.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()
+    matrix_digest = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                validated_matrix.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
     (experiments / "matrix-registry.json").write_text(
         json.dumps(
             {
@@ -184,18 +273,23 @@ def _repo(tmp_path: Path) -> Path:
         + "\n",
         encoding="utf-8",
     )
+    for profile_id in QUALIFIED_PROFILE_IDS:
+        _write_qualified_readiness(root, profile_id)
     return root
 
 
 def _canonical_matrix_digest(payload: dict[str, Any]) -> str:
     matrix = ExperimentMatrix.model_validate(payload)
-    return "sha256:" + hashlib.sha256(
-        json.dumps(
-            matrix.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()
+    return (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                matrix.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
 
 
 def _update_fixture_matrix_catalog(
@@ -208,15 +302,20 @@ def _update_fixture_matrix_catalog(
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
 
-def _spec(*, billable: bool) -> ExperimentSpec:
+def _spec(
+    *,
+    billable: bool,
+    profile_id: str = "mini-swe-agent-deepseek-v4-flash",
+) -> ExperimentSpec:
+    profile = builtin_profiles()[profile_id]
     return ExperimentSpec(
         name="definition-placeholder",
         hypothesis="Campaign orchestration preserves exact attempts",
         purpose="baseline",
         task="tasks/task-one",
         task_id="task-one",
-        agent="mini-swe-agent" if billable else "oracle",
-        model=DEEPSEEK_MODEL_SELECTOR if billable else None,
+        agent=profile.adapter if billable else "oracle",
+        model=profile.model if billable else None,
         jobs_dir="runs",
         task_family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION.value,
         attempts=1,
@@ -224,7 +323,7 @@ def _spec(*, billable: bool) -> ExperimentSpec:
         timeout_seconds=60,
         submitted_by="campaign-test",
         est_cost_usd=0.5 if billable else 0.0,
-        requires=["fresh-deepseek-key"] if billable else [],
+        requires=["qualified-runtime-profile"] if billable else [],
     )
 
 
@@ -235,6 +334,7 @@ def _definition(
     campaign_cost: float | None = None,
     circuit_failures: int = 1,
     max_concurrency: int = 1,
+    profile_id: str = "mini-swe-agent-deepseek-v4-flash",
 ) -> CampaignDefinition:
     trial = TrialLimits(
         max_requests=2 if billable else 0,
@@ -280,8 +380,12 @@ def _definition(
                 cell_id=f"cell-{index}",
                 task_id="task-one",
                 attempt=index,
-                spec=_spec(billable=billable),
+                spec=_spec(billable=billable, profile_id=profile_id),
                 limits=trial,
+                profile_id=profile_id if billable else None,
+                readiness_evidence_digest=(
+                    QUALIFICATIONS[profile_id][0].qualification_digest if billable else None
+                ),
             )
             for index in range(1, attempts + 1)
         ),
@@ -380,9 +484,7 @@ def _write_job(
     metadata: dict[str, Any] = {
         "schema_version": 1,
         "experiment": (
-            request.provenance.model_dump(mode="json")
-            if request.provenance is not None
-            else None
+            request.provenance.model_dump(mode="json") if request.provenance is not None else None
         ),
     }
     if (
@@ -501,6 +603,44 @@ def _orchestrator(
     )
 
 
+def test_campaign_admits_zai_by_qualified_profile_identity(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    definition = _definition(
+        billable=True,
+        profile_id="zai-opencode-glm-5.3",
+    )
+
+    manifest = build_campaign_manifest(definition, repo_root=root)
+
+    runtime = manifest.attempts[0].runtime_identity
+    assert runtime is not None
+    assert runtime.profile_id == "zai-opencode-glm-5.3"
+    assert runtime.adapter == "zai-opencode"
+    assert runtime.model == "zai-coding-plan/glm-5.3"
+    assert runtime.readiness_evidence_digest == (
+        QUALIFICATIONS["zai-opencode-glm-5.3"][0].qualification_digest
+    )
+
+
+def test_campaign_refuses_unqualified_or_mismatched_profile_evidence(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    definition = _definition(
+        billable=True,
+        profile_id="zai-opencode-glm-5.3",
+    )
+    attempt = definition.attempts[0].model_copy(
+        update={"readiness_evidence_digest": "sha256:" + "0" * 64}
+    )
+    tampered = definition.model_copy(update={"attempts": (attempt,)})
+
+    with pytest.raises(ValueError, match="readiness evidence digest"):
+        build_campaign_manifest(tampered, repo_root=root)
+
+
 def test_dry_run_is_read_only_and_billable_defaults_to_no_dispatch(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
@@ -606,6 +746,7 @@ def test_resume_refuses_queued_spec_digest_drift(tmp_path: Path) -> None:
     with pytest.raises(CampaignDriftError, match="queued campaign spec drifted"):
         _orchestrator(root, manifest, executor).resume()
 
+
 def test_resume_rejects_queued_campaign_spec_digest_binding_tamper(
     tmp_path: Path,
 ) -> None:
@@ -625,6 +766,7 @@ def test_resume_rejects_queued_campaign_spec_digest_binding_tamper(
     with pytest.raises(CampaignDriftError, match="digest binding drifted"):
         _orchestrator(root, manifest, executor).resume()
     assert calls == []
+
 
 def test_campaign_rejects_task_package_substitution_before_dispatch(
     tmp_path: Path,
@@ -654,6 +796,7 @@ def test_partial_journal_record_refuses_resume(tmp_path: Path) -> None:
 
     with pytest.raises(CampaignAmbiguityError, match="partial record"):
         orchestrator.resume()
+
 
 def test_campaign_store_rejects_symlinked_campaign_root(tmp_path: Path) -> None:
     root = _repo(tmp_path)
@@ -755,7 +898,9 @@ def test_run_reloads_started_state_after_acquiring_lease(
 
 def test_transient_failure_opens_circuit_before_next_attempt(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False, attempts=2, circuit_failures=1), repo_root=root)
+    manifest = build_campaign_manifest(
+        _definition(billable=False, attempts=2, circuit_failures=1), repo_root=root
+    )
     calls: list[str] = []
 
     def transient(request: RunRequest) -> Path:
@@ -836,6 +981,7 @@ def test_campaign_manifest_and_job_names_are_deterministic(tmp_path: Path) -> No
         attempt.job_name for attempt in second.attempts
     ]
     assert len({attempt.job_name for attempt in first.attempts}) == 2
+
 
 def test_analysis_cell_requires_two_distinct_declared_repeat_seeds(
     tmp_path: Path,
@@ -1003,6 +1149,7 @@ def test_observed_trial_overage_opens_campaign_circuit(tmp_path: Path) -> None:
     assert status.circuit_reason == "trial_cost_ceiling_exceeded"
     assert status.completed_attempts == 1
 
+
 @pytest.mark.parametrize("cost", [-0.01, float("nan"), float("inf")])
 def test_invalid_billable_usage_fails_closed(
     tmp_path: Path,
@@ -1060,9 +1207,7 @@ def test_direct_proxy_calls_are_reconciled_into_campaign_usage(
     assert status.input_tokens == 30
     assert status.output_tokens == 12
     completed = [
-        event
-        for event in orchestrator.store.events(manifest)
-        if event.event == "attempt_completed"
+        event for event in orchestrator.store.events(manifest) if event.event == "attempt_completed"
     ]
     assert completed[0].details["usage"]["request_count"] == 2
 
@@ -1160,7 +1305,6 @@ def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
     )
 
 
-
 def test_executor_rejects_secret_bearing_job_before_ingest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1185,6 +1329,7 @@ def test_executor_rejects_secret_bearing_job_before_ingest(
         executor.execute_spec(manifest.attempts[0].spec)
     job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
     assert not (job_dir / "leak.txt").exists()
+
 
 def test_resume_rejects_tampered_campaign_cas_archive(tmp_path: Path) -> None:
     root = _repo(tmp_path)
@@ -1297,7 +1442,9 @@ def test_billable_campaign_parallelism_is_serialized_before_policy_dispatch(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True, attempts=2, max_concurrency=2), repo_root=root)
+    manifest = build_campaign_manifest(
+        _definition(billable=True, attempts=2, max_concurrency=2), repo_root=root
+    )
 
     orchestrator = CampaignOrchestrator(
         repo_root=root,
@@ -1550,7 +1697,6 @@ def test_remaining_token_reservation_opens_circuit_before_next_dispatch(
     )
 
 
-
 def test_executor_revalidates_campaign_spec_at_last_mile(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
@@ -1633,8 +1779,6 @@ def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None
     )
 
 
-
-
 def test_human_approval_binds_exact_campaign_spec_and_manifest(
     tmp_path: Path,
 ) -> None:
@@ -1655,9 +1799,7 @@ def test_human_approval_binds_exact_campaign_spec_and_manifest(
     current = executor.queue.load(approved)
     substituted = current.model_copy(update={"hypothesis": "coherently substituted"})
     substituted_spec_digest = experiment_spec_digest(substituted)
-    substituted = substituted.model_copy(
-        update={"campaign_spec_digest": substituted_spec_digest}
-    )
+    substituted = substituted.model_copy(update={"campaign_spec_digest": substituted_spec_digest})
     substituted_attempt = manifest.attempts[0].model_copy(
         update={
             "spec": substituted,
@@ -1778,6 +1920,8 @@ def test_running_reconciliation_revalidates_campaign_binding(tmp_path: Path) -> 
         event.reason_code == "campaign_binding_missing"
         for event in load_events(executor.queue.events_path)
     )
+
+
 @pytest.mark.parametrize("billable", [False, True])
 def test_failed_attempt_without_usage_blocks_later_dispatch(
     tmp_path: Path,
@@ -1968,9 +2112,7 @@ def test_campaign_refuses_spoofed_frozen_matrix_identity(
     message: str,
 ) -> None:
     root = _repo(tmp_path)
-    matrix_path = (
-        root / "research/experiments/local-controls.json"
-    )
+    matrix_path = root / "research/experiments/local-controls.json"
     matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
     matrix[field] = value
     matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
@@ -1986,9 +2128,7 @@ def test_campaign_refuses_spoofed_frozen_matrix_identity(
 def test_campaign_refuses_unresolved_ledger_matrix_ref(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     definition = _definition(billable=True)
-    ledger = definition.ledger.model_copy(
-        update={"matrix_ref": "01ARZ3NDEKTSV4RRFFQ69G5FAS"}
-    )
+    ledger = definition.ledger.model_copy(update={"matrix_ref": "01ARZ3NDEKTSV4RRFFQ69G5FAS"})
 
     with pytest.raises(ValueError, match="canonical matrix registry"):
         build_campaign_manifest(

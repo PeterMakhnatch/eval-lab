@@ -16,6 +16,7 @@ import pytest
 from evallab import profiles as profiles_module
 from evallab.canary import task_directory_digest
 from evallab.cli import _agents_doctor_command, _agents_list_command
+from evallab.execution_contracts import validate_request
 from evallab.profiles import (
     GATE_CANARY,
     GATE_HARBOR_TRANSPORT,
@@ -49,6 +50,7 @@ def make_mock_job_dir(
     task_name: str = "event-summary",
     step_count: int = 5,
     tool_calls_per_step: int = 2,
+    native_opencode: bool = False,
 ) -> Path:
     """Create a realistic Harbor job directory fixture."""
     job_dir = tmp_path / "runs" / job_name
@@ -116,6 +118,8 @@ def make_mock_job_dir(
         "steps": steps,
     }
     (agent_dir / "trajectory.json").write_text(json.dumps(trajectory_data))
+    if native_opencode:
+        (agent_dir / "opencode.txt").write_text("native OpenCode session evidence\n")
 
     return job_dir
 
@@ -181,7 +185,67 @@ def test_agents_doctor_gemini37_ready(tmp_path: Path) -> None:
     assert readiness.state == ProfileState.CREDENTIAL_READY.value
     assert readiness.blocker is not None
     assert readiness.blocker.gate == GATE_SMOKE
-    assert "No verified smoke run on record" in readiness.blocker.reason
+    assert "No verified transport/capture smoke on record" in readiness.blocker.reason
+
+
+def test_agents_doctor_zai_opencode_ready_until_runtime_smoke(tmp_path: Path) -> None:
+    profile = builtin_profiles()["zai-opencode-glm-5.3"]
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(json.dumps({"zai-coding-plan": {"type": "api", "key": "never-report-this"}}))
+    auth.chmod(0o600)
+
+    readiness = evaluate_profile_readiness(
+        profile,
+        root=tmp_path,
+        home=tmp_path,
+        is_installed_fn=lambda binary: binary == "opencode",
+        docker_checker=lambda: (True, "Docker daemon reachable"),
+    )
+
+    assert readiness.state == ProfileState.CREDENTIAL_READY.value
+    assert readiness.gates.declared == "pass"
+    assert readiness.gates.installed == "pass"
+    assert readiness.gates.host_credential == "pass"
+    assert readiness.gates.harbor_transport == "pass"
+    assert readiness.gates.environment_network == "pass"
+    assert readiness.gates.structured_trajectory == "pass"
+    assert readiness.gates.smoke == "blocked"
+    assert readiness.gates.canary == "blocked"
+    assert readiness.blocker is not None
+    assert readiness.blocker.gate == GATE_SMOKE
+    assert readiness.blocker.reason == (
+        "No verified transport/capture smoke on record; run "
+        "'evallab agents smoke zai-opencode-glm-5.3'"
+    )
+
+
+def test_agents_doctor_zai_opencode_exact_missing_provider_blocker(
+    tmp_path: Path,
+) -> None:
+    profile = builtin_profiles()["zai-opencode-glm-5.3"]
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(json.dumps({"xai": {"type": "api", "key": "never-report-this"}}))
+    auth.chmod(0o600)
+
+    readiness = evaluate_profile_readiness(
+        profile,
+        root=tmp_path,
+        home=tmp_path,
+        is_installed_fn=lambda _binary: True,
+        docker_checker=lambda: (True, "Docker daemon reachable"),
+    )
+
+    assert readiness.state == ProfileState.INSTALLED.value
+    assert readiness.gates.host_credential == "fail"
+    assert readiness.gates.harbor_transport == "blocked"
+    assert readiness.gates.structured_trajectory == "blocked"
+    assert readiness.blocker is not None
+    assert readiness.blocker.gate == GATE_HOST_CREDENTIAL
+    assert readiness.blocker.reason == (
+        "OpenCode auth has no credential for provider 'zai-coding-plan'"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +496,7 @@ def test_agents_smoke_success_persists_evidence(tmp_path: Path) -> None:
     assert persisted.blocker.gate == GATE_CANARY
 
 
-def test_agents_smoke_missing_reward_is_not_synthetic_zero(tmp_path: Path) -> None:
+def test_agents_smoke_missing_reward_still_qualifies_runtime(tmp_path: Path) -> None:
     task_dir = tmp_path / "library/tasks/event-summary"
     task_dir.mkdir(parents=True)
     (task_dir / "task.toml").write_text('[task]\nname = "event-summary"\n')
@@ -458,10 +522,68 @@ def test_agents_smoke_missing_reward_is_not_synthetic_zero(tmp_path: Path) -> No
         docker_checker=lambda: (True, "Docker reachable"),
     )
 
-    assert not ok
-    assert smoke_record is None
-    assert error == "Smoke verifier produced no valid reward"
-    assert load_readiness_record(profile.profile_id, root=tmp_path) is None
+    assert ok
+    assert error is None
+    assert smoke_record is not None
+    assert smoke_record.reward is None
+    persisted = load_readiness_record(profile.profile_id, root=tmp_path)
+    assert persisted is not None
+    assert persisted.gates.smoke == "pass"
+
+
+def test_zai_smoke_requires_and_records_native_opencode_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_dir = tmp_path / "library/tasks/event-summary"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "event-summary"\n')
+    register_event_summary_canary(tmp_path)
+    policy_file = tmp_path / "policy/standing-approvals.yaml"
+    policy_file.write_text(
+        "version: 1\ndaily_cost_ceiling_usd: 100\nper_job_cost_ceiling_usd: 10\n"
+        "quiet_failure_rule: 3\nauto_run:\n  - name: controls\n    agents: [oracle, nop]\n"
+        "escalate_to_human:\n  - any_billable_agent\n"
+    )
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(json.dumps({"zai-coding-plan": {"type": "api", "key": "test-secret"}}))
+    auth.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+    def mock_zai_runner(request: RunRequest) -> Path:
+        assert request.agent == "zai-opencode"
+        assert request.cost_limit_usd is None
+        validate_request(request)
+        return make_mock_job_dir(
+            tmp_path,
+            request.name,
+            reward=0.0,
+            native_opencode=True,
+        )
+
+    executor = Executor(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue", create=True),
+        policy=load_policy(policy_file),
+        runner=mock_zai_runner,
+    )
+    profile = builtin_profiles()["zai-opencode-glm-5.3"]
+    ok, smoke_record, error = executor.execute_agent_smoke(
+        profile,
+        is_installed_fn=lambda _binary: True,
+        cli_runner=lambda _argv: (0, "1.18.25"),
+        docker_checker=lambda: (True, "Docker reachable"),
+    )
+
+    assert ok, error
+    assert error is None
+    assert smoke_record is not None
+    assert smoke_record.reward == 0.0
+    assert smoke_record.native_evidence_path == "agent/opencode.txt"
+    assert smoke_record.native_evidence_digest is not None
+    assert smoke_record.native_evidence_digest.startswith("sha256:")
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +653,7 @@ def test_agents_qualify_repeats(tmp_path: Path) -> None:
     )
     assert not bounded_ok
     assert bounded_digest is None
-    assert bounded_error == "Qualification requires exactly 3 canary repeats"
+    assert bounded_error == "Qualification requires exactly 3 fresh-container smokes"
     assert call_count == 3
 
     # Verify deterministic qualification digest
@@ -547,7 +669,7 @@ def test_agents_qualify_repeats(tmp_path: Path) -> None:
     assert persisted.blocker is None
 
 
-def test_agents_qualify_failure_on_repeat(tmp_path: Path) -> None:
+def test_agents_qualify_ignores_task_reward(tmp_path: Path) -> None:
     task_dir = tmp_path / "library/tasks/event-summary"
     task_dir.mkdir(parents=True)
     (task_dir / "task.toml").write_text('[task]\nname = "event-summary"\n')
@@ -569,7 +691,7 @@ def test_agents_qualify_failure_on_repeat(tmp_path: Path) -> None:
     def mock_runner(request: RunRequest) -> Path:
         nonlocal call_count
         call_count += 1
-        # Second call fails
+        # A behavioral failure is still valid runtime evidence.
         reward = 1.0 if call_count != 2 else 0.0
         return make_mock_job_dir(
             tmp_path,
@@ -594,11 +716,12 @@ def test_agents_qualify_failure_on_repeat(tmp_path: Path) -> None:
         docker_checker=lambda: (True, "Docker reachable"),
     )
 
-    assert not ok
-    assert qual_digest is None
-    assert err is not None
-    assert "Repeat 2/3 failed" in err
-    assert call_count == 2
+    assert ok
+    assert err is None
+    assert qual_digest is not None
+    assert [record.reward for record in qual_digest.smoke_records] == [1.0, 0.0, 1.0]
+    assert qual_digest.qualification_basis == "transport-capture"
+    assert call_count == 3
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +741,7 @@ def test_cli_agents_list(
     assert "Profile ID" in captured.out
     assert "antigravity-gemini-3.7-flash-high" in captured.out
     assert "cursor-grok-4.6-high" in captured.out
+    assert "zai-opencode-glm-5.3" in captured.out
 
     ret_json = _agents_list_command(argparse.Namespace(json=True), tmp_path)
     assert ret_json == 0
@@ -626,6 +750,7 @@ def test_cli_agents_list(
     assert isinstance(data, list)
     profile_ids = {item["profile_id"] for item in data}
     assert "antigravity-gemini-3.7-flash-high" in profile_ids
+    assert "zai-opencode-glm-5.3" in profile_ids
 
 
 def test_cli_agents_doctor(

@@ -9,6 +9,7 @@ Key invariants:
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -114,6 +115,34 @@ DEEPSEEK_PROXY_ATTEMPT_ID_ENV = "EVALLAB_DEEPSEEK_ATTEMPT_ID"
 DEEPSEEK_PROXY_USAGE_FILE_ENV = "EVALLAB_DEEPSEEK_USAGE_FILE"
 DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
 DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
+
+ZAI_OPENCODE_AGENT = "zai-opencode"
+ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
+    {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
+)
+ZAI_AUTH_PROVIDER = "zai-coding-plan"
+OPENCODE_AUTH_RELATIVE_PATH = Path(".local/share/opencode/auth.json")
+ZAI_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
+    {
+        "ZAI_CODING_PLAN_API_KEY",
+        "ZAI_API_KEY",
+        "ZAI_CODING_PLAN_KEY",
+        "ZAI_KEY",
+    }
+)
+ZAI_PROXY_HOST = "zai-secret-proxy"
+ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
+ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
+ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
+ZAI_PROXY_SCRIPT = Path("containers/zai_secret_proxy.py")
+ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
+ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
+ZAI_PROXY_SCRIPT_ENV = "EVALLAB_ZAI_PROXY_SCRIPT"
+ZAI_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
+ZAI_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
+ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
+ZAI_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_ZAI_CAPABILITY_EXPIRES_AT"
+ZAI_UPSTREAM_ENV = "EVALLAB_ZAI_UPSTREAM"
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         DEEPSEEK_PROXY_CAPABILITY_ENV,
@@ -152,6 +181,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "codex": "evallab.harbor_codex:PinnedCodex",
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+    "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-v4-flash"
@@ -233,6 +263,7 @@ class HarborProcessResult:
     timed_out_trial: str | None = None
     proxy_usage: dict[str, Any] | None = None
 
+
 @dataclass(frozen=True)
 class ProxyTrialLimits:
     """Explicit ceilings bound to one provider capability."""
@@ -244,17 +275,19 @@ class ProxyTrialLimits:
     max_cost_micros: int
 
     def __post_init__(self) -> None:
-        if min(
-            self.max_requests,
-            self.max_input_tokens,
-            self.max_output_tokens,
-            self.max_total_tokens,
-            self.max_cost_micros,
-        ) < 1:
+        if (
+            min(
+                self.max_requests,
+                self.max_input_tokens,
+                self.max_output_tokens,
+                self.max_total_tokens,
+                self.max_cost_micros,
+            )
+            < 1
+        ):
             raise ValueError("proxy trial ceilings must be positive")
         if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
             raise ValueError("proxy total-token ceiling exceeds component ceilings")
-
 
 
 @dataclass(frozen=True)
@@ -344,6 +377,35 @@ def read_owner_secret_file(path: Path) -> str:
     return b"".join(chunks).decode("utf-8").rstrip("\r\n")
 
 
+def opencode_auth_path(
+    *,
+    home: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Return OpenCode's host auth store without reading credential material."""
+    source = os.environ if environment is None else environment
+    if xdg_data_home := source.get("XDG_DATA_HOME"):
+        return Path(xdg_data_home).expanduser() / "opencode/auth.json"
+    return (home or Path.home()) / OPENCODE_AUTH_RELATIVE_PATH
+
+
+def read_zai_opencode_key(path: Path) -> str:
+    """Read the Z.ai key from an owner-only OpenCode auth store without exposing it."""
+    try:
+        payload = json.loads(read_owner_secret_file(path))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("OpenCode Z.ai credential is unavailable") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("OpenCode Z.ai credential is unavailable")
+    entry = payload.get(ZAI_AUTH_PROVIDER)
+    if not isinstance(entry, dict):
+        raise RuntimeError("OpenCode Z.ai credential is unavailable")
+    value = entry.get("key")
+    if not isinstance(value, str) or not value:
+        raise RuntimeError("OpenCode Z.ai credential is unavailable")
+    return value
+
+
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
     """Return the numeric uid/gid the proxy must run as to read *path*.
 
@@ -366,21 +428,32 @@ def collected_secret_values(
     """Return non-placeholder provider secret strings present in *environment*."""
     source = os.environ if environment is None else environment
     values: set[str] = set()
-    for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
+    for key, placeholder in (
+        *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
+    ):
         value = source.get(key)
-        if value and value != DEEPSEEK_PROXY_TOKEN:
+        if value and value != placeholder:
             values.add(value)
-    secret_file = source.get(DEEPSEEK_SECRET_FILE_ENV)
-    if secret_file:
-        try:
-            file_value = read_owner_secret_file(Path(secret_file))
-        except OSError:
-            file_value = ""
-        if file_value and file_value != DEEPSEEK_PROXY_TOKEN:
-            values.add(file_value)
-    capability = source.get(DEEPSEEK_PROXY_CAPABILITY_ENV)
-    if capability and capability != DEEPSEEK_PROXY_TOKEN:
-        values.add(capability)
+    for secret_file_env, placeholder in (
+        (DEEPSEEK_SECRET_FILE_ENV, DEEPSEEK_PROXY_TOKEN),
+        (ZAI_SECRET_FILE_ENV, ZAI_PROXY_TOKEN),
+    ):
+        secret_file = source.get(secret_file_env)
+        if secret_file:
+            try:
+                file_value = read_owner_secret_file(Path(secret_file))
+            except OSError:
+                file_value = ""
+            if file_value and file_value != placeholder:
+                values.add(file_value)
+    for capability_env, placeholder in (
+        (DEEPSEEK_PROXY_CAPABILITY_ENV, DEEPSEEK_PROXY_TOKEN),
+        (ZAI_PROXY_CAPABILITY_ENV, ZAI_PROXY_TOKEN),
+    ):
+        capability = source.get(capability_env)
+        if capability and capability != placeholder:
+            values.add(capability)
     return frozenset(values)
 
 
@@ -510,15 +583,30 @@ def materialize_deepseek_secret_file(
     return destination
 
 
+def materialize_zai_secret_file(
+    destination: Path,
+    *,
+    home: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write only the Z.ai provider key from OpenCode's auth store to a 0400 file."""
+    source_path = opencode_auth_path(home=home, environment=environment)
+    value = read_zai_opencode_key(source_path)
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
+
 def subscription_environment(
     environment: Mapping[str, str] | None = None,
     *,
     include_deepseek_credentials: bool = False,
+    include_zai_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
 
-    DeepSeek provider keys never enter this mapping. The mini-swe-agent lane
-    receives only the internal proxy script path and a file-mounted secret path.
+    Provider keys never enter this mapping. Proxy-isolated lanes receive only
+    internal capability tokens plus owner-only file paths consumed by their
+    credential broker.
     """
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
@@ -538,6 +626,24 @@ def subscription_environment(
         sanitized["DEEPSEEK_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL
+    if include_zai_credentials:
+        for key in (
+            ZAI_SECRET_FILE_ENV,
+            ZAI_PROXY_SCRIPT_ENV,
+            ZAI_PROXY_UID_ENV,
+            ZAI_PROXY_GID_ENV,
+            ZAI_CAPABILITY_EXPIRES_AT_ENV,
+            ZAI_UPSTREAM_ENV,
+        ):
+            if source.get(key):
+                sanitized[key] = source[key]
+        capability = source.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
+        sanitized[ZAI_PROXY_CAPABILITY_ENV] = capability
+        sanitized["ZAI_CODING_PLAN_API_KEY"] = capability
+        sanitized["ZAI_API_KEY"] = capability
+        sanitized["ZAI_BASE_URL"] = ZAI_PROXY_URL
+        sanitized["OPENAI_BASE_URL"] = ZAI_PROXY_URL
+        sanitized["OPENAI_API_BASE"] = ZAI_PROXY_URL
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
@@ -546,11 +652,12 @@ def subscription_environment(
 
 
 def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
-    """Return a log-safe copy with every admitted DeepSeek value replaced."""
+    """Return a log-safe copy with every admitted provider value replaced."""
     secrets = collected_secret_values(environment)
+    credential_keys = DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
     redacted: dict[str, str] = {}
     for key, value in environment.items():
-        if (key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value) or value in secrets:
+        if (key in credential_keys and value) or value in secrets:
             redacted[key] = REDACTED_SECRET_VALUE
         else:
             redacted[key] = value
@@ -593,12 +700,15 @@ def validate_request(request: RunRequest) -> None:
             or request.cost_limit_usd is None
         ):
             raise AssertionError("validated provider ceilings unexpectedly absent")
-        if min(
-            request.max_requests,
-            request.max_input_tokens,
-            request.max_output_tokens,
-            request.max_total_tokens,
-        ) < 1:
+        if (
+            min(
+                request.max_requests,
+                request.max_input_tokens,
+                request.max_output_tokens,
+                request.max_total_tokens,
+            )
+            < 1
+        ):
             raise ValueError("provider request and token ceilings must be positive")
         if request.cost_limit_usd <= 0:
             raise ValueError("cost_limit_usd must be positive")
@@ -617,7 +727,6 @@ def validate_request(request: RunRequest) -> None:
     if request.model and request.agent in CONTROL_AGENTS:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
-
         raise ValueError("A model requires --allow-billable")
 
 
@@ -676,6 +785,22 @@ def build_command(request: RunRequest) -> list[str]:
                 f"max_tokens={max_tokens}",
             ]
         )
+    if request.agent == ZAI_OPENCODE_AGENT:
+        if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                "zai-opencode requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
+        command.extend(
+            [
+                "--n-concurrent-agents",
+                "1",
+                "--n-tasks",
+                "1",
+                "--max-retries",
+                "0",
+            ]
+        )
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command
@@ -704,6 +829,19 @@ def subscription_command(
             raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
         if not proxy.is_file():
             raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
+        return [*harbor_command, "--extra-docker-compose", str(overlay)]
+    if request.agent == ZAI_OPENCODE_AGENT:
+        if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise RuntimeError(
+                "the zai-opencode execution lane requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
+        overlay = (repo_root / ZAI_SECRET_COMPOSE).resolve()
+        proxy = (repo_root / ZAI_PROXY_SCRIPT).resolve()
+        if not overlay.is_file():
+            raise RuntimeError(f"Z.ai secret overlay is missing: {overlay}")
+        if not proxy.is_file():
+            raise RuntimeError(f"Z.ai secret proxy is missing: {proxy}")
         return [*harbor_command, "--extra-docker-compose", str(overlay)]
     return harbor_command
 

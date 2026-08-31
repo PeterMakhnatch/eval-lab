@@ -27,6 +27,12 @@ from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-im
 
 from evallab.execution_contracts import (
     REDACTED_SECRET_VALUE,
+    ZAI_CREDENTIAL_ENVIRONMENT_KEYS,
+    ZAI_PROXY_CAPABILITY_ENV,
+    ZAI_PROXY_TOKEN,
+    ZAI_PROXY_URL,
+    ZAI_SECRET_FILE_ENV,
+    ZAI_SECRET_PATH_ENV,
     collected_secret_values,
     persist_private_bytes,
 )
@@ -48,28 +54,15 @@ AUTH_LINK_DIR = "/logs/agent/opencode/xdg-data/opencode"
 AUTH_LINK_PATH = f"{AUTH_LINK_DIR}/auth.json"
 
 #: The only commands the trusted-lane adapter executes for auth mounting.
-CREATE_AUTH_LINK_COMMAND = f"mkdir -p {AUTH_LINK_DIR} && ln -sfn {AUTH_SECRET_MOUNT} {AUTH_LINK_PATH}"
+CREATE_AUTH_LINK_COMMAND = (
+    f"mkdir -p {AUTH_LINK_DIR} && ln -sfn {AUTH_SECRET_MOUNT} {AUTH_LINK_PATH}"
+)
 REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 
 # --------------------------------------------------------------------------
 # Proxy lane constants
 # --------------------------------------------------------------------------
 
-ZAI_PROXY_HOST = "zai-secret-proxy"
-ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
-ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
-ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
-ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
-ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
-ZAI_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
-    {
-        "ZAI_CODING_PLAN_API_KEY",
-        "ZAI_API_KEY",
-        "ZAI_CODING_PLAN_KEY",
-        "ZAI_KEY",
-    }
-)
-ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
 
 SENSITIVE_CONFIG_KEYS = frozenset(
     {
@@ -91,10 +84,7 @@ def validate_model_name(model_name: str | None) -> str:
     selector, not a secret, so the offending value may appear in the message.
     """
     if not model_name or "/" not in model_name:
-        raise ValueError(
-            "ZaiOpenCodeAgent requires a provider/model selector, got "
-            f"{model_name!r}"
-        )
+        raise ValueError(f"ZaiOpenCodeAgent requires a provider/model selector, got {model_name!r}")
     provider, _, model = model_name.partition("/")
     if f"{provider}/" != REQUIRED_MODEL_PREFIX:
         raise ValueError(
@@ -296,16 +286,9 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
         for name in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
             value = runtime_env.get(name)
             if value and value not in allowed_tokens:
-                raise ValueError(
-                    "Z.ai provider credential cannot enter the task exec environment"
-                )
-        if any(
-            value and value in host_secrets
-            for value in runtime_env.values()
-        ):
-            raise ValueError(
-                "Z.ai provider credential cannot enter the task exec environment"
-            )
+                raise ValueError("Z.ai provider credential cannot enter the task exec environment")
+        if any(value and value in host_secrets for value in runtime_env.values()):
+            raise ValueError("Z.ai provider credential cannot enter the task exec environment")
         if "cat /run/secrets/" in command or any(
             f'{key}="$(cat' in command for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         ):

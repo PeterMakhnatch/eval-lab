@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import posixpath
 import re
 from datetime import date, datetime
@@ -2374,26 +2375,51 @@ class AgentBlocker(ContractModel):
 
 
 class AgentSmokeRecord(ContractModel):
-    schema_version: Literal[1] = 1
+    """One fresh-container transport and structured-capture proof.
+
+    Task reward is recorded when available but never participates in runtime
+    qualification.
+    """
+
+    schema_version: Literal[2] = 2
     profile_id: str = Field(min_length=1)
     profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     task: str = Field(min_length=1)
     task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     job_name: str = Field(min_length=1)
     trial_name: str = Field(min_length=1)
-    reward: float = Field(ge=1.0)
+    reward: float | None = None
+    agent_exception_type: str | None = None
     runtime_seconds: float = Field(ge=0.0)
     step_count: int = Field(ge=1)
     tool_call_count: int = Field(ge=0)
     atif_path: str = Field(min_length=1)
     atif_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    native_evidence_path: str | None = None
+    native_evidence_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    fresh_container: Literal[True] = True
+    transport_status: Literal["complete"] = "complete"
+    capture_status: Literal["complete"] = "complete"
+    secret_safety_status: Literal["pass"] = "pass"
     executed_at: datetime
+
+    @model_validator(mode="after")
+    def _validate_runtime_evidence(self) -> AgentSmokeRecord:
+        if self.reward is not None and not math.isfinite(self.reward):
+            raise ValueError("runtime smoke reward must be finite when present")
+        if (self.native_evidence_path is None) != (self.native_evidence_digest is None):
+            raise ValueError("native evidence path and digest must be present together")
+        return self
 
 
 class AgentQualificationDigest(ContractModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     profile_id: str = Field(min_length=1)
     profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    qualification_basis: Literal["transport-capture"] = "transport-capture"
     repeats: int = Field(ge=3)
     success_count: int = Field(ge=3)
     smoke_records: list[AgentSmokeRecord] = Field(min_length=3)
@@ -2403,12 +2429,14 @@ class AgentQualificationDigest(ContractModel):
     @model_validator(mode="after")
     def _validate_complete_repeats(self) -> AgentQualificationDigest:
         if self.success_count != self.repeats or len(self.smoke_records) != self.repeats:
-            raise ValueError("qualification requires one successful smoke record per repeat")
+            raise ValueError("qualification requires one complete runtime smoke per repeat")
         if any(
             record.profile_id != self.profile_id or record.profile_digest != self.profile_digest
             for record in self.smoke_records
         ):
             raise ValueError("qualification smoke records must match the qualified profile")
+        if len({record.job_name for record in self.smoke_records}) != self.repeats:
+            raise ValueError("qualification requires a fresh Harbor job per repeat")
         return self
 
 

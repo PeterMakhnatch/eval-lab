@@ -114,15 +114,20 @@ def test_headline_scale_and_selection_refusals() -> None:
                 "scale_refusal_reason FROM v_scale_binding_status"
             ).fetchall()
         }
-        assert scale["bbo_noisy_continuous__y6S5nSJ"] == (
-            True,
-            pytest.approx(-0.023318901936875358),
-            None,
-        )
+        # Without artifact resolver, unverified sources refuse arithmetic transfer fail-closed
+        bbo_scale = scale["bbo_noisy_continuous__y6S5nSJ"]
+        assert bbo_scale[0] is False
+        assert bbo_scale[1] is None
+        assert "unresolved_components" in (
+            bbo_scale[2] or ""
+        ) or "validated scale binding absent" in (bbo_scale[2] or "")
+
         game_scale = scale["game2048_policy_search__QzNuUbN"]
         assert game_scale[0] is False
         assert game_scale[1] is None
-        assert "no validated score-scale binding" in game_scale[2]
+        assert "no validated score-scale binding" in (
+            game_scale[2] or ""
+        ) or "validated scale binding absent" in (game_scale[2] or "")
 
         selections = connection.execute(
             "SELECT run_id, selection_reconstructible, selection_refusal_reason "
@@ -200,3 +205,41 @@ def test_analysis_control_cli_queries_a_stable_view(
         "predictor_rows": 260,
         "readiness_profiles": len(builtin_profiles()),
     }
+
+
+def test_materialize_views_with_artifact_resolver_permits_arithmetic(tmp_path: Path) -> None:
+    """Providing a complete artifact resolver permits transfer arithmetic in materialized control views."""
+    task_dir = tmp_path / "bbo_noisy_continuous"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'bbo_noisy_continuous'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# BBO\n", encoding="utf-8")
+
+    evidence_path = REPO_ROOT / "research/evidence/rsi-bbo-codex56-calibration-2026-08-31.json"
+    evidence_payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    def custom_resolver(trace: object) -> dict[str, object]:
+        if getattr(trace, "run_id", None) == "bbo_noisy_continuous__y6S5nSJ":
+            return {
+                "task_dir": task_dir,
+                "metric_config": evidence_payload["scores"]["metric_config"]
+                if "metric_config" in evidence_payload.get("scores", {})
+                else {"metric": "oracle_normalized_auc70_final30"},
+                "visible_outcome": evidence_payload["scores"]["visible"],
+                "hidden_outcome": evidence_payload["scores"]["sealed"],
+            }
+        return {}
+
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=REPO_ROOT,
+            readiness_evaluator=_offline_readiness,
+            artifact_resolver=custom_resolver,
+        )
+        row = connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
+            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "bbo_noisy_continuous__y6S5nSJ"

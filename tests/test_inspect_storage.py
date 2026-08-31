@@ -18,6 +18,7 @@ from evallab.storage.attach import attach
 from evallab.storage.inspect_storage import (
     InspectSourceManifestV1,
 )
+from evallab.storage.parquet_compaction import deduplicate_and_sort
 from evallab.storage.paths import discover_parquet_partitions
 
 
@@ -227,6 +228,76 @@ def test_multi_revision_preservation_and_non_overwrite(tmp_path: Path) -> None:
         raw_cas_uri="cas://sha256/1111111111111111111111111111111111111111111111111111111111111111",
     )
     assert rev1_dir.is_dir()
+
+
+def test_two_revision_attach_and_compaction_queryability(tmp_path: Path) -> None:
+    output_root = tmp_path / "derived"
+
+    # Revision 1
+    log1 = _sample_inspect_log(extra_note="rev1")
+    proj1 = project_inspect_eval_log(log1, source_path="rev1.json")
+    write_inspect_projection(
+        proj1,
+        output_root,
+        write_manifest=True,
+        source_file="rev1.json",
+        source_bytes_size=1024,
+        raw_cas_uri="cas://sha256/1111111111111111111111111111111111111111111111111111111111111111",
+    )
+
+    # Revision 2
+    log2 = _sample_inspect_log(extra_note="rev2_different_bytes")
+    proj2 = project_inspect_eval_log(log2, source_path="rev2.json")
+    write_inspect_projection(
+        proj2,
+        output_root,
+        write_manifest=True,
+        source_file="rev2.json",
+        source_bytes_size=2048,
+        raw_cas_uri="cas://sha256/2222222222222222222222222222222222222222222222222222222222222222",
+    )
+
+    # Attach and query across both revisions
+    attach_res = attach(explicit_derived=output_root)
+    conn = attach_res.connection
+
+    # Both revisions are present in inspect_runs
+    revisions = [
+        row[0] for row in conn.execute("SELECT source_revision_id FROM inspect_runs").fetchall()
+    ]
+    assert len(revisions) == 2
+    assert proj1.run.source_revision_id in revisions
+    assert proj2.run.source_revision_id in revisions
+
+    # Scoped queries return exact revision row counts
+    rev1_attempts = conn.execute(
+        f"SELECT count(*) FROM inspect_attempts WHERE source_revision_id = '{proj1.run.source_revision_id}'"
+    ).fetchone()[0]
+    assert rev1_attempts == 2
+
+    rev2_attempts = conn.execute(
+        f"SELECT count(*) FROM inspect_attempts WHERE source_revision_id = '{proj2.run.source_revision_id}'"
+    ).fetchone()[0]
+    assert rev2_attempts == 2
+
+    # Total un-scoped count preserves both revisions without deduplication
+    total_attempts = conn.execute("SELECT count(*) FROM inspect_attempts").fetchone()[0]
+    assert total_attempts == 4
+
+    conn.close()
+
+    # Compaction deduplicate_and_sort preserves all rows across revisions
+    discovery = discover_parquet_partitions(output_root)
+    attempt_files = discovery.table_files("inspect_attempts", layouts=("revision",))
+    assert len(attempt_files) == 2
+
+    import pyarrow as pa
+
+    combined_table = pa.concat_tables(
+        [pq.read_table(f, schema=INSPECT_SCHEMAS["inspect_attempts"]) for f in attempt_files]
+    )
+    deduped = deduplicate_and_sort(combined_table, "inspect_attempts")
+    assert deduped.num_rows == 4
 
 
 def test_ingest_inspect_eval_log_with_official_eval_and_clean_cas_archive(tmp_path: Path) -> None:

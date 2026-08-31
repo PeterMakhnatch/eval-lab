@@ -125,11 +125,11 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "paired_condition_facts": ("trial_id", "pair_id", "condition"),
     "session_dependency_facts": ("trial_id", "episode_id", "dependency_edge"),
     "evidence_coverage": ("trial_id", "benchmark", "construct"),
-    "inspect_runs": ("job_id",),
-    "inspect_attempts": ("attempt_id",),
-    "inspect_scores": ("job_id", "trial_id", "score_name"),
-    "inspect_events": ("event_id",),
-    "inspect_attachments": ("job_id", "trial_id", "attachment_id"),
+    "inspect_runs": ("job_id", "source_revision_id"),
+    "inspect_attempts": ("job_id", "source_revision_id", "attempt_id"),
+    "inspect_scores": ("job_id", "source_revision_id", "trial_id", "score_name"),
+    "inspect_events": ("job_id", "source_revision_id", "event_id"),
+    "inspect_attachments": ("job_id", "source_revision_id", "trial_id", "attachment_id"),
 }
 
 

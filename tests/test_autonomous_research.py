@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from evallab.autonomous_research import (
-    AutonomousResearchFeatures,
     ResearchIterationV1,
     ResearchRunTraceV1,
     extract_autonomous_research_features,
@@ -303,7 +302,9 @@ def test_leakage_and_contamination_detection() -> None:
 
 def test_feature_registry_governance_for_autonomous_research_family() -> None:
     family_features = TRAJECTORY_FEATURE_REGISTRY.by_family("autonomous-research-v1")
-    assert len(family_features) == 60, f"Expected 60 registered features, got {len(family_features)}"
+    assert len(family_features) == 60, (
+        f"Expected 60 registered features, got {len(family_features)}"
+    )
 
     # Audit denominator policies and verdict coupling for all features in family
     for col_name, feat in family_features.items():
@@ -317,7 +318,9 @@ def test_feature_registry_governance_for_autonomous_research_family() -> None:
         assert denom_audit is None, f"Feature {col_name} failed denominator audit: {denom_audit}"
 
         coupling_audit = audit_verdict_coupling(feat)
-        assert coupling_audit is None, f"Feature {col_name} failed verdict coupling audit: {coupling_audit}"
+        assert coupling_audit is None, (
+            f"Feature {col_name} failed verdict coupling audit: {coupling_audit}"
+        )
 
         eligibility = feature_analysis_eligibility(feat)
         assert eligibility.outcome_allowed or feat.category == "identity"

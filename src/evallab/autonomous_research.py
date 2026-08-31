@@ -232,7 +232,9 @@ def extract_autonomous_research_features(
 
     elapsed_time = trace.elapsed_seconds
     if elapsed_time is None and any(it.elapsed_seconds is not None for it in iterations):
-        elapsed_time = sum(it.elapsed_seconds for it in iterations if it.elapsed_seconds is not None)
+        elapsed_time = sum(
+            it.elapsed_seconds for it in iterations if it.elapsed_seconds is not None
+        )
 
     experiment_throughput_per_hour = (
         (iteration_count / (elapsed_time / 3600.0))
@@ -267,9 +269,7 @@ def extract_autonomous_research_features(
         current < previous
         for previous, current in zip(measured_scores, measured_scores[1:], strict=False)
     )
-    regression_rate = (
-        regression_count / (measured_count - 1) if measured_count > 1 else None
-    )
+    regression_rate = regression_count / (measured_count - 1) if measured_count > 1 else None
 
     # Max consecutive regressions streak
     max_consecutive_regressions = 0
@@ -416,12 +416,8 @@ def extract_autonomous_research_features(
     dep_successes = trace.dependency_repair_successes + sum(
         1 for it in iterations if it.dependency_repair_succeeded
     )
-    runtime_env_repaired = (
-        dep_successes >= dep_attempts if dep_attempts > 0 else True
-    )
-    dependency_repair_success_rate = (
-        dep_successes / dep_attempts if dep_attempts > 0 else None
-    )
+    runtime_env_repaired = dep_successes >= dep_attempts if dep_attempts > 0 else True
+    dependency_repair_success_rate = dep_successes / dep_attempts if dep_attempts > 0 else None
 
     # 10. Budget & Cost Efficiency
     budget_utilization_rate = None
@@ -441,9 +437,7 @@ def extract_autonomous_research_features(
         total_tokens = sum(it.tokens_used for it in iterations if it.tokens_used is not None)
 
     tokens_per_experiment = (
-        total_tokens / iteration_count
-        if total_tokens is not None and iteration_count > 0
-        else None
+        total_tokens / iteration_count if total_tokens is not None and iteration_count > 0 else None
     )
 
     total_changed_bytes = sum(iteration.changed_bytes for iteration in iterations)

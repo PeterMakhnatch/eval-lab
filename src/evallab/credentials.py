@@ -23,8 +23,8 @@ from evallab.profiles import (
     KeychainProbe,
     ProbeResult,
     builtin_profiles,
+    default_security_runner,
 )
-from evallab.runner import subscription_environment
 
 KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
 
@@ -52,22 +52,6 @@ _ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
 _DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
 
 
-def _security_exit_status(args: list[str]) -> int:
-    """Run /usr/bin/security for existence only; output is discarded unread.
-
-    The ``-w`` flag (print the secret) is deliberately not used anywhere.
-    """
-    completed = subprocess.run(
-        ["/usr/bin/security", *args],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=10,
-        env=subscription_environment(),
-    )
-    return completed.returncode
-
-
 def probe_claude_keychain() -> bool:
     return probe_claude_keychain_result().ok
 
@@ -75,7 +59,11 @@ def probe_claude_keychain() -> bool:
 def probe_claude_keychain_result() -> ProbeResult:
     service = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_SERVICE", KEYCHAIN_SERVICE)
     account = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", os.environ.get("USER", ""))
-    probe = KeychainProbe(security_runner=_security_exit_status, service=service, account=account)
+    probe = KeychainProbe(
+        security_runner=default_security_runner,
+        service=service,
+        account=account,
+    )
     try:
         return probe(_CLAUDE_PROFILE)
     except subprocess.TimeoutExpired:

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "mcp-funcdag-schema-familiarization-s42",
+  "hypothesis": "With the qualified OpenCode/Z.ai profile and the frozen baseline FuncDAG package, exact verifier success requires schema-conformant value propagation across every required DAG node; this one-trial familiarization cell is not a capability estimate.",
+  "purpose": "calibration",
+  "question_ref": "mcp-funcdag-recovery-zai-glm53-v1",
+  "task": "local-lab/mcp-funcdag-baseline-seed42",
+  "task_path": "derived/mcp-campaign-staging/funcdag/b00232f71deb16bc/mcp-funcdag-baseline-seed42",
+  "task_id": "mcp-funcdag-baseline-seed42",
+  "task_family": "mcp-funcdag-v1",
+  "task_version": "1.0.0",
+  "task_package_digest": "sha256:4148cd3b54f06fa2abe8b24ecf5c8fdba131e3aa9c6a401c9af212dda5c503d1",
+  "verifier_digest": "sha256:e68a7e2057e393698f6859362891d423ba2f972dd8e5d349fadd810680ab7c1a",
+  "agent": "zai-opencode",
+  "model": "zai-coding-plan/glm-5.3",
+  "environment": "docker",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 300,
+  "max_requests": 4,
+  "max_input_tokens": 50000,
+  "max_output_tokens": 16000,
+  "max_total_tokens": 66000,
+  "cost_limit_usd": 0.25,
+  "est_cost_usd": 0.25,
+  "submitted_by": "eval-runner",
+  "requires": [
+    "qualified-runtime-profile:zai-opencode-glm-5.3",
+    "explicit-model-run-authorization",
+    "frozen-mcp-materialization-receipt"
+  ],
+  "generator_seed": 42
+}

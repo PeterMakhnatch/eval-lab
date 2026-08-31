@@ -163,6 +163,37 @@ def test_materializer_hard_fails_without_evidence_key(monkeypatch, tmp_path):
     with pytest.raises(ValueError, match="Evidence key is required"):
         materializer.materialize_task(tmp_path / "task_no_key", seed=42, evidence_key=None)
 
+def test_materialize_cli_accepts_matched_clean_twin_factors(tmp_path, monkeypatch):
+    cli = load("materialize")
+    key_path = tmp_path / "evidence.key"
+    key_path.write_bytes(os.urandom(32))
+    os.chmod(key_path, 0o400)
+    output = tmp_path / "clean_twin"
+    monkeypatch.setenv("MCP_RECOVERY_EVIDENCE_KEY_FILE", str(key_path))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "materialize.py",
+            "--fault-mode",
+            "transient_http_5xx",
+            "--persistence",
+            "2",
+            "--clean-twin",
+            "--output",
+            str(output),
+        ],
+    )
+
+    cli.main()
+
+    record = json.loads(
+        (output / "tests" / "fixtures" / "fault_record.json").read_text()
+    )
+    assert record["fault_class"] == "transient_http_5xx"
+    assert record["injection_payload"]["is_clean_twin"] is True
+    assert record["injection_payload"]["persistence"] == 0
+
 
 def test_evidence_key_file_rejects_insecure_permissions(tmp_path):
     materializer = load("materializer")

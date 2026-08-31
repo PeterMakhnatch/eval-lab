@@ -1,0 +1,148 @@
+{
+  "schema_version": "mcp-funcdag-recovery-campaign/v1",
+  "campaign_id": "mcp-funcdag-recovery-zai-glm53-v1",
+  "status": "dependency_ready_not_authorized",
+  "authorization": {
+    "model_run": false,
+    "merge_or_main_sync": false,
+    "reason": "This record freezes a qualified-profile campaign and deterministic controls only; submitting, approving, or dispatching any model spec requires a separate authorization."
+  },
+  "source": {
+    "integration_commit": "46794c166c39cb64c7c41350f8906b5ec3badab1",
+    "producer_commit": "46794c166c39cb64c7c41350f8906b5ec3badab1",
+    "mcp_wheelhouse_provenance_digest": "sha256:97280ede52815a8ccb6e282a6ba92d06cffad188dd2b5fa3519993a015736916",
+    "wheelhouse_target": "cp312/manylinux_2_17_x86_64"
+  },
+  "qualified_profile": {
+    "profile_id": "zai-opencode-glm-5.3",
+    "profile_digest": "sha256:31838ef0a8a37a75811edcceb6694d81a17dc8435b64144eb4232d9d36e6fc9c",
+    "readiness_evidence_digest": "sha256:a6102664a924a6466799015f8cfcb5864bcc2d78a31dab7ca7ae5ac84d61ba98",
+    "adapter": "zai-opencode",
+    "adapter_version": "1.0.0+opencode-1.18.25",
+    "model": "zai-coding-plan/glm-5.3",
+    "attempts_per_task": 1,
+    "concurrency": 1
+  },
+  "campaign_limits": {
+    "max_requests": 14,
+    "max_input_tokens": 170000,
+    "max_output_tokens": 56000,
+    "max_total_tokens": 226000,
+    "max_cost_usd": 0.8,
+    "max_wall_clock_seconds": 900,
+    "max_concurrency": 1
+  },
+  "run_specs": [
+    "research/experiments/specs/mcp-funcdag-recovery-qualified-profile/funcdag-schema-familiarization.json",
+    "research/experiments/specs/mcp-funcdag-recovery-qualified-profile/recovery-persistent-signature-fault.json",
+    "research/experiments/specs/mcp-funcdag-recovery-qualified-profile/recovery-persistent-signature-clean-twin.json"
+  ],
+  "cells": [
+    {
+      "cell_id": "funcdag-schema-familiarization-s42",
+      "role": "negative_control_schema_familiarization",
+      "task_id": "mcp-funcdag-baseline-seed42",
+      "task_package_digest": "sha256:4148cd3b54f06fa2abe8b24ecf5c8fdba131e3aa9c6a401c9af212dda5c503d1",
+      "verifier_digest": "sha256:e68a7e2057e393698f6859362891d423ba2f972dd8e5d349fadd810680ab7c1a",
+      "harbor_task_digest": "sha256:396ca0a9e3f276759ed818d0bb0a661b2d477641425b6dfc9c37e2ee1e37f0ec",
+      "producer_contract_digest": "sha256:b00232f71deb16bcb1b84bf711f154a85d9028aa150b78debd8e37867e8fc5cf",
+      "factors": {
+        "seed": 42,
+        "depth": 3,
+        "width": 2,
+        "distractor_count": 2,
+        "name_similarity": "low",
+        "schema_token_volume": "concise",
+        "schema_drift": false,
+        "difficulty": "none"
+      },
+      "opportunity_denominators": {
+        "required_node_count": 5,
+        "required_edge_count": 10,
+        "tool_opportunity_count": 5,
+        "total_tools_exposed": 7,
+        "distractor_count": 2
+      }
+    },
+    {
+      "cell_id": "recovery-persistent-signature-fault-s42-p1",
+      "role": "recovery_treatment_and_persistent_fault_control",
+      "task_id": "mcp-rec-ee6045e550887c4b",
+      "twin_task_id": "mcp-rec-8eeb75a2a5175f67",
+      "task_package_digest": "sha256:3ffd16bd4efcca5573908badd06b287f8895964041d514369edb3417581c64ed",
+      "verifier_digest": "sha256:8bdc9763eab9dab1dd29c647a343ec65963beac1d8d0b9f947d41c22bf29d205",
+      "harbor_task_digest": "sha256:03f00b9af885c1726fc1fbc065ec5f1393b2e54c01d2b4673b7ed3335306822a",
+      "producer_source_digest": "sha256:5c8801bb1a43457dcad3f55dc9c6e88a081a09b3df5d79f1b251405d776913d8",
+      "fault_record": {
+        "fault_id": "3f29fe336a8051ded6945b5f7b2f4092b87a8102203e696ca718e988085ce430",
+        "fault_class": "persistent_signature_error",
+        "target_service": "mcp-service",
+        "target_tool": "write_record",
+        "target_canonical_event_ordinal": 1,
+        "persistence": 1,
+        "designated_repair_move": "refresh_auth",
+        "verifier_oracle_digest": "505e70474f3a230ca3f28d8353639bbb135afdbe06196a337e2968ef412122bf"
+      },
+      "opportunity_denominators": {
+        "planned_trials": 1,
+        "valid_fault_opportunities": "count only decrypted sealed envelopes with this fault_id and exactly one injected fault",
+        "certified_recovery_opportunities": "the valid_fault_opportunities denominator after exact verifier success",
+        "blind_retry_opportunities": "fault-exposed trajectories whose post-fault action prefix is a retry without refresh_auth"
+      }
+    },
+    {
+      "cell_id": "recovery-persistent-signature-clean-s42-p0",
+      "role": "negative_control_no_injection_twin",
+      "task_id": "mcp-rec-8eeb75a2a5175f67",
+      "twin_task_id": "mcp-rec-ee6045e550887c4b",
+      "task_package_digest": "sha256:2c5308efc776ff35fac8c18e0c91a17fa140ad762fe113bd62021a5064eb37ab",
+      "verifier_digest": "sha256:d0431013e59bf535e26bcf4fbb7480417ca115320fe6f72a9b480fc4ae811701",
+      "harbor_task_digest": "sha256:361c0c71989755341286bbdb3d7cf5f86d55b32f98b0dee85df66e11422a22fd",
+      "producer_source_digest": "sha256:3c8bd3b9038de7786e4913f62bb9f8de68fd8dc9f1516f03de2ec8ad7a5dc385",
+      "fault_record": {
+        "fault_id": "8f2bb7c36953468af6db8680186964237c9528495a9ac805630f8271b8874ff8",
+        "fault_class": "persistent_signature_error",
+        "persistence": 0,
+        "is_clean_twin": true,
+        "verifier_oracle_digest": "ba7af4a3a3e5552c66483a701d5077d6e5a48dd608de4cbe1e6a7b205c6f5936"
+      },
+      "opportunity_denominators": {
+        "planned_trials": 1,
+        "fault_opportunities": 0,
+        "clean_completion_opportunities": 1
+      }
+    }
+  ],
+  "outcomes": {
+    "authoritative_exact_success": "The separately executed task verifier must return reward exactly 1.0. Agent text, HTTP status, and an unverified result artifact never override verifier outcome.",
+    "funcdag_schema_and_propagation": "Available only when verifier truth and complete benchmark events show all five required nodes and ten required edges with exact schema/value propagation. Missing events or verifier truth yield unavailable.",
+    "certified_recovery": "Available only for fault-arm trials with a valid decrypted sealed envelope, exactly one recorded fault opportunity, refresh_auth strictly after injection, a valid post-mutation write, confirmed matching read, and verifier reward exactly 1.0. Numerator and denominator are not pooled with clean or persistence-2 cells.",
+    "blind_retry": "Classify only a valid fault-exposed trajectory that retries without the designated repair move. It is a negative control outcome, never certified recovery.",
+    "latency": "Available only from monotonic event timestamps in the sealed record or ATIF. Missing timestamps are unavailable, never zero.",
+    "failed_prefix_cost": "Available only where a fault event has an exact aligned token-bearing ATIF step. This materialized FaultInjectionRecord has target_atif_step=null, so this metric is unavailable for the recovery pair unless a future execution adds exact alignment.",
+    "persistent_pooling": "Persistence 1 remains a standalone stratum. Do not pool it with transient faults, persistence 2, clean twins, or FuncDAG familiarization."
+  },
+  "deterministic_controls": {
+    "mcp_funcdag_v1": {
+      "command": "uv run python library/benchmarks/mcp-funcdag-v1/ci_contract.py",
+      "result": "PASS: byte-equal regeneration; oracle=1.0; nop=0.0; 8 mutants=0.0"
+    },
+    "mcp_recovery_v1": {
+      "command": "uv run --group benchmarks python library/benchmarks/mcp-recovery-v1/ci_contract.py",
+      "result": "PASS: 20 cells (10 fault plus 10 clean twins); oracle recovered 10/10 exposed faults; blind retry recovered 0/10 exposed faults"
+    },
+    "negative_controls": [
+      "no-injection clean twin",
+      "nop injection",
+      "FuncDAG schema familiarization",
+      "persistent-signature fault with designated-repair, blind-retry, wrong-repair, and unconditional-fallback controls"
+    ]
+  },
+  "dispatch_gates": [
+    "Recompute every frozen package, verifier, Harbor task, producer, profile, readiness, and wheelhouse-provenance digest from secured materialization inputs; any mismatch refuses dispatch.",
+    "Persist the 0400 paired recovery evidence-key reference in the approved secret store; it is deliberately absent from this manifest and repository.",
+    "Register or admit the three materialized packages through the applicable external-task path before queue submission.",
+    "A qualified Linux execution host and explicit model-run authorization are required. Current Darwin network isolation is calibration-only and cannot support causal promotion.",
+    "Do not collect failed-prefix cost unless exact token-step alignment is observed."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "mcp-recovery-persistent-signature-clean-s42-p0",
+  "hypothesis": "The no-injection twin has the same seed, agent-visible instruction, tools, compose, Dockerfile, and qualified elicitation as the paired fault arm; it establishes baseline completion without entering any recovery denominator.",
+  "purpose": "calibration",
+  "question_ref": "mcp-funcdag-recovery-zai-glm53-v1",
+  "task": "local-lab/mcp-rec-8eeb75a2a5175f67",
+  "task_path": "derived/mcp-campaign-staging/recovery-clean",
+  "task_id": "mcp-rec-8eeb75a2a5175f67",
+  "task_family": "mcp-recovery-v1",
+  "task_version": "1.0.0",
+  "task_package_digest": "sha256:2c5308efc776ff35fac8c18e0c91a17fa140ad762fe113bd62021a5064eb37ab",
+  "verifier_digest": "sha256:d0431013e59bf535e26bcf4fbb7480417ca115320fe6f72a9b480fc4ae811701",
+  "agent": "zai-opencode",
+  "model": "zai-coding-plan/glm-5.3",
+  "environment": "docker",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 300,
+  "max_requests": 4,
+  "max_input_tokens": 50000,
+  "max_output_tokens": 16000,
+  "max_total_tokens": 66000,
+  "cost_limit_usd": 0.2,
+  "est_cost_usd": 0.2,
+  "submitted_by": "eval-runner",
+  "requires": [
+    "qualified-runtime-profile:zai-opencode-glm-5.3",
+    "explicit-model-run-authorization",
+    "frozen-mcp-materialization-receipt"
+  ],
+  "generator_seed": 42
+}

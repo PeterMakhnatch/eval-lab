@@ -16,7 +16,6 @@ from evallab.autonomous_research import (
     ScoreScaleBindingV1,
     ScoreScaleVerificationResult,
     extract_autonomous_research_features,
-    verified_score_scale_result,
 )
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.interpretation.trajectory_runtime import (
@@ -374,6 +373,7 @@ def test_score_scale_binding_verify_against_artifacts_exact_match(tmp_path: Path
     assert isinstance(res, ScoreScaleVerificationResult)
     assert res.verified is True
     assert res.status == "verified"
+    assert res.binding_digest == binding.binding_digest
     assert res.task_status == "verified"
     assert res.verifier_status == "verified"
     assert res.metric_config_status == "verified"
@@ -381,28 +381,35 @@ def test_score_scale_binding_verify_against_artifacts_exact_match(tmp_path: Path
     assert res.hidden_outcome_status == "verified"
 
 
-def test_score_scale_binding_partial_artifacts_returns_unresolved(tmp_path: Path) -> None:
+def test_score_scale_binding_partial_artifacts_returns_unresolved() -> None:
     """Missing required artifact sources must return status='unresolved' with verified=False."""
+    metric_cfg = {"metric": "accuracy", "k": 5}
+    metric_digest = _sha256_json(metric_cfg)
     binding = ScoreScaleBindingV1.create(
         authority_kind="benchmark_contract",
         metric_name="accuracy",
         direction="higher",
         task_digest="sha256:" + "1" * 64,
         verifier_digest="sha256:" + "2" * 64,
-        metric_config_digest="sha256:" + "3" * 64,
+        metric_config_digest=metric_digest,
         visible_split_id="split_v1",
         hidden_split_id="split_h1",
         visible_outcome_binding_digest="sha256:" + "4" * 64,
         hidden_outcome_binding_digest="sha256:" + "5" * 64,
     )
 
-    # Only metric config supplied, others missing
+    # Only matching metric config supplied, task and outcomes missing
     res = binding.verify_against_artifacts(
-        metric_config={"some": "config"},
+        metric_config=metric_cfg,
         fail_closed=False,
     )
     assert res.verified is False
-    assert res.status in ("unresolved", "mismatch")
+    assert res.status == "unresolved"
+    assert res.metric_config_status == "verified"
+    assert res.task_status == "unresolved"
+    assert res.visible_outcome_status == "unresolved"
+    assert res.hidden_outcome_status == "unresolved"
+    assert "unresolved_components" in (res.reason or "")
 
 
 def test_score_scale_binding_verify_mismatched_task_digest_raises(tmp_path: Path) -> None:
@@ -479,15 +486,126 @@ def test_score_scale_binding_unverified_trace_refuses_transfer_arithmetic() -> N
         iterations=(ResearchIterationV1(iteration_id="v1", visible_score=10.0),),
     )
 
-    # Calling extract without verified binding result
+    # Extraction with no artifacts provided
     features = extract_autonomous_research_features(trace)
     assert features.score_scale_compatible is False
-    assert features.visible_hidden_transfer_gap is None  # REFUSED without verification!
+    assert features.scale_binding_status == "unresolved"
+    assert features.scale_binding_unresolved_reason is not None
+    assert features.visible_hidden_transfer_gap is None
     assert features.scale_binding_digest == binding.binding_digest
 
-    # Now calling with full verification result emits the transfer arithmetic
-    features_verified = extract_autonomous_research_features(
-        trace, binding_verification=verified_score_scale_result()
+
+def test_score_scale_binding_artifact_resolver_emits_transfer(tmp_path: Path) -> None:
+    """Providing a complete artifact resolver authorizes transfer gap calculation in the production path."""
+    task_dir = tmp_path / "eval-task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'eval-task'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Eval Task\n", encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_eval.py").write_text("def test_it(): pass\n", encoding="utf-8")
+
+    task_digests = compute_task_digests(task_dir)
+    metric_cfg = {"metric": "score", "threshold": 0.5}
+    vis_outcome = {"score": 10.0}
+    hid_outcome = {"score": 12.0}
+
+    binding = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="score",
+        direction="higher",
+        task_digest=task_digests.package,
+        verifier_digest=task_digests.verifier,
+        metric_config_digest=_sha256_json(metric_cfg),
+        visible_split_id="val",
+        hidden_split_id="test",
+        visible_outcome_binding_digest=_sha256_json(vis_outcome),
+        hidden_outcome_binding_digest=_sha256_json(hid_outcome),
     )
-    assert features_verified.score_scale_compatible is True
-    assert features_verified.visible_hidden_transfer_gap == 2.0
+    trace = ResearchRunTraceV1(
+        run_id="verified-rsi-run",
+        benchmark_family="paperbench",
+        source_digest="sha256:" + "3" * 64,
+        task_digest=binding.task_digest,
+        verifier_digest=binding.verifier_digest,
+        metric_config_digest=binding.metric_config_digest,
+        visible_outcome_binding_digest=binding.visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=binding.hidden_outcome_binding_digest,
+        score_direction="higher",
+        score_scale_binding=binding,
+        hidden_score=12.0,
+        selected_iteration_id="v1",
+        iterations=(ResearchIterationV1(iteration_id="v1", visible_score=10.0),),
+    )
+
+    def resolver(t: ResearchRunTraceV1) -> dict[str, Any]:
+        return {
+            "task_dir": task_dir,
+            "metric_config": metric_cfg,
+            "visible_outcome": vis_outcome,
+            "hidden_outcome": hid_outcome,
+        }
+
+    features = extract_autonomous_research_features(trace, artifact_resolver=resolver)
+    assert features.score_scale_compatible is True
+    assert features.scale_binding_status == "verified"
+    assert features.scale_binding_task_status == "verified"
+    assert features.scale_binding_verifier_status == "verified"
+    assert features.scale_binding_metric_config_status == "verified"
+    assert features.scale_binding_visible_outcome_status == "verified"
+    assert features.scale_binding_hidden_outcome_status == "verified"
+    assert features.visible_hidden_transfer_gap == 2.0
+
+
+def test_score_scale_binding_another_binding_artifacts_refuses_transfer(tmp_path: Path) -> None:
+    """Supplying artifacts that match binding A to a trace containing binding B must refuse transfer."""
+    task_dir = tmp_path / "eval-task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'eval-task'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Eval Task\n", encoding="utf-8")
+
+    task_digests = compute_task_digests(task_dir)
+    metric_cfg_a = {"metric": "score_a"}
+    metric_cfg_b = {"metric": "score_b"}
+    vis_outcome = {"score": 10.0}
+    hid_outcome = {"score": 12.0}
+
+    binding_b = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="score_b",
+        direction="higher",
+        task_digest=task_digests.package,
+        verifier_digest=task_digests.verifier,
+        metric_config_digest=_sha256_json(metric_cfg_b),
+        visible_split_id="val",
+        hidden_split_id="test",
+        visible_outcome_binding_digest=_sha256_json(vis_outcome),
+        hidden_outcome_binding_digest=_sha256_json(hid_outcome),
+    )
+    trace = ResearchRunTraceV1(
+        run_id="mismatch-binding-run",
+        benchmark_family="paperbench",
+        source_digest="sha256:" + "3" * 64,
+        task_digest=binding_b.task_digest,
+        verifier_digest=binding_b.verifier_digest,
+        metric_config_digest=binding_b.metric_config_digest,
+        visible_outcome_binding_digest=binding_b.visible_outcome_binding_digest,
+        hidden_outcome_binding_digest=binding_b.hidden_outcome_binding_digest,
+        score_direction="higher",
+        score_scale_binding=binding_b,
+        hidden_score=12.0,
+        selected_iteration_id="v1",
+        iterations=(ResearchIterationV1(iteration_id="v1", visible_score=10.0),),
+    )
+
+    # Pass metric_cfg_a which does not match binding_b
+    features = extract_autonomous_research_features(
+        trace,
+        task_dir=task_dir,
+        metric_config=metric_cfg_a,
+        visible_outcome=vis_outcome,
+        hidden_outcome=hid_outcome,
+    )
+    assert features.score_scale_compatible is False
+    assert features.scale_binding_status == "mismatch"
+    assert features.visible_hidden_transfer_gap is None

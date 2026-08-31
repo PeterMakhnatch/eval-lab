@@ -18,7 +18,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -46,26 +46,13 @@ class ScoreScaleVerificationResult:
 
     verified: bool
     status: Literal["verified", "mismatch", "unresolved"]
-    task_status: Literal["verified", "mismatch", "unresolved"]
-    verifier_status: Literal["verified", "mismatch", "unresolved"]
-    metric_config_status: Literal["verified", "mismatch", "unresolved"]
-    visible_outcome_status: Literal["verified", "mismatch", "unresolved"]
-    hidden_outcome_status: Literal["verified", "mismatch", "unresolved"]
+    binding_digest: str | None = None
+    task_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    verifier_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    metric_config_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    visible_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    hidden_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
     reason: str | None = None
-
-
-def verified_score_scale_result() -> ScoreScaleVerificationResult:
-    """Convenience factory for a fully verified score scale result."""
-    return ScoreScaleVerificationResult(
-        verified=True,
-        status="verified",
-        task_status="verified",
-        verifier_status="verified",
-        metric_config_status="verified",
-        visible_outcome_status="verified",
-        hidden_outcome_status="verified",
-        reason=None,
-    )
 
 
 class ScoreScaleBindingV1(ContractModel):
@@ -269,6 +256,7 @@ class ScoreScaleBindingV1(ContractModel):
             return ScoreScaleVerificationResult(
                 verified=False,
                 status="mismatch",
+                binding_digest=self.binding_digest,
                 task_status=task_status,
                 verifier_status=verifier_status,
                 metric_config_status=metric_config_status,
@@ -280,6 +268,7 @@ class ScoreScaleBindingV1(ContractModel):
             return ScoreScaleVerificationResult(
                 verified=False,
                 status="unresolved",
+                binding_digest=self.binding_digest,
                 task_status=task_status,
                 verifier_status=verifier_status,
                 metric_config_status=metric_config_status,
@@ -291,6 +280,7 @@ class ScoreScaleBindingV1(ContractModel):
         return ScoreScaleVerificationResult(
             verified=True,
             status="verified",
+            binding_digest=self.binding_digest,
             task_status="verified",
             verifier_status="verified",
             metric_config_status="verified",
@@ -568,6 +558,13 @@ class AutonomousResearchFeatures:
 
     # 7. Hidden-Transfer Gap & Generalization (RSI-Exam, MLE-bench)
     scale_binding_digest: str | None
+    scale_binding_status: str | None
+    scale_binding_unresolved_reason: str | None
+    scale_binding_task_status: str | None
+    scale_binding_verifier_status: str | None
+    scale_binding_metric_config_status: str | None
+    scale_binding_visible_outcome_status: str | None
+    scale_binding_hidden_outcome_status: str | None
     score_scale_compatible: bool
     hidden_score: float | None
     visible_hidden_transfer_gap: float | None
@@ -619,11 +616,11 @@ def _hypothesis_key(value: str) -> str:
 def extract_autonomous_research_features(
     trace: ResearchRunTraceV1,
     *,
-    binding_verification: ScoreScaleVerificationResult | None = None,
     task_dir: Path | str | None = None,
     metric_config: Mapping[str, Any] | None = None,
     visible_outcome: Mapping[str, Any] | None = None,
     hidden_outcome: Mapping[str, Any] | None = None,
+    artifact_resolver: Callable[[ResearchRunTraceV1], dict[str, Any]] | None = None,
 ) -> AutonomousResearchFeatures:
     """Compute research-loop efficiency, selection, and generalization features."""
     iterations = list(trace.iterations)
@@ -842,29 +839,53 @@ def extract_autonomous_research_features(
     # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when verified ScoreScaleBindingV1 exists AND selected candidate has score)
     transfer_gap = None
     scale_binding_digest: str | None = None
+    scale_binding_status: str | None = None
+    scale_binding_unresolved_reason: str | None = None
+    scale_binding_task_status: str | None = None
+    scale_binding_verifier_status: str | None = None
+    scale_binding_metric_config_status: str | None = None
+    scale_binding_visible_outcome_status: str | None = None
+    scale_binding_hidden_outcome_status: str | None = None
     score_scale_compatible = False
+
     if trace.score_scale_binding is not None:
         scale_binding_digest = trace.score_scale_binding.binding_digest
 
-        # Re-verify if artifacts are provided directly
-        if binding_verification is None and any(
-            x is not None for x in (task_dir, metric_config, visible_outcome, hidden_outcome)
-        ):
-            binding_verification = trace.score_scale_binding.verify_against_artifacts(
-                task_dir=task_dir,
-                metric_config=metric_config,
-                visible_outcome=visible_outcome,
-                hidden_outcome=hidden_outcome,
-                fail_closed=False,
-            )
+        resolved = artifact_resolver(trace) if artifact_resolver is not None else {}
+        t_dir = task_dir if task_dir is not None else resolved.get("task_dir")
+        m_cfg = metric_config if metric_config is not None else resolved.get("metric_config")
+        v_out = visible_outcome if visible_outcome is not None else resolved.get("visible_outcome")
+        h_out = hidden_outcome if hidden_outcome is not None else resolved.get("hidden_outcome")
 
-        if binding_verification is not None and binding_verification.verified is True:
+        v_res = trace.score_scale_binding.verify_against_artifacts(
+            task_dir=t_dir,
+            metric_config=m_cfg,
+            visible_outcome=v_out,
+            hidden_outcome=h_out,
+            fail_closed=False,
+        )
+
+        scale_binding_status = v_res.status
+        scale_binding_unresolved_reason = v_res.reason
+        scale_binding_task_status = v_res.task_status
+        scale_binding_verifier_status = v_res.verifier_status
+        scale_binding_metric_config_status = v_res.metric_config_status
+        scale_binding_visible_outcome_status = v_res.visible_outcome_status
+        scale_binding_hidden_outcome_status = v_res.hidden_outcome_status
+
+        if (
+            v_res.verified is True
+            and v_res.status == "verified"
+            and v_res.binding_digest == trace.score_scale_binding.binding_digest
+        ):
             score_scale_compatible = True
             if trace.hidden_score is not None and final_visible is not None:
                 transfer_gap = trace.hidden_score - final_visible
         else:
             score_scale_compatible = False
             transfer_gap = None
+    else:
+        scale_binding_status = "not_provided"
 
     # 8. Artifact Replay & Reproducibility
     reproducibility_evaluated_count = sum(
@@ -981,6 +1002,13 @@ def extract_autonomous_research_features(
         "final_selection_regret": final_selection_regret,
         # 7. Hidden-Transfer Gap & Generalization
         "scale_binding_digest": scale_binding_digest,
+        "scale_binding_status": scale_binding_status,
+        "scale_binding_unresolved_reason": scale_binding_unresolved_reason,
+        "scale_binding_task_status": scale_binding_task_status,
+        "scale_binding_verifier_status": scale_binding_verifier_status,
+        "scale_binding_metric_config_status": scale_binding_metric_config_status,
+        "scale_binding_visible_outcome_status": scale_binding_visible_outcome_status,
+        "scale_binding_hidden_outcome_status": scale_binding_hidden_outcome_status,
         "score_scale_compatible": score_scale_compatible,
         "hidden_score": trace.hidden_score,
         "visible_hidden_transfer_gap": transfer_gap,

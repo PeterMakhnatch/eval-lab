@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 from pydantic import ValidationError
 
@@ -37,6 +39,7 @@ SHA256_H = "sha256:" + "0" * 64
 def _make_harness(
     runner: RunnerKind,
     version: str = "1.0.0",
+    env_kind: str = "docker",
     image: str = "ubuntu:22.04",
     env_digest: str = SHA256_A,
     prompt_digest: str = SHA256_B,
@@ -50,7 +53,7 @@ def _make_harness(
     return HarnessIdentity(
         runner_kind=runner,
         runner_version=version,
-        environment_kind="docker",
+        environment_kind=env_kind,
         environment_image=image,
         environment_digest=env_digest,
         prompt_digest=prompt_digest,
@@ -59,7 +62,7 @@ def _make_harness(
         scaffold_version=scaffold_version,
         model_config_digest=model_config_digest,
         verifier_digest=verifier_digest,
-        harness_parameters=parameters or {"timeout": 600},
+        harness_parameters=parameters if parameters is not None else {"timeout": 600},
     )
 
 
@@ -67,7 +70,7 @@ def _make_binding(
     task_digest: str = SHA256_A,
     pair_id: str = "pair-001",
     expected_lanes: tuple[RunnerKind, RunnerKind] = (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR),
-    allowed_delta: tuple[str, ...] = ("runner_lane",),
+    allowed_delta: tuple[Literal["runner_lane"], ...] = ("runner_lane",),
     outcome_namespace: str = "benchmark",
     outcome_name: str = "accuracy",
     verifier_digest: str = SHA256_F,
@@ -91,7 +94,9 @@ def _make_outcome(
     attempt_id: str = "attempt-001",
     outcome_namespace: str = "benchmark",
     outcome_name: str = "accuracy",
-    producer_kind: str = "verifier_exit_code",
+    producer_kind: Literal[
+        "deterministic_verifier", "deterministic_scorer"
+    ] = "deterministic_verifier",
     verifier_digest: str = SHA256_F,
     verifier_reward: float | None = 1.0,
     verifier_passed: bool = True,
@@ -100,11 +105,11 @@ def _make_outcome(
     total_tokens: int = 1000,
     duration_seconds: float = 12.0,
     harness: HarnessIdentity | None = None,
-    source_revision: str = "git-rev-abc",
+    source_revision_digest: str = SHA256_A,
     raw_log_digest: str = SHA256_G,
 ) -> RunnerOutcome:
     if harness is None:
-        harness = _make_harness(runner)
+        harness = _make_harness(runner, verifier_digest=verifier_digest)
     if artifact_digests is None:
         artifact_digests = {"patch.diff": SHA256_A}
     return RunnerOutcome(
@@ -124,7 +129,7 @@ def _make_outcome(
         total_tokens=total_tokens,
         duration_seconds=duration_seconds,
         harness_identity=harness,
-        source_revision=source_revision,
+        source_revision_digest=source_revision_digest,
         raw_log_digest=raw_log_digest,
     )
 
@@ -308,6 +313,7 @@ def test_parity_binding_contract_and_digests() -> None:
     binding = _make_binding()
     assert binding.binding_digest.startswith("sha256:")
     assert binding.expected_lanes == (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR)
+    assert binding.allowed_delta == ("runner_lane",)
 
     computed = compute_parity_binding_digest(
         task_digest=SHA256_A,
@@ -339,6 +345,18 @@ def test_parity_binding_contract_and_digests() -> None:
             task_digest=SHA256_A,
             pair_id="pair-001",
             expected_lanes=(RunnerKind.HARBOR, RunnerKind.INSPECT),
+            outcome_namespace="benchmark",
+            outcome_name="accuracy",
+            verifier_digest=SHA256_F,
+        )
+
+    # Arbitrary allowed_delta is strictly rejected
+    with pytest.raises(ValidationError):
+        ParityBinding(
+            task_digest=SHA256_A,
+            pair_id="pair-001",
+            expected_lanes=(RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR),
+            allowed_delta=("runner_lane", "model_config"),
             outcome_namespace="benchmark",
             outcome_name="accuracy",
             verifier_digest=SHA256_F,
@@ -492,21 +510,37 @@ def test_plan_multi_eval_execution_parity_run() -> None:
     assert plan_bad_lane.is_refused is True
     assert any(r.code == RefusalCode.INVALID_PARITY_LANE for r in plan_bad_lane.refusals)
 
-    # Mismatched harness identity between canonical and parity is refused
-    h_parity_diff = _make_harness(RunnerKind.INSPECT_HARBOR, prompt_digest=SHA256_H)
-    plan_mismatch_harness = plan_multi_eval_execution(
+    # Mismatched harness parameters between canonical and parity is refused
+    h_parity_diff_param = _make_harness(RunnerKind.INSPECT_HARBOR, parameters={"timeout": 1200})
+    plan_mismatch_param = plan_multi_eval_execution(
         spec,
         execution_intent=ExecutionIntent.PARITY_RUN,
         parity_binding=binding,
         harness_identities={
             RunnerKind.HARBOR: h_canonical,
-            RunnerKind.INSPECT_HARBOR: h_parity_diff,
+            RunnerKind.INSPECT_HARBOR: h_parity_diff_param,
         },
     )
-    assert plan_mismatch_harness.is_refused is True
+    assert plan_mismatch_param.is_refused is True
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in plan_mismatch_param.refusals
+    )
+
+    # Mismatched scaffold_version between canonical and parity is refused
+    h_parity_diff_scaffold = _make_harness(RunnerKind.INSPECT_HARBOR, scaffold_version="v2")
+    plan_mismatch_scaffold = plan_multi_eval_execution(
+        spec,
+        execution_intent=ExecutionIntent.PARITY_RUN,
+        parity_binding=binding,
+        harness_identities={
+            RunnerKind.HARBOR: h_canonical,
+            RunnerKind.INSPECT_HARBOR: h_parity_diff_scaffold,
+        },
+    )
+    assert plan_mismatch_scaffold.is_refused is True
     assert any(
         r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY
-        for r in plan_mismatch_harness.refusals
+        for r in plan_mismatch_scaffold.refusals
     )
 
 
@@ -544,6 +578,16 @@ def test_runner_outcome_contract_and_validation() -> None:
     outcome = _make_outcome(RunnerKind.HARBOR)
     assert outcome.runner_kind == RunnerKind.HARBOR
     assert outcome.artifact_digests == {"patch.diff": SHA256_A}
+    assert outcome.deterministic_producer_kind == "deterministic_verifier"
+    assert outcome.source_revision_digest == SHA256_A
+
+    # Invalid deterministic_producer_kind raises ValidationError
+    with pytest.raises(ValidationError):
+        _make_outcome(RunnerKind.HARBOR, producer_kind="arbitrary_text")  # type: ignore[arg-type]
+
+    # Invalid source_revision_digest pattern raises ValidationError
+    with pytest.raises(ValidationError):
+        _make_outcome(RunnerKind.HARBOR, source_revision_digest="git-rev-abc")
 
     # Invalid artifact digest pattern raises ValidationError
     with pytest.raises(ValidationError):
@@ -667,6 +711,16 @@ def test_reconcile_parity_results_fail_closed_adversarial() -> None:
     assert res_lane.parity_status == ParityStatus.REFUSED
     assert any(r.code == RefusalCode.INVALID_PARITY_LANE for r in res_lane.refusals)
 
+    # 2b. Internal outcome runner_kind vs harness_identity runner_kind mismatch
+    h_mismatched_runner = _make_harness(RunnerKind.INSPECT)
+    c_bad_runner = _make_outcome(RunnerKind.HARBOR, harness=h_mismatched_runner)
+    p_valid = _make_outcome(RunnerKind.INSPECT_HARBOR)
+    res_internal_runner = reconcile_parity_results(c_bad_runner, p_valid, binding)
+    assert res_internal_runner.parity_status == ParityStatus.REFUSED
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_internal_runner.refusals
+    )
+
     # 3. Mismatched pair IDs
     p_pair_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, pair_id="pair-other")
     res_pair = reconcile_parity_results(c_harbor, p_pair_diff, binding)
@@ -680,10 +734,23 @@ def test_reconcile_parity_results_fail_closed_adversarial() -> None:
     assert any(r.code == RefusalCode.BINDING_TASK_MISMATCH for r in res_task.refusals)
 
     # 5. Mismatched verifier digest
-    p_verifier_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, verifier_digest=SHA256_B)
+    p_verifier_diff = _make_outcome(
+        RunnerKind.INSPECT_HARBOR,
+        verifier_digest=SHA256_B,
+        harness=_make_harness(RunnerKind.INSPECT_HARBOR, verifier_digest=SHA256_B),
+    )
     res_verifier = reconcile_parity_results(c_harbor, p_verifier_diff, binding)
     assert res_verifier.parity_status == ParityStatus.REFUSED
     assert any(r.code == RefusalCode.BINDING_VERIFIER_MISMATCH for r in res_verifier.refusals)
+
+    # 5b. Internal outcome verifier_digest vs harness_identity verifier_digest mismatch
+    h_mismatched_verifier = _make_harness(RunnerKind.HARBOR, verifier_digest=SHA256_B)
+    c_bad_ver = _make_outcome(
+        RunnerKind.HARBOR, verifier_digest=SHA256_F, harness=h_mismatched_verifier
+    )
+    res_internal_ver = reconcile_parity_results(c_bad_ver, p_valid, binding)
+    assert res_internal_ver.parity_status == ParityStatus.REFUSED
+    assert any(r.code == RefusalCode.BINDING_VERIFIER_MISMATCH for r in res_internal_ver.refusals)
 
     # 6. Mismatched outcome namespace or outcome name
     p_outcome_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, outcome_name="different_metric")
@@ -706,19 +773,21 @@ def test_reconcile_parity_results_fail_closed_adversarial() -> None:
 
     # 8. Missing artifact digests (empty artifact dict fails closed)
     c_no_art = _make_outcome(RunnerKind.HARBOR, artifact_digests={})
-    p_valid = _make_outcome(RunnerKind.INSPECT_HARBOR)
     res_no_art = reconcile_parity_results(c_no_art, p_valid, binding)
     assert res_no_art.parity_status == ParityStatus.REFUSED
     assert any(r.code == RefusalCode.MISSING_EVIDENCE for r in res_no_art.refusals)
 
-    # 9. Mismatched harness environments (e.g. prompt_digest mismatch)
-    h_diff = _make_harness(RunnerKind.INSPECT_HARBOR, prompt_digest=SHA256_H)
-    p_harness_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff)
-    res_env_diff = reconcile_parity_results(c_harbor, p_harness_diff, binding)
-    assert res_env_diff.parity_status == ParityStatus.REFUSED
-    assert any(r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_env_diff.refusals)
+    # 9. Mismatched harness environments across all dimensions:
+    # 9a. prompt_digest mismatch
+    h_diff_prompt = _make_harness(RunnerKind.INSPECT_HARBOR, prompt_digest=SHA256_H)
+    p_prompt_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_prompt)
+    res_prompt_diff = reconcile_parity_results(c_harbor, p_prompt_diff, binding)
+    assert res_prompt_diff.parity_status == ParityStatus.REFUSED
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_prompt_diff.refusals
+    )
 
-    # Mismatched model_config_digest
+    # 9b. model_config_digest mismatch
     h_diff_model = _make_harness(RunnerKind.INSPECT_HARBOR, model_config_digest=SHA256_H)
     p_model_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_model)
     res_model_diff = reconcile_parity_results(c_harbor, p_model_diff, binding)
@@ -727,7 +796,7 @@ def test_reconcile_parity_results_fail_closed_adversarial() -> None:
         r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_model_diff.refusals
     )
 
-    # Mismatched tool_schema_digest
+    # 9c. tool_schema_digest mismatch
     h_diff_tool = _make_harness(RunnerKind.INSPECT_HARBOR, tool_digest=SHA256_H)
     p_tool_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_tool)
     res_tool_diff = reconcile_parity_results(c_harbor, p_tool_diff, binding)
@@ -736,13 +805,40 @@ def test_reconcile_parity_results_fail_closed_adversarial() -> None:
         r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_tool_diff.refusals
     )
 
-    # Mismatched environment_digest
+    # 9d. environment_digest mismatch
     h_diff_env = _make_harness(RunnerKind.INSPECT_HARBOR, env_digest=SHA256_H)
     p_env_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_env)
     res_env_mismatch = reconcile_parity_results(c_harbor, p_env_diff, binding)
     assert res_env_mismatch.parity_status == ParityStatus.REFUSED
     assert any(
         r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_env_mismatch.refusals
+    )
+
+    # 9e. environment_kind mismatch
+    h_diff_env_kind = _make_harness(RunnerKind.INSPECT_HARBOR, env_kind="local")
+    p_kind_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_env_kind)
+    res_kind_diff = reconcile_parity_results(c_harbor, p_kind_diff, binding)
+    assert res_kind_diff.parity_status == ParityStatus.REFUSED
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_kind_diff.refusals
+    )
+
+    # 9f. scaffold_version mismatch
+    h_diff_scaffold_ver = _make_harness(RunnerKind.INSPECT_HARBOR, scaffold_version="v2")
+    p_scaffold_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_scaffold_ver)
+    res_scaffold_diff = reconcile_parity_results(c_harbor, p_scaffold_diff, binding)
+    assert res_scaffold_diff.parity_status == ParityStatus.REFUSED
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_scaffold_diff.refusals
+    )
+
+    # 9g. harness_parameters mismatch
+    h_diff_params = _make_harness(RunnerKind.INSPECT_HARBOR, parameters={"timeout": 9999})
+    p_params_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, harness=h_diff_params)
+    res_params_diff = reconcile_parity_results(c_harbor, p_params_diff, binding)
+    assert res_params_diff.parity_status == ParityStatus.REFUSED
+    assert any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in res_params_diff.refusals
     )
 
     # 10. Reconciliation digest sensitivity
@@ -754,3 +850,8 @@ def test_reconcile_parity_results_fail_closed_adversarial() -> None:
     p_trial_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, trial_id="trial-999")
     res_trial_diff = reconcile_parity_results(c_valid, p_trial_diff, binding)
     assert res_verified_1.reconciliation_digest != res_trial_diff.reconciliation_digest
+
+    # Changing source_revision_digest changes digest
+    p_rev_diff = _make_outcome(RunnerKind.INSPECT_HARBOR, source_revision_digest=SHA256_B)
+    res_rev_diff = reconcile_parity_results(c_valid, p_rev_diff, binding)
+    assert res_verified_1.reconciliation_digest != res_rev_diff.reconciliation_digest

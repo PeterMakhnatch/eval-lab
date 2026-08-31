@@ -1,0 +1,40 @@
+{
+  "schema_version": "trajectory-judge-live-pilot/v1",
+  "generated_at": "2026-08-31T00:36:11Z",
+  "evidence_class": "calibration_only_darwin_public_egress",
+  "judge_model": "Gemini 3.7 Flash (High)",
+  "judge_transport": "agy",
+  "trial_name": "action-64k-neutral_padding-s1337__FFSbF3C",
+  "snapshot_digest": "sha256:676b91ea5dd31ebad44fbe2f33b2bbccd92e9b6f023b4a3727d1e4095c15c07b",
+  "deterministic_context_digest": "sha256:695edeb74d43f3ebcfd377428fcc381616c9b29c067e3d81c3cb08bfd4763853",
+  "deterministic_truth": {
+    "reward": 0.0,
+    "coverage_complete": false,
+    "order_exact": false,
+    "missing_handles": [
+      "ctx_2110473c018845ab0cc32bf4"
+    ],
+    "extra_handles": [
+      "ctx_2110473c018845ab0cc32bf6"
+    ],
+    "verifier_reason": "incomplete_or_reordered_context_retrieval"
+  },
+  "window_count": 6,
+  "repeat_count": 3,
+  "category_counts": {
+    "memory_failure": 2,
+    "recovery_failure": 1
+  },
+  "consensus_category": "memory_failure",
+  "agreement_rate": 0.6666666666666666,
+  "unresolved": true,
+  "run_digests": [
+    "sha256:7d7a7fe0a84e0356df17c489b2292226b2d2cb7438190da95080c7bfb1abd868",
+    "sha256:3c8640a6a007287361c3301fb614cdd733325ddd8b6f096349d1d4d0fed7c143",
+    "sha256:f9fb809165293ad1972f216bba9c348ff16eee71808b633e2685bbfeebca9419"
+  ],
+  "disagreement_digest": "sha256:a8bb04925868d185ebf0a2e377c24255f382dc06c24c0860c7f3e4e961ed16fe",
+  "decision_eligible": false,
+  "promotion_disposition": "hold_for_adjudication",
+  "notes": "The repeated live judge was truth-grounded and citation-bound. Two runs classified the process as memory_failure and one as recovery_failure, so the record remains unresolved and cannot be promoted to a benchmark label without adjudication."
+}

@@ -25,7 +25,9 @@ from evallab.modeladapter import (
     ModelAdapterExecutionError,
     ModelAdapterRefusalError,
     ModelAdapterResult,
+    ModelAdapterSchemaError,
     ModelAdapterTimeoutError,
+    SchemaRepairingAdapter,
     agy_adapter,
     cursor_adapter,
     validate_pinned_model,
@@ -115,6 +117,79 @@ def test_agy_adapter_argv_and_success() -> None:
     assert argv[argv.index("--effort") + 1] == "medium"
     assert "--output-format" in argv
     assert argv[argv.index("--output-format") + 1] == "text"
+
+
+def test_schema_repairing_adapter_extracts_nested_transport_response() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "category": {"type": "string", "enum": ["memory_failure"]},
+            "summary": {"type": "string"},
+        },
+        "required": ["category", "summary"],
+    }
+
+    def adapter(_prompt: str, _schema: dict[str, Any] | None) -> ModelAdapterResult:
+        nested = json.dumps(
+            {
+                "conversation_id": "c1",
+                "status": "SUCCESS",
+                "response": '```json\\n{"category":"memory_failure","summary":"grounded"}\\n```',
+            }
+        )
+        return ModelAdapterResult(
+            raw_output=nested,
+            model="judge-v1",
+            argv=["agy"],
+            transport="agy",
+        )
+
+    result = SchemaRepairingAdapter(adapter)(prompt="judge", schema=schema)
+    assert json.loads(result.raw_output) == {
+        "category": "memory_failure",
+        "summary": "grounded",
+    }
+
+
+def test_schema_repairing_adapter_retries_then_refuses() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "category": {"type": "string", "enum": ["memory_failure"]},
+            "summary": {"type": "string"},
+        },
+        "required": ["category", "summary"],
+    }
+    outputs = [
+        "Unstructured response",
+        '{"category":"memory_failure","summary":"repaired"}',
+    ]
+    prompts: list[str] = []
+
+    def adapter(prompt: str, _schema: dict[str, Any] | None) -> ModelAdapterResult:
+        prompts.append(prompt)
+        return ModelAdapterResult(
+            raw_output=outputs[len(prompts) - 1],
+            model="judge-v1",
+            argv=["agy"],
+            transport="agy",
+        )
+
+    result = SchemaRepairingAdapter(adapter)(prompt="judge", schema=schema)
+    assert json.loads(result.raw_output)["summary"] == "repaired"
+    assert len(prompts) == 2
+    assert "Source response" in prompts[1]
+
+    def invalid_adapter(_prompt: str, _schema: dict[str, Any] | None) -> ModelAdapterResult:
+        return ModelAdapterResult(
+            raw_output="still invalid",
+            model="judge-v1",
+            argv=["agy"],
+            transport="agy",
+        )
+
+    with pytest.raises(ModelAdapterSchemaError, match="did not satisfy"):
+        SchemaRepairingAdapter(invalid_adapter)(prompt="judge", schema=schema)
 
 
 def test_nonzero_exit_raises_execution_error() -> None:
@@ -220,12 +295,14 @@ def test_analyst_refuses_without_adapter() -> None:
 
 def test_analyst_succeeds_with_injected_adapter(tmp_path: Path) -> None:
     # Create fake structured response
-    model_json = json.dumps({
-        "category": "task_execution_failure",
-        "summary": "Agent failed task due to missing file.",
-        "evidence": [{"path": "agent/trajectory.json", "step": 1}],
-        "confidence": "high",
-    })
+    model_json = json.dumps(
+        {
+            "category": "task_execution_failure",
+            "summary": "Agent failed task due to missing file.",
+            "evidence": [{"path": "agent/trajectory.json", "step": 1}],
+            "confidence": "high",
+        }
+    )
     fake_runner, _ = _make_fake_runner(stdout=model_json)
     adapter = cursor_adapter(
         model="cursor-grok-4.6-high",
@@ -250,23 +327,27 @@ def test_run_analysis_with_injected_adapter(tmp_path: Path) -> None:
     trial_dir = tmp_path / "runs" / "job_01" / "trial_01"
     trial_dir.mkdir(parents=True, exist_ok=True)
     (trial_dir / "result.json").write_text(
-        json.dumps({
-            "trial_name": "trial_01",
-            "task_name": "event-summary",
-            "agent_name": "codex",
-            "model_name": "codex-gpt-5.6-terra",
-            "primary_reward": 0.0,
-        })
+        json.dumps(
+            {
+                "trial_name": "trial_01",
+                "task_name": "event-summary",
+                "agent_name": "codex",
+                "model_name": "codex-gpt-5.6-terra",
+                "primary_reward": 0.0,
+            }
+        )
     )
     agent_dir = trial_dir / "agent"
     agent_dir.mkdir(parents=True, exist_ok=True)
     (agent_dir / "trajectory.json").write_text(
-        json.dumps({
-            "steps": [
-                {"step_id": 0, "source": "agent", "message": "Initial plan"},
-                {"step_id": 1, "source": "agent", "message": "Failed action"},
-            ]
-        })
+        json.dumps(
+            {
+                "steps": [
+                    {"step_id": 0, "source": "agent", "message": "Initial plan"},
+                    {"step_id": 1, "source": "agent", "message": "Failed action"},
+                ]
+            }
+        )
     )
 
     # 1. run_analysis with model and no adapter refuses
@@ -282,12 +363,14 @@ def test_run_analysis_with_injected_adapter(tmp_path: Path) -> None:
         )
 
     # 2. run_analysis with model and injected adapter succeeds
-    model_json = json.dumps({
-        "category": "task_execution_failure",
-        "summary": "Agent encountered an error.",
-        "evidence": [{"path": "agent/trajectory.json", "step": 1}],
-        "confidence": "high",
-    })
+    model_json = json.dumps(
+        {
+            "category": "task_execution_failure",
+            "summary": "Agent encountered an error.",
+            "evidence": [{"path": "agent/trajectory.json", "step": 1}],
+            "confidence": "high",
+        }
+    )
     fake_runner, _ = _make_fake_runner(stdout=model_json)
     adapter = cursor_adapter(model="cursor-grok-4.6-high", runner=fake_runner)
 
@@ -342,7 +425,8 @@ auto_run:
     agents: [oracle, nop]
 escalate_to_human:
   - any_billable_agent
-    """)
+    """
+    )
     (tmp_path / "derived" / "analyses" / "worker").mkdir(parents=True, exist_ok=True)
     fake_runner, _ = _make_fake_runner(stdout="{}")
     adapter = cursor_adapter(model="cursor-grok-4.6-high", runner=fake_runner)

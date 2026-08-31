@@ -97,7 +97,7 @@ To preserve scientific rigor and legal safety:
 
 ## 5. Certification Gate Standards
 
-Every synthetic evaluation task generated in `eval-lab` must pass the 8-point `SyntheticCertificate` gate before admission to `experimental` status:
+Every synthetic evaluation task generated in `eval-lab` must pass the 8-point `SyntheticCertificate` gate before it is treated as a passing, execution-backed experimental task. The contract may still represent historical or developmental records labeled `experimental` with 0, 1, or 2 tested mutants; the lifecycle label alone grants nothing, and `SyntheticCertificate.is_passing` remains false for those records:
 1. `static_reachability`: Environment and tool dependencies resolve without deadlocks.
 2. `clean_reset_passed`: Repeated setup/teardown yields identical initial states.
 3. `oracle_3x_passed`: Reference solver passes 3 consecutive independent executions.

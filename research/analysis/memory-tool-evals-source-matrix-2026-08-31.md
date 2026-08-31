@@ -59,11 +59,11 @@ is whether the scoring authority is separable from the generator or the agent.
 | **LongMemEval** | `arXiv:2410.10813`; `xiaowu0162/LongMemEval` @ `9e0b455f4ef0` (2026-05-11) | **MIT** | Long interactive chat sessions | Recall + temporal reasoning + knowledge update | Session-length and distractor scaling | Per-ability accuracy | Session logs | Gold answers released | Agent Data ingestion lane, same generic normalization path. **CoF:no(structural)** — per-ability accuracy; no operation event. | Chat-shaped; no tool surface, so no parameter binding. |
 | **MemoryAgentBench** | `arXiv:2507.05257`; `HUST-AI-HYZ/MemoryAgentBench` @ `fe1735de8cf8` (2026-08-20) | **MIT** | Incremental multi-turn interaction | Four competencies incl. **conflict resolution** (source claim) | Incremental chunk feeding vs full context | Per-competency accuracy | Interaction sequences | Task-defined truth | Agent Data ingestion lane; conflict competency touches the Data Engineer stale-override construct. **CoF:no(structural)** — per-competency accuracy; conflict resolution is scored by answer, not by a logged update. | Conflict resolution is the load-bearing axis for us and is one competency among four; per-axis n unread. |
 | **BEAM** | `arXiv:2510.27246` *Beyond a Million Tokens* | Paper (repo not verified here) | 100 conversations, 2,000 validated questions, up to 10M tokens (source claim) | Long-term memory at extreme length | Length scaling | Question accuracy | Conversations | Validated question set | Agent Data ingestion lane. **CoF:no(structural)** — question accuracy; length is the only manipulated variable. | Length is confounded with content unless padding is controlled; see LOCA. |
-| **MemGym** | `arXiv:2605.20833` *MemGym: a Long-Horizon Memory Environment for LLM Agents* | Paper | Environment, not static QA | Long-horizon memory in an env | Env-native episodes | Env reward | Env rollouts | Env verifier | Agent Data ingestion lane. **CoF:undetermined** — env-native episodes could carry operation events; body unread. | Env fidelity and oracle strength unread at body level. |
-| **MemoryArena** | `arXiv:2602.16313` *Benchmarking Agent Memory in Interdependent Multi-Session Agentic Tasks* | Paper | **Interdependent** multi-session agentic tasks | Cross-session action, not recall | Session interdependence | Task success | Not verified | Task verifier | Data Engineer lane; candidate for `SessionDependencyFact` only if the package exposes dependency edges as ground truth (review §22). **CoF:undetermined**. | "Interdependent" is exactly the cross-session-action construct; needs body read to confirm the dependency is genuine. |
-| **STALE** | `arXiv:2605.06527` *STALE: Can LLM Agents Know When Their Memories Are No Longer Valid?* | Paper | Probing framework | **Stale-state detection**; three-dimensional probe incl. State Resolution (source claim) | Validity-invalidating updates | Per-dimension probe scores | Not verified | Probe-defined | Data Engineer lane, stale-override construct (`action_memory.py`, `PairedConditionFact`). **CoF:undetermined** — probe scores may not expose the update as an operation. | Closest published match to our stale-override construct; body unread. |
-| **Supersede** | `arXiv:2606.27472` *Supersede: Diagnosing and Training the Memory-Update Gap in LLM Agents* | Paper | Multi-session, **bounded memory** (notes capped at B chars), sessions not re-fed (source claim) | **State inversion / supersession** under a hard budget | Value superseded mid-interaction vs not | Whether superseded value is remembered or forgotten | Not verified | Final-query truth | Data Engineer lane, state-inversion construct; bounded-notes cap is the same forcing device as the LOCA padding control on hold at `39022d6`. **CoF:undetermined** — a hard cap must evict, so this is the likeliest source of a typed `evict`/`memory_write` event. | The bounded-notes design is a genuine forced-forgetting control, which most benchmarks lack. |
-| **TEPA** | `arXiv:2608.07429` *TEPA: Revoking Stale Memories for Conflict-Robust Language Agents* | Paper | Unified suite spanning memory state and tool outcomes (source claim) | Stale revocation + drift | Conflict injection | Memory-state and tool-outcome metrics | Not verified | Suite-defined | Data Engineer lane, stale-override construct. **CoF:undetermined** — method paper; no benchmark package verified. | Method paper with an evaluation attached; not a clean benchmark package. |
+| **MemGym** | `arXiv:2605.20833` *MemGym: a Long-Horizon Memory Environment for LLM Agents* | Paper | Environment, not static QA | Long-horizon memory in an env | Env-native episodes | Env reward | Env rollouts | Env verifier | Agent Data ingestion lane. **CoF:CONFIRMED** (§9) — emits a per-event `condensation_event` with summary, forgotten-message indices and compression metadata on a per-step cycle. Maps to `operation="compaction"`, `content_digest`, `before/after_token_count`. Wrappers and paired-trajectory corpus released **MIT**. Paired baseline-vs-memory design also fits `PairedConditionFact`. | Env fidelity and oracle strength unread at body level. |
+| **MemoryArena** | `arXiv:2602.16313` *Benchmarking Agent Memory in Interdependent Multi-Session Agentic Tasks* | Paper | **Interdependent** multi-session agentic tasks | Cross-session action, not recall | Session interdependence | Task success | Not verified | Task verifier | Data Engineer lane. **CoF:DENIED** (§9) — no memory operation described. But `SessionDependencyFact` **is** available: interdependent subtasks are ground truth by construction, satisfying review §22. Traces are reported per task group. | "Interdependent" is exactly the cross-session-action construct; needs body read to confirm the dependency is genuine. |
+| **STALE** | `arXiv:2605.06527` *STALE: Can LLM Agents Know When Their Memories Are No Longer Valid?* | Paper | Probing framework | **Stale-state detection**; three-dimensional probe incl. State Resolution (source claim) | Validity-invalidating updates | Per-dimension probe scores | Not verified | Probe-defined | Data Engineer lane, stale-override construct (`action_memory.py`, `PairedConditionFact`). **CoF:DENIED** (§9) — the paper models memory as a latent user state that is "not directly observable", inferred from dialogue; metric is average accuracy across settings. No operation exists to emit. | Closest published match to our stale-override construct; body unread. |
+| **Supersede** | `arXiv:2606.27472` *Supersede: Diagnosing and Training the Memory-Update Gap in LLM Agents* | Paper | Multi-session, **bounded memory** (notes capped at B chars), sessions not re-fed (source claim) | **State inversion / supersession** under a hard budget | Value superseded mid-interaction vs not | Whether superseded value is remembered or forgotten | Not verified | Final-query truth | Data Engineer lane, state-inversion construct; bounded-notes cap is the same forcing device as the LOCA padding control on hold at `39022d6`. **CoF:CONFIRMED-POSSIBLE** (§9) — the agent rewrites a bounded notes field after each session and raw sessions are never re-fed, which is a source-native `memory_write` with content identity and session order. Artifact release unconfirmed. | The bounded-notes design is a genuine forced-forgetting control, which most benchmarks lack. |
+| **TEPA** | `arXiv:2608.07429` *TEPA: Revoking Stale Memories for Conflict-Robust Language Agents* | Paper | Unified suite spanning memory state and tool outcomes (source claim) | Stale revocation + drift | Conflict injection | Memory-state and tool-outcome metrics | Not verified | Suite-defined | Data Engineer lane, stale-override construct. **CoF:DENIED** (§9) — full body read, zero memory-operation sentences. Method paper with an evaluation attached. | Method paper with an evaluation attached; not a clean benchmark package. |
 | **Memora** | `arXiv:2604.20006` *From Recall to Forgetting* | Paper | Weeks-to-months personalised sessions | Remember / reason / recommend, **forgetting-aware** | Evolving knowledge over time | Forgetting-aware memory metric (source claim) | Not verified | Automated grounding + human eval | Agent Data ingestion lane. **CoF:no(structural)** — forgetting-aware aggregate metric over sessions. | Personalisation domain is off our axis; the forgetting-aware metric is the transferable part. |
 | **LOCA-bench** | `arXiv:2602.07962` *Benchmarking Language Agents Under Controllable and Extreme Context Growth* | Paper | Controllable growth | Context growth as a **manipulated variable** | Growth level is the intervention | Task success vs growth | Not verified | Task verifier | Data Engineer lane; context-growth control, already on hold at `39022d6` for a padding confound. **CoF:no(structural)** — task success vs growth level. | Our own readiness audit already flagged a padding confound; see §4 duplication. |
 | **ContextBench** | `arXiv:2602.05892` *A Benchmark for Context Retrieval in Coding Agents* | Paper | Coding-agent context retrieval | Retrieval infrastructure, not memory | Retrieval variants | Retrieval accuracy | Not verified | Task verifier | No memory lane. **CoF:no(construct)** — measures retrieval infrastructure; `RetrievalFact` is the contract it would touch, not `ContextOperationFact`. | Measures retrieval plumbing; keep out of the memory theme to avoid construct drift. |
@@ -80,12 +80,12 @@ measure memory and tool use **jointly within one task**, not in separate arms.
 
 | Source | Paper / repo / commit | Licence | Task unit | Construct | Intervention vs comparator | Metric + denominator | Traj. | Oracle indep. | Lane / contract mapping · CoF activation | Evidence limitation |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **Mem2ActBench** | `arXiv:2601.19935` *A Benchmark for Evaluating Long-Term Memory Utilization in Task-Oriented…*; `Cantaloupe-M/Mem2ActBench` @ `b00726940b5a` (2026-01-13) | **NONE DECLARED — no LICENSE file** | Multi-turn conversation → tool call | **Memory-driven tool calling / memory-grounded parameter binding**, evaluated in a single task not separate arms (source claim) | Underspecified request requiring a remembered value | Memory-grounded verification with exact and soft matching; strict schema validation (source claim) | Pipeline released | Schema + memory-grounded verifier, separable from the agent | Data Engineer lane, memory-grounded parameter binding. **CoF:undetermined** — verification is on the tool argument, which is `RetrievalFact.utilized_status` / `SessionDependencyFact.observed_memory_reference` shaped, not a `ContextOperationFact` operation. | Unlicensed. Head is 2026-01-13, thin activity. Body unread, so metric denominators unconfirmed. |
+| **Mem2ActBench** | `arXiv:2601.19935` *A Benchmark for Evaluating Long-Term Memory Utilization in Task-Oriented…*; `Cantaloupe-M/Mem2ActBench` @ `b00726940b5a` (2026-01-13) | **NONE DECLARED — no LICENSE file** | Multi-turn conversation → tool call | **Memory-driven tool calling / memory-grounded parameter binding**, evaluated in a single task not separate arms (source claim) | Underspecified request requiring a remembered value | Memory-grounded verification with exact and soft matching; strict schema validation (source claim) | Pipeline released | Schema + memory-grounded verifier, separable from the agent | Data Engineer lane, memory-grounded parameter binding. **CoF:DENIED** (§9) — the Fact Evolution Chain is ground-truth memory, not an executing-agent operation log, so review §20 forbids emitting operations from it. `SessionDependencyFact` is available since the chain is declared ground truth; scoring on the tool argument is `RetrievalFact.utilized_status` shaped. | Unlicensed. Head is 2026-01-13, thin activity. Body unread, so metric denominators unconfirmed. |
 | **Entity Binding Failures** | `arXiv:2606.30531` *Entity Binding Failures in Tool-Augmented Agents*; `R-Suresh/EntityBindingFailures` @ `af311d10f526` (2026-06-30) | **MIT** | 60 diagnostic tasks, 5 enterprise domains: email, calendar, documents, customer records, issue tracking (source claim) | **Right-tool / wrong-entity** — tool-parameter binding as a first-class failure mode | Ambiguous, underspecified, or confusable target entity; 6 tool-use methods × 5 backends | Binding correctness on the real-world target entity | Diagnostic tasks released | Entity truth is task-defined | Data Engineer lane, binding construct. **CoF:no(structural)** — binding correctness is an argument-level verdict; no memory operation is logged. Fits `PairedConditionFact` and `RetrievalFact` instead. | Diagnostic scale is small (60 tasks) and enterprise-shaped; a source page reported "0 diagnostic tasks" in one summary, so the count needs a body check. |
-| **When Does Memory Help…** | `arXiv:2605.28224` *When Does Memory Help Multi-Trajectory Inference for Tool-Use LLM Agents?* | Paper | Multi-trajectory inference | **The interaction question stated directly** | Memory on/off across trajectories | Not verified | Not verified | Not verified | Data Engineer lane, interaction question. **CoF:undetermined** — nothing beyond identity verified. | Title promises exactly the conditional we need; nothing beyond identity is verified. |
-| **MemToolAgent** | `arXiv:2606.07909` | Paper | Memory-augmented tool use | Joint memory retrieval + reflection + tool execution in one workflow (source claim) | Memory entries from past tool trajectories + user feedback | Tool accuracy plus memory-informed measures (source claim) | Not verified | Not verified | No lane; method, not a controlled evaluation. **CoF:undetermined**. | It is a *method* that improves tool use with memory, not a controlled evaluation of the interaction. |
-| **MemTool** | `arXiv:2507.21428` *Optimizing Short-Term Memory Management for Dynamic Tool Calling* | Paper | Multi-turn conversations | Short-term context management for tool calling; joint, not separate arms (source claim) | Removal/search tool policies | Removal Ratio, Avg Residual 3T (source claim) | Not verified | Not verified | Data Engineer lane; short-term context hygiene overlaps our compaction facts. **CoF:undetermined** — removal-ratio metrics imply a removal event, which is `evict`-shaped; body unread. | Measures context hygiene during tool calling, adjacent to but not identical with long-term memory. |
-| **H-EPM** | `arXiv:2512.07287` *Experience-Evolving Multi-Turn Tool-Use Agent with Hybrid Episodic-Procedural Memory* | Paper | Multi-turn tool use | State-annotated **tool-transition graph** as memory (source claim) | Episodic + procedural memory vs neither | Not verified | Not verified | Not verified | Data Engineer lane; tool-transition graph maps onto existing `trajectory_sequence` edges. **CoF:undetermined**. | The tool-transition-graph representation maps onto our existing `trajectory_sequence` edges. |
+| **When Does Memory Help…** | `arXiv:2605.28224` *When Does Memory Help Multi-Trajectory Inference for Tool-Use LLM Agents?* | Paper | Multi-trajectory inference | **The interaction question stated directly** | Memory on/off across trajectories | Not verified | Not verified | Not verified | Data Engineer lane, interaction question. **CoF:DENIED** (§9) — full body read, zero memory-operation sentences; the paper is a unified memory framework plus analysis, not an operation log. | Title promises exactly the conditional we need; nothing beyond identity is verified. |
+| **MemToolAgent** | `arXiv:2606.07909` | Paper | Memory-augmented tool use | Joint memory retrieval + reflection + tool execution in one workflow (source claim) | Memory entries from past tool trajectories + user feedback | Tool accuracy plus memory-informed measures (source claim) | Not verified | Not verified | No lane; method, not a controlled evaluation. **CoF:DENIED** (§9) — full body read, zero memory-operation sentences. | It is a *method* that improves tool use with memory, not a controlled evaluation of the interaction. |
+| **MemTool** | `arXiv:2507.21428` *Optimizing Short-Term Memory Management for Dynamic Tool Calling* | Paper | Multi-turn conversations | Short-term context management for tool calling; joint, not separate arms (source claim) | Removal/search tool policies | Removal Ratio, Avg Residual 3T (source claim) | Not verified | Not verified | Data Engineer lane. **CoF:CONFIRMED-POSSIBLE BUT CONSTRUCT-DIVERGENT** (§9) — the agent searches, equips and removes tools, so an `evict` is real and typed and Removal Ratio is a genuine per-operation denominator, but the evicted content is a tool definition, not a remembered fact. | Measures context hygiene during tool calling, adjacent to but not identical with long-term memory. |
+| **H-EPM** | `arXiv:2512.07287` *Experience-Evolving Multi-Turn Tool-Use Agent with Hybrid Episodic-Procedural Memory* | Paper | Multi-turn tool use | State-annotated **tool-transition graph** as memory (source claim) | Episodic + procedural memory vs neither | Not verified | Not verified | Not verified | Data Engineer lane; tool-transition graph maps onto existing `trajectory_sequence` edges. **CoF:DENIED** (§9) — full body read, zero memory-operation sentences. | The tool-transition-graph representation maps onto our existing `trajectory_sequence` edges. |
 | **ToolMem** | `arXiv:2510.06664` *Enhancing Multimodal Agents with Learnable Tool Capability Memory* | Paper | Multimodal tool selection | Memory **of tools**, not memory used **by** tools | Capability memory vs none | Tool-proficiency tiers (source claim) | Not verified | Not verified | No lane. **CoF:no(construct)** — remembers tool quality, inverting the construct. | Inverts the construct: it remembers tool quality rather than binding remembered facts into calls. |
 | **ReMe / ToolMemory** | `agentscope-ai/ReMe` @ `65cb4ebdd643` (2026-08-31) | **Apache-2.0** | Framework component | Tool usage/performance memory | n/a | Separate components, no single joint metric (source claim) | n/a | n/a | No lane; framework, not an evaluation. **CoF:no(construct)**. | Actively maintained and permissively licensed, but a framework, not a benchmark. |
 
@@ -100,7 +100,7 @@ Included only where they contribute a construct the memory sources do not.
 | **AgentCheck** | `arXiv:2607.11098`; `aritra741/AgentCheck` @ `2b89d2c5782f` (2026-07-11) | **MIT** | Clean-run/faulted-run pair over a cached MCP prefix; **memory-recovery interaction via the response cache** | First-divergence comparison | *"holds every tool response constant except one, so the divergence is attributable to the injected fault"* — body-quoted | Researcher lane (`mcp_recovery.py`); clean-twin arm is body-quoted. **CoF:no(construct)** — the response cache is retained state but the source logs no memory operation over it. | Bundled 120 scenarios include source-derived cases whose upstream terms are not preserved; engine is clean, scenarios are not. |
 | **ToolMisuseBench** | `arXiv:2604.01508` | Paper | Offline deterministic misuse + recovery | Not verified | Deterministic | Researcher lane. **CoF:no(construct)**. | Cheapest tool-side entry; offline and deterministic. |
 | **FuncBenchGen** | `arXiv:2509.26553`; `megagonlabs/FuncBenchGen` @ `0729e2567dfa` (2026-02-10) | **BSD-3-Clause** | Hidden typed function DAG; **intermediate value propagation** = synthetic parameter binding | Exact target oracle | Generator and oracle are both deterministic and separable | Researcher lane (`mcp_funcdag.py`); value propagation is synthetic parameter binding. **CoF:no(construct)** — deterministic DAG oracle, no memory operation. | Topology/identifier leakage and stale-value shortcuts require partitions and mutants. |
-| **FACET** | `arXiv:2608.18580` *Preserving Source Intent and Executable State in Terminal Task Synthesis* | Paper | Generates instruction, solution **and verifier**, grounding all three in the same realised env state; compares generation orders including Forward I→S→V (source claim) | n/a | **Directly addresses generator/oracle independence** — the brief's question 4 | Synthetic Data lane; generation-order result bears on the funnel materialiser. **n/a** — task synthesis, not memory. | Highest-value unread paper for our synthetic funnel; ordering result could change our materialiser design. |
+| **FACET** | `arXiv:2608.18580` *Preserving Source Intent and Executable State in Terminal Task Synthesis* | Paper | Generates instruction, solution **and verifier**, grounding all three in the same realised env state; compares generation orders including Forward I→S→V (source claim) | n/a | **Directly addresses generator/oracle independence** — the brief's question 4 | Synthetic Data lane. **CoF:n/a** — task synthesis, not memory. §9 records the verbatim four-part acceptance criterion **and retracts** this report's earlier generation-order claim, which the body does not support. | Highest-value unread paper for our synthetic funnel; ordering result could change our materialiser design. |
 | **Anchor** | `arXiv:2605.26321` *Mitigating Artifact Drift in Agent Benchmark Generation* | Paper | Artifact drift in generated benchmarks | Multi-objective reward with per-task checks (source claim) | Verifier framework | Synthetic Data lane, artifact drift. **n/a**. | Drift is the failure mode our task-digest pinning already guards. |
 | **TRACE** | `arXiv:2510.00415` *Towards Self-Evolving Benchmarks: Synthesizing Agent Trajectories via Test-…* | Paper | Evolution proposer → exploration executor → validatable trajectory audit (source claim) | n/a | Trajectory audited, not self-scored | Synthetic Data lane, trajectory audit. **n/a** — distinct from the capability-training TRACE in our corpus; do not conflate. | Note: distinct from the capability-training TRACE cited elsewhere in our corpus; do not conflate. |
 | **BenchAgents** | `arXiv:2410.22584` *Multi-Agent Systems for Structured Benchmark Creation* | Paper | Planning/Generation/Verification/Evaluation agent split | n/a | Verification agent is a separate role | Synthetic Data lane, role separation. **n/a** — a separate agent is not an independent oracle. | Role separation is organisational, not cryptographic; a separate agent is not an independent oracle. |
@@ -257,16 +257,21 @@ Verdicts are in the mapped column of §1–§3. Summarised:
 |---|---|---|
 | **CoF:no (structural)** | LoCoMo, LongMemEval, MemoryAgentBench, BEAM, Memora, LOCA-bench, AMA-Bench, Agent-native memory, Harness-the-Memory, Entity Binding Failures | Recall-only or aggregate-scored. Even with full artifacts released, no per-operation event exists to emit. **These cannot activate `ContextOperationFact` or write/read/use metrics without instrumentation we would have to add ourselves.** |
 | **CoF:no (construct)** | ContextBench, ToolMem, ReMe, ToolSandbox, ToolMaze, AgentCheck, ToolMisuseBench, FuncBenchGen | Measures something other than agent memory operations. |
-| **CoF:undetermined** | STALE, Supersede, TEPA, MemoryArena, MemGym, Mem2ActBench, MemTool, H-EPM, When-Does-Memory-Help, agent-memory-eval | Body unread. `IDENTITY-VERIFIED, METHOD-UNQUOTED`. Activation is unknown, not denied. |
+| **CoF:CONFIRMED** | **MemGym** | Emits source-native `condensation_event` per step. See §9. |
+| **CoF:CONFIRMED-POSSIBLE** | Supersede, MemTool | A real typed operation exists at source; Supersede's is a fact write, MemTool's is a tool eviction. See §9. |
+| **CoF:DENIED after body read** | STALE, TEPA, MemoryArena, Mem2ActBench, MemToolAgent, H-EPM, When-Does-Memory-Help | Body read; no memory operation described. See §9 for the quote per row. |
+| **CoF:undetermined** | agent-memory-eval | Unlicensed, so the package cannot be read. The only row still genuinely undetermined. |
 
 **The honest first result for every source in the first two rows is typed
 unavailable / zero opportunities**, per review §20: `EvidenceCoverage(exposed=False)`
 plus `CapabilityOpportunity.missing_evidence`. Task outcome and trajectory volume may
 still be analysis-ready for those sources; the memory-operation record is not.
 
-Note what this does to the headline count: of 39 verified sources, **zero** are
-confirmed to activate the contract, and ten are merely undetermined pending a body
-read. No source is confirmed to emit an explicit memory operation.
+Headline count, corrected by the §9 body reads: of 39 verified sources, **one is
+confirmed** to activate the contract (MemGym), **two are confirmed-possible**
+(Supersede, MemTool), **seven are denied on body evidence**, and **one remains
+undetermined** because its licence blocks reading it. The earlier claim that zero
+sources activate the contract was a consequence of not having read the bodies.
 
 ## 7. Source-backed candidates
 
@@ -308,13 +313,235 @@ decision — those belong to the named lane.
 **Blockers.** Mem2ActBench and `agent-memory-eval` are unlicensed. ToolSandbox needs
 Peter's licence decision. LoCoMo is NC. TASTE is all-rights-reserved.
 
-**Gaps.** No verified source releases explicit memory-operation logs, so **no source is
-confirmed to activate `ContextOperationFact`** and ten are undetermined pending a body
-read (§6). Body-level reads are missing for STALE, Supersede, Mem2ActBench and FACET, so
-every construct claim about them in §1–§3 is `IDENTITY-VERIFIED, METHOD-UNQUOTED` and
-must not be treated as method evidence. Only ToolMaze's PRR and AgentCheck's arm
-construction carry verbatim body quotes, both from prior work.
+**Gaps.** One source now clears the bar: MemGym emits a per-event
+`condensation_event` and releases its wrappers and paired-trajectory corpus under MIT
+(§9). Supersede and MemTool are confirmed-possible. Seven sources are denied on body
+evidence. Only `agent-memory-eval` remains undetermined, and only because its missing
+licence blocks reading the package. Body-level method quotes now exist for eleven
+sources (§9) in addition to ToolMaze's PRR and AgentCheck's arm construction from prior
+work; rows still marked `(source claim)` in §1–§3 remain abstract-level only.
+
+**Correction carried in §9.** This report previously stated that FACET compares
+generation orders including Forward I→S→V. The body does not support that: `order`,
+`I→S`, `backward` and `reverse` return zero matches, and `forward` appears once, in
+future work. The claim is retracted.
 
 **Proposed shared-contract delta.** `ContextOperationFact` carries no step-order field
 while review §20 requires content identity *and* step order for emission. Reported in §6
 for a single integration owner per §30 and §90; `semantic_facts.py` is not edited here.
+
+---
+
+## 9. Body-read resolution of every undetermined method row
+
+Requested follow-up. Source-only: no adapters, packages, registry records, schemas or
+adoption/priority decisions are created here, and `semantic_facts.py` is untouched.
+
+### Method
+
+Full text was obtained from the arXiv LaTeXML HTML build (`arxiv.org/html/<id>`) for
+eleven papers, parsed section-by-section, and probed for memory-operation events,
+explicit logging, metric denominators and step order. **A probe that found nothing is
+reported as a miss, never filled in by inference.** Three papers also exist as local
+PDFs (`facet-terminal.pdf`, `memory-arena.pdf`, `memgym.pdf`) and agree.
+
+Transcription note: LaTeXML strips `<math>`, so inline symbols are absent from quotes.
+Where a quote reads "capped at characters" the source carries a symbol for the bound.
+Nothing else is elided, and no word is altered.
+
+### Evidence ladder now used
+
+| Tier | Meaning | Count |
+|---|---|---:|
+| `METHOD-QUOTED` | Verbatim from the paper's method/appendix body | 13 |
+| `ABSTRACT-QUOTED` | Verbatim from the published abstract only | — |
+| `IDENTITY-VERIFIED` | Title and authors resolved; no body evidence | remainder |
+
+Previously only two claims sat at `METHOD-QUOTED` (ToolMaze's PRR, AgentCheck's arm
+construction). Eleven more now do.
+
+### MemGym `arXiv:2605.20833` — activation CONFIRMED
+
+The decisive result. §3.2 *Unified Memory Infrastructure*, verbatim:
+
+> "All five environments plug into a common contract ( BaseMemoryEnvironment , BaseAgent
+> , BaseMemoryManager , BaseRunner ) and a single per-step cycle: env.reset()
+> memory_manager.manage_context agent.act env.step ."
+
+> "The memory manager wraps the prompt to the policy LLM and returns a FilteredContext
+> plus a per-event condensation_event (summary, forgotten-message indices, compression
+> metadata); together with the per-step trajectory record ( Appendix F ), this
+> reconstructs the training signal of any episode without re-running it."
+
+Mapped against the contract, prong by prong:
+
+| Prong | Contract field | Satisfied by |
+|---|---|---|
+| A1 discrete operation | `operation_id` | "a per-event `condensation_event`" — one event per compaction |
+| A2 typed kind | `operation` | `compaction`, which is already an enum member |
+| A3 content identity | `content_digest` | "summary, forgotten-message indices" are literal content |
+| A4 step order | **no field** | "a single per-step cycle"; indices are ordered — **order exists at source and our row cannot carry it** |
+| Sizes | `before/after_token_count` | "compression metadata"; §4.2 reports a compression ratio per episode |
+| Provenance | `provenance_kind` | harness-emitted, so `mechanical`; §4.2 labels results "harness-verified" |
+
+Artifacts are released. §C.3 *Asset Licenses*, verbatim:
+
+> "The MemGym wrappers, the paired-trajectory corpus, and the synthetic MemGym-CodeQA /
+> MemGym-DR instances are released under MIT; MemRM weights inherit the Apache-2.0
+> license of the Qwen3-1.7B base."
+
+The paired design also lands on an existing contract rather than a new one: §5 states
+"we score each run by the difference between paired baseline-vs-memory rollouts with the
+same reasoner on both sides", which is `PairedConditionFact` shaped.
+
+Two evidence-quality notes, both in the paper's favour. §C.2 discloses a contaminated
+cell by name — "the only contaminated cell is MemGym-DR Structured (gpt-4o-mini
+summarizer used in error before Bedrock Haiku 4.5 became the documented default)" — and
+§4.2 reports a negative result rather than burying it: memory is "roughly
+information-neutral on coding (where progress lives in the file system and the reasoner
+can re-read what was summarized away)".
+
+**Consequence for the shared-contract delta.** The missing step-order field moves from
+theoretical to load-bearing: MemGym supplies *ordered* forgotten-message indices, so
+ingesting it through `ContextOperationFact` as currently defined would discard ordering
+information we would actually possess.
+
+### Supersede `arXiv:2606.27472` — activation CONFIRMED-POSSIBLE
+
+§3 *The Supersede Environment*, verbatim:
+
+> "The agent processes one session at a time and maintains a bounded memory (a notes
+> field capped at characters); crucially, raw sessions are never re-fed ."
+
+> "The agent rewrites a bounded notes memory after each session and answers the final
+> query from memory alone."
+
+> "Because history is not re-fed, a superseded value that is not overwritten persists
+> and corrupts the answer."
+
+A rewritten notes field per session is a genuine `memory_write` with computable content
+identity and native session order. This is **not** the inference review §20 prohibits:
+the agent literally rewrites a memory artifact, rather than a chat turn being relabelled
+as a write. Overwrite-or-persist is exactly supersession semantics.
+
+§4 also records a methodological result worth keeping, verbatim:
+
+> "Synthetic templated supersession is therefore saturated and cannot surface the
+> failure, which is likely why it is under-measured."
+
+Remaining unknown: artifact release. The body does not state that trajectories or the
+notes series are published, so activation is possible but not demonstrated.
+
+### MemTool `arXiv:2507.21428` — CONFIRMED-POSSIBLE, construct-divergent
+
+§3.1, verbatim: the agent operates "searching, equipping, and removing tools or MCP
+servers, similarly to a human navigating a mobile app store." A removal is a real typed
+operation and Removal Ratio is a genuine per-operation denominator, but the evicted
+content is a tool definition, not a remembered fact. Recorded so the divergence is
+explicit rather than discovered later.
+
+### STALE `arXiv:2605.06527` — activation DENIED
+
+§3.1 *Preliminaries and Notation*, verbatim:
+
+> "We model long-term assistant memory as tracking a latent user state that evolves over
+> time and is only partially observed through dialogue."
+
+> "This state is not directly observable; instead, each user message provides evidence
+> for a subset of attribute value[s]"
+
+A latent, explicitly non-observable state is the opposite of an addressable operation
+with content identity. The memory-operation and explicit-log probes both returned zero
+across the whole paper. §4 confirms the metric shape: "Overall denotes the average
+accuracy across all six settings." §4.1 adds that for plain LLMs "we serialize the full
+dialogue history into a chronological long-context input", so in that condition no
+memory operation exists at all.
+
+Important boundary: CUPMem, the §5 prototype, "strengthens write-time revision through
+structured state consolidation" — but that is a *system the authors propose*, not
+benchmark instrumentation. Running it would mean instrumenting our own system, which is
+not source-native evidence.
+
+### Mem2ActBench `arXiv:2601.19935` — DENIED for `ContextOperationFact`
+
+§3.1 *Overview*, verbatim:
+
+> "we synthesize these interactions into a logically coherent Fact Evolution Chain to
+> serve as a ground-truth memory."
+
+> "Finally, we employ a reverse-generation paradigm, creating underspecified queries
+> derived from ground-truth tool calls."
+
+The Fact Evolution Chain is **task ground truth**, not a log of the executing agent's
+operations. Review §20 forbids manufacturing agent operations from it. It is, however,
+exactly what §22 permits for `SessionDependencyFact`, since the package exposes the
+dependency structure as ground truth. Scoring on the reverse-generated tool call is
+`RetrievalFact.utilized_status` shaped, with the argument as citable evidence. §4.1
+gives the scale: "a total of 429 sessions used."
+
+### MemoryArena `arXiv:2602.16313` — DENIED for `ContextOperationFact`
+
+§3, verbatim: "MemoryArena supports four distinct evaluation environments, where a
+memory-augmented task agent completes a sequence of interdependent subtasks. Each
+subtask session involves multiple agent actions." Interdependence is ground truth by
+construction, so `SessionDependencyFact` is available; no memory operation is described.
+
+### TEPA, H-EPM, MemToolAgent, When-Does-Memory-Help — DENIED
+
+Full bodies read (14,124 / 12,700 / 18,314 / 13,665 characters of extracted text).
+**Zero memory-operation sentences in any of the four.** Reported as measured.
+
+### FACET `arXiv:2608.18580` — retraction, plus a usable quote
+
+**Retraction.** This report previously said FACET "compares generation orders including
+Forward I→S→V (source claim)". Body search returns zero matches for `order`, `I→S`,
+`ISV`, `backward` and `reverse`; `forward` occurs once, in future work ("Looking
+forward, we plan to extend FACET to broader sources of procedural knowledge"). The claim
+came from a search snippet and is withdrawn. The §7 candidate that rested on it needs a
+different basis.
+
+What the body does support, §2.1 verbatim:
+
+> "A synthesized task is accepted when (2) This criterion requires a buildable
+> environment, a non-trivial initial state, an executable reference solution, and a
+> verifier-accepted final state."
+
+A four-part executable acceptance gate is still directly relevant to oracle
+independence. §3.1 gives scale: "approximately 6K validated tasks" with "1.2K complete
+successful trajectories" selected for fine-tuning.
+
+### Licence-permission classification
+
+This classifies **what each licence permits**, which is a legal reading of the licence
+text, not a decision about whether to adopt anything. Adoption and sequencing remain
+with the owning lane.
+
+| Source | Licence, as read from the file | Permission class |
+|---|---|---|
+| LoCoMo `snap-research/locomo` @ `3eb6f2c585f5` | CC BY-NC 4.0; `LICENSE.txt` opens "Attribution-NonCommercial 4.0 International" | **Permissible with conditions.** Use and derivation allowed **non-commercially**, with attribution; derived data inherits NC. Harbor's existing `adapters/locomo` is already bound by this. Prohibited: any commercial use or redistribution under laxer terms. |
+| ToolSandbox `apple/ToolSandbox` @ `165848b9a78c` | Apple custom; `LICENSE` begins "Copyright (C) 2024 Apple Inc. All Rights Reserved." | **Unresolved — needs owner/counsel decision.** Not a standard grant, so neither permission nor prohibition can be asserted from the text alone. Reading the design from the paper is unrestricted; vendoring code or data is not established either way. |
+| TASTE `tomerkeren42/TASTE-…` @ `d53da23956d6` | NOASSERTION; `LICENSE` reads only "Copyright (c) 2026" | **Prohibited for vendoring or derivation.** A bare copyright notice grants nothing. Permissible: reading the paper and reimplementing the method independently. |
+| Mem2ActBench `Cantaloupe-M/Mem2ActBench` @ `b00726940b5a` | No `LICENSE` file | **Prohibited for vendoring or derivation.** Absent a grant, default copyright reserves all rights. Permissible: source inspiration from the paper. |
+| agent-memory-eval `verifiedstate/agent-memory-eval` @ `6c82208f7638` | No `LICENSE` file | **Prohibited for vendoring or derivation.** Same reasoning. This is also why its activation row stays undetermined: the package cannot be read to settle it. |
+| recovery-bench `letta-ai/recovery-bench` @ `c5f83f2ba4f8` | No root `LICENSE`; licence endpoint returns 404 | **Prohibited for vendoring or derivation.** Independently of licence, its selection on `reward == 0` without a clean twin is a structural confound. |
+
+Contrast, for completeness: MemGym's wrappers and paired-trajectory corpus are **MIT**
+per §C.3, which is the only confirmed-activating source and is also the least
+encumbered. The correlation noted in §5 — that the best-designed artifacts were the
+least usable — does not hold for MemGym.
+
+### Irreducible blockers
+
+1. **`ContextOperationFact` has no step-order field.** Now blocking rather than
+   theoretical, because MemGym supplies ordered indices that the row cannot carry.
+   Needs one named integration owner; `semantic_facts.py` is on the review §90 shared
+   list and is not edited here.
+2. **Supersede artifact release is unstated.** The body does not say whether notes
+   series or trajectories are published. Resolvable only by the authors or a repository
+   that the paper does not name.
+3. **Three repositories cannot be vendored** at any effort level until their owners add
+   a licence: Mem2ActBench, agent-memory-eval, recovery-bench.
+4. **ToolSandbox needs a human decision**, not more research. The licence text is
+   already read and quoted; what remains is a judgement no agent should make.
+5. **`agent-memory-eval` activation is unresolvable while unlicensed** — the blocker is
+   the licence, not the reading effort.

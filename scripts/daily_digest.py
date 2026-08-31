@@ -12,10 +12,10 @@ import argparse
 import datetime
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -313,9 +313,8 @@ def classify_prs(prs: list[dict[str, Any]] | None, target_date: str) -> dict[str
     for pr in prs:
         state = str(pr.get("state", "")).upper()
         merged_at = pr.get("mergedAt")
-        if (state == "MERGED" or merged_at) and merged_at:
-            if str(merged_at).startswith(target_date):
-                merged_prs.append(pr)
+        if (state == "MERGED" or merged_at) and merged_at and str(merged_at).startswith(target_date):
+            merged_prs.append(pr)
 
         if state == "OPEN":
             open_prs.append(pr)

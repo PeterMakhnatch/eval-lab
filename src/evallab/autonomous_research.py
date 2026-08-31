@@ -42,7 +42,7 @@ class ScoreScaleBindingV1(ContractModel):
     direction: Literal["higher", "lower"]
     visible_split_id: str = Field(min_length=1)
     hidden_split_id: str = Field(min_length=1)
-    normalization_digest: str | None = None
+    normalization_digest: str = Field(min_length=1)
     binding_digest: str
 
     @classmethod
@@ -53,8 +53,10 @@ class ScoreScaleBindingV1(ContractModel):
         direction: Literal["higher", "lower"],
         visible_split_id: str,
         hidden_split_id: str,
-        normalization_digest: str | None = None,
+        normalization_digest: str,
     ) -> ScoreScaleBindingV1:
+        if not normalization_digest or not normalization_digest.strip():
+            raise ValueError("normalization_digest must be non-empty")
         body = {
             "direction": direction,
             "hidden_split_id": hidden_split_id,

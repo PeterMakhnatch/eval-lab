@@ -25,6 +25,7 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
         direction="higher",
         visible_split_id="val",
         hidden_split_id="test",
+        normalization_digest="sha256:" + "norm" * 16,
     )
     trace = ResearchRunTraceV1(
         run_id="rsi-run-1",
@@ -299,10 +300,22 @@ def test_score_scale_binding_validation_and_transfer_gap_gate() -> None:
         direction="higher",
         visible_split_id="public_val",
         hidden_split_id="private_test",
+        normalization_digest="sha256:" + "norm" * 16,
     )
 
     # Valid binding digest validation
     assert binding.binding_digest.startswith("sha256:")
+    assert binding.normalization_digest == "sha256:" + "norm" * 16
+
+    # Refuses missing or empty normalization_digest
+    with pytest.raises(ValueError, match="normalization_digest"):
+        ScoreScaleBindingV1.create(
+            metric_name="accuracy",
+            direction="higher",
+            visible_split_id="public_val",
+            hidden_split_id="private_test",
+            normalization_digest="",
+        )
 
     # Tampered binding digest raises ValueError
     with pytest.raises(ValueError, match="digest mismatch"):
@@ -311,10 +324,9 @@ def test_score_scale_binding_validation_and_transfer_gap_gate() -> None:
             direction="higher",
             visible_split_id="public_val",
             hidden_split_id="private_test",
+            normalization_digest="sha256:" + "norm" * 16,
             binding_digest="sha256:bad_digest",
         )
-
-    # Direction mismatch between binding and trace raises ValueError
     with pytest.raises(ValueError, match="does not match trace score_direction"):
         ResearchRunTraceV1(
             run_id="mismatch-run",
@@ -453,6 +465,7 @@ def test_lower_is_better_score_direction_semantics() -> None:
         direction="lower",
         visible_split_id="val",
         hidden_split_id="test",
+        normalization_digest="sha256:" + "norm" * 16,
     )
     trace = ResearchRunTraceV1(
         run_id="loss-opt-run",
@@ -583,6 +596,7 @@ def test_benchmark_feature_coverage_and_yield() -> None:
         direction="higher",
         visible_split_id="val",
         hidden_split_id="test",
+        normalization_digest="sha256:" + "norm" * 16,
     )
     trace = ResearchRunTraceV1(
         run_id="eval-run-yield",

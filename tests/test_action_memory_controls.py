@@ -38,6 +38,7 @@ CANARY_PAIR_ID = canary.CANARY_PAIR_ID
 CANARY_SEED = canary.CANARY_SEED
 CANARY_TASK_NON_INVERTED = canary.CANARY_TASK_NON_INVERTED
 CANARY_TASK_INVERTED = canary.CANARY_TASK_INVERTED
+CANARY_TOOL_SCHEMA_DIGEST = canary.CANARY_TOOL_SCHEMA_DIGEST
 CanaryPairSpec = canary.CanaryPairSpec
 build_canary_pair_spec = canary.build_canary_pair_spec
 emit_canary_paired_condition_fact = canary.emit_canary_paired_condition_fact
@@ -58,7 +59,7 @@ def test_canary_pair_spec_freezes_exact_single_contrast(canary_spec: CanaryPairS
     assert canary_spec.target_entity.startswith("entity_")
     assert canary_spec.target_attribute == "routing_key"
     assert canary_spec.initial_value != canary_spec.inverted_value
-    assert canary_spec.tool_inventory_digest.startswith("sha256:")
+    assert canary_spec.tool_inventory_digest == CANARY_TOOL_SCHEMA_DIGEST
 
     arm0 = canary_spec.non_inverted_scenario
     arm1 = canary_spec.inverted_scenario
@@ -331,7 +332,8 @@ def test_campaign_spec_validity_and_zero_billable_guard(canary_spec: CanaryPairS
     assert pair["dose_bytes"] == 4096
     assert pair["realized_context_bytes"] == 4096
     assert pair["contrast_variable"] == "state_inversion_status"
-    assert pair["tool_schema_digest"] == canary_spec.tool_inventory_digest
+    assert canary_spec.tool_inventory_digest == CANARY_TOOL_SCHEMA_DIGEST
+    assert pair["tool_schema_digest"] == CANARY_TOOL_SCHEMA_DIGEST
     assert pair["verifier_truth_digest"] == canary_spec.verifier_truth_digest
     assert len(pair["arms"]) == 2
     assert pair["arms"][0]["task_id"] == CANARY_TASK_NON_INVERTED

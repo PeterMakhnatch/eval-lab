@@ -9,15 +9,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal, TypeVar, get_args, get_type_hints
+from typing import Annotated, Any, Literal, TypeVar, get_args, get_type_hints
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, JsonValue, field_validator, model_validator
 
 from evallab.schemas import ContractModel
 
@@ -33,78 +34,59 @@ def _digest(value: Any) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
-CONTEXT_OPERATION_PAYLOAD_DOMAIN: bytes = b"evallab.context-operation-payload.v1\x00"
-REQUIRED_CONTEXT_PAYLOAD_KEYS: frozenset[str] = frozenset(
-    {"summary", "forgotten_message_indices", "compression_metadata"}
-)
+CONTEXT_OPERATION_PAYLOAD_DOMAIN = b"evallab.context-operation-payload.v1\x00"
 
 
-def context_operation_content_digest(payload: Mapping[str, Any]) -> Digest:
-    """Digest one exact canonical context-operation payload with versioned domain separation.
+def _validate_json_value(value: Any, *, path: str) -> None:
+    if value is None or isinstance(value, str | bool | int):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{path} must not contain non-finite numbers")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_json_value(item, path=f"{path}[{index}]")
+        return
+    if isinstance(value, dict):
+        if not all(isinstance(key, str) for key in value):
+            raise ValueError(f"{path} keys must all be strings")
+        for key, item in value.items():
+            _validate_json_value(item, path=f"{path}.{key}")
+        return
+    raise ValueError(f"{path} contains unsupported non-JSON value {type(value).__name__}")
 
-    Requires exact keys:
-        - summary: str
-        - forgotten_message_indices: Sequence[int] of non-negative strict integers
-        - compression_metadata: Mapping[str, Any] with string keys and JSON-serializable values
 
-    Rejects missing keys, extra keys, non-string keys, invalid index types (bool, float, str, negative),
-    or non-JSON metadata.
-    """
-    if not isinstance(payload, Mapping):
-        raise ValueError(f"context operation payload must be a mapping, got {type(payload).__name__}")
+class ContextOperationPayloadV1(ContractModel):
+    """Exact canonical payload covered by a context-operation content digest."""
 
-    payload_keys = set(payload.keys())
-    if payload_keys != REQUIRED_CONTEXT_PAYLOAD_KEYS:
-        missing = sorted(REQUIRED_CONTEXT_PAYLOAD_KEYS - payload_keys)
-        extra = sorted(payload_keys - REQUIRED_CONTEXT_PAYLOAD_KEYS)
-        details = []
-        if missing:
-            details.append(f"missing={missing}")
-        if extra:
-            details.append(f"extra={extra}")
-        raise ValueError(f"context operation payload keys mismatch: {', '.join(details)}")
+    summary: str = Field(strict=True)
+    forgotten_message_indices: tuple[
+        Annotated[int, Field(ge=0, strict=True)],
+        ...,
+    ]
+    compression_metadata: dict[str, JsonValue]
 
-    summary = payload["summary"]
-    if not isinstance(summary, str):
-        raise ValueError(f"summary must be a string, got {type(summary).__name__}")
+    @field_validator("compression_metadata", mode="before")
+    @classmethod
+    def metadata_is_canonical_json(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            raise ValueError("compression_metadata must be a JSON object")
+        _validate_json_value(value, path="compression_metadata")
+        return value
 
-    raw_indices = payload["forgotten_message_indices"]
-    if not isinstance(raw_indices, (list, tuple)) or isinstance(raw_indices, (str, bytes)):
-        raise ValueError(
-            f"forgotten_message_indices must be a list or tuple of integers, got {type(raw_indices).__name__}"
-        )
-    validated_indices: list[int] = []
-    for idx, item in enumerate(raw_indices):
-        if isinstance(item, bool) or not isinstance(item, int) or item < 0:
-            raise ValueError(
-                f"forgotten_message_indices[{idx}] must be a strict non-negative integer, got {item!r} ({type(item).__name__})"
-            )
-        validated_indices.append(item)
 
-    compression_metadata = payload["compression_metadata"]
-    if not isinstance(compression_metadata, Mapping) or isinstance(compression_metadata, str):
-        raise ValueError(
-            f"compression_metadata must be a mapping, got {type(compression_metadata).__name__}"
-        )
-    if not all(isinstance(k, str) for k in compression_metadata):
-        raise ValueError("compression_metadata keys must all be strings")
-
-    canonical_obj = {
-        "summary": summary,
-        "forgotten_message_indices": validated_indices,
-        "compression_metadata": dict(compression_metadata),
-    }
-
-    try:
-        canonical_json_bytes = json.dumps(
-            canonical_obj,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"compression_metadata contains non-JSON serializable values: {exc}") from exc
-
+def context_operation_content_digest(payload: ContextOperationPayloadV1) -> Digest:
+    """Hash the exact v1 payload under its versioned domain."""
+    if not isinstance(payload, ContextOperationPayloadV1):
+        raise TypeError("context operation payload must be ContextOperationPayloadV1")
+    canonical_json_bytes = json.dumps(
+        payload.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
     digest_bytes = CONTEXT_OPERATION_PAYLOAD_DOMAIN + canonical_json_bytes
     return f"sha256:{hashlib.sha256(digest_bytes).hexdigest()}"
 
@@ -549,6 +531,7 @@ __all__ = [
     "ConstraintFact",
     "ContextOperationFact",
     "CONTEXT_OPERATION_PAYLOAD_DOMAIN",
+    "ContextOperationPayloadV1",
     "context_operation_content_digest",
     "PairedConditionFact",
     "SessionDependencyFact",

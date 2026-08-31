@@ -4,6 +4,8 @@ The producer consumes structured experiment iterations rather than asking an LLM
 to infer research quality from prose. Visible/hidden transfer is emitted only
 when the task declares the score scales comparable. Grounded in research-loop
 methodology across RSI-Exam, RE-Bench, PaperBench, MLE-bench, CORE-Bench, and AgentBoard.
+Supports both higher-is-better (reward, accuracy) and lower-is-better (loss, error)
+score directions.
 """
 
 from __future__ import annotations
@@ -67,6 +69,7 @@ class ResearchRunTraceV1(ContractModel):
     benchmark_family: str = Field(min_length=1)
     source_digest: str
     baseline_visible_score: float | None = None
+    score_direction: Literal["higher", "lower"] = "higher"
     hidden_score: float | None = None
     score_scale_compatible: bool = False
     budget_seconds: float | None = Field(default=None, gt=0)
@@ -110,6 +113,7 @@ class AutonomousResearchFeatures:
     # Identity & metadata
     run_id: str
     benchmark_family: str
+    score_direction: str
 
     # 1. Experiment Throughput & Validity (RSI-Exam, MLE-bench, RE-Bench)
     iteration_count: int
@@ -213,6 +217,7 @@ def extract_autonomous_research_features(
     """Compute research-loop efficiency, selection, and generalization features."""
     iterations = list(trace.iterations)
     iteration_count = len(iterations)
+    is_lower = trace.score_direction == "lower"
 
     # 1. Experiment Throughput & Validity
     measured = [iteration for iteration in iterations if iteration.visible_score is not None]
@@ -265,17 +270,19 @@ def extract_autonomous_research_features(
     measured_scores = [
         iteration.visible_score for iteration in iterations if iteration.visible_score is not None
     ]
+
+    # Direction-aware regression count and max consecutive streak
     regression_count = sum(
-        current < previous
+        (current > previous) if is_lower else (current < previous)
         for previous, current in zip(measured_scores, measured_scores[1:], strict=False)
     )
     regression_rate = regression_count / (measured_count - 1) if measured_count > 1 else None
 
-    # Max consecutive regressions streak
     max_consecutive_regressions = 0
     current_reg_streak = 0
     for previous, current in zip(measured_scores, measured_scores[1:], strict=False):
-        if current < previous:
+        is_worse = (current > previous) if is_lower else (current < previous)
+        if is_worse:
             current_reg_streak += 1
             if current_reg_streak > max_consecutive_regressions:
                 max_consecutive_regressions = current_reg_streak
@@ -284,19 +291,25 @@ def extract_autonomous_research_features(
 
     # 4. Score-Time Curves & Dynamics
     baseline = trace.baseline_visible_score
-    best_visible = max(measured_scores) if measured_scores else None
-    final_visible = measured_scores[-1] if measured_scores else None
+    if measured_scores:
+        best_visible = min(measured_scores) if is_lower else max(measured_scores)
+        final_visible = measured_scores[-1]
+    else:
+        best_visible = None
+        final_visible = None
 
-    visible_improvement = (
-        best_visible - baseline if best_visible is not None and baseline is not None else None
-    )
+    if best_visible is not None and baseline is not None:
+        visible_improvement = (baseline - best_visible) if is_lower else (best_visible - baseline)
+    else:
+        visible_improvement = None
+
     improvement_per_experiment = (
         visible_improvement / measured_count
         if visible_improvement is not None and measured_count > 0
         else None
     )
 
-    # First improvement iteration & timing
+    # First improvement iteration & timing (strictly better than baseline)
     first_improvement_iteration: int | None = None
     time_to_first_improvement_seconds: float | None = None
     if baseline is not None:
@@ -304,11 +317,17 @@ def extract_autonomous_research_features(
         for index, iteration in enumerate(iterations, start=1):
             if iteration.elapsed_seconds is not None:
                 cum_time += iteration.elapsed_seconds
-            if iteration.visible_score is not None and iteration.visible_score > baseline:
-                first_improvement_iteration = index
-                if iteration.elapsed_seconds is not None:
-                    time_to_first_improvement_seconds = cum_time
-                break
+            if iteration.visible_score is not None:
+                is_improved = (
+                    (iteration.visible_score < baseline)
+                    if is_lower
+                    else (iteration.visible_score > baseline)
+                )
+                if is_improved:
+                    first_improvement_iteration = index
+                    if iteration.elapsed_seconds is not None:
+                        time_to_first_improvement_seconds = cum_time
+                    break
 
     # Best improvement iteration & timing
     best_improvement_iteration: int | None = None
@@ -336,10 +355,11 @@ def extract_autonomous_research_features(
     # Plateau streak max (longest streak of measured iterations without setting a new high score)
     plateau_streak_max = 0
     current_plateau = 0
-    running_max = -float("inf")
+    running_best = float("inf") if is_lower else -float("inf")
     for score in measured_scores:
-        if score > running_max:
-            running_max = score
+        is_strictly_better = (score < running_best) if is_lower else (score > running_best)
+        if is_strictly_better:
+            running_best = score
             current_plateau = 0
         else:
             current_plateau += 1
@@ -349,7 +369,9 @@ def extract_autonomous_research_features(
     # Late improvement share
     late_improvement_share = None
     if baseline is not None and measured_scores and best_visible is not None:
-        total_gain = max(0.0, best_visible - baseline)
+        total_gain = (
+            max(0.0, baseline - best_visible) if is_lower else max(0.0, best_visible - baseline)
+        )
         if total_gain > 0:
             midpoint = max(1, math.ceil(iteration_count / 2))
             early_scores = [
@@ -357,8 +379,12 @@ def extract_autonomous_research_features(
                 for iteration in iterations[:midpoint]
                 if iteration.visible_score is not None
             ]
-            early_best = max([baseline, *early_scores])
-            late_improvement_share = max(0.0, best_visible - early_best) / total_gain
+            if is_lower:
+                early_best = min([baseline, *early_scores])
+                late_improvement_share = max(0.0, early_best - best_visible) / total_gain
+            else:
+                early_best = max([baseline, *early_scores])
+                late_improvement_share = max(0.0, best_visible - early_best) / total_gain
 
     # 5. Milestone & Rubric Progression
     required_milestones = trace.required_milestones
@@ -375,19 +401,20 @@ def extract_autonomous_research_features(
         completed_rubric_subtasks / total_rubric_subtasks if total_rubric_subtasks > 0 else None
     )
 
-    # 6. Final-Selection Regret
+    # 6. Final-Selection Regret (non-negative loss from choosing final instead of best)
     optimal_selection_flag = (
         (final_visible == best_visible)
         if final_visible is not None and best_visible is not None
         else None
     )
-    final_selection_regret = (
-        best_visible - final_visible
-        if best_visible is not None and final_visible is not None
-        else None
-    )
+    if best_visible is not None and final_visible is not None:
+        final_selection_regret = (
+            (final_visible - best_visible) if is_lower else (best_visible - final_visible)
+        )
+    else:
+        final_selection_regret = None
 
-    # 7. Hidden-Transfer Gap & Generalization
+    # 7. Hidden-Transfer Gap & Generalization (raw delta: hidden_score - final_visible)
     transfer_gap = None
     if (
         trace.score_scale_compatible
@@ -453,6 +480,7 @@ def extract_autonomous_research_features(
     body = {
         "run_id": trace.run_id,
         "benchmark_family": trace.benchmark_family,
+        "score_direction": trace.score_direction,
         # 1. Experiment Throughput & Validity
         "iteration_count": iteration_count,
         "measured_iteration_count": measured_count,

@@ -82,7 +82,7 @@
     "autonomous-research-v1": {
       "producer_module": "evallab.autonomous_research",
       "source_table": "autonomous_research_runs",
-      "feature_count": 62,
+      "feature_count": 68,
       "constructs": [
         "Autonomous Research & Method Improvement",
         "Score-Time Dynamics & Budget Scaling",
@@ -101,6 +101,10 @@
         "AgentBoard"
       ],
       "feature_inventory": [
+        {"name": "source_kind", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "source_version", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "source_record_id", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "source_revision_id", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "score_direction", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "measured_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
@@ -136,8 +140,10 @@
         {"name": "completed_rubric_subtasks", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Milestone & Rubric Progression"},
         {"name": "milestone_completion_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "required_milestones", "construct": "Milestone & Rubric Progression"},
         {"name": "rubric_completion_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "total_rubric_subtasks", "construct": "Milestone & Rubric Progression"},
+        {"name": "selected_iteration_id", "type": "VARCHAR", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "optimal_selection_flag", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "final_selection_regret", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "scale_binding_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "score_scale_compatible", "type": "BOOLEAN", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "hidden_score", "type": "DOUBLE", "category": "benchmark_ground_truth", "causal_grade": "C3", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "visible_hidden_transfer_gap", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C2", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},

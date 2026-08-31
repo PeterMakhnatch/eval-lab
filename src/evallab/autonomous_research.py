@@ -648,8 +648,13 @@ def extract_autonomous_research_features(
         completed_rubric_subtasks / total_rubric_subtasks if total_rubric_subtasks > 0 else None
     )
 
-    # 6. Final-Selection Regret (derived strictly from selected candidate, NULL if no selection)
-    if selected_iteration is not None and final_visible is not None and best_visible is not None:
+    # 6. Final-Selection Regret (requires at least two genuine selection decisions)
+    if (
+        selection_decision_count >= 2
+        and selected_iteration is not None
+        and final_visible is not None
+        and best_visible is not None
+    ):
         optimal_selection_flag = final_visible == best_visible
         final_selection_regret = (
             (final_visible - best_visible) if is_lower else (best_visible - final_visible)

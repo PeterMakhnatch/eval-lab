@@ -114,9 +114,9 @@
     "elapsed_seconds": 302.58024,
     "environment_setup_seconds": 2.300652,
     "experiment_throughput_per_hour": 11.897670515430882,
-    "feature_digest": "sha256:34f0aa26bd7ee18f9073e2b0c3b27ee24c53f8a2b1dd3df3ef48715c96e54b8b",
+    "feature_digest": "sha256:5af1aa2448a76150e17ec4f84949e91a3b787ebe9ab12ae9f674a22ff29721b2",
     "final_artifact_digest": "sha256:0e6c6fb926bbc1c9ded0662b6f2ae24034dafee564b499a18c00eb3f09be6459",
-    "final_selection_regret": 0.0,
+    "final_selection_regret": null,
     "final_visible_score": 0.2047548822462361,
     "first_improvement_iteration": 1,
     "hidden_outcome_binding_digest": "sha256:fd669e2402548b7fd1e91db6683cf7721b9898344cce2b34881d1e1d8c9e974c",
@@ -133,7 +133,7 @@
     "measured_iteration_count": 1,
     "metric_config_digest": "sha256:f63376719f843cfd94d009f0243d95f0b35cedeaedd3219d42f0b4f1d08c4dd1",
     "milestone_completion_rate": null,
-    "optimal_selection_flag": true,
+    "optimal_selection_flag": null,
     "plateau_streak_max": 0,
     "regression_count": 0,
     "regression_rate": null,
@@ -176,6 +176,24 @@
     "visible_improvement": 0.2047548822462361,
     "visible_outcome_binding_digest": "sha256:84c947a472264a9fdaedb8b8c24e6cd3008438fd133451bdd250e94da6d72d81"
   },
+  "feature_findings": [
+    {
+      "feature": "composite_outcome_validity",
+      "finding": "The agent timed out at the bounded horizon, but the selected artifact was preserved and the separate verifier completed with reward 0.18143598030936073; agent and verifier axes must remain distinct."
+    },
+    {
+      "feature": "experiment_log_artifact_conformance",
+      "finding": "The selected v1 artifact exists and was scored, while experiment_log.md records only v0; the selected method is not reconstructible from the experiment log alone."
+    },
+    {
+      "feature": "selected_artifact_validation_coverage",
+      "finding": "The selected v1 has a comparable visible evaluation and successful sealed replay, but only one genuine selection decision; optimal-selection and regret metrics remain null rather than reporting a degenerate zero."
+    },
+    {
+      "feature": "anytime_final_score_gap",
+      "finding": "The visible final component 0.3122309725015611 exceeds the anytime component 0.1586937007082396 by 0.1535372717933215, identifying early localization as the next optimization target."
+    }
+  ],
   "harbor_ingestion_smoke": {
     "derived_dir": "/tmp/evallab-rsi-bbo-derived",
     "jobs": 1,
@@ -228,6 +246,7 @@
     ]
   },
   "research_process": {
+    "anytime_final_score_gap": 0.15353727179332152,
     "artifact_versions": [
       "v0",
       "v1"
@@ -240,6 +259,8 @@
     ],
     "observed_failed_attempts": 2,
     "observed_strategy_changes_after_failure": 2,
+    "selected_artifact_sealed_replay_validated": true,
+    "selected_artifact_visible_full_suite_validated": true,
     "selected_hypothesis": "Use a compact bounded CMA-style evolution strategy with population ranking for smooth noisy 10D search.",
     "selected_version": "v1",
     "substantive_iterations": 1,

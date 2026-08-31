@@ -3780,10 +3780,13 @@ register_trajectory_feature(
     is_screening=False,
     source_table="autonomous_research_runs",
     formula_or_rule="final_visible_score == best_visible_score",
-    null_condition="NULL when selected_iteration_id is not supplied or final_visible_score is NULL",
-    description="Boolean flag indicating whether the final submitted iteration achieved peak score.",
+    null_condition=(
+        "NULL when selection_decision_count < 2, selected_iteration_id is not supplied, "
+        "or final_visible_score is NULL"
+    ),
+    description="Whether the submitted iteration was best among at least two selection candidates.",
     denominator_policy="not_applicable",
-    declared_inputs=("final_visible_score", "best_visible_score"),
+    declared_inputs=("selection_decision_count", "final_visible_score", "best_visible_score"),
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Optimal selection indicates the agent correctly submitted its highest-performing checkpoint",
@@ -3792,6 +3795,7 @@ register_trajectory_feature(
     causal_grade="C1",
     evidence_grade="Grade A",
     metric_order=1,
+    eligibility_precondition="selection_decision_count >= 2",
     family="autonomous-research-v1",
 )
 register_trajectory_feature(
@@ -3801,10 +3805,13 @@ register_trajectory_feature(
     is_screening=False,
     source_table="autonomous_research_runs",
     formula_or_rule="best_visible_score - final_visible_score",
-    null_condition="NULL when selected_iteration_id is not supplied or final_visible_score is NULL",
-    description="Score loss incurred by submitting a checkpoint inferior to the best discovered.",
+    null_condition=(
+        "NULL when selection_decision_count < 2, selected_iteration_id is not supplied, "
+        "or final_visible_score is NULL"
+    ),
+    description="Score loss from selecting among at least two candidate checkpoints.",
     denominator_policy="not_applicable",
-    declared_inputs=("best_visible_score", "final_visible_score"),
+    declared_inputs=("selection_decision_count", "best_visible_score", "final_visible_score"),
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Selection regret quantifies model degradation caused by selecting a suboptimal checkpoint",
@@ -3813,6 +3820,7 @@ register_trajectory_feature(
     causal_grade="C1",
     evidence_grade="Grade A",
     metric_order=1,
+    eligibility_precondition="selection_decision_count >= 2",
     family="autonomous-research-v1",
 )
 

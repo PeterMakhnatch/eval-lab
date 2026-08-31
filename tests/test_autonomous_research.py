@@ -261,8 +261,8 @@ def test_selected_iteration_id_governs_final_visible_score_and_regret() -> None:
         selected_iteration_id="v4",  # v4 is peak score (14.0)
         iterations=(
             ResearchIterationV1(iteration_id="v1", visible_score=11.0),
-            ResearchIterationV1(iteration_id="v4", visible_score=14.0),
-            ResearchIterationV1(iteration_id="v5", visible_score=12.0),
+            ResearchIterationV1(iteration_id="v4", visible_score=14.0, disposition="kept"),
+            ResearchIterationV1(iteration_id="v5", visible_score=12.0, disposition="reverted"),
         ),
     )
     features_opt = extract_autonomous_research_features(trace_optimal)
@@ -270,6 +270,29 @@ def test_selected_iteration_id_governs_final_visible_score_and_regret() -> None:
     assert features_opt.final_visible_score == 14.0
     assert features_opt.final_selection_regret == 0.0
     assert features_opt.optimal_selection_flag is True
+
+
+def test_selection_metrics_require_two_decisions() -> None:
+    trace = ResearchRunTraceV1(
+        run_id="single-selection-run",
+        benchmark_family="rsi-exam/single",
+        source_digest="sha256:" + "0" * 64,
+        baseline_visible_score=10.0,
+        selected_iteration_id="v1",
+        iterations=(
+            ResearchIterationV1(
+                iteration_id="v1",
+                visible_score=14.0,
+                disposition="kept",
+            ),
+        ),
+    )
+
+    features = extract_autonomous_research_features(trace)
+    assert features.selection_decision_count == 1
+    assert features.final_visible_score == 14.0
+    assert features.optimal_selection_flag is None
+    assert features.final_selection_regret is None
 
 
 def test_fail_closed_candidate_selection_invariants() -> None:
@@ -653,8 +676,8 @@ def test_consecutive_regressions_and_plateau_streaks() -> None:
             ResearchIterationV1(iteration_id="i2", visible_score=11.0),
             ResearchIterationV1(iteration_id="i3", visible_score=10.0),
             ResearchIterationV1(iteration_id="i4", visible_score=9.0),
-            ResearchIterationV1(iteration_id="i5", visible_score=15.0),
-            ResearchIterationV1(iteration_id="i6", visible_score=14.0),
+            ResearchIterationV1(iteration_id="i5", visible_score=15.0, disposition="kept"),
+            ResearchIterationV1(iteration_id="i6", visible_score=14.0, disposition="kept"),
         ),
     )
     features = extract_autonomous_research_features(trace)

@@ -1,15 +1,19 @@
-"""Inspect AI EvalLog ingestion and normalization into Eval Lab's canonical trajectory spine.
+"""Inspect AI EvalLog ingestion and normalization into Eval Lab's source evidence tables.
 
 Invariants:
-1. Raw Source Fidelity: Raw Inspect EvalLogs are read via the official API (or structured JSON),
-   preserving source-native epochs, multi-score entries, sample UUIDs, limits, retry errors, and events.
-2. No Flattening / No Silent Coercion: Inspect epochs are distinct attempts, never flattened into
-   Harbor retries; arbitrary scorer outputs remain in the 'inspect' outcome namespace under 'inspect_scorer'
-   authority and are never coerced into primary benchmark reward.
-3. Content-Addressed Lineage: Source digests and deterministic rebuild digests link canonical facts,
-   source-native tables, and CAS-archived evidence manifests.
-4. Fail-Closed Validation: Rejects malformed log roots, missing/invalid schema versions, identity collisions,
-   and inconsistent projection rows.
+1. Raw Source Fidelity: Production Inspect EvalLogs are read via the official API (inspect_ai.log.read_eval_log),
+   preserving source-native epochs, multi-score entries, sample UUIDs, limits, retry error chains, and events.
+   JSON fixtures are explicitly segregated into test-only fixture loaders and never attributed official validation.
+2. No Flattening / No Silent Coercion: Inspect epochs and retry attempts are distinct ordered attempts
+   (with ordinal, retry_of, and terminal indicators), never flattened into Harbor retries; arbitrary scorer
+   outputs remain non-decision evidence in the 'inspect' outcome namespace under 'non_decision' authority with
+   is_deterministic=False and are never coerced into primary benchmark reward.
+3. Stable Run Identity: Run identity is derived from official eval_id (or run_id) domain-separated from
+   source revision digest, with content-scoped fallback preserved for evidence-only runs.
+4. Source Evidence Storage: Storage writes only inspect_* source tables in discoverable partition roots,
+   avoiding premature or unverified mapping into canonical trajectory tables.
+5. Content-Addressed Lineage: Source manifests explicitly declare evidence_only=True, projector identity,
+   source revision, rebuild digests, and mandatory CAS archive linkage.
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ import hashlib
 import importlib
 import json
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -28,13 +32,6 @@ from uuid import UUID
 import pyarrow as pa
 from pydantic import Field
 
-from evallab.evidence.atif import (
-    ObservationFact,
-    StepFact,
-    ToolCallFact,
-    TrajectoryFact,
-    TrialTrajectoryProjection,
-)
 from evallab.schemas import ContractModel
 
 ATTACHMENT_PROTOCOLS = ("attachment://", "tc://")
@@ -143,16 +140,21 @@ def _text(value: Any) -> str:
 class InspectRunFactV1(ContractModel):
     schema_version: Literal["inspect-run-fact/v1"] = "inspect-run-fact/v1"
     job_id: str
+    identity_source: Literal["eval_id", "run_id", "content_digest_fallback"]
+    eval_id: str | None = None
+    run_id: str | None = None
+    source_revision: str | None = None
     source_path: str
     source_digest: str
     inspect_log_version: int | None = None
     status: str
     task_name: str | None = None
     model_name: str | None = None
-    run_id: str | None = None
     created_at: str | None = None
     completed_at: str | None = None
     sample_count: int = Field(ge=0)
+    validator: str = "inspect_ai.log.read_eval_log"
+    evidence_only: bool = True
     rebuild_digest: str | None = None
     eval_spec_digest: str | None = None
     plan_name: str | None = None
@@ -162,6 +164,10 @@ class InspectAttemptFactV1(ContractModel):
     schema_version: Literal["inspect-attempt-fact/v1"] = "inspect-attempt-fact/v1"
     job_id: str
     trial_id: str
+    attempt_id: str
+    ordinal: int = Field(ge=0)
+    retry_of: str | None = None
+    terminal: bool = True
     sample_id: str
     sample_uuid: str | None = None
     epoch: int = Field(default=1, ge=1)
@@ -172,7 +178,6 @@ class InspectAttemptFactV1(ContractModel):
     working_time: float | None = None
     error_type: str | None = None
     error_message_digest: str | None = None
-    retry_error_count: int = Field(default=0, ge=0)
     limit_type: str | None = None
     input_digest: str | None = None
     target_digest: str | None = None
@@ -192,7 +197,8 @@ class InspectScoreFactV1(ContractModel):
     metadata_digest: str | None = None
     scorer: str | None = None
     outcome_namespace: Literal["inspect"] = "inspect"
-    authority: Literal["inspect_scorer"] = "inspect_scorer"
+    authority: Literal["non_decision", "inspect_scorer", "unknown"] = "non_decision"
+    is_deterministic: bool = False
 
 
 class InspectEventFactV1(ContractModel):
@@ -226,7 +232,6 @@ class InspectProjection:
     scores: tuple[InspectScoreFactV1, ...]
     events: tuple[InspectEventFactV1, ...]
     attachments: tuple[InspectAttachmentFactV1, ...]
-    trajectories: TrialTrajectoryProjection
     rebuild_digest: str
 
 
@@ -234,7 +239,7 @@ class InspectProjection:
 class InspectIngestResult:
     projection: InspectProjection
     table_paths: dict[str, Path]
-    raw_cas_uri: str | None
+    raw_cas_uri: str
     source_manifest: Any = None
 
 
@@ -242,16 +247,21 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
     "inspect_runs": pa.schema(
         [
             pa.field("job_id", pa.string(), nullable=False),
+            pa.field("identity_source", pa.string(), nullable=False),
+            pa.field("eval_id", pa.string()),
+            pa.field("run_id", pa.string()),
+            pa.field("source_revision", pa.string()),
             pa.field("source_path", pa.string(), nullable=False),
             pa.field("source_digest", pa.string(), nullable=False),
             pa.field("inspect_log_version", pa.int64()),
             pa.field("status", pa.string(), nullable=False),
             pa.field("task_name", pa.string()),
             pa.field("model_name", pa.string()),
-            pa.field("run_id", pa.string()),
             pa.field("created_at", pa.string()),
             pa.field("completed_at", pa.string()),
             pa.field("sample_count", pa.int64(), nullable=False),
+            pa.field("validator", pa.string(), nullable=False),
+            pa.field("evidence_only", pa.bool_(), nullable=False),
             pa.field("rebuild_digest", pa.string()),
             pa.field("eval_spec_digest", pa.string()),
             pa.field("plan_name", pa.string()),
@@ -261,6 +271,10 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
         [
             pa.field("job_id", pa.string(), nullable=False),
             pa.field("trial_id", pa.string(), nullable=False),
+            pa.field("attempt_id", pa.string(), nullable=False),
+            pa.field("ordinal", pa.int64(), nullable=False),
+            pa.field("retry_of", pa.string()),
+            pa.field("terminal", pa.bool_(), nullable=False),
             pa.field("sample_id", pa.string(), nullable=False),
             pa.field("sample_uuid", pa.string()),
             pa.field("epoch", pa.int64(), nullable=False),
@@ -271,7 +285,6 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
             pa.field("working_time", pa.float64()),
             pa.field("error_type", pa.string()),
             pa.field("error_message_digest", pa.string()),
-            pa.field("retry_error_count", pa.int64(), nullable=False),
             pa.field("limit_type", pa.string()),
             pa.field("input_digest", pa.string()),
             pa.field("target_digest", pa.string()),
@@ -292,6 +305,7 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
             pa.field("scorer", pa.string()),
             pa.field("outcome_namespace", pa.string(), nullable=False),
             pa.field("authority", pa.string(), nullable=False),
+            pa.field("is_deterministic", pa.bool_(), nullable=False),
         ]
     ),
     "inspect_events": pa.schema(
@@ -354,25 +368,34 @@ def validate_inspect_eval_log(log: Mapping[str, Any]) -> None:
 
 
 def load_inspect_eval_log(path: Path) -> dict[str, Any]:
-    """Read .eval/.json through Inspect's API when installed; JSON remains fixture-friendly."""
+    """Read official .eval log through Inspect's official API only."""
     path = path.resolve()
-    if path.suffix == ".json":
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            raise ValueError(f"Failed to parse Inspect JSON log at {path}: {exc}") from exc
-        if not isinstance(payload, dict):
-            raise ValueError("Inspect JSON log root must be an object")
-        return payload
+    if path.suffix != ".eval":
+        raise ValueError(
+            f"Production Inspect ingest accepts official .eval files only (got {path.name}); "
+            "use load_inspect_eval_fixture_json for test fixtures"
+        )
     try:
         inspect_log = importlib.import_module("inspect_ai.log")
         read_eval_log = inspect_log.read_eval_log
     except (ImportError, AttributeError) as exc:
         raise RuntimeError(
-            "Reading binary .eval logs requires the optional 'inspect' dependency group"
+            "Reading official binary .eval logs requires the 'inspect' dependency group (inspect-ai)"
         ) from exc
     raw_log = read_eval_log(path, resolve_attachments="core")
     return _mapping(raw_log)
+
+
+def load_inspect_eval_fixture_json(path: Path) -> dict[str, Any]:
+    """Explicit test-fixture loader for JSON Inspect evaluation logs."""
+    path = path.resolve()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError(f"Failed to parse Inspect JSON fixture at {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Inspect JSON fixture root must be an object")
+    return payload
 
 
 # --------------------------------------------------------------------------- #
@@ -456,35 +479,6 @@ def _resolve_content_blocks(
     return _text(content)
 
 
-def _usage_totals(sample: Mapping[str, Any]) -> tuple[int, int, int, float | None]:
-    prompt = 0
-    completion = 0
-    cached = 0
-    cost = 0.0
-    has_cost = False
-    for usage in _mapping(sample.get("model_usage")).values():
-        row = _mapping(usage)
-        prompt += (
-            _optional_int(row.get("input_tokens")) or _optional_int(row.get("prompt_tokens")) or 0
-        )
-        completion += (
-            _optional_int(row.get("output_tokens"))
-            or _optional_int(row.get("completion_tokens"))
-            or 0
-        )
-        cached += (
-            _optional_int(row.get("cache_read_tokens"))
-            or _optional_int(row.get("cached_tokens"))
-            or _optional_int(row.get("cache_write_tokens"))
-            or 0
-        )
-        row_cost = _optional_float(row.get("cost")) or _optional_float(row.get("cost_usd"))
-        if row_cost is not None:
-            cost += row_cost
-            has_cost = True
-    return prompt, completion, cached, cost if has_cost else None
-
-
 def _score_facts(
     job_id: str,
     trial_id: str,
@@ -516,7 +510,8 @@ def _score_facts(
                 metadata_digest=_digest_json(metadata) if metadata is not None else None,
                 scorer=scorer,
                 outcome_namespace="inspect",
-                authority="inspect_scorer",
+                authority="non_decision",
+                is_deterministic=False,
             )
         )
     return facts
@@ -533,14 +528,13 @@ def compute_rebuild_digest(
     scores: tuple[InspectScoreFactV1, ...],
     events: tuple[InspectEventFactV1, ...],
     attachments: tuple[InspectAttachmentFactV1, ...],
-    trajectories: TrialTrajectoryProjection,
 ) -> str:
     """Compute a cryptographic digest of the complete projected dataset for deterministic rebuild verification."""
     payload = {
         "run": {k: v for k, v in run.model_dump(mode="json").items() if k != "rebuild_digest"},
         "attempts": sorted(
             [row.model_dump(mode="json") for row in attempts],
-            key=lambda item: (item["trial_id"], item["epoch"]),
+            key=lambda item: (item["trial_id"], item["ordinal"]),
         ),
         "scores": sorted(
             [row.model_dump(mode="json") for row in scores],
@@ -554,22 +548,6 @@ def compute_rebuild_digest(
             [row.model_dump(mode="json") for row in attachments],
             key=lambda item: (item["attachment_id"], item.get("trial_id") or ""),
         ),
-        "trajectories": sorted(
-            [asdict(row) for row in trajectories.trajectories],
-            key=lambda item: item["trial_id"],
-        ),
-        "steps": sorted(
-            [asdict(row) for row in trajectories.steps],
-            key=lambda item: (item["trial_id"], item["step_id"]),
-        ),
-        "tool_calls": sorted(
-            [asdict(row) for row in trajectories.tool_calls],
-            key=lambda item: (item["trial_id"], item["step_id"], item["tool_call_id"]),
-        ),
-        "observations": sorted(
-            [asdict(row) for row in trajectories.observations],
-            key=lambda item: (item["trial_id"], item["step_id"], item["observation_index"]),
-        ),
     }
     return _digest_json(payload)
 
@@ -580,30 +558,17 @@ def reconcile_inspect_projection(
     scores: tuple[InspectScoreFactV1, ...],
     events: tuple[InspectEventFactV1, ...],
     attachments: tuple[InspectAttachmentFactV1, ...],
-    trajectories: TrialTrajectoryProjection,
 ) -> None:
     """Verify projection invariants, cross-table linkages, and row reconciliation."""
-    if len(attempts) != len(trajectories.trajectories):
-        raise ValueError(
-            f"Row mismatch: {len(attempts)} attempts but {len(trajectories.trajectories)} trajectories"
-        )
+    attempt_ids = {a.attempt_id for a in attempts}
+    if len(attempt_ids) != len(attempts):
+        raise ValueError("Collision: Duplicate attempt_id detected in attempts")
+
     attempt_trial_ids = {a.trial_id for a in attempts}
-    if len(attempt_trial_ids) != len(attempts):
-        raise ValueError("Collision: Duplicate trial_id detected in attempts")
 
-    for traj in trajectories.trajectories:
-        if traj.job_id != run.job_id:
-            raise ValueError(
-                f"Trajectory job_id {traj.job_id} does not match run job_id {run.job_id}"
-            )
-        if traj.trial_id not in attempt_trial_ids:
-            raise ValueError(f"Orphan trajectory trial_id: {traj.trial_id}")
-
-    for step in trajectories.steps:
-        if step.job_id != run.job_id:
-            raise ValueError(f"Step job_id {step.job_id} does not match run job_id {run.job_id}")
-        if step.trial_id not in attempt_trial_ids:
-            raise ValueError(f"Orphan step trial_id: {step.trial_id}")
+    for att in attempts:
+        if att.job_id != run.job_id:
+            raise ValueError(f"Attempt job_id {att.job_id} does not match run job_id {run.job_id}")
 
     for score in scores:
         if score.job_id != run.job_id:
@@ -617,6 +582,12 @@ def reconcile_inspect_projection(
         if event.trial_id not in attempt_trial_ids:
             raise ValueError(f"Orphan event trial_id: {event.trial_id}")
 
+    for attachment in attachments:
+        if attachment.job_id != run.job_id:
+            raise ValueError(
+                f"Attachment job_id {attachment.job_id} does not match run job_id {run.job_id}"
+            )
+
 
 # --------------------------------------------------------------------------- #
 # Projection Engine
@@ -628,8 +599,9 @@ def project_inspect_eval_log(
     *,
     source_path: str,
     source_bytes: bytes | None = None,
+    validator: str | None = None,
 ) -> InspectProjection:
-    """Project one Inspect EvalLog into source facts and the canonical trajectory tables."""
+    """Project one Inspect EvalLog into source-native Inspect facts."""
     log = _mapping(payload)
     validate_inspect_eval_log(log)
 
@@ -639,8 +611,30 @@ def project_inspect_eval_log(
     task_name = eval_spec.get("task") or eval_spec.get("task_name")
     model = eval_spec.get("model")
     model_name = _text(model) or None
+
+    eval_id = eval_spec.get("eval_id")
     run_id = eval_spec.get("run_id") or eval_spec.get("eval_set_id")
-    job_id = _stable_id("inspect", source_digest, str(task_name or ""), str(run_id or ""))
+
+    raw_revision = eval_spec.get("revision")
+    if isinstance(raw_revision, dict):
+        source_revision = str(raw_revision.get("commit") or raw_revision.get("origin") or "")
+    elif raw_revision is not None:
+        source_revision = str(raw_revision)
+    else:
+        source_revision = None
+
+    # Derive stable run identity domain-separated from revision
+    if eval_id:
+        identity_source = "eval_id"
+        job_id = _stable_id("inspect:eval_id", str(eval_id), source_revision or "")
+    elif run_id:
+        identity_source = "run_id"
+        job_id = _stable_id(
+            "inspect:run_id", str(run_id), str(task_name or ""), source_revision or ""
+        )
+    else:
+        identity_source = "content_digest_fallback"
+        job_id = _stable_id("inspect:content_digest", source_digest, str(task_name or ""))
 
     log_attachments = _mapping(log.get("attachments"))
     samples = [_mapping(sample) for sample in _sequence(log.get("samples"))]
@@ -649,14 +643,33 @@ def project_inspect_eval_log(
     plan = _mapping(log.get("plan"))
     plan_name = str(plan["name"]) if plan.get("name") else None
 
+    stats = _mapping(log.get("stats"))
+    created_at = (
+        str(eval_spec["created"])
+        if eval_spec.get("created")
+        else (
+            str(eval_spec["created_at"])
+            if eval_spec.get("created_at")
+            else (str(stats["started_at"]) if stats.get("started_at") else None)
+        )
+    )
+    completed_at = (
+        str(stats["completed_at"])
+        if stats.get("completed_at")
+        else (str(eval_spec["completed_at"]) if eval_spec.get("completed_at") else None)
+    )
+
+    if validator is None:
+        validator = (
+            "inspect_ai.log.read_eval_log"
+            if source_path.endswith(".eval")
+            else "evallab.inspect_adapter.fixture_loader"
+        )
+
     attempts: list[InspectAttemptFactV1] = []
     scores: list[InspectScoreFactV1] = []
     inspect_events: list[InspectEventFactV1] = []
     attachment_facts: list[InspectAttachmentFactV1] = []
-    trajectories: list[TrajectoryFact] = []
-    steps: list[StepFact] = []
-    tool_calls: list[ToolCallFact] = []
-    observations: list[ObservationFact] = []
 
     seen_trial_ids: set[str] = set()
     seen_sample_epoch_identities: set[tuple[str, int]] = set()
@@ -719,7 +732,6 @@ def project_inspect_eval_log(
                 )
             )
 
-        document_id = _stable_id(trial_id, source_digest, "inspect")
         error = _mapping(sample.get("error"))
         retry_errors = _sequence(sample.get("error_retries"))
         limit = _mapping(sample.get("limit"))
@@ -744,14 +756,62 @@ def project_inspect_eval_log(
             if completion is not None:
                 messages.append({"role": "assistant", "content": completion})
 
+        # Process and resolve attachments across messages
+        for message in messages:
+            _resolve_content_blocks(
+                message.get("content"),
+                sample_attachments,
+                log_attachments,
+                attachment_tracker,
+            )
+
         sample_status = str(sample.get("status")) if sample.get("status") else None
         if not sample_status:
             sample_status = "error" if error else "success"
 
+        # Emit ordered retry attempts
+        prior_attempt_id: str | None = None
+        for retry_index, retry_item in enumerate(retry_errors):
+            retry_map = _mapping(retry_item)
+            retry_err_msg = (
+                retry_map.get("message") or retry_map.get("error") or retry_map.get("traceback")
+            )
+            retry_err_type = retry_map.get("type") or retry_map.get("error_type") or "RetryError"
+            curr_attempt_id = _stable_id(trial_id, f"retry_{retry_index}")
+            attempts.append(
+                InspectAttemptFactV1(
+                    job_id=job_id,
+                    trial_id=trial_id,
+                    attempt_id=curr_attempt_id,
+                    ordinal=retry_index,
+                    retry_of=prior_attempt_id,
+                    terminal=False,
+                    sample_id=sample_id,
+                    sample_uuid=sample_uuid,
+                    epoch=epoch,
+                    status="error",
+                    error_type=str(retry_err_type),
+                    error_message_digest=_digest_json(retry_err_msg)
+                    if retry_err_msg is not None
+                    else None,
+                    input_digest=input_digest,
+                    target_digest=target_digest,
+                    message_count=0,
+                    event_count=0,
+                )
+            )
+            prior_attempt_id = curr_attempt_id
+
+        # Emit terminal attempt
+        terminal_attempt_id = trial_id
         attempts.append(
             InspectAttemptFactV1(
                 job_id=job_id,
                 trial_id=trial_id,
+                attempt_id=terminal_attempt_id,
+                ordinal=len(retry_errors),
+                retry_of=prior_attempt_id,
+                terminal=True,
                 sample_id=sample_id,
                 sample_uuid=sample_uuid,
                 epoch=epoch,
@@ -766,7 +826,6 @@ def project_inspect_eval_log(
                 error_message_digest=_digest_json(error_message)
                 if error_message is not None
                 else None,
-                retry_error_count=len(retry_errors),
                 limit_type=str(limit_type_val) if limit_type_val else None,
                 input_digest=input_digest,
                 target_digest=target_digest,
@@ -774,6 +833,7 @@ def project_inspect_eval_log(
                 event_count=len(event_rows),
             )
         )
+
         scores.extend(_score_facts(job_id, trial_id, sample))
 
         seen_event_ids: set[str] = set()
@@ -801,153 +861,29 @@ def project_inspect_eval_log(
                 )
             )
 
-        prompt_tokens, completion_tokens, cached_tokens, cost_usd = _usage_totals(sample)
-        llm_calls = sum(
-            1
-            for event in event_rows
-            if str(event.get("event") or event.get("event_type") or event.get("type"))
-            in {"model", "model_event", "ModelEvent"}
-        )
-        if llm_calls == 0:
-            llm_calls = sum(message.get("role") == "assistant" for message in messages)
-
-        for step_index, message in enumerate(messages):
-            role = str(message.get("role") or message.get("source") or "unknown")
-            raw_calls = message.get("tool_calls")
-            message_tool_calls = [_mapping(call) for call in _sequence(raw_calls)]
-            is_observation = role in {"tool", "observation"}
-
-            # Resolve attachments in all message contents
-            resolved_content = _resolve_content_blocks(
-                message.get("content"),
-                sample_attachments,
-                log_attachments,
-                attachment_tracker,
-            )
-
-            steps.append(
-                StepFact(
-                    job_id=job_id,
-                    trial_id=trial_id,
-                    document_id=document_id,
-                    source_path=source_path,
-                    source_sha256=source_digest,
-                    step_id=step_index,
-                    source=role,
-                    timestamp=str(message["timestamp"]) if message.get("timestamp") else None,
-                    model_name=str(message["model"]) if message.get("model") else model_name,
-                    is_copied_context=False,
-                    llm_call_count=1 if role == "assistant" else 0,
-                    prompt_tokens=None,
-                    completion_tokens=None,
-                    cached_tokens=None,
-                    cost_usd=None,
-                    tool_call_count=len(message_tool_calls),
-                    observation_count=1 if is_observation else 0,
-                )
-            )
-
-            for call_index, call in enumerate(message_tool_calls):
-                function_entry = call.get("function")
-                if isinstance(function_entry, str):
-                    name = function_entry
-                    arguments = call.get("arguments", {})
-                elif isinstance(function_entry, dict):
-                    name = function_entry.get("name") or call.get("name")
-                    arguments = function_entry.get("arguments") or call.get("arguments", {})
-                else:
-                    name = call.get("name") or call.get("function_name")
-                    arguments = call.get("arguments", {})
-
-                call_id = str(call.get("id") or call.get("tool_call_id") or f"call_{call_index}")
-                tool_calls.append(
-                    ToolCallFact(
-                        job_id=job_id,
-                        trial_id=trial_id,
-                        document_id=document_id,
-                        source_path=source_path,
-                        source_sha256=source_digest,
-                        step_id=step_index,
-                        tool_call_id=call_id,
-                        function_name=str(name or "unknown"),
-                        arguments_sha256=_digest_json(_plain(arguments)),
-                    )
-                )
-
-            if is_observation:
-                content_bytes = resolved_content.encode()
-                source_call_id = message.get("tool_call_id") or message.get("source_call_id")
-                observations.append(
-                    ObservationFact(
-                        job_id=job_id,
-                        trial_id=trial_id,
-                        document_id=document_id,
-                        source_path=source_path,
-                        source_sha256=source_digest,
-                        step_id=step_index,
-                        observation_index=0,
-                        source_call_id=str(source_call_id) if source_call_id else None,
-                        content_size_bytes=len(content_bytes),
-                        content_sha256=_digest_bytes(content_bytes),
-                        subagent_ref_count=0,
-                        subagent_refs_sha256=None,
-                        command_exit_code=_optional_int(message.get("exit_code"))
-                        or _optional_int(_mapping(message.get("metadata")).get("exit_code")),
-                    )
-                )
-
-        trajectories.append(
-            TrajectoryFact(
-                job_id=job_id,
-                trial_id=trial_id,
-                document_id=document_id,
-                source_path=source_path,
-                source_sha256=source_digest,
-                embedded_path=None,
-                schema_version=f"inspect-eval/v{log.get('version', 'unknown')}",
-                session_id=sample_uuid,
-                trajectory_id=sample_uuid or trial_id,
-                validation_status="valid",
-                validator="inspect_ai.log.read_eval_log",
-                validation_error=None,
-                agent_name=_text(eval_spec.get("solver")) or "inspect",
-                agent_version=str(log.get("version")) if log.get("version") is not None else None,
-                model_name=model_name,
-                continued_trajectory_ref=None,
-                step_count=len(messages),
-                llm_call_count=llm_calls,
-                prompt_tokens=prompt_tokens or None,
-                completion_tokens=completion_tokens or None,
-                cached_tokens=cached_tokens or None,
-                cost_usd=cost_usd,
-            )
-        )
-
     # Update resolved counts in attachment facts
     updated_attachment_facts = [
         att.model_copy(update={"resolved_count": attachment_tracker.get(att.attachment_id, 0)})
         for att in attachment_facts
     ]
 
-    trajectory_projection = TrialTrajectoryProjection(
-        trajectories=tuple(trajectories),
-        steps=tuple(steps),
-        tool_calls=tuple(tool_calls),
-        observations=tuple(observations),
-    )
-
     run_fact_prelim = InspectRunFactV1(
         job_id=job_id,
+        identity_source=identity_source,
+        eval_id=str(eval_id) if eval_id is not None else None,
+        run_id=str(run_id) if run_id is not None else None,
+        source_revision=source_revision,
         source_path=source_path,
         source_digest=source_digest,
         inspect_log_version=_optional_int(log.get("version")),
         status=str(log.get("status", "unknown")),
         task_name=str(task_name) if task_name is not None else None,
         model_name=model_name,
-        run_id=str(run_id) if run_id is not None else None,
-        created_at=str(eval_spec["created_at"]) if eval_spec.get("created_at") else None,
-        completed_at=str(eval_spec["completed_at"]) if eval_spec.get("completed_at") else None,
+        created_at=created_at,
+        completed_at=completed_at,
         sample_count=len(samples),
+        validator=validator,
+        evidence_only=True,
         eval_spec_digest=eval_spec_digest,
         plan_name=plan_name,
     )
@@ -958,7 +894,6 @@ def project_inspect_eval_log(
         tuple(scores),
         tuple(inspect_events),
         tuple(updated_attachment_facts),
-        trajectory_projection,
     )
 
     rebuild_digest = compute_rebuild_digest(
@@ -967,7 +902,6 @@ def project_inspect_eval_log(
         tuple(scores),
         tuple(inspect_events),
         tuple(updated_attachment_facts),
-        trajectory_projection,
     )
 
     run_fact = run_fact_prelim.model_copy(update={"rebuild_digest": rebuild_digest})
@@ -978,7 +912,6 @@ def project_inspect_eval_log(
         scores=tuple(scores),
         events=tuple(inspect_events),
         attachments=tuple(updated_attachment_facts),
-        trajectories=trajectory_projection,
         rebuild_digest=rebuild_digest,
     )
 
@@ -995,8 +928,9 @@ def write_inspect_projection(
     write_manifest: bool = True,
     source_file: str | None = None,
     source_bytes_size: int | None = None,
+    raw_cas_uri: str | None = None,
 ) -> dict[str, Path]:
-    """Write Inspect-native and canonical facts into one partitioned Parquet root."""
+    """Write Inspect-native source tables into one partitioned Parquet root."""
     from evallab.storage.inspect_storage import (
         write_inspect_projection as _write_inspect_projection,
     )
@@ -1007,6 +941,7 @@ def write_inspect_projection(
         write_manifest=write_manifest,
         source_file=source_file,
         source_bytes_size=source_bytes_size,
+        raw_cas_uri=raw_cas_uri,
     )
 
 
@@ -1014,9 +949,9 @@ def ingest_inspect_eval_log(
     path: Path,
     *,
     output_root: Path,
-    store_root: Path | None = None,
+    store_root: Path,
 ) -> InspectIngestResult:
-    """Read, optionally archive, normalize, and project one Inspect evaluation log."""
+    """Read official .eval, archive to CAS, normalize, and project Inspect source tables."""
     from evallab.storage.inspect_storage import (
         ingest_inspect_eval_log as _ingest_inspect_eval_log,
     )

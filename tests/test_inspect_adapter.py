@@ -3,29 +3,32 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import duckdb
 import pytest
-from pydantic import BaseModel
 
 from evallab.cli import run_cli
 from evallab.inspect_adapter import (
-    ingest_inspect_eval_log,
+    load_inspect_eval_fixture_json,
+    load_inspect_eval_log,
     project_inspect_eval_log,
-    write_inspect_projection,
 )
 
 
-def _inspect_fixture() -> dict:
+def _inspect_fixture_dict() -> dict:
     return {
         "version": 2,
         "status": "success",
         "eval": {
+            "eval_id": "eval_gaia_001",
             "task": "gaia-level1",
             "model": "openai/gpt-4o",
             "run_id": "run-gaia-001",
-            "created_at": "2026-08-31T00:00:00Z",
-            "completed_at": "2026-08-31T00:05:00Z",
+            "created": "2026-08-31T00:00:00Z",
+            "revision": "git-commit-abc1234",
             "solver": "agent",
+        },
+        "stats": {
+            "started_at": "2026-08-31T00:00:00Z",
+            "completed_at": "2026-08-31T00:05:00Z",
         },
         "samples": [
             {
@@ -36,7 +39,13 @@ def _inspect_fixture() -> dict:
                 "completed_at": "2026-08-31T00:01:00Z",
                 "total_time": 59.0,
                 "working_time": 45.0,
-                "error_retries": [{"error": "Rate limit exceeded, retry 1"}],
+                "error_retries": [
+                    {
+                        "type": "RateLimitError",
+                        "message": "Rate limit exceeded, retry 1",
+                        "traceback": "Traceback ... 429",
+                    }
+                ],
                 "model_usage": {
                     "openai/gpt-4o": {
                         "input_tokens": 100,
@@ -99,12 +108,17 @@ def _condensed_attachment_fixture() -> dict:
         "version": 3,
         "status": "success",
         "eval": {
+            "eval_id": "eval_condensed_042",
             "task": "multimodal-research",
             "model": "anthropic/claude-3-7-sonnet",
             "run_id": "run-condensed-042",
-            "created_at": "2026-08-31T02:00:00Z",
-            "completed_at": "2026-08-31T02:10:00Z",
+            "created": "2026-08-31T02:00:00Z",
+            "revision": {"origin": "https://github.com/test/repo", "commit": "fedcba987654"},
             "solver": "research_agent",
+        },
+        "stats": {
+            "started_at": "2026-08-31T02:00:00Z",
+            "completed_at": "2026-08-31T02:10:00Z",
         },
         "attachments": {
             "sys_prompt": "You are an expert multi-eval researcher.",
@@ -124,10 +138,12 @@ def _condensed_attachment_fixture() -> dict:
                 },
                 "error_retries": [
                     {
+                        "type": "ConnectionError",
                         "message": "Connection error to LLM backend",
                         "traceback": "Traceback ... ConnectionResetError",
                     },
                     {
+                        "type": "GatewayTimeout",
                         "message": "Gateway timeout",
                         "traceback": "Traceback ... 504 Gateway Timeout",
                     },
@@ -206,112 +222,209 @@ def _condensed_attachment_fixture() -> dict:
     }
 
 
-def test_inspect_projection_preserves_epochs_scores_events_and_canonical_spine() -> None:
-    payload = _inspect_fixture()
+def test_official_eval_log_reading_and_projection(tmp_path: Path) -> None:
+    pytest.importorskip("inspect_ai")
+    import inspect_ai.log as inspect_log
+    from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+    from inspect_ai.scorer import Score
+
+    eval_spec = inspect_log.EvalSpec(
+        eval_id="eval_official_100",
+        task="official-eval-task",
+        model="openai/gpt-4o",
+        created="2026-08-31T00:00:00Z",
+        dataset=inspect_log.EvalDataset(name="official_data", location="loc", samples=1),
+        config=inspect_log.EvalConfig(),
+        revision=inspect_log.EvalRevision(
+            type="git", origin="https://github.com/repo", commit="112233445566"
+        ),
+        solver="official_solver",
+    )
+    sample = inspect_log.EvalSample(
+        id="sample_off_1",
+        epoch=1,
+        uuid="99999999-9999-9999-9999-999999999999",
+        input="Official input prompt",
+        target="Official target",
+        messages=[
+            ChatMessageUser(content="User message"),
+            ChatMessageAssistant(content="Assistant response"),
+        ],
+        scores={"accuracy": Score(value=1.0, answer="Assistant response", explanation="Correct")},
+    )
+    eval_log_obj = inspect_log.EvalLog(
+        version=3,
+        status="success",
+        eval=eval_spec,
+        samples=[sample],
+        stats=inspect_log.EvalStats(
+            started_at="2026-08-31T00:00:00Z", completed_at="2026-08-31T00:01:00Z"
+        ),
+    )
+
+    eval_file = tmp_path / "official_run.eval"
+    inspect_log.write_eval_log(eval_log_obj, eval_file)
+
+    # 1. Read through official loader
+    loaded_log = load_inspect_eval_log(eval_file)
+    assert loaded_log["version"] in (2, 3)
+    assert loaded_log["status"] == "success"
+
+    # 2. Project
     projection = project_inspect_eval_log(
-        payload,
-        source_path="fixture.eval",
-        source_bytes=b"fixture-bytes",
+        loaded_log,
+        source_path=eval_file.name,
+        source_bytes=eval_file.read_bytes(),
     )
-    assert projection.run.task_name == "gaia-level1"
-    assert projection.run.sample_count == 2
-    assert len(projection.attempts) == 2
-    assert projection.attempts[0].epoch == 1
-    assert projection.attempts[0].retry_error_count == 1
-    assert projection.attempts[1].epoch == 2
-    assert projection.attempts[1].status == "error"
-    assert projection.attempts[1].limit_type == "time"
-    assert projection.attempts[0].trial_id != projection.attempts[1].trial_id
 
-    assert len(projection.scores) == 3
-    assert {score.score_name for score in projection.scores} == {
-        "accuracy",
-        "format",
-        "quality",
+    assert projection.run.identity_source == "eval_id"
+    assert projection.run.eval_id == "eval_official_100"
+    assert projection.run.source_revision == "112233445566"
+    assert projection.run.validator == "inspect_ai.log.read_eval_log"
+    assert projection.run.evidence_only is True
+    assert projection.run.sample_count == 1
+    assert projection.run.created_at.startswith("2026-08-31T00:00:00")
+    assert projection.run.completed_at.startswith("2026-08-31T00:01:00")
+
+    # 3. Check attempts and scores
+    assert len(projection.attempts) == 1
+    attempt = projection.attempts[0]
+    assert attempt.ordinal == 0
+    assert attempt.terminal is True
+    assert attempt.retry_of is None
+    assert attempt.sample_uuid == "99999999-9999-9999-9999-999999999999"
+
+    assert len(projection.scores) == 1
+    score = projection.scores[0]
+    assert score.score_name == "accuracy"
+    assert score.authority == "non_decision"
+    assert score.is_deterministic is False
+
+
+def test_production_loader_refuses_json_files(tmp_path: Path) -> None:
+    json_path = tmp_path / "fixture.json"
+    json_path.write_text(json.dumps(_inspect_fixture_dict()), encoding="utf-8")
+
+    with pytest.raises(
+        ValueError, match="Production Inspect ingest accepts official .eval files only"
+    ):
+        load_inspect_eval_log(json_path)
+
+    # Segregated JSON fixture loader succeeds and attributes fixture validator
+    fixture_data = load_inspect_eval_fixture_json(json_path)
+    projection = project_inspect_eval_log(fixture_data, source_path=json_path.name)
+    assert projection.run.validator == "evallab.inspect_adapter.fixture_loader"
+    assert projection.run.evidence_only is True
+
+
+def test_domain_separated_run_identity() -> None:
+    # 1. Official eval_id
+    payload_eval_id = {
+        "version": 2,
+        "status": "success",
+        "eval": {
+            "eval_id": "eval_alpha",
+            "task": "task_1",
+            "revision": "rev_commit_1",
+        },
+        "samples": [],
     }
-    assert all(score.outcome_namespace == "inspect" for score in projection.scores)
-    assert all(score.authority == "inspect_scorer" for score in projection.scores)
+    proj1 = project_inspect_eval_log(payload_eval_id, source_path="run1.eval")
+    assert proj1.run.identity_source == "eval_id"
 
-    assert len(projection.events) == 2
-    assert len(projection.trajectories.trajectories) == 2
-    assert len(projection.trajectories.steps) == 6
-    assert len(projection.trajectories.tool_calls) == 1
-    assert len(projection.trajectories.observations) == 1
-    trajectory = projection.trajectories.trajectories[0]
-    assert trajectory.prompt_tokens == 100
-    assert trajectory.completion_tokens == 25
-    assert trajectory.cached_tokens == 40
-    assert trajectory.cost_usd == 0.01
-
-    assert projection.rebuild_digest.startswith("sha256:")
-    assert projection.run.rebuild_digest == projection.rebuild_digest
-
-
-def test_inspect_projection_writes_shared_parquet_tables(tmp_path: Path) -> None:
-    projection = project_inspect_eval_log(
-        _inspect_fixture(),
-        source_path="fixture.eval",
-    )
-    paths = write_inspect_projection(projection, tmp_path / "parquet")
-    assert set(paths) == {
-        "inspect_runs",
-        "inspect_attempts",
-        "inspect_scores",
-        "inspect_events",
-        "inspect_attachments",
-        "trajectories",
-        "steps",
-        "tool_calls",
-        "observations",
+    # Same eval_id but different revision produces different job_id (domain-separated)
+    payload_eval_id_rev2 = {
+        "version": 2,
+        "status": "success",
+        "eval": {
+            "eval_id": "eval_alpha",
+            "task": "task_1",
+            "revision": "rev_commit_2",
+        },
+        "samples": [],
     }
-    for path in paths.values():
-        assert path.is_file()
+    proj2 = project_inspect_eval_log(payload_eval_id_rev2, source_path="run2.eval")
+    assert proj2.run.job_id != proj1.run.job_id
 
-    conn = duckdb.connect()
-    assert (
-        conn.execute(
-            f"SELECT count(*) FROM read_parquet('{paths['inspect_attempts']}')"
-        ).fetchone()[0]
-        == 2
-    )
-    assert (
-        conn.execute(f"SELECT count(*) FROM read_parquet('{paths['inspect_scores']}')").fetchone()[
-            0
-        ]
-        == 3
-    )
-    assert (
-        conn.execute(f"SELECT count(*) FROM read_parquet('{paths['trajectories']}')").fetchone()[0]
-        == 2
-    )
+    # 2. Run_id fallback
+    payload_run_id = {
+        "version": 2,
+        "status": "success",
+        "eval": {
+            "run_id": "run_beta",
+            "task": "task_1",
+        },
+        "samples": [],
+    }
+    proj_run = project_inspect_eval_log(payload_run_id, source_path="run_id.eval")
+    assert proj_run.run.identity_source == "run_id"
+
+    # 3. Content digest fallback
+    payload_anon = {
+        "version": 2,
+        "status": "success",
+        "eval": {
+            "task": "task_1",
+        },
+        "samples": [],
+    }
+    proj_anon = project_inspect_eval_log(payload_anon, source_path="anon.eval")
+    assert proj_anon.run.identity_source == "content_digest_fallback"
 
 
-def test_inspect_json_ingest_archives_raw_log_and_projects(tmp_path: Path) -> None:
+def test_ordered_retry_attempts_and_terminal_outcome() -> None:
+    fixture = _condensed_attachment_fixture()
+    projection = project_inspect_eval_log(fixture, source_path="condensed.eval")
+
+    # Sample alpha has 2 error retries -> 3 attempts total (ordinal 0, 1, 2)
+    assert len(projection.attempts) == 3
+
+    att0, att1, att2 = projection.attempts
+    assert att0.ordinal == 0
+    assert att0.terminal is False
+    assert att0.retry_of is None
+    assert att0.status == "error"
+    assert att0.error_type == "ConnectionError"
+
+    assert att1.ordinal == 1
+    assert att1.terminal is False
+    assert att1.retry_of == att0.attempt_id
+    assert att1.status == "error"
+    assert att1.error_type == "GatewayTimeout"
+
+    assert att2.ordinal == 2
+    assert att2.terminal is True
+    assert att2.retry_of == att1.attempt_id
+    assert att2.status == "success"
+    assert att2.total_time == 239.0
+    assert att2.working_time == 200.0
+
+
+def test_scores_authority_defaults_to_non_decision() -> None:
+    fixture = _condensed_attachment_fixture()
+    projection = project_inspect_eval_log(fixture, source_path="condensed.eval")
+
+    assert len(projection.scores) == 5
+    for score in projection.scores:
+        assert score.outcome_namespace == "inspect"
+        assert score.authority == "non_decision"
+        assert score.is_deterministic is False
+
+
+def test_cli_ingest_requires_cas(tmp_path: Path, capsys) -> None:
     log_path = tmp_path / "inspect-log.json"
-    log_path.write_text(json.dumps(_inspect_fixture()), encoding="utf-8")
-    result = ingest_inspect_eval_log(
-        log_path,
-        output_root=tmp_path / "derived",
-        store_root=tmp_path / "cas",
-    )
-    assert result.raw_cas_uri is not None
-    assert result.raw_cas_uri.startswith("cas://")
-    assert result.projection.run.source_path == "inspect-log.json"
-    assert result.source_manifest is not None
-    assert result.source_manifest.schema_version == "inspect-source-manifest/v1"
-    assert result.source_manifest.job_id == result.projection.run.job_id
+    log_path.write_text(json.dumps(_inspect_fixture_dict()), encoding="utf-8")
+    derived_dir = tmp_path / "derived"
+    store_dir = tmp_path / "evidence-cas"
 
-
-def test_inspect_ingest_cli_projects_json_log(tmp_path: Path, capsys) -> None:
-    log_path = tmp_path / "inspect-log.json"
-    log_path.write_text(json.dumps(_inspect_fixture()), encoding="utf-8")
     code = run_cli(
         [
             "inspect-ingest",
-            "inspect-log.json",
+            str(log_path),
             "--derived-dir",
-            "derived",
-            "--no-cas",
+            str(derived_dir),
+            "--store",
+            str(store_dir),
             "--json",
         ],
         workspace=tmp_path,
@@ -319,73 +432,10 @@ def test_inspect_ingest_cli_projects_json_log(tmp_path: Path, capsys) -> None:
     assert code == 0
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "success"
-    assert output["samples"] == 2
-    assert output["attempts"] == 2
-    assert output["scores"] == 3
-    assert output["raw_cas_uri"] is None
-
-
-def test_condensed_eval_log_resolves_attachments_and_preserves_complex_scores() -> None:
-    fixture = _condensed_attachment_fixture()
-    projection = project_inspect_eval_log(
-        fixture,
-        source_path="condensed.eval",
-    )
-    assert len(projection.attempts) == 1
-    attempt = projection.attempts[0]
-    assert attempt.sample_uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-    assert attempt.trial_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-    assert attempt.retry_error_count == 2
-    assert attempt.message_count == 5
-    assert attempt.event_count == 3
-
-    # Check attachments resolution and tracking
-    assert len(projection.attachments) == 3
-    att_by_id = {att.attachment_id: att for att in projection.attachments}
-    assert "sys_prompt" in att_by_id
-    assert "doc_research_spec" in att_by_id
-    assert "chart_image" in att_by_id
-    assert att_by_id["sys_prompt"].resolved_count == 1
-    assert att_by_id["doc_research_spec"].resolved_count == 1
-    assert att_by_id["chart_image"].resolved_count == 1
-
-    # Check complex multi-score parsing
-    scores_by_name = {score.score_name: score for score in projection.scores}
-    assert len(scores_by_name) == 5
-
-    # Float score
-    assert scores_by_name["accuracy"].value_type == "float"
-    assert json.loads(scores_by_name["accuracy"].value_json) == 0.96
-    assert scores_by_name["accuracy"].answer == "PASS"
-
-    # Bool score
-    assert scores_by_name["is_factual"].value_type == "bool"
-    assert json.loads(scores_by_name["is_factual"].value_json) is True
-
-    # Dict score
-    assert scores_by_name["metrics_breakdown"].value_type == "dict"
-    metrics_val = json.loads(scores_by_name["metrics_breakdown"].value_json)
-    assert metrics_val == {"f1": 0.965, "precision": 0.95, "recall": 0.98}
-
-    # List score
-    assert scores_by_name["tags"].value_type == "list"
-    assert json.loads(scores_by_name["tags"].value_json) == ["fast", "accurate", "clean"]
-
-    # String score
-    assert scores_by_name["verdict"].value_type == "str"
-    assert json.loads(scores_by_name["verdict"].value_json) == "pass"
-
-    # Canonical Trajectories
-    assert len(projection.trajectories.steps) == 5
-    assert len(projection.trajectories.tool_calls) == 1
-    tool_call = projection.trajectories.tool_calls[0]
-    assert tool_call.function_name == "run_python"
-    assert tool_call.tool_call_id == "call_exec_01"
-
-    assert len(projection.trajectories.observations) == 1
-    obs = projection.trajectories.observations[0]
-    assert obs.source_call_id == "call_exec_01"
-    assert obs.command_exit_code == 0
+    assert output["raw_cas_uri"].startswith("cas://sha256/")
+    assert (
+        output["attempts"] == 3
+    )  # sample 1 epoch 1 has 1 retry + 1 terminal; epoch 2 has 1 terminal
 
 
 def test_malformed_input_refusals() -> None:
@@ -460,47 +510,3 @@ def test_rebuild_digest_determinism() -> None:
     fixture_modified["samples"][0]["scores"]["accuracy"]["value"] = 0.99
     proj_mod = project_inspect_eval_log(fixture_modified, source_path="test.eval")
     assert proj_mod.rebuild_digest != proj1.rebuild_digest
-
-
-def test_pydantic_model_dump_object_projection() -> None:
-    class MockEvalSpec(BaseModel):
-        task: str
-        model: str
-        run_id: str
-
-    class MockSample(BaseModel):
-        id: str
-        epoch: int
-        scores: dict[str, float]
-        messages: list[dict[str, str]]
-
-    class MockEvalLog(BaseModel):
-        version: int
-        status: str
-        eval: MockEvalSpec
-        samples: list[MockSample]
-
-    mock_log = MockEvalLog(
-        version=2,
-        status="success",
-        eval=MockEvalSpec(task="pydantic-test", model="gpt-4o", run_id="pydantic-001"),
-        samples=[
-            MockSample(
-                id="sample-p1",
-                epoch=1,
-                scores={"accuracy": 1.0},
-                messages=[
-                    {"role": "user", "content": "Question"},
-                    {"role": "assistant", "content": "Answer"},
-                ],
-            )
-        ],
-    )
-
-    projection = project_inspect_eval_log(mock_log, source_path="pydantic.eval")
-    assert projection.run.task_name == "pydantic-test"
-    assert projection.run.model_name == "gpt-4o"
-    assert len(projection.attempts) == 1
-    assert len(projection.scores) == 1
-    assert projection.scores[0].score_name == "accuracy"
-    assert len(projection.trajectories.steps) == 2

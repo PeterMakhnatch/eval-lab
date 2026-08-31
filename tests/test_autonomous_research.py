@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 
 from evallab.autonomous_research import (
@@ -19,14 +21,30 @@ from evallab.interpretation.feature_registry import (
 )
 
 
-def test_autonomous_research_features_capture_iteration_selection_and_transfer() -> None:
-    scale_binding = ScoreScaleBindingV1.create(
-        metric_name="score",
-        direction="higher",
-        visible_split_id="val",
-        hidden_split_id="test",
-        normalization_digest="sha256:" + "norm" * 16,
+def _sample_scale_binding(
+    *,
+    metric_name: str = "score",
+    direction: Literal["higher", "lower"] = "higher",
+    authority_kind: Literal["benchmark_contract", "deterministic_verifier"] = "benchmark_contract",
+    visible_split_id: str = "val",
+    hidden_split_id: str = "test",
+) -> ScoreScaleBindingV1:
+    return ScoreScaleBindingV1.create(
+        authority_kind=authority_kind,
+        metric_name=metric_name,
+        direction=direction,
+        task_digest="sha256:" + "1" * 64,
+        verifier_digest="sha256:" + "2" * 64,
+        metric_config_digest="sha256:" + "3" * 64,
+        visible_split_id=visible_split_id,
+        hidden_split_id=hidden_split_id,
+        visible_outcome_binding_digest="sha256:" + "4" * 64,
+        hidden_outcome_binding_digest="sha256:" + "5" * 64,
     )
+
+
+def test_autonomous_research_features_capture_iteration_selection_and_transfer() -> None:
+    scale_binding = _sample_scale_binding(metric_name="score", direction="higher")
     trace = ResearchRunTraceV1(
         run_id="rsi-run-1",
         benchmark_family="rsi-exam/game2048",
@@ -235,99 +253,157 @@ def test_selected_iteration_id_governs_final_visible_score_and_regret() -> None:
     assert features_opt.final_selection_regret == 0.0
     assert features_opt.optimal_selection_flag is True
 
-    # Test auto-resolution via final_artifact_digest
-    trace_auto = ResearchRunTraceV1(
-        run_id="auto-selection-run",
-        benchmark_family="mle-bench/comp",
-        source_digest="sha256:" + "b" * 64,
-        baseline_visible_score=10.0,
-        final_artifact_digest="sha256:" + "f" * 64,
-        iterations=(
-            ResearchIterationV1(
-                iteration_id="v1",
-                visible_score=11.0,
-                artifact_digest="sha256:" + "e" * 64,
-            ),
-            ResearchIterationV1(
-                iteration_id="v2",
-                visible_score=14.0,
-                artifact_digest="sha256:" + "f" * 64,
-            ),
-            ResearchIterationV1(
-                iteration_id="v3",
-                visible_score=12.0,
-                artifact_digest="sha256:" + "g" * 64,
-            ),
-        ),
-    )
-    features_auto = extract_autonomous_research_features(trace_auto)
-    assert features_auto.selected_iteration_id == "v2"
-    assert features_auto.final_visible_score == 14.0
-    assert features_auto.final_selection_regret == 0.0
 
+def test_fail_closed_candidate_selection_invariants() -> None:
+    # 1. final_artifact_digest supplied without selected_iteration_id -> raises ValueError
+    with pytest.raises(
+        ValueError, match="selected_iteration_id is required when final_artifact_digest is supplied"
+    ):
+        ResearchRunTraceV1(
+            run_id="err-no-sel-art",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "1" * 64,
+            final_artifact_digest="sha256:" + "a" * 64,
+            iterations=(
+                ResearchIterationV1(
+                    iteration_id="v1", visible_score=1.0, artifact_digest="sha256:" + "a" * 64
+                ),
+            ),
+        )
 
-def test_selected_iteration_validation_enforces_digest_and_existence() -> None:
-    # Non-existent selected iteration
+    # 2. hidden_score supplied without selected_iteration_id -> raises ValueError
+    with pytest.raises(
+        ValueError, match="selected_iteration_id is required when hidden_score is supplied"
+    ):
+        ResearchRunTraceV1(
+            run_id="err-no-sel-hidden",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "1" * 64,
+            hidden_score=1.5,
+            iterations=(ResearchIterationV1(iteration_id="v1", visible_score=1.0),),
+        )
+
+    # 3. selected_iteration_id not found in trace iterations -> raises ValueError
     with pytest.raises(ValueError, match="not found in trace iterations"):
         ResearchRunTraceV1(
-            run_id="err-run",
+            run_id="err-missing-id",
             benchmark_family="mle-bench",
             source_digest="sha256:" + "1" * 64,
             selected_iteration_id="missing-id",
             iterations=(ResearchIterationV1(iteration_id="v1", visible_score=1.0),),
         )
 
-    # Selected iteration artifact digest mismatch with final_artifact_digest
-    with pytest.raises(ValueError, match="does not match final_artifact_digest"):
+    # 4. artifactless selected iteration when final_artifact_digest is supplied -> raises ValueError
+    with pytest.raises(ValueError, match="must have a non-null artifact_digest"):
         ResearchRunTraceV1(
-            run_id="err-run-digest",
+            run_id="err-artifactless",
             benchmark_family="mle-bench",
             source_digest="sha256:" + "1" * 64,
             selected_iteration_id="v1",
-            final_artifact_digest="sha256:" + "expected" * 8,
+            final_artifact_digest="sha256:" + "a" * 64,
+            iterations=(
+                ResearchIterationV1(iteration_id="v1", visible_score=1.0, artifact_digest=None),
+            ),
+        )
+
+    # 5. selected iteration artifact digest mismatch with final_artifact_digest -> raises ValueError
+    with pytest.raises(ValueError, match="does not match final_artifact_digest"):
+        ResearchRunTraceV1(
+            run_id="err-mismatch-digest",
+            benchmark_family="mle-bench",
+            source_digest="sha256:" + "1" * 64,
+            selected_iteration_id="v1",
+            final_artifact_digest="sha256:" + "a" * 64,
             iterations=(
                 ResearchIterationV1(
-                    iteration_id="v1",
-                    visible_score=1.0,
-                    artifact_digest="sha256:" + "mismatch" * 8,
+                    iteration_id="v1", visible_score=1.0, artifact_digest="sha256:" + "b" * 64
                 ),
             ),
         )
 
+    # 6. Trace without selected_iteration_id produces NULL for all selection/transfer metrics and never infers final artifact
+    unselected_trace = ResearchRunTraceV1(
+        run_id="unselected-run",
+        benchmark_family="mle-bench",
+        source_digest="sha256:" + "1" * 64,
+        baseline_visible_score=10.0,
+        iterations=(
+            ResearchIterationV1(
+                iteration_id="v1",
+                visible_score=11.0,
+                disposition="kept",
+                artifact_digest="sha256:" + "a" * 64,
+            ),
+            ResearchIterationV1(
+                iteration_id="v2",
+                visible_score=13.0,
+                disposition="kept",
+                artifact_digest="sha256:" + "b" * 64,
+            ),
+        ),
+    )
+    features_unselected = extract_autonomous_research_features(unselected_trace)
+    assert features_unselected.selected_iteration_id is None
+    assert features_unselected.final_visible_score is None
+    assert features_unselected.optimal_selection_flag is None
+    assert features_unselected.final_selection_regret is None
+    assert features_unselected.visible_hidden_transfer_gap is None
+    assert features_unselected.final_artifact_digest is None  # MUST NOT infer from v2
+
 
 def test_score_scale_binding_validation_and_transfer_gap_gate() -> None:
-    binding = ScoreScaleBindingV1.create(
+    binding = _sample_scale_binding(
         metric_name="accuracy",
         direction="higher",
+        authority_kind="benchmark_contract",
         visible_split_id="public_val",
         hidden_split_id="private_test",
-        normalization_digest="sha256:" + "norm" * 16,
     )
 
     # Valid binding digest validation
     assert binding.binding_digest.startswith("sha256:")
-    assert binding.normalization_digest == "sha256:" + "norm" * 16
+    assert binding.authority_kind == "benchmark_contract"
 
-    # Refuses missing or empty normalization_digest
-    with pytest.raises(ValueError, match="normalization_digest"):
+    # Deterministic verifier authority kind
+    verifier_binding = _sample_scale_binding(
+        metric_name="reward",
+        direction="higher",
+        authority_kind="deterministic_verifier",
+    )
+    assert verifier_binding.authority_kind == "deterministic_verifier"
+
+    # Refuses invalid SHA-256 digest syntax
+    with pytest.raises(ValueError, match="task_digest must match sha256"):
         ScoreScaleBindingV1.create(
+            authority_kind="benchmark_contract",
             metric_name="accuracy",
             direction="higher",
-            visible_split_id="public_val",
-            hidden_split_id="private_test",
-            normalization_digest="",
+            task_digest="bad_digest",
+            verifier_digest="sha256:" + "2" * 64,
+            metric_config_digest="sha256:" + "3" * 64,
+            visible_split_id="val",
+            hidden_split_id="test",
+            visible_outcome_binding_digest="sha256:" + "4" * 64,
+            hidden_outcome_binding_digest="sha256:" + "5" * 64,
         )
 
     # Tampered binding digest raises ValueError
     with pytest.raises(ValueError, match="digest mismatch"):
         ScoreScaleBindingV1(
+            authority_kind="benchmark_contract",
             metric_name="accuracy",
             direction="higher",
+            task_digest="sha256:" + "1" * 64,
+            verifier_digest="sha256:" + "2" * 64,
+            metric_config_digest="sha256:" + "3" * 64,
             visible_split_id="public_val",
             hidden_split_id="private_test",
-            normalization_digest="sha256:" + "norm" * 16,
-            binding_digest="sha256:bad_digest",
+            visible_outcome_binding_digest="sha256:" + "4" * 64,
+            hidden_outcome_binding_digest="sha256:" + "5" * 64,
+            binding_digest="sha256:" + "f" * 64,
         )
+
+    # Direction mismatch between binding and trace raises ValueError
     with pytest.raises(ValueError, match="does not match trace score_direction"):
         ResearchRunTraceV1(
             run_id="mismatch-run",
@@ -335,29 +411,24 @@ def test_score_scale_binding_validation_and_transfer_gap_gate() -> None:
             source_digest="sha256:" + "3" * 64,
             score_direction="lower",
             score_scale_binding=binding,  # binding has direction="higher"
+            selected_iteration_id="v1",
             iterations=(ResearchIterationV1(iteration_id="v1", visible_score=0.5),),
         )
 
-    # Trace without binding returns None for transfer gap even when hidden_score is present
-    unbound_trace = ResearchRunTraceV1(
-        run_id="unbound-run",
-        benchmark_family="paperbench",
-        source_digest="sha256:" + "3" * 64,
-        baseline_visible_score=0.1,
-        hidden_score=0.4,
-        score_scale_binding=None,
-        iterations=(
-            ResearchIterationV1(
-                iteration_id="v1",
-                visible_score=0.3,
-                disposition="kept",
-            ),
-        ),
+    # Binding digest sensitivity: different verifier_digest produces different binding_digest
+    binding_alt = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="accuracy",
+        direction="higher",
+        task_digest="sha256:" + "1" * 64,
+        verifier_digest="sha256:" + "9" * 64,  # altered
+        metric_config_digest="sha256:" + "3" * 64,
+        visible_split_id="public_val",
+        hidden_split_id="private_test",
+        visible_outcome_binding_digest="sha256:" + "4" * 64,
+        hidden_outcome_binding_digest="sha256:" + "5" * 64,
     )
-    unbound_features = extract_autonomous_research_features(unbound_trace)
-    assert unbound_features.visible_hidden_transfer_gap is None
-    assert unbound_features.score_scale_compatible is False
-    assert unbound_features.scale_binding_digest is None
+    assert binding.binding_digest != binding_alt.binding_digest
 
 
 def test_jsonl_experiment_log_parser_refuses_ambiguous_prose() -> None:
@@ -392,6 +463,7 @@ def test_autonomous_research_edge_cases_and_null_conditions() -> None:
     assert features.unique_hypothesis_count == 0
     assert features.repeated_hypothesis_count == 0
     assert features.hypothesis_turnover_rate is None
+    assert features.selection_decision_count == 0
     assert features.rollback_rate is None
     assert features.regression_rate is None
     assert features.visible_improvement is None
@@ -461,12 +533,11 @@ def test_leakage_and_contamination_detection() -> None:
 
 
 def test_lower_is_better_score_direction_semantics() -> None:
-    scale_binding = ScoreScaleBindingV1.create(
+    scale_binding = _sample_scale_binding(
         metric_name="loss",
         direction="lower",
         visible_split_id="val",
         hidden_split_id="test",
-        normalization_digest="sha256:" + "norm" * 16,
     )
     trace = ResearchRunTraceV1(
         run_id="loss-opt-run",
@@ -604,6 +675,7 @@ def test_feature_registry_governance_for_autonomous_research_family() -> None:
     assert len(family_features) == 69, (
         f"Expected 69 registered features, got {len(family_features)}"
     )
+
     # Audit denominator policies and verdict coupling for all features in family
     for col_name, feat in family_features.items():
         assert feat.family == "autonomous-research-v1"
@@ -625,12 +697,11 @@ def test_feature_registry_governance_for_autonomous_research_family() -> None:
 
 
 def test_benchmark_feature_coverage_and_yield() -> None:
-    scale_binding = ScoreScaleBindingV1.create(
+    scale_binding = _sample_scale_binding(
         metric_name="score",
         direction="higher",
         visible_split_id="val",
         hidden_split_id="test",
-        normalization_digest="sha256:" + "norm" * 16,
     )
     trace = ResearchRunTraceV1(
         run_id="eval-run-yield",

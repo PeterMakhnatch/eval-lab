@@ -701,9 +701,62 @@ def extract_read_to_use_linkage(
 
     expected_token_digest = compute_token_digest(bound_token)
 
+    # Validate mutation call execution result and token digest integrity (B2)
+    if not mutation_call or not mutation_call.result_event or mutation_call.is_error:
+        return {
+            "read_to_use_linked": False,
+            "linkage_status": "mutation_result_integrity_failure",
+            "matched_read_chunk_id": None,
+            "bound_token": None,
+            "token_digest": None,
+            "content_digest": None,
+            "write_to_read_opportunities": 0,
+            "write_to_read_rate": None,
+            "write_to_read_to_use_rate": None,
+        }
+
+    mut_res_payload = mutation_call.result_payload
+    if not isinstance(mut_res_payload, dict):
+        return {
+            "read_to_use_linked": False,
+            "linkage_status": "mutation_result_integrity_failure",
+            "matched_read_chunk_id": None,
+            "bound_token": None,
+            "token_digest": None,
+            "content_digest": None,
+            "write_to_read_opportunities": 0,
+            "write_to_read_rate": None,
+            "write_to_read_to_use_rate": None,
+        }
+
+    mut_res_entity = mut_res_payload.get("entity_id")
+    mut_res_attr = mut_res_payload.get("attribute")
+    mut_res_token = mut_res_payload.get("bound_token") or mut_res_payload.get(
+        "bound_value"
+    )
+    mut_res_digest = mut_res_payload.get("token_digest")
+
+    if (
+        mut_res_entity != bound_entity
+        or mut_res_attr != bound_attribute
+        or mut_res_token != bound_token
+        or mut_res_digest != expected_token_digest
+    ):
+        return {
+            "read_to_use_linked": False,
+            "linkage_status": "mutation_token_digest_mismatch",
+            "matched_read_chunk_id": None,
+            "bound_token": None,
+            "token_digest": None,
+            "content_digest": None,
+            "write_to_read_opportunities": 0,
+            "write_to_read_rate": None,
+            "write_to_read_to_use_rate": None,
+        }
+
     mut_request_idx = (
         mutation_call.request_event.event_index
-        if mutation_call and mutation_call.request_event
+        if mutation_call.request_event
         else len(bundle.events) + 1
     )
 
@@ -809,24 +862,39 @@ def emit_canary_paired_condition_fact(
     is_journal_mutation_verified = False
     if has_valid_state_journal and bound_val != "unbound":
         expected_digest = compute_token_digest(bound_val)
-        for change in state_journal.get("changes", []):
-            if not isinstance(change, dict):
-                continue
-            if (
-                change.get("entity_id") == target_ent
-                and change.get("attribute") == target_attr
-                and (
-                    change.get("bound_token") == bound_val
-                    or change.get("value") == bound_val
-                )
-                and change.get("token_digest") == expected_digest
-            ):
+        changes = state_journal.get("changes", [])
+        # Collect all changes matching target entity and attribute
+        target_changes = [
+            c
+            for c in changes
+            if isinstance(c, dict)
+            and c.get("entity_id") == target_ent
+            and c.get("attribute") == target_attr
+        ]
+        # Must have exactly one unambiguous change for the target entity/attribute (B6)
+        if len(target_changes) == 1:
+            c = target_changes[0]
+            # Mandatory first-class bound_token matching bound_val
+            has_valid_bound_token = c.get("bound_token") == bound_val
+            # If legacy 'value' field is also present, it must equal bound_val (cannot conflict)
+            has_valid_legacy_value = "value" not in c or c.get("value") == bound_val
+            # Token digest must match canonical expected digest
+            has_valid_digest = c.get("token_digest") == expected_digest
+
+            if has_valid_bound_token and has_valid_legacy_value and has_valid_digest:
                 is_journal_mutation_verified = True
-                break
     elif has_valid_state_journal and not trial_data["final_state"]["mutations"]:
         # Nop control with valid available journal (0 mutations)
-        is_journal_mutation_verified = True
-
+        changes = state_journal.get("changes", [])
+        target_changes = [
+            c
+            for c in changes
+            if isinstance(c, dict)
+            and c.get("entity_id") == target_ent
+            and c.get("attribute") == target_attr
+        ]
+        if len(target_changes) == 0:
+            is_journal_mutation_verified = True
     if not has_valid_state_journal or not is_journal_mutation_verified:
         verdict = "unknown"
     else:

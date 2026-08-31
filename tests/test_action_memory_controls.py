@@ -325,7 +325,21 @@ def test_read_to_use_negative_regressions(canary_spec: CanaryPairSpec, tmp_path:
         == "nonzero_contract_write_opportunities_unsupported"
     )
 
-    # 6. Read without use
+    # 6. Tampered mutation result token digest (adversarial probe B2)
+    arm1_bad_mut_digest = synthesize_canary_trial_artifacts(
+        canary_spec, arm="state_inverted", control_type="oracle"
+    )
+    for ev in arm1_bad_mut_digest["events"]:
+        if ev["event_type"] == "tool_result" and "bound_value" in ev.get("result", {}):
+            ev["result"]["token_digest"] = "sha256:" + "0" * 64
+    bundle_bad_mut_digest = materialize_canary_trial_bundle(
+        arm1_bad_mut_digest, tmp_path / "neg_bad_mut_digest"
+    )
+    linkage_bad_mut_digest = extract_read_to_use_linkage(bundle_bad_mut_digest)
+    assert linkage_bad_mut_digest["read_to_use_linked"] is False
+    assert linkage_bad_mut_digest["linkage_status"] == "mutation_token_digest_mismatch"
+
+    # 7. Read without use
     arm1_no_use = synthesize_canary_trial_artifacts(
         canary_spec, arm="state_inverted", control_type="nop"
     )
@@ -369,6 +383,45 @@ def test_state_journal_absence_and_tampering_classified_as_hold(
         "Tampered journal digest must force verdict to unknown (HOLD)"
     )
     assert fact_tampered.secondary_verdict == "unknown"
+
+    # 3. State journal wrong bound_token with matching legacy value (adversarial probe B6)
+    arm0_wrong_token_journal = copy.deepcopy(
+        synthesize_canary_trial_artifacts(
+            canary_spec, arm="non_inverted", control_type="oracle", include_state_journal=True
+        )
+    )
+    arm0_wrong_token_journal["state_journal"]["changes"][0]["bound_token"] = "wrong_token_xyz"
+    fact_wrong_token = emit_canary_paired_condition_fact(arm0_wrong_token_journal)
+    assert fact_wrong_token.primary_verdict == "unknown", (
+        "Wrong journal bound_token must force verdict to unknown (HOLD)"
+    )
+
+    # 4. State journal missing bound_token field (adversarial probe B6)
+    arm0_missing_token_journal = copy.deepcopy(
+        synthesize_canary_trial_artifacts(
+            canary_spec, arm="non_inverted", control_type="oracle", include_state_journal=True
+        )
+    )
+    arm0_missing_token_journal["state_journal"]["changes"][0].pop("bound_token", None)
+    fact_missing_token = emit_canary_paired_condition_fact(arm0_missing_token_journal)
+    assert fact_missing_token.primary_verdict == "unknown", (
+        "Missing journal bound_token must force verdict to unknown (HOLD)"
+    )
+
+    # 5. State journal ambiguous / duplicate target changes (adversarial probe B6)
+    arm0_ambiguous_journal = copy.deepcopy(
+        synthesize_canary_trial_artifacts(
+            canary_spec, arm="non_inverted", control_type="oracle", include_state_journal=True
+        )
+    )
+    change0 = arm0_ambiguous_journal["state_journal"]["changes"][0]
+    conflicting_change = copy.deepcopy(change0)
+    conflicting_change["bound_token"] = "conflicting_token_v99"
+    arm0_ambiguous_journal["state_journal"]["changes"].append(conflicting_change)
+    fact_ambiguous = emit_canary_paired_condition_fact(arm0_ambiguous_journal)
+    assert fact_ambiguous.primary_verdict == "unknown", (
+        "Ambiguous / duplicate target changes in journal must force verdict to unknown (HOLD)"
+    )
 
 
 def test_canonical_paired_condition_facts_emission(canary_spec: CanaryPairSpec):

@@ -296,6 +296,186 @@ def _digest_renderer(root: Path) -> DigestRenderer:
 # ---------------------------------------------------------------------------
 
 
+def _agents_list_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles, evaluate_profile_readiness
+
+    effective_root = root
+    profiles = builtin_profiles()
+    records = [evaluate_profile_readiness(p, root=effective_root) for p in profiles.values()]
+    if getattr(args, "json", False):
+        payload = [r.model_dump(mode="json") for r in records]
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    headers = [
+        "Profile ID",
+        "Adapter",
+        "Model Pin",
+        "Host Cred",
+        "Transport",
+        "Trajectory",
+        "Ladder State",
+        "Active Blocker",
+    ]
+    rows: list[list[str]] = []
+    for r in records:
+        blocker_str = f"[{r.blocker.gate}] {r.blocker.reason}" if r.blocker else "(none)"
+        rows.append(
+            [
+                r.profile_id,
+                r.adapter,
+                r.model or "(none)",
+                r.gates.host_credential,
+                r.gates.harbor_transport,
+                r.gates.structured_trajectory,
+                r.state,
+                blocker_str,
+            ]
+        )
+
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            col_widths[i] = max(col_widths[i], len(cell))
+
+    header_line = "  ".join(f"{h:<{col_widths[i]}}" for i, h in enumerate(headers))
+    sep_line = "  ".join("-" * col_widths[i] for i in range(len(headers)))
+    print(header_line)
+    print(sep_line)
+    for row in rows:
+        print("  ".join(f"{cell:<{col_widths[i]}}" for i, cell in enumerate(row)))
+
+    return 0
+
+
+def _agents_doctor_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles, evaluate_profile_readiness
+
+    effective_root = root
+    profiles_dict = builtin_profiles()
+    profile_arg = getattr(args, "profile", None)
+    if profile_arg:
+        if profile_arg not in profiles_dict:
+            print(f"error: unknown profile ID {profile_arg!r}", file=sys.stderr)
+            return 1
+        targets = [profiles_dict[profile_arg]]
+    else:
+        targets = list(profiles_dict.values())
+
+    records = [evaluate_profile_readiness(p, root=effective_root) for p in targets]
+
+    if getattr(args, "json", False):
+        payload = [r.model_dump(mode="json") for r in records]
+        print(json.dumps(payload, indent=2))
+        all_passed = all(
+            r.gates.declared == "pass"
+            and r.gates.installed == "pass"
+            and r.gates.host_credential == "pass"
+            and r.gates.harbor_transport == "pass"
+            and r.gates.environment_network == "pass"
+            and r.gates.structured_trajectory == "pass"
+            for r in records
+        )
+        return 0 if all_passed else 1
+
+    has_preflight_blocker = False
+    for r in records:
+        print(f"Profile: {r.profile_id}")
+        print(f"  Adapter: {r.adapter}  Model: {r.model or '(none)'}  Digest: {r.profile_digest}")
+        print("  Gates:")
+        for gate_name in (
+            "declared",
+            "installed",
+            "host_credential",
+            "harbor_transport",
+            "environment_network",
+            "structured_trajectory",
+            "smoke",
+            "canary",
+        ):
+            status = getattr(r.gates, gate_name)
+            tag = "OK" if status == "pass" else ("BLOCKED" if status == "blocked" else "FAIL")
+            print(f"    [{tag:7}] {gate_name}")
+
+        if r.blocker:
+            print(
+                f"  Verdict: {r.state.upper()} (Active blocker: [{r.blocker.gate}] {r.blocker.reason})"
+            )
+            if r.blocker.remediation:
+                print(f"  Remediation: {r.blocker.remediation}")
+        else:
+            print(f"  Verdict: {r.state.upper()} (All gates pass)")
+        print()
+
+        preflight_passed = (
+            r.gates.declared == "pass"
+            and r.gates.installed == "pass"
+            and r.gates.host_credential == "pass"
+            and r.gates.harbor_transport == "pass"
+            and r.gates.environment_network == "pass"
+            and r.gates.structured_trajectory == "pass"
+        )
+        if not preflight_passed:
+            has_preflight_blocker = True
+
+    return 1 if has_preflight_blocker else 0
+
+
+def _agents_smoke_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles
+
+    effective_root = root
+    profiles_dict = builtin_profiles()
+    if args.profile not in profiles_dict:
+        print(f"error: unknown profile ID {args.profile!r}", file=sys.stderr)
+        return 1
+    profile = profiles_dict[args.profile]
+    executor = Executor.from_repo(effective_root)
+    ok, smoke_rec, err = executor.execute_agent_smoke(profile, task_ref=args.task)
+    if not ok or smoke_rec is None:
+        print(f"Smoke failed for {profile.profile_id}: {err}", file=sys.stderr)
+        return 1
+    print(
+        f"Smoke passed for {profile.profile_id} on {smoke_rec.task}: reward={smoke_rec.reward} "
+        f"runtime={smoke_rec.runtime_seconds:.1f}s steps={smoke_rec.step_count} "
+        f"tool_calls={smoke_rec.tool_call_count}"
+    )
+    return 0
+
+
+def _agents_qualify_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles
+
+    effective_root = root
+    profiles_dict = builtin_profiles()
+    if args.profile not in profiles_dict:
+        print(f"error: unknown profile ID {args.profile!r}", file=sys.stderr)
+        return 1
+    profile = profiles_dict[args.profile]
+    executor = Executor.from_repo(effective_root)
+    ok, qual_digest, err = executor.execute_agent_qualify(
+        profile,
+        repeats=args.repeats,
+        task_ref=args.task,
+    )
+    if not ok or qual_digest is None:
+        print(f"Qualification failed for {profile.profile_id}: {err}", file=sys.stderr)
+        return 1
+    print(
+        f"Qualification succeeded for {profile.profile_id}: {qual_digest.repeats} repeats passed "
+        f"(digest: {qual_digest.qualification_digest})"
+    )
+    return 0
+
+
 def _doctor_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3404,6 +3584,54 @@ def parser() -> argparse.ArgumentParser:
     claims_pack.add_argument("--semantic-root", type=Path, help="Semantic Parquet root")
     claims_pack.add_argument("--json", action="store_true", help="Emit the typed pack as JSON")
     claims_pack.set_defaults(func=_claims_pack_command)
+
+    agents = commands.add_parser(
+        "agents",
+        help="Manage agent profiles, readiness gates, smoke tests, and qualification",
+    )
+    agents_commands = agents.add_subparsers(dest="agents_command", required=True)
+
+    agents_list = agents_commands.add_parser(
+        "list", help="List declared agent profiles and their readiness status"
+    )
+    agents_list.add_argument("--json", action="store_true", help="Emit readiness records as JSON")
+    agents_list.set_defaults(func=_agents_list_command)
+
+    agents_doctor = agents_commands.add_parser(
+        "doctor", help="Run readiness diagnostic probes across all gates"
+    )
+    agents_doctor.add_argument(
+        "profile",
+        nargs="?",
+        help="Specific profile ID to diagnose (omit for all)",
+    )
+    agents_doctor.add_argument("--json", action="store_true", help="Emit diagnostic report as JSON")
+    agents_doctor.set_defaults(func=_agents_doctor_command)
+
+    agents_smoke = agents_commands.add_parser(
+        "smoke", help="Run a bounded smoke canary trial for an agent profile"
+    )
+    agents_smoke.add_argument("profile", help="Agent profile ID to smoke test")
+    agents_smoke.add_argument(
+        "--task", default="canary/event-summary", help="Canary task reference"
+    )
+    agents_smoke.set_defaults(func=_agents_smoke_command)
+
+    agents_qualify = agents_commands.add_parser(
+        "qualify",
+        help="Run repeated canary trials to qualify an agent profile",
+    )
+    agents_qualify.add_argument("profile", help="Agent profile ID to qualify")
+    agents_qualify.add_argument(
+        "--repeats",
+        type=int,
+        default=3,
+        help="Number of consecutive passing repeats required",
+    )
+    agents_qualify.add_argument(
+        "--task", default="canary/event-summary", help="Canary task reference"
+    )
+    agents_qualify.set_defaults(func=_agents_qualify_command)
 
     doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
     doctor.add_argument(

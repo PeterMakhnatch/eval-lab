@@ -2334,3 +2334,93 @@ class StateJournalEvent(ContractModel):
     cookie: int | None = Field(default=None, ge=0)
     is_directory: bool
     state: StateEventMetadata | None = None
+
+
+GateStatus = Literal["pass", "fail", "blocked", "untested"]
+ReadinessGate = Literal[
+    "declared",
+    "installed",
+    "host_credential",
+    "harbor_transport",
+    "environment_network",
+    "structured_trajectory",
+    "smoke",
+    "canary",
+]
+ReadinessState = Literal[
+    "declared",
+    "installed",
+    "credential-ready",
+    "smoke-passed",
+    "canary-qualified",
+]
+
+
+class AgentGateEvaluations(ContractModel):
+    declared: GateStatus = "untested"
+    installed: GateStatus = "untested"
+    host_credential: GateStatus = "untested"
+    harbor_transport: GateStatus = "untested"
+    environment_network: GateStatus = "untested"
+    structured_trajectory: GateStatus = "untested"
+    smoke: GateStatus = "untested"
+    canary: GateStatus = "untested"
+
+
+class AgentBlocker(ContractModel):
+    gate: ReadinessGate
+    reason: str = Field(min_length=1)
+    remediation: str | None = None
+
+
+class AgentSmokeRecord(ContractModel):
+    schema_version: Literal[1] = 1
+    profile_id: str = Field(min_length=1)
+    profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    task: str = Field(min_length=1)
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    job_name: str = Field(min_length=1)
+    trial_name: str = Field(min_length=1)
+    reward: float = Field(ge=1.0)
+    runtime_seconds: float = Field(ge=0.0)
+    step_count: int = Field(ge=1)
+    tool_call_count: int = Field(ge=0)
+    atif_path: str = Field(min_length=1)
+    atif_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    executed_at: datetime
+
+
+class AgentQualificationDigest(ContractModel):
+    schema_version: Literal[1] = 1
+    profile_id: str = Field(min_length=1)
+    profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    repeats: int = Field(ge=3)
+    success_count: int = Field(ge=3)
+    smoke_records: list[AgentSmokeRecord] = Field(min_length=3)
+    qualification_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    qualified_at: datetime
+
+    @model_validator(mode="after")
+    def _validate_complete_repeats(self) -> AgentQualificationDigest:
+        if self.success_count != self.repeats or len(self.smoke_records) != self.repeats:
+            raise ValueError("qualification requires one successful smoke record per repeat")
+        if any(
+            record.profile_id != self.profile_id or record.profile_digest != self.profile_digest
+            for record in self.smoke_records
+        ):
+            raise ValueError("qualification smoke records must match the qualified profile")
+        return self
+
+
+class AgentReadinessRecord(ContractModel):
+    schema_version: Literal[1] = 1
+    profile_id: str = Field(min_length=1)
+    adapter: str = Field(min_length=1)
+    model: str | None = None
+    profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    state: ReadinessState
+    gates: AgentGateEvaluations
+    blocker: AgentBlocker | None = None
+    last_smoke: AgentSmokeRecord | None = None
+    qualification: AgentQualificationDigest | None = None
+    updated_at: datetime

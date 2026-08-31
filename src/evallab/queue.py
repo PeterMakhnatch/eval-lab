@@ -4,6 +4,7 @@ import fcntl
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import platform
 import secrets
@@ -12,7 +13,7 @@ import stat
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime, timedelta
@@ -28,7 +29,7 @@ from evallab.credentials import (
     missing_credential_for,
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
-from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
+from evallab.evidence.atif import IngestProjectionResult, ingest_and_project, project_trial
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
     DispatchCapacity,
@@ -43,7 +44,15 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     evaluate_trial_compliance,
 )
-from evallab.profiles import CONTROL_ADAPTERS
+from evallab.profiles import (
+    CONTROL_ADAPTERS,
+    AgentProfile,
+    ProfileState,
+    SecurityRunner,
+    compute_qualification_digest,
+    evaluate_profile_readiness,
+    save_readiness_record,
+)
 from evallab.quota import (
     Headroom,
     default_roots,
@@ -64,7 +73,7 @@ from evallab.registry import (
     TaskVersionMismatchError,
     compute_task_digests,
 )
-from evallab.results import load_job
+from evallab.results import duration_seconds, load_job
 from evallab.runner import (
     CONTROL_AGENTS,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
@@ -81,6 +90,10 @@ from evallab.runner import (
 )
 from evallab.schemas import (
     EXPERIMENT_PURPOSES,
+    AgentGateEvaluations,
+    AgentQualificationDigest,
+    AgentReadinessRecord,
+    AgentSmokeRecord,
     AutoRunRule,
     ExperimentSpec,
     PolicyDecision,
@@ -2316,6 +2329,291 @@ class Executor:
                 detail = output[0] if output else "no version output"
                 checks.append(("docker-daemon", completed.returncode == 0, detail))
         return checks
+
+    def _docker_daemon_check(self) -> tuple[bool, str]:
+        if not shutil.which("docker"):
+            return False, "docker executable not found in PATH"
+        try:
+            completed = subprocess.run(
+                [
+                    "docker",
+                    "version",
+                    "--format",
+                    "client={{.Client.Version}} server={{.Server.Version}}",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                env=subscription_environment(),
+            )
+            if completed.returncode != 0:
+                return False, "Docker daemon unreachable"
+            return True, "Docker daemon reachable"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return False, f"Docker daemon check failed: {type(exc).__name__}"
+
+    def _resolve_readiness_canary(self, task_ref: str) -> tuple[Path, str]:
+        """Resolve one digest-pinned suite member; arbitrary direct tasks are forbidden."""
+        if not task_ref.startswith("canary/"):
+            raise ValueError("readiness smoke only accepts a registered canary/<name> task")
+        member_name = task_ref.removeprefix("canary/")
+        if not member_name or "/" in member_name:
+            raise ValueError("readiness smoke task must name exactly one registered canary")
+
+        from evallab.canary import load_canary_suite, task_directory_digest
+
+        suite = load_canary_suite(self.repo_root / "policy/canary-suite.yaml")
+        matches = [member for member in suite.members if member.name == member_name]
+        if len(matches) != 1:
+            raise ValueError(f"unknown readiness canary {task_ref!r}")
+        member = matches[0]
+        task_path = (self.repo_root / member.task_path).resolve()
+        if self.repo_root.resolve() not in task_path.parents:
+            raise ValueError(f"readiness canary escapes repository: {member.task_path}")
+        actual_digest = task_directory_digest(task_path)
+        if actual_digest != member.task_digest:
+            raise ValueError(
+                f"readiness canary digest mismatch for {member.name}; "
+                "update policy/canary-suite.yaml through review"
+            )
+        return task_path, member.task_digest
+
+    def execute_agent_smoke(
+        self,
+        profile: AgentProfile,
+        *,
+        task_ref: str = "canary/event-summary",
+        is_installed_fn: Callable[[str], bool] | None = None,
+        docker_checker: Callable[[], tuple[bool, str]] | None = None,
+        cli_runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
+        security_runner: SecurityRunner | None = None,
+        environment: Mapping[str, str] | None = None,
+    ) -> tuple[bool, AgentSmokeRecord | None, str | None]:
+        """Run one fixed-budget, digest-pinned canary after all pre-trial gates pass."""
+        readiness = evaluate_profile_readiness(
+            profile,
+            root=self.repo_root,
+            is_installed_fn=is_installed_fn or (lambda binary: shutil.which(binary) is not None),
+            docker_checker=docker_checker or self._docker_daemon_check,
+            cli_runner=cli_runner,
+            security_runner=security_runner,
+            environment=environment,
+        )
+        for gate_name in (
+            "declared",
+            "installed",
+            "host_credential",
+            "harbor_transport",
+            "environment_network",
+            "structured_trajectory",
+        ):
+            if getattr(readiness.gates, gate_name) != "pass":
+                blocker_reason = (
+                    readiness.blocker.reason
+                    if readiness.blocker
+                    else f"Preflight gate '{gate_name}' failed"
+                )
+                return False, None, blocker_reason
+
+        try:
+            task_path, task_digest = self._resolve_readiness_canary(task_ref)
+        except ValueError as exc:
+            return False, None, str(exc)
+
+        job_name = f"smoke-{profile.profile_id}-{new_ulid().lower()}"
+        request = RunRequest(
+            task=task_path,
+            agent=profile.adapter,
+            model=profile.model,
+            name=job_name,
+            jobs_dir=self.repo_root / "runs",
+            timeout_seconds=300,
+            cost_limit_usd=1.0,
+            allow_billable=True,
+            concurrency=1,
+            attempts=1,
+        )
+
+        try:
+            job_dir = self._runner(request)
+        except Exception as exc:
+            return False, None, f"Runner execution failed: {exc}"
+
+        with suppress(Exception):
+            self._ingester(job_dir)
+
+        try:
+            job = load_job(job_dir)
+        except Exception as exc:
+            return False, None, f"Failed to load job result: {exc}"
+        if len(job.trials) != 1:
+            return False, None, f"Smoke run must produce exactly one trial, found {len(job.trials)}"
+
+        trial = job.trials[0]
+        exception_info = trial.result.get("exception_info")
+        if isinstance(exception_info, dict) and exception_info.get("exception_type"):
+            return False, None, f"Smoke agent failed: {exception_info['exception_type']}"
+
+        reward = trial.primary_reward
+        if reward is None:
+            reward_txt = trial.path / "verifier/reward.txt"
+            if reward_txt.is_file():
+                try:
+                    reward = float(reward_txt.read_text().strip())
+                except ValueError:
+                    reward = None
+        if reward is None or not math.isfinite(reward):
+            return False, None, "Smoke verifier produced no valid reward"
+        if reward < 1.0:
+            return False, None, f"Smoke run scored reward {reward} (< 1.0)"
+
+        runtime_seconds = duration_seconds(
+            trial.result.get("started_at"), trial.result.get("finished_at")
+        )
+        if runtime_seconds is None:
+            return False, None, "Smoke trial did not record a complete runtime interval"
+
+        projection = project_trial(job, trial)
+        trajectory = next(
+            (
+                item
+                for item in projection.trajectories
+                if item.embedded_path is None and item.validation_status == "valid"
+            ),
+            None,
+        )
+        if trajectory is None or trajectory.step_count < 1:
+            return False, None, "Smoke trial did not capture one valid structured ATIF trajectory"
+        tool_call_count = sum(
+            step.tool_call_count
+            for step in projection.steps
+            if step.document_id == trajectory.document_id
+        )
+
+        smoke_record = AgentSmokeRecord(
+            schema_version=1,
+            profile_id=profile.profile_id,
+            profile_digest=profile.digest,
+            task=task_ref,
+            task_digest=task_digest,
+            job_name=job.name,
+            trial_name=trial.name,
+            reward=reward,
+            runtime_seconds=runtime_seconds,
+            step_count=trajectory.step_count,
+            tool_call_count=tool_call_count,
+            atif_path=trajectory.source_path,
+            atif_digest=trajectory.source_sha256,
+            executed_at=datetime.now(UTC),
+        )
+
+        updated_readiness = evaluate_profile_readiness(
+            profile,
+            root=self.repo_root,
+            is_installed_fn=is_installed_fn or (lambda binary: shutil.which(binary) is not None),
+            docker_checker=docker_checker or self._docker_daemon_check,
+            cli_runner=cli_runner,
+            security_runner=security_runner,
+            environment=environment,
+            persisted_record=AgentReadinessRecord(
+                schema_version=1,
+                profile_id=profile.profile_id,
+                adapter=profile.adapter,
+                model=profile.model,
+                profile_digest=profile.digest,
+                state=ProfileState.SMOKE_PASSED.value,
+                gates=AgentGateEvaluations(
+                    declared="pass",
+                    installed="pass",
+                    host_credential="pass",
+                    harbor_transport="pass",
+                    environment_network="pass",
+                    structured_trajectory="pass",
+                    smoke="pass",
+                    canary="blocked",
+                ),
+                last_smoke=smoke_record,
+                updated_at=datetime.now(UTC),
+            ),
+        )
+        save_readiness_record(updated_readiness, root=self.repo_root)
+        return True, smoke_record, None
+
+    def execute_agent_qualify(
+        self,
+        profile: AgentProfile,
+        *,
+        repeats: int = 3,
+        task_ref: str = "canary/event-summary",
+        is_installed_fn: Callable[[str], bool] | None = None,
+        docker_checker: Callable[[], tuple[bool, str]] | None = None,
+        cli_runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
+        security_runner: SecurityRunner | None = None,
+        environment: Mapping[str, str] | None = None,
+    ) -> tuple[bool, AgentQualificationDigest | None, str | None]:
+        """Require exactly three fixed-budget canary passes for qualification."""
+        if repeats != 3:
+            return False, None, "Qualification requires exactly 3 canary repeats"
+
+        smoke_records: list[AgentSmokeRecord] = []
+        for index in range(repeats):
+            ok, smoke_rec, err = self.execute_agent_smoke(
+                profile,
+                task_ref=task_ref,
+                is_installed_fn=is_installed_fn,
+                docker_checker=docker_checker,
+                cli_runner=cli_runner,
+                security_runner=security_runner,
+                environment=environment,
+            )
+            if not ok or smoke_rec is None:
+                return False, None, f"Repeat {index + 1}/{repeats} failed: {err}"
+            smoke_records.append(smoke_rec)
+
+        qualification = AgentQualificationDigest(
+            schema_version=1,
+            profile_id=profile.profile_id,
+            profile_digest=profile.digest,
+            repeats=repeats,
+            success_count=len(smoke_records),
+            smoke_records=smoke_records,
+            qualification_digest=compute_qualification_digest(smoke_records),
+            qualified_at=datetime.now(UTC),
+        )
+
+        updated_readiness = evaluate_profile_readiness(
+            profile,
+            root=self.repo_root,
+            is_installed_fn=is_installed_fn or (lambda binary: shutil.which(binary) is not None),
+            docker_checker=docker_checker or self._docker_daemon_check,
+            cli_runner=cli_runner,
+            security_runner=security_runner,
+            environment=environment,
+            persisted_record=AgentReadinessRecord(
+                schema_version=1,
+                profile_id=profile.profile_id,
+                adapter=profile.adapter,
+                model=profile.model,
+                profile_digest=profile.digest,
+                state=ProfileState.CANARY_QUALIFIED.value,
+                gates=AgentGateEvaluations(
+                    declared="pass",
+                    installed="pass",
+                    host_credential="pass",
+                    harbor_transport="pass",
+                    environment_network="pass",
+                    structured_trajectory="pass",
+                    smoke="pass",
+                    canary="pass",
+                ),
+                last_smoke=smoke_records[-1],
+                qualification=qualification,
+                updated_at=datetime.now(UTC),
+            ),
+        )
+        save_readiness_record(updated_readiness, root=self.repo_root)
+        return True, qualification, None
 
     def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
         state_path = self._safe_repo_path(spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"

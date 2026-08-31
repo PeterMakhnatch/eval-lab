@@ -27,7 +27,7 @@
     "dose_bytes": 4096,
     "realized_context_bytes": 4096,
     "contrast_variable": "state_inversion_status",
-    "tool_schema_digest": "sha256:49aa3b28b7e2898cf85d95610e75a3ba2e8e97f0a719c8f108865d648c66e95b",
+    "tool_schema_digest": "sha256:607ccc5e566eb3688fbfe45439aff91cc21673ae83d31930bc53997f621a043c",
     "verifier_truth_digest": "sha256:b134c7e7dc127002289f37148e246aea02c84ab439b92951dc09a9297b1ca8c6",
     "arms": [
       {

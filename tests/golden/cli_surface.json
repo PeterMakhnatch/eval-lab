@@ -3188,6 +3188,93 @@
       }
     ]
   },
+  "inspect-ingest": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_dir",
+        "flags": [
+          "--derived-dir"
+        ],
+        "help": "override the shared Parquet root for this invocation",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "log",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "no_cas",
+        "flags": [
+          "--no-cas"
+        ],
+        "help": "project without archiving the raw log",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/evidence-cas",
+        "dest": "store",
+        "flags": [
+          "--store"
+        ],
+        "help": "CAS root for the raw Inspect log",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
   "ladder": {
     "options": [
       {

@@ -33,6 +33,7 @@ TOP_LEVEL_COMMANDS = (
     "matrix",
     "summarize",
     "ingest",
+    "inspect-ingest",
     "trajectories",
     "compare",
     "curve",

@@ -82,7 +82,7 @@
     "autonomous-research-v1": {
       "producer_module": "evallab.autonomous_research",
       "source_table": "autonomous_research_runs",
-      "feature_count": 61,
+      "feature_count": 62,
       "constructs": [
         "Autonomous Research & Method Improvement",
         "Score-Time Dynamics & Budget Scaling",
@@ -143,9 +143,9 @@
         {"name": "visible_hidden_transfer_gap", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C2", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
         {"name": "final_artifact_digest", "type": "VARCHAR", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
         {"name": "artifact_replay_verified", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C2", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
+        {"name": "reproducibility_evaluated_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
         {"name": "reproducible_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
-        {"name": "reproducibility_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "iteration_count", "construct": "Reproducibility & Replay"},
-        {"name": "environment_setup_seconds", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},
+        {"name": "reproducibility_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "reproducibility_evaluated_count", "construct": "Reproducibility & Replay"},
         {"name": "dependency_repair_attempts", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},
         {"name": "dependency_repair_successes", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},
         {"name": "runtime_environment_repaired", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},

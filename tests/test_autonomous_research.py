@@ -147,8 +147,9 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
     # 8. Artifact Replay & Reproducibility
     assert features.final_artifact_digest == "sha256:" + "2" * 64
     assert features.artifact_replay_verified is True
+    assert features.reproducibility_evaluated_count == 4
     assert features.reproducible_iteration_count == 4
-    assert features.reproducibility_rate == 0.8
+    assert features.reproducibility_rate == 1.0
 
     # 9. Environment Reconstruction & Dependency Repair
     assert features.environment_setup_seconds == 12.5
@@ -360,10 +361,45 @@ def test_lower_is_better_score_direction_semantics() -> None:
     assert features.visible_hidden_transfer_gap == pytest.approx(1.7 - 1.9)
 
 
+def test_reproducibility_distinguishes_unknown_from_false() -> None:
+    # Mixed trace: 1 True, 1 False, 1 None (unknown)
+    mixed_trace = ResearchRunTraceV1(
+        run_id="repro-mixed",
+        benchmark_family="core-bench/capsule",
+        source_digest="sha256:" + "7" * 64,
+        iterations=(
+            ResearchIterationV1(iteration_id="i1", is_reproducible=True),
+            ResearchIterationV1(iteration_id="i2", is_reproducible=False),
+            ResearchIterationV1(iteration_id="i3", is_reproducible=None),
+        ),
+    )
+    mixed_features = extract_autonomous_research_features(mixed_trace)
+    assert mixed_features.iteration_count == 3
+    assert mixed_features.reproducibility_evaluated_count == 2
+    assert mixed_features.reproducible_iteration_count == 1
+    assert mixed_features.reproducibility_rate == 0.5
+
+    # Unmeasured trace: all is_reproducible=None
+    unmeasured_trace = ResearchRunTraceV1(
+        run_id="repro-unmeasured",
+        benchmark_family="rsi-exam/pilot",
+        source_digest="sha256:" + "8" * 64,
+        iterations=(
+            ResearchIterationV1(iteration_id="i1", is_reproducible=None),
+            ResearchIterationV1(iteration_id="i2", is_reproducible=None),
+        ),
+    )
+    unmeasured_features = extract_autonomous_research_features(unmeasured_trace)
+    assert unmeasured_features.iteration_count == 2
+    assert unmeasured_features.reproducibility_evaluated_count == 0
+    assert unmeasured_features.reproducible_iteration_count == 0
+    assert unmeasured_features.reproducibility_rate is None  # MUST be NULL, not 0.0!
+
+
 def test_feature_registry_governance_for_autonomous_research_family() -> None:
     family_features = TRAJECTORY_FEATURE_REGISTRY.by_family("autonomous-research-v1")
-    assert len(family_features) == 61, (
-        f"Expected 61 registered features, got {len(family_features)}"
+    assert len(family_features) == 62, (
+        f"Expected 62 registered features, got {len(family_features)}"
     )
 
     # Audit denominator policies and verdict coupling for all features in family
@@ -439,7 +475,7 @@ def test_benchmark_feature_coverage_and_yield() -> None:
 
     yield_diag = compute_benchmark_feature_yield([record], family="autonomous-research-v1")
     assert yield_diag["total_records"] == 1
-    assert len(yield_diag["feature_stats"]) == 61
+    assert len(yield_diag["feature_stats"]) == 62
 
 
 def test_trace_validation_rejects_duplicate_iteration_ids_and_non_finite_scores() -> None:

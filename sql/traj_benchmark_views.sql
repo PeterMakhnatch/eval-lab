@@ -6,7 +6,7 @@
 --   v_benchmark_contrasts: Matched-pair contrasts within benchmark families
 --   v_benchmark_refusal_diagnostics: Underpowered/unsupported cross-cell refusal diagnostics
 --   v_benchmark_summary: Unified headline coverage and metric summary
-
+--   v_predictor_eligibility: Predictor admissibility and exact refusal reason codes
 -- Fallback DDL for clean in-memory DuckDB sessions
 CREATE TABLE IF NOT EXISTS action_memory_features (
     trial_id VARCHAR PRIMARY KEY,
@@ -401,3 +401,49 @@ SELECT
     'autonomous_recovery_rate' AS primary_l2_name
 FROM mcp_recovery_features
 WHERE analysis_ready IS TRUE;
+
+-- 7. Predictor Eligibility View
+CREATE TABLE IF NOT EXISTS trajectory_feature_catalog (
+    column_name VARCHAR PRIMARY KEY,
+    data_type VARCHAR NOT NULL,
+    category VARCHAR NOT NULL,
+    family VARCHAR,
+    construct VARCHAR,
+    producer_module VARCHAR NOT NULL,
+    available_before_verdict BOOLEAN,
+    verdict_coupling VARCHAR,
+    coupling_basis VARCHAR,
+    denominator_policy VARCHAR,
+    denominator_sibling VARCHAR,
+    null_on_zero_denominator BOOLEAN NOT NULL,
+    causal_grade VARCHAR,
+    is_screening BOOLEAN NOT NULL
+);
+
+CREATE OR REPLACE VIEW v_predictor_eligibility AS
+SELECT
+    column_name AS feature_name,
+    data_type,
+    category,
+    family,
+    construct,
+    producer_module,
+    available_before_verdict,
+    verdict_coupling,
+    coupling_basis,
+    denominator_policy,
+    denominator_sibling,
+    causal_grade,
+    is_screening,
+    (available_before_verdict = TRUE AND verdict_coupling IN ('independent', 'correlates') AND (verdict_coupling = 'independent' OR (coupling_basis IS NOT NULL AND coupling_basis != '')) AND (denominator_policy IS NOT NULL AND denominator_policy != '')) AS predictor_eligible,
+    CASE
+        WHEN available_before_verdict IS NULL THEN 'MISSING_TEMPORAL_AVAILABILITY'
+        WHEN available_before_verdict = FALSE THEN 'POST_VERDICT_TEMPORAL_VIOLATION'
+        WHEN verdict_coupling IS NULL OR verdict_coupling = '' THEN 'UNDECLARED_VERDICT_COUPLING'
+        WHEN verdict_coupling = 'defines' THEN 'REWARD_DEFINITION_LEAKAGE'
+        WHEN verdict_coupling = 'not_applicable' THEN 'NOT_APPLICABLE_FOR_PREDICTION'
+        WHEN verdict_coupling = 'correlates' AND (coupling_basis IS NULL OR coupling_basis = '') THEN 'MISSING_COUPLING_EVIDENCE_BASIS'
+        WHEN denominator_policy IS NULL OR denominator_policy = '' THEN 'MISSING_DENOMINATOR_APPLICABILITY_DECLARATION'
+        ELSE 'ELIGIBLE'
+    END AS predictor_refusal_code
+FROM trajectory_feature_catalog;

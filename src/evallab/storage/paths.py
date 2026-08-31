@@ -168,10 +168,11 @@ def derived_root_from_environment(
     return resolution.path
 
 
-ParquetLayout = Literal["hot", "job", "cold-table", "cold-day", "directory", "root"]
+ParquetLayout = Literal["hot", "job", "revision", "cold-table", "cold-day", "directory", "root"]
 PARQUET_LAYOUT_ORDER: tuple[ParquetLayout, ...] = (
     "hot",
     "job",
+    "revision",
     "cold-table",
     "cold-day",
     "directory",
@@ -187,6 +188,7 @@ class ParquetPartition:
     table: str
     layout: ParquetLayout
     job_id: str | None = None
+    revision_id: str | None = None
     trial_id: str | None = None
     dt: str | None = None
 
@@ -209,6 +211,7 @@ class ParquetPartitionDiscovery:
         *,
         layouts: tuple[ParquetLayout, ...] | None = None,
         job_id: str | None = None,
+        revision_id: str | None = None,
         dt: str | None = None,
         prefer_job_level: bool = False,
     ) -> tuple[Path, ...]:
@@ -218,6 +221,7 @@ class ParquetPartitionDiscovery:
             if partition.table == table
             and (layouts is None or partition.layout in layouts)
             and (job_id is None or partition.job_id == job_id)
+            and (revision_id is None or partition.revision_id == revision_id)
             and (dt is None or partition.dt == dt)
         ]
         if prefer_job_level and any(partition.layout == "job" for partition in selected):
@@ -280,6 +284,14 @@ def _classify_parquet_partition(root: Path, path: Path) -> ParquetPartition | No
         job_id = parts[0].removeprefix("job_id=")
         if len(parts) == 2:
             return ParquetPartition(path, path.stem, "job", job_id=job_id)
+        if len(parts) == 3 and parts[1].startswith("revision_id="):
+            return ParquetPartition(
+                path,
+                path.stem,
+                "revision",
+                job_id=job_id,
+                revision_id=parts[1].removeprefix("revision_id="),
+            )
         if len(parts) == 3 and parts[1].startswith("trial_id="):
             return ParquetPartition(
                 path,
@@ -314,6 +326,7 @@ def _parquet_layout_pattern(layout: ParquetLayout, table: str) -> str:
     patterns = {
         "hot": f"job_id=*/trial_id=*/{table}.parquet",
         "job": f"job_id=*/{table}.parquet",
+        "revision": f"job_id=*/revision_id=*/{table}.parquet",
         "cold-table": f"compact/{table}/dt=*/part*.parquet",
         "cold-day": f"compact/dt=*/{table}.parquet",
         "directory": f"{table}/*.parquet",

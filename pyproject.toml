@@ -35,6 +35,10 @@ benchmarks = [
     "cryptography>=41,<51",
     "fastmcp==3.4.7",
 ]
+inspect = [
+    "inspect-ai==0.3.261",
+    "inspect-harbor==0.7.4",
+]
 dev = [
     # Pinned resolver pip is the immutable wheel-download engine for FastMCP
     # wheelhouse staging (see scripts/mcp_funcdag/ensure_wheelhouse.py). Its

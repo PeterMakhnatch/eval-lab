@@ -1,0 +1,216 @@
+{
+  "schema_version": "agentic-benchmark-feature-inventory/v1",
+  "generated_at": "2026-08-31",
+  "benchmarks": [
+    {
+      "name": "RSI-Exam",
+      "source": "https://github.com/aiming-lab/RSI-Exam",
+      "execution": "Harbor",
+      "task_count": {"public": 35, "private": 53, "total": 88},
+      "primary_constructs": ["autonomous research", "method improvement", "hidden generalization", "budgeted iteration"],
+      "feature_priorities": ["experiment loop", "visible improvement", "final selection regret", "visible-hidden transfer", "budget utilization", "artifact replay"]
+    },
+    {
+      "name": "RE-Bench",
+      "source": "https://arxiv.org/abs/2411.15114",
+      "execution": "open research environments",
+      "task_count": {"total": 7},
+      "primary_constructs": ["research engineering", "time-budget scaling", "human comparison"],
+      "feature_priorities": ["score-time curve", "experiment throughput", "return to additional time", "human intervention rate"]
+    },
+    {
+      "name": "PaperBench",
+      "source": "https://arxiv.org/abs/2504.01848",
+      "execution": "research replication environments",
+      "task_count": {"papers": 20, "rubric_subtasks": 8316},
+      "primary_constructs": ["paper understanding", "implementation", "experiment replication"],
+      "feature_priorities": ["hierarchical milestone coverage", "rubric subtask progress", "replication fidelity", "judge calibration"]
+    },
+    {
+      "name": "MLE-bench",
+      "source": "https://arxiv.org/abs/2410.07095",
+      "execution": "Kaggle-derived ML environments",
+      "task_count": {"competitions": 75},
+      "primary_constructs": ["ML engineering", "data preparation", "model experimentation"],
+      "feature_priorities": ["experiment validity", "model selection regret", "resource scaling", "contamination flags"]
+    },
+    {
+      "name": "CORE-Bench",
+      "source": "https://arxiv.org/abs/2409.11363",
+      "execution": "scientific reproducibility environments",
+      "task_count": {"tasks": 270, "papers": 90},
+      "primary_constructs": ["environment reconstruction", "dependency repair", "result reproduction"],
+      "feature_priorities": ["setup latency", "dependency repair count", "reproduction gate coverage", "artifact fidelity"]
+    },
+    {
+      "name": "AgentBoard",
+      "source": "https://arxiv.org/abs/2401.13178",
+      "execution": "multi-environment agent benchmark",
+      "primary_constructs": ["incremental task progress", "multi-turn agency"],
+      "feature_priorities": ["milestone progress", "stalled progress", "partial completion"]
+    },
+    {
+      "name": "ToolSandbox",
+      "source": "https://arxiv.org/abs/2408.04682",
+      "execution": "stateful tool sandbox",
+      "primary_constructs": ["state dependency", "conversational tool use"],
+      "feature_priorities": ["state transition validity", "dependency satisfaction", "canonicalization failures"]
+    },
+    {
+      "name": "Tau2",
+      "source": "https://github.com/UKGovernmentBEIS/inspect_evals",
+      "execution": "Inspect Evals",
+      "primary_constructs": ["dual-control interaction", "policy following", "repeat reliability"],
+      "feature_priorities": ["policy violations", "pass-at-k", "user-agent coordination"]
+    },
+    {
+      "name": "GAIA",
+      "source": "https://github.com/UKGovernmentBEIS/inspect_evals",
+      "execution": "Inspect Evals",
+      "primary_constructs": ["tool use", "web research", "multimodal reasoning"],
+      "feature_priorities": ["retrieval quality", "source grounding", "tool selection efficiency"]
+    },
+    {
+      "name": "OSWorld",
+      "source": "https://github.com/UKGovernmentBEIS/inspect_evals",
+      "execution": "Inspect Evals",
+      "primary_constructs": ["computer use", "open-ended stateful interaction"],
+      "feature_priorities": ["UI state progress", "action reversibility", "recovery after misclick"]
+    }
+  ],
+  "registered_families": {
+    "autonomous-research-v1": {
+      "producer_module": "evallab.autonomous_research",
+      "source_table": "autonomous_research_runs",
+      "feature_count": 74,
+      "constructs": [
+        "Autonomous Research & Method Improvement",
+        "Score-Time Dynamics & Budget Scaling",
+        "Milestone & Rubric Progression",
+        "Selection & Generalization",
+        "Reproducibility & Replay",
+        "Environment Reconstruction & Dependency Repair",
+        "Data Integrity & Contamination Prevention"
+      ],
+      "supported_benchmarks": [
+        "RSI-Exam",
+        "RE-Bench",
+        "PaperBench",
+        "MLE-bench",
+        "CORE-Bench",
+        "AgentBoard"
+      ],
+      "feature_inventory": [
+        {"name": "source_kind", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "source_version", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "source_record_id", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "source_revision_id", "type": "VARCHAR", "category": "identity", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "score_direction", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "task_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "verifier_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "metric_config_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "visible_outcome_binding_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "hidden_outcome_binding_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "measured_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "valid_experiment_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "invalid_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "valid_experiment_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "iteration_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "experiment_throughput_per_hour", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "elapsed_seconds", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "unique_hypothesis_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "repeated_hypothesis_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "hypothesis_turnover_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "iteration_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "selection_decision_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "kept_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "reverted_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "regression_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "max_consecutive_regressions", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "rollback_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "selection_decision_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "regression_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "measured_iteration_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "baseline_visible_score", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "best_visible_score", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "final_visible_score", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "first_improvement_iteration", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "best_improvement_iteration", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "time_to_first_improvement_seconds", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "time_to_best_score_seconds", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "stalled_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "plateau_streak_max", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "visible_improvement", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "improvement_per_experiment", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "measured_iteration_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "late_improvement_share", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "visible_improvement", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "stalled_iteration_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "iteration_count", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "required_milestones", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Milestone & Rubric Progression"},
+        {"name": "completed_milestones", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Milestone & Rubric Progression"},
+        {"name": "total_rubric_subtasks", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Milestone & Rubric Progression"},
+        {"name": "completed_rubric_subtasks", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Milestone & Rubric Progression"},
+        {"name": "milestone_completion_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "required_milestones", "construct": "Milestone & Rubric Progression"},
+        {"name": "rubric_completion_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "total_rubric_subtasks", "construct": "Milestone & Rubric Progression"},
+        {"name": "selected_iteration_id", "type": "VARCHAR", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "optimal_selection_flag", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "final_selection_regret", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "scale_binding_digest", "type": "VARCHAR", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "score_scale_compatible", "type": "BOOLEAN", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "hidden_score", "type": "DOUBLE", "category": "benchmark_ground_truth", "causal_grade": "C3", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "visible_hidden_transfer_gap", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C2", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Selection & Generalization"},
+        {"name": "final_artifact_digest", "type": "VARCHAR", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
+        {"name": "artifact_replay_verified", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C2", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
+        {"name": "reproducibility_evaluated_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
+        {"name": "reproducible_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Reproducibility & Replay"},
+        {"name": "reproducibility_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "reproducibility_evaluated_count", "construct": "Reproducibility & Replay"},
+        {"name": "dependency_repair_attempts", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},
+        {"name": "dependency_repair_successes", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},
+        {"name": "runtime_environment_repaired", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Environment Reconstruction & Dependency Repair"},
+        {"name": "dependency_repair_success_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "dependency_repair_attempts", "construct": "Environment Reconstruction & Dependency Repair"},
+        {"name": "budget_seconds", "type": "DOUBLE", "category": "benchmark_ground_truth", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "elapsed_seconds", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "total_cost_usd", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "total_tokens", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "total_changed_bytes", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "budget_utilization_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "budget_seconds", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "cost_per_improvement", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "visible_improvement", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "tokens_per_experiment", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "iteration_count", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "changed_bytes_per_improvement", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "visible_improvement", "construct": "Score-Time Dynamics & Budget Scaling"},
+        {"name": "leakage_detected_flag", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Data Integrity & Contamination Prevention"},
+        {"name": "leakage_warning_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Data Integrity & Contamination Prevention"},
+        {"name": "train_val_split_intact", "type": "BOOLEAN", "category": "benchmark_l1_fact", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Data Integrity & Contamination Prevention"}
+      ]
+    }
+  },
+  "priority_feature_tiers": {
+    "tier_1_deterministic": [
+      "attempt and retry lineage",
+      "capture completeness",
+      "milestone progress",
+      "experiment validity",
+      "visible improvement",
+      "final selection regret",
+      "visible-hidden transfer gap",
+      "artifact replay verification",
+      "policy and constraint violations",
+      "fault detection and recovery"
+    ],
+    "tier_2_efficiency": [
+      "score per experiment",
+      "score per unit time",
+      "score per token and cost",
+      "time to first improvement",
+      "late improvement share",
+      "changed bytes per improvement",
+      "budget utilization"
+    ],
+    "tier_3_semantic_hypotheses": [
+      "hypothesis novelty",
+      "diagnosis quality",
+      "experiment rationale quality",
+      "cross-step causal coherence",
+      "alternative explanation quality"
+    ],
+    "not_decision_ready": [
+      "embedding cluster identity",
+      "uncalibrated judge confidence",
+      "raw step count as capability",
+      "visible score without hidden-transfer context"
+    ]
+  }
+}

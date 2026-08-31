@@ -527,14 +527,48 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
         ),
     }
 
-    if raw_config.get("feature_registry_digest"):
-        feature_registry_digest = raw_config["feature_registry_digest"]
-    if raw_config.get("producer_digests"):
-        producer_digests.update(raw_config["producer_digests"])
-    if raw_config.get("cohort_policy_digest"):
-        cohort_policy_digest = raw_config["cohort_policy_digest"]
-    if raw_config.get("redaction_policy_digest"):
-        redaction_policy_digest = raw_config["redaction_policy_digest"]
+    if "feature_registry_digest" in raw_config:
+        declared_frd = raw_config["feature_registry_digest"]
+        if declared_frd != feature_registry_digest:
+            raise ValueError(
+                f"declared feature_registry_digest mismatch: expected {feature_registry_digest}, got {declared_frd}"
+            )
+
+    if "producer_digests" in raw_config:
+        declared_producers = raw_config["producer_digests"]
+        if not isinstance(declared_producers, dict):
+            raise ValueError("declared producer_digests must be a dictionary")
+        if set(declared_producers.keys()) != set(producer_digests.keys()):
+            missing = sorted(set(producer_digests.keys()) - set(declared_producers.keys()))
+            extra = sorted(set(declared_producers.keys()) - set(producer_digests.keys()))
+            details = []
+            if missing:
+                details.append(f"missing={missing}")
+            if extra:
+                details.append(f"extra={extra}")
+            raise ValueError(
+                f"declared producer_digests keys do not match canonical producers: {', '.join(details)}"
+            )
+        for k, expected_v in producer_digests.items():
+            declared_v = declared_producers[k]
+            if declared_v != expected_v:
+                raise ValueError(
+                    f"declared producer digest for {k!r} mismatch: expected {expected_v}, got {declared_v}"
+                )
+
+    if "cohort_policy_digest" in raw_config:
+        declared_cpd = raw_config["cohort_policy_digest"]
+        if declared_cpd != cohort_policy_digest:
+            raise ValueError(
+                f"declared cohort_policy_digest mismatch: expected {cohort_policy_digest}, got {declared_cpd}"
+            )
+
+    if "redaction_policy_digest" in raw_config:
+        declared_rpd = raw_config["redaction_policy_digest"]
+        if declared_rpd != redaction_policy_digest:
+            raise ValueError(
+                f"declared redaction_policy_digest mismatch: expected {redaction_policy_digest}, got {declared_rpd}"
+            )
 
     parsed_specs: list[CampaignAnalysisSpecV1] = []
     if "specs" in raw_config and isinstance(raw_config["specs"], (list, tuple)):

@@ -1,0 +1,404 @@
+"""Focused tests for digest assertion hardening across interpretation, retrieval, authoring, and autonomous research."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from evallab.autonomous_research import ScoreScaleBindingV1
+from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+from evallab.interpretation.trajectory_runtime import (
+    DETERMINISTIC_GATE_ORDER,
+    RedactionPolicy,
+    build_evidence_pack,
+    build_trajectory_ir,
+    canonical_json_digest,
+)
+from evallab.lance import LanceIndexManifest
+from evallab.registry import compute_task_digests, task_directory_digest
+
+# ---------------------------------------------------------------------------
+# F1: Analysis Configuration Digests in trajectory_runtime
+# ---------------------------------------------------------------------------
+
+
+def _compute_canonical_producer_digests() -> dict[str, str]:
+    from evallab.interpretation.trajectory_runtime import _sha256_file
+
+    return {
+        "ir_builder": _sha256_file(Path(build_trajectory_ir.__code__.co_filename)),
+        "pack_builder": _sha256_file(Path(build_evidence_pack.__code__.co_filename)),
+        "acceptance_policy": canonical_json_digest(
+            {
+                "auto_acceptance_enabled": False,
+                "gate_order": list(DETERMINISTIC_GATE_ORDER),
+            }
+        ),
+    }
+
+
+def _compute_canonical_feature_registry_digest() -> str:
+    return canonical_json_digest(
+        [
+            asdict(f)
+            for f in sorted(
+                TRAJECTORY_FEATURE_REGISTRY.all_features().values(), key=lambda x: x.column_name
+            )
+        ]
+    )
+
+
+def test_trajectory_runtime_analysis_config_matching_digests_pass(tmp_path: Path) -> None:
+    """Declared analysis config digests that match canonical values must pass validation."""
+    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
+
+    canonical_frd = _compute_canonical_feature_registry_digest()
+    canonical_producers = _compute_canonical_producer_digests()
+    canonical_cohort = canonical_json_digest({"policy": "tb3_analysis_ready_cohort_v1"})
+    canonical_redaction = RedactionPolicy().compute_digest()
+
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "commit_sha": "abc1234",
+        "authorizing_actor": "analyst",
+        "cas_store_root": "derived/evidence-cas",
+        "items": [],
+        "analysis_config": {
+            "feature_registry_digest": canonical_frd,
+            "producer_digests": canonical_producers,
+            "cohort_policy_digest": canonical_cohort,
+            "redaction_policy_digest": canonical_redaction,
+        },
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    manifest = load_campaign_analysis_manifest(manifest_file)
+    assert manifest.analysis_config.feature_registry_digest == canonical_frd
+    assert manifest.analysis_config.producer_digests == canonical_producers
+
+
+def test_trajectory_runtime_stale_feature_registry_digest_raises(tmp_path: Path) -> None:
+    """Declared feature registry digest that differs from in-tree registry must fail closed."""
+    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
+
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "items": [],
+        "analysis_config": {
+            "feature_registry_digest": "sha256:" + "0" * 64,
+        },
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="declared feature_registry_digest mismatch"):
+        load_campaign_analysis_manifest(manifest_file)
+
+
+def test_trajectory_runtime_producer_digests_missing_key_raises(tmp_path: Path) -> None:
+    """Declared producer digests missing required producer keys must fail closed."""
+    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
+
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "items": [],
+        "analysis_config": {
+            "producer_digests": {"ir_builder": "sha256:" + "1" * 64},
+        },
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing="):
+        load_campaign_analysis_manifest(manifest_file)
+
+
+def test_trajectory_runtime_producer_digests_extra_key_raises(tmp_path: Path) -> None:
+    """Declared producer digests with extra unknown keys must fail closed."""
+    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
+
+    canonical_producers = _compute_canonical_producer_digests()
+    tampered_producers = dict(canonical_producers)
+    tampered_producers["unauthorized_producer"] = "sha256:" + "2" * 64
+
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "items": [],
+        "analysis_config": {
+            "producer_digests": tampered_producers,
+        },
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="extra="):
+        load_campaign_analysis_manifest(manifest_file)
+
+
+def test_trajectory_runtime_producer_digests_value_mismatch_raises(tmp_path: Path) -> None:
+    """Declared producer digest with wrong hash value must fail closed."""
+    from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
+
+    canonical_producers = _compute_canonical_producer_digests()
+    tampered_producers = dict(canonical_producers)
+    tampered_producers["ir_builder"] = "sha256:" + "f" * 64
+
+    manifest_file = tmp_path / "manifest.json"
+    manifest_data = {
+        "campaign": "test-campaign",
+        "items": [],
+        "analysis_config": {
+            "producer_digests": tampered_producers,
+        },
+    }
+    manifest_file.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="declared producer digest for 'ir_builder' mismatch"):
+        load_campaign_analysis_manifest(manifest_file)
+
+
+# ---------------------------------------------------------------------------
+# F2: Lance Manifest Digest Verification in lance.py
+# ---------------------------------------------------------------------------
+
+
+def test_lance_index_manifest_valid_roundtrip() -> None:
+    """Valid LanceIndexManifest with matching index_digest must deserialize cleanly."""
+    expected_digest = LanceIndexManifest.compute_index_digest(
+        table_name="trajectories",
+        snapshot_digest="sha256:" + "a" * 64,
+        candidate_pool_digest="sha256:" + "b" * 64,
+        embedder_digest="sha256:" + "c" * 64,
+        redaction_policy_digest="sha256:" + "d" * 64,
+        row_count=100,
+    )
+    raw = {
+        "table_name": "trajectories",
+        "snapshot_digest": "sha256:" + "a" * 64,
+        "candidate_pool_digest": "sha256:" + "b" * 64,
+        "embedder_id": "fast-embed",
+        "embedder_version": "1.0",
+        "embedder_digest": "sha256:" + "c" * 64,
+        "redaction_policy_digest": "sha256:" + "d" * 64,
+        "row_count": 100,
+        "index_digest": expected_digest,
+        "decision_eligible": False,
+    }
+
+    manifest = LanceIndexManifest.from_dict(raw)
+    assert manifest.index_digest == expected_digest
+    assert manifest.table_name == "trajectories"
+
+    # JSON roundtrip
+    json_str = manifest.to_json()
+    manifest_from_json = LanceIndexManifest.from_json(json_str)
+    assert manifest_from_json.index_digest == expected_digest
+
+
+def test_lance_index_manifest_tampered_index_digest_raises() -> None:
+    """Deserializing LanceIndexManifest with tampered index_digest must fail closed."""
+    raw = {
+        "table_name": "trajectories",
+        "snapshot_digest": "sha256:" + "a" * 64,
+        "candidate_pool_digest": "sha256:" + "b" * 64,
+        "embedder_id": "fast-embed",
+        "embedder_version": "1.0",
+        "embedder_digest": "sha256:" + "c" * 64,
+        "redaction_policy_digest": "sha256:" + "d" * 64,
+        "row_count": 100,
+        "index_digest": "sha256:" + "9" * 64,  # tampered
+        "decision_eligible": False,
+    }
+
+    with pytest.raises(ValueError, match="LanceIndexManifest index_digest mismatch"):
+        LanceIndexManifest.from_dict(raw)
+
+
+def test_lance_index_manifest_tampered_field_raises() -> None:
+    """Modifying a payload field (e.g. row_count) without re-signing index_digest must fail."""
+    expected_digest = LanceIndexManifest.compute_index_digest(
+        table_name="trajectories",
+        snapshot_digest="sha256:" + "a" * 64,
+        candidate_pool_digest="sha256:" + "b" * 64,
+        embedder_digest="sha256:" + "c" * 64,
+        redaction_policy_digest="sha256:" + "d" * 64,
+        row_count=100,
+    )
+    raw = {
+        "table_name": "trajectories",
+        "snapshot_digest": "sha256:" + "a" * 64,
+        "candidate_pool_digest": "sha256:" + "b" * 64,
+        "embedder_id": "fast-embed",
+        "embedder_version": "1.0",
+        "embedder_digest": "sha256:" + "c" * 64,
+        "redaction_policy_digest": "sha256:" + "d" * 64,
+        "row_count": 999,  # tampered from 100
+        "index_digest": expected_digest,
+    }
+
+    with pytest.raises(ValueError, match="LanceIndexManifest index_digest mismatch"):
+        LanceIndexManifest.from_dict(raw)
+
+
+# ---------------------------------------------------------------------------
+# F3: Authoring vs Registry Task Directory Digest
+# ---------------------------------------------------------------------------
+
+
+def test_authoring_tree_digest_ignores_transient_files(tmp_path: Path) -> None:
+    """Canonical task directory digest in authoring must ignore .DS_Store, __pycache__, and .pytest_cache."""
+    task_dir = tmp_path / "task-pkg"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'test'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Test\n", encoding="utf-8")
+
+    digest_clean = task_directory_digest(task_dir)
+
+    # Inject transient files
+    (task_dir / ".DS_Store").write_bytes(b"\x00\x00\x01\x00")
+    pycache = task_dir / "__pycache__"
+    pycache.mkdir()
+    (pycache / "module.cpython-312.pyc").write_bytes(b"\x00" * 32)
+    pytest_cache = task_dir / ".pytest_cache"
+    pytest_cache.mkdir()
+    (pytest_cache / "README.md").write_text("pytest\n", encoding="utf-8")
+
+    digest_with_transient = task_directory_digest(task_dir)
+    assert digest_with_transient == digest_clean, (
+        "transient files must not alter task package digest"
+    )
+
+
+def test_authoring_tree_digest_detects_real_source_change(tmp_path: Path) -> None:
+    """Modifying an authoritative task file must change the computed digest."""
+    task_dir = tmp_path / "task-pkg"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'test'\n", encoding="utf-8")
+    inst = task_dir / "instruction.md"
+    inst.write_text("# Test v1\n", encoding="utf-8")
+
+    digest_v1 = task_directory_digest(task_dir)
+
+    inst.write_text("# Test v2 mutated\n", encoding="utf-8")
+    digest_v2 = task_directory_digest(task_dir)
+
+    assert digest_v1 != digest_v2, "real source modification must change package digest"
+
+
+# ---------------------------------------------------------------------------
+# F4: Score Scale Binding Artifact Verification
+# ---------------------------------------------------------------------------
+
+
+def _sha256_json(obj: Any) -> str:
+    canonical = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
+
+
+def test_score_scale_binding_verify_against_artifacts_exact_match(tmp_path: Path) -> None:
+    """ScoreScaleBindingV1.verify_against_artifacts must return True when all artifacts match."""
+    task_dir = tmp_path / "eval-task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'eval-task'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Eval Task\n", encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_eval.py").write_text("def test_it(): pass\n", encoding="utf-8")
+
+    task_digests = compute_task_digests(task_dir)
+    metric_cfg = {"metric": "precision", "k": 5, "threshold": 0.8}
+    metric_digest = _sha256_json(metric_cfg)
+    vis_outcome = {"split": "visible", "score": 0.85}
+    hid_outcome = {"split": "hidden", "score": 0.82}
+
+    binding = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="precision_at_5",
+        direction="higher",
+        task_digest=task_digests.package,
+        verifier_digest=task_digests.verifier,
+        metric_config_digest=metric_digest,
+        visible_split_id="split_v1",
+        hidden_split_id="split_h1",
+        visible_outcome_binding_digest=_sha256_json(vis_outcome),
+        hidden_outcome_binding_digest=_sha256_json(hid_outcome),
+    )
+
+    assert (
+        binding.verify_against_artifacts(
+            task_dir=task_dir,
+            metric_config=metric_cfg,
+            visible_outcome=vis_outcome,
+            hidden_outcome=hid_outcome,
+        )
+        is True
+    )
+
+
+def test_score_scale_binding_verify_mismatched_task_digest_raises(tmp_path: Path) -> None:
+    """verify_against_artifacts must raise ValueError when task directory bytes differ."""
+    task_dir = tmp_path / "eval-task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'eval-task'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Eval Task\n", encoding="utf-8")
+
+    binding = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="precision_at_5",
+        direction="higher",
+        task_digest="sha256:" + "a" * 64,  # wrong digest
+        verifier_digest="sha256:" + "b" * 64,
+        metric_config_digest="sha256:" + "c" * 64,
+        visible_split_id="split_v1",
+        hidden_split_id="split_h1",
+        visible_outcome_binding_digest="sha256:" + "d" * 64,
+        hidden_outcome_binding_digest="sha256:" + "e" * 64,
+    )
+
+    with pytest.raises(ValueError, match="task_digest mismatch"):
+        binding.verify_against_artifacts(task_dir=task_dir)
+
+
+def test_score_scale_binding_verify_mismatched_metric_config_raises() -> None:
+    """verify_against_artifacts must raise ValueError when metric configuration differs."""
+    binding = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="accuracy",
+        direction="higher",
+        task_digest="sha256:" + "a" * 64,
+        verifier_digest="sha256:" + "b" * 64,
+        metric_config_digest="sha256:" + "c" * 64,
+        visible_split_id="split_v1",
+        hidden_split_id="split_h1",
+        visible_outcome_binding_digest="sha256:" + "d" * 64,
+        hidden_outcome_binding_digest="sha256:" + "e" * 64,
+    )
+
+    tampered_cfg = {"metric": "accuracy", "k": 999}
+    with pytest.raises(ValueError, match="metric_config_digest mismatch"):
+        binding.verify_against_artifacts(metric_config=tampered_cfg)
+
+
+def test_score_scale_binding_verify_no_artifacts_raises() -> None:
+    """verify_against_artifacts must raise ValueError when called with no artifacts to verify."""
+    binding = ScoreScaleBindingV1.create(
+        authority_kind="benchmark_contract",
+        metric_name="accuracy",
+        direction="higher",
+        task_digest="sha256:" + "a" * 64,
+        verifier_digest="sha256:" + "b" * 64,
+        metric_config_digest="sha256:" + "c" * 64,
+        visible_split_id="split_v1",
+        hidden_split_id="split_h1",
+        visible_outcome_binding_digest="sha256:" + "d" * 64,
+        hidden_outcome_binding_digest="sha256:" + "e" * 64,
+    )
+
+    with pytest.raises(ValueError, match="no artifacts provided to verify ScoreScaleBindingV1"):
+        binding.verify_against_artifacts()

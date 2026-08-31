@@ -2,10 +2,12 @@
 
 The producer consumes structured experiment iterations rather than asking an LLM
 to infer research quality from prose. Visible/hidden transfer is emitted only
-when the task declares the score scales comparable. Grounded in research-loop
-methodology across RSI-Exam, RE-Bench, PaperBench, MLE-bench, CORE-Bench, and AgentBoard.
-Supports both higher-is-better (reward, accuracy) and lower-is-better (loss, error)
-score directions.
+when an explicit, cryptographically validated ScoreScaleBindingV1 is attached.
+Final visible score and selection regret are derived from the explicitly selected
+or artifact-bound candidate iteration, never the last measured score.
+
+Grounded in research-loop methodology across RSI-Exam, RE-Bench, PaperBench,
+MLE-bench, CORE-Bench, and AgentBoard.
 """
 
 from __future__ import annotations
@@ -30,6 +32,61 @@ def _digest(value: Any) -> str:
         ensure_ascii=False,
     ).encode()
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+class ScoreScaleBindingV1(ContractModel):
+    """Cryptographically validated binding proving visible and hidden score comparability."""
+
+    schema_version: Literal["score-scale-binding/v1"] = "score-scale-binding/v1"
+    metric_name: str = Field(min_length=1)
+    direction: Literal["higher", "lower"]
+    visible_split_id: str = Field(min_length=1)
+    hidden_split_id: str = Field(min_length=1)
+    normalization_digest: str | None = None
+    binding_digest: str
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        metric_name: str,
+        direction: Literal["higher", "lower"],
+        visible_split_id: str,
+        hidden_split_id: str,
+        normalization_digest: str | None = None,
+    ) -> ScoreScaleBindingV1:
+        body = {
+            "direction": direction,
+            "hidden_split_id": hidden_split_id,
+            "metric_name": metric_name,
+            "normalization_digest": normalization_digest,
+            "visible_split_id": visible_split_id,
+        }
+        digest = _digest(body)
+        return cls(
+            metric_name=metric_name,
+            direction=direction,
+            visible_split_id=visible_split_id,
+            hidden_split_id=hidden_split_id,
+            normalization_digest=normalization_digest,
+            binding_digest=digest,
+        )
+
+    @model_validator(mode="after")
+    def _validate_digest(self) -> ScoreScaleBindingV1:
+        body = {
+            "direction": self.direction,
+            "hidden_split_id": self.hidden_split_id,
+            "metric_name": self.metric_name,
+            "normalization_digest": self.normalization_digest,
+            "visible_split_id": self.visible_split_id,
+        }
+        expected = _digest(body)
+        if self.binding_digest != expected:
+            raise ValueError(
+                f"ScoreScaleBindingV1 digest mismatch: expected {expected}, got {self.binding_digest}"
+            )
+        return self
 
 
 class ResearchIterationV1(ContractModel):
@@ -67,11 +124,16 @@ class ResearchRunTraceV1(ContractModel):
     schema_version: Literal["research-run-trace/v1"] = "research-run-trace/v1"
     run_id: str = Field(min_length=1)
     benchmark_family: str = Field(min_length=1)
+    source_kind: str = Field(default="synthetic", min_length=1)
+    source_version: str = Field(default="v1", min_length=1)
+    source_record_id: str | None = None
+    source_revision_id: str | None = None
     source_digest: str
     baseline_visible_score: float | None = None
     score_direction: Literal["higher", "lower"] = "higher"
+    score_scale_binding: ScoreScaleBindingV1 | None = None
     hidden_score: float | None = None
-    score_scale_compatible: bool = False
+    selected_iteration_id: str | None = None
     budget_seconds: float | None = Field(default=None, gt=0)
     elapsed_seconds: float | None = Field(default=None, ge=0)
     total_cost_usd: float | None = Field(default=None, ge=0)
@@ -90,6 +152,10 @@ class ResearchRunTraceV1(ContractModel):
     artifact_replay_verified: bool | None = None
     iterations: tuple[ResearchIterationV1, ...]
 
+    @property
+    def score_scale_compatible(self) -> bool:
+        return self.score_scale_binding is not None
+
     @model_validator(mode="after")
     def _validate_trace(self) -> ResearchRunTraceV1:
         for value in (
@@ -102,9 +168,38 @@ class ResearchRunTraceV1(ContractModel):
         ):
             if value is not None and not math.isfinite(value):
                 raise ValueError("research run numeric fields must be finite")
-        iteration_ids = [iteration.iteration_id for iteration in self.iterations]
-        if len(iteration_ids) != len(set(iteration_ids)):
-            raise ValueError("research iteration IDs must be unique")
+
+        iteration_map: dict[str, ResearchIterationV1] = {}
+        for iteration in self.iterations:
+            if iteration.iteration_id in iteration_map:
+                raise ValueError(f"research iteration ID {iteration.iteration_id!r} is not unique")
+            iteration_map[iteration.iteration_id] = iteration
+
+        if self.selected_iteration_id is not None:
+            if self.selected_iteration_id not in iteration_map:
+                raise ValueError(
+                    f"selected_iteration_id {self.selected_iteration_id!r} not found in trace iterations"
+                )
+            selected_it = iteration_map[self.selected_iteration_id]
+            if (
+                self.final_artifact_digest is not None
+                and selected_it.artifact_digest is not None
+                and selected_it.artifact_digest != self.final_artifact_digest
+            ):
+                raise ValueError(
+                    f"selected iteration artifact digest {selected_it.artifact_digest!r} "
+                    f"does not match final_artifact_digest {self.final_artifact_digest!r}"
+                )
+
+        if (
+            self.score_scale_binding is not None
+            and self.score_scale_binding.direction != self.score_direction
+        ):
+            raise ValueError(
+                f"score_scale_binding direction {self.score_scale_binding.direction!r} "
+                f"does not match trace score_direction {self.score_direction!r}"
+            )
+
         return self
 
 
@@ -113,6 +208,10 @@ class AutonomousResearchFeatures:
     # Identity & metadata
     run_id: str
     benchmark_family: str
+    source_kind: str
+    source_version: str
+    source_record_id: str | None
+    source_revision_id: str | None
     score_direction: str
 
     # 1. Experiment Throughput & Validity (RSI-Exam, MLE-bench, RE-Bench)
@@ -160,10 +259,12 @@ class AutonomousResearchFeatures:
     rubric_completion_rate: float | None
 
     # 6. Final-Selection Regret (RSI-Exam, MLE-bench)
+    selected_iteration_id: str | None
     optimal_selection_flag: bool | None
     final_selection_regret: float | None
 
     # 7. Hidden-Transfer Gap & Generalization (RSI-Exam, MLE-bench)
+    scale_binding_digest: str | None
     score_scale_compatible: bool
     hidden_score: float | None
     visible_hidden_transfer_gap: float | None
@@ -294,10 +395,29 @@ def extract_autonomous_research_features(
     baseline = trace.baseline_visible_score
     if measured_scores:
         best_visible = min(measured_scores) if is_lower else max(measured_scores)
-        final_visible = measured_scores[-1]
     else:
         best_visible = None
-        final_visible = None
+
+    # Derive selected candidate iteration (explicit ID, or matching final_artifact_digest, or last iteration)
+    selected_id = trace.selected_iteration_id
+    selected_iteration: ResearchIterationV1 | None = None
+    if selected_id is not None:
+        for it in iterations:
+            if it.iteration_id == selected_id:
+                selected_iteration = it
+                break
+    elif trace.final_artifact_digest is not None:
+        for it in reversed(iterations):
+            if it.artifact_digest == trace.final_artifact_digest:
+                selected_iteration = it
+                selected_id = it.iteration_id
+                break
+    elif iterations:
+        # If not explicitly named, bind to the final executed iteration
+        selected_iteration = iterations[-1]
+        selected_id = selected_iteration.iteration_id
+
+    final_visible = selected_iteration.visible_score if selected_iteration is not None else None
 
     if best_visible is not None and baseline is not None:
         visible_improvement = (baseline - best_visible) if is_lower else (best_visible - baseline)
@@ -402,7 +522,7 @@ def extract_autonomous_research_features(
         completed_rubric_subtasks / total_rubric_subtasks if total_rubric_subtasks > 0 else None
     )
 
-    # 6. Final-Selection Regret (non-negative loss from choosing final instead of best)
+    # 6. Final-Selection Regret (non-negative loss from choosing selected candidate instead of best)
     optimal_selection_flag = (
         (final_visible == best_visible)
         if final_visible is not None and best_visible is not None
@@ -415,14 +535,13 @@ def extract_autonomous_research_features(
     else:
         final_selection_regret = None
 
-    # 7. Hidden-Transfer Gap & Generalization (raw delta: hidden_score - final_visible)
+    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when validated ScoreScaleBindingV1 exists)
     transfer_gap = None
-    if (
-        trace.score_scale_compatible
-        and trace.hidden_score is not None
-        and final_visible is not None
-    ):
-        transfer_gap = trace.hidden_score - final_visible
+    scale_binding_digest: str | None = None
+    if trace.score_scale_binding is not None:
+        scale_binding_digest = trace.score_scale_binding.binding_digest
+        if trace.hidden_score is not None and final_visible is not None:
+            transfer_gap = trace.hidden_score - final_visible
 
     # 8. Artifact Replay & Reproducibility
     reproducibility_evaluated_count = sum(
@@ -486,6 +605,10 @@ def extract_autonomous_research_features(
     body = {
         "run_id": trace.run_id,
         "benchmark_family": trace.benchmark_family,
+        "source_kind": trace.source_kind,
+        "source_version": trace.source_version,
+        "source_record_id": trace.source_record_id,
+        "source_revision_id": trace.source_revision_id,
         "score_direction": trace.score_direction,
         # 1. Experiment Throughput & Validity
         "iteration_count": iteration_count,
@@ -527,9 +650,11 @@ def extract_autonomous_research_features(
         "completed_rubric_subtasks": completed_rubric_subtasks,
         "rubric_completion_rate": rubric_completion_rate,
         # 6. Final-Selection Regret
+        "selected_iteration_id": selected_id,
         "optimal_selection_flag": optimal_selection_flag,
         "final_selection_regret": final_selection_regret,
         # 7. Hidden-Transfer Gap & Generalization
+        "scale_binding_digest": scale_binding_digest,
         "score_scale_compatible": trace.score_scale_compatible,
         "hidden_score": trace.hidden_score,
         "visible_hidden_transfer_gap": transfer_gap,

@@ -1,3 +1,13 @@
+---
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-31
+license_note: Internal Analyst review over Eval Lab artifacts; repository license governs.
+status: distilled
+feeds:
+  - parked
+---
+
 # Feature and derived-feature strategy — Analyst reply
 
 **From:** Analyst (Trajectory Intelligence) · **Brief:** `research/inbox/feature-analysis-meta-brief.md`

@@ -1,3 +1,13 @@
+---
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-31
+license_note: Internal Eval Lab research brief; repository license governs.
+status: distilled
+feeds:
+  - parked
+---
+
 # Eval Lab feature-analysis brief
 
 ## Goal

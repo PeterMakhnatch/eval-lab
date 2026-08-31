@@ -59,6 +59,16 @@ CREATE_AUTH_LINK_COMMAND = (
 )
 REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 
+#: OpenCode's built-in ``zai-coding-plan`` provider prefers its auth store over
+#: process environment variables. Materialize only the per-trial proxy
+#: capability there, then remove it before Harbor captures artifacts.
+CREATE_PROXY_AUTH_COMMAND = (
+    f"mkdir -p {AUTH_LINK_DIR} && umask 077 && "
+    """printf '{"zai-coding-plan":{"type":"api","key":"%s"}}\\n' """
+    f'"$ZAI_CODING_PLAN_API_KEY" > {AUTH_LINK_PATH}'
+)
+REMOVE_PROXY_AUTH_COMMAND = f"rm -f {AUTH_LINK_PATH}"
+
 # --------------------------------------------------------------------------
 # Proxy lane constants
 # --------------------------------------------------------------------------
@@ -300,6 +310,23 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
             cwd=cwd,
             timeout_sec=timeout_sec,
         )
+
+    async def run(self, instruction, environment, context) -> None:  # type: ignore[no-untyped-def]
+        validate_model_name(self.model_name)
+        await self.exec_as_agent(
+            environment,
+            command=CREATE_PROXY_AUTH_COMMAND,
+            env=_scrubbed_connection_env(self.model_connection),
+        )
+        try:
+            await super().run(instruction, environment, context)
+        finally:
+            with contextlib.suppress(Exception):
+                await self.exec_as_agent(
+                    environment,
+                    command=REMOVE_PROXY_AUTH_COMMAND,
+                    env=_scrubbed_connection_env(self.model_connection),
+                )
 
     def populate_context_post_run(self, context: Any) -> None:
         secrets = collected_zai_secret_values()

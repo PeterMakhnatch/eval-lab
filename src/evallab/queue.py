@@ -2424,6 +2424,7 @@ class Executor:
 
         job_profile_id = profile.profile_id.replace(".", "-").replace("_", "-")
         job_name = f"smoke-{job_profile_id}-{new_ulid().lower()}"
+        metered_proxy = profile.adapter in {"mini-swe-agent", ZAI_OPENCODE_AGENT}
         request = RunRequest(
             task=task_path,
             agent=profile.adapter,
@@ -2431,7 +2432,11 @@ class Executor:
             name=job_name,
             jobs_dir=self.repo_root / "runs",
             timeout_seconds=300,
-            cost_limit_usd=1.0 if profile.adapter == "mini-swe-agent" else None,
+            max_requests=16 if metered_proxy else None,
+            max_input_tokens=200_000 if metered_proxy else None,
+            max_output_tokens=64_000 if metered_proxy else None,
+            max_total_tokens=264_000 if metered_proxy else None,
+            cost_limit_usd=1.0 if metered_proxy else None,
             allow_billable=True,
             concurrency=1,
             attempts=1,

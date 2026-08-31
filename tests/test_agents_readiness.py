@@ -554,7 +554,11 @@ def test_zai_smoke_requires_and_records_native_opencode_evidence(
 
     def mock_zai_runner(request: RunRequest) -> Path:
         assert request.agent == "zai-opencode"
-        assert request.cost_limit_usd is None
+        assert request.max_requests == 16
+        assert request.max_input_tokens == 200_000
+        assert request.max_output_tokens == 64_000
+        assert request.max_total_tokens == 264_000
+        assert request.cost_limit_usd == 1.0
         validate_request(request)
         return make_mock_job_dir(
             tmp_path,

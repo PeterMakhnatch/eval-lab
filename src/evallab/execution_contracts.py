@@ -131,7 +131,7 @@ ZAI_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     }
 )
 ZAI_PROXY_HOST = "zai-secret-proxy"
-ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
+ZAI_PROXY_URL = "http://zai-secret-proxy:8080/api/paas/v4"
 ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
 ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
 ZAI_PROXY_SCRIPT = Path("containers/zai_secret_proxy.py")
@@ -143,6 +143,29 @@ ZAI_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
 ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
 ZAI_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_ZAI_CAPABILITY_EXPIRES_AT"
 ZAI_UPSTREAM_ENV = "EVALLAB_ZAI_UPSTREAM"
+ZAI_PROXY_USAGE_DIR_ENV = "EVALLAB_ZAI_USAGE_DIR"
+ZAI_PROXY_ATTEMPT_ID_ENV = "EVALLAB_ZAI_ATTEMPT_ID"
+ZAI_PROXY_USAGE_FILE_ENV = "EVALLAB_ZAI_USAGE_FILE"
+ZAI_INPUT_COST_MICROS_PER_MILLION = 1_400_000
+ZAI_OUTPUT_COST_MICROS_PER_MILLION = 4_400_000
+ZAI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
+    {
+        ZAI_PROXY_CAPABILITY_ENV,
+        ZAI_PROXY_ATTEMPT_ID_ENV,
+        ZAI_PROXY_USAGE_DIR_ENV,
+        ZAI_PROXY_USAGE_FILE_ENV,
+        "EVALLAB_ZAI_MAX_REQUESTS",
+        "EVALLAB_ZAI_MAX_INPUT_TOKENS",
+        "EVALLAB_ZAI_MAX_OUTPUT_TOKENS",
+        "EVALLAB_ZAI_MAX_TOTAL_TOKENS",
+        "EVALLAB_ZAI_MAX_COST_MICROS",
+        "EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION",
+        "EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION",
+        ZAI_CAPABILITY_EXPIRES_AT_ENV,
+        ZAI_PROXY_UID_ENV,
+        ZAI_PROXY_GID_ENV,
+    }
+)
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         DEEPSEEK_PROXY_CAPABILITY_ENV,
@@ -630,10 +653,8 @@ def subscription_environment(
         for key in (
             ZAI_SECRET_FILE_ENV,
             ZAI_PROXY_SCRIPT_ENV,
-            ZAI_PROXY_UID_ENV,
-            ZAI_PROXY_GID_ENV,
-            ZAI_CAPABILITY_EXPIRES_AT_ENV,
             ZAI_UPSTREAM_ENV,
+            *ZAI_PROXY_BUDGET_KEYS,
         ):
             if source.get(key):
                 sanitized[key] = source[key]
@@ -687,11 +708,12 @@ def validate_request(request: RunRequest) -> None:
         request.max_total_tokens,
         request.cost_limit_usd,
     )
+    metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT}
     if any(value is not None for value in proxy_limits):
-        if request.agent != "mini-swe-agent":
+        if request.agent not in metered_agents:
             raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
         if any(value is None for value in proxy_limits):
-            raise ValueError("mini-swe-agent requires every provider ceiling")
+            raise ValueError(f"{request.agent} requires every provider ceiling")
         if (
             request.max_requests is None
             or request.max_input_tokens is None
@@ -714,11 +736,11 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError("cost_limit_usd must be positive")
         if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
             raise ValueError("total-token ceiling exceeds input plus output ceilings")
-    if request.agent == "mini-swe-agent":
+    if request.agent in metered_agents:
         if any(value is None for value in proxy_limits):
-            raise ValueError("mini-swe-agent requires explicit provider ceilings")
+            raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
-            raise ValueError("mini-swe-agent capabilities bind exactly one trial")
+            raise ValueError(f"{request.agent} capabilities bind exactly one trial")
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "

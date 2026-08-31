@@ -168,6 +168,11 @@ def test_zai_opencode_routes_through_proxy_isolated_pinned_adapter(
         model="zai-coding-plan/glm-5.3",
         name="zai-opencode-pinned-test",
         jobs_dir=tmp_path / "runs",
+        max_requests=16,
+        max_input_tokens=200_000,
+        max_output_tokens=64_000,
+        max_total_tokens=264_000,
+        cost_limit_usd=1.0,
         allow_billable=True,
     )
 
@@ -337,6 +342,14 @@ def test_zai_opencode_host_process_receives_only_proxy_capability(
         cwd=tmp_path,
         timeout_seconds=5,
         log_path=log_path,
+        proxy_attempt_id="test-attempt",
+        proxy_limits=ProxyTrialLimits(
+            max_requests=16,
+            max_input_tokens=200_000,
+            max_output_tokens=64_000,
+            max_total_tokens=264_000,
+            max_cost_micros=1_000_000,
+        ),
     )
 
     assert result.returncode == 0
@@ -347,6 +360,7 @@ def test_zai_opencode_host_process_receives_only_proxy_capability(
     ]
     assert secret not in log_path.read_text()
     assert not list(tmp_path.glob("evallab-zai-secret.*"))
+    assert not list(tmp_path.glob("evallab-zai-usage.*"))
 
 
 def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(

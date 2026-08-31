@@ -21,15 +21,15 @@ This dry-run migration audits all markdown documents across:
 
 | Repository | Already Conformant | Date-Suffixed | Undated | Refused (Unsafe) | Total Scanned |
 |---|---|---|---|---|---|
-| `eval-lab` | 0 | 25 | 39 | 2 | 66 |
+| `eval-lab` | 0 | 24 | 39 | 3 | 66 |
 | `research-context` | 6 | 37 | 85 | 0 | 128 |
-| **Total** | **6** | **62** | **124** | **2** | **194** |
+| **Total** | **6** | **61** | **124** | **3** | **194** |
 
 ### Key Statistics
 - **Total Documents Scanned:** 194
 - **Already Conformant:** 6 (no rename needed)
-- **Proposed Renames (Ready):** 186
-- **Refused Unsafe Cases:** 2
+- **Proposed Renames (Ready):** 185
+- **Refused Unsafe Cases:** 3
 - **Inbound Link Rewrites Planned:** 317
 
 ## Refused Files and Safety Audit
@@ -39,6 +39,7 @@ The following documents were refused from automated renaming to prevent collisio
 | Repository | Original Path | Inferred Date | Date Source | Refusal Reason |
 |---|---|---|---|---|
 | `eval-lab` | `research/analysis/automated-trajectory-overnight-ledger.md` | 2026-08-26 | git-add | Referenced in open PR diff or active branch |
+| `eval-lab` | `research/analysis/document-naming-migration-2026-08-31.md` | 2026-08-31 | filename-suffix | Referenced in open PR diff or active branch |
 | `eval-lab` | `research/inbox/benchmark-themes-librarian-reply.md` | 2026-08-31 | front-matter (reviewed) | File has uncommitted changes in another active worktree |
 
 ## Proposed Rename Plan
@@ -50,7 +51,7 @@ The following documents were refused from automated renaming to prevent collisio
 | `eval-lab` | `research/analysis/automated-trajectory-overnight-ledger.md` | undated | 2026-08-26 | git-add | `research/analysis/2026-08-26-automated-trajectory-overnight-ledger.md` | REFUSED |
 | `eval-lab` | `research/analysis/completed-trial-data-layer-backfill-contract.md` | undated | 2026-08-27 | git-add | `research/analysis/2026-08-27-completed-trial-data-layer-backfill-contract.md` | READY |
 | `eval-lab` | `research/analysis/content-inventory-evidence-2026-08-27.md` | date-suffixed | 2026-08-27 | filename-suffix | `research/analysis/2026-08-27-content-inventory-evidence.md` | READY |
-| `eval-lab` | `research/analysis/document-naming-migration-2026-08-31.md` | date-suffixed | 2026-08-31 | filename-suffix | `research/analysis/2026-08-31-document-naming-migration.md` | READY |
+| `eval-lab` | `research/analysis/document-naming-migration-2026-08-31.md` | date-suffixed | 2026-08-31 | filename-suffix | `research/analysis/2026-08-31-document-naming-migration.md` | REFUSED |
 | `eval-lab` | `research/analysis/eval-lab-next-buildout-report-2026-08-31.md` | date-suffixed | 2026-08-31 | filename-suffix | `research/analysis/2026-08-31-eval-lab-next-buildout-report.md` | READY |
 | `eval-lab` | `research/analysis/features-and-derived-analysis-meta.md` | undated | 2026-08-31 | front-matter (reviewed) | `research/analysis/2026-08-31-features-and-derived-analysis-meta.md` | READY |
 | `eval-lab` | `research/analysis/git-estate-handoffs-2026-08-27.md` | date-suffixed | 2026-08-27 | filename-suffix | `research/analysis/2026-08-27-git-estate-handoffs.md` | READY |

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import subprocess
 import sys
 from pathlib import Path
@@ -14,16 +13,10 @@ if str(_REPO_ROOT) not in sys.path:
 if str(_REPO_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
-import pytest
-import yaml
-
-from rename_dated_docs import (
-    DocItem,
+import pytest  # noqa: E402
+from rename_dated_docs import (  # noqa: E402
     audit_collisions,
     build_link_rewrite_plan,
-    enrich_front_matter_for_apply,
-    find_all_markdown_files,
-    generate_migration_report,
     infer_date_for_undated_doc,
     inventory_repo_documents,
     is_valid_iso_date,
@@ -39,8 +32,15 @@ def temp_git_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "test_repo"
     repo.mkdir(parents=True)
     subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test Agent"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "agent@eval-lab.local"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test Agent"], cwd=repo, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "agent@eval-lab.local"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
     return repo
 
 
@@ -56,11 +56,15 @@ def commit_file(repo: Path, rel_path: str, content: str, commit_msg: str = "Add 
 
 # --- Classification and Normalization Tests ---
 
+
 def test_to_kebab_slug() -> None:
     assert to_kebab_slug("TUTOR_ADVERSARIAL_REVIEW") == "tutor-adversarial-review"
     assert to_kebab_slug("C1-MATCHED-CAUSAL-AUDIT") == "c1-matched-causal-audit"
     assert to_kebab_slug("feature analysis meta brief") == "feature-analysis-meta-brief"
-    assert to_kebab_slug("special @#$ characters & multiple   spaces") == "special-characters-multiple-spaces"
+    assert (
+        to_kebab_slug("special @#$ characters & multiple   spaces")
+        == "special-characters-multiple-spaces"
+    )
     assert to_kebab_slug("--leading-and-trailing--") == "leading-and-trailing"
 
 
@@ -85,6 +89,7 @@ def test_parse_front_matter() -> None:
 
 
 # --- Date Inference Hierarchy Tests ---
+
 
 def test_infer_date_hierarchy_front_matter(temp_git_repo: Path) -> None:
     # 1. Front matter date takes precedence
@@ -130,10 +135,15 @@ def test_infer_date_hierarchy_mtime_fallback(temp_git_repo: Path) -> None:
 
 # --- Inventory and Classification Tests ---
 
+
 def test_inventory_classification(temp_git_repo: Path) -> None:
     commit_file(temp_git_repo, "research/inbox/2026-08-26-already-good.md", "# Conformant")
     commit_file(temp_git_repo, "research/inbox/TUTOR_REVIEW_2026-08-27.md", "# Suffix")
-    commit_file(temp_git_repo, "research/analysis/some-analysis.md", "---\ndate: 2026-08-15\n---\n# Analysis")
+    commit_file(
+        temp_git_repo,
+        "research/analysis/some-analysis.md",
+        "---\ndate: 2026-08-15\n---\n# Analysis",
+    )
     commit_file(temp_git_repo, "research/inbox/QUEUE.md", "# Exempt queue")
 
     items = inventory_repo_documents(
@@ -158,6 +168,7 @@ def test_inventory_classification(temp_git_repo: Path) -> None:
 
 
 # --- Refusal Safety Audit Tests ---
+
 
 def test_refused_target_collision(temp_git_repo: Path) -> None:
     # Two files that would rename to the exact same proposed filename
@@ -224,6 +235,7 @@ def test_refused_inbox_conformance_risk(temp_git_repo: Path) -> None:
 
 # --- Link Rewriting Tests ---
 
+
 def test_inbound_link_rewriting(temp_git_repo: Path) -> None:
     # Source file to be renamed
     commit_file(temp_git_repo, "research/inbox/SPEC_CONTRACT_2026-08-20.md", "# Contract")
@@ -256,6 +268,7 @@ def test_inbound_link_rewriting(temp_git_repo: Path) -> None:
 
 
 # --- Dry-run vs Apply Execution & Git History Preservation ---
+
 
 def test_dry_run_leaves_repo_unmutated(temp_git_repo: Path, tmp_path: Path) -> None:
     commit_file(temp_git_repo, "research/inbox/DOC_2026-08-25.md", "# Doc content")
@@ -300,7 +313,12 @@ def test_apply_uses_git_mv_and_preserves_history(temp_git_repo: Path, tmp_path: 
     assert new_abs.exists()
 
     # Commit the staged git mv renames to verify history preservation
-    subprocess.run(["git", "commit", "-m", "Apply migration renames"], cwd=temp_git_repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Apply migration renames"],
+        cwd=temp_git_repo,
+        check=True,
+        capture_output=True,
+    )
 
     # 4. Verify git log --follow finds the original commit history
     log_res = subprocess.run(

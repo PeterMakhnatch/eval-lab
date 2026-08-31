@@ -31,24 +31,33 @@ FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
 
-EXCLUDED_SCAN_DIRS = frozenset({
-    ".git",
-    ".worktrees",
-    ".venv",
-    "venv",
-    "node_modules",
-    "runs",
-    "queue",
-    "derived",
-    "backups",
-    ".pytest_cache",
-    ".ruff_cache",
-    "__pycache__",
-    ".omp",
-})
+EXCLUDED_SCAN_DIRS = frozenset(
+    {
+        ".git",
+        ".worktrees",
+        ".venv",
+        "venv",
+        "node_modules",
+        "runs",
+        "queue",
+        "derived",
+        "backups",
+        ".pytest_cache",
+        ".ruff_cache",
+        "__pycache__",
+        ".omp",
+    }
+)
 
 INBOX_EXEMPT_NAMES = frozenset({"QUEUE.md", "README.md"})
-INBOX_REQUIRED_FIELDS = ("source_url", "source_type", "retrieved", "license_note", "status", "feeds")
+INBOX_REQUIRED_FIELDS = (
+    "source_url",
+    "source_type",
+    "retrieved",
+    "license_note",
+    "status",
+    "feeds",
+)
 INBOX_VALID_SOURCE_TYPES = frozenset({"paper", "repo", "thread", "drive", "blog"})
 INBOX_VALID_STATUSES = frozenset({"raw", "distilled", "superseded"})
 INBOX_STANDARDS_PREFIXES = ("library/curated/standards/", "_proposed_templates/")
@@ -322,7 +331,9 @@ def inventory_repo_documents(
                 if reasons:
                     refusal_reasons.extend(reasons)
                 if not is_valid_iso_date(inferred_date):
-                    refusal_reasons.append(f"Ambiguous date: inferred {inferred_date!r} is not a valid ISO date")
+                    refusal_reasons.append(
+                        f"Ambiguous date: inferred {inferred_date!r} is not a valid ISO date"
+                    )
                 slug = to_kebab_slug(file_path.stem)
                 proposed_filename = f"{inferred_date}-{slug}.md"
 
@@ -337,12 +348,12 @@ def inventory_repo_documents(
                 refusal_reasons.append("File has uncommitted changes in another active worktree")
 
             # Check inbox conformance safety
-            if "research/inbox" in str(rel_path.parent):
-                # If front matter exists but has invalid source_type/status that would break conformance
-                if fm:
-                    st = fm.get("source_type")
-                    if st and st not in INBOX_VALID_SOURCE_TYPES:
-                        refusal_reasons.append(f"Inbox note has invalid source_type {st!r} not in {sorted(INBOX_VALID_SOURCE_TYPES)}")
+            if "research/inbox" in str(rel_path.parent) and fm:
+                st = fm.get("source_type")
+                if st and st not in INBOX_VALID_SOURCE_TYPES:
+                    refusal_reasons.append(
+                        f"Inbox note has invalid source_type {st!r} not in {sorted(INBOX_VALID_SOURCE_TYPES)}"
+                    )
 
             item = DocItem(
                 repo_id=repo_id,
@@ -377,16 +388,22 @@ def audit_collisions(items: list[DocItem]) -> None:
             sources = ", ".join(str(d.rel_path) for d in doc_group)
             for d in doc_group:
                 d.refused = True
-                d.refusal_reasons.append(f"Target collision: multiple files map to {target_key[1]} ({sources})")
+                d.refusal_reasons.append(
+                    f"Target collision: multiple files map to {target_key[1]} ({sources})"
+                )
         else:
             doc = doc_group[0]
             # Check if target already exists on disk and is a different file
             target_abs = doc.repo_root / doc.proposed_rel_path
-            if target_abs.exists() and doc.needs_rename:
-                # If target is not the original file
-                if target_abs.resolve() != doc.abs_path.resolve():
-                    doc.refused = True
-                    doc.refusal_reasons.append(f"Target already exists on disk at {doc.proposed_rel_path}")
+            if (
+                target_abs.exists()
+                and doc.needs_rename
+                and target_abs.resolve() != doc.abs_path.resolve()
+            ):
+                doc.refused = True
+                doc.refusal_reasons.append(
+                    f"Target already exists on disk at {doc.proposed_rel_path}"
+                )
 
 
 def build_link_rewrite_plan(
@@ -486,7 +503,11 @@ def enrich_front_matter_for_apply(
             if clean and not clean.startswith(("-", "*", "|", "`", ">")):
                 summary_val = clean
                 break
-        fm["summary"] = summary_val if summary_val else f"Documentation and analysis for {item.proposed_filename}."
+        fm["summary"] = (
+            summary_val
+            if summary_val
+            else f"Documentation and analysis for {item.proposed_filename}."
+        )
 
     if "status" not in fm or fm["status"] not in INBOX_VALID_STATUSES:
         fm["status"] = "raw"
@@ -538,7 +559,9 @@ def apply_migration(
         cmd = ["git", "mv", str(item.rel_path), str(item.proposed_rel_path)]
         res = subprocess.run(cmd, cwd=item.repo_root, capture_output=True, text=True)
         if res.returncode != 0:
-            raise RuntimeError(f"git mv failed for {item.rel_path} -> {item.proposed_rel_path}: {res.stderr}")
+            raise RuntimeError(
+                f"git mv failed for {item.rel_path} -> {item.proposed_rel_path}: {res.stderr}"
+            )
 
         renamed_count += 1
 
@@ -574,7 +597,6 @@ def generate_migration_report(
 
     refused_items = [it for it in items if it.refused]
     ready_renames = [it for it in items if it.needs_rename and not it.refused]
-    conformant_items = [it for it in items if it.classification == "already-conformant" and not it.refused]
 
     report_lines: list[str] = [
         "---",
@@ -603,75 +625,109 @@ def generate_migration_report(
     ]
 
     repos = sorted({it.repo_id for it in items})
-    total_conformant = sum(1 for it in items if it.classification == "already-conformant" and not it.refused)
-    total_suffixed = sum(1 for it in items if it.classification == "date-suffixed" and not it.refused)
+    total_conformant = sum(
+        1 for it in items if it.classification == "already-conformant" and not it.refused
+    )
+    total_suffixed = sum(
+        1 for it in items if it.classification == "date-suffixed" and not it.refused
+    )
     total_undated = sum(1 for it in items if it.classification == "undated" and not it.refused)
     total_refused = len(refused_items)
     total_all = len(items)
 
     for r in repos:
-        r_conf = sum(1 for it in items if it.repo_id == r and it.classification == "already-conformant" and not it.refused)
-        r_suf = sum(1 for it in items if it.repo_id == r and it.classification == "date-suffixed" and not it.refused)
-        r_und = sum(1 for it in items if it.repo_id == r and it.classification == "undated" and not it.refused)
+        r_conf = sum(
+            1
+            for it in items
+            if it.repo_id == r and it.classification == "already-conformant" and not it.refused
+        )
+        r_suf = sum(
+            1
+            for it in items
+            if it.repo_id == r and it.classification == "date-suffixed" and not it.refused
+        )
+        r_und = sum(
+            1
+            for it in items
+            if it.repo_id == r and it.classification == "undated" and not it.refused
+        )
         r_ref = sum(1 for it in items if it.repo_id == r and it.refused)
         r_tot = sum(1 for it in items if it.repo_id == r)
         report_lines.append(f"| `{r}` | {r_conf} | {r_suf} | {r_und} | {r_ref} | {r_tot} |")
 
-    report_lines.append(f"| **Total** | **{total_conformant}** | **{total_suffixed}** | **{total_undated}** | **{total_refused}** | **{total_all}** |")
-    report_lines.extend([
-        "",
-        "### Key Statistics",
-        f"- **Total Documents Scanned:** {total_all}",
-        f"- **Already Conformant:** {total_conformant} (no rename needed)",
-        f"- **Proposed Renames (Ready):** {len(ready_renames)}",
-        f"- **Refused Unsafe Cases:** {total_refused}",
-        f"- **Inbound Link Rewrites Planned:** {len(link_rewrites)}",
-        "",
-        "## Refused Files and Safety Audit",
-        "",
-    ])
+    report_lines.append(
+        f"| **Total** | **{total_conformant}** | **{total_suffixed}** | **{total_undated}** | **{total_refused}** | **{total_all}** |"
+    )
+    report_lines.extend(
+        [
+            "",
+            "### Key Statistics",
+            f"- **Total Documents Scanned:** {total_all}",
+            f"- **Already Conformant:** {total_conformant} (no rename needed)",
+            f"- **Proposed Renames (Ready):** {len(ready_renames)}",
+            f"- **Refused Unsafe Cases:** {total_refused}",
+            f"- **Inbound Link Rewrites Planned:** {len(link_rewrites)}",
+            "",
+            "## Refused Files and Safety Audit",
+            "",
+        ]
+    )
 
     if refused_items:
-        report_lines.extend([
-            "The following documents were refused from automated renaming to prevent collisions, broken links, or merge conflicts:",
-            "",
-            "| Repository | Original Path | Inferred Date | Date Source | Refusal Reason |",
-            "|---|---|---|---|---|",
-        ])
+        report_lines.extend(
+            [
+                "The following documents were refused from automated renaming to prevent collisions, broken links, or merge conflicts:",
+                "",
+                "| Repository | Original Path | Inferred Date | Date Source | Refusal Reason |",
+                "|---|---|---|---|---|",
+            ]
+        )
         for it in sorted(refused_items, key=lambda x: (x.repo_id, str(x.rel_path))):
             reasons = "; ".join(it.refusal_reasons)
-            report_lines.append(f"| `{it.repo_id}` | `{it.rel_path}` | {it.inferred_date} | {it.date_source} | {reasons} |")
+            report_lines.append(
+                f"| `{it.repo_id}` | `{it.rel_path}` | {it.inferred_date} | {it.date_source} | {reasons} |"
+            )
     else:
         report_lines.append("No files were refused. All documents passed safety audits cleanly.")
 
-    report_lines.extend([
-        "",
-        "## Proposed Rename Plan",
-        "",
-        "| Repository | Original Path | Classification | Inferred Date | Date Source | Proposed Path | Status |",
-        "|---|---|---|---|---|---|---|",
-    ])
+    report_lines.extend(
+        [
+            "",
+            "## Proposed Rename Plan",
+            "",
+            "| Repository | Original Path | Classification | Inferred Date | Date Source | Proposed Path | Status |",
+            "|---|---|---|---|---|---|---|",
+        ]
+    )
 
     for it in sorted(items, key=lambda x: (x.repo_id, str(x.rel_path))):
-        status_label = "REFUSED" if it.refused else ("ALREADY CONFORMANT" if not it.needs_rename else "READY")
+        status_label = (
+            "REFUSED" if it.refused else ("ALREADY CONFORMANT" if not it.needs_rename else "READY")
+        )
         report_lines.append(
             f"| `{it.repo_id}` | `{it.rel_path}` | {it.classification} | {it.inferred_date} | {it.date_source} | `{it.proposed_rel_path}` | {status_label} |"
         )
 
-    report_lines.extend([
-        "",
-        "## Inbound Link Rewrite Plan",
-        "",
-        f"A total of **{len(link_rewrites)}** inbound Markdown links and wikilinks across both repositories reference files scheduled for renaming.",
-        "",
-    ])
+    report_lines.extend(
+        [
+            "",
+            "## Inbound Link Rewrite Plan",
+            "",
+            f"A total of **{len(link_rewrites)}** inbound Markdown links and wikilinks across both repositories reference files scheduled for renaming.",
+            "",
+        ]
+    )
 
     if link_rewrites:
-        report_lines.extend([
-            "| Source Repo | Source Document | Line | Link Type | Original Target | Proposed Target |",
-            "|---|---|---|---|---|---|",
-        ])
-        for rw in sorted(link_rewrites, key=lambda x: (x.source_repo_id, str(x.source_doc_rel), x.line_number)):
+        report_lines.extend(
+            [
+                "| Source Repo | Source Document | Line | Link Type | Original Target | Proposed Target |",
+                "|---|---|---|---|---|---|",
+            ]
+        )
+        for rw in sorted(
+            link_rewrites, key=lambda x: (x.source_repo_id, str(x.source_doc_rel), x.line_number)
+        ):
             report_lines.append(
                 f"| `{rw.source_repo_id}` | `{rw.source_doc_rel}` | {rw.line_number} | {rw.link_type} | `{rw.old_target}` | `{rw.new_target}` |"
             )
@@ -735,24 +791,48 @@ def main() -> int:
         description="Dated document naming migration tool (defaults to dry-run)."
     )
     workspace_root = Path(__file__).resolve().parents[1]
-    default_repo_a = workspace_root if (workspace_root / "research").exists() else Path("/Users/petermakhnatch/Developer/eval-lab")
+    default_repo_a = (
+        workspace_root
+        if (workspace_root / "research").exists()
+        else Path("/Users/petermakhnatch/Developer/eval-lab")
+    )
     default_repo_b = Path("/Users/petermakhnatch/Developer/research-context")
     default_report = default_repo_a / "research/analysis/document-naming-migration-2026-08-31.md"
 
-    parser.add_argument("--repo-a", type=Path, default=default_repo_a, help="Path to eval-lab repository root")
-    parser.add_argument("--repo-b", type=Path, default=default_repo_b, help="Path to research-context repository root")
-    parser.add_argument("--report", type=Path, default=default_report, help="Path to output migration report markdown")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Perform dry-run without modifying files (default)")
-    parser.add_argument("--apply", action="store_true", default=False, help="Explicitly apply renames and front-matter updates")
-    parser.add_argument("--verbose", "-v", action="store_true", default=False, help="Verbose output")
+    parser.add_argument(
+        "--repo-a", type=Path, default=default_repo_a, help="Path to eval-lab repository root"
+    )
+    parser.add_argument(
+        "--repo-b",
+        type=Path,
+        default=default_repo_b,
+        help="Path to research-context repository root",
+    )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=default_report,
+        help="Path to output migration report markdown",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=True,
+        help="Perform dry-run without modifying files (default)",
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        default=False,
+        help="Explicitly apply renames and front-matter updates",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", default=False, help="Verbose output"
+    )
 
     args = parser.parse_args()
 
     apply_mode = args.apply
-    if apply_mode:
-        dry_run_mode = False
-    else:
-        dry_run_mode = True
 
     print(f"Starting Document Naming Migration (mode: {'APPLY' if apply_mode else 'DRY-RUN'})...")
     print(f"Repo A (eval-lab): {args.repo_a}")
@@ -767,8 +847,12 @@ def main() -> int:
         verbose=True,
     )
 
-    total_conformant = sum(1 for it in items if it.classification == "already-conformant" and not it.refused)
-    total_suffixed = sum(1 for it in items if it.classification == "date-suffixed" and not it.refused)
+    total_conformant = sum(
+        1 for it in items if it.classification == "already-conformant" and not it.refused
+    )
+    total_suffixed = sum(
+        1 for it in items if it.classification == "date-suffixed" and not it.refused
+    )
     total_undated = sum(1 for it in items if it.classification == "undated" and not it.refused)
     total_refused = sum(1 for it in items if it.refused)
 

@@ -27,6 +27,7 @@ class InspectSourceManifestV1(ContractModel):
     projector_identity: str = "evallab.inspect_adapter"
     projector_version: str = "1.0.0"
     job_id: str
+    source_revision_id: str
     identity_source: str
     eval_id: str | None = None
     run_id: str | None = None
@@ -84,6 +85,7 @@ def create_inspect_source_manifest(
         projector_identity="evallab.inspect_adapter",
         projector_version="1.0.0",
         job_id=projection.run.job_id,
+        source_revision_id=projection.run.source_revision_id,
         identity_source=projection.run.identity_source,
         eval_id=projection.run.eval_id,
         run_id=projection.run.run_id,
@@ -118,10 +120,35 @@ def write_inspect_projection(
     source_bytes_size: int | None = None,
     raw_cas_uri: str | None = None,
 ) -> dict[str, Path]:
-    """Write Inspect-native source tables into one discoverable partitioned Parquet root."""
+    """Write Inspect-native source tables into a discoverable job and revision partitioned Parquet root."""
+    paths, _ = write_inspect_projection_with_manifest(
+        projection,
+        output_root,
+        write_manifest=write_manifest,
+        source_file=source_file,
+        source_bytes_size=source_bytes_size,
+        raw_cas_uri=raw_cas_uri,
+    )
+    return paths
+
+
+def write_inspect_projection_with_manifest(
+    projection: InspectProjection,
+    output_root: Path,
+    *,
+    write_manifest: bool = True,
+    source_file: str | None = None,
+    source_bytes_size: int | None = None,
+    raw_cas_uri: str | None = None,
+) -> tuple[dict[str, Path], InspectSourceManifestV1 | None]:
+    """Write Inspect-native source tables and return table paths plus the exact persisted manifest."""
     from evallab.inspect_adapter import INSPECT_SCHEMAS
 
-    root = output_root.resolve() / f"job_id={projection.run.job_id}"
+    root = (
+        output_root.resolve()
+        / f"job_id={projection.run.job_id}"
+        / f"revision_id={projection.run.source_revision_id}"
+    )
     root.mkdir(parents=True, exist_ok=True)
 
     table_rows: dict[str, list[dict[str, Any]]] = {
@@ -139,6 +166,7 @@ def write_inspect_projection(
         write_table_atomic(path, rows, schema)
         paths[name] = path
 
+    manifest: InspectSourceManifestV1 | None = None
     if write_manifest:
         if not raw_cas_uri:
             raise ValueError(
@@ -159,7 +187,7 @@ def write_inspect_projection(
             encoding="utf-8",
         )
 
-    return paths
+    return paths, manifest
 
 
 def ingest_inspect_eval_log(
@@ -199,20 +227,13 @@ def ingest_inspect_eval_log(
         archive = archive_evidence(
             staging,
             store_root,
-            record_id=projection.run.job_id,
+            record_id=projection.run.source_revision_id,
             kind="inspect_eval_log",
         )
         cas_uri = archive.uri
 
-    # Final manifest beside Parquet with real CAS URI (never pending)
-    manifest = create_inspect_source_manifest(
-        projection,
-        source_file=path.name,
-        source_bytes_size=len(source_bytes),
-        raw_cas_uri=cas_uri,
-    )
-
-    table_paths = write_inspect_projection(
+    # Final manifest beside Parquet with real CAS URI and populated table_digests
+    table_paths, manifest = write_inspect_projection_with_manifest(
         projection,
         output_root,
         write_manifest=True,

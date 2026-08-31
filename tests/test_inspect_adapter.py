@@ -45,6 +45,9 @@ def _inspect_fixture_dict() -> dict:
                         "type": "RateLimitError",
                         "message": "Rate limit exceeded, retry 1",
                         "traceback": "Traceback ... 429",
+                        "events": [
+                            {"event": "retry_init", "timestamp": "2026-08-31T00:00:01Z"},
+                        ],
                     }
                 ],
                 "model_usage": {
@@ -142,11 +145,17 @@ def _condensed_attachment_fixture() -> dict:
                         "type": "ConnectionError",
                         "message": "Connection error to LLM backend",
                         "traceback": "Traceback ... ConnectionResetError",
+                        "events": [
+                            {"event": "retry_connection_fail", "timestamp": "2026-08-31T02:00:02Z"}
+                        ],
                     },
                     {
                         "type": "GatewayTimeout",
                         "message": "Gateway timeout",
                         "traceback": "Traceback ... 504 Gateway Timeout",
+                        "events": [
+                            {"event": "retry_gateway_fail", "timestamp": "2026-08-31T02:00:10Z"}
+                        ],
                     },
                 ],
                 "model_usage": {
@@ -280,6 +289,7 @@ def test_official_eval_log_reading_and_projection(tmp_path: Path) -> None:
 
     assert projection.run.identity_source == "eval_id"
     assert projection.run.eval_id == "eval_official_100"
+    assert len(projection.run.source_revision_id) == 64
     assert projection.run.source_revision == "112233445566"
     assert projection.run.validator == "inspect_ai.log.read_eval_log"
     assert projection.run.evidence_only is True
@@ -374,7 +384,7 @@ def test_domain_separated_run_identity() -> None:
     assert proj_anon.run.identity_source == "content_digest_fallback"
 
 
-def test_ordered_retry_attempts_and_terminal_outcome() -> None:
+def test_ordered_retry_attempts_and_retry_events() -> None:
     fixture = _condensed_attachment_fixture()
     projection = project_inspect_eval_log(fixture, source_path="condensed.eval")
 
@@ -387,12 +397,14 @@ def test_ordered_retry_attempts_and_terminal_outcome() -> None:
     assert att1.retry_of is None
     assert att1.status == "error"
     assert att1.error_type == "ConnectionError"
+    assert att1.event_count == 1
 
     assert att2.ordinal == 2
     assert att2.terminal is False
     assert att2.retry_of == att1.attempt_id
     assert att2.status == "error"
     assert att2.error_type == "GatewayTimeout"
+    assert att2.event_count == 1
 
     assert att3.ordinal == 3
     assert att3.terminal is True
@@ -400,6 +412,66 @@ def test_ordered_retry_attempts_and_terminal_outcome() -> None:
     assert att3.status == "success"
     assert att3.total_time == 239.0
     assert att3.working_time == 200.0
+    assert att3.event_count == 3
+
+    # Check that events are attached to their respective attempts
+    events = projection.events
+    assert len(events) == 5  # 1 retry event + 1 retry event + 3 terminal events
+
+    events_att1 = [ev for ev in events if ev.attempt_id == att1.attempt_id]
+    assert len(events_att1) == 1
+    assert events_att1[0].event_type == "retry_connection_fail"
+
+    events_att2 = [ev for ev in events if ev.attempt_id == att2.attempt_id]
+    assert len(events_att2) == 1
+    assert events_att2[0].event_type == "retry_gateway_fail"
+
+    events_att3 = [ev for ev in events if ev.attempt_id == att3.attempt_id]
+    assert len(events_att3) == 3
+    assert [ev.event_type for ev in events_att3] == ["sample_init", "model", "tool"]
+
+
+def test_explicit_sample_statuses_including_limit_only() -> None:
+    # 1. Invalidated sample
+    payload_inv = {
+        "version": 2,
+        "status": "success",
+        "eval": {"task": "t1"},
+        "samples": [{"id": "s1", "invalidated": "bad prompt data"}],
+    }
+    proj_inv = project_inspect_eval_log(payload_inv, source_path="inv.eval")
+    assert proj_inv.attempts[0].status == "invalidated"
+
+    # 2. Cancelled sample
+    payload_cancel = {
+        "version": 2,
+        "status": "success",
+        "eval": {"task": "t1"},
+        "samples": [{"id": "s1", "status": "cancelled"}],
+    }
+    proj_cancel = project_inspect_eval_log(payload_cancel, source_path="cancel.eval")
+    assert proj_cancel.attempts[0].status == "cancelled"
+
+    # 3. Limit only without error -> status is 'limit', NOT 'success'
+    payload_limit = {
+        "version": 2,
+        "status": "success",
+        "eval": {"task": "t1"},
+        "samples": [{"id": "s1", "limit": {"type": "time"}}],
+    }
+    proj_limit = project_inspect_eval_log(payload_limit, source_path="limit.eval")
+    assert proj_limit.attempts[0].status == "limit"
+    assert proj_limit.attempts[0].limit_type == "time"
+
+    # 4. Success sample
+    payload_ok = {
+        "version": 2,
+        "status": "success",
+        "eval": {"task": "t1"},
+        "samples": [{"id": "s1"}],
+    }
+    proj_ok = project_inspect_eval_log(payload_ok, source_path="ok.eval")
+    assert proj_ok.attempts[0].status == "success"
 
 
 def test_scores_authority_defaults_to_non_decision() -> None:

@@ -21,13 +21,13 @@ from evallab.storage.inspect_storage import (
 from evallab.storage.paths import discover_parquet_partitions
 
 
-def _sample_inspect_log() -> dict:
+def _sample_inspect_log(task: str = "storage-test-suite", extra_note: str = "") -> dict:
     return {
         "version": 2,
         "status": "success",
         "eval": {
             "eval_id": "eval_storage_001",
-            "task": "storage-test-suite",
+            "task": task,
             "model": "openai/gpt-4o-mini",
             "run_id": "eval-storage-999",
             "created": "2026-08-31T01:00:00Z",
@@ -39,7 +39,7 @@ def _sample_inspect_log() -> dict:
             "completed_at": "2026-08-31T01:03:00Z",
         },
         "attachments": {
-            "global_spec": "Global test specification content",
+            "global_spec": f"Global test specification content {extra_note}",
         },
         "samples": [
             {
@@ -54,13 +54,14 @@ def _sample_inspect_log() -> dict:
                     {
                         "type": "RateLimitError",
                         "message": "Too many requests",
+                        "events": [{"event": "retry_event", "timestamp": "2026-08-31T01:00:02Z"}],
                     }
                 ],
                 "scores": {
                     "accuracy": {"value": 1.0, "answer": "correct", "explanation": "all passed"},
                 },
                 "messages": [
-                    {"role": "user", "content": "Run tests."},
+                    {"role": "user", "content": f"Run tests {extra_note}"},
                     {
                         "role": "assistant",
                         "content": "Running test command.",
@@ -84,7 +85,7 @@ def _sample_inspect_log() -> dict:
     }
 
 
-def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
+def test_write_inspect_projection_writes_only_source_tables_in_revision_partition(
     tmp_path: Path,
 ) -> None:
     payload = _sample_inspect_log()
@@ -100,8 +101,12 @@ def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
         raw_cas_uri="cas://sha256/1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
 
-    # Verify partition folder is discoverable root/job_id=<job_id>
-    partition_dir = output_root / f"job_id={projection.run.job_id}"
+    # Verify partition folder is discoverable root/job_id=<job_id>/revision_id=<rev_id>
+    partition_dir = (
+        output_root
+        / f"job_id={projection.run.job_id}"
+        / f"revision_id={projection.run.source_revision_id}"
+    )
     assert partition_dir.is_dir()
 
     # Verify only inspect_* tables are written, not canonical tables
@@ -122,6 +127,7 @@ def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
     assert manifest.projector_identity == "evallab.inspect_adapter"
     assert manifest.projector_version == "1.0.0"
     assert manifest.job_id == projection.run.job_id
+    assert manifest.source_revision_id == projection.run.source_revision_id
     assert manifest.eval_id == "eval_storage_001"
     assert manifest.source_revision == "git-sha-storage123"
     assert manifest.source_file == "test_log.json"
@@ -133,8 +139,13 @@ def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
     assert manifest.sample_count == 1
     assert manifest.attempt_count == 2  # 1 retry + 1 terminal attempt
     assert manifest.score_count == 1
-    assert manifest.event_count == 2
+    assert manifest.event_count == 3  # 1 retry event + 2 terminal events
     assert manifest.attachment_count == 1
+
+    # Verify table_digests are populated
+    for name in table_paths:
+        assert name in manifest.table_digests
+        assert manifest.table_digests[name].startswith("sha256:")
 
     # Verify Parquet schemas
     for table_name, file_path in table_paths.items():
@@ -145,14 +156,10 @@ def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
     # Test discovery and unified attach
     discovery = discover_parquet_partitions(output_root)
     assert len(discovery.partitions) == 5
-    partition_tables = {p.table for p in discovery.partitions}
-    assert partition_tables == {
-        "inspect_runs",
-        "inspect_attempts",
-        "inspect_scores",
-        "inspect_events",
-        "inspect_attachments",
-    }
+    for p in discovery.partitions:
+        assert p.layout == "revision"
+        assert p.job_id == projection.run.job_id
+        assert p.revision_id == projection.run.source_revision_id
 
     # Test attach views
     attach_res = attach(explicit_derived=output_root)
@@ -161,10 +168,68 @@ def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
     assert runs_rows == 1
     attempts_rows = conn.execute("SELECT count(*) FROM inspect_attempts").fetchone()[0]
     assert attempts_rows == 2
+    events_rows = conn.execute("SELECT count(*) FROM inspect_events").fetchone()[0]
+    assert events_rows == 3
     conn.close()
 
 
-def test_ingest_inspect_eval_log_with_official_eval_and_cas_restoration(tmp_path: Path) -> None:
+def test_multi_revision_preservation_and_non_overwrite(tmp_path: Path) -> None:
+    output_root = tmp_path / "derived"
+
+    # Revision 1
+    log1 = _sample_inspect_log(extra_note="rev1")
+    proj1 = project_inspect_eval_log(log1, source_path="rev1.json")
+    write_inspect_projection(
+        proj1,
+        output_root,
+        write_manifest=True,
+        source_file="rev1.json",
+        source_bytes_size=len(json.dumps(log1)),
+        raw_cas_uri="cas://sha256/1111111111111111111111111111111111111111111111111111111111111111",
+    )
+
+    # Revision 2 (same eval_id "eval_storage_001", but different contents/digest)
+    log2 = _sample_inspect_log(extra_note="rev2_updated")
+    proj2 = project_inspect_eval_log(log2, source_path="rev2.json")
+    assert proj2.run.job_id == proj1.run.job_id
+    assert proj2.run.source_revision_id != proj1.run.source_revision_id
+
+    write_inspect_projection(
+        proj2,
+        output_root,
+        write_manifest=True,
+        source_file="rev2.json",
+        source_bytes_size=len(json.dumps(log2)),
+        raw_cas_uri="cas://sha256/2222222222222222222222222222222222222222222222222222222222222222",
+    )
+
+    # Both revision directories coexist under job_id
+    rev1_dir = (
+        output_root / f"job_id={proj1.run.job_id}" / f"revision_id={proj1.run.source_revision_id}"
+    )
+    rev2_dir = (
+        output_root / f"job_id={proj2.run.job_id}" / f"revision_id={proj2.run.source_revision_id}"
+    )
+    assert rev1_dir.is_dir()
+    assert rev2_dir.is_dir()
+
+    # Verify both revisions discovered
+    discovery = discover_parquet_partitions(output_root)
+    assert len(discovery.partitions) == 10
+
+    # Idempotent rewrite of revision 1 produces same tables
+    write_inspect_projection(
+        proj1,
+        output_root,
+        write_manifest=True,
+        source_file="rev1.json",
+        source_bytes_size=len(json.dumps(log1)),
+        raw_cas_uri="cas://sha256/1111111111111111111111111111111111111111111111111111111111111111",
+    )
+    assert rev1_dir.is_dir()
+
+
+def test_ingest_inspect_eval_log_with_official_eval_and_clean_cas_archive(tmp_path: Path) -> None:
     pytest.importorskip("inspect_ai", reason="optional Inspect dependency group is not installed")
     import inspect_ai.log as inspect_log
     from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
@@ -221,6 +286,7 @@ def test_ingest_inspect_eval_log_with_official_eval_and_cas_restoration(tmp_path
     assert result.source_manifest.evidence_only is True
     assert result.source_manifest.raw_cas_uri == result.raw_cas_uri
     assert result.source_manifest.raw_cas_uri != "pending"
+    assert len(result.source_manifest.table_digests) == 5
 
     # Restore CAS archive and verify raw source bytes ONLY (no pending manifest inside CAS)
     with tempfile.TemporaryDirectory() as unpack_temp:

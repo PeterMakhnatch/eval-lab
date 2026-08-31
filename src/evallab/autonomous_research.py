@@ -361,7 +361,7 @@ class ResearchRunTraceV1(ContractModel):
     iterations: tuple[ResearchIterationV1, ...]
 
     @property
-    def score_scale_compatible(self) -> bool:
+    def score_scale_binding_declared(self) -> bool:
         return self.score_scale_binding is not None
 
     @model_validator(mode="after")
@@ -851,7 +851,14 @@ def extract_autonomous_research_features(
     if trace.score_scale_binding is not None:
         scale_binding_digest = trace.score_scale_binding.binding_digest
 
-        resolved = artifact_resolver(trace) if artifact_resolver is not None else {}
+        if artifact_resolver is not None:
+            try:
+                res_output = artifact_resolver(trace)
+                resolved = res_output if isinstance(res_output, Mapping) else {}
+            except Exception:
+                resolved = {}
+        else:
+            resolved = {}
         t_dir = task_dir if task_dir is not None else resolved.get("task_dir")
         m_cfg = metric_config if metric_config is not None else resolved.get("metric_config")
         v_out = visible_outcome if visible_outcome is not None else resolved.get("visible_outcome")

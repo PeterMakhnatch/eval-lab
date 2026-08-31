@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -136,10 +136,75 @@ def load_analysis_bindings(root: Path) -> AnalysisBindingPolicy:
     return policy
 
 
+def _resolve_evidence_artifacts(
+    root: Path,
+    path: Path,
+    payload: Mapping[str, Any],
+    binding: Any,
+    trace: ResearchRunTraceV1,
+) -> dict[str, Any]:
+    """Default source-locator resolving task package, metric config, and outcome artifacts."""
+    artifacts: dict[str, Any] = {}
+
+    # 1. Resolve task directory if available in library/ or payload
+    task_candidates: list[Path] = []
+    if isinstance(payload.get("task_dir"), str):
+        task_candidates.append(Path(payload["task_dir"]))
+    if isinstance(payload.get("task_path"), str):
+        task_candidates.append(root / payload["task_path"])
+    if hasattr(binding, "task_path") and binding.task_path:
+        task_candidates.append(root / binding.task_path)
+    benchmark = payload.get("benchmark")
+    if isinstance(benchmark, dict) and isinstance(benchmark.get("task"), str):
+        task_slug = benchmark["task"].split("/")[-1]
+        task_candidates.extend(
+            [
+                root / "library/tasks" / task_slug,
+                root / "library/benchmarks" / task_slug,
+            ]
+        )
+    for candidate in task_candidates:
+        resolved_p = (
+            candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
+        )
+        if resolved_p.is_dir():
+            artifacts["task_dir"] = resolved_p
+            break
+
+    # 2. Resolve metric configuration
+    if isinstance(payload.get("metric_config"), dict):
+        artifacts["metric_config"] = payload["metric_config"]
+    elif isinstance(payload.get("metric_spec"), dict):
+        artifacts["metric_config"] = payload["metric_spec"]
+    elif isinstance(payload.get("scores"), dict) and isinstance(
+        payload["scores"].get("metric_config"), dict
+    ):
+        artifacts["metric_config"] = payload["scores"]["metric_config"]
+
+    # 3. Resolve visible outcome
+    if isinstance(payload.get("visible_outcome"), dict):
+        artifacts["visible_outcome"] = payload["visible_outcome"]
+    elif isinstance(payload.get("scores"), dict) and isinstance(
+        payload["scores"].get("visible"), dict
+    ):
+        artifacts["visible_outcome"] = payload["scores"]["visible"]
+
+    # 4. Resolve hidden outcome
+    if isinstance(payload.get("hidden_outcome"), dict):
+        artifacts["hidden_outcome"] = payload["hidden_outcome"]
+    elif isinstance(payload.get("scores"), dict) and isinstance(
+        payload["scores"].get("sealed"), dict
+    ):
+        artifacts["hidden_outcome"] = payload["scores"]["sealed"]
+
+    return artifacts
+
+
 def load_calibration_evidence(
     root: Path,
     *,
     evidence_paths: Sequence[Path] | None = None,
+    artifact_resolver: Callable[[ResearchRunTraceV1], Mapping[str, Any]] | None = None,
 ) -> tuple[CalibrationEvidence, ...]:
     policy = load_analysis_bindings(root)
     requested = {path.resolve() for path in evidence_paths} if evidence_paths else None
@@ -159,6 +224,26 @@ def load_calibration_evidence(
             raise ValueError(
                 f"binding run_id {binding.run_id} does not match evidence run_id {trace.run_id}"
             )
+
+        def _make_trace_resolver(
+            p_path: Path,
+            p_payload: Mapping[str, Any],
+            p_binding: Any,
+        ) -> Callable[[ResearchRunTraceV1], Mapping[str, Any]]:
+            def resolver(t: ResearchRunTraceV1) -> Mapping[str, Any]:
+                if artifact_resolver is not None:
+                    try:
+                        res = artifact_resolver(t)
+                        return res if isinstance(res, Mapping) else {}
+                    except Exception:
+                        return {}
+                return _resolve_evidence_artifacts(root, p_path, p_payload, p_binding, t)
+
+            return resolver
+
+        features = extract_autonomous_research_features(
+            trace, artifact_resolver=_make_trace_resolver(path, payload, binding)
+        )
         evidence.append(
             CalibrationEvidence(
                 path=path,
@@ -166,7 +251,7 @@ def load_calibration_evidence(
                 payload=payload,
                 binding=binding,
                 trace=trace,
-                features=extract_autonomous_research_features(trace),
+                features=features,
                 evidence_digest=_file_digest(path),
             )
         )
@@ -402,6 +487,7 @@ def _calibration_row(evidence: CalibrationEvidence) -> tuple[Any, ...]:
         scale_binding is not None
         and selected_value is not None
         and trace.hidden_score is not None
+        and features.score_scale_compatible
         and features.visible_hidden_transfer_gap is not None
     )
     scale_reason = None
@@ -460,10 +546,16 @@ def _calibration_row(evidence: CalibrationEvidence) -> tuple[Any, ...]:
         trace.metric_config_digest,
         trace.visible_outcome_binding_digest,
         trace.hidden_outcome_binding_digest,
-        True,
+        trace.score_scale_binding_declared,
         binding_complete,
         binding_status,
         features.scale_binding_digest,
+        features.scale_binding_status or "not_provided",
+        features.scale_binding_task_status,
+        features.scale_binding_verifier_status,
+        features.scale_binding_metric_config_status,
+        features.scale_binding_visible_outcome_status,
+        features.scale_binding_hidden_outcome_status,
         features.score_scale_compatible,
         arithmetic_permitted,
         features.visible_hidden_transfer_gap if arithmetic_permitted else None,
@@ -537,6 +629,7 @@ def materialize_analysis_control_views(
     root: Path,
     evidence_paths: Sequence[Path] | None = None,
     readiness_evaluator: Callable[[AgentProfile], AgentReadinessRecord] | None = None,
+    artifact_resolver: Callable[[ResearchRunTraceV1], Mapping[str, Any]] | None = None,
 ) -> ControlMaterialization:
     """Materialize all stable control-plane views in one DuckDB connection."""
     connection.execute((root / "sql/views.sql").read_text(encoding="utf-8"))
@@ -575,7 +668,9 @@ def materialize_analysis_control_views(
         readiness_rows,
     )
 
-    evidence = load_calibration_evidence(root, evidence_paths=evidence_paths)
+    evidence = load_calibration_evidence(
+        root, evidence_paths=evidence_paths, artifact_resolver=artifact_resolver
+    )
     connection.execute(
         """
         CREATE TABLE analysis_calibration_runs (
@@ -599,6 +694,12 @@ def materialize_analysis_control_views(
             binding_complete BOOLEAN NOT NULL,
             binding_status VARCHAR NOT NULL,
             scale_binding_digest VARCHAR,
+            scale_binding_status VARCHAR NOT NULL,
+            scale_binding_task_status VARCHAR,
+            scale_binding_verifier_status VARCHAR,
+            scale_binding_metric_config_status VARCHAR,
+            scale_binding_visible_outcome_status VARCHAR,
+            scale_binding_hidden_outcome_status VARCHAR,
             score_scale_compatible BOOLEAN NOT NULL,
             arithmetic_permitted BOOLEAN NOT NULL,
             visible_hidden_transfer_gap DOUBLE,
@@ -625,10 +726,12 @@ def materialize_analysis_control_views(
         CREATE OR REPLACE VIEW v_scale_binding_status AS
         SELECT
             run_id, benchmark_family, headline_visible_scalar, selected_visible_value,
-            scale_binding_digest, score_scale_compatible, arithmetic_permitted,
+            scale_binding_digest, scale_binding_status, score_scale_compatible, arithmetic_permitted,
             visible_hidden_transfer_gap, scale_refusal_reason, task_digest,
             verifier_digest, metric_config_digest, visible_outcome_binding_digest,
-            hidden_outcome_binding_digest
+            hidden_outcome_binding_digest, scale_binding_task_status, scale_binding_verifier_status,
+            scale_binding_metric_config_status, scale_binding_visible_outcome_status,
+            scale_binding_hidden_outcome_status
         FROM analysis_calibration_runs;
         CREATE OR REPLACE VIEW v_selection_reconstructibility AS
         SELECT
@@ -645,7 +748,7 @@ def materialize_analysis_control_views(
     if calibration_rows:
         connection.executemany(
             "INSERT INTO analysis_calibration_runs VALUES ("
-            + ", ".join("?" for _ in range(34))
+            + ", ".join("?" for _ in range(40))
             + ")",
             calibration_rows,
         )

@@ -193,6 +193,21 @@ class StubAnalyzer:
         )
 
 
+def _first_json_object(raw_text: str) -> dict[str, Any] | None:
+    """Return the first complete JSON object from fenced or annotated model output."""
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(raw_text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(raw_text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
 class ModelAnalyzer:
     """Real model-backed analyzer requiring explicit model selector and opt-in."""
 
@@ -276,7 +291,7 @@ class ModelAnalyzer:
         confidence_level: Literal["low", "medium", "high"] = "medium"
 
         try:
-            parsed = json.loads(raw_text)
+            parsed = _first_json_object(raw_text)
             if isinstance(parsed, dict):
                 if isinstance(parsed.get("category"), str) and parsed["category"].strip():
                     category = parsed["category"].strip()
@@ -376,6 +391,22 @@ class JudgeWindowCitationV1(ContractModel):
     stance: Literal["supports", "contradicts"]
 
 
+class JudgeDeterministicContextV1(ContractModel):
+    schema_version: Literal["judge-deterministic-context/v1"] = "judge-deterministic-context/v1"
+    context_digest: str
+    snapshot_digest: str
+    source_digest: str
+    facts: dict[str, Any]
+    decision_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_context(self) -> JudgeDeterministicContextV1:
+        body = self.model_dump(mode="json", exclude={"context_digest"})
+        if self.context_digest != _judge_digest(body):
+            raise ValueError("deterministic judge context digest mismatch")
+        return self
+
+
 class JudgeStageResultV1(ContractModel):
     schema_version: Literal["judge-stage-result/v1"] = "judge-stage-result/v1"
     stage: JudgeStage
@@ -413,6 +444,7 @@ class TrajectoryJudgeRunV1(ContractModel):
     rubric_digest: str
     repeat_index: int = Field(ge=0)
     input_window_digests: tuple[str, ...]
+    deterministic_context_digest: str | None = None
     stages: tuple[JudgeStageResultV1, ...]
     final_category: str
     decision_eligible: Literal[False] = False
@@ -464,8 +496,41 @@ def _judge_digest(value: Any) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
-def _judge_context(windows: Sequence[TrajectoryWindowV1], prior: str = "") -> str:
+def create_judge_deterministic_context(
+    *,
+    snapshot_digest: str,
+    source_digest: str,
+    facts: Mapping[str, Any],
+) -> JudgeDeterministicContextV1:
+    """Bind verifier and mechanical facts supplied to every judge stage."""
+    body = {
+        "schema_version": "judge-deterministic-context/v1",
+        "snapshot_digest": snapshot_digest,
+        "source_digest": source_digest,
+        "facts": dict(facts),
+        "decision_eligible": False,
+    }
+    return JudgeDeterministicContextV1.model_validate(
+        {**body, "context_digest": _judge_digest(body)}
+    )
+
+
+def _judge_context(
+    windows: Sequence[TrajectoryWindowV1],
+    prior: str = "",
+    deterministic_context: JudgeDeterministicContextV1 | None = None,
+) -> str:
     rows = []
+    if deterministic_context is not None:
+        rows.append(
+            "Authoritative deterministic facts "
+            f"[{deterministic_context.context_digest}]:\n"
+            + json.dumps(
+                deterministic_context.facts,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
     if prior:
         rows.append(f"Prior stage findings:\n{prior}")
     for window in windows:
@@ -485,7 +550,10 @@ def _citation_from_evidence(
     windows: dict[str, TrajectoryWindowV1],
     stance: Literal["supports", "contradicts"],
 ) -> JudgeWindowCitationV1:
-    window = windows.get(citation.path)
+    normalized_path = citation.path.strip()
+    if normalized_path.startswith("[") and normalized_path.endswith("]"):
+        normalized_path = normalized_path[1:-1].strip()
+    window = windows.get(normalized_path)
     if window is None:
         raise ValueError("trajectory judge citations must use an exact input window_digest as path")
     return JudgeWindowCitationV1(
@@ -528,11 +596,45 @@ def _judge_stage_result(
     )
 
 
+def _analyze_judge_stage(
+    analyzer: Analyzer,
+    stage: JudgeStage,
+    windows: Sequence[TrajectoryWindowV1],
+    *,
+    prompt: str,
+    context: str,
+    attempts: int = 2,
+) -> JudgeStageResultV1:
+    """Retry a stage only when its structured or citation contract is invalid."""
+    allowed = ", ".join(window.window_digest for window in windows)
+    current_prompt = (
+        prompt + "\nAllowed evidence.path values (copy exactly, without brackets): " + allowed
+    )
+    last_error: ValueError | None = None
+    for attempt in range(attempts):
+        raw = analyzer.analyze(current_prompt, context)
+        try:
+            return _judge_stage_result(stage, raw, windows)
+        except ValueError as exc:
+            last_error = exc
+            current_prompt = (
+                prompt
+                + "\nYour previous stage output violated this contract: "
+                + str(exc)
+                + "\nReturn a corrected result. Allowed evidence.path values: "
+                + allowed
+                + f"\nCitation repair attempt {attempt + 1}."
+            )
+    assert last_error is not None
+    raise last_error
+
+
 def run_trajectory_judge(
     analyzer: Analyzer,
     windows: Sequence[TrajectoryWindowV1],
     *,
     rubric: str,
+    deterministic_context: JudgeDeterministicContextV1 | None = None,
     repeats: int = 3,
 ) -> tuple[tuple[TrajectoryJudgeRunV1, ...], JudgeDisagreementV1]:
     """Run TRACE-style triage, inspection, and final judgment with repeated calls."""
@@ -542,37 +644,62 @@ def run_trajectory_judge(
     if len(snapshots) != 1:
         raise ValueError("trajectory judge cannot mix snapshot vintages")
     snapshot_digest = next(iter(snapshots))
+    if (
+        deterministic_context is not None
+        and deterministic_context.snapshot_digest != snapshot_digest
+    ):
+        raise ValueError("deterministic judge context snapshot does not match windows")
     rubric_digest = _judge_digest({"rubric": rubric})
     judge_model = str(getattr(analyzer, "model", analyzer.__class__.__name__))
     runs = []
     for repeat_index in range(repeats):
-        triage_raw = analyzer.analyze(
-            rubric
-            + "\nStage: TRIAGE. Select high-signal windows. Cite window digests in evidence.path.",
-            _judge_context(windows),
+        triage = _analyze_judge_stage(
+            analyzer,
+            JudgeStage.TRIAGE,
+            windows,
+            prompt=(
+                rubric
+                + "\nStage: TRIAGE. Select high-signal windows. Cite window digests in evidence.path."
+            ),
+            context=_judge_context(
+                windows,
+                deterministic_context=deterministic_context,
+            ),
         )
-        triage = _judge_stage_result(JudgeStage.TRIAGE, triage_raw, windows)
         selected_digests = {citation.window_digest for citation in triage.supporting_citations}
         selected = [window for window in windows if window.window_digest in selected_digests]
-        inspect_raw = analyzer.analyze(
-            rubric
-            + "\nStage: INSPECT. Analyze the selected evidence and cite exact window digests.",
-            _judge_context(selected, triage.summary),
+        inspect = _analyze_judge_stage(
+            analyzer,
+            JudgeStage.INSPECT,
+            selected,
+            prompt=(
+                rubric
+                + "\nStage: INSPECT. Analyze the selected evidence and cite exact window digests."
+            ),
+            context=_judge_context(
+                selected,
+                triage.summary,
+                deterministic_context,
+            ),
         )
-        inspect = _judge_stage_result(JudgeStage.INSPECT, inspect_raw, selected)
         # Final synthesis sees the full frozen pool so it can cite counterevidence
         # outside the triaged subset while retaining the inspection summary.
         final_windows = list(windows)
-        final_raw = analyzer.analyze(
-            rubric
-            + "\nStage: FINAL. Give a category, supporting and contradicting window citations, "
-            "and at least one alternative explanation.",
-            _judge_context(
+        final = _analyze_judge_stage(
+            analyzer,
+            JudgeStage.FINAL,
+            final_windows,
+            prompt=(
+                rubric
+                + "\nStage: FINAL. Give a category, supporting and contradicting window citations, "
+                "and at least one alternative explanation."
+            ),
+            context=_judge_context(
                 final_windows,
                 f"Triage: {triage.summary}\nInspect: {inspect.summary}",
+                deterministic_context,
             ),
         )
-        final = _judge_stage_result(JudgeStage.FINAL, final_raw, final_windows)
         stages = (triage, inspect, final)
         body = {
             "schema_version": "trajectory-judge-run/v1",
@@ -581,6 +708,9 @@ def run_trajectory_judge(
             "rubric_digest": rubric_digest,
             "repeat_index": repeat_index,
             "input_window_digests": tuple(window.window_digest for window in windows),
+            "deterministic_context_digest": (
+                deterministic_context.context_digest if deterministic_context is not None else None
+            ),
             "stages": [stage.model_dump(mode="json") for stage in stages],
             "final_category": final.category,
             "decision_eligible": False,

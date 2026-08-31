@@ -6,6 +6,7 @@ and injectable AnalyzerCallable wrappers for analyst and worker components.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from collections.abc import Callable, Mapping
@@ -16,14 +17,16 @@ from typing import Any, Literal, Protocol
 from evallab.evidence.facts import AnalyzerCallResult
 from evallab.runner import subscription_environment
 
-DISALLOWED_UNPINNED_SELECTORS: frozenset[str] = frozenset({
-    "auto",
-    "default",
-    "none",
-    "latest",
-    "unpinned",
-    "null",
-})
+DISALLOWED_UNPINNED_SELECTORS: frozenset[str] = frozenset(
+    {
+        "auto",
+        "default",
+        "none",
+        "latest",
+        "unpinned",
+        "null",
+    }
+)
 
 
 class ModelAdapterError(RuntimeError):
@@ -51,6 +54,10 @@ class ModelAdapterExecutionError(ModelAdapterError):
         self.argv = argv
         self.stdout = stdout
         self.stderr = stderr
+
+
+class ModelAdapterSchemaError(ModelAdapterError):
+    """Raised when repeated model output cannot satisfy the requested JSON schema."""
 
 
 class ModelAdapterTimeoutError(ModelAdapterError):
@@ -185,11 +192,7 @@ class ModelAdapter:
                 argv.extend(["--output-format", self.output_format])
             return argv
         elif self.transport == "agy":
-            binary = (
-                self.binary_path
-                or shutil.which("agy")
-                or str(Path.home() / ".local/bin/agy")
-            )
+            binary = self.binary_path or shutil.which("agy") or str(Path.home() / ".local/bin/agy")
             argv = [binary, "--model", self.model, "-p", prompt]
             if self.effort:
                 argv.extend(["--effort", self.effort])
@@ -262,6 +265,87 @@ class ModelAdapter:
     ) -> ModelAdapterResult:
         """Callable interface matching AnalyzerCallable signature."""
         return self.complete(prompt, schema)
+
+
+def _schema_accepts(value: dict[str, Any], schema: Mapping[str, Any]) -> bool:
+    required = schema.get("required", [])
+    if isinstance(required, list) and any(name not in value for name in required):
+        return False
+    properties = schema.get("properties", {})
+    if not isinstance(properties, Mapping):
+        return True
+    for name, prop in properties.items():
+        if name not in value or not isinstance(prop, Mapping):
+            continue
+        enum = prop.get("enum")
+        if isinstance(enum, list) and value[name] not in enum:
+            return False
+    return True
+
+
+def _extract_schema_object(raw_output: str, schema: Mapping[str, Any]) -> dict[str, Any] | None:
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(raw_output):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(raw_output[index:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        if _schema_accepts(value, schema):
+            return value
+        nested = value.get("response")
+        if isinstance(nested, str):
+            candidate = _extract_schema_object(nested, schema)
+            if candidate is not None:
+                return candidate
+    return None
+
+
+@dataclass(frozen=True)
+class SchemaRepairingAdapter:
+    """Require structured output, retrying once with a bounded repair prompt."""
+
+    adapter: Callable[[str, dict[str, Any] | None], ModelAdapterResult]
+    max_attempts: int = 2
+
+    def __call__(
+        self,
+        prompt: str,
+        schema: dict[str, Any] | None = None,
+    ) -> ModelAdapterResult:
+        if schema is None:
+            return self.adapter(prompt, None)
+        if self.max_attempts <= 0:
+            raise ValueError("max_attempts must be positive")
+        current_prompt = prompt
+        last_result: ModelAdapterResult | None = None
+        for attempt in range(self.max_attempts):
+            last_result = self.adapter(current_prompt, schema)
+            parsed = _extract_schema_object(last_result.raw_output, schema)
+            if parsed is not None:
+                return ModelAdapterResult(
+                    raw_output=json.dumps(parsed, sort_keys=True, separators=(",", ":")),
+                    model=last_result.model,
+                    argv=last_result.argv,
+                    transport=last_result.transport,
+                )
+            bounded = last_result.raw_output[-16000:]
+            current_prompt = (
+                "Convert the source response into ONLY one JSON object matching the "
+                "provided schema. Preserve exact citation digests. Do not add prose or "
+                "markdown fences.\n\nSchema:\n"
+                + json.dumps(schema, sort_keys=True)
+                + "\n\nSource response:\n"
+                + bounded
+                + f"\n\nRepair attempt {attempt + 1}."
+            )
+        raise ModelAdapterSchemaError(
+            "model output did not satisfy the requested schema after "
+            f"{self.max_attempts} attempt(s)"
+        )
 
 
 def cursor_adapter(

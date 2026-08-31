@@ -17,6 +17,7 @@ from evallab.analyst import (
     StubAnalyzer,
     TrialData,
     assemble_context,
+    create_judge_deterministic_context,
     list_analyses,
     resolve_trial,
     run_analysis,
@@ -640,7 +641,7 @@ class ScriptedTrajectoryAnalyzer:
 
     def analyze(self, prompt: str, context: str) -> AnalystResult:
         windows = _judge_windows()
-        support = EvidenceCitation(path=windows[0].window_digest, step=1)
+        support = EvidenceCitation(path=f"[{windows[0].window_digest}]", step=1)
         counter = EvidenceCitation(path=windows[1].window_digest, step=2)
         if "Stage: TRIAGE" in prompt:
             summary = "The omission window is high signal."
@@ -668,12 +669,51 @@ class ScriptedTrajectoryAnalyzer:
         )
 
 
+class CitationRepairAnalyzer(ScriptedTrajectoryAnalyzer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def analyze(self, prompt: str, context: str) -> AnalystResult:
+        self.calls += 1
+        if self.calls == 1:
+            return AnalystResult(
+                category="memory_failure",
+                summary="Invalid citation on first attempt.",
+                evidence=[EvidenceCitation(path="steps=1-4", step=1)],
+                confidence=ConfidenceClaim(
+                    level="medium",
+                    n=1,
+                    provenance_digest="sha256:" + "5" * 64,
+                ),
+            )
+        return super().analyze(prompt, context)
+
+
+def test_trajectory_judge_repairs_invalid_stage_citation_once() -> None:
+    analyzer = CitationRepairAnalyzer()
+    runs, _ = run_trajectory_judge(
+        analyzer,
+        _judge_windows(),
+        rubric="Repair invalid citations.",
+        repeats=1,
+    )
+    assert len(runs) == 1
+    assert analyzer.calls == 4
+
+
 def test_trajectory_judge_runs_triage_inspect_final_repeats_and_disagreement() -> None:
     windows = _judge_windows()
+    deterministic_context = create_judge_deterministic_context(
+        snapshot_digest=windows[0].snapshot_digest,
+        source_digest="sha256:" + "6" * 64,
+        facts={"reward": 0.0, "coverage_complete": False},
+    )
     runs, disagreement = run_trajectory_judge(
         ScriptedTrajectoryAnalyzer(),
         windows,
         rubric="Classify the primary agentic failure with exact window citations.",
+        deterministic_context=deterministic_context,
         repeats=3,
     )
     assert len(runs) == 3
@@ -686,6 +726,9 @@ def test_trajectory_judge_runs_triage_inspect_final_repeats_and_disagreement() -
     assert all(run.stages[-1].contradicting_citations for run in runs)
     assert all(run.stages[-1].alternative_explanations for run in runs)
     assert all(run.decision_eligible is False for run in runs)
+    assert all(
+        run.deterministic_context_digest == deterministic_context.context_digest for run in runs
+    )
     assert disagreement.consensus_category == "memory_failure"
     assert disagreement.agreement_rate == 1.0
     assert disagreement.unresolved is False
@@ -700,3 +743,25 @@ def test_trajectory_judge_refuses_final_without_counterevidence() -> None:
             rubric="Require counterevidence.",
             repeats=1,
         )
+
+
+def test_model_analyzer_extracts_fenced_json_before_trailing_prose() -> None:
+    class CallResult:
+        raw_output = """```json
+{"category":"memory_failure","summary":"Grounded diagnosis.","evidence":[{"path":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","step":1}],"contradicting_evidence":[{"path":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","step":2}],"alternative_explanations":["Capture may be incomplete."],"confidence":"high"}
+```
+Trailing explanatory prose."""
+        argv: list[str] = []
+        transport = "test"
+
+    analyzer = ModelAnalyzer(
+        model="test-model-v1",
+        adapter=lambda _prompt, _schema: CallResult(),
+    )
+    result = analyzer.analyze("rubric", "context")
+    assert result.category == "memory_failure"
+    assert result.summary == "Grounded diagnosis."
+    assert result.evidence[0].path.startswith("sha256:a")
+    assert result.contradicting_evidence[0].path.startswith("sha256:b")
+    assert result.alternative_explanations == ["Capture may be incomplete."]
+    assert result.confidence.level == "high"

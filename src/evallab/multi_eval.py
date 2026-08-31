@@ -1,22 +1,23 @@
-"""Multi-Eval platform layer for multi-runner execution, capabilities, planning, and parity reconciliation.
+"""Multi-Eval platform layer for fail-closed, digest-bound execution planning and parity reconciliation.
 
-This module provides first-class contracts and algorithms for:
+This module provides authoritative, strictly-typed contracts and algorithms for:
 - Typed runner kind taxonomies (Harbor, Inspect, Inspect-Harbor parity lane, Import-only).
 - Capability profile validation and refusal generation against task requirements.
-- Execution planning distinguishing canonical runners from parity lanes.
-- Scaffold equivalence declaration contracts.
-- Deterministic parity reconciliation between runner outcomes.
+- Fail-closed execution planning distinguishing canonical runners from parity lanes.
+- Cryptographically digest-bound ParityBinding and HarnessIdentity contracts.
+- Deterministic parity reconciliation between Harbor canonical and Inspect-Harbor parity runs.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Mapping
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 
 from evallab.schemas import ContractModel
 
@@ -26,15 +27,18 @@ __all__ = [
     "MultiEvalParityResult",
     "MultiEvalPlan",
     "MultiEvalTaskSpec",
+    "ParityBinding",
     "ParityStatus",
     "PlanningRefusal",
     "RefusalCode",
     "RunnerCapabilities",
     "RunnerKind",
     "RunnerOutcome",
-    "ScaffoldEquivalence",
+    "RUNNER_CAPABILITIES",
     "TaskRequirements",
     "TrajectoryMeasurements",
+    "compute_harness_digest",
+    "compute_parity_binding_digest",
     "get_runner_capabilities",
     "plan_multi_eval_execution",
     "reconcile_parity_results",
@@ -54,7 +58,9 @@ class RunnerKind(StrEnum):
 class RunnerCapabilities(ContractModel):
     """Hardware, orchestration, and feature capabilities supported by a runner."""
 
+    schema_version: Literal["runner-capabilities/v1"] = "runner-capabilities/v1"
     runner_kind: RunnerKind
+    profile_version: str = "v1"
     supports_active_execution: bool
     supports_multi_step: bool
     supports_prior_trajectories: bool
@@ -65,7 +71,7 @@ class RunnerCapabilities(ContractModel):
     supports_docker: bool
     supports_docker_compose: bool
     supports_hidden_verifier_containers: bool
-    supports_scaffold_equivalence: bool
+    supports_parity_lane: bool
 
 
 RUNNER_CAPABILITIES: dict[RunnerKind, RunnerCapabilities] = {
@@ -81,7 +87,7 @@ RUNNER_CAPABILITIES: dict[RunnerKind, RunnerCapabilities] = {
         supports_docker=True,
         supports_docker_compose=True,
         supports_hidden_verifier_containers=True,
-        supports_scaffold_equivalence=True,
+        supports_parity_lane=True,
     ),
     RunnerKind.INSPECT: RunnerCapabilities(
         runner_kind=RunnerKind.INSPECT,
@@ -95,7 +101,7 @@ RUNNER_CAPABILITIES: dict[RunnerKind, RunnerCapabilities] = {
         supports_docker=True,
         supports_docker_compose=False,
         supports_hidden_verifier_containers=False,
-        supports_scaffold_equivalence=True,
+        supports_parity_lane=False,
     ),
     RunnerKind.INSPECT_HARBOR: RunnerCapabilities(
         runner_kind=RunnerKind.INSPECT_HARBOR,
@@ -109,7 +115,7 @@ RUNNER_CAPABILITIES: dict[RunnerKind, RunnerCapabilities] = {
         supports_docker=True,
         supports_docker_compose=False,
         supports_hidden_verifier_containers=False,
-        supports_scaffold_equivalence=True,
+        supports_parity_lane=True,
     ),
     RunnerKind.IMPORT_ONLY: RunnerCapabilities(
         runner_kind=RunnerKind.IMPORT_ONLY,
@@ -123,7 +129,7 @@ RUNNER_CAPABILITIES: dict[RunnerKind, RunnerCapabilities] = {
         supports_docker=False,
         supports_docker_compose=False,
         supports_hidden_verifier_containers=False,
-        supports_scaffold_equivalence=False,
+        supports_parity_lane=False,
     ),
 }
 
@@ -146,7 +152,6 @@ class TaskRequirements(ContractModel):
     requires_windows: bool = False
     requires_docker_compose: bool = False
     requires_hidden_verifier_containers: bool = False
-    scaffold_family: str | None = None
     target_os: str = "linux"
 
 
@@ -160,10 +165,22 @@ class RefusalCode(StrEnum):
     UNSUPPORTED_MCP_SERVERS = "unsupported_mcp_servers"
     UNSUPPORTED_SKILLS_DIR = "unsupported_skills_dir"
     UNSUPPORTED_PRIOR_TRAJECTORIES = "unsupported_prior_trajectories"
-    IMPORT_ONLY_NO_EXECUTION = "import_only_no_execution"
-    UNDECLARED_SCAFFOLD_EQUIVALENCE = "undeclared_scaffold_equivalence"
-    MISMATCHED_ENVIRONMENT_IDENTITY = "mismatched_environment_identity"
     UNSUPPORTED_MULTI_STEP = "unsupported_multi_step"
+    IMPORT_ONLY_NO_EXECUTION = "import_only_no_execution"
+    INVALID_CANONICAL_RUNNER = "invalid_canonical_runner"
+    INVALID_PARITY_LANE = "invalid_parity_lane"
+    MISSING_PARITY_BINDING = "missing_parity_binding"
+    BINDING_TASK_MISMATCH = "binding_task_mismatch"
+    BINDING_VERIFIER_MISMATCH = "binding_verifier_mismatch"
+    BINDING_PAIR_MISMATCH = "binding_pair_mismatch"
+    BINDING_OUTCOME_MISMATCH = "binding_outcome_mismatch"
+    MISMATCHED_ENVIRONMENT_IDENTITY = "mismatched_environment_identity"
+    SAME_RUNNER_PARITY = "same_runner_parity"
+    MISSING_EVIDENCE = "missing_evidence"
+    NULL_VERIFIER_REWARD = "null_verifier_reward"
+    REWARD_MISMATCH = "reward_mismatch"
+    VERIFIER_STATUS_MISMATCH = "verifier_status_mismatch"
+    ARTIFACT_DIGEST_MISMATCH = "artifact_digest_mismatch"
 
 
 class PlanningRefusal(ContractModel):
@@ -173,6 +190,7 @@ class PlanningRefusal(ContractModel):
     message: str
     runner_kind: RunnerKind | None = None
     missing_capabilities: list[str] = Field(default_factory=list)
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 def validate_runner_capabilities(
@@ -281,35 +299,175 @@ def validate_runner_capabilities(
     return refusals
 
 
-class ScaffoldEquivalence(ContractModel):
-    """Explicit declaration of equivalence between two runner agent scaffolds."""
-
-    scaffold_a: str = Field(min_length=1)
-    scaffold_b: str = Field(min_length=1)
-    declared_equivalent: bool
-    equivalence_basis: str | None = None
-    drift_parameters: dict[str, Any] = Field(default_factory=dict)
+def _canonical_json(data: Any) -> str:
+    """Encode structured data into deterministic canonical JSON."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-class ExecutionIntent(StrEnum):
-    """Intent for executing or ingesting an evaluation trial."""
-
-    CANONICAL_RUN = "canonical_run"
-    PARITY_RUN = "parity_run"
-    CROSS_RUNNER_COMPARISON = "cross_runner_comparison"
-    IMPORT_INGEST = "import_ingest"
+def compute_harness_digest(
+    runner_kind: RunnerKind | str,
+    runner_version: str,
+    environment_kind: str,
+    environment_image: str,
+    environment_digest: str,
+    prompt_digest: str,
+    tool_schema_digest: str,
+    scaffold_digest: str,
+    scaffold_version: str,
+    model_config_digest: str,
+    verifier_digest: str,
+    harness_parameters: dict[str, Any] | None = None,
+) -> str:
+    """Compute deterministic cryptographic SHA256 digest over normalized harness identity fields."""
+    payload = {
+        "environment_digest": environment_digest,
+        "environment_image": environment_image,
+        "environment_kind": environment_kind,
+        "harness_parameters": harness_parameters or {},
+        "model_config_digest": model_config_digest,
+        "prompt_digest": prompt_digest,
+        "runner_kind": runner_kind.value
+        if isinstance(runner_kind, RunnerKind)
+        else str(runner_kind),
+        "runner_version": runner_version,
+        "scaffold_digest": scaffold_digest,
+        "scaffold_version": scaffold_version,
+        "tool_schema_digest": tool_schema_digest,
+        "verifier_digest": verifier_digest,
+    }
+    encoded = _canonical_json(payload).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
 class HarnessIdentity(ContractModel):
-    """Durable identity and environment configuration of an execution harness."""
+    """Cryptographically bound durable identity and environment configuration of a runner harness."""
 
     runner_kind: RunnerKind
-    runner_version: str
-    harness_digest: str
-    environment_kind: str
-    environment_image: str | None = None
-    environment_digest: str | None = None
+    runner_version: str = Field(min_length=1)
+    environment_kind: str = Field(min_length=1)
+    environment_image: str = Field(min_length=1)
+    environment_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    prompt_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    tool_schema_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    scaffold_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    scaffold_version: str = Field(min_length=1)
+    model_config_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     harness_parameters: dict[str, Any] = Field(default_factory=dict)
+    harness_digest: str = Field(default="", pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_and_validate_harness_digest(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            rk = data.get("runner_kind")
+            rv = data.get("runner_version")
+            ek = data.get("environment_kind")
+            ei = data.get("environment_image")
+            ed = data.get("environment_digest")
+            pd = data.get("prompt_digest")
+            td = data.get("tool_schema_digest")
+            sd = data.get("scaffold_digest")
+            sv = data.get("scaffold_version")
+            md = data.get("model_config_digest")
+            vd = data.get("verifier_digest")
+            hp = data.get("harness_parameters", {})
+            if all(v is not None for v in (rk, rv, ek, ei, ed, pd, td, sd, sv, md, vd)):
+                expected = compute_harness_digest(
+                    runner_kind=rk,
+                    runner_version=str(rv),
+                    environment_kind=str(ek),
+                    environment_image=str(ei),
+                    environment_digest=str(ed),
+                    prompt_digest=str(pd),
+                    tool_schema_digest=str(td),
+                    scaffold_digest=str(sd),
+                    scaffold_version=str(sv),
+                    model_config_digest=str(md),
+                    verifier_digest=str(vd),
+                    harness_parameters=hp,
+                )
+                provided = data.get("harness_digest")
+                if provided and provided != expected:
+                    raise ValueError(
+                        f"harness_digest {provided!r} does not match computed digest {expected!r}"
+                    )
+                data["harness_digest"] = expected
+        return data
+
+
+def compute_parity_binding_digest(
+    task_digest: str,
+    pair_id: str,
+    expected_lanes: tuple[RunnerKind | str, RunnerKind | str],
+    allowed_delta: tuple[str, ...],
+    outcome_namespace: str,
+    outcome_name: str,
+    verifier_digest: str,
+) -> str:
+    """Compute deterministic cryptographic SHA256 digest over parity binding contract fields."""
+    payload = {
+        "allowed_delta": list(allowed_delta),
+        "expected_lanes": [
+            r.value if isinstance(r, RunnerKind) else str(r) for r in expected_lanes
+        ],
+        "outcome_name": outcome_name,
+        "outcome_namespace": outcome_namespace,
+        "pair_id": pair_id,
+        "task_digest": task_digest,
+        "verifier_digest": verifier_digest,
+    }
+    encoded = _canonical_json(payload).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+class ParityBinding(ContractModel):
+    """Digest-bound, immutable contract for Harbor <-> Inspect-Harbor parity execution."""
+
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    pair_id: str = Field(min_length=1)
+    expected_lanes: tuple[RunnerKind, RunnerKind] = (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR)
+    allowed_delta: tuple[str, ...] = ("runner_lane",)
+    outcome_namespace: str = Field(min_length=1)
+    outcome_name: str = Field(min_length=1)
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    binding_digest: str = Field(default="", pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_and_compute_binding(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            raw_lanes = data.get("expected_lanes", (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR))
+            lanes_tuple = tuple(RunnerKind(r) if isinstance(r, str) else r for r in raw_lanes)
+            if lanes_tuple != (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR):
+                raise ValueError(
+                    f"expected_lanes must be (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR), got {lanes_tuple!r}"
+                )
+            data["expected_lanes"] = lanes_tuple
+
+            td = data.get("task_digest")
+            pid = data.get("pair_id")
+            ad = tuple(data.get("allowed_delta", ("runner_lane",)))
+            ons = data.get("outcome_namespace")
+            oname = data.get("outcome_name")
+            vd = data.get("verifier_digest")
+            if all(v is not None for v in (td, pid, ons, oname, vd)):
+                expected = compute_parity_binding_digest(
+                    task_digest=str(td),
+                    pair_id=str(pid),
+                    expected_lanes=lanes_tuple,
+                    allowed_delta=ad,
+                    outcome_namespace=str(ons),
+                    outcome_name=str(oname),
+                    verifier_digest=str(vd),
+                )
+                provided = data.get("binding_digest")
+                if provided and provided != expected:
+                    raise ValueError(
+                        f"binding_digest {provided!r} does not match computed digest {expected!r}"
+                    )
+                data["binding_digest"] = expected
+        return data
 
 
 class MultiEvalTaskSpec(ContractModel):
@@ -317,9 +475,31 @@ class MultiEvalTaskSpec(ContractModel):
 
     task_id: str = Field(min_length=1)
     benchmark_family: str = Field(min_length=1)
+    canonical_runner: RunnerKind
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     requirements: TaskRequirements = Field(default_factory=TaskRequirements)
-    canonical_runner_hint: RunnerKind | None = None
-    task_digest: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_canonical_runner(self) -> MultiEvalTaskSpec:
+        if self.canonical_runner == RunnerKind.INSPECT_HARBOR:
+            raise ValueError(
+                "INSPECT_HARBOR is a parity lane only and can never be configured as canonical_runner"
+            )
+        is_rsi = self.benchmark_family.startswith("rsi-") or self.benchmark_family == "rsi"
+        if is_rsi and self.canonical_runner != RunnerKind.HARBOR:
+            raise ValueError(
+                f"Benchmark family {self.benchmark_family!r} requires canonical_runner=RunnerKind.HARBOR, "
+                f"got {self.canonical_runner.value!r}"
+            )
+        return self
+
+
+class ExecutionIntent(StrEnum):
+    """Intent for executing or ingesting an evaluation trial."""
+
+    CANONICAL_RUN = "canonical_run"
+    PARITY_RUN = "parity_run"
+    IMPORT_INGEST = "import_ingest"
 
 
 class MultiEvalPlan(ContractModel):
@@ -329,42 +509,44 @@ class MultiEvalPlan(ContractModel):
     benchmark_family: str
     execution_intent: ExecutionIntent
     canonical_runner: RunnerKind
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    requirements: TaskRequirements
     parity_runners: tuple[RunnerKind, ...] = ()
     harness_identities: dict[str, HarnessIdentity] = Field(default_factory=dict)
-    scaffold_equivalence: ScaffoldEquivalence | None = None
+    parity_binding: ParityBinding | None = None
+    capability_profile_version: str = "v1"
     is_refused: bool = False
     refusals: tuple[PlanningRefusal, ...] = ()
-    plan_digest: str
-
-
-def _canonical_json(data: Any) -> str:
-    """Encode structured data into deterministic canonical JSON."""
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    plan_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
 def _compute_plan_digest(
     task_id: str,
     benchmark_family: str,
-    execution_intent: ExecutionIntent,
     canonical_runner: RunnerKind,
+    task_digest: str,
+    requirements: TaskRequirements,
+    execution_intent: ExecutionIntent,
     parity_runners: tuple[RunnerKind, ...],
     harness_identities: dict[str, HarnessIdentity],
-    scaffold_equivalence: ScaffoldEquivalence | None,
+    parity_binding: ParityBinding | None,
+    capability_profile_version: str,
     refusals: tuple[PlanningRefusal, ...],
 ) -> str:
     payload = {
-        "task_id": task_id,
         "benchmark_family": benchmark_family,
-        "execution_intent": execution_intent.value,
         "canonical_runner": canonical_runner.value,
-        "parity_runners": [r.value for r in parity_runners],
+        "capability_profile_version": capability_profile_version,
+        "execution_intent": execution_intent.value,
         "harness_identities": {
             k: v.model_dump(mode="json") for k, v in sorted(harness_identities.items())
         },
-        "scaffold_equivalence": (
-            scaffold_equivalence.model_dump(mode="json") if scaffold_equivalence else None
-        ),
+        "parity_binding": (parity_binding.model_dump(mode="json") if parity_binding else None),
+        "parity_runners": [r.value for r in parity_runners],
         "refusals": [r.model_dump(mode="json") for r in refusals],
+        "requirements": requirements.model_dump(mode="json"),
+        "task_digest": task_digest,
+        "task_id": task_id,
     }
     encoded = _canonical_json(payload).encode("utf-8")
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
@@ -373,63 +555,11 @@ def _compute_plan_digest(
 def plan_multi_eval_execution(
     task_spec: MultiEvalTaskSpec,
     execution_intent: ExecutionIntent = ExecutionIntent.CANONICAL_RUN,
-    parity_runners: Sequence[RunnerKind | str] | None = None,
+    parity_binding: ParityBinding | None = None,
     harness_identities: Mapping[RunnerKind | str, HarnessIdentity] | None = None,
-    scaffold_equivalence: ScaffoldEquivalence | None = None,
     custom_capabilities: Mapping[RunnerKind | str, RunnerCapabilities] | None = None,
 ) -> MultiEvalPlan:
-    """Plan multi-eval execution by resolving canonical runner and parity lanes."""
-    # 1. Determine canonical runner
-    if execution_intent == ExecutionIntent.IMPORT_INGEST:
-        canonical_runner = RunnerKind.IMPORT_ONLY
-    elif (
-        task_spec.requirements.requires_docker_compose
-        or task_spec.requirements.requires_hidden_verifier_containers
-        or task_spec.requirements.requires_network_allowlist
-        or task_spec.benchmark_family.startswith("rsi-")
-        or task_spec.benchmark_family.startswith("harbor-")
-        or task_spec.benchmark_family in ("rsi", "harbor")
-    ):
-        canonical_runner = RunnerKind.HARBOR
-    elif task_spec.canonical_runner_hint is not None:
-        if task_spec.canonical_runner_hint == RunnerKind.INSPECT_HARBOR:
-            canonical_runner = RunnerKind.HARBOR
-        else:
-            canonical_runner = task_spec.canonical_runner_hint
-    elif task_spec.benchmark_family.startswith("inspect") or task_spec.benchmark_family in {
-        "gaia",
-        "swe_bench",
-        "cybermetric",
-        "intercode",
-    }:
-        canonical_runner = RunnerKind.INSPECT
-    else:
-        canonical_runner = RunnerKind.HARBOR
-
-    # 2. Determine parity runners
-    raw_parity_runners: list[RunnerKind] = []
-    if parity_runners is not None:
-        for r in parity_runners:
-            kind = RunnerKind(r) if isinstance(r, str) else r
-            raw_parity_runners.append(kind)
-    else:
-        if execution_intent == ExecutionIntent.PARITY_RUN:
-            if canonical_runner in (RunnerKind.HARBOR, RunnerKind.INSPECT):
-                raw_parity_runners = [RunnerKind.INSPECT_HARBOR]
-        elif execution_intent == ExecutionIntent.CROSS_RUNNER_COMPARISON:
-            if canonical_runner == RunnerKind.HARBOR:
-                raw_parity_runners = [RunnerKind.INSPECT]
-            elif canonical_runner == RunnerKind.INSPECT:
-                raw_parity_runners = [RunnerKind.HARBOR]
-
-    seen_parity: set[RunnerKind] = set()
-    final_parity_runners: list[RunnerKind] = []
-    for r in raw_parity_runners:
-        if r != canonical_runner and r not in seen_parity:
-            seen_parity.add(r)
-            final_parity_runners.append(r)
-
-    # 3. Capability and requirement validation
+    """Plan multi-eval execution with strict fail-closed capability and parity contract validation."""
     refusals: list[PlanningRefusal] = []
 
     def _resolve_caps(kind: RunnerKind) -> RunnerCapabilities:
@@ -440,69 +570,113 @@ def plan_multi_eval_execution(
                 return custom_capabilities[kind.value]
         return get_runner_capabilities(kind)
 
-    if execution_intent != ExecutionIntent.IMPORT_INGEST:
-        canonical_caps = _resolve_caps(canonical_runner)
-        refusals.extend(validate_runner_capabilities(canonical_caps, task_spec.requirements))
-        for p_kind in final_parity_runners:
-            p_caps = _resolve_caps(p_kind)
-            refusals.extend(validate_runner_capabilities(p_caps, task_spec.requirements))
+    canonical_runner = task_spec.canonical_runner
+    canonical_caps = _resolve_caps(canonical_runner)
 
-    # Scaffold equivalence requirement for cross runner comparison
-    if execution_intent == ExecutionIntent.CROSS_RUNNER_COMPARISON and (
-        scaffold_equivalence is None or not scaffold_equivalence.declared_equivalent
-    ):
-        refusals.append(
-            PlanningRefusal(
-                code=RefusalCode.UNDECLARED_SCAFFOLD_EQUIVALENCE,
-                message="Cross-runner comparison requires declared scaffold equivalence",
-                runner_kind=None,
-                missing_capabilities=["declared_equivalent"],
+    # 1. Validate canonical runner against requirements
+    if execution_intent == ExecutionIntent.IMPORT_INGEST:
+        if canonical_runner != RunnerKind.IMPORT_ONLY:
+            refusals.append(
+                PlanningRefusal(
+                    code=RefusalCode.INVALID_CANONICAL_RUNNER,
+                    message=f"Import ingest requires canonical_runner=RunnerKind.IMPORT_ONLY, got '{canonical_runner.value}'",
+                    runner_kind=canonical_runner,
+                    context={"execution_intent": execution_intent.value},
+                )
             )
-        )
+    else:
+        refusals.extend(validate_runner_capabilities(canonical_caps, task_spec.requirements))
 
-    # Normalize harness identities
+    # 2. Determine parity runner configuration and validate
+    parity_runners: tuple[RunnerKind, ...] = ()
+    if execution_intent == ExecutionIntent.PARITY_RUN:
+        if canonical_runner != RunnerKind.HARBOR:
+            refusals.append(
+                PlanningRefusal(
+                    code=RefusalCode.INVALID_PARITY_LANE,
+                    message=f"Parity run requires canonical_runner=RunnerKind.HARBOR, got '{canonical_runner.value}'",
+                    runner_kind=canonical_runner,
+                    context={"canonical_runner": canonical_runner.value},
+                )
+            )
+
+        parity_runners = (RunnerKind.INSPECT_HARBOR,)
+        inspect_harbor_caps = _resolve_caps(RunnerKind.INSPECT_HARBOR)
+        refusals.extend(validate_runner_capabilities(inspect_harbor_caps, task_spec.requirements))
+
+        if parity_binding is None:
+            refusals.append(
+                PlanningRefusal(
+                    code=RefusalCode.MISSING_PARITY_BINDING,
+                    message="Parity run requires an explicit ParityBinding contract",
+                    runner_kind=RunnerKind.INSPECT_HARBOR,
+                )
+            )
+        else:
+            if parity_binding.task_digest != task_spec.task_digest:
+                refusals.append(
+                    PlanningRefusal(
+                        code=RefusalCode.BINDING_TASK_MISMATCH,
+                        message=(
+                            f"ParityBinding task_digest '{parity_binding.task_digest}' does not match "
+                            f"task_spec.task_digest '{task_spec.task_digest}'"
+                        ),
+                        runner_kind=RunnerKind.INSPECT_HARBOR,
+                        context={
+                            "binding_task_digest": parity_binding.task_digest,
+                            "spec_task_digest": task_spec.task_digest,
+                        },
+                    )
+                )
+
+    # 3. Normalize harness identities and validate equivalence when provided
     normalized_identities: dict[str, HarnessIdentity] = {}
     if harness_identities is not None:
         for k, v in harness_identities.items():
             k_str = k.value if isinstance(k, RunnerKind) else str(k)
             normalized_identities[k_str] = v
 
-        if canonical_runner.value in normalized_identities:
-            c_ident = normalized_identities[canonical_runner.value]
-            for p_kind in final_parity_runners:
-                if p_kind.value in normalized_identities:
-                    p_ident = normalized_identities[p_kind.value]
-                    if (
-                        c_ident.environment_image
-                        and p_ident.environment_image
-                        and c_ident.environment_image != p_ident.environment_image
-                    ) or (
-                        c_ident.environment_digest
-                        and p_ident.environment_digest
-                        and c_ident.environment_digest != p_ident.environment_digest
-                    ):
-                        refusals.append(
-                            PlanningRefusal(
-                                code=RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY,
-                                message=(
-                                    f"Mismatched environment identity between canonical '{canonical_runner.value}' "
-                                    f"and parity '{p_kind.value}'"
-                                ),
-                                runner_kind=p_kind,
-                                missing_capabilities=["environment_identity"],
-                            )
+        if execution_intent == ExecutionIntent.PARITY_RUN:
+            c_id = normalized_identities.get(RunnerKind.HARBOR.value)
+            p_id = normalized_identities.get(RunnerKind.INSPECT_HARBOR.value)
+            if c_id is not None and p_id is not None:
+                mismatches = []
+                for field_name in (
+                    "environment_image",
+                    "environment_digest",
+                    "prompt_digest",
+                    "tool_schema_digest",
+                    "scaffold_digest",
+                    "model_config_digest",
+                    "verifier_digest",
+                ):
+                    val_c = getattr(c_id, field_name)
+                    val_p = getattr(p_id, field_name)
+                    if val_c != val_p:
+                        mismatches.append(f"{field_name}: '{val_c}' != '{val_p}'")
+                if mismatches:
+                    refusals.append(
+                        PlanningRefusal(
+                            code=RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY,
+                            message=f"Canonical and parity harness identities mismatch: {', '.join(mismatches)}",
+                            runner_kind=RunnerKind.INSPECT_HARBOR,
+                            missing_capabilities=["environment_identity"],
+                            context={"mismatches": mismatches},
                         )
+                    )
 
-    parity_tuple = tuple(final_parity_runners)
     refusals_tuple = tuple(refusals)
     plan_digest = _compute_plan_digest(
         task_id=task_spec.task_id,
         benchmark_family=task_spec.benchmark_family,
-        execution_intent=execution_intent,
         canonical_runner=canonical_runner,
-        parity_runners=parity_tuple,
+        task_digest=task_spec.task_digest,
+        requirements=task_spec.requirements,
+        execution_intent=execution_intent,
+        parity_runners=parity_runners,
         harness_identities=normalized_identities,
-        scaffold_equivalence=scaffold_equivalence,
+        parity_binding=parity_binding,
+        capability_profile_version=canonical_caps.profile_version,
         refusals=refusals_tuple,
     )
 
@@ -511,9 +685,12 @@ def plan_multi_eval_execution(
         benchmark_family=task_spec.benchmark_family,
         execution_intent=execution_intent,
         canonical_runner=canonical_runner,
-        parity_runners=parity_tuple,
+        task_digest=task_spec.task_digest,
+        requirements=task_spec.requirements,
+        parity_runners=parity_runners,
         harness_identities=normalized_identities,
-        scaffold_equivalence=scaffold_equivalence,
+        parity_binding=parity_binding,
+        capability_profile_version=canonical_caps.profile_version,
         is_refused=len(refusals_tuple) > 0,
         refusals=refusals_tuple,
         plan_digest=plan_digest,
@@ -521,22 +698,40 @@ def plan_multi_eval_execution(
 
 
 class RunnerOutcome(ContractModel):
-    """Raw trial outcome produced by a single runner execution."""
+    """Full trial execution outcome produced by a single runner execution."""
 
     runner_kind: RunnerKind
-    trial_id: str
+    trial_id: str = Field(min_length=1)
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    parity_pair_id: str = Field(min_length=1)
+    attempt_id: str = Field(min_length=1)
+    outcome_namespace: str = Field(min_length=1)
+    outcome_name: str = Field(min_length=1)
+    deterministic_producer_kind: str = Field(min_length=1)
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     verifier_reward: float | None = None
     verifier_passed: bool
     artifact_digests: dict[str, str] = Field(default_factory=dict)
-    step_count: int = 0
-    total_tokens: int = 0
-    duration_seconds: float = 0.0
+    step_count: int = Field(ge=0, default=0)
+    total_tokens: int = Field(ge=0, default=0)
+    duration_seconds: float = Field(ge=0.0, default=0.0)
     harness_identity: HarnessIdentity
-    raw_log_digest: str
+    source_revision: str = Field(min_length=1)
+    raw_log_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("artifact_digests")
+    @classmethod
+    def _validate_artifact_digests_patterns(cls, v: dict[str, str]) -> dict[str, str]:
+        for k, digest in v.items():
+            if not isinstance(digest, str) or not re.match(r"^sha256:[0-9a-f]{64}$", digest):
+                raise ValueError(
+                    f"artifact digest for {k!r} must match sha256:<64 hex chars>, got {digest!r}"
+                )
+        return v
 
 
 class ParityStatus(StrEnum):
-    """Status classification of cross-runner or parity reconciliation."""
+    """Status classification of cross-runner parity reconciliation."""
 
     PARITY_VERIFIED = "parity_verified"
     PARITY_DIVERGENT = "parity_divergent"
@@ -555,42 +750,68 @@ class TrajectoryMeasurements(ContractModel):
 class MultiEvalParityResult(ContractModel):
     """Reconciliation result evaluating parity between canonical and parity runners."""
 
-    task_id: str
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    pair_id: str
     canonical_runner: RunnerKind
     parity_runner: RunnerKind
     parity_status: ParityStatus
     verifier_reward_reconciled: bool
     verifier_passed_reconciled: bool
     artifact_digests_reconciled: bool
-    scaffold_equivalent: bool
+    harness_identity_reconciled: bool
+    binding_reconciled: bool
     measurements: TrajectoryMeasurements
     refusals: tuple[PlanningRefusal, ...] = ()
-    reconciliation_digest: str
+    reconciliation_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
 def _compute_reconciliation_digest(
-    task_id: str,
+    canonical_attempt_id: str,
+    canonical_harness_digest: str,
     canonical_runner: RunnerKind,
+    canonical_trial_id: str,
+    parity_attempt_id: str,
+    parity_harness_digest: str,
     parity_runner: RunnerKind,
+    parity_trial_id: str,
+    pair_id: str,
+    task_digest: str,
+    binding_digest: str,
+    outcome_namespace: str,
+    outcome_name: str,
     parity_status: ParityStatus,
     verifier_reward_reconciled: bool,
     verifier_passed_reconciled: bool,
     artifact_digests_reconciled: bool,
-    scaffold_equivalent: bool,
+    harness_identity_reconciled: bool,
+    binding_reconciled: bool,
+    reward_tolerance: float,
     measurements: TrajectoryMeasurements,
     refusals: tuple[PlanningRefusal, ...],
 ) -> str:
     payload = {
-        "task_id": task_id,
+        "artifact_digests_reconciled": artifact_digests_reconciled,
+        "binding_digest": binding_digest,
+        "binding_reconciled": binding_reconciled,
+        "canonical_attempt_id": canonical_attempt_id,
+        "canonical_harness_digest": canonical_harness_digest,
         "canonical_runner": canonical_runner.value,
+        "canonical_trial_id": canonical_trial_id,
+        "harness_identity_reconciled": harness_identity_reconciled,
+        "measurements": measurements.model_dump(mode="json"),
+        "outcome_name": outcome_name,
+        "outcome_namespace": outcome_namespace,
+        "pair_id": pair_id,
+        "parity_attempt_id": parity_attempt_id,
+        "parity_harness_digest": parity_harness_digest,
         "parity_runner": parity_runner.value,
         "parity_status": parity_status.value,
-        "verifier_reward_reconciled": verifier_reward_reconciled,
-        "verifier_passed_reconciled": verifier_passed_reconciled,
-        "artifact_digests_reconciled": artifact_digests_reconciled,
-        "scaffold_equivalent": scaffold_equivalent,
-        "measurements": measurements.model_dump(mode="json"),
+        "parity_trial_id": parity_trial_id,
         "refusals": [r.model_dump(mode="json") for r in refusals],
+        "reward_tolerance": reward_tolerance,
+        "task_digest": task_digest,
+        "verifier_passed_reconciled": verifier_passed_reconciled,
+        "verifier_reward_reconciled": verifier_reward_reconciled,
     }
     encoded = _canonical_json(payload).encode("utf-8")
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
@@ -599,56 +820,195 @@ def _compute_reconciliation_digest(
 def reconcile_parity_results(
     canonical_outcome: RunnerOutcome,
     parity_outcome: RunnerOutcome,
-    scaffold_equivalence: ScaffoldEquivalence | None = None,
+    parity_binding: ParityBinding,
     reward_tolerance: float = 1e-6,
-    task_id: str | None = None,
 ) -> MultiEvalParityResult:
-    """Reconcile trial outcomes between canonical and parity runners."""
-    tid = task_id if task_id is not None else canonical_outcome.trial_id
+    """Reconcile trial outcomes between canonical Harbor and Inspect-Harbor parity runner with fail-closed rules."""
     refusals: list[PlanningRefusal] = []
 
-    # Check scaffold equivalence
-    if scaffold_equivalence is None or not scaffold_equivalence.declared_equivalent:
-        scaffold_equivalent = False
+    # 1. Lanes check
+    if canonical_outcome.runner_kind == parity_outcome.runner_kind:
         refusals.append(
             PlanningRefusal(
-                code=RefusalCode.UNDECLARED_SCAFFOLD_EQUIVALENCE,
-                message="Scaffold equivalence is not declared or not equivalent",
+                code=RefusalCode.SAME_RUNNER_PARITY,
+                message=f"Cannot perform parity reconciliation between identical runner kind '{canonical_outcome.runner_kind.value}'",
                 runner_kind=parity_outcome.runner_kind,
-                missing_capabilities=["declared_equivalent"],
             )
         )
-    else:
-        scaffold_equivalent = True
-
-    # Check environment identity
-    c_harness = canonical_outcome.harness_identity
-    p_harness = parity_outcome.harness_identity
-    if (
-        c_harness.environment_image
-        and p_harness.environment_image
-        and c_harness.environment_image != p_harness.environment_image
-    ) or (
-        c_harness.environment_digest
-        and p_harness.environment_digest
-        and c_harness.environment_digest != p_harness.environment_digest
+    elif (
+        canonical_outcome.runner_kind != RunnerKind.HARBOR
+        or parity_outcome.runner_kind != RunnerKind.INSPECT_HARBOR
     ):
         refusals.append(
             PlanningRefusal(
-                code=RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY,
+                code=RefusalCode.INVALID_PARITY_LANE,
                 message=(
-                    f"Mismatched environment identity between {canonical_outcome.runner_kind.value} "
-                    f"and {parity_outcome.runner_kind.value}"
+                    f"Invalid parity lane pair: canonical '{canonical_outcome.runner_kind.value}', "
+                    f"parity '{parity_outcome.runner_kind.value}'. Expected (harbor, inspect_harbor)"
                 ),
                 runner_kind=parity_outcome.runner_kind,
-                missing_capabilities=["environment_identity"],
+                context={
+                    "canonical_runner": canonical_outcome.runner_kind.value,
+                    "parity_runner": parity_outcome.runner_kind.value,
+                },
             )
         )
 
-    # Reconcile verifier rewards
-    if canonical_outcome.verifier_reward is None and parity_outcome.verifier_reward is None:
-        verifier_reward_reconciled = True
-    elif canonical_outcome.verifier_reward is None or parity_outcome.verifier_reward is None:
+    # 2. Task & Pair check
+    if (
+        canonical_outcome.task_digest != parity_binding.task_digest
+        or parity_outcome.task_digest != parity_binding.task_digest
+    ):
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.BINDING_TASK_MISMATCH,
+                message=(
+                    f"Task digest mismatch: canonical='{canonical_outcome.task_digest}', "
+                    f"parity='{parity_outcome.task_digest}', binding='{parity_binding.task_digest}'"
+                ),
+                runner_kind=parity_outcome.runner_kind,
+                context={
+                    "canonical_task_digest": canonical_outcome.task_digest,
+                    "parity_task_digest": parity_outcome.task_digest,
+                    "binding_task_digest": parity_binding.task_digest,
+                },
+            )
+        )
+
+    if (
+        canonical_outcome.parity_pair_id != parity_binding.pair_id
+        or parity_outcome.parity_pair_id != parity_binding.pair_id
+        or canonical_outcome.parity_pair_id != parity_outcome.parity_pair_id
+    ):
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.BINDING_PAIR_MISMATCH,
+                message=(
+                    f"Parity pair ID mismatch: canonical='{canonical_outcome.parity_pair_id}', "
+                    f"parity='{parity_outcome.parity_pair_id}', binding='{parity_binding.pair_id}'"
+                ),
+                runner_kind=parity_outcome.runner_kind,
+                context={
+                    "canonical_pair_id": canonical_outcome.parity_pair_id,
+                    "parity_pair_id": parity_outcome.parity_pair_id,
+                    "binding_pair_id": parity_binding.pair_id,
+                },
+            )
+        )
+
+    # 3. Verifier & Outcome check
+    if (
+        canonical_outcome.verifier_digest != parity_binding.verifier_digest
+        or parity_outcome.verifier_digest != parity_binding.verifier_digest
+    ):
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.BINDING_VERIFIER_MISMATCH,
+                message=(
+                    f"Verifier digest mismatch: canonical='{canonical_outcome.verifier_digest}', "
+                    f"parity='{parity_outcome.verifier_digest}', binding='{parity_binding.verifier_digest}'"
+                ),
+                runner_kind=parity_outcome.runner_kind,
+                context={
+                    "canonical_verifier_digest": canonical_outcome.verifier_digest,
+                    "parity_verifier_digest": parity_outcome.verifier_digest,
+                    "binding_verifier_digest": parity_binding.verifier_digest,
+                },
+            )
+        )
+
+    if (
+        canonical_outcome.outcome_namespace != parity_binding.outcome_namespace
+        or parity_outcome.outcome_namespace != parity_binding.outcome_namespace
+        or canonical_outcome.outcome_name != parity_binding.outcome_name
+        or parity_outcome.outcome_name != parity_binding.outcome_name
+    ):
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.BINDING_OUTCOME_MISMATCH,
+                message=(
+                    f"Outcome namespace/name mismatch with binding: "
+                    f"canonical='{canonical_outcome.outcome_namespace}.{canonical_outcome.outcome_name}', "
+                    f"parity='{parity_outcome.outcome_namespace}.{parity_outcome.outcome_name}', "
+                    f"binding='{parity_binding.outcome_namespace}.{parity_binding.outcome_name}'"
+                ),
+                runner_kind=parity_outcome.runner_kind,
+                context={
+                    "canonical_outcome": f"{canonical_outcome.outcome_namespace}.{canonical_outcome.outcome_name}",
+                    "parity_outcome": f"{parity_outcome.outcome_namespace}.{parity_outcome.outcome_name}",
+                    "binding_outcome": f"{parity_binding.outcome_namespace}.{parity_binding.outcome_name}",
+                },
+            )
+        )
+
+    # 4. Evidence check
+    if (
+        not canonical_outcome.raw_log_digest
+        or not canonical_outcome.raw_log_digest.strip()
+        or not parity_outcome.raw_log_digest
+        or not parity_outcome.raw_log_digest.strip()
+    ):
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.MISSING_EVIDENCE,
+                message="Raw log digest is missing or empty",
+                runner_kind=parity_outcome.runner_kind,
+            )
+        )
+
+    if canonical_outcome.verifier_reward is None or parity_outcome.verifier_reward is None:
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.NULL_VERIFIER_REWARD,
+                message="Verifier reward is None. Null rewards fail closed and cannot verify parity.",
+                runner_kind=parity_outcome.runner_kind,
+                context={
+                    "canonical_reward": canonical_outcome.verifier_reward,
+                    "parity_reward": parity_outcome.verifier_reward,
+                },
+            )
+        )
+
+    if not canonical_outcome.artifact_digests or not parity_outcome.artifact_digests:
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.MISSING_EVIDENCE,
+                message="Artifact digests cannot be empty; at least one artifact digest is required.",
+                runner_kind=parity_outcome.runner_kind,
+            )
+        )
+
+    # 5. Harness equality check
+    c_harness = canonical_outcome.harness_identity
+    p_harness = parity_outcome.harness_identity
+    harness_mismatches = []
+    for field_name in (
+        "environment_image",
+        "environment_digest",
+        "prompt_digest",
+        "tool_schema_digest",
+        "scaffold_digest",
+        "model_config_digest",
+        "verifier_digest",
+    ):
+        val_c = getattr(c_harness, field_name)
+        val_p = getattr(p_harness, field_name)
+        if val_c != val_p:
+            harness_mismatches.append(f"{field_name}: '{val_c}' != '{val_p}'")
+
+    if harness_mismatches:
+        refusals.append(
+            PlanningRefusal(
+                code=RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY,
+                message=f"Canonical and parity harness identities mismatch: {', '.join(harness_mismatches)}",
+                runner_kind=parity_outcome.runner_kind,
+                missing_capabilities=["environment_identity"],
+                context={"mismatches": harness_mismatches},
+            )
+        )
+
+    # 6. Reconciliation comparison
+    if canonical_outcome.verifier_reward is None or parity_outcome.verifier_reward is None:
         verifier_reward_reconciled = False
     else:
         verifier_reward_reconciled = (
@@ -656,15 +1016,29 @@ def reconcile_parity_results(
             <= reward_tolerance
         )
 
-    # Reconcile verifier passed status
     verifier_passed_reconciled = canonical_outcome.verifier_passed == parity_outcome.verifier_passed
-
-    # Reconcile artifact digests
     artifact_digests_reconciled = (
-        canonical_outcome.artifact_digests == parity_outcome.artifact_digests
+        bool(canonical_outcome.artifact_digests)
+        and bool(parity_outcome.artifact_digests)
+        and canonical_outcome.artifact_digests == parity_outcome.artifact_digests
     )
 
-    # Trajectory measurements (observables, not failures)
+    binding_reconciled = not any(
+        r.code
+        in {
+            RefusalCode.BINDING_TASK_MISMATCH,
+            RefusalCode.BINDING_PAIR_MISMATCH,
+            RefusalCode.BINDING_VERIFIER_MISMATCH,
+            RefusalCode.BINDING_OUTCOME_MISMATCH,
+            RefusalCode.MISSING_PARITY_BINDING,
+        }
+        for r in refusals
+    )
+    harness_identity_reconciled = not any(
+        r.code == RefusalCode.MISMATCHED_ENVIRONMENT_IDENTITY for r in refusals
+    )
+
+    # 7. Trajectory measurements
     step_delta = parity_outcome.step_count - canonical_outcome.step_count
     token_delta = parity_outcome.total_tokens - canonical_outcome.total_tokens
     duration_delta = round(parity_outcome.duration_seconds - canonical_outcome.duration_seconds, 6)
@@ -693,37 +1067,59 @@ def reconcile_parity_results(
         notes=notes,
     )
 
-    # Parity status determination
-    if not scaffold_equivalent or len(refusals) > 0:
+    # 8. Status assignment
+    if len(refusals) > 0:
         parity_status = ParityStatus.REFUSED
-    elif verifier_reward_reconciled and verifier_passed_reconciled and artifact_digests_reconciled:
+    elif (
+        verifier_reward_reconciled
+        and verifier_passed_reconciled
+        and artifact_digests_reconciled
+        and harness_identity_reconciled
+        and binding_reconciled
+    ):
         parity_status = ParityStatus.PARITY_VERIFIED
     else:
         parity_status = ParityStatus.PARITY_DIVERGENT
 
     refusals_tuple = tuple(refusals)
+
+    # 9. Reconciliation digest
     reconciliation_digest = _compute_reconciliation_digest(
-        task_id=tid,
+        canonical_attempt_id=canonical_outcome.attempt_id,
+        canonical_harness_digest=canonical_outcome.harness_identity.harness_digest,
         canonical_runner=canonical_outcome.runner_kind,
+        canonical_trial_id=canonical_outcome.trial_id,
+        parity_attempt_id=parity_outcome.attempt_id,
+        parity_harness_digest=parity_outcome.harness_identity.harness_digest,
         parity_runner=parity_outcome.runner_kind,
+        parity_trial_id=parity_outcome.trial_id,
+        pair_id=parity_binding.pair_id,
+        task_digest=parity_binding.task_digest,
+        binding_digest=parity_binding.binding_digest,
+        outcome_namespace=parity_binding.outcome_namespace,
+        outcome_name=parity_binding.outcome_name,
         parity_status=parity_status,
         verifier_reward_reconciled=verifier_reward_reconciled,
         verifier_passed_reconciled=verifier_passed_reconciled,
         artifact_digests_reconciled=artifact_digests_reconciled,
-        scaffold_equivalent=scaffold_equivalent,
+        harness_identity_reconciled=harness_identity_reconciled,
+        binding_reconciled=binding_reconciled,
+        reward_tolerance=reward_tolerance,
         measurements=measurements,
         refusals=refusals_tuple,
     )
 
     return MultiEvalParityResult(
-        task_id=tid,
+        task_digest=parity_binding.task_digest,
+        pair_id=parity_binding.pair_id,
         canonical_runner=canonical_outcome.runner_kind,
         parity_runner=parity_outcome.runner_kind,
         parity_status=parity_status,
         verifier_reward_reconciled=verifier_reward_reconciled,
         verifier_passed_reconciled=verifier_passed_reconciled,
         artifact_digests_reconciled=artifact_digests_reconciled,
-        scaffold_equivalent=scaffold_equivalent,
+        harness_identity_reconciled=harness_identity_reconciled,
+        binding_reconciled=binding_reconciled,
         measurements=measurements,
         refusals=refusals_tuple,
         reconciliation_digest=reconciliation_digest,

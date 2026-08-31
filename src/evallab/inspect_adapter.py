@@ -10,6 +10,8 @@ Invariants:
    is_deterministic=False and are never coerced into primary benchmark reward.
 3. Stable Run Identity & Source Revision ID: Run identity is derived from official eval_id (or run_id) domain key
    excluding source revision. source_revision_id is domain-separated(job_id, source_digest) to preserve multiple revisions.
+   All source tables preserve source_revision_id across all fact rows as distinguishable revision-history records with
+   no implicit terminal selector.
 4. Domain-Separated Attempt, Trial & Event Identities: Trial IDs are domain-separated from job_id, sample_id, epoch,
    and native uuid. Attempt IDs are uniquely domain-separated. Event IDs are domain-separated by attempt_id.
 5. Preserved Retry Events & Explicit Status: Retry events from EvalRetryError are attached to their respective retry attempts;
@@ -142,6 +144,8 @@ def _text(value: Any) -> str:
 
 
 class InspectRunFactV1(ContractModel):
+    """Revision-history table row preserving all run revisions as distinguishable rows with no implicit terminal selector."""
+
     schema_version: Literal["inspect-run-fact/v1"] = "inspect-run-fact/v1"
     job_id: str
     identity_source: Literal["eval_id", "run_id", "content_digest_fallback"]
@@ -166,8 +170,11 @@ class InspectRunFactV1(ContractModel):
 
 
 class InspectAttemptFactV1(ContractModel):
+    """Revision-history table row preserving all attempt revisions as distinguishable rows with no implicit terminal selector."""
+
     schema_version: Literal["inspect-attempt-fact/v1"] = "inspect-attempt-fact/v1"
     job_id: str
+    source_revision_id: str
     trial_id: str
     attempt_id: str
     ordinal: int = Field(ge=1)
@@ -191,8 +198,11 @@ class InspectAttemptFactV1(ContractModel):
 
 
 class InspectScoreFactV1(ContractModel):
+    """Revision-history table row preserving all score revisions as distinguishable rows with no implicit terminal selector."""
+
     schema_version: Literal["inspect-score-fact/v1"] = "inspect-score-fact/v1"
     job_id: str
+    source_revision_id: str
     trial_id: str
     score_name: str
     value_json: str
@@ -207,8 +217,11 @@ class InspectScoreFactV1(ContractModel):
 
 
 class InspectEventFactV1(ContractModel):
+    """Revision-history table row preserving all event revisions as distinguishable rows with no implicit terminal selector."""
+
     schema_version: Literal["inspect-event-fact/v1"] = "inspect-event-fact/v1"
     job_id: str
+    source_revision_id: str
     trial_id: str
     attempt_id: str
     event_id: str
@@ -221,8 +234,11 @@ class InspectEventFactV1(ContractModel):
 
 
 class InspectAttachmentFactV1(ContractModel):
+    """Revision-history table row preserving all attachment revisions as distinguishable rows with no implicit terminal selector."""
+
     schema_version: Literal["inspect-attachment-fact/v1"] = "inspect-attachment-fact/v1"
     job_id: str
+    source_revision_id: str
     trial_id: str | None = None
     attachment_id: str
     content_type: str
@@ -277,6 +293,7 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
     "inspect_attempts": pa.schema(
         [
             pa.field("job_id", pa.string(), nullable=False),
+            pa.field("source_revision_id", pa.string(), nullable=False),
             pa.field("trial_id", pa.string(), nullable=False),
             pa.field("attempt_id", pa.string(), nullable=False),
             pa.field("ordinal", pa.int64(), nullable=False),
@@ -302,6 +319,7 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
     "inspect_scores": pa.schema(
         [
             pa.field("job_id", pa.string(), nullable=False),
+            pa.field("source_revision_id", pa.string(), nullable=False),
             pa.field("trial_id", pa.string(), nullable=False),
             pa.field("score_name", pa.string(), nullable=False),
             pa.field("value_json", pa.string(), nullable=False),
@@ -318,6 +336,7 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
     "inspect_events": pa.schema(
         [
             pa.field("job_id", pa.string(), nullable=False),
+            pa.field("source_revision_id", pa.string(), nullable=False),
             pa.field("trial_id", pa.string(), nullable=False),
             pa.field("attempt_id", pa.string(), nullable=False),
             pa.field("event_id", pa.string(), nullable=False),
@@ -332,6 +351,7 @@ INSPECT_SCHEMAS: dict[str, pa.Schema] = {
     "inspect_attachments": pa.schema(
         [
             pa.field("job_id", pa.string(), nullable=False),
+            pa.field("source_revision_id", pa.string(), nullable=False),
             pa.field("trial_id", pa.string()),
             pa.field("attachment_id", pa.string(), nullable=False),
             pa.field("content_type", pa.string(), nullable=False),
@@ -489,6 +509,7 @@ def _resolve_content_blocks(
 
 def _score_facts(
     job_id: str,
+    source_revision_id: str,
     trial_id: str,
     sample: Mapping[str, Any],
 ) -> list[InspectScoreFactV1]:
@@ -509,6 +530,7 @@ def _score_facts(
         facts.append(
             InspectScoreFactV1(
                 job_id=job_id,
+                source_revision_id=source_revision_id,
                 trial_id=trial_id,
                 score_name=name,
                 value_json=value_json,
@@ -577,16 +599,28 @@ def reconcile_inspect_projection(
     for att in attempts:
         if att.job_id != run.job_id:
             raise ValueError(f"Attempt job_id {att.job_id} does not match run job_id {run.job_id}")
+        if att.source_revision_id != run.source_revision_id:
+            raise ValueError(
+                f"Attempt source_revision_id {att.source_revision_id} does not match run source_revision_id {run.source_revision_id}"
+            )
 
     for score in scores:
         if score.job_id != run.job_id:
             raise ValueError(f"Score job_id {score.job_id} does not match run job_id {run.job_id}")
+        if score.source_revision_id != run.source_revision_id:
+            raise ValueError(
+                f"Score source_revision_id {score.source_revision_id} does not match run source_revision_id {run.source_revision_id}"
+            )
         if score.trial_id not in attempt_trial_ids:
             raise ValueError(f"Orphan score trial_id: {score.trial_id}")
 
     for event in events:
         if event.job_id != run.job_id:
             raise ValueError(f"Event job_id {event.job_id} does not match run job_id {run.job_id}")
+        if event.source_revision_id != run.source_revision_id:
+            raise ValueError(
+                f"Event source_revision_id {event.source_revision_id} does not match run source_revision_id {run.source_revision_id}"
+            )
         if event.trial_id not in attempt_trial_ids:
             raise ValueError(f"Orphan event trial_id: {event.trial_id}")
         if event.attempt_id not in attempt_ids:
@@ -596,6 +630,10 @@ def reconcile_inspect_projection(
         if attachment.job_id != run.job_id:
             raise ValueError(
                 f"Attachment job_id {attachment.job_id} does not match run job_id {run.job_id}"
+            )
+        if attachment.source_revision_id != run.source_revision_id:
+            raise ValueError(
+                f"Attachment source_revision_id {attachment.source_revision_id} does not match run source_revision_id {run.source_revision_id}"
             )
 
 
@@ -692,6 +730,7 @@ def project_inspect_eval_log(
         attachment_facts.append(
             InspectAttachmentFactV1(
                 job_id=job_id,
+                source_revision_id=source_revision_id,
                 trial_id=None,
                 attachment_id=att_name,
                 content_type="text" if isinstance(att_val, str) else "json",
@@ -739,6 +778,7 @@ def project_inspect_eval_log(
             attachment_facts.append(
                 InspectAttachmentFactV1(
                     job_id=job_id,
+                    source_revision_id=source_revision_id,
                     trial_id=trial_id,
                     attachment_id=att_name,
                     content_type="text" if isinstance(att_val, str) else "json",
@@ -809,6 +849,7 @@ def project_inspect_eval_log(
             attempts.append(
                 InspectAttemptFactV1(
                     job_id=job_id,
+                    source_revision_id=source_revision_id,
                     trial_id=trial_id,
                     attempt_id=curr_attempt_id,
                     ordinal=retry_ordinal,
@@ -840,6 +881,7 @@ def project_inspect_eval_log(
                 inspect_events.append(
                     InspectEventFactV1(
                         job_id=job_id,
+                        source_revision_id=source_revision_id,
                         trial_id=trial_id,
                         attempt_id=curr_attempt_id,
                         event_id=ev_id,
@@ -859,6 +901,7 @@ def project_inspect_eval_log(
         attempts.append(
             InspectAttemptFactV1(
                 job_id=job_id,
+                source_revision_id=source_revision_id,
                 trial_id=trial_id,
                 attempt_id=terminal_attempt_id,
                 ordinal=terminal_ordinal,
@@ -886,7 +929,7 @@ def project_inspect_eval_log(
             )
         )
 
-        scores.extend(_score_facts(job_id, trial_id, sample))
+        scores.extend(_score_facts(job_id, source_revision_id, trial_id, sample))
 
         # Attach terminal events to terminal attempt
         seen_event_ids: set[str] = set()
@@ -907,6 +950,7 @@ def project_inspect_eval_log(
             inspect_events.append(
                 InspectEventFactV1(
                     job_id=job_id,
+                    source_revision_id=source_revision_id,
                     trial_id=trial_id,
                     attempt_id=terminal_attempt_id,
                     event_id=event_id,

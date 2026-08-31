@@ -130,11 +130,12 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
     assert features.hypothesis_turnover_rate == 0.6
 
     # 3. Regressions & Rollback Control
+    assert features.selection_decision_count == 3
     assert features.kept_iteration_count == 2
     assert features.reverted_iteration_count == 1
     assert features.regression_count == 2
     assert features.max_consecutive_regressions == 1
-    assert features.rollback_rate == 0.25
+    assert features.rollback_rate == pytest.approx(1 / 3)
     assert features.regression_rate == pytest.approx(2 / 3)
 
     # 4. Score-Time Curves & Dynamics
@@ -564,12 +565,45 @@ def test_reproducibility_distinguishes_unknown_from_false() -> None:
     assert unmeasured_features.reproducibility_rate is None  # MUST be NULL, not 0.0!
 
 
+def test_unmeasured_revert_calculates_rollback_rate_correctly() -> None:
+    # Real Game2048 scenario: v1 and v2 kept with scores, v3 reverted on unscored diagnostic
+    trace = ResearchRunTraceV1(
+        run_id="game2048-pilot",
+        benchmark_family="rsi-exam/game2048",
+        source_digest="sha256:" + "d" * 64,
+        baseline_visible_score=10.0,
+        iterations=(
+            ResearchIterationV1(iteration_id="v1", visible_score=12.0, disposition="kept"),
+            ResearchIterationV1(iteration_id="v2", visible_score=14.0, disposition="kept"),
+            ResearchIterationV1(iteration_id="v3", visible_score=None, disposition="reverted"),
+        ),
+    )
+    features = extract_autonomous_research_features(trace)
+    assert features.measured_iteration_count == 2
+    assert features.kept_iteration_count == 2
+    assert features.reverted_iteration_count == 1
+    assert features.selection_decision_count == 3
+    assert features.rollback_rate == pytest.approx(1 / 3)  # NOT 1.0 or broken by measured_count!
+
+    # Zero decisions trace (all observed)
+    zero_decision_trace = ResearchRunTraceV1(
+        run_id="zero-decisions",
+        benchmark_family="rsi-exam/game2048",
+        source_digest="sha256:" + "e" * 64,
+        iterations=(
+            ResearchIterationV1(iteration_id="v1", visible_score=12.0, disposition="observed"),
+        ),
+    )
+    features_zero = extract_autonomous_research_features(zero_decision_trace)
+    assert features_zero.selection_decision_count == 0
+    assert features_zero.rollback_rate is None  # MUST be NULL when selection_decision_count == 0
+
+
 def test_feature_registry_governance_for_autonomous_research_family() -> None:
     family_features = TRAJECTORY_FEATURE_REGISTRY.by_family("autonomous-research-v1")
-    assert len(family_features) == 68, (
-        f"Expected 68 registered features, got {len(family_features)}"
+    assert len(family_features) == 69, (
+        f"Expected 69 registered features, got {len(family_features)}"
     )
-
     # Audit denominator policies and verdict coupling for all features in family
     for col_name, feat in family_features.items():
         assert feat.family == "autonomous-research-v1"
@@ -655,7 +689,7 @@ def test_benchmark_feature_coverage_and_yield() -> None:
 
     yield_diag = compute_benchmark_feature_yield([record], family="autonomous-research-v1")
     assert yield_diag["total_records"] == 1
-    assert len(yield_diag["feature_stats"]) == 68
+    assert len(yield_diag["feature_stats"]) == 69
 
 
 def test_trace_validation_rejects_duplicate_iteration_ids_and_non_finite_scores() -> None:

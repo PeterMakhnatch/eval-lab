@@ -56,7 +56,18 @@ The larger registry currently has 240 feature definitions. The current governanc
 | Coupling undeclared | 75 |
 | Legacy denominator-policy debt | 73 |
 
-The autonomous family is substantially cleaner than the legacy registry. Its predictor refusals are explicit: four identity/not-applicable fields, three post-verdict fields, and one reward-defining field. The remaining global debt should be closed before broad predictive analysis.
+The predictor audit is more actionable than the raw coupling distribution:
+
+| Predictor-audit result | Count |
+|---|---:|
+| Eligible predictors | 109 |
+| `MISSING_TEMPORAL_AVAILABILITY` | 72 |
+| `NOT_APPLICABLE_FOR_PREDICTION` | 27 |
+| `REWARD_DEFINITION_LEAKAGE` | 19 |
+| `POST_VERDICT_TEMPORAL_VIOLATION` | 10 |
+| `UNDECLARED_VERDICT_COUPLING` | 3 |
+
+The autonomous family is substantially cleaner than the legacy registry. Its predictor refusals are explicit: four identity/not-applicable fields, three post-verdict fields, and one reward-defining field. Globally, the highest-leverage debt is temporal availability on 72 features, followed by 73 denominator-applicability declarations. Raw coupling is undeclared on 75 rows, but only three currently reach that refusal because earlier temporal gates already stop the others.
 
 ## 3. The 74-feature family by role
 
@@ -164,7 +175,7 @@ The current measurements are sufficient to expose the important failures. What i
 
 | Stage | Build | Acceptance behavior |
 |---|---|---|
-| **A. Governance cleanup** | Close undeclared coupling and denominator debt; namespace overlapping refusal enums | No feature has ambiguous predictor eligibility |
+| **A. Governance cleanup** | Declare temporal availability on 72 features, denominator applicability on 73, and coupling on the three features that reach that refusal; namespace overlapping refusal enums | Predictor refusals fall to intentional not-applicable, leakage, and post-verdict exclusions |
 | **B. Composite outcome resolver** | Agent, verifier, artifact and authority axes; first-class regrade lineage | Game2048 resolves to `0.37800819`, never synthetic `0.0` |
 | **C. Headline binding** | Declare the selected scalar for every outcome axis | BBO names `selected`; alternatives remain visible |
 | **D. Scale-binding gate** | Refuse arithmetic without exact task/verifier/metric/outcome digest parity | Game2048 transfer remains null with a reason |
@@ -226,7 +237,7 @@ The benchmark plan is maintained in `research/analysis/thematic-benchmark-portfo
 - Clean-completion behavior is under-sampled.
 - BBO and Game2048 evidence records have asymmetric findings depth.
 - Hypothesis-key stability has not been perturbation-tested.
-- Seventy-five legacy registry features still lack explicit verdict coupling.
+- Seventy-two registry features lack temporal-availability declarations, 73 lack denominator-applicability declarations, and three currently reach the undeclared-coupling refusal.
 - Generic Harbor ingestion does not yet consume standalone verifier-regrade trial directories.
 
 These are analysis and governance debts. They are a stronger reason to build the interpretation layer than to expand the raw feature count.

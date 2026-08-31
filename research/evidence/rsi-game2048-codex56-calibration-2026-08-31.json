@@ -1,6 +1,9 @@
 {
   "artifact_digests": {
     "job_result": "sha256:9d311453d507d66187a737a5ae6cac27c2b766853be1138b43d80e4f61ec5a3b",
+    "regrade_result": "sha256:409c502b2b79f7158131d0f1766329a17dc98b36b15b083b8987bf6fe2b590a7",
+    "regrade_reward": "sha256:fa25df0aeb28974cef767d9e4980888d52a167be3d34b34cf267ffff9bb212a7",
+    "regrade_score_details": "sha256:a84fcf612ec30696e3c97b6fe351634b9392247c23bf36a9e1a8b1256700c6e9",
     "selected_solver": "sha256:7cee2b413e7c3cc63857a0c20dfecbc0aaa54071f0c7406daecf8fb8782f4bad",
     "trajectory": "sha256:2101722459a699058ad5afedec411093f0bca0bdddc6d4594e130e95596aa5b9",
     "trial_result": "sha256:1352fdb123b2db22c68072b486c78e43d7fbf924fda4ea08c2765599ba3e4122",
@@ -10,7 +13,7 @@
     "v4": "sha256:35668ae4520f51f6939105a60073de031c156497f801542a8469c8e981ba4ca4"
   },
   "autonomous_research_trace": {
-    "artifact_replay_verified": null,
+    "artifact_replay_verified": true,
     "baseline_visible_score": 2060.0,
     "benchmark_family": "rsi-exam/game2048_policy_search",
     "budget_seconds": 2160.0,
@@ -21,7 +24,7 @@
     "elapsed_seconds": 2160.162282,
     "environment_setup_seconds": 1.968015,
     "final_artifact_digest": "sha256:7cee2b413e7c3cc63857a0c20dfecbc0aaa54071f0c7406daecf8fb8782f4bad",
-    "hidden_score": null,
+    "hidden_score": 0.37800819,
     "iterations": [
       {
         "artifact_digest": "sha256:6987e8a507b3612b7180d1aef1c586c1320baff01ca65a8c4d6953e9fd7abe38",
@@ -142,7 +145,7 @@
     ]
   },
   "derived_features": {
-    "artifact_replay_verified": null,
+    "artifact_replay_verified": true,
     "baseline_visible_score": 2060.0,
     "benchmark_family": "rsi-exam/game2048_policy_search",
     "best_improvement_iteration": 2,
@@ -159,12 +162,12 @@
     "elapsed_seconds": 2160.162282,
     "environment_setup_seconds": 1.968015,
     "experiment_throughput_per_hour": 6.666165833924139,
-    "feature_digest": "sha256:cfa6d403079c60f9bfc955fc15612e9335cf4d96c2aaad4e98bf8cc101e74a61",
+    "feature_digest": "sha256:996736f5c491abd777cdf8b8283f4a22e50833ab25761f59807f9c1dcc91eba8",
     "final_artifact_digest": "sha256:7cee2b413e7c3cc63857a0c20dfecbc0aaa54071f0c7406daecf8fb8782f4bad",
     "final_selection_regret": null,
     "final_visible_score": null,
     "first_improvement_iteration": 2,
-    "hidden_score": null,
+    "hidden_score": 0.37800819,
     "hypothesis_turnover_rate": 1.0,
     "improvement_per_experiment": 15173.5,
     "invalid_iteration_count": 1,
@@ -219,7 +222,7 @@
   "feature_findings": [
     {
       "feature": "composite_outcome_validity",
-      "finding": "Agent timeout, missing initial verifier result, and a preserved regradable artifact are independent axes; the synthetic job mean 0.0 must not be treated as reward evidence."
+      "finding": "Agent timeout, expired initial verifier, preserved artifact, and successful verifier-only regrade are independent axes; the original synthetic mean 0.0 is not reward evidence, while the regrade reward 0.37800819 is authoritative for this calibration artifact."
     },
     {
       "feature": "experiment_log_artifact_conformance",
@@ -227,7 +230,7 @@
     },
     {
       "feature": "selected_artifact_validation_coverage",
-      "finding": "The submitted v5 has only a single-seed diagnostic and no comparable full-suite visible score, so final selection regret and optimal-selection status correctly remain null."
+      "finding": "The submitted v5 lacks a comparable full visible-suite score but passed sealed replay on 16 instances with valid_fraction 1.0; final visible selection regret correctly remains null."
     },
     {
       "feature": "score_scale_binding",
@@ -239,6 +242,11 @@
     "jobs": 1,
     "llm_calls": 61,
     "observations": 60,
+    "regrade_standalone": {
+      "ingested": false,
+      "message": "No completed Harbor jobs found.",
+      "reason": "Current generic Harbor ingest discovers completed job directories, not standalone verifier-only regrade trial directories."
+    },
     "reward_facts": 0,
     "steps": 66,
     "tool_calls": 60,
@@ -246,7 +254,7 @@
     "trajectory_events": 186,
     "trial_facts": 1
   },
-  "recorded_at": "2026-08-31T10:10:44Z",
+  "recorded_at": "2026-08-31T10:44:42Z",
   "research_process": {
     "artifact_versions": [
       "v1",
@@ -265,7 +273,8 @@
     ],
     "observed_failed_attempts": 1,
     "observed_strategy_changes_after_failure": 1,
-    "selected_artifact_full_suite_validated": false,
+    "selected_artifact_sealed_replay_validated": true,
+    "selected_artifact_visible_full_suite_validated": false,
     "selected_version": "v5",
     "substantive_iterations": 4,
     "tool_calls": 60,
@@ -295,7 +304,9 @@
       "harbor_trial_marked_error": true,
       "initial_verifier_reward_valid": false,
       "initial_verifier_status": "timed_out_without_result",
-      "verifier_regrade_status": "running"
+      "verifier_regrade_reward_valid": true,
+      "verifier_regrade_status": "completed",
+      "verifier_regrade_trial_id": "game2048_policy_search__QzNuUbN_regrade"
     },
     "output_tokens": 18740,
     "total_runtime_seconds": 3314.8427,
@@ -304,8 +315,15 @@
   "schema_version": "evallab-rsi-calibration-evidence/v1",
   "scores": {
     "sealed": {
-      "reward": null,
-      "status": "awaiting_verifier_regrade"
+      "instances": 16,
+      "mean_max_tile": 1728.0,
+      "mean_raw_score": 23167.0,
+      "median_raw_score": 25866.0,
+      "reward": 0.37800819,
+      "reward_mapping": "per-seed log interpolation baseline->0 and frontier->0.6; log-space soft cap above frontier, asymptotic to 1.0",
+      "status": "completed_regrade",
+      "valid_fraction": 1.0,
+      "verifier_runtime_seconds": 2639.032113
     },
     "transfer_gap_null_reason": "Visible scores are raw merge scores while the sealed reward is normalized; no validated score-scale binding exists.",
     "visible": {

@@ -12,14 +12,13 @@ import hashlib
 import json
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from evallab.interpretation.benchmark_events import (
-    BenchmarkContractRecord,
-    BenchmarkEventRecord,
     CorrelatedToolCall,
-    FinalStateRecord,
     TrialBundle,
+    load_trial_bundle,
 )
 from evallab.semantic_facts import PairedConditionFact
 
@@ -69,6 +68,11 @@ def compute_tool_inventory_digest(inventory: list[dict[str, Any]]) -> str:
 
 
 CANARY_TOOL_SCHEMA_DIGEST = compute_tool_inventory_digest(CANARY_TOOL_INVENTORY)
+
+
+def compute_token_digest(token: str) -> str:
+    """Compute canonical deterministic SHA-256 digest of an exact bound token string."""
+    return f"sha256:{hashlib.sha256(token.encode('utf-8')).hexdigest()}"
 
 
 def _pad_text_to_exact_bytes(text: str, target_bytes: int) -> str:
@@ -125,8 +129,8 @@ def build_canary_pair_spec(
     initial_val = f"{val_prefix}_v1"
     inverted_val = f"{val_prefix}_v2"
 
-    init_digest = f"sha256:{hashlib.sha256(initial_val.encode('utf-8')).hexdigest()}"
-    inv_digest = f"sha256:{hashlib.sha256(inverted_val.encode('utf-8')).hexdigest()}"
+    init_digest = compute_token_digest(initial_val)
+    inv_digest = compute_token_digest(inverted_val)
 
     # Chunk 0: Initial Fact (exact 256 bytes) with first-class bound token
     c0_raw = (
@@ -345,35 +349,39 @@ def synthesize_canary_trial_artifacts(
         "verifier_truth_digest": spec.verifier_truth_digest,
         "tool_inventory_digest": spec.tool_inventory_digest,
         "artifact_paths": {
-            "benchmark_events": "/app/output/benchmark-events.jsonl",
-            "final_state": "/app/output/final-state.json",
-            "verifier_reward": "/logs/verifier/reward.txt",
+            "benchmark_events": "benchmark-events.jsonl",
+            "final_state": "final-state.json",
+            "verifier_reward": "reward.txt",
         },
     }
 
-    # 2. Events & Final State
+    # 2. Sequential Event Stream (Canonical 1-based indices without gaps)
     events: list[dict[str, Any]] = []
     mutations: list[dict[str, Any]] = []
     task_success = False
 
+    current_event_idx = 1
+
     if control_type == "oracle":
-        # Oracle reads all chunks in canonical order
-        for idx, chunk in enumerate(scenario["chunks"]):
+        # Oracle reads all chunks in canonical order: sequential request, result pairs
+        for chunk in scenario["chunks"]:
+            call_id = f"call_read_{chunk['chunk_id']}"
             events.append(
                 {
-                    "event_index": idx,
+                    "event_index": current_event_idx,
                     "event_type": "mcp_call",
-                    "call_id": f"call_{idx:03d}",
+                    "call_id": call_id,
                     "tool_name": "get_context_chunk",
                     "arguments": {"chunk_id": chunk["chunk_id"]},
                 }
             )
+            current_event_idx += 1
             # Result preserves full raw content separately while exposing first-class bound_token
             events.append(
                 {
-                    "event_index": idx + 1000,
+                    "event_index": current_event_idx,
                     "event_type": "tool_result",
-                    "call_id": f"call_{idx:03d}",
+                    "call_id": call_id,
                     "result": {
                         "status": "ok",
                         "chunk_id": chunk["chunk_id"],
@@ -390,11 +398,13 @@ def synthesize_canary_trial_artifacts(
                     },
                 }
             )
+            current_event_idx += 1
+
         # Oracle executes correct mutation
-        mut_call_id = f"call_{len(scenario['chunks']):03d}"
+        mut_call_id = "call_mut_001"
         events.append(
             {
-                "event_index": len(scenario["chunks"]),
+                "event_index": current_event_idx,
                 "event_type": "mcp_call",
                 "call_id": mut_call_id,
                 "tool_name": "execute_mutation",
@@ -405,12 +415,12 @@ def synthesize_canary_trial_artifacts(
                 },
             }
         )
-        mut_token_digest = (
-            f"sha256:{hashlib.sha256(target_val.encode('utf-8')).hexdigest()}"
-        )
+        current_event_idx += 1
+
+        mut_token_digest = compute_token_digest(target_val)
         events.append(
             {
-                "event_index": len(scenario["chunks"]) + 1000,
+                "event_index": current_event_idx,
                 "event_type": "tool_result",
                 "call_id": mut_call_id,
                 "result": {
@@ -423,6 +433,8 @@ def synthesize_canary_trial_artifacts(
                 },
             }
         )
+        current_event_idx += 1
+
         mutations.append(
             {
                 "entity_id": spec.target_entity,
@@ -433,21 +445,23 @@ def synthesize_canary_trial_artifacts(
         task_success = True
     elif control_type == "stale_mutant":
         # Stale mutant reads all chunks, but executes mutation with stale initial value
-        for idx, chunk in enumerate(scenario["chunks"]):
+        for chunk in scenario["chunks"]:
+            call_id = f"call_read_{chunk['chunk_id']}"
             events.append(
                 {
-                    "event_index": idx,
+                    "event_index": current_event_idx,
                     "event_type": "mcp_call",
-                    "call_id": f"call_{idx:03d}",
+                    "call_id": call_id,
                     "tool_name": "get_context_chunk",
                     "arguments": {"chunk_id": chunk["chunk_id"]},
                 }
             )
+            current_event_idx += 1
             events.append(
                 {
-                    "event_index": idx + 1000,
+                    "event_index": current_event_idx,
                     "event_type": "tool_result",
-                    "call_id": f"call_{idx:03d}",
+                    "call_id": call_id,
                     "result": {
                         "status": "ok",
                         "chunk_id": chunk["chunk_id"],
@@ -460,10 +474,12 @@ def synthesize_canary_trial_artifacts(
                     },
                 }
             )
-        mut_call_id = f"call_{len(scenario['chunks']):03d}"
+            current_event_idx += 1
+
+        mut_call_id = "call_mut_001"
         events.append(
             {
-                "event_index": len(scenario["chunks"]),
+                "event_index": current_event_idx,
                 "event_type": "mcp_call",
                 "call_id": mut_call_id,
                 "tool_name": "execute_mutation",
@@ -474,12 +490,12 @@ def synthesize_canary_trial_artifacts(
                 },
             }
         )
-        stale_token_digest = (
-            f"sha256:{hashlib.sha256(spec.initial_value.encode('utf-8')).hexdigest()}"
-        )
+        current_event_idx += 1
+
+        stale_token_digest = compute_token_digest(spec.initial_value)
         events.append(
             {
-                "event_index": len(scenario["chunks"]) + 1000,
+                "event_index": current_event_idx,
                 "event_type": "tool_result",
                 "call_id": mut_call_id,
                 "result": {
@@ -492,6 +508,8 @@ def synthesize_canary_trial_artifacts(
                 },
             }
         )
+        current_event_idx += 1
+
         mutations.append(
             {
                 "entity_id": spec.target_entity,
@@ -518,6 +536,7 @@ def synthesize_canary_trial_artifacts(
     state_journal_data: dict[str, Any] | None = None
     if include_state_journal:
         state_journal_data = {
+            "schema_version": 1,
             "status": "available",
             "reason": None,
             "changes": [
@@ -527,7 +546,7 @@ def synthesize_canary_trial_artifacts(
                     "attribute": spec.target_attribute,
                     "value": m["bound_value"],
                     "bound_token": m["bound_value"],
-                    "token_digest": f"sha256:{hashlib.sha256(m['bound_value'].encode('utf-8')).hexdigest()}",
+                    "token_digest": compute_token_digest(m["bound_value"]),
                 }
                 for m in mutations
             ],
@@ -547,23 +566,100 @@ def synthesize_canary_trial_artifacts(
     }
 
 
+def materialize_canary_trial_bundle(
+    trial_data: dict[str, Any],
+    target_dir: Path,
+) -> TrialBundle:
+    """Materialize synthesized artifacts to disk and load via canonical parser."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write benchmark-contract.json
+    (target_dir / "benchmark-contract.json").write_text(
+        json.dumps(trial_data["contract"], indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    # Write final-state.json
+    (target_dir / "final-state.json").write_text(
+        json.dumps(trial_data["final_state"], indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    # Write benchmark-events.jsonl (line-delimited)
+    events_lines = [json.dumps(e, sort_keys=True) for e in trial_data["events"]]
+    (target_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(events_lines) + ("\n" if events_lines else ""),
+        encoding="utf-8",
+    )
+
+    # Write state journal if present
+    if trial_data.get("state_journal"):
+        sj_dir = target_dir / "state-journal"
+        sj_dir.mkdir(exist_ok=True)
+        sj_data = trial_data["state_journal"]
+        (sj_dir / "status.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "status": sj_data.get("status", "available"),
+                    "reason": sj_data.get("reason"),
+                }
+            ),
+            encoding="utf-8",
+        )
+        (sj_dir / "state-diff.json").write_text(
+            json.dumps({"schema_version": 1, "changes": sj_data.get("changes", [])}),
+            encoding="utf-8",
+        )
+
+    return load_trial_bundle(target_dir, trial_id=trial_data["trial_id"])
+
+
 def extract_read_to_use_linkage(
     bundle: TrialBundle,
 ) -> dict[str, Any]:
     """Deterministic identity-based read->use linkage.
 
     Evaluates whether the executed mutation's bound token was observed in a prior
-    read event carrying the matching first-class entity_id, attribute, and
-    bound_token identity, without any string parsing of raw content logs.
+    read result event carrying the matching first-class entity_id, attribute,
+    and bound_token identity with verified token digest equality, without any
+    string parsing of raw content logs.
 
-    Rules:
-    - Step precedence: read event index < mutation event index.
-    - Identity equality: read_event.bound_token == mutation.bound_value and
-      read_event.entity_id == mutation.entity_id.
-    - Token digest equality: read_event.token_digest == mutation.token_digest.
-    - Write metrics: zero agent memory writes prior to mutation ->
-      write_to_read_rate is None (NULL), write_to_read_to_use_rate is None (NULL).
+    Enforces:
+    1. Opportunity Binding: Validates memory_write_opportunities == 0 from contract.
+    2. Step Precedence: read result event index < mutation request event index.
+    3. Mandatory Identity: Exact non-empty match on entity_id AND attribute.
+    4. Exact Token Match: read bound_token == mutation bound_value (no whitespace normalization).
+    5. Token Digest Integrity: read token_digest == compute_token_digest(mut_token).
     """
+    contract_opps = bundle.contract.opportunity_counts
+    if "memory_write_opportunities" not in contract_opps:
+        return {
+            "read_to_use_linked": False,
+            "linkage_status": "missing_contract_write_opportunities",
+            "matched_read_chunk_id": None,
+            "bound_token": None,
+            "token_digest": None,
+            "content_digest": None,
+            "write_to_read_opportunities": None,
+            "write_to_read_rate": None,
+            "write_to_read_to_use_rate": None,
+        }
+
+    write_opps = contract_opps["memory_write_opportunities"]
+    if write_opps != 0:
+        return {
+            "read_to_use_linked": False,
+            "linkage_status": "nonzero_contract_write_opportunities_unsupported",
+            "matched_read_chunk_id": None,
+            "bound_token": None,
+            "token_digest": None,
+            "content_digest": None,
+            "write_to_read_opportunities": int(write_opps),
+            "write_to_read_rate": None,
+            "write_to_read_to_use_rate": None,
+        }
+
     calls = bundle.correlated_calls
     final_mutations = bundle.final_state.mutations
 
@@ -579,20 +675,21 @@ def extract_read_to_use_linkage(
     bound_token: str | None = None
 
     if mutation_call and isinstance(mutation_call.arguments, dict):
-        bound_entity = str(mutation_call.arguments.get("entity_id", ""))
-        bound_attribute = str(mutation_call.arguments.get("attribute", ""))
-        bound_token = str(mutation_call.arguments.get("bound_value", ""))
+        bound_entity = mutation_call.arguments.get("entity_id")
+        bound_attribute = mutation_call.arguments.get("attribute")
+        bound_token = mutation_call.arguments.get("bound_value")
     elif final_mutations:
         m0 = final_mutations[0]
         if isinstance(m0, dict):
-            bound_entity = str(m0.get("entity_id", ""))
-            bound_attribute = str(m0.get("attribute", ""))
-            bound_token = str(m0.get("bound_value", ""))
+            bound_entity = m0.get("entity_id")
+            bound_attribute = m0.get("attribute")
+            bound_token = m0.get("bound_value")
 
-    if not bound_token or not bound_entity:
+    # Both entity and attribute must be non-empty strings
+    if not bound_token or not bound_entity or not bound_attribute:
         return {
             "read_to_use_linked": False,
-            "linkage_status": "no_mutation",
+            "linkage_status": "no_mutation_or_incomplete_mutation_identity",
             "matched_read_chunk_id": None,
             "bound_token": None,
             "token_digest": None,
@@ -602,8 +699,12 @@ def extract_read_to_use_linkage(
             "write_to_read_to_use_rate": None,
         }
 
-    mut_index = (
-        mutation_call.request_event.event_index if mutation_call else len(bundle.events)
+    expected_token_digest = compute_token_digest(bound_token)
+
+    mut_request_idx = (
+        mutation_call.request_event.event_index
+        if mutation_call and mutation_call.request_event
+        else len(bundle.events) + 1
     )
 
     # Scan preceding read calls in step order
@@ -611,38 +712,56 @@ def extract_read_to_use_linkage(
     matched_token: str | None = None
     matched_token_digest: str | None = None
     matched_content_digest: str | None = None
+    failure_reason: str = "no_matching_read_observation"
 
     for call in calls:
         if call.tool_name != "get_context_chunk" or call.is_error:
             continue
-        if call.request_event.event_index >= mut_index:
-            continue  # Step precedence: read must precede use
+
+        # Step precedence: result event must exist and precede mutation request
+        if not call.result_event:
+            continue
+        if call.result_event.event_index >= mut_request_idx:
+            failure_reason = "read_observed_after_mutation_request"
+            continue
 
         payload = call.result_payload
         if not isinstance(payload, dict):
             continue
 
         read_token = payload.get("bound_token")
+        read_digest = payload.get("token_digest")
         read_entity = payload.get("entity_id")
         read_attr = payload.get("attribute")
 
-        # Identity equality check (no string parsing)
-        if (
-            read_token is not None
-            and read_entity == bound_entity
-            and (not read_attr or read_attr == bound_attribute)
-        ):
-            if str(read_token).strip() == str(bound_token).strip():
-                matched_chunk_id = payload.get("chunk_id")
-                matched_token = str(read_token)
-                matched_token_digest = payload.get("token_digest")
-                matched_content_digest = payload.get("content_digest")
+        # Mandatory non-empty entity and attribute identity match
+        if not read_entity or not read_attr:
+            continue
+        if read_entity != bound_entity or read_attr != bound_attribute:
+            continue
+
+        # Exact token match
+        if read_token is None:
+            continue
+        if read_token != bound_token:
+            continue
+
+        # Token digest integrity check
+        if not read_digest or read_digest != expected_token_digest:
+            failure_reason = "token_digest_mismatch"
+            continue
+
+        # Valid linkage established
+        matched_chunk_id = payload.get("chunk_id")
+        matched_token = read_token
+        matched_token_digest = read_digest
+        matched_content_digest = payload.get("content_digest")
 
     is_linked = matched_token is not None
 
     return {
         "read_to_use_linked": is_linked,
-        "linkage_status": "linked" if is_linked else "unlinked",
+        "linkage_status": "linked" if is_linked else failure_reason,
         "matched_read_chunk_id": matched_chunk_id,
         "bound_token": matched_token,
         "token_digest": matched_token_digest,
@@ -658,8 +777,9 @@ def emit_canary_paired_condition_fact(
 ) -> PairedConditionFact:
     """Emit verified canonical PairedConditionFact for a canary trial.
 
-    Enforces that when state journal observability is absent or degraded, the
-    emitted verdict is unknown (HOLD), preventing ungrounded claims.
+    Enforces that when state journal observability is absent, degraded, or its
+    mutation record fails token digest validation, the emitted verdict is
+    unknown (HOLD), preventing ungrounded claims.
     """
     is_arm0 = trial_data["arm"] in ("non_inverted", "arm0", "clean_non_inverted")
     variant = "non_inverted" if is_arm0 else "state_inverted"
@@ -680,13 +800,34 @@ def emit_canary_paired_condition_fact(
     ).encode("utf-8")
     source_digest = f"sha256:{hashlib.sha256(contract_bytes).hexdigest()}"
 
-    # State Observability Gate: If state journal is absent, verdict must be unknown (HOLD)
+    # State Observability & Journal Token Integrity Gate
     state_journal = trial_data.get("state_journal")
     has_valid_state_journal = (
         isinstance(state_journal, dict) and state_journal.get("status") == "available"
     )
 
-    if not has_valid_state_journal:
+    is_journal_mutation_verified = False
+    if has_valid_state_journal and bound_val != "unbound":
+        expected_digest = compute_token_digest(bound_val)
+        for change in state_journal.get("changes", []):
+            if not isinstance(change, dict):
+                continue
+            if (
+                change.get("entity_id") == target_ent
+                and change.get("attribute") == target_attr
+                and (
+                    change.get("bound_token") == bound_val
+                    or change.get("value") == bound_val
+                )
+                and change.get("token_digest") == expected_digest
+            ):
+                is_journal_mutation_verified = True
+                break
+    elif has_valid_state_journal and not trial_data["final_state"]["mutations"]:
+        # Nop control with valid available journal (0 mutations)
+        is_journal_mutation_verified = True
+
+    if not has_valid_state_journal or not is_journal_mutation_verified:
         verdict = "unknown"
     else:
         verdict = "satisfied" if trial_data["task_success"] else "violated"

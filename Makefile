@@ -1,4 +1,4 @@
-.PHONY: help sync check premerge smoke smoke-ci db-up db-down db-init doctor controls ingest summarize
+.PHONY: help sync check premerge smoke smoke-ci db-up db-down db-init doctor controls ingest summarize digest
 
 help:
 	@echo "sync       Install locked Python dependencies"
@@ -51,3 +51,7 @@ ingest:
 
 summarize:
 	uv run evallab summarize runs research/evidence/runs
+
+digest:
+	uv run python scripts/daily_digest.py
+

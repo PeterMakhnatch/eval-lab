@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.digest</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>WorkingDirectory</key>
+	<string>/Users/petermakhnatch/Developer/eval-lab</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/petermakhnatch/.local/bin/uv</string>
+		<string>run</string>
+		<string>python</string>
+		<string>/Users/petermakhnatch/Developer/eval-lab/scripts/daily_digest.py</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>7</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>StartInterval</key>
+	<integer>14400</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/petermakhnatch/Developer/eval-lab/runs/logs/digest.out</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/petermakhnatch/Developer/eval-lab/runs/logs/digest.err</string>
+</dict>
+</plist>

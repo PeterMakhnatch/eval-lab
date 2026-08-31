@@ -82,7 +82,7 @@
     "autonomous-research-v1": {
       "producer_module": "evallab.autonomous_research",
       "source_table": "autonomous_research_runs",
-      "feature_count": 68,
+      "feature_count": 69,
       "constructs": [
         "Autonomous Research & Method Improvement",
         "Score-Time Dynamics & Budget Scaling",
@@ -115,11 +115,12 @@
         {"name": "unique_hypothesis_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "repeated_hypothesis_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "hypothesis_turnover_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "iteration_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "selection_decision_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "kept_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "reverted_iteration_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "regression_count", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "max_consecutive_regressions", "type": "BIGINT", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
-        {"name": "rollback_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "measured_iteration_count", "construct": "Autonomous Research & Method Improvement"},
+        {"name": "rollback_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "selection_decision_count", "construct": "Autonomous Research & Method Improvement"},
         {"name": "regression_rate", "type": "DOUBLE", "category": "benchmark_l2_metric", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "required", "sibling": "measured_iteration_count", "construct": "Autonomous Research & Method Improvement"},
         {"name": "baseline_visible_score", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C0", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},
         {"name": "best_visible_score", "type": "DOUBLE", "category": "benchmark_l1_fact", "causal_grade": "C1", "evidence_grade": "Grade A", "policy": "not_applicable", "construct": "Autonomous Research & Method Improvement"},

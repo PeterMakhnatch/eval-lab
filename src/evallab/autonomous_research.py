@@ -230,6 +230,7 @@ class AutonomousResearchFeatures:
     hypothesis_turnover_rate: float | None
 
     # 3. Regressions & Rollback Control (RSI-Exam, RE-Bench)
+    selection_decision_count: int
     kept_iteration_count: int
     reverted_iteration_count: int
     regression_count: int
@@ -369,8 +370,10 @@ def extract_autonomous_research_features(
     # 3. Regressions & Rollback Control
     kept_count = sum(iteration.disposition == "kept" for iteration in iterations)
     reverted_count = sum(iteration.disposition == "reverted" for iteration in iterations)
-    rollback_rate = reverted_count / measured_count if measured_count > 0 else None
-
+    selection_decision_count = kept_count + reverted_count
+    rollback_rate = (
+        reverted_count / selection_decision_count if selection_decision_count > 0 else None
+    )
     measured_scores = [
         iteration.visible_score for iteration in iterations if iteration.visible_score is not None
     ]
@@ -624,6 +627,7 @@ def extract_autonomous_research_features(
         "repeated_hypothesis_count": repeated_hypothesis_count,
         "hypothesis_turnover_rate": hypothesis_turnover_rate,
         # 3. Regressions & Rollback Control
+        "selection_decision_count": selection_decision_count,
         "kept_iteration_count": kept_count,
         "reverted_iteration_count": reverted_count,
         "regression_count": regression_count,

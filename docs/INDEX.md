@@ -56,6 +56,8 @@ inputs:
     digest: sha256:dea76c2aaf874341239d2c3518a5dac7eeb5fbafbf26c72a109a1f711e950fbe
   - path: docs/craft.md
     digest: sha256:6775a2260238d5d1b8161bd1ebc30317faf0e7c9c4740ecf56f8c45c130a6876
+  - path: docs/daily-digest.md
+    digest: sha256:abc70d4c4a301b56f1216b00bcf50a8ef4ed3e97b77c55ead384fb9a39400588
   - path: docs/dashboard.md
     digest: sha256:75394bae07ac0b085b1385189c6b17d4764a30e31fc5fe086a5d9e215910de4c
   - path: docs/data-architecture.md
@@ -175,6 +177,7 @@ an operator can see what is archived.
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
+| `docs/daily-digest.md` | Automated Self-Repairing Daily Digest | `living` | `operator, builder` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
@@ -320,6 +323,7 @@ an operator can see what is archived.
 | `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `living` | `builder, analyst, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/continuous-loop-operator.md` | Continuous-loop operator (disabled by default) | `living` | `operator, runner` |
+| `docs/daily-digest.md` | Automated Self-Repairing Daily Digest | `living` | `operator, builder` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |

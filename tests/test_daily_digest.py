@@ -245,23 +245,28 @@ def test_graceful_degradation_when_gh_fails_or_repo_b_absent(test_env):
     assert "unavailable: gh CLI unavailable or not authenticated" in content
 
 
-def test_self_repair_and_backfill_logic(test_env):
+def test_filesystem_source_of_truth_self_repair_midspan_missing(test_env):
+    """Test that missing mid-span digest files are regenerated when watermark is current."""
     repo_a = test_env["repo_a"]
     output_dir = test_env["output_dir"]
     watermark_path = test_env["watermark"]
 
-    # Write an older watermark date
+    # Pre-populate digest files 2026-08-25 through 2026-08-31, but with 28, 29, 30 missing
+    (output_dir / "2026-08-25.md").write_text("dummy 25", encoding="utf-8")
+    (output_dir / "2026-08-26.md").write_text("dummy 26", encoding="utf-8")
+    (output_dir / "2026-08-27.md").write_text("dummy 27", encoding="utf-8")
+    (output_dir / "2026-08-31.md").write_text("dummy 31", encoding="utf-8")
+
+    # Set watermark current at 2026-08-31
     watermark_path.parent.mkdir(parents=True, exist_ok=True)
     watermark_path.write_text(
-        json.dumps({"last_successful_digest_date": "2026-08-28", "generated_dates": ["2026-08-28"]}),
+        json.dumps({"last_successful_digest_date": "2026-08-31"}),
         encoding="utf-8",
     )
 
-    watermark_date = daily_digest.get_watermark(watermark_path, output_dir)
-    assert watermark_date == "2026-08-28"
-
-    dates = daily_digest.determine_date_range(watermark_date, "2026-08-31", backfill=False)
-    assert dates == ["2026-08-29", "2026-08-30", "2026-08-31"]
+    # Determine dates to generate for target 2026-08-31
+    dates = daily_digest.determine_dates_to_generate(output_dir, "2026-08-31")
+    assert dates == ["2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"]
 
     with (
         patch("daily_digest.query_git_head_sha", return_value=("abcdef0", None)),
@@ -276,29 +281,21 @@ def test_self_repair_and_backfill_logic(test_env):
         ])
 
     assert exit_code == 0
+    assert (output_dir / "2026-08-28.md").exists()
     assert (output_dir / "2026-08-29.md").exists()
     assert (output_dir / "2026-08-30.md").exists()
     assert (output_dir / "2026-08-31.md").exists()
 
-    updated_state = json.loads(watermark_path.read_text(encoding="utf-8"))
-    assert updated_state["last_successful_digest_date"] == "2026-08-31"
-    assert set(updated_state["generated_dates"]) >= {"2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"}
 
-
-def test_discover_watermark_from_existing_digests(test_env):
+def test_discover_digest_dates_on_disk(test_env):
     output_dir = test_env["output_dir"]
-    watermark_path = test_env["watermark"]
 
-    # Pre-populate some digest files without state file
     (output_dir / "2026-08-14.md").write_text("dummy", encoding="utf-8")
     (output_dir / "2026-08-16.md").write_text("dummy", encoding="utf-8")
     (output_dir / "2026-08-15.md").write_text("dummy", encoding="utf-8")
 
-    discovered = daily_digest.get_watermark(watermark_path, output_dir)
-    assert discovered == "2026-08-16"
-
-    dates = daily_digest.determine_date_range(discovered, "2026-08-18")
-    assert dates == ["2026-08-17", "2026-08-18"]
+    discovered = daily_digest.discover_digest_dates_on_disk(output_dir)
+    assert discovered == ["2026-08-14", "2026-08-15", "2026-08-16"]
 
 
 def test_cli_argument_handling(test_env):

@@ -3,7 +3,7 @@
 
 Generates daily markdown digests for the eval-lab and research context repos,
 recording git commit snapshot, GitHub PR health, and newly created/modified research documents.
-Self-repairs missing digest dates using runs/digest-state.json watermark.
+Self-repairs missing digest dates using the filesystem as the source of truth.
 """
 
 from __future__ import annotations
@@ -491,67 +491,66 @@ def render_digest_content(
     return "\n".join(lines)
 
 
-def get_watermark(watermark_path: Path, digests_dir: Path) -> str | None:
-    """Read last successful digest date from watermark state or discover latest existing digest."""
-    if watermark_path.is_file():
-        try:
-            data = json.loads(watermark_path.read_text(encoding="utf-8"))
-            last_date = data.get("last_successful_digest_date")
-            if last_date and re.match(r"^\d{4}-\d{2}-\d{2}$", str(last_date)):
-                return str(last_date)
-        except Exception:
-            pass
-
-    # Discover latest date from digests/*.md
-    if digests_dir.is_dir():
-        dates: list[str] = []
-        for file in digests_dir.glob("*.md"):
-            m = re.match(r"^(\d{4}-\d{2}-\d{2})\.md$", file.name)
-            if m:
-                dates.append(m.group(1))
-        if dates:
-            dates.sort()
-            return dates[-1]
-
-    return None
+def discover_digest_dates_on_disk(digests_dir: Path) -> list[str]:
+    """Discover existing digest dates formatted as YYYY-MM-DD from digests/*.md."""
+    if not digests_dir.is_dir():
+        return []
+    dates: list[str] = []
+    for file in digests_dir.glob("*.md"):
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})\.md$", file.name)
+        if m:
+            dates.append(m.group(1))
+    dates.sort()
+    return dates
 
 
-def determine_date_range(
-    watermark_date: str | None,
+def determine_dates_to_generate(
+    digests_dir: Path,
     target_date: str,
-    backfill: bool = False,
 ) -> list[str]:
-    """Compute list of dates to generate in chronological order."""
+    """Compute list of dates to generate or self-repair using filesystem as source of truth.
+
+    Scans the span [floor..target_date] where floor is the earliest existing digest date.
+    Any missing digest file in this span is queued for generation.
+    target_date is always included.
+    """
     target_dt = datetime.datetime.strptime(target_date, "%Y-%m-%d").date()
-    if watermark_date:
-        watermark_dt = datetime.datetime.strptime(watermark_date, "%Y-%m-%d").date()
-        start_dt = watermark_dt + datetime.timedelta(days=1)
-        if start_dt <= target_dt:
-            dates: list[str] = []
-            curr = start_dt
-            while curr <= target_dt:
-                dates.append(curr.strftime("%Y-%m-%d"))
-                curr += datetime.timedelta(days=1)
-            return dates
-    return [target_date]
+    existing_dates = set(discover_digest_dates_on_disk(digests_dir))
+
+    # Find earliest existing date as floor
+    if existing_dates:
+        earliest_str = sorted(list(existing_dates))[0]
+        floor_dt = datetime.datetime.strptime(earliest_str, "%Y-%m-%d").date()
+    else:
+        floor_dt = target_dt
+
+    if floor_dt > target_dt:
+        floor_dt = target_dt
+
+    # Scan entire span [floor_dt .. target_dt] for missing files
+    dates_to_gen: list[str] = []
+    curr = floor_dt
+    while curr <= target_dt:
+        d_str = curr.strftime("%Y-%m-%d")
+        digest_file = digests_dir / f"{d_str}.md"
+        # Always generate target_date or any missing day in the span
+        if curr == target_dt or not digest_file.is_file():
+            dates_to_gen.append(d_str)
+        curr += datetime.timedelta(days=1)
+
+    if not dates_to_gen:
+        dates_to_gen = [target_date]
+
+    return sorted(list(set(dates_to_gen)))
 
 
-def update_watermark(watermark_path: Path, last_date: str, generated_dates: list[str]) -> None:
-    """Update watermark JSON state file."""
+def update_watermark(watermark_path: Path, last_date: str) -> None:
+    """Update watermark JSON state file with the latest target date."""
     watermark_path.parent.mkdir(parents=True, exist_ok=True)
-    state: dict[str, Any] = {}
-    if watermark_path.is_file():
-        try:
-            state = json.loads(watermark_path.read_text(encoding="utf-8"))
-        except Exception:
-            state = {}
-
-    existing_generated = set(state.get("generated_dates", []))
-    existing_generated.update(generated_dates)
-
-    state["last_successful_digest_date"] = last_date
-    state["generated_dates"] = sorted(list(existing_generated))
-
+    state = {
+        "last_successful_digest_date": last_date,
+        "note": "Filesystem digests/*.md is the primary source of truth; this watermark records the latest target date.",
+    }
     watermark_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
 
@@ -610,7 +609,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--backfill",
         action="store_true",
-        help="Backfill missing digest dates from watermark to target date.",
+        help="Force backfill check across all dates from floor to target date.",
     )
     parser.add_argument(
         "--vault-root",
@@ -670,16 +669,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: Invalid date format '{target_date}', expected YYYY-MM-DD", file=sys.stderr)
         return 1
 
-    watermark_date = get_watermark(watermark_path, output_dir)
-    dates_to_generate = determine_date_range(watermark_date, target_date, args.backfill)
+    dates_to_generate = determine_dates_to_generate(
+        digests_dir=output_dir,
+        target_date=target_date,
+    )
 
-    generated: list[str] = []
     for d in dates_to_generate:
         out_file = generate_single_digest(d, repo_a, repo_b, output_dir, vault_root=vault_root)
         print(f"Generated digest: {out_file}")
-        generated.append(d)
 
-    update_watermark(watermark_path, target_date, generated)
+    update_watermark(watermark_path, target_date)
     return 0
 
 

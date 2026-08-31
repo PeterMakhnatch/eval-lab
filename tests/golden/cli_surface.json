@@ -3246,20 +3246,6 @@
         "type": "Path"
       },
       {
-        "action": "_StoreTrueAction",
-        "choices": null,
-        "default": false,
-        "dest": "no_cas",
-        "flags": [
-          "--no-cas"
-        ],
-        "help": "project without archiving the raw log",
-        "metavar": null,
-        "nargs": 0,
-        "required": false,
-        "type": null
-      },
-      {
         "action": "_StoreAction",
         "choices": null,
         "default": "derived/evidence-cas",

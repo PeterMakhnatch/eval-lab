@@ -438,7 +438,14 @@ class ParityBinding(ContractModel):
     def _validate_and_compute_binding(cls, data: Any) -> Any:
         if isinstance(data, dict):
             raw_lanes = data.get("expected_lanes", (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR))
-            lanes_tuple = tuple(RunnerKind(r) if isinstance(r, str) else r for r in raw_lanes)
+            if len(raw_lanes) != 2:
+                raise ValueError(
+                    f"expected_lanes must contain exactly two lanes, got {raw_lanes!r}"
+                )
+            lanes_tuple: tuple[RunnerKind, RunnerKind] = (
+                RunnerKind(raw_lanes[0]),
+                RunnerKind(raw_lanes[1]),
+            )
             if lanes_tuple != (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR):
                 raise ValueError(
                     f"expected_lanes must be (RunnerKind.HARBOR, RunnerKind.INSPECT_HARBOR), got {lanes_tuple!r}"

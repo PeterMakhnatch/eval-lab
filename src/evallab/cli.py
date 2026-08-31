@@ -994,12 +994,12 @@ def _ingest_command(
 def _inspect_ingest_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    """Archive and project one Inspect AI EvalLog into the shared evidence spine."""
+    """Archive and project one Inspect AI EvalLog into source evidence tables."""
     from evallab.inspect_adapter import ingest_inspect_eval_log
 
     log_path = _resolve(root, args.log)
     derived_root = derived_root_from_environment(root, explicit=args.derived_dir)
-    store_root = None if args.no_cas else _resolve(root, args.store)
+    store_root = _resolve(root, args.store)
     result = ingest_inspect_eval_log(
         log_path,
         output_root=derived_root,
@@ -1007,29 +1007,26 @@ def _inspect_ingest_command(
     )
     summary = {
         "job_id": result.projection.run.job_id,
+        "identity_source": result.projection.run.identity_source,
         "status": result.projection.run.status,
         "samples": result.projection.run.sample_count,
         "attempts": len(result.projection.attempts),
         "scores": len(result.projection.scores),
         "events": len(result.projection.events),
-        "steps": len(result.projection.trajectories.steps),
-        "tool_calls": len(result.projection.trajectories.tool_calls),
-        "observations": len(result.projection.trajectories.observations),
+        "attachments": len(result.projection.attachments),
         "raw_cas_uri": result.raw_cas_uri,
         "tables": {name: str(path) for name, path in sorted(result.table_paths.items())},
     }
     if args.json:
         print(json.dumps(summary, indent=2, sort_keys=True))
     else:
-        print(f"inspect job: {summary['job_id']}")
+        print(f"inspect job: {summary['job_id']} (identity: {summary['identity_source']})")
         print(f"samples: {summary['samples']}; attempts: {summary['attempts']}")
         print(
-            f"events: {summary['events']}; steps: {summary['steps']}; "
-            f"tool calls: {summary['tool_calls']}"
+            f"events: {summary['events']}; scores: {summary['scores']}; "
+            f"attachments: {summary['attachments']}"
         )
-        print(f"scores: {summary['scores']}; observations: {summary['observations']}")
-        if result.raw_cas_uri:
-            print(f"raw log CAS: {result.raw_cas_uri}")
+        print(f"raw log CAS: {result.raw_cas_uri}")
     return 0
 
 
@@ -3733,11 +3730,6 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("derived/evidence-cas"),
         help="CAS root for the raw Inspect log",
-    )
-    inspect_ingest.add_argument(
-        "--no-cas",
-        action="store_true",
-        help="project without archiving the raw log",
     )
     inspect_ingest.add_argument("--json", action="store_true")
     inspect_ingest.set_defaults(func=_inspect_ingest_command)

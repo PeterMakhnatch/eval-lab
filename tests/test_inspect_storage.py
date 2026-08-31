@@ -165,6 +165,7 @@ def test_write_inspect_projection_writes_only_source_tables_in_job_partition(
 
 
 def test_ingest_inspect_eval_log_with_official_eval_and_cas_restoration(tmp_path: Path) -> None:
+    pytest.importorskip("inspect_ai", reason="optional Inspect dependency group is not installed")
     import inspect_ai.log as inspect_log
     from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
     from inspect_ai.scorer import Score

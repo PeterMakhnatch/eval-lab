@@ -414,6 +414,7 @@ def test_scores_authority_defaults_to_non_decision() -> None:
 
 
 def test_cli_ingest_requires_cas_with_eval_file(tmp_path: Path, capsys) -> None:
+    pytest.importorskip("inspect_ai", reason="optional Inspect dependency group is not installed")
     import inspect_ai.log as inspect_log
     from inspect_ai.model import ChatMessageUser
     from inspect_ai.scorer import Score

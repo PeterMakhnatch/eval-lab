@@ -5,6 +5,7 @@ import json
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -1614,3 +1615,74 @@ def test_promotion_refuses_caller_source_metadata_mismatches(
     assert error_match in err
     registry = TaskRegistry.from_repo(repo)
     assert registry.get("uppercase-fixture") is None
+
+
+@pytest.mark.parametrize(
+    ("mutate_cand", "expected_error"),
+    [
+        (
+            lambda c: c.update({"source": "non-object"}),
+            "candidate source metadata must be an object",
+        ),
+        (lambda c: c["source"].pop("source_uri"), "candidate source_uri is missing or invalid"),
+        (lambda c: c["source"].pop("source_ref"), "candidate source_ref is missing or invalid"),
+        (lambda c: c["source"].pop("license"), "candidate license is missing or invalid"),
+        (
+            lambda c: c["source"].update({"provenance_zone": "99-bogus"}),
+            "candidate provenance_zone '99-bogus' is invalid",
+        ),
+        (
+            lambda c: c["source"].update({"external_import_lineage": {"bad": 123}}),
+            "candidate external import lineage is invalid",
+        ),
+    ],
+)
+def test_promotion_refuses_missing_or_malformed_candidate_source(
+    tmp_path: Path,
+    mutate_cand: Any,
+    expected_error: str,
+) -> None:
+    """Packet-backed promotion requires strict authoritative candidate source fields."""
+    from evallab.registry import TaskCertificationError, promote_task
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    cert_path = repo / cert_rel
+    cand_file = cert_path.parent / "candidate.json"
+    cand = json.loads(cand_file.read_text())
+    mutate_cand(cand)
+    cand_file.write_text(json.dumps(cand, indent=2))
+
+    with pytest.raises(TaskCertificationError, match=expected_error):
+        promote_task(
+            task_path=task_dir.relative_to(repo).as_posix(),
+            repo_root=repo,
+            task_family="uppercase-fixture",
+            certification_path=cert_rel,
+        )
+
+
+def test_promotion_refuses_explicit_lineage_when_candidate_packet_has_none(tmp_path: Path) -> None:
+    """Explicit lineage passed to promote_task when candidate source has no lineage must fail."""
+    from test_task_workbench import _external_source
+
+    from evallab.registry import TaskCertificationError, promote_task
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    _, valid_lineage, _ = _external_source(repo, task_dir)
+    cert_path = repo / cert_rel
+    cand_file = cert_path.parent / "candidate.json"
+    cand = json.loads(cand_file.read_text())
+    cand["source"].pop("external_import_lineage", None)
+    cand_file.write_text(json.dumps(cand, indent=2))
+
+    with pytest.raises(
+        TaskCertificationError,
+        match="promotion lineage provided but candidate packet has no lineage",
+    ):
+        promote_task(
+            task_path=task_dir.relative_to(repo).as_posix(),
+            repo_root=repo,
+            task_family="uppercase-fixture",
+            certification_path=cert_rel,
+            external_import_lineage=valid_lineage,
+        )

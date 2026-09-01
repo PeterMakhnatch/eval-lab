@@ -1112,87 +1112,106 @@ def promote_task(
             if not Path(certification_path).is_absolute()
             else Path(certification_path).resolve()
         )
+        if not cert_p.is_file():
+            raise TaskCertificationError(f"certification packet not found: {certification_path}")
         cand_p = cert_p.parent / "candidate.json"
-        if cand_p.is_file():
+        if not cand_p.is_file():
+            raise TaskCertificationError(
+                f"candidate.json not found in certification packet directory: {cert_p.parent}"
+            )
+        try:
+            c_data = json.loads(cand_p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise TaskCertificationError(f"candidate.json is not valid UTF-8 JSON: {exc}") from exc
+        if not isinstance(c_data, dict):
+            raise TaskCertificationError("candidate.json must contain a JSON object")
+
+        cand_source = c_data.get("source")
+        if not isinstance(cand_source, dict):
+            raise TaskCertificationError("candidate source metadata must be an object")
+
+        cand_uri = cand_source.get("source_uri")
+        cand_ref = cand_source.get("source_ref")
+        cand_lic = cand_source.get("license")
+        cand_zone = cand_source.get("provenance_zone")
+        cand_raw_lin = cand_source.get("external_import_lineage")
+
+        # Validate typed required fields from candidate source
+        if not isinstance(cand_uri, str) or not cand_uri.strip():
+            raise TaskCertificationError("candidate source_uri is missing or invalid")
+        if not isinstance(cand_ref, str) or not cand_ref.strip():
+            raise TaskCertificationError("candidate source_ref is missing or invalid")
+        if not isinstance(cand_lic, str) or not cand_lic.strip():
+            raise TaskCertificationError("candidate license is missing or invalid")
+        if cand_zone not in ("01-external", "02-local-evidence", "03-synthetic", "04-curated"):
+            raise TaskCertificationError(f"candidate provenance_zone {cand_zone!r} is invalid")
+
+        cand_lin_obj: ExternalImportLineageV1 | None = None
+        if cand_raw_lin is not None:
             try:
-                c_data = json.loads(cand_p.read_text(encoding="utf-8"))
-                cand_source = c_data.get("source", {})
-                if cand_source:
-                    cand_uri = cand_source.get("source_uri")
-                    cand_ref = cand_source.get("source_ref")
-                    cand_lic = cand_source.get("license")
-                    cand_zone = cand_source.get("provenance_zone")
-                    cand_raw_lin = cand_source.get("external_import_lineage")
+                cand_lin_obj = ExternalImportLineageV1.model_validate(cand_raw_lin)
+            except ValidationError as exc:
+                raise TaskCertificationError(
+                    f"candidate external import lineage is invalid: {exc}"
+                ) from exc
 
-                    # B2: Exact equality assertions when caller explicitly supplies values
-                    if source_uri is not None and cand_uri is not None and source_uri != cand_uri:
-                        raise TaskCertificationError(
-                            f"promotion source_uri '{source_uri}' does not match candidate source_uri '{cand_uri}'"
-                        )
-                    if source_ref is not None and cand_ref is not None and source_ref != cand_ref:
-                        raise TaskCertificationError(
-                            f"promotion source_ref '{source_ref}' does not match candidate source_ref '{cand_ref}'"
-                        )
-                    if license_str is not None and cand_lic is not None and license_str != cand_lic:
-                        raise TaskCertificationError(
-                            f"promotion license '{license_str}' does not match candidate license '{cand_lic}'"
-                        )
-                    if (
-                        provenance_zone is not None
-                        and cand_zone is not None
-                        and provenance_zone != cand_zone
-                    ):
-                        raise TaskCertificationError(
-                            f"promotion provenance_zone '{provenance_zone}' does not match candidate provenance_zone '{cand_zone}'"
-                        )
-                    if external_import_lineage is not None and cand_raw_lin is not None:
-                        cand_lin_obj = ExternalImportLineageV1.model_validate(cand_raw_lin)
-                        if external_import_lineage != cand_lin_obj:
-                            raise TaskCertificationError(
-                                "promotion lineage does not match candidate source metadata"
-                            )
+        # B2: Exact equality assertions when caller explicitly supplies values
+        if source_uri is not None and source_uri != cand_uri:
+            raise TaskCertificationError(
+                f"promotion source_uri '{source_uri}' does not match candidate source_uri '{cand_uri}'"
+            )
+        if source_ref is not None and source_ref != cand_ref:
+            raise TaskCertificationError(
+                f"promotion source_ref '{source_ref}' does not match candidate source_ref '{cand_ref}'"
+            )
+        if license_str is not None and license_str != cand_lic:
+            raise TaskCertificationError(
+                f"promotion license '{license_str}' does not match candidate license '{cand_lic}'"
+            )
+        if provenance_zone is not None and provenance_zone != cand_zone:
+            raise TaskCertificationError(
+                f"promotion provenance_zone '{provenance_zone}' does not match candidate provenance_zone '{cand_zone}'"
+            )
+        if external_import_lineage is not None:
+            if cand_lin_obj is None:
+                raise TaskCertificationError(
+                    "promotion lineage provided but candidate packet has no lineage"
+                )
+            if external_import_lineage != cand_lin_obj:
+                raise TaskCertificationError(
+                    "promotion lineage does not match candidate source metadata"
+                )
 
-                    # Derive missing caller fields from candidate source
-                    if source_uri is None:
-                        source_uri = cand_uri
-                    if source_ref is None:
-                        source_ref = cand_ref
-                    if license_str is None:
-                        license_str = cand_lic
-                    if provenance_zone is None:
-                        provenance_zone = cand_zone
-                    if external_import_lineage is None and cand_raw_lin is not None:
-                        external_import_lineage = ExternalImportLineageV1.model_validate(
-                            cand_raw_lin
-                        )
-            except TaskCertificationError:
-                raise
-            except Exception:
-                pass
+        # Derive missing caller fields from candidate source authority
+        source_uri = cand_uri
+        source_ref = cand_ref
+        license_str = cand_lic
+        provenance_zone = cand_zone
+        external_import_lineage = cand_lin_obj
+    else:
+        # Non-packet-backed defaults for development / local promotion without certification
+        if provenance_zone is None:
+            if rel_task_path.startswith("library/benchmarks/"):
+                provenance_zone = "01-external"
+            elif rel_task_path.startswith("library/synthetic/"):
+                provenance_zone = "03-synthetic"
+            elif rel_task_path.startswith("library/curated/"):
+                provenance_zone = "04-curated"
+            else:
+                provenance_zone = "02-local-evidence"
 
-    # Inferred defaults for values not set by caller or candidate packet
-    if provenance_zone is None:
-        if rel_task_path.startswith("library/benchmarks/"):
-            provenance_zone = "01-external"
-        elif rel_task_path.startswith("library/synthetic/"):
-            provenance_zone = "03-synthetic"
-        elif rel_task_path.startswith("library/curated/"):
-            provenance_zone = "04-curated"
-        else:
-            provenance_zone = "02-local-evidence"
+        if license_str is None:
+            license_str = meta_table.get("license") or toml_data.get("license")
+            if not license_str and (target_path / "LICENSE").is_file():
+                license_str = "custom"
+            if not license_str and provenance_zone == "02-local-evidence":
+                license_str = "MIT"
+
+        if source_uri is None:
+            source_uri = f"local/{task_id}@{version}"
 
     if is_synthetic is None:
         is_synthetic = provenance_zone == "03-synthetic"
-
-    if license_str is None:
-        license_str = meta_table.get("license") or toml_data.get("license")
-        if not license_str and (target_path / "LICENSE").is_file():
-            license_str = "custom"
-        if not license_str and provenance_zone == "02-local-evidence":
-            license_str = "MIT"
-
-    if source_uri is None:
-        source_uri = f"local/{task_id}@{version}"
 
     if timeout_seconds is None:
         ver_timeout = float(ver_table.get("timeout_sec", 60.0))

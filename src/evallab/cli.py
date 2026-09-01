@@ -2790,8 +2790,28 @@ def _registry_promote_command(
         if getattr(args, "register", False) or args.state == "registered"
         else "candidate"
     )
-    if state == "registered" and not args.actor:
+    stage_controls = bool(getattr(args, "stage_controls", False))
+    certification_packet = getattr(args, "certification_packet", None)
+    if stage_controls and args.state != "registered":
+        print(
+            "error: --stage-controls requires --state registered",
+            file=sys.stderr,
+        )
+        return 1
+    if stage_controls and getattr(args, "register", False):
+        print(
+            "error: --stage-controls cannot be combined with --register",
+            file=sys.stderr,
+        )
+        return 1
+    if state == "registered" and (not args.actor or not args.actor.strip()):
         print("error: registering a task record requires --actor", file=sys.stderr)
+        return 1
+    if stage_controls and (certification_packet is None or not str(certification_packet).strip()):
+        print(
+            "error: --stage-controls requires --certification-packet",
+            file=sys.stderr,
+        )
         return 1
 
     try:
@@ -2815,7 +2835,8 @@ def _registry_promote_command(
             state=state,
             actor=args.actor,
             jobs_roots=jobs_roots,
-            certification_path=getattr(args, "certification_packet", None),
+            certification_path=certification_packet,
+            stage_controls=stage_controls,
         )
     except (RegistryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -2824,7 +2845,11 @@ def _registry_promote_command(
     if args.json:
         print(json.dumps(record.model_dump(mode="json"), indent=2))
     else:
-        print(f"promoted: {record.task_id}@{record.version} (state: {record.state})")
+        if stage_controls:
+            print(f"staged control-pending registered revision: {record.task_id}@{record.version}")
+            print("  state:    registered (control evidence pending; measurement unavailable)")
+        else:
+            print(f"promoted: {record.task_id}@{record.version} (state: {record.state})")
         print(f"  path:     {record.task_path}")
         print(f"  package:  {record.digests.package}")
         evidence = record.control_evidence
@@ -4875,6 +4900,14 @@ def parser() -> argparse.ArgumentParser:
         "--register",
         action="store_true",
         help="Register task immediately (requires --actor)",
+    )
+    registry_promote.add_argument(
+        "--stage-controls",
+        action="store_true",
+        help=(
+            "Persist a bound registered revision pending strict oracle/nop controls; "
+            "requires --state registered, --actor, and --certification-packet"
+        ),
     )
     registry_promote.add_argument(
         "--jobs-dir",

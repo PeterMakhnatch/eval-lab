@@ -1646,6 +1646,158 @@ def _make_fully_admitted_registered_record(
     return repo, task_dir, cert_rel, admitted
 
 
+def test_cli_registry_stage_controls_rejects_invalid_combinations_before_persistence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from evallab.cli import run_cli
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    command = [
+        "registry",
+        "promote",
+        task_dir.relative_to(repo).as_posix(),
+        "--task-family",
+        "uppercase-fixture",
+    ]
+    cases = [
+        (
+            [
+                "--stage-controls",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "--stage-controls requires --state registered",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--state",
+                "registered",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "requires --actor",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--state",
+                "registered",
+                "--actor",
+                "   ",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "requires --actor",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+            ],
+            "--stage-controls requires --certification-packet",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--register",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "--stage-controls cannot be combined with --register",
+        ),
+    ]
+
+    record_path = repo / "library/registry/uppercase-fixture.json"
+    for arguments, expected_error in cases:
+        assert run_cli([*command, *arguments], workspace=repo) == 1
+        _, error = capsys.readouterr()
+        assert expected_error in error
+        assert not record_path.exists()
+
+
+def test_cli_registry_stage_controls_persists_pending_registered_revision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from evallab.cli import run_cli
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    assert (
+        run_cli(
+            [
+                "registry",
+                "promote",
+                task_dir.relative_to(repo).as_posix(),
+                "--task-family",
+                "uppercase-fixture",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+                "--stage-controls",
+            ],
+            workspace=repo,
+        )
+        == 0
+    )
+    output, error = capsys.readouterr()
+    assert error == ""
+    assert "staged control-pending registered revision: uppercase-fixture@1.0.0" in output
+    assert "control evidence pending; measurement unavailable" in output
+
+    staged = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert staged is not None
+    assert staged.state == "registered"
+    assert staged.state_reason == "control_evidence_pending"
+    assert staged.allowed_uses == ["canary"]
+    assert staged.control_evidence is None
+    assert staged.approved_by == "admission-reviewer"
+    assert staged.certification.state == "bound"
+    assert staged.certification.workbench_version == "m049-v2"
+    assert staged.approved_at is not None
+    staged_identity = task_runtime_identity(staged)
+    assert staged_identity.registry_record_digest.startswith("sha256:")
+    assert staged_identity.certified_runtime_package_digest == staged.digests.package
+    assert staged_identity.registry_admission_state == "registered"
+
+    registry = TaskRegistry.from_repo(repo)
+    measurement = ExperimentSpec(
+        name="pending-measurement",
+        hypothesis="Pending controls cannot authorize measurement",
+        purpose="practice",
+        task="registered/uppercase-fixture",
+        agent="codex",
+        submitted_by="test",
+    )
+    with pytest.raises(TaskUsageNotAllowedError, match="only baseline oracle/nop controls"):
+        registry.resolve_spec(measurement, repo)
+
+    for agent in ("oracle", "nop"):
+        baseline = ExperimentSpec(
+            name=f"pending-{agent}",
+            hypothesis="Strict controls bootstrap the registered revision",
+            purpose="baseline",
+            task="registered/uppercase-fixture",
+            agent=agent,
+            submitted_by="test",
+        )
+        assert registry.resolve_spec(baseline, repo) == staged
+        assert baseline.task_path == staged.task_path
+
+
 def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> None:
     repo, task_dir, cert_rel, admitted = _make_fully_admitted_registered_record(tmp_path)
     reg = TaskRegistry.from_repo(repo)
@@ -1828,64 +1980,67 @@ def test_cli_registry_promote_external_task_with_lineage(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The real CLI promote path promotes m049-v2 external packet, carrying lineage from candidate source."""
-    import sys
-
+    """The public CLI stages and finalizes an external m049-v2 revision."""
     from evallab.cli import run_cli
 
-    test_dir = str(Path(__file__).resolve().parent)
-    if test_dir not in sys.path:
-        sys.path.insert(0, test_dir)
-    from test_task_workbench import FixtureBackend, _copy_candidate, _external_source
-
-    from evallab.task_workbench import (
-        check_candidate,
-        inspect_candidate,
-        run_controls,
-        write_packet,
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    task_path = task_dir.relative_to(repo).as_posix()
+    assert (
+        run_cli(
+            [
+                "registry",
+                "promote",
+                task_path,
+                "--task-family",
+                "uppercase-fixture",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+                "--stage-controls",
+                "--json",
+            ],
+            workspace=repo,
+        )
+        == 0
     )
+    staged_output = json.loads(capsys.readouterr().out)
+    assert staged_output["state"] == "registered"
+    assert staged_output["state_reason"] == "control_evidence_pending"
+    assert staged_output["allowed_uses"] == ["canary"]
+    assert staged_output["control_evidence"] is None
 
-    repo, task_dir = _copy_candidate(tmp_path)
-    source, lineage, rec_path = _external_source(repo, task_dir)
-    inspection = inspect_candidate(repo_root=repo, task_path=task_dir, source=source)
-    bundle = run_controls(
-        inspection=inspection, repo_root=repo, task_path=task_dir, backend=FixtureBackend()
-    )
-    report = check_candidate(inspection, bundle, repo_root=repo)
-    cand_path, cert_path = write_packet(repo_root=repo, report=report)
-
-    staged = promote_task(
-        task_dir,
-        repo,
-        task_id="uppercase-fixture",
-        task_family="uppercase-fixture",
-        state="registered",
-        actor="admission-reviewer",
-        approved_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
-        certification_path=cert_path.relative_to(repo).as_posix(),
-        stage_controls=True,
-    )
+    staged = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert staged is not None
+    staged_identity = task_runtime_identity(staged)
     _run_causal_control_job(repo, task_dir, staged, "oracle", 1.0)
     _run_causal_control_job(repo, task_dir, staged, "nop", 0.0)
 
-    exit_code = run_cli(
-        [
-            "registry",
-            "promote",
-            task_dir.relative_to(repo).as_posix(),
-            "--task-family",
-            "uppercase-fixture",
-            "--state",
-            "registered",
-            "--actor",
-            "admission-reviewer",
-            "--json",
-        ],
-        workspace=repo,
+    assert (
+        run_cli(
+            [
+                "registry",
+                "promote",
+                task_path,
+                "--task-family",
+                "uppercase-fixture",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--json",
+            ],
+            workspace=repo,
+        )
+        == 0
     )
-    assert exit_code == 0
     out = json.loads(capsys.readouterr().out)
     assert out["task_id"] == "uppercase-fixture"
+    assert out["state"] == "registered"
+    assert out["state_reason"] is None
+    assert out["control_evidence"] is not None
     assert out["external_import_lineage"] is not None
     assert out["external_import_lineage"]["source_task_id"] == "upstream/uppercase-fixture"
     assert out["certification"]["workbench_version"] == "m049-v2"
@@ -1894,11 +2049,9 @@ def test_cli_registry_promote_external_task_with_lineage(
     assert out["license"] == "MIT"
     assert out["provenance_zone"] == "01-external"
 
-    # Reload from registry and verify
-    registry = TaskRegistry.from_repo(repo)
-    record = registry.get("uppercase-fixture")
+    record = TaskRegistry.from_repo(repo).get("uppercase-fixture")
     assert record is not None
-    assert record.external_import_lineage is not None
+    assert task_runtime_identity(record) == staged_identity
     verify_certification_packet(repo, record)
 
 

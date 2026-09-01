@@ -1074,9 +1074,12 @@ def _run_command(
         timeout_seconds=args.timeout_seconds,
         allow_billable=args.allow_billable,
     )
-    job_dir = Executor.from_repo(root).execute_direct(request)
-    print(f"completed: {job_dir}")
-    _print_summary([load_job(job_dir)])
+    from evallab.evidence_store import materialize_evidence
+
+    settled = Executor.from_repo(root).execute_direct(request)
+    print(f"completed: {settled.cas_record.uri}")
+    with materialize_evidence(settled.cas_locator) as restored_job:
+        _print_summary([load_job(restored_job)])
     return 0
 
 
@@ -1094,7 +1097,11 @@ def _matrix_command(
         if args.reuse_existing and job_dir.is_dir():
             job = load_job(job_dir)
         else:
-            job = load_job(executor.execute_direct(request))
+            from evallab.evidence_store import materialize_evidence
+
+            settled = executor.execute_direct(request)
+            with materialize_evidence(settled.cas_locator) as restored_job:
+                job = load_job(restored_job)
         completed.append(job)
         expected = expected_primary_reward(run)
         if expected is not None:
@@ -2405,11 +2412,10 @@ def _evidence_archive_command(
     payload = {
         "record_id": archive.record_id,
         "kind": archive.kind,
+        "record_digest": archive.record_digest,
         "uri": archive.uri,
         "content_digest": archive.content_digest,
         "archive_digest": archive.archive_digest,
-        "blob_path": str(archive.blob_path),
-        "manifest_path": str(archive.manifest_path),
         "file_count": archive.file_count,
         "uncompressed_bytes": archive.uncompressed_bytes,
     }

@@ -6,7 +6,7 @@ import math
 import posixpath
 import re
 from datetime import date, datetime
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal, cast, get_args
 from uuid import UUID
 
@@ -1071,6 +1071,32 @@ class QueueEvent(ContractModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    cas_store_root: str | None = None
+    cas_record_kind: str | None = None
+    cas_record_id: str | None = None
+    cas_record_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    cas_content_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def cas_locator_is_complete(self) -> QueueEvent:
+        locator = (
+            self.cas_store_root,
+            self.cas_record_kind,
+            self.cas_record_id,
+            self.cas_record_digest,
+            self.cas_content_digest,
+        )
+        if any(value is not None for value in locator) and any(value is None for value in locator):
+            raise ValueError("queue CAS locator fields must be all present or all absent")
+        if self.cas_store_root is not None and not Path(self.cas_store_root).is_absolute():
+            raise ValueError("queue CAS store root must be absolute")
+        return self
 
 
 class QueueReason(ContractModel):

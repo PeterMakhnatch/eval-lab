@@ -15,9 +15,16 @@ from evallab.evidence.atif import (
     project_jobs,
 )
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
-from evallab.queue import DirectoryQueue, Executor, load_policy, new_ulid
+from evallab.evidence_store import (
+    EvidenceLocator,
+    archive_evidence,
+    evidence_locator,
+    materialize_evidence,
+    materialize_evidence_at,
+)
+from evallab.queue import DirectoryQueue, Executor, load_events, load_policy, new_ulid
 from evallab.results import JobRecord, load_job
-from evallab.runner import RunRequest, database_url_from_environment
+from evallab.runner import RunRequest, SettledRun, database_url_from_environment
 from evallab.schemas import (
     CanaryDriftObservation,
     ExperimentSpec,
@@ -65,10 +72,21 @@ def _docker_free_report(report_date: date) -> HeadlessDoctorReport:
 def _copy_fixture_runner(repo_root: Path):
     source = (repo_root / FIXTURE_JOB).resolve()
 
-    def run(request: RunRequest) -> Path:
+    def run(request: RunRequest) -> SettledRun:
         destination = request.jobs_dir / request.name
         shutil.copytree(source, destination)
-        return destination
+        store_root = repo_root / "derived/run-cas"
+        archive = archive_evidence(
+            destination,
+            store_root=store_root,
+            kind="job",
+            record_id=request.name,
+        )
+        shutil.rmtree(destination)
+        return SettledRun(
+            cas_locator=evidence_locator(store_root, archive),
+            cas_record=archive,
+        )
 
     return run
 
@@ -167,28 +185,25 @@ def run_smoke(
     relative_scratch = Path("runs/_smoke") / job_name
     scratch = root / relative_scratch
     queue = DirectoryQueue(scratch / "queue")
-    derived_root = (
-        scratch / "parquet" if docker_free else derived_root_from_environment(root)
-    )
+    derived_root = scratch / "parquet" if docker_free else derived_root_from_environment(root)
     target_date = report_date or date.today()
 
     if docker_free:
         report = _docker_free_report(target_date)
         catalog_rows: list[tuple[str, str, str | None]] = []
 
-        def ingest(job_dir: Path) -> IngestProjectionResult:
-            job = load_job(job_dir)
-            catalog_rows.extend(
-                (job.id, job.name, trial.id) for trial in job.trials
-            )
-            if not job.trials:
-                catalog_rows.append((job.id, job.name, None))
-            tables, failures = project_jobs([job], derived_root)
-            return IngestProjectionResult(
-                cataloged_jobs=1,
-                tables=tables,
-                failures=failures,
-            )
+        def ingest(locator: EvidenceLocator) -> IngestProjectionResult:
+            with materialize_evidence(locator) as job_dir:
+                job = load_job(job_dir)
+                catalog_rows.extend((job.id, job.name, trial.id) for trial in job.trials)
+                if not job.trials:
+                    catalog_rows.append((job.id, job.name, None))
+                tables, failures = project_jobs([job], derived_root)
+                return IngestProjectionResult(
+                    cataloged_jobs=1,
+                    tables=tables,
+                    failures=failures,
+                )
 
         executor = Executor(
             repo_root=root,
@@ -243,7 +258,22 @@ def run_smoke(
     if executor.tick() != 1:
         raise RuntimeError("smoke tick did not dispatch exactly one control")
 
-    job_dir = root / relative_scratch / "jobs" / job_name
+    completed_event = [
+        event for event in load_events(queue.events_path) if event.event == "dispatch_completed"
+    ][-1]
+    assert completed_event.cas_store_root is not None
+    assert completed_event.cas_record_kind is not None
+    assert completed_event.cas_record_id is not None
+    assert completed_event.cas_record_digest is not None
+    assert completed_event.cas_content_digest is not None
+    locator = EvidenceLocator(
+        store_root=Path(completed_event.cas_store_root),
+        kind=completed_event.cas_record_kind,
+        record_id=completed_event.cas_record_id,
+        expected_record_digest=completed_event.cas_record_digest,
+        expected_content_digest=completed_event.cas_content_digest,
+    )
+    job_dir = materialize_evidence_at(locator, scratch / "job")
     job = load_job(job_dir)
     _assert_oracle_job(job)
 

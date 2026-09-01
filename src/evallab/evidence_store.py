@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import os
+import re
 import secrets
 import shutil
 import stat
 import tarfile
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -21,15 +23,61 @@ from typing import IO, BinaryIO
 
 @dataclass(frozen=True)
 class EvidenceArchive:
+    """Authenticated content identity; mutable store paths are deliberately absent."""
+
     record_id: str
     kind: str
     content_digest: str
     archive_digest: str
     uri: str
-    blob_path: Path
-    manifest_path: Path
     file_count: int
     uncompressed_bytes: int
+    record_digest: str
+
+
+@dataclass(frozen=True)
+class EvidenceLocator:
+    """Store coordinate plus independent producer anchors used for every reopen."""
+
+    store_root: Path
+    kind: str
+    record_id: str
+    expected_record_digest: str
+    expected_content_digest: str
+
+    def __post_init__(self) -> None:
+        supplied_store_root = Path(self.store_root)
+        if not supplied_store_root.is_absolute():
+            raise ValueError("evidence store root must be absolute")
+        store_root = Path(os.path.abspath(os.fspath(supplied_store_root)))
+        if not self.kind or self.kind in {".", ".."} or "/" in self.kind or "\x00" in self.kind:
+            raise ValueError("invalid record kind")
+        if (
+            not self.record_id
+            or self.record_id in {".", ".."}
+            or "/" in self.record_id
+            or "\x00" in self.record_id
+        ):
+            raise ValueError("invalid record id")
+        for label, digest in (
+            ("expected record digest", self.expected_record_digest),
+            ("expected content digest", self.expected_content_digest),
+        ):
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+                raise ValueError(f"invalid {label}")
+        object.__setattr__(self, "store_root", store_root)
+
+
+def evidence_locator(store_root: Path, archive: EvidenceArchive) -> EvidenceLocator:
+    """Build the only supported downstream locator from authenticated identity."""
+
+    return EvidenceLocator(
+        store_root=store_root,
+        kind=archive.kind,
+        record_id=archive.record_id,
+        expected_record_digest=archive.record_digest,
+        expected_content_digest=archive.content_digest,
+    )
 
 
 def _inventory(root: Path) -> list[Path]:
@@ -369,14 +417,12 @@ def archive_evidence(
                 os.close(blob_descriptor)
 
         manifest = {
-            "schema_version": 1,
+            "schema_version": 2,
             "record_id": record_id,
             "kind": kind,
             "content_digest": content_digest,
             "archive_digest": archive_digest,
             "uri": f"cas://sha256/{digest_hex}",
-            "blob_path": blob_relative.as_posix(),
-            "source_path": str(source),
             "file_count": len(files),
             "uncompressed_bytes": sum(path.stat().st_size for path in files),
             "archived_at": datetime.now(UTC).isoformat(),
@@ -387,24 +433,193 @@ def archive_evidence(
             ("records", kind),
             create=True,
         ) as record_directory:
+            record_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
             _atomic_write(
                 record_directory,
                 record_name,
-                content=(json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode(),
+                content=record_bytes,
             )
 
-    record_path = store_root / "records" / kind / record_name
     return EvidenceArchive(
         record_id=record_id,
         kind=kind,
         content_digest=content_digest,
         archive_digest=archive_digest,
         uri=manifest["uri"],
-        blob_path=blob,
-        manifest_path=record_path,
         file_count=manifest["file_count"],
         uncompressed_bytes=manifest["uncompressed_bytes"],
+        record_digest=f"sha256:{hashlib.sha256(record_bytes).hexdigest()}",
     )
+
+
+def _digest_value(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+        raise ValueError(f"invalid {label}")
+    return value
+
+
+def _capture_authenticated_evidence(
+    store_root: Path,
+    *,
+    kind: str,
+    record_id: str,
+    expected_record_digest: str,
+    expected_content_digest: str,
+    destination: Path,
+) -> tuple[EvidenceArchive, bytes, bytes, Path]:
+    """Capture and authenticate exact record/archive bytes, then restore those bytes."""
+
+    kind = _component(kind, label="record kind")
+    record_id = _component(record_id, label="record id")
+    expected_record_digest = _digest_value(
+        expected_record_digest,
+        label="expected record digest",
+    )
+    expected_content_digest = _digest_value(
+        expected_content_digest,
+        label="expected content digest",
+    )
+    try:
+        record_bytes = read_record(store_root, kind=kind, record_id=record_id)
+        record = json.loads(record_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("evidence record is unreadable") from exc
+    actual_record_digest = f"sha256:{hashlib.sha256(record_bytes).hexdigest()}"
+    if actual_record_digest != expected_record_digest:
+        raise ValueError("evidence record digest mismatch")
+    if not isinstance(record, dict):
+        raise ValueError("evidence record must be an object")
+    required = {
+        "schema_version",
+        "record_id",
+        "kind",
+        "content_digest",
+        "archive_digest",
+        "uri",
+        "file_count",
+        "uncompressed_bytes",
+        "archived_at",
+    }
+    if set(record) != required:
+        raise ValueError("evidence record schema is not canonical")
+    canonical_bytes = (json.dumps(record, indent=2, sort_keys=True) + "\n").encode()
+    if record_bytes != canonical_bytes:
+        raise ValueError("evidence record bytes are noncanonical")
+    if (
+        type(record["schema_version"]) is not int
+        or record["schema_version"] != 2
+        or record["record_id"] != record_id
+        or record["kind"] != kind
+    ):
+        raise ValueError("evidence record identity is invalid")
+    content_digest = _digest_value(record["content_digest"], label="content digest")
+    if content_digest != expected_content_digest:
+        raise ValueError("evidence content digest mismatch")
+    archive_digest = _digest_value(record["archive_digest"], label="archive digest")
+    uri = record["uri"]
+    if not isinstance(uri, str) or _validate_uri(uri) != content_digest.removeprefix("sha256:"):
+        raise ValueError("evidence record URI is invalid")
+    if (
+        isinstance(record["file_count"], bool)
+        or not isinstance(record["file_count"], int)
+        or isinstance(record["uncompressed_bytes"], bool)
+        or not isinstance(record["uncompressed_bytes"], int)
+        or record["file_count"] < 0
+        or record["uncompressed_bytes"] < 0
+    ):
+        raise ValueError("evidence record size fields are invalid")
+    if not isinstance(record["archived_at"], str):
+        raise ValueError("evidence record timestamp is invalid")
+    try:
+        archived_at = datetime.fromisoformat(record["archived_at"])
+    except ValueError as exc:
+        raise ValueError("evidence record timestamp is invalid") from exc
+    if (
+        archived_at.tzinfo is None
+        or archived_at.utcoffset() != UTC.utcoffset(archived_at)
+        or archived_at.isoformat() != record["archived_at"]
+    ):
+        raise ValueError("evidence record timestamp is invalid")
+
+    archive_bytes = read_archive(store_root, uri)
+    actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
+    if archive_digest != actual_archive_digest:
+        raise ValueError("evidence archive digest mismatch")
+    restored = restore_evidence(
+        store_root,
+        uri,
+        destination,
+        archive_bytes=archive_bytes,
+    )
+    restored_files = _inventory(restored)
+    restored_digest = _content_digest(restored, restored_files)
+    restored_bytes = sum(path.stat().st_size for path in restored_files)
+    if (
+        restored_digest != content_digest
+        or record["file_count"] != len(restored_files)
+        or record["uncompressed_bytes"] != restored_bytes
+    ):
+        raise ValueError("evidence record content mismatch")
+    return (
+        EvidenceArchive(
+            record_id=record_id,
+            kind=kind,
+            content_digest=content_digest,
+            archive_digest=archive_digest,
+            uri=uri,
+            file_count=record["file_count"],
+            uncompressed_bytes=record["uncompressed_bytes"],
+            record_digest=actual_record_digest,
+        ),
+        record_bytes,
+        archive_bytes,
+        restored,
+    )
+
+
+def reopen_evidence_archive(
+    store_root: Path,
+    *,
+    kind: str,
+    record_id: str,
+    expected_record_digest: str,
+    expected_content_digest: str,
+) -> tuple[EvidenceArchive, bytes]:
+    """Reopen exact captured bytes against independent record and content anchors."""
+
+    with tempfile.TemporaryDirectory(prefix="evallab-evidence-reopen-") as temporary:
+        archive, record_bytes, _archive_bytes, _restored = _capture_authenticated_evidence(
+            store_root,
+            kind=kind,
+            record_id=record_id,
+            expected_record_digest=expected_record_digest,
+            expected_content_digest=expected_content_digest,
+            destination=Path(temporary),
+        )
+    return archive, record_bytes
+
+
+def materialize_evidence_at(locator: EvidenceLocator, destination: Path) -> Path:
+    """Restore exact authenticated CAS bytes into a caller-owned empty directory."""
+
+    archive, _record_bytes, _archive_bytes, restored = _capture_authenticated_evidence(
+        locator.store_root,
+        kind=locator.kind,
+        record_id=locator.record_id,
+        expected_record_digest=locator.expected_record_digest,
+        expected_content_digest=locator.expected_content_digest,
+        destination=destination,
+    )
+    if archive.content_digest != locator.expected_content_digest:
+        raise ValueError("materialized evidence content identity mismatch")
+    return restored
+
+
+@contextmanager
+def materialize_evidence(locator: EvidenceLocator) -> Iterator[Path]:
+    """Yield an ephemeral tree restored from the exact authenticated CAS bytes."""
+    with tempfile.TemporaryDirectory(prefix="evallab-evidence-materialized-") as temporary:
+        yield materialize_evidence_at(locator, Path(temporary))
 
 
 def load_archive(store_root: Path, uri: str) -> Path:
@@ -413,48 +628,62 @@ def load_archive(store_root: Path, uri: str) -> Path:
     with _open_archive_file(store_root, uri):
         pass
     return _absolute(store_root) / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz"
+
+
 @contextmanager
 def open_archive(store_root: Path, uri: str) -> Iterator[BinaryIO]:
     """Open a CAS archive while retaining no-follow directory descriptors."""
+
     with _open_archive_file(store_root, uri) as source:
         yield source
 
 
-
-
 def read_archive(store_root: Path, uri: str) -> bytes:
     """Read a CAS archive without following store or blob symlinks."""
+
     with _open_archive_file(store_root, uri) as source:
         return source.read()
 
 
-def restore_evidence(store_root: Path, uri: str, destination: Path) -> Path:
+def restore_evidence(
+    store_root: Path,
+    uri: str,
+    destination: Path,
+    *,
+    archive_bytes: bytes | None = None,
+) -> Path:
+    """Restore trusted archive bytes, or open the current CAS archive when omitted."""
+
     expected_digest = f"sha256:{_validate_uri(uri)}"
     destination = _absolute(destination)
+    blob_context = (
+        nullcontext(io.BytesIO(archive_bytes))
+        if archive_bytes is not None
+        else _open_archive_file(store_root, uri)
+    )
     with (
         _open_directory_chain(destination, create=True) as destination_descriptor,
-        _open_archive_file(store_root, uri) as blob,
+        blob_context as blob,
         tarfile.open(fileobj=blob, mode="r:gz") as archive,
     ):
         for member in archive.getmembers():
             member_path = PurePosixPath(member.name)
             if member_path.is_absolute() or not member_path.parts:
-                raise ValueError(
-                    f"evidence archive path escapes destination: {member.name}"
-                )
+                raise ValueError(f"evidence archive path escapes destination: {member.name}")
             parts = tuple(_component(part) for part in member_path.parts)
             if not member.isfile():
-                raise ValueError(
-                    f"evidence archive contains non-file member: {member.name}"
-                )
+                raise ValueError(f"evidence archive contains non-file member: {member.name}")
             source = archive.extractfile(member)
             if source is None:
                 raise ValueError(f"cannot read evidence member: {member.name}")
-            with source, _open_nested_directory(
-                destination_descriptor,
-                parts[:-1],
-                create=True,
-            ) as target_directory:
+            with (
+                source,
+                _open_nested_directory(
+                    destination_descriptor,
+                    parts[:-1],
+                    create=True,
+                ) as target_directory,
+            ):
                 _atomic_write(target_directory, parts[-1], source=source)
     restored_files = _inventory(destination)
     actual_digest = _content_digest(destination, restored_files)
@@ -556,6 +785,4 @@ def read_record(store_root: Path, *, kind: str, record_id: str) -> bytes:
             finally:
                 os.close(descriptor)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"evidence record is missing: {kind}/{record_id}"
-        ) from exc
+        raise FileNotFoundError(f"evidence record is missing: {kind}/{record_id}") from exc

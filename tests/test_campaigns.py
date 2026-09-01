@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import math
+import shutil
 import threading
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -42,6 +43,7 @@ from evallab.continuous_control_plane import (
     DisabledCampaignControlLoop,
 )
 from evallab.credentials import DEEPSEEK_API_CREDENTIAL
+from evallab.evidence_store import archive_evidence, evidence_locator
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     DispatchCapacity,
@@ -58,6 +60,7 @@ from evallab.profiles import (
 )
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
+from evallab.runner import SettledRun
 from evallab.schemas import (
     AgentGateEvaluations,
     AgentQualificationDigest,
@@ -627,12 +630,30 @@ def _executor(
     compliance: Any = lambda _job, _spec, _ingest, _archive: "QUALITY_PASS",
     isolation_identity_provider: Any | None = None,
 ) -> Executor:
+    def cas_runner(request: RunRequest) -> SettledRun:
+        result = runner(request)
+        if isinstance(result, SettledRun):
+            return result
+        source = Path(result)
+        store_root = root / "derived/run-cas"
+        archive = archive_evidence(
+            source,
+            store_root,
+            record_id=request.name,
+            kind="job",
+        )
+        shutil.rmtree(source)
+        return SettledRun(
+            cas_locator=evidence_locator(store_root, archive),
+            cas_record=archive,
+        )
+
     return Executor(
         repo_root=root,
         queue=DirectoryQueue(root / "queue"),
         policy=load_policy(root / "policy/standing-approvals.yaml"),
-        runner=runner,
-        ingester=lambda _job: None,
+        runner=cas_runner,
+        ingester=lambda _locator: None,
         compliance=compliance,
         isolation_identity_provider=(
             isolation_identity_provider
@@ -1307,7 +1328,7 @@ def test_done_unjournaled_usage_reserves_budget_before_next_dispatch(
     first = manifest.attempts[0]
     executor.queue.approve(first.spec_id, actor="Peter Makhnatch")
     approved_path, approved_spec = executor.queue.list_specs("approved")[0]
-    executor.execute_spec(approved_spec)
+    settled = executor.execute_spec(approved_spec)
     running = executor.queue.transition(
         approved_path,
         "running",
@@ -1319,6 +1340,7 @@ def test_done_unjournaled_usage_reserves_budget_before_next_dispatch(
         "done",
         actor="test",
         event="dispatch_completed",
+        cas_locator=settled.cas_locator,
     )
 
     reason = orchestrator._next_attempt_budget_reason([], manifest.attempts[1])
@@ -1722,12 +1744,17 @@ def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) 
         encoding="utf-8",
     )
     details = {
+        "record_kind": "campaign-job",
+        "record_id": manifest.attempts[0].attempt_id,
+        "record_digest": "sha256:" + hashlib.sha256(record_path.read_bytes()).hexdigest(),
         "uri": uri,
         "content_digest": f"sha256:{digest}",
         "archive_digest": archive_digest,
-        "record_path": record_path.relative_to(root).as_posix(),
     }
-    job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
+    job_dir = orchestrator._materialize_queue_job(
+        manifest.attempts[0],
+        tmp_path / "materialized-queue-job",
+    )
 
     with pytest.raises(CampaignDriftError, match="CAS content digest mismatch"):
         orchestrator._verify_archive_details(manifest.attempts[0], job_dir, details)

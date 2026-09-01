@@ -422,6 +422,23 @@ def _verify_harbor_runtime_identity(identity: HarborRuntimeIdentity) -> None:
         )
 
 
+def _stage_verified_harbor_executable(identity: HarborRuntimeIdentity, staging_dir: Path) -> Path:
+    """Copy locked Harbor bytes to an executor-owned launch artifact."""
+
+    launch_path = staging_dir / ".harbor-launch"
+    try:
+        shutil.copyfile(identity.executable_path, launch_path)
+        launch_path.chmod(0o700)
+        if _executable_snapshot(launch_path)[4] != identity.executable_digest:
+            raise OSError("staged Harbor bytes do not match the locked executable")
+    except OSError as exc:
+        raise ExecutionFailure(
+            "harbor_identity_drift",
+            "Harbor executable changed before launch",
+        ) from exc
+    return launch_path
+
+
 def tool_version(command: str) -> str | None:
     executable = shutil.which(command)
     if not executable:
@@ -1409,8 +1426,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
         _write_network_adaptation(request, adaptation)
 
         harbor_command = build_command(staged_request)
-        harbor_command[0] = str(harbor_identity.executable_path)
-        command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
         containers_before = harbor_container_ids(staged_request.task)
         _write_executor_state(
             request,
@@ -1420,6 +1435,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
         )
         try:
             _verify_harbor_runtime_identity(harbor_identity)
+            harbor_command[0] = str(_stage_verified_harbor_executable(harbor_identity, staging_dir))
+            command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
             process = run_harbor_process(
                 command,
                 cwd=repo_root,

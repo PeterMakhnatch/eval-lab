@@ -70,21 +70,24 @@ def _configured_settlement_identity(
     """Keep process mocks on the real mandatory CAS and typed identity contract."""
 
     monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
+    executable = tmp_path / "harbor"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o700)
+    device, inode, size, mtime_ns, digest = runner_module._executable_snapshot(executable)
     monkeypatch.setattr(
         runner_module,
         "resolve_harbor_runtime_identity",
         lambda _repo_root: runner_module.HarborRuntimeIdentity(
             declared_version="0.22.0",
             actual_version="0.22.0",
-            executable_path=Path("/bin/tool"),
-            executable_digest="sha256:" + "a" * 64,
-            executable_device=1,
-            executable_inode=1,
-            executable_size=1,
-            executable_mtime_ns=1,
+            executable_path=executable,
+            executable_digest=digest,
+            executable_device=device,
+            executable_inode=inode,
+            executable_size=size,
+            executable_mtime_ns=mtime_ns,
         ),
     )
-    monkeypatch.setattr(runner_module, "_verify_harbor_runtime_identity", lambda _identity: None)
 
 
 def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
@@ -1132,6 +1135,69 @@ def test_canonical_reopen_refuses_absolute_source_alias(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("target", ["record", "archive"])
+def test_reopen_refuses_cas_object_replacement_during_restore(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    produced = evidence_store_module.archive_evidence(
+        source, store, record_id="job-123", kind="job"
+    )
+    original_restore = evidence_store_module.restore_evidence
+
+    def replace_during_restore(*args: object, **kwargs: object) -> Path:
+        if target == "record":
+            produced.manifest_path.write_bytes(b"[]")
+        else:
+            replacement = bytearray(produced.blob_path.read_bytes())
+            replacement[4] ^= 1
+            produced.blob_path.write_bytes(replacement)
+        return original_restore(*args, **kwargs)
+
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", replace_during_restore)
+    with pytest.raises(ValueError, match="object changed"):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=produced.record_digest,
+        )
+
+
+def test_reopen_refuses_live_source_mutation_during_restore(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    result = source / "result.json"
+    result.write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    produced = evidence_store_module.archive_evidence(
+        source, store, record_id="job-123", kind="job"
+    )
+    original_restore = evidence_store_module.restore_evidence
+
+    def mutate_source(*args: object, **kwargs: object) -> Path:
+        result.write_text('{"finished": false}\n', encoding="utf-8")
+        return original_restore(*args, **kwargs)
+
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", mutate_source)
+    with pytest.raises(ValueError, match="source changed"):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=produced.record_digest,
+            source=source,
+        )
+
+
 def test_executable_identity_drift_refuses_replacement(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1156,6 +1222,59 @@ def test_executable_identity_drift_refuses_replacement(
     with pytest.raises(ExecutionFailure, match="changed before launch") as exc_info:
         runner_module._verify_harbor_runtime_identity(identity)
     assert exc_info.value.reason_code == "harbor_identity_drift"
+
+
+def test_launch_refuses_executable_replacement_after_final_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.undo()
+    executable = tmp_path / "harbor"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o700)
+    device, inode, size, mtime_ns, digest = runner_module._executable_snapshot(executable)
+    identity = runner_module.HarborRuntimeIdentity(
+        declared_version="0.22.0",
+        actual_version="0.22.0",
+        executable_path=executable,
+        executable_digest=digest,
+        executable_device=device,
+        executable_inode=inode,
+        executable_size=size,
+        executable_mtime_ns=mtime_ns,
+    )
+    request = RunRequest(
+        task=task(tmp_path), agent="oracle", name="launch-race", jobs_dir=tmp_path / "runs"
+    )
+    launched: list[list[str]] = []
+    original_stage = runner_module._stage_verified_harbor_executable
+
+    def replace_after_verification(
+        staged_identity: runner_module.HarborRuntimeIdentity,
+        staging_dir: Path,
+    ) -> Path:
+        replacement = tmp_path / "replacement"
+        replacement.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+        replacement.chmod(0o700)
+        replacement.replace(executable)
+        return original_stage(staged_identity, staging_dir)
+
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "cas"))
+    monkeypatch.setattr(runner_module, "resolve_harbor_runtime_identity", lambda _root: identity)
+    monkeypatch.setattr(
+        runner_module, "_stage_verified_harbor_executable", replace_after_verification
+    )
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(
+        runner_module, "run_harbor_process", lambda command, **_kwargs: launched.append(command)
+    )
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "harbor_identity_drift"
+    assert launched == []
+    assert json.loads(runner_module.executor_state_path(request).read_text())["status"] == "failed"
 
 
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
@@ -1512,8 +1631,8 @@ def test_staging_cleaned_up_after_success(
     assert metadata["harbor_runtime"] == {
         "declared_version": "0.22.0",
         "actual_version": "0.22.0",
-        "executable_path": "/bin/tool",
-        "executable_digest": "sha256:" + "a" * 64,
+        "executable_path": str(tmp_path / "harbor"),
+        "executable_digest": runner_module._executable_snapshot(tmp_path / "harbor")[4],
     }
     assert settled_run.cas_record.manifest_path.is_file()
 

@@ -970,6 +970,61 @@ def test_secret_scan_precedes_generic_evidence_archive(
     assert not (request.jobs_dir / request.name / "leak.txt").exists()
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_version", 2),
+        ("blob_path", "blobs/sha256/00/not-canonical.tar.gz"),
+        ("file_count", 999),
+        ("uncompressed_bytes", 999),
+        ("source_path", "relative/job"),
+    ],
+)
+def test_canonical_reopen_refuses_complete_record_tampering(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
+    payload = json.loads(archive.manifest_path.read_text(encoding="utf-8"))
+    payload[field] = value
+    archive.manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(
+            store, kind="job", record_id="job-123", source=source
+        )
+
+
+def test_executable_identity_drift_refuses_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.undo()
+    executable = tmp_path / "harbor"
+    executable.write_text("0.22.0\n", encoding="utf-8")
+    snapshot = runner_module._executable_snapshot(executable)
+    identity = runner_module.HarborRuntimeIdentity(
+        declared_version="0.22.0",
+        actual_version="0.22.0",
+        executable_path=executable,
+        executable_digest=snapshot[4],
+        executable_device=snapshot[0],
+        executable_inode=snapshot[1],
+        executable_size=snapshot[2],
+        executable_mtime_ns=snapshot[3],
+    )
+    replacement = tmp_path / "replacement"
+    replacement.write_text("0.21.0 replacement bytes\n", encoding="utf-8")
+    replacement.replace(executable)
+    with pytest.raises(ExecutionFailure, match="changed before launch") as exc_info:
+        runner_module._verify_harbor_runtime_identity(identity)
+    assert exc_info.value.reason_code == "harbor_identity_drift"
+
+
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     normalized = _exception_type(
         {

@@ -115,6 +115,22 @@ def test_missing_order_or_content_refuses_link_inference() -> None:
     assert missing_identity.write_read_link_count is None
 
 
+def test_duplicate_step_order_refuses_same_step_precedence() -> None:
+    (ambiguous_order,) = extract_memory_continuity_features(
+        [
+            _fact("write", "memory_write", 4, content_digest=MEMORY_A),
+            _fact("read", "memory_read", 4, content_digest=MEMORY_A),
+        ]
+    )
+
+    assert ambiguous_order.memory_continuity_status == "missing_step_order"
+    assert ambiguous_order.memory_write_count == 1
+    assert ambiguous_order.memory_read_count == 1
+    assert ambiguous_order.write_read_link_count is None
+    assert ambiguous_order.write_read_use_link_count is None
+    assert ambiguous_order.boundary_carryover_rate is None
+
+
 def test_multiple_trials_produce_sorted_independent_rows() -> None:
     facts = [
         _fact("read-z", "memory_read", 2, content_digest=MEMORY_A, trial_id="z"),

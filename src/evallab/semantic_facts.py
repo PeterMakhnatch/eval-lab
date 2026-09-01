@@ -9,15 +9,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal, TypeVar, get_args, get_type_hints
+from typing import Annotated, Any, Literal, TypeVar, get_args, get_type_hints
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, JsonValue, field_validator, model_validator
 
 from evallab.schemas import ContractModel
 
@@ -31,6 +32,70 @@ _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 def _digest(value: Any) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+CONTEXT_OPERATION_PAYLOAD_DOMAIN = b"evallab.context-operation-payload.v1\x00"
+
+
+def _validate_json_value(value: Any, *, path: str) -> None:
+    if value is None or isinstance(value, str | bool | int):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{path} must not contain non-finite numbers")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_json_value(item, path=f"{path}[{index}]")
+        return
+    if isinstance(value, dict):
+        if not all(isinstance(key, str) for key in value):
+            raise ValueError(f"{path} keys must all be strings")
+        for key, item in value.items():
+            _validate_json_value(item, path=f"{path}.{key}")
+        return
+    raise ValueError(f"{path} contains unsupported non-JSON value {type(value).__name__}")
+
+
+class ContextOperationPayloadV1(ContractModel):
+    """Exact canonical payload covered by a context-operation content digest."""
+
+    summary: str = Field(strict=True)
+    forgotten_message_indices: tuple[
+        Annotated[int, Field(ge=0, strict=True)],
+        ...,
+    ]
+    compression_metadata: dict[str, JsonValue]
+
+    @field_validator("forgotten_message_indices", mode="before")
+    @classmethod
+    def indices_have_explicit_order(cls, value: Any) -> Any:
+        if type(value) not in (list, tuple):
+            raise ValueError("forgotten_message_indices must be an ordered list or tuple")
+        return value
+
+    @field_validator("compression_metadata", mode="before")
+    @classmethod
+    def metadata_is_canonical_json(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            raise ValueError("compression_metadata must be a JSON object")
+        _validate_json_value(value, path="compression_metadata")
+        return value
+
+
+def context_operation_content_digest(payload: ContextOperationPayloadV1) -> Digest:
+    """Hash the exact v1 payload under its versioned domain."""
+    if not isinstance(payload, ContextOperationPayloadV1):
+        raise TypeError("context operation payload must be ContextOperationPayloadV1")
+    canonical_json_bytes = json.dumps(
+        payload.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    digest_bytes = CONTEXT_OPERATION_PAYLOAD_DOMAIN + canonical_json_bytes
+    return f"sha256:{hashlib.sha256(digest_bytes).hexdigest()}"
 
 
 class FactRow(ContractModel):
@@ -144,7 +209,7 @@ class ContextOperationFact(FactRow):
     after_token_count: int | None = Field(default=None, ge=0)
     content_digest: Digest | None = None
     session_id: str | None = None
-    step_index: int | None = Field(default=None, ge=0)
+    step_index: int | None = Field(default=None, ge=0, strict=True)
     context_position_tokens: int | None = Field(default=None, ge=0)
 
     @field_validator("content_digest")
@@ -472,6 +537,9 @@ __all__ = [
     "RetrievalFact",
     "ConstraintFact",
     "ContextOperationFact",
+    "CONTEXT_OPERATION_PAYLOAD_DOMAIN",
+    "ContextOperationPayloadV1",
+    "context_operation_content_digest",
     "PairedConditionFact",
     "SessionDependencyFact",
     "EvidenceCoverage",

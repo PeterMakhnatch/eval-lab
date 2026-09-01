@@ -17,6 +17,7 @@ import dataclasses
 import hashlib
 import json
 import math
+import os
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -852,14 +853,32 @@ def extract_autonomous_research_features(
         scale_binding_digest = trace.score_scale_binding.binding_digest
 
         resolver_error_reason: str | None = None
-        resolved: Mapping[str, Any] = {}
+        resolved: dict[str, Any] = {}
         if artifact_resolver is not None:
             try:
                 res_output = artifact_resolver(trace)
-                if isinstance(res_output, Mapping):
-                    resolved = res_output
-                else:
+                if not isinstance(res_output, Mapping):
                     resolver_error_reason = f"artifact_resolver_invalid_return: expected Mapping, got {type(res_output).__name__}"
+                else:
+                    # Validate known-key values inside the guarded block
+                    raw_task_dir = res_output.get("task_dir")
+                    if raw_task_dir is not None and not isinstance(
+                        raw_task_dir, (str, os.PathLike)
+                    ):
+                        resolver_error_reason = f"artifact_resolver_invalid_return: task_dir must be a str or PathLike, got {type(raw_task_dir).__name__}"
+                    else:
+                        resolved["task_dir"] = raw_task_dir
+
+                    if resolver_error_reason is None:
+                        for field_name in ("metric_config", "visible_outcome", "hidden_outcome"):
+                            raw_val = res_output.get(field_name)
+                            if raw_val is not None and (
+                                not isinstance(raw_val, Mapping)
+                                or isinstance(raw_val, (str, bytes))
+                            ):
+                                resolver_error_reason = f"artifact_resolver_invalid_return: {field_name} must be a Mapping, got {type(raw_val).__name__}"
+                                break
+                            resolved[field_name] = raw_val
             except Exception as exc:
                 resolver_error_reason = f"artifact_resolver_error: {exc}"
 

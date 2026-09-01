@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import pytest
+import yaml
 
 from evallab.analysis_control import (
     CONTROL_VIEW_NAMES,
@@ -73,7 +75,12 @@ def test_bbo_and_game2048_authority_bindings() -> None:
             ).fetchall()
         }
         bbo_row = composite["bbo_noisy_continuous__y6S5nSJ"]
-        assert bbo_row[1:5] == ("timed_out", "completed", "preserved", "original_verifier_authoritative")
+        assert bbo_row[1:5] == (
+            "timed_out",
+            "completed",
+            "preserved",
+            "original_verifier_authoritative",
+        )
         assert bbo_row[5] == pytest.approx(0.18143598030936073)
         assert bbo_row[6] is True
 
@@ -126,15 +133,24 @@ def test_headline_scale_and_selection_refusals() -> None:
             row[0]: row[1:]
             for row in connection.execute(
                 "SELECT run_id, arithmetic_permitted, visible_hidden_transfer_gap, "
-                "scale_refusal_reason, scale_binding_status FROM v_scale_binding_status"
+                "scale_refusal_reason, scale_binding_status, "
+                "scale_binding_task_status, scale_binding_verifier_status, "
+                "scale_binding_metric_config_status, scale_binding_visible_outcome_status, "
+                "scale_binding_hidden_outcome_status "
+                "FROM v_scale_binding_status"
             ).fetchall()
         }
         # Without explicit resolved artifacts, checked-in BBO truthfully reports unresolved and refuses arithmetic
         bbo_scale = scale["bbo_noisy_continuous__y6S5nSJ"]
-        assert bbo_scale[0] is False
-        assert bbo_scale[1] is None
+        assert bbo_scale[0] is False  # arithmetic_permitted
+        assert bbo_scale[1] is None  # visible_hidden_transfer_gap
         assert "unresolved_components" in (bbo_scale[2] or "")
-        assert bbo_scale[3] == "unresolved"
+        assert bbo_scale[3] == "unresolved"  # scale_binding_status
+        assert bbo_scale[4] == "unresolved"  # task_status
+        assert bbo_scale[5] == "unresolved"  # verifier_status
+        assert bbo_scale[6] == "unresolved"  # metric_config_status
+        assert bbo_scale[7] == "unresolved"  # visible_outcome_status
+        assert bbo_scale[8] == "unresolved"  # hidden_outcome_status
 
         game_scale = scale["game2048_policy_search__QzNuUbN"]
         assert game_scale[0] is False
@@ -240,10 +256,11 @@ def test_analysis_control_cli_queries_v_scale_binding_status(
     assert rows["bbo_noisy_continuous__y6S5nSJ"]["scale_binding_status"] == "unresolved"
 
 
-def test_materialize_views_with_exact_synthetic_fixtures_permits_arithmetic(
+def test_materialize_views_with_exact_default_locator_and_cli_permits_arithmetic(
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Providing a complete exact artifact resolver authorizes transfer arithmetic in materialized control views."""
+    """Explicit default locator evidence authorizes transfer arithmetic in views and CLI."""
     task_dir = tmp_path / "syn_task"
     task_dir.mkdir()
     (task_dir / "task.toml").write_text("name = 'syn_task'\n", encoding="utf-8")
@@ -254,8 +271,219 @@ def test_materialize_views_with_exact_synthetic_fixtures_permits_arithmetic(
 
     task_digests = compute_task_digests(task_dir)
     metric_cfg = {"metric": "accuracy", "k": 1}
-    vis_outcome = {"score": 0.8}
-    hid_outcome = {"score": 0.9}
+    vis_outcome = {"score": 10.0}
+    hid_outcome = {"score": 12.0}
+
+    binding = {
+        "authority_kind": "benchmark_contract",
+        "direction": "higher",
+        "metric_name": "accuracy",
+        "schema_version": "score-scale-binding/v1",
+        "task_digest": task_digests.package,
+        "verifier_digest": task_digests.verifier,
+        "metric_config_digest": _digest_json(metric_cfg),
+        "visible_split_id": "val",
+        "hidden_split_id": "test",
+        "visible_outcome_binding_digest": _digest_json(vis_outcome),
+        "hidden_outcome_binding_digest": _digest_json(hid_outcome),
+    }
+    binding_body = {
+        "authority_kind": "benchmark_contract",
+        "direction": "higher",
+        "hidden_outcome_binding_digest": _digest_json(hid_outcome),
+        "hidden_split_id": "test",
+        "metric_config_digest": _digest_json(metric_cfg),
+        "metric_name": "accuracy",
+        "task_digest": task_digests.package,
+        "verifier_digest": task_digests.verifier,
+        "visible_outcome_binding_digest": _digest_json(vis_outcome),
+        "visible_split_id": "val",
+    }
+    binding["binding_digest"] = _digest_json(binding_body)
+
+    evidence_data = {
+        "schema_version": "evallab-rsi-calibration-evidence/v1",
+        "task_path": "syn_task",
+        "metric_config": metric_cfg,
+        "visible_outcome": vis_outcome,
+        "hidden_outcome": hid_outcome,
+        "autonomous_research_trace": {
+            "schema_version": "research-run-trace/v1",
+            "run_id": "syn-run-1",
+            "benchmark_family": "synthetic/eval",
+            "source_kind": "harbor",
+            "source_version": "v1",
+            "source_digest": "sha256:" + "1" * 64,
+            "task_digest": task_digests.package,
+            "verifier_digest": task_digests.verifier,
+            "metric_config_digest": _digest_json(metric_cfg),
+            "visible_outcome_binding_digest": _digest_json(vis_outcome),
+            "hidden_outcome_binding_digest": _digest_json(hid_outcome),
+            "baseline_visible_score": 8.0,
+            "score_direction": "higher",
+            "score_scale_binding": binding,
+            "hidden_score": 12.0,
+            "selected_iteration_id": "v1",
+            "iterations": [
+                {
+                    "schema_version": "research-iteration/v1",
+                    "iteration_id": "v1",
+                    "visible_score": 10.0,
+                    "disposition": "kept",
+                }
+            ],
+        },
+        "scores": {
+            "visible": {"selected": 10.0},
+            "sealed": {"reward": 12.0},
+        },
+    }
+
+    evidence_file = tmp_path / "syn_evidence.json"
+    evidence_file.write_text(json.dumps(evidence_data), encoding="utf-8")
+
+    policy_data = {
+        "schema_version": "analysis-bindings/v1",
+        "bindings": [
+            {
+                "run_id": "syn-run-1",
+                "evidence_path": str(evidence_file.relative_to(tmp_path)),
+                "headline_visible_scalar": "selected",
+                "visible_alternatives": ["selected"],
+            }
+        ],
+    }
+    policy_file = tmp_path / "policy/analysis-bindings.yaml"
+    policy_file.parent.mkdir(parents=True, exist_ok=True)
+    policy_file.write_text(yaml.dump(policy_data), encoding="utf-8")
+
+    # Copy sql/views.sql so tmp_path is a valid self-contained workspace root
+    (tmp_path / "sql").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REPO_ROOT / "sql/views.sql", tmp_path / "sql/views.sql")
+
+    # 1. Exercise default locator through materialize_analysis_control_views (NO custom resolver!)
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=tmp_path,
+            readiness_evaluator=_offline_readiness,
+        )
+        row = connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status, "
+            "scale_binding_task_status, scale_binding_verifier_status, "
+            "scale_binding_metric_config_status, scale_binding_visible_outcome_status, "
+            "scale_binding_hidden_outcome_status "
+            "FROM v_scale_binding_status WHERE run_id = 'syn-run-1'"
+        ).fetchone()
+
+        assert row is not None
+        assert row[0] == "syn-run-1"
+        assert row[1] is True  # score_scale_compatible
+        assert row[2] is True  # arithmetic_permitted
+        assert row[3] == pytest.approx(2.0)  # 12.0 - 10.0 = 2.0
+        assert row[4] is None  # scale_refusal_reason
+        assert row[5] == "verified"
+        assert row[6] == "verified"
+        assert row[7] == "verified"
+        assert row[8] == "verified"
+        assert row[9] == "verified"
+        assert row[10] == "verified"
+
+    # 2. Exercise the actual run_cli path
+    assert (
+        run_cli(
+            ["analyze", "control", "v_scale_binding_status", "--limit", "1"],
+            workspace=tmp_path,
+        )
+        == 0
+    )
+    cli_out = json.loads(capsys.readouterr().out)
+    assert cli_out["view"] == "v_scale_binding_status"
+    assert cli_out["row_count"] == 1
+    cli_row = cli_out["rows"][0]
+    assert cli_row["run_id"] == "syn-run-1"
+    assert cli_row["arithmetic_permitted"] is True
+    assert cli_row["score_scale_compatible"] is True
+    assert cli_row["visible_hidden_transfer_gap"] == pytest.approx(2.0)
+    assert cli_row["scale_refusal_reason"] is None
+    assert cli_row["scale_binding_status"] == "verified"
+
+
+def test_materialize_views_with_malformed_mapping_value_records_typed_reason(
+    tmp_path: Path,
+) -> None:
+    """A resolver returning a Mapping with malformed value types records typed invalid return."""
+
+    def bad_value_resolver(trace: ResearchRunTraceV1) -> Any:
+        return {"task_dir": [1, 2, 3]}  # list instead of str/PathLike
+
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=REPO_ROOT,
+            readiness_evaluator=_offline_readiness,
+            artifact_resolver=bad_value_resolver,
+        )
+        row = connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
+            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
+        ).fetchone()
+        assert row is not None
+        assert row[1] is False
+        assert row[2] is False
+        assert row[3] is None
+        assert "artifact_resolver_invalid_return: task_dir must be a str or PathLike, got list" in (
+            row[4] or ""
+        )
+        assert row[5] == "unresolved"
+
+
+def test_materialize_views_with_raising_resolver_records_typed_error(
+    tmp_path: Path,
+) -> None:
+    """A resolver that raises an exception records a typed artifact_resolver_error reason."""
+
+    def raising_resolver(trace: ResearchRunTraceV1) -> Any:
+        raise RuntimeError("resolver exploded")
+
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=REPO_ROOT,
+            readiness_evaluator=_offline_readiness,
+            artifact_resolver=raising_resolver,
+        )
+        row = connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
+            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
+        ).fetchone()
+        assert row is not None
+        assert row[1] is False
+        assert row[2] is False
+        assert row[3] is None
+        assert "artifact_resolver_error: resolver exploded" in (row[4] or "")
+        assert row[5] == "unresolved"
+
+
+def test_materialize_views_with_partial_and_mismatched_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Partial artifacts yield unresolved status; mismatched artifacts yield mismatch status."""
+    task_dir = tmp_path / "syn_partial_task"
+    task_dir.mkdir(exist_ok=True)
+    (task_dir / "task.toml").write_text("name = 'syn_partial_task'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Syn Task\n", encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir(exist_ok=True)
+    (tests_dir / "test_syn.py").write_text("def test_ok(): pass\n", encoding="utf-8")
+
+    task_digests = compute_task_digests(task_dir)
+    metric_cfg = {"metric": "accuracy", "k": 1}
+    vis_outcome = {"score": 10.0}
+    hid_outcome = {"score": 12.0}
 
     binding = {
         "authority_kind": "benchmark_contract",
@@ -288,7 +516,7 @@ def test_materialize_views_with_exact_synthetic_fixtures_permits_arithmetic(
         "schema_version": "evallab-rsi-calibration-evidence/v1",
         "autonomous_research_trace": {
             "schema_version": "research-run-trace/v1",
-            "run_id": "syn-run-1",
+            "run_id": "syn-partial-run",
             "benchmark_family": "synthetic/eval",
             "source_kind": "harbor",
             "source_version": "v1",
@@ -298,35 +526,35 @@ def test_materialize_views_with_exact_synthetic_fixtures_permits_arithmetic(
             "metric_config_digest": _digest_json(metric_cfg),
             "visible_outcome_binding_digest": _digest_json(vis_outcome),
             "hidden_outcome_binding_digest": _digest_json(hid_outcome),
-            "baseline_visible_score": 0.5,
+            "baseline_visible_score": 8.0,
             "score_direction": "higher",
             "score_scale_binding": binding,
-            "hidden_score": 0.9,
+            "hidden_score": 12.0,
             "selected_iteration_id": "v1",
             "iterations": [
                 {
                     "schema_version": "research-iteration/v1",
                     "iteration_id": "v1",
-                    "visible_score": 0.8,
+                    "visible_score": 10.0,
                     "disposition": "kept",
                 }
             ],
         },
         "scores": {
-            "visible": {"selected": 0.8},
-            "sealed": {"reward": 0.9},
+            "visible": {"selected": 10.0},
+            "sealed": {"reward": 12.0},
         },
     }
 
-    evidence_file = tmp_path / "syn_evidence.json"
+    evidence_file = tmp_path / "syn_partial_evidence.json"
     evidence_file.write_text(json.dumps(evidence_data), encoding="utf-8")
 
     policy_data = {
         "schema_version": "analysis-bindings/v1",
         "bindings": [
             {
-                "run_id": "syn-run-1",
-                "evidence_path": str(evidence_file),
+                "run_id": "syn-partial-run",
+                "evidence_path": str(evidence_file.relative_to(tmp_path)),
                 "headline_visible_scalar": "selected",
                 "visible_alternatives": ["selected"],
             }
@@ -334,20 +562,44 @@ def test_materialize_views_with_exact_synthetic_fixtures_permits_arithmetic(
     }
     policy_file = tmp_path / "policy/analysis-bindings.yaml"
     policy_file.parent.mkdir(parents=True, exist_ok=True)
-    import yaml
-
     policy_file.write_text(yaml.dump(policy_data), encoding="utf-8")
 
-    # Copy sql/views.sql so tmp_path is a valid self-contained root
     (tmp_path / "sql").mkdir(parents=True, exist_ok=True)
-    import shutil
     shutil.copy2(REPO_ROOT / "sql/views.sql", tmp_path / "sql/views.sql")
 
-    # Supply exact complete resolver
-    def exact_resolver(trace: ResearchRunTraceV1) -> dict[str, Any]:
+    # 1. Partial: only exact metric_config supplied, task and outcomes omitted
+    def partial_resolver(trace: ResearchRunTraceV1) -> dict[str, Any]:
+        return {
+            "metric_config": metric_cfg,
+        }
+
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=tmp_path,
+            readiness_evaluator=_offline_readiness,
+            artifact_resolver=partial_resolver,
+        )
+        row = connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status, "
+            "scale_binding_metric_config_status, scale_binding_task_status "
+            "FROM v_scale_binding_status WHERE run_id = 'syn-partial-run'"
+        ).fetchone()
+        assert row is not None
+        assert row[1] is False
+        assert row[2] is False
+        assert row[3] is None
+        assert "unresolved_components" in (row[4] or "")
+        assert row[5] == "unresolved"
+        assert row[6] == "verified"
+        assert row[7] == "unresolved"
+
+    # 2. Mismatch: wrong metric_config with all other components exact
+    def mismatch_resolver(trace: ResearchRunTraceV1) -> dict[str, Any]:
         return {
             "task_dir": task_dir,
-            "metric_config": metric_cfg,
+            "metric_config": {"metric": "wrong_metric_name"},
             "visible_outcome": vis_outcome,
             "hidden_outcome": hid_outcome,
         }
@@ -357,78 +609,42 @@ def test_materialize_views_with_exact_synthetic_fixtures_permits_arithmetic(
             connection,
             root=tmp_path,
             readiness_evaluator=_offline_readiness,
-            artifact_resolver=exact_resolver,
-        )
-        row = connection.execute(
-            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
-            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status, "
-            "scale_binding_task_status, scale_binding_verifier_status, "
-            "scale_binding_metric_config_status, scale_binding_visible_outcome_status, "
-            "scale_binding_hidden_outcome_status "
-            "FROM v_scale_binding_status WHERE run_id = 'syn-run-1'"
-        ).fetchone()
-
-        assert row is not None
-        assert row[0] == "syn-run-1"
-        assert row[1] is True  # score_scale_compatible
-        assert row[2] is True  # arithmetic_permitted
-        assert row[3] == pytest.approx(0.1)  # 0.9 - 0.8
-        assert row[4] is None  # scale_refusal_reason is None on success
-        assert row[5] == "verified"  # scale_binding_status
-        assert row[6] == "verified"  # task_status
-        assert row[7] == "verified"  # verifier_status
-        assert row[8] == "verified"  # metric_config_status
-        assert row[9] == "verified"  # visible_outcome_status
-        assert row[10] == "verified"  # hidden_outcome_status
-
-
-def test_materialize_views_with_malformed_resolver_records_typed_reason(
-    tmp_path: Path,
-) -> None:
-    """A malformed resolver return fails closed with typed reason instead of untyped AttributeError."""
-
-    def bad_resolver(trace: ResearchRunTraceV1) -> Any:
-        return [1, 2, 3]  # list instead of Mapping
-
-    with duckdb.connect(":memory:") as connection:
-        materialize_analysis_control_views(
-            connection,
-            root=REPO_ROOT,
-            readiness_evaluator=_offline_readiness,
-            artifact_resolver=bad_resolver,
-        )
-        row = connection.execute(
-            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
-            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
-            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
-        ).fetchone()
-        assert row is not None
-        assert row[1] is False
-        assert row[2] is False
-        assert row[3] is None
-        assert "artifact_resolver_invalid_return" in (row[4] or "")
-        assert row[5] == "unresolved"
-
-
-def test_materialize_views_with_mismatched_resolver_records_typed_mismatch(
-    tmp_path: Path,
-) -> None:
-    """A resolver providing mismatched metric configuration records typed mismatch."""
-
-    def mismatch_resolver(trace: ResearchRunTraceV1) -> dict[str, Any]:
-        return {
-            "metric_config": {"metric": "wrong_metric_name"},
-        }
-
-    with duckdb.connect(":memory:") as connection:
-        materialize_analysis_control_views(
-            connection,
-            root=REPO_ROOT,
-            readiness_evaluator=_offline_readiness,
             artifact_resolver=mismatch_resolver,
         )
         row = connection.execute(
             "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status, "
+            "scale_binding_metric_config_status, scale_binding_task_status "
+            "FROM v_scale_binding_status WHERE run_id = 'syn-partial-run'"
+        ).fetchone()
+        assert row is not None
+        assert row[1] is False
+        assert row[2] is False
+        assert row[3] is None
+        assert "mismatched_components: ['metric_config']" in (row[4] or "")
+        assert row[5] == "mismatch"
+        assert row[6] == "mismatch"
+        assert row[7] == "verified"
+
+
+def test_materialize_views_with_raising_custom_mapping_records_typed_error(
+    tmp_path: Path,
+) -> None:
+    """A custom Mapping whose item access raises records artifact_resolver_error."""
+
+    class BrokenMapping(dict):
+        def get(self, key: str, default: Any = None) -> Any:
+            raise RuntimeError("custom mapping access failed")
+
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=REPO_ROOT,
+            readiness_evaluator=_offline_readiness,
+            artifact_resolver=lambda _: BrokenMapping(),
+        )
+        row = connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
             "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
             "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
         ).fetchone()
@@ -436,5 +652,5 @@ def test_materialize_views_with_mismatched_resolver_records_typed_mismatch(
         assert row[1] is False
         assert row[2] is False
         assert row[3] is None
-        assert "mismatched_components" in (row[4] or "")
-        assert row[5] == "mismatch"
+        assert "artifact_resolver_error: custom mapping access failed" in (row[4] or "")
+        assert row[5] == "unresolved"

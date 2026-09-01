@@ -10,19 +10,40 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import duckdb
 
 from evallab.contextpack import parse_doc
 from evallab.runner import database_url_from_environment
-from evallab.storage.parquet_compaction import PRIMARY_KEYS
-from evallab.storage.paths import (
-    ParquetLayout,
-    ParquetPartitionDiscovery,
-    derived_root_from_environment,
-    discover_parquet_partitions,
+from evallab.storage.paths import derived_root_from_environment
+from evallab.storage.settlement import (
+    ProjectionColumn,
+    ProjectionTableContract,
+    active_settlement_manifests,
+    load_settlement_manifests,
+    verify_ready_manifest,
 )
+
+TableReadinessState = Literal[
+    "ready",
+    "missing",
+    "failed",
+    "stale",
+    "not_applicable",
+]
+ZoneReadinessState = Literal["ready", "partial", "unavailable"]
+
+
+@dataclass(frozen=True)
+class TableReadiness:
+    """Manifest-derived readiness for one logical Z3 relation."""
+
+    table_name: str
+    state: TableReadinessState
+    reason: str
+    paths: tuple[Path, ...] = ()
+    contract: ProjectionTableContract | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +54,16 @@ class ZoneStatus:
     attached: bool
     reason: str | None = None
     detail: str | None = None
+    state: ZoneReadinessState | None = None
+    tables: tuple[TableReadiness, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.state is None:
+            object.__setattr__(
+                self,
+                "state",
+                "ready" if self.attached else "unavailable",
+            )
 
 
 @dataclass(frozen=True)
@@ -85,101 +116,197 @@ TABLES = (
     "inspect_events",
     "inspect_attachments",
 )
-Z3_TABLE_LAYOUTS: tuple[ParquetLayout, ...] = (
-    "hot",
-    "cold-table",
-    "cold-day",
-    "directory",
-    "root",
-)
-Z3_JOB_LAYOUTS: tuple[ParquetLayout, ...] = (
-    "hot",
-    "job",
-    "cold-table",
-    "cold-day",
-    "directory",
-    "root",
-)
-Z3_REVISION_LAYOUTS: tuple[ParquetLayout, ...] = (
-    "revision",
-    "job",
-    "hot",
-    "cold-table",
-    "cold-day",
-    "directory",
-    "root",
-)
-SEMANTIC_COMPARISON_LAYOUTS: tuple[ParquetLayout, ...] = (
-    "hot",
-    "cold-table",
-    "cold-day",
-    "directory",
-)
-
-
-INSPECT_TABLES: frozenset[str] = frozenset(
-    {
-        "inspect_runs",
-        "inspect_attempts",
-        "inspect_scores",
-        "inspect_events",
-        "inspect_attachments",
-    }
-)
-
-
-def _z3_table_patterns(
-    discovery: ParquetPartitionDiscovery,
-    table: str,
-    *,
-    fallback: bool = False,
-) -> tuple[str, ...]:
-    if table in INSPECT_TABLES:
-        layouts = Z3_REVISION_LAYOUTS
-        prefer_job_level = True
-    elif table == "jobs":
-        layouts = Z3_JOB_LAYOUTS
-        prefer_job_level = True
-    else:
-        layouts = Z3_TABLE_LAYOUTS
-        prefer_job_level = False
-    return discovery.table_patterns(
-        table,
-        layouts=layouts,
-        prefer_job_level=prefer_job_level,
-        fallback=fallback,
-    )
-
-
-def _z3_select_sql(
-    discovery: ParquetPartitionDiscovery,
-    table: str,
-    sources: tuple[str, ...] | list[str],
-    *,
-    assume_cold_day: bool = False,
-) -> str:
-    source_list = ", ".join(_sql_string_literal(source) for source in sources)
-    primary_key = PRIMARY_KEYS.get(table)
-    has_cold_day = assume_cold_day or bool(discovery.table_files(table, layouts=("cold-day",)))
-    if not primary_key or not has_cold_day:
-        return f"SELECT * FROM read_parquet([{source_list}], union_by_name=true)"
-
-    key_columns = ", ".join(f'"{column}"' for column in primary_key)
-    cold_prefix = _sql_string_literal(str(discovery.root / "compact" / "dt="))
-    return (
-        "SELECT * EXCLUDE (filename, __evallab_rank) FROM ("
-        "SELECT *, ROW_NUMBER() OVER ("
-        f"PARTITION BY {key_columns} ORDER BY "
-        f"CASE WHEN starts_with(filename, {cold_prefix}) THEN 1 ELSE 0 END, filename"
-        ") AS __evallab_rank "
-        f"FROM read_parquet([{source_list}], union_by_name=true, filename=true)"
-        ") WHERE __evallab_rank = 1"
-    )
 
 
 def _sql_string_literal(value: str) -> str:
     """Return *value* as a safely quoted SQL string literal."""
     return "'" + value.replace("'", "''") + "'"
+
+
+def _quote_identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
+    inventory = load_settlement_manifests(root)
+    if inventory.errors:
+        reason = "; ".join(f"{error.path}: {error.reason}" for error in inventory.errors)
+        return tuple(TableReadiness(table, "stale", reason) for table in TABLES)
+
+    manifests = active_settlement_manifests(inventory)
+    entries: dict[str, list[TableReadiness]] = {table: [] for table in TABLES}
+    for manifest in manifests:
+        contracts = {contract.key: contract for contract in manifest.contract.tables}
+        if manifest.state == "ready":
+            try:
+                if not verify_ready_manifest(root, manifest):
+                    raise ValueError("ready settlement manifest failed verification")
+            except Exception as exc:
+                reason = f"{type(exc).__name__}: {exc}"
+                for contract in manifest.contract.tables:
+                    if contract.table_name in entries:
+                        entries[contract.table_name].append(
+                            TableReadiness(
+                                contract.table_name,
+                                "stale",
+                                reason,
+                                contract=contract,
+                            )
+                        )
+                continue
+            for table in manifest.tables:
+                contract = contracts[table.key]
+                if table.table_name not in entries:
+                    continue
+                if table.state == "ready":
+                    entries[table.table_name].append(
+                        TableReadiness(
+                            table.table_name,
+                            "ready",
+                            f"settlement={manifest.settlement_id}",
+                            paths=(root.resolve() / table.relative_path,),
+                            contract=contract,
+                        )
+                    )
+                else:
+                    entries[table.table_name].append(
+                        TableReadiness(
+                            table.table_name,
+                            "not_applicable",
+                            table.failure_reason or "explicitly not applicable",
+                            contract=contract,
+                        )
+                    )
+            continue
+
+        reason = f"settlement={manifest.settlement_id} state={manifest.state}" + (
+            f" reason={manifest.failure_reason}" if manifest.failure_reason else ""
+        )
+        for contract in manifest.contract.tables:
+            if contract.table_name in entries:
+                entries[contract.table_name].append(
+                    TableReadiness(
+                        contract.table_name,
+                        "failed",
+                        reason,
+                        contract=contract,
+                    )
+                )
+
+    readiness: list[TableReadiness] = []
+    for table_name in TABLES:
+        table_entries = entries[table_name]
+        if not table_entries:
+            readiness.append(
+                TableReadiness(
+                    table_name,
+                    "missing",
+                    "no active settlement contract",
+                )
+            )
+            continue
+        blocked = [entry for entry in table_entries if entry.state in {"failed", "stale"}]
+        if blocked:
+            state: TableReadinessState = (
+                "stale" if any(entry.state == "stale" for entry in blocked) else "failed"
+            )
+            readiness.append(
+                TableReadiness(
+                    table_name,
+                    state,
+                    "; ".join(sorted({entry.reason for entry in blocked})),
+                )
+            )
+            continue
+        ready_entries = [entry for entry in table_entries if entry.state == "ready"]
+        contracts = [entry.contract for entry in table_entries if entry.contract is not None]
+        schema_digests = {contract.schema_digest for contract in contracts}
+        if len(schema_digests) != 1:
+            readiness.append(
+                TableReadiness(
+                    table_name,
+                    "stale",
+                    "active settlements disagree on schema digest",
+                )
+            )
+            continue
+        contract = contracts[0]
+        if ready_entries:
+            paths = tuple(
+                sorted(
+                    {path for entry in ready_entries for path in entry.paths},
+                    key=str,
+                )
+            )
+            readiness.append(
+                TableReadiness(
+                    table_name,
+                    "ready",
+                    f"{len(paths)} verified manifest-bound partition(s)",
+                    paths=paths,
+                    contract=contract,
+                )
+            )
+        else:
+            readiness.append(
+                TableReadiness(
+                    table_name,
+                    "not_applicable",
+                    "all active contracts explicitly mark the table not applicable",
+                    contract=contract,
+                )
+            )
+    return tuple(readiness)
+
+
+def _duckdb_type(column: ProjectionColumn) -> str:
+    data_type = column.arrow_type
+    direct = {
+        "null": "VARCHAR",
+        "bool": "BOOLEAN",
+        "int8": "TINYINT",
+        "int16": "SMALLINT",
+        "int32": "INTEGER",
+        "int64": "BIGINT",
+        "uint8": "UTINYINT",
+        "uint16": "USMALLINT",
+        "uint32": "UINTEGER",
+        "uint64": "UBIGINT",
+        "float": "REAL",
+        "double": "DOUBLE",
+        "string": "VARCHAR",
+        "large_string": "VARCHAR",
+        "binary": "BLOB",
+        "large_binary": "BLOB",
+        "date32[day]": "DATE",
+        "date64[ms]": "DATE",
+    }
+    if data_type in direct:
+        return direct[data_type]
+    if data_type.startswith("timestamp["):
+        return "TIMESTAMPTZ" if "tz=" in data_type else "TIMESTAMP"
+    if data_type.startswith("duration["):
+        return "INTERVAL"
+    if data_type.startswith("decimal128(") or data_type.startswith("decimal256("):
+        precision_scale = data_type[data_type.index("(") + 1 : -1]
+        return f"DECIMAL({precision_scale})"
+    if data_type.startswith("list<") or data_type.startswith("large_list<"):
+        return "VARCHAR[]"
+    raise ValueError(f"unsupported registered Arrow type for DuckDB: {data_type}")
+
+
+def _typed_empty_select(contract: ProjectionTableContract) -> str:
+    columns = ", ".join(
+        f"CAST(NULL AS {_duckdb_type(column)}) AS {_quote_identifier(column.name)}"
+        for column in contract.columns
+    )
+    return f"SELECT {columns} WHERE FALSE"
+
+
+def _readiness_rows(
+    readiness: tuple[TableReadiness, ...],
+) -> list[tuple[str, str, str, int]]:
+    return [(item.table_name, item.state, item.reason, len(item.paths)) for item in readiness]
 
 
 def _postgres_dsn() -> str:
@@ -325,46 +452,70 @@ def _attach_semantic_comparison(
 
 
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
-    if not root.exists():
-        _attach_semantic_comparison(conn, available_tables=set())
-        return ZoneStatus("z3", False, reason="derived root does not exist", detail=str(root))
-
-    discovery = discover_parquet_partitions(root)
+    readiness = list(_manifest_table_readiness(root))
     available_tables: set[str] = set()
 
-    created = 0
-    missing = []
-    for table in TABLES:
-        view_globs = list(_z3_table_patterns(discovery, table))
-        if not view_globs:
-            conn.execute(
-                f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
-            conn.execute(
-                f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
-            missing.append(table)
+    for index, table in enumerate(readiness):
+        identifier = _quote_identifier(table.table_name)
+        if table.state == "ready":
+            sources = ", ".join(_sql_string_literal(str(path)) for path in table.paths)
+            select_sql = f"SELECT * FROM read_parquet([{sources}])"
+        elif table.state == "not_applicable" and table.contract is not None:
+            select_sql = _typed_empty_select(table.contract)
+        else:
             continue
-        select_sql = _z3_select_sql(discovery, table, view_globs)
         try:
-            conn.execute(f"CREATE OR REPLACE VIEW {table} AS {select_sql}")
-            conn.execute(f"CREATE OR REPLACE VIEW z3.{table} AS {select_sql}")
-            created += 1
-            if discovery.table_files(table, layouts=SEMANTIC_COMPARISON_LAYOUTS):
-                available_tables.add(table)
-        except Exception:
-            conn.execute(
-                f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
+            conn.execute(f"CREATE OR REPLACE VIEW {identifier} AS {select_sql}")
+            conn.execute(f"CREATE OR REPLACE VIEW z3.{identifier} AS {select_sql}")
+            if table.state == "ready":
+                available_tables.add(table.table_name)
+        except Exception as exc:
+            readiness[index] = TableReadiness(
+                table.table_name,
+                "stale",
+                f"attach failed: {type(exc).__name__}: {exc}",
+                paths=table.paths,
+                contract=table.contract,
             )
-            conn.execute(
-                f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
-            missing.append(table)
+
+    readiness_tuple = tuple(readiness)
+    conn.execute(
+        "CREATE OR REPLACE TABLE z3.table_readiness "
+        "(table_name VARCHAR, state VARCHAR, reason VARCHAR, path_count BIGINT)"
+    )
+    conn.executemany(
+        "INSERT INTO z3.table_readiness VALUES (?, ?, ?, ?)",
+        _readiness_rows(readiness_tuple),
+    )
+    conn.execute("CREATE OR REPLACE VIEW table_readiness AS SELECT * FROM z3.table_readiness")
     _attach_semantic_comparison(conn, available_tables=available_tables)
-    detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
-    if missing:
-        detail += f"; missing: {', '.join(missing)} (intentionally shaped differently)"
-    return ZoneStatus("z3", True, detail=detail)
+
+    admitted = sum(table.state in {"ready", "not_applicable"} for table in readiness_tuple)
+    ready_count = sum(table.state == "ready" for table in readiness_tuple)
+    if admitted == len(TABLES):
+        state: ZoneReadinessState = "ready"
+        reason = None
+    elif admitted:
+        state = "partial"
+        reason = "manifest coverage is incomplete"
+    else:
+        state = "unavailable"
+        reason = (
+            "derived root does not exist" if not root.exists() else "no manifest-admitted tables"
+        )
+    detail = (
+        f"{root} ({ready_count} ready, "
+        f"{admitted - ready_count} not applicable, "
+        f"{len(TABLES) - admitted} blocked)"
+    )
+    return ZoneStatus(
+        "z3",
+        state == "ready",
+        reason=reason,
+        detail=detail,
+        state=state,
+        tables=readiness_tuple,
+    )
 
 
 def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
@@ -405,11 +556,11 @@ def attach(
     explicit_derived: Path | None = None,
     environ: dict[str, str] | None = None,
 ) -> AttachResult:
-    """Return a DuckDB connection with available zones attached under one namespace.
+    """Return a DuckDB connection with honestly reported storage zones.
 
-    Z2 uses postgres_scanner against DATABASE_URL.
-    Z3 registers views over hot + cold Parquet using derived_root_from_environment.
-    Z4 materializes front_matter table from docs/ using parse_doc.
+    Z2 uses ``postgres_scanner`` against ``DATABASE_URL``. Z3 admits only exact
+    files from verified ready settlement manifests. Z4 materializes repository
+    document front matter.
     """
     root = repo_root or Path.cwd()
     dsn = _postgres_dsn()
@@ -437,27 +588,42 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
         "CREATE SCHEMA IF NOT EXISTS z3;",
         "CREATE SCHEMA IF NOT EXISTS z4;",
     ]
-    discovery = discover_parquet_partitions(derived)
-    for table in TABLES:
-        view_globs = _z3_table_patterns(discovery, table, fallback=True)
-        select_sql = _z3_select_sql(
-            discovery,
-            table,
-            view_globs,
-            assume_cold_day=True,
+    readiness = _manifest_table_readiness(derived)
+    available_tables: set[str] = set()
+    for table in readiness:
+        identifier = _quote_identifier(table.table_name)
+        if table.state == "ready":
+            sources = ", ".join(_sql_string_literal(str(path)) for path in table.paths)
+            select_sql = f"SELECT * FROM read_parquet([{sources}])"
+            available_tables.add(table.table_name)
+        elif table.state == "not_applicable" and table.contract is not None:
+            select_sql = _typed_empty_select(table.contract)
+        else:
+            continue
+        lines.append(f"CREATE OR REPLACE VIEW {identifier} AS {select_sql};")
+        lines.append(f"CREATE OR REPLACE VIEW z3.{identifier} AS {select_sql};")
+    lines.append(
+        "CREATE OR REPLACE TABLE z3.table_readiness "
+        "(table_name VARCHAR, state VARCHAR, reason VARCHAR, path_count BIGINT);"
+    )
+    for table_name, state, reason, path_count in _readiness_rows(readiness):
+        lines.append(
+            "INSERT INTO z3.table_readiness VALUES "
+            f"({_sql_string_literal(table_name)}, {_sql_string_literal(state)}, "
+            f"{_sql_string_literal(reason)}, {path_count});"
         )
-        lines.append(f"CREATE OR REPLACE VIEW {table} AS {select_sql};")
-        lines.append(f"CREATE OR REPLACE VIEW z3.{table} AS {select_sql};")
-    lines.append(
-        "CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS "
-        + _semantic_comparison_sql("agent_actions", "semantic_action_facts")
-        + ";"
-    )
-    lines.append(
-        "CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS "
-        + _semantic_comparison_sql("z3.agent_actions", "z3.semantic_action_facts")
-        + ";"
-    )
+    lines.append("CREATE OR REPLACE VIEW table_readiness AS SELECT * FROM z3.table_readiness;")
+    if {"agent_actions", "semantic_action_facts"} <= available_tables:
+        lines.append(
+            "CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS "
+            + _semantic_comparison_sql("agent_actions", "semantic_action_facts")
+            + ";"
+        )
+        lines.append(
+            "CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS "
+            + _semantic_comparison_sql("z3.agent_actions", "z3.semantic_action_facts")
+            + ";"
+        )
     lines.append(
         "CREATE OR REPLACE TABLE z4.front_matter "
         "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"
@@ -467,11 +633,11 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
 
 
 def print_zones(zones: tuple[ZoneStatus, ...]) -> None:
-    for z in zones:
-        if z.attached:
-            print(f"{z.name}: attached ({z.detail or ''})")
+    for zone in zones:
+        if zone.state == "ready":
+            print(f"{zone.name}: ready ({zone.detail or ''})")
         else:
-            print(f"{z.name}: unavailable — {z.reason} (examined: {z.detail or ''})")
+            print(f"{zone.name}: {zone.state} — {zone.reason} (examined: {zone.detail or ''})")
 
 
 def attach_and_query(sql: str, **kwargs: Any) -> list[tuple[Any, ...]]:

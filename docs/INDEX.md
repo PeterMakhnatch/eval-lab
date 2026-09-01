@@ -13,7 +13,7 @@ inputs:
   - path: docs/GIANT-FILE-SPLIT-PROPOSALS.md
     digest: sha256:40b4d1c38448ff751bf901ba684abf0166048aa1ce3b9eef37815eae5e544303
   - path: docs/GLOSSARY.md
-    digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
+    digest: sha256:e9849f764b50885fade5d1cca1489cad5b11b1464c897090c69e652b18db679f
   - path: docs/STATUS.md
     digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
   - path: docs/SYSTEM-TOUR.md
@@ -105,7 +105,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:c70733e6841a456edc7f2f340e982469c37f5e1d91a79b4b1568f204453609f2
+    digest: sha256:6ea1c759763edf93ba73f0c1da4f4a0995a1c4db1b00707942e2366186b53d82
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

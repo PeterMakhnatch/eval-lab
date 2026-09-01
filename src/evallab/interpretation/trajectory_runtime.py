@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 from pydantic import Field, ValidationError, model_validator
 
 from evallab.analysis_capability import (
@@ -39,10 +38,11 @@ from evallab.analysis_capability import (
     run_campaign_analysis,
 )
 from evallab.database import ingest_interpretation_artifacts
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.evidence_store import (
     archive_evidence,
-    read_archive,
     read_record,
+    reopen_evidence_archive,
     restore_evidence,
 )
 from evallab.interpretation.evidence_pack import (
@@ -82,6 +82,22 @@ from evallab.interpretation.trajectory_judgment import (
 )
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel
+from evallab.storage.paths import derived_root_from_environment
+from evallab.storage.settlement import (
+    CASRecordReference,
+    ProjectionContract,
+    ProjectionSettlementManifest,
+    ProjectionTableSettlement,
+    SettlementError,
+    SettlementSource,
+    begin_or_resume_settlement,
+    persist_and_write_settlement,
+    producer_code_digest,
+    table_contract,
+    transition_settlement,
+    verify_projected_table,
+    write_settlement_manifest,
+)
 
 _SIDECAR_FILES = (
     "trajectory_ir.json",
@@ -164,6 +180,8 @@ class ArtifactRecord:
     content_digest: str
     artifact_path: Path
     cas_uri: str
+    cas_record_path: Path | None = None
+    cas_record_digest: str | None = None
     pack_digest: str = ""
     judgment_id: str = ""
     decision_id: str = ""
@@ -1694,6 +1712,7 @@ def write_interpretation_artifacts(
         _load_interpretation_archive_record(
             cas_store,
             decision.decision_id,
+            expected_record_digest=archive.record_digest,
             sidecar_dir=artifact_dir,
         )
         is None
@@ -1712,6 +1731,8 @@ def write_interpretation_artifacts(
             content_digest=ir_content_digest,
             artifact_path=ir_path,
             cas_uri=archive.uri,
+            cas_record_path=archive.manifest_path,
+            cas_record_digest=archive.record_digest,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1725,6 +1746,8 @@ def write_interpretation_artifacts(
             content_digest=pack_content_digest,
             artifact_path=pack_path,
             cas_uri=archive.uri,
+            cas_record_path=archive.manifest_path,
+            cas_record_digest=archive.record_digest,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1738,6 +1761,8 @@ def write_interpretation_artifacts(
             content_digest=judgment_content_digest,
             artifact_path=judgment_path,
             cas_uri=archive.uri,
+            cas_record_path=archive.manifest_path,
+            cas_record_digest=archive.record_digest,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1756,6 +1781,8 @@ def write_interpretation_artifacts(
             content_digest=decision_content_digest,
             artifact_path=decision_path,
             cas_uri=archive.uri,
+            cas_record_path=archive.manifest_path,
+            cas_record_digest=archive.record_digest,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1777,6 +1804,8 @@ def write_interpretation_artifacts(
             content_digest=archive.content_digest,
             artifact_path=artifact_dir,
             cas_uri=archive.uri,
+            cas_record_path=archive.manifest_path,
+            cas_record_digest=archive.record_digest,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1892,15 +1921,22 @@ def _analyze_trial_core(
             cas_store=store_root,
         )
 
+        source_records: dict[str, CASRecordReference] = {}
+        if records[0].cas_record_path is not None and records[0].cas_record_digest is not None:
+            source_records[decision.decision_id] = CASRecordReference(
+                record_path=records[0].cas_record_path,
+                expected_record_digest=records[0].cas_record_digest,
+            )
+        if database_url:
+            ingest_interpretation_artifacts(database_url, records)
         if rebuild_projections:
             rebuild_interpretation_projections(
                 output_dir,
                 derived_root,
                 store_root=store_root,
+                source_records=source_records,
+                database_url=database_url,
             )
-
-        if database_url:
-            ingest_interpretation_artifacts(database_url, records)
 
         result = {
             "trial_id": ir.trial_id,
@@ -1915,6 +1951,10 @@ def _analyze_trial_core(
             "coverage_gaps": judgment.coverage_gaps,
             "source_cas_uri": cas_uri,
             "artifact_cas_uri": records[-1].cas_uri,
+            "artifact_record_path": (
+                str(records[0].cas_record_path) if records[0].cas_record_path is not None else None
+            ),
+            "artifact_record_digest": records[0].cas_record_digest,
         }
         return result, records
     finally:
@@ -1934,7 +1974,7 @@ def analyze_trial(
     calibration_report: Path | None = None,
 ) -> dict[str, Any]:
     """Analyze one cohort-style input and return the JSON-shaped result."""
-    derived = derived_root or output_dir.parent
+    derived = derived_root or derived_root_from_environment(repo_root)
     result, _ = _analyze_trial_core(
         target,
         repo_root=repo_root,
@@ -2329,7 +2369,7 @@ def analyze_batch(
     repo_root = repo_root.resolve()
     store_root = store_root.resolve()
     output_dir = output_dir.resolve()
-    derived = (derived_root or output_dir.parent).resolve()
+    derived = (derived_root or derived_root_from_environment(repo_root)).resolve()
 
     manifest = load_campaign_analysis_manifest(inventory_path)
     recomputed_snapshot_digest = compute_analysis_snapshot_digest(
@@ -2347,6 +2387,7 @@ def analyze_batch(
         raise RuntimeError("schema_mismatch: duplicate cohort job_id/trial_id identity")
 
     results: list[dict[str, Any]] = []
+    source_records: dict[str, CASRecordReference] = {}
     for item in cohort:
         if item.quality_status in _QUARANTINE_STATUSES:
             raise RuntimeError(f"quarantined_input: {item.trial_id} {item.quality_status}")
@@ -2357,7 +2398,7 @@ def analyze_batch(
         if not item.cas_uri:
             raise RuntimeError(f"missing_cas: {item.trial_id}")
 
-        result, _ = _analyze_trial_core(
+        result, artifact_records = _analyze_trial_core(
             item.as_inventory_dict(),
             repo_root=repo_root,
             store_root=store_root,
@@ -2368,10 +2409,21 @@ def analyze_batch(
             rebuild_projections=False,
         )
         results.append(result)
+        if (
+            artifact_records
+            and artifact_records[0].cas_record_path is not None
+            and artifact_records[0].cas_record_digest is not None
+        ):
+            source_records[result["decision_id"]] = CASRecordReference(
+                record_path=artifact_records[0].cas_record_path,
+                expected_record_digest=artifact_records[0].cas_record_digest,
+            )
     rebuild_interpretation_projections(
         output_dir,
         derived,
         store_root=store_root,
+        source_records=source_records,
+        database_url=database_url,
     )
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
@@ -2453,8 +2505,19 @@ def _find_sidecar_set(target: str, output_dir: Path) -> Path | None:
 
 
 def _record_cas_uri(store_root: Path, decision_id: str) -> str | None:
-    record = _load_interpretation_archive_record(store_root, decision_id)
-    return record[0] if record is not None else None
+    """Return a display-only CAS URI; projection authority never uses this helper."""
+    try:
+        record = json.loads(
+            read_record(
+                store_root,
+                kind="interpretation",
+                record_id=decision_id,
+            )
+        )
+    except (FileNotFoundError, ValueError, json.JSONDecodeError):
+        return None
+    uri = record.get("uri")
+    return uri if isinstance(uri, str) else None
 
 
 def analyze_inspect(
@@ -2660,66 +2723,78 @@ def _parse_timestamp_for_parquet(value: Any) -> datetime:
 
 
 def _write_parquet(path: Path, schema: pa.Schema, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        table = pa.Table.from_pydict({name: [] for name in schema.names}, schema=schema)
-    else:
-        table = pa.Table.from_pylist(rows, schema=schema)
-    tmp = path.with_suffix(".parquet.tmp")
-    pq.write_table(
-        table,
-        tmp,
-        compression="zstd",
-        use_dictionary=False,
-        write_statistics=True,
+    write_table_atomic(path, rows, schema)
+
+
+def _interpretation_projection_contract(
+    decision_id: str,
+    *,
+    producer_digest: str,
+) -> ProjectionContract:
+    from evallab import __version__
+
+    partition = f"interpretation_id={decision_id}"
+    schemas = (
+        ("interpretation_artifacts", INTERPRETATION_ARTIFACT_SCHEMA),
+        ("machine_judgments", MACHINE_JUDGMENT_SCHEMA),
+        ("acceptance_decisions", ACCEPTANCE_DECISION_SCHEMA),
     )
-    tmp.replace(path)
+    return ProjectionContract(
+        producer_name=(
+            "evallab.interpretation.trajectory_runtime.rebuild_interpretation_projections"
+        ),
+        producer_version=__version__,
+        producer_code_digest=producer_digest,
+        tables=tuple(
+            table_contract(
+                table_name=table_name,
+                partition_identity=partition,
+                required=True,
+                schema=schema,
+                relative_path=f"{partition}/{table_name}.parquet",
+            )
+            for table_name, schema in schemas
+        ),
+    )
+
+
+def _interpretation_table_state(
+    contract: ProjectionContract,
+    *,
+    state: str,
+    source_digest: str | None = None,
+    failure_reason: str | None = None,
+) -> tuple[ProjectionTableSettlement, ...]:
+    return tuple(
+        ProjectionTableSettlement(
+            **table.model_dump(mode="python"),
+            state=state,
+            source_digest=source_digest,
+            failure_reason=failure_reason,
+        )
+        for table in contract.tables
+    )
 
 
 def _load_interpretation_archive_record(
     store_root: Path,
     decision_id: str,
     *,
-    sidecar_dir: Path | None = None,
+    expected_record_digest: str,
+    sidecar_dir: Path,
 ) -> tuple[str, str] | None:
-    """Validate the record, archive bytes, restored content, and sidecar byte identity."""
+    """Authenticate one producer-bound record and its live sidecar source."""
     try:
-        record = json.loads(
-            read_record(
-                store_root,
-                kind="interpretation",
-                record_id=decision_id,
-            )
+        archive, _record_bytes = reopen_evidence_archive(
+            store_root,
+            kind="interpretation",
+            record_id=decision_id,
+            expected_record_digest=expected_record_digest,
+            source=sidecar_dir,
         )
-    except FileNotFoundError:
-        return None
-    try:
-        uri = str(record["uri"])
-        content_digest = str(record["content_digest"])
-        archive_digest = str(record["archive_digest"])
-        if (
-            record.get("record_id") != decision_id
-            or record.get("kind") != "interpretation"
-            or uri != f"cas://sha256/{content_digest.removeprefix('sha256:')}"
-        ):
-            return None
-        archive_bytes = read_archive(store_root, uri)
-        actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
-        if actual_archive_digest != archive_digest:
-            return None
-        if sidecar_dir is not None:
-            with tempfile.TemporaryDirectory() as temporary:
-                restored = restore_evidence(store_root, uri, Path(temporary))
-                for filename in _SIDECAR_FILES:
-                    restored_path = restored / filename
-                    sidecar_path = sidecar_dir / filename
-                    if not restored_path.is_file() or _sha256_file(restored_path) != _sha256_file(
-                        sidecar_path
-                    ):
-                        return None
     except Exception:
         return None
-    return uri, content_digest
+    return archive.uri, archive.content_digest
 
 
 def _projection_sidecars_valid(
@@ -2772,15 +2847,26 @@ def rebuild_interpretation_projections(
     derived_root: Path,
     *,
     store_root: Path,
+    source_records: Mapping[str, CASRecordReference] | None = None,
+    database_url: str | None = None,
 ) -> list[Path]:
-    """Rebuild deterministic Parquet projections from CAS-backed JSON sidecars."""
+    """Settle deterministic, per-decision Parquet from CAS-backed sidecars."""
     sidecar_root = sidecar_root.resolve()
     derived_root = derived_root.resolve()
     store_root = store_root.resolve()
-
+    references = dict(source_records or {})
+    producer_digest = producer_code_digest([Path(__file__)])
     artifact_rows: list[dict[str, Any]] = []
     judgment_rows: list[dict[str, Any]] = []
     decision_rows: list[dict[str, Any]] = []
+    quarantined_decisions: set[str] = set()
+    missing_reference_decisions: set[str] = set()
+
+    def record_settlement(manifest: ProjectionSettlementManifest) -> None:
+        if database_url is None:
+            write_settlement_manifest(derived_root, manifest)
+        else:
+            persist_and_write_settlement(database_url, derived_root, manifest)
 
     for decision_path in sidecar_root.rglob("acceptance_decision.json"):
         artifact_dir = decision_path.parent
@@ -2806,17 +2892,30 @@ def rebuild_interpretation_projections(
             trial_id=trial_id,
             decision_dirname=artifact_dir.name,
         ):
+            candidate_id = decision.get("decision_id")
+            if (
+                isinstance(candidate_id, str)
+                and candidate_id.removeprefix("sha256:") == artifact_dir.name
+                and candidate_id in references
+            ):
+                quarantined_decisions.add(candidate_id)
             continue
 
         pack_digest = pack["pack_digest"]
         judgment_id = judgment["judgment_id"]
         decision_id = decision["decision_id"]
+        reference = references.get(decision_id)
+        if reference is None:
+            missing_reference_decisions.add(decision_id)
+            continue
         archive_record = _load_interpretation_archive_record(
             store_root,
             decision_id,
+            expected_record_digest=reference.expected_record_digest,
             sidecar_dir=artifact_dir,
         )
         if archive_record is None:
+            quarantined_decisions.add(decision_id)
             continue
         artifact_cas_uri, archive_content_digest = archive_record
 
@@ -2924,22 +3023,149 @@ def rebuild_interpretation_projections(
             }
         )
 
-    def sort_key(row: dict[str, Any]) -> tuple[str, ...]:
-        return (row.get("artifact_digest", ""), row.get("kind", ""))
+    artifact_rows_by_decision: dict[str, list[dict[str, Any]]] = {}
+    for row in artifact_rows:
+        artifact_rows_by_decision.setdefault(row["decision_id"], []).append(row)
+    judgments_by_id = {row["judgment_id"]: row for row in judgment_rows}
+    decisions_by_id = {row["decision_id"]: row for row in decision_rows}
+    observed_decisions = set(decisions_by_id) | quarantined_decisions | missing_reference_decisions
+    unexpected_references = sorted(set(references) - observed_decisions)
+    if unexpected_references:
+        raise ValueError(
+            "unexpected interpretation CAS references: " + ", ".join(unexpected_references)
+        )
 
-    artifact_rows.sort(key=sort_key)
-    judgment_rows.sort(key=lambda r: r["judgment_id"])
-    decision_rows.sort(key=lambda r: r["decision_id"])
+    published: list[Path] = []
+    for decision_id in sorted(observed_decisions):
+        contract = _interpretation_projection_contract(
+            decision_id,
+            producer_digest=producer_digest,
+        )
+        reference = references.get(decision_id)
+        failure_reason = (
+            "missing_or_invalid_cas_record"
+            if decision_id in quarantined_decisions
+            else "missing_independent_record_digest"
+            if decision_id in missing_reference_decisions
+            else None
+        )
+        if failure_reason is None and reference is not None:
+            try:
+                source = SettlementSource.from_cas_record(
+                    reference.record_path,
+                    expected_record_digest=reference.expected_record_digest,
+                )
+            except SettlementError as exc:
+                failure_reason = exc.reason_code
+                source = SettlementSource.quarantined(
+                    decision_id,
+                    "interpretation",
+                    failure_reason,
+                )
+        else:
+            source = SettlementSource.quarantined(
+                decision_id,
+                "interpretation",
+                failure_reason or "missing_independent_record_digest",
+            )
 
-    artifact_path = derived_root / "interpretation_artifacts" / "interpretation_artifacts.parquet"
-    judgment_path = derived_root / "machine_judgments" / "machine_judgments.parquet"
-    decision_path = derived_root / "acceptance_decisions" / "acceptance_decisions.parquet"
+        manifest = begin_or_resume_settlement(derived_root, source, contract)
+        record_settlement(manifest)
+        if source.authority_status != "verified":
+            if manifest.state == "discovered":
+                manifest = transition_settlement(
+                    manifest,
+                    "quarantined",
+                    tables=_interpretation_table_state(
+                        contract,
+                        state="quarantined",
+                        failure_reason=source.authority_error,
+                    ),
+                    reason_code=source.authority_error,
+                )
+                record_settlement(manifest)
+            continue
+        if manifest.state == "ready":
+            published.extend(
+                derived_root / table.relative_path
+                for table in manifest.tables
+                if table.state == "ready"
+            )
+            continue
+        if manifest.state == "discovered":
+            manifest = transition_settlement(manifest, "source_validated")
+            record_settlement(manifest)
+        if manifest.state == "source_validated":
+            manifest = transition_settlement(manifest, "cas_committed")
+            record_settlement(manifest)
+        if manifest.state == "cas_committed":
+            manifest = transition_settlement(manifest, "cataloged")
+            record_settlement(manifest)
+        if manifest.state == "cataloged":
+            manifest = transition_settlement(
+                manifest,
+                "projecting",
+                tables=_interpretation_table_state(
+                    contract,
+                    state="projecting",
+                    source_digest=source.cas_content_digest,
+                ),
+            )
+            record_settlement(manifest)
 
-    _write_parquet(artifact_path, INTERPRETATION_ARTIFACT_SCHEMA, artifact_rows)
-    _write_parquet(judgment_path, MACHINE_JUDGMENT_SCHEMA, judgment_rows)
-    _write_parquet(decision_path, ACCEPTANCE_DECISION_SCHEMA, decision_rows)
-
-    return [artifact_path, judgment_path, decision_path]
+        decision_row = decisions_by_id[decision_id]
+        judgment_ids = json.loads(decision_row["judgment_ids_json"])
+        rows_by_table = {
+            "interpretation_artifacts": sorted(
+                artifact_rows_by_decision[decision_id],
+                key=lambda row: (row["artifact_digest"], row["kind"]),
+            ),
+            "machine_judgments": sorted(
+                (judgments_by_id[judgment_id] for judgment_id in judgment_ids),
+                key=lambda row: row["judgment_id"],
+            ),
+            "acceptance_decisions": [decision_row],
+        }
+        settled_tables: list[ProjectionTableSettlement] = []
+        try:
+            for table in contract.tables:
+                path = derived_root / table.relative_path
+                rows = rows_by_table[table.table_name]
+                schema = {
+                    "interpretation_artifacts": INTERPRETATION_ARTIFACT_SCHEMA,
+                    "machine_judgments": MACHINE_JUDGMENT_SCHEMA,
+                    "acceptance_decisions": ACCEPTANCE_DECISION_SCHEMA,
+                }[table.table_name]
+                _write_parquet(path, schema, rows)
+                settled_tables.append(
+                    verify_projected_table(
+                        derived_root,
+                        table,
+                        source_digest=source.cas_content_digest or "",
+                        expected_row_count=len(rows),
+                    )
+                )
+                published.append(path)
+            manifest = transition_settlement(
+                manifest,
+                "ready",
+                tables=settled_tables,
+            )
+            record_settlement(manifest)
+        except Exception as exc:
+            failed = transition_settlement(
+                manifest,
+                "projection_failed",
+                tables=_interpretation_table_state(
+                    contract,
+                    state="failed",
+                    failure_reason=f"{type(exc).__name__}: {exc}",
+                ),
+                reason_code=type(exc).__name__,
+            )
+            record_settlement(failed)
+            raise
+    return published
 
 
 __all__ = [

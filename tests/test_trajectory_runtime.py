@@ -76,6 +76,11 @@ from evallab.interpretation.trajectory_runtime import (
     load_campaign_analysis_manifest,
     rebuild_interpretation_projections,
 )
+from evallab.storage.settlement import (
+    CASRecordReference,
+    active_settlement_manifests,
+    load_settlement_manifests,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 REAL_INVENTORY = (
@@ -476,25 +481,32 @@ def test_parquet_rebuild_preserves_identities(tmp_path: Path) -> None:
         output_dir=output,
         derived_root=derived,
     )
-    judgment_parquet = derived / "machine_judgments" / "machine_judgments.parquet"
-    decision_parquet = derived / "acceptance_decisions" / "acceptance_decisions.parquet"
+    partition = derived / f"interpretation_id={result['decision_id']}"
+    judgment_parquet = partition / "machine_judgments.parquet"
+    decision_parquet = partition / "acceptance_decisions.parquet"
+    artifact_parquet = partition / "interpretation_artifacts.parquet"
     assert judgment_parquet.is_file()
     assert decision_parquet.is_file()
+    assert artifact_parquet.is_file()
     judgment_parquet.unlink()
     decision_parquet.unlink()
     rebuilt = rebuild_interpretation_projections(
         output,
         derived,
         store_root=tmp_path / "cas",
+        source_records={
+            result["decision_id"]: CASRecordReference(
+                record_path=Path(result["artifact_record_path"]),
+                expected_record_digest=result["artifact_record_digest"],
+            )
+        },
     )
     assert all(path.is_file() for path in rebuilt)
     import pyarrow.parquet as pq
 
-    judgments = pq.read_table(derived / "machine_judgments" / "machine_judgments.parquet")
-    decisions = pq.read_table(derived / "acceptance_decisions" / "acceptance_decisions.parquet")
-    artifacts = pq.read_table(
-        derived / "interpretation_artifacts" / "interpretation_artifacts.parquet"
-    )
+    judgments = pq.read_table(judgment_parquet)
+    decisions = pq.read_table(decision_parquet)
+    artifacts = pq.read_table(artifact_parquet)
     assert result["judgment_id"] in judgments.column("judgment_id").to_pylist()
     assert result["decision_id"] in decisions.column("decision_id").to_pylist()
     assert result["pack_digest"] in judgments.column("pack_digest").to_pylist()
@@ -513,10 +525,37 @@ def test_projection_rebuild_skips_partial_sidecar_set(tmp_path: Path) -> None:
         store_root=tmp_path / "cas",
     )
 
-    import pyarrow.parquet as pq
+    assert paths == []
+    assert not list((tmp_path / "derived").rglob("*.parquet"))
 
-    assert all(path.is_file() for path in paths)
-    assert pq.read_table(paths[0]).num_rows == 0
+
+def test_projection_rebuild_quarantines_missing_independent_record_digest(
+    tmp_path: Path,
+) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="projection-missing-digest")
+    output = tmp_path / "interpretation"
+    store = tmp_path / "cas"
+    result = analyze_trial(
+        trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+        output_dir=output,
+        derived_root=tmp_path / "initial",
+    )
+
+    rebuilt = tmp_path / "rebuilt"
+    paths = rebuild_interpretation_projections(
+        output,
+        rebuilt,
+        store_root=store,
+    )
+
+    assert paths == []
+    manifest = active_settlement_manifests(load_settlement_manifests(rebuilt))[0]
+    assert manifest.source.source_id == result["decision_id"]
+    assert manifest.state == "quarantined"
+    assert manifest.events[-1].reason_code == "missing_independent_record_digest"
+    assert not list(rebuilt.rglob("*.parquet"))
 
 
 def test_projection_rebuild_rejects_tampered_complete_sidecars(tmp_path: Path) -> None:
@@ -540,13 +579,16 @@ def test_projection_rebuild_rejects_tampered_complete_sidecars(tmp_path: Path) -
         output,
         tmp_path / "rebuilt",
         store_root=store,
+        source_records={
+            result["decision_id"]: CASRecordReference(
+                record_path=Path(result["artifact_record_path"]),
+                expected_record_digest=result["artifact_record_digest"],
+            )
+        },
     )
 
-    import pyarrow.parquet as pq
-
-    assert pq.read_table(paths[0]).num_rows == 0
-    assert pq.read_table(paths[1]).num_rows == 0
-    assert pq.read_table(paths[2]).num_rows == 0
+    assert paths == []
+    assert not list((tmp_path / "rebuilt").rglob("*.parquet"))
 
 
 def test_projection_rebuild_rejects_corrupt_interpretation_blob(tmp_path: Path) -> None:
@@ -560,7 +602,7 @@ def test_projection_rebuild_rejects_corrupt_interpretation_blob(tmp_path: Path) 
         output_dir=output,
         derived_root=tmp_path / "derived",
     )
-    record_path = store / "records" / "interpretation" / f"{result['decision_id']}.json"
+    record_path = Path(result["artifact_record_path"])
     record = json.loads(record_path.read_text(encoding="utf-8"))
     blob = store / record["blob_path"]
     content = bytearray(blob.read_bytes())
@@ -571,13 +613,16 @@ def test_projection_rebuild_rejects_corrupt_interpretation_blob(tmp_path: Path) 
         output,
         tmp_path / "rebuilt",
         store_root=store,
+        source_records={
+            result["decision_id"]: CASRecordReference(
+                record_path=record_path,
+                expected_record_digest=result["artifact_record_digest"],
+            )
+        },
     )
 
-    import pyarrow.parquet as pq
-
-    assert pq.read_table(paths[0]).num_rows == 0
-    assert pq.read_table(paths[1]).num_rows == 0
-    assert pq.read_table(paths[2]).num_rows == 0
+    assert paths == []
+    assert not list((tmp_path / "rebuilt").rglob("*.parquet"))
 
 
 def test_unresolved_citation_rejects(tmp_path: Path) -> None:

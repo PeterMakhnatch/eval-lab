@@ -455,7 +455,11 @@ def test_cas_hydration_rejects_tampered_blob(tmp_path: Path) -> None:
         record_id="tampered",
         kind="trial",
     )
-    archive.blob_path.write_bytes(tampered_archive.blob_path.read_bytes())
+    original_digest = archive.content_digest.removeprefix("sha256:")
+    tampered_digest = tampered_archive.content_digest.removeprefix("sha256:")
+    original_blob = store / "blobs" / "sha256" / original_digest[:2] / f"{original_digest}.tar.gz"
+    tampered_blob = store / "blobs" / "sha256" / tampered_digest[:2] / f"{tampered_digest}.tar.gz"
+    original_blob.write_bytes(tampered_blob.read_bytes())
 
     with pytest.raises(ValueError, match="CAS evidence digest mismatch"):
         resolve_trial(

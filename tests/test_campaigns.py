@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import math
+import shutil
 import threading
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -42,6 +43,7 @@ from evallab.continuous_control_plane import (
     DisabledCampaignControlLoop,
 )
 from evallab.credentials import DEEPSEEK_API_CREDENTIAL
+from evallab.evidence_store import archive_evidence, evidence_locator
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     DispatchCapacity,
@@ -53,6 +55,7 @@ from evallab.ops_continuous import main as operator_main
 from evallab.ops_continuous import write_mode
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
+from evallab.runner import SettledRun
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentMatrix,
@@ -160,13 +163,16 @@ def _repo(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     validated_matrix = ExperimentMatrix.model_validate(matrix)
-    matrix_digest = "sha256:" + hashlib.sha256(
-        json.dumps(
-            validated_matrix.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()
+    matrix_digest = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                validated_matrix.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
     (experiments / "matrix-registry.json").write_text(
         json.dumps(
             {
@@ -189,13 +195,16 @@ def _repo(tmp_path: Path) -> Path:
 
 def _canonical_matrix_digest(payload: dict[str, Any]) -> str:
     matrix = ExperimentMatrix.model_validate(payload)
-    return "sha256:" + hashlib.sha256(
-        json.dumps(
-            matrix.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()
+    return (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                matrix.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
 
 
 def _update_fixture_matrix_catalog(
@@ -380,9 +389,7 @@ def _write_job(
     metadata: dict[str, Any] = {
         "schema_version": 1,
         "experiment": (
-            request.provenance.model_dump(mode="json")
-            if request.provenance is not None
-            else None
+            request.provenance.model_dump(mode="json") if request.provenance is not None else None
         ),
     }
     if (
@@ -463,12 +470,30 @@ def _executor(
     credentials: frozenset[str] = frozenset(),
     compliance: Any = lambda _job, _spec, _ingest, _archive: "QUALITY_PASS",
 ) -> Executor:
+    def cas_runner(request: RunRequest) -> SettledRun:
+        result = runner(request)
+        if isinstance(result, SettledRun):
+            return result
+        source = Path(result)
+        store_root = root / "derived/run-cas"
+        archive = archive_evidence(
+            source,
+            store_root,
+            record_id=request.name,
+            kind="job",
+        )
+        shutil.rmtree(source)
+        return SettledRun(
+            cas_locator=evidence_locator(store_root, archive),
+            cas_record=archive,
+        )
+
     return Executor(
         repo_root=root,
         queue=DirectoryQueue(root / "queue"),
         policy=load_policy(root / "policy/standing-approvals.yaml"),
-        runner=runner,
-        ingester=lambda _job: None,
+        runner=cas_runner,
+        ingester=lambda _locator: None,
         compliance=compliance,
         spent_today=lambda: 0.0,
         consecutive_harness_failures=lambda: 0,
@@ -606,6 +631,7 @@ def test_resume_refuses_queued_spec_digest_drift(tmp_path: Path) -> None:
     with pytest.raises(CampaignDriftError, match="queued campaign spec drifted"):
         _orchestrator(root, manifest, executor).resume()
 
+
 def test_resume_rejects_queued_campaign_spec_digest_binding_tamper(
     tmp_path: Path,
 ) -> None:
@@ -625,6 +651,7 @@ def test_resume_rejects_queued_campaign_spec_digest_binding_tamper(
     with pytest.raises(CampaignDriftError, match="digest binding drifted"):
         _orchestrator(root, manifest, executor).resume()
     assert calls == []
+
 
 def test_campaign_rejects_task_package_substitution_before_dispatch(
     tmp_path: Path,
@@ -654,6 +681,7 @@ def test_partial_journal_record_refuses_resume(tmp_path: Path) -> None:
 
     with pytest.raises(CampaignAmbiguityError, match="partial record"):
         orchestrator.resume()
+
 
 def test_campaign_store_rejects_symlinked_campaign_root(tmp_path: Path) -> None:
     root = _repo(tmp_path)
@@ -755,7 +783,9 @@ def test_run_reloads_started_state_after_acquiring_lease(
 
 def test_transient_failure_opens_circuit_before_next_attempt(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False, attempts=2, circuit_failures=1), repo_root=root)
+    manifest = build_campaign_manifest(
+        _definition(billable=False, attempts=2, circuit_failures=1), repo_root=root
+    )
     calls: list[str] = []
 
     def transient(request: RunRequest) -> Path:
@@ -836,6 +866,7 @@ def test_campaign_manifest_and_job_names_are_deterministic(tmp_path: Path) -> No
         attempt.job_name for attempt in second.attempts
     ]
     assert len({attempt.job_name for attempt in first.attempts}) == 2
+
 
 def test_analysis_cell_requires_two_distinct_declared_repeat_seeds(
     tmp_path: Path,
@@ -1003,6 +1034,7 @@ def test_observed_trial_overage_opens_campaign_circuit(tmp_path: Path) -> None:
     assert status.circuit_reason == "trial_cost_ceiling_exceeded"
     assert status.completed_attempts == 1
 
+
 @pytest.mark.parametrize("cost", [-0.01, float("nan"), float("inf")])
 def test_invalid_billable_usage_fails_closed(
     tmp_path: Path,
@@ -1060,9 +1092,7 @@ def test_direct_proxy_calls_are_reconciled_into_campaign_usage(
     assert status.input_tokens == 30
     assert status.output_tokens == 12
     completed = [
-        event
-        for event in orchestrator.store.events(manifest)
-        if event.event == "attempt_completed"
+        event for event in orchestrator.store.events(manifest) if event.event == "attempt_completed"
     ]
     assert completed[0].details["usage"]["request_count"] == 2
 
@@ -1091,7 +1121,7 @@ def test_done_unjournaled_usage_reserves_budget_before_next_dispatch(
     first = manifest.attempts[0]
     executor.queue.approve(first.spec_id, actor="Peter Makhnatch")
     approved_path, approved_spec = executor.queue.list_specs("approved")[0]
-    executor.execute_spec(approved_spec)
+    settled = executor.execute_spec(approved_spec)
     running = executor.queue.transition(
         approved_path,
         "running",
@@ -1103,6 +1133,7 @@ def test_done_unjournaled_usage_reserves_budget_before_next_dispatch(
         "done",
         actor="test",
         event="dispatch_completed",
+        cas_locator=settled.cas_locator,
     )
 
     reason = orchestrator._next_attempt_budget_reason([], manifest.attempts[1])
@@ -1160,7 +1191,6 @@ def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
     )
 
 
-
 def test_executor_rejects_secret_bearing_job_before_ingest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1185,6 +1215,7 @@ def test_executor_rejects_secret_bearing_job_before_ingest(
         executor.execute_spec(manifest.attempts[0].spec)
     job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
     assert not (job_dir / "leak.txt").exists()
+
 
 def test_resume_rejects_tampered_campaign_cas_archive(tmp_path: Path) -> None:
     root = _repo(tmp_path)
@@ -1297,7 +1328,9 @@ def test_billable_campaign_parallelism_is_serialized_before_policy_dispatch(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True, attempts=2, max_concurrency=2), repo_root=root)
+    manifest = build_campaign_manifest(
+        _definition(billable=True, attempts=2, max_concurrency=2), repo_root=root
+    )
 
     orchestrator = CampaignOrchestrator(
         repo_root=root,
@@ -1503,12 +1536,17 @@ def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) 
         encoding="utf-8",
     )
     details = {
+        "record_kind": "campaign-job",
+        "record_id": manifest.attempts[0].attempt_id,
+        "record_digest": "sha256:" + hashlib.sha256(record_path.read_bytes()).hexdigest(),
         "uri": uri,
         "content_digest": f"sha256:{digest}",
         "archive_digest": archive_digest,
-        "record_path": record_path.relative_to(root).as_posix(),
     }
-    job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
+    job_dir = orchestrator._materialize_queue_job(
+        manifest.attempts[0],
+        tmp_path / "materialized-queue-job",
+    )
 
     with pytest.raises(CampaignDriftError, match="CAS content digest mismatch"):
         orchestrator._verify_archive_details(manifest.attempts[0], job_dir, details)
@@ -1548,7 +1586,6 @@ def test_remaining_token_reservation_opens_circuit_before_next_dispatch(
         orchestrator._next_attempt_budget_reason(events, manifest.attempts[1])
         == "campaign_input_token_ceiling_exceeded"
     )
-
 
 
 def test_executor_revalidates_campaign_spec_at_last_mile(tmp_path: Path) -> None:
@@ -1633,8 +1670,6 @@ def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None
     )
 
 
-
-
 def test_human_approval_binds_exact_campaign_spec_and_manifest(
     tmp_path: Path,
 ) -> None:
@@ -1655,9 +1690,7 @@ def test_human_approval_binds_exact_campaign_spec_and_manifest(
     current = executor.queue.load(approved)
     substituted = current.model_copy(update={"hypothesis": "coherently substituted"})
     substituted_spec_digest = experiment_spec_digest(substituted)
-    substituted = substituted.model_copy(
-        update={"campaign_spec_digest": substituted_spec_digest}
-    )
+    substituted = substituted.model_copy(update={"campaign_spec_digest": substituted_spec_digest})
     substituted_attempt = manifest.attempts[0].model_copy(
         update={
             "spec": substituted,
@@ -1778,6 +1811,8 @@ def test_running_reconciliation_revalidates_campaign_binding(tmp_path: Path) -> 
         event.reason_code == "campaign_binding_missing"
         for event in load_events(executor.queue.events_path)
     )
+
+
 @pytest.mark.parametrize("billable", [False, True])
 def test_failed_attempt_without_usage_blocks_later_dispatch(
     tmp_path: Path,
@@ -1968,9 +2003,7 @@ def test_campaign_refuses_spoofed_frozen_matrix_identity(
     message: str,
 ) -> None:
     root = _repo(tmp_path)
-    matrix_path = (
-        root / "research/experiments/local-controls.json"
-    )
+    matrix_path = root / "research/experiments/local-controls.json"
     matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
     matrix[field] = value
     matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
@@ -1986,9 +2019,7 @@ def test_campaign_refuses_spoofed_frozen_matrix_identity(
 def test_campaign_refuses_unresolved_ledger_matrix_ref(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     definition = _definition(billable=True)
-    ledger = definition.ledger.model_copy(
-        update={"matrix_ref": "01ARZ3NDEKTSV4RRFFQ69G5FAS"}
-    )
+    ledger = definition.ledger.model_copy(update={"matrix_ref": "01ARZ3NDEKTSV4RRFFQ69G5FAS"})
 
     with pytest.raises(ValueError, match="canonical matrix registry"):
         build_campaign_manifest(

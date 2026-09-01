@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import os
+import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -14,7 +15,7 @@ import pytest
 import evallab.queue as queue_module
 from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
-from evallab.evidence_store import EvidenceArchive
+from evallab.evidence_store import archive_evidence, evidence_locator
 from evallab.queue import (
     DirectoryQueue,
     DispatchCapacity,
@@ -106,22 +107,20 @@ def identified(item: ExperimentSpec) -> tuple[ExperimentSpec, PaidRunAuthorizati
 
 
 def settled(job_dir: Path) -> SettledRun:
-    """Return a typed runner result for queue tests that do not inspect CAS bytes."""
+    """Return a real CAS-only runner result for queue boundary tests."""
 
+    job_dir.mkdir(parents=True, exist_ok=True)
+    store_root = job_dir.parent / ".queue-test-cas"
+    archive = archive_evidence(
+        job_dir,
+        store_root,
+        record_id=f"test-{job_dir.name}",
+        kind="job",
+    )
+    shutil.rmtree(job_dir)
     return SettledRun(
-        job_dir=job_dir,
-        cas_record=EvidenceArchive(
-            record_id="test-job",
-            kind="job",
-            content_digest="sha256:" + "a" * 64,
-            archive_digest="sha256:" + "b" * 64,
-            uri="cas://sha256/" + "a" * 64,
-            blob_path=job_dir / "archive.tar.gz",
-            manifest_path=job_dir / "record.json",
-            file_count=0,
-            uncompressed_bytes=0,
-        ),
-        record_digest="sha256:" + "c" * 64,
+        cas_locator=evidence_locator(store_root, archive),
+        cas_record=archive,
     )
 
 
@@ -316,7 +315,16 @@ def test_tick_uses_stub_runner_ingests_and_records_every_transition(tmp_path: Pa
 
     assert service.tick() == 1
     assert len(requests) == 1
-    assert ingested == [tmp_path / "runs/completed-oracle-control"]
+    assert len(ingested) == 1
+    assert ingested[0].record_id == "test-completed-oracle-control"
+    assert ingested[0].expected_record_digest.startswith("sha256:")
+    assert not (requests[0].jobs_dir / requests[0].name).exists()
+    completed_event = load_events(service.queue.events_path)[-1]
+    assert completed_event.cas_store_root == str(ingested[0].store_root)
+    assert completed_event.cas_record_kind == ingested[0].kind
+    assert completed_event.cas_record_id == ingested[0].record_id
+    assert completed_event.cas_record_digest == ingested[0].expected_record_digest
+    assert completed_event.cas_content_digest == ingested[0].expected_content_digest
     assert service.queue.locate(str(queued.spec_id), ("done",)).parent.name == "done"
     events = [event.event for event in load_events(service.queue.events_path)]
     assert events == [
@@ -695,7 +703,9 @@ def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) ->
 
 def test_running_reconciliation_settles_the_final_attempt_reservation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
     service = executor(tmp_path, spent=2)
     approved = submit_authorized(
         service,
@@ -717,7 +727,8 @@ def test_running_reconciliation_settles_the_final_attempt_reservation(
     job_dir = tmp_path / queued.jobs_dir / queued.name
     job_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-15T00:00:00Z"}\n'
+        '{"id": "job-reconciled", "n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
     )
     trial_dir = job_dir / "trial-0"
     trial_dir.mkdir()
@@ -763,7 +774,9 @@ def test_reconciliation_never_settles_partial_harbor_job(tmp_path: Path) -> None
 
 def test_reconciliation_never_settles_completed_header_missing_trial(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
     ingested: list[Path] = []
     service = executor(tmp_path, ingester=ingested.append)
     approved, _ = service.submit(spec("missing-trial-running-control"))
@@ -818,7 +831,9 @@ def test_unresolved_running_job_blocks_all_new_dispatch(tmp_path: Path) -> None:
 
 def test_reconciliation_fails_closed_on_terminal_transient_job(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
     service = executor(
         tmp_path,
         ingester=lambda path: (_ for _ in ()).throw(

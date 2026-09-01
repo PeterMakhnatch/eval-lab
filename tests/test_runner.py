@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import subprocess
@@ -884,7 +883,7 @@ def test_runtime_identity_refuses_version_drift_and_unparseable_output(
     assert exc_info.value.reason_code == reason_code
 
 
-def test_settlement_reopens_canonical_record_and_refuses_verification_failure(
+def test_settlement_freezes_source_and_returns_only_cas_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -893,35 +892,46 @@ def test_settlement_reopens_canonical_record_and_refuses_verification_failure(
     (job_dir / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     store_root = tmp_path / "evidence-cas"
 
-    settled, record_digest = runner_module._settle_completed_job(
+    locator, settled = runner_module._settle_completed_job(
         job_dir,
         store_root=store_root,
         record_id="job-123",
     )
-    record = json.loads(settled.manifest_path.read_text(encoding="utf-8"))
+    record_bytes = evidence_store_module.read_record(
+        store_root,
+        kind=locator.kind,
+        record_id=locator.record_id,
+    )
+    record = json.loads(record_bytes)
+    assert not job_dir.exists()
+    assert record["schema_version"] == 2
+    assert set(record).isdisjoint({"source_path", "blob_path"})
     assert record["record_id"] == "job-123"
     assert record["kind"] == "job"
     assert record["content_digest"] == settled.content_digest
     assert record["archive_digest"] == settled.archive_digest
     assert record["uri"] == settled.uri
-    assert record["source_path"] == str(job_dir.resolve())
+    assert locator.expected_record_digest == settled.record_digest
+    assert locator.expected_content_digest == settled.content_digest
+    assert not hasattr(settled, "manifest_path")
+    assert not hasattr(settled, "blob_path")
 
     original_restore = evidence_store_module.restore_evidence
-    assert (
-        record_digest == "sha256:" + hashlib.sha256(settled.manifest_path.read_bytes()).hexdigest()
-    )
 
     def restore_wrong_content(*args, **kwargs) -> Path:
         restored = original_restore(*args, **kwargs)
         (restored / "result.json").write_text('{"finished": false}\n', encoding="utf-8")
         return restored
 
+    second_job = tmp_path / "second-job"
+    second_job.mkdir()
+    (second_job / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     monkeypatch.setattr(evidence_store_module, "restore_evidence", restore_wrong_content)
     with pytest.raises(ExecutionFailure) as exc_info:
         runner_module._settle_completed_job(
-            job_dir,
+            second_job,
             store_root=store_root,
-            record_id="job-123",
+            record_id="job-456",
         )
 
     assert exc_info.value.reason_code == "evidence_cas_unsettled"
@@ -969,7 +979,9 @@ def test_unreadable_reopened_record_fails_terminally(
 
     def archive_with_bad_record(*args, **kwargs):
         archive = original_archive(*args, **kwargs)
-        archive.manifest_path.write_bytes(record_bytes)
+        store_root = Path(args[1])
+        record_path = store_root / "records" / archive.kind / f"{archive.record_id}.json"
+        record_path.write_bytes(record_bytes)
         return archive
 
     monkeypatch.setattr(runner_module, "archive_evidence", archive_with_bad_record)
@@ -1047,10 +1059,19 @@ def test_secret_scan_precedes_generic_evidence_archive(
     assert not (request.jobs_dir / request.name / "leak.txt").exists()
 
 
+def _cas_record_path(store: Path, archive) -> Path:
+    return store / "records" / archive.kind / f"{archive.record_id}.json"
+
+
+def _cas_blob_path(store: Path, archive) -> Path:
+    digest = archive.content_digest.removeprefix("sha256:")
+    return store / "blobs" / "sha256" / digest[:2] / f"{digest}.tar.gz"
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("schema_version", 2),
+        ("schema_version", 1),
         ("schema_version", True),
         ("blob_path", "blobs/sha256/00/not-canonical.tar.gz"),
         ("file_count", 999),
@@ -1067,18 +1088,27 @@ def test_canonical_reopen_refuses_complete_record_tampering(
     source.mkdir()
     (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     store = tmp_path / "cas"
-    archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
-    payload = json.loads(archive.manifest_path.read_text(encoding="utf-8"))
+    archive = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+    record_path = _cas_record_path(store, archive)
+    payload = json.loads(record_path.read_text(encoding="utf-8"))
     payload[field] = value
     reopened, reopened_bytes = evidence_store_module.reopen_evidence_archive(
         store,
         kind="job",
         record_id="job-123",
         expected_record_digest=archive.record_digest,
+        expected_content_digest=archive.content_digest,
     )
-    assert reopened.manifest_path == archive.manifest_path
-    assert reopened_bytes == archive.manifest_path.read_bytes()
-    archive.manifest_path.write_text(
+    assert reopened == archive
+    assert reopened_bytes == record_path.read_bytes()
+    assert not hasattr(reopened, "manifest_path")
+    assert not hasattr(reopened, "blob_path")
+    record_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -1088,7 +1118,7 @@ def test_canonical_reopen_refuses_complete_record_tampering(
             kind="job",
             record_id="job-123",
             expected_record_digest=archive.record_digest,
-            source=source,
+            expected_content_digest=archive.content_digest,
         )
 
 
@@ -1101,8 +1131,14 @@ def test_canonical_reopen_refuses_noncanonical_record_bytes(
     source.mkdir()
     (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     store = tmp_path / "cas"
-    archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
-    archive.manifest_path.write_bytes(tampered_bytes + archive.manifest_path.read_bytes())
+    archive = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+    record_path = _cas_record_path(store, archive)
+    record_path.write_bytes(tampered_bytes + record_path.read_bytes())
 
     with pytest.raises(ValueError):
         evidence_store_module.reopen_evidence_archive(
@@ -1110,33 +1146,34 @@ def test_canonical_reopen_refuses_noncanonical_record_bytes(
             kind="job",
             record_id="job-123",
             expected_record_digest=archive.record_digest,
+            expected_content_digest=archive.content_digest,
         )
 
 
-def test_canonical_reopen_refuses_absolute_source_alias(tmp_path: Path) -> None:
+def test_reopen_requires_independent_content_identity(tmp_path: Path) -> None:
     source = tmp_path / "job"
     source.mkdir()
     (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     store = tmp_path / "cas"
-    archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
-    payload = json.loads(archive.manifest_path.read_text(encoding="utf-8"))
-    payload["source_path"] = str(source / ".." / source.name)
-    archive.manifest_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    archive = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="content digest mismatch"):
         evidence_store_module.reopen_evidence_archive(
             store,
             kind="job",
             record_id="job-123",
             expected_record_digest=archive.record_digest,
+            expected_content_digest="sha256:" + "0" * 64,
         )
 
 
 @pytest.mark.parametrize("target", ["record", "archive"])
-def test_reopen_refuses_cas_object_replacement_during_restore(
+def test_reopen_returns_captured_identity_when_paths_change_during_restore(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     target: str,
@@ -1146,56 +1183,139 @@ def test_reopen_refuses_cas_object_replacement_during_restore(
     (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     store = tmp_path / "cas"
     produced = evidence_store_module.archive_evidence(
-        source, store, record_id="job-123", kind="job"
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
     )
+    record_path = _cas_record_path(store, produced)
+    blob_path = _cas_blob_path(store, produced)
     original_restore = evidence_store_module.restore_evidence
 
     def replace_during_restore(*args: object, **kwargs: object) -> Path:
         if target == "record":
-            produced.manifest_path.write_bytes(b"[]")
+            record_path.write_bytes(b"[]")
         else:
-            replacement = bytearray(produced.blob_path.read_bytes())
+            replacement = bytearray(blob_path.read_bytes())
             replacement[4] ^= 1
-            produced.blob_path.write_bytes(replacement)
+            blob_path.write_bytes(replacement)
         return original_restore(*args, **kwargs)
 
     monkeypatch.setattr(evidence_store_module, "restore_evidence", replace_during_restore)
-    with pytest.raises(ValueError, match="object changed"):
+    reopened, _record_bytes = evidence_store_module.reopen_evidence_archive(
+        store,
+        kind="job",
+        record_id="job-123",
+        expected_record_digest=produced.record_digest,
+        expected_content_digest=produced.content_digest,
+    )
+    assert reopened == produced
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", original_restore)
+    with pytest.raises(ValueError):
         evidence_store_module.reopen_evidence_archive(
             store,
             kind="job",
             record_id="job-123",
             expected_record_digest=produced.record_digest,
+            expected_content_digest=produced.content_digest,
         )
 
 
-def test_reopen_refuses_live_source_mutation_during_restore(
+@pytest.mark.parametrize("target", ["record", "archive"])
+def test_reopen_returns_captured_identity_after_last_byte_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    target: str,
 ) -> None:
     source = tmp_path / "job"
     source.mkdir()
-    result = source / "result.json"
-    result.write_text('{"finished": true}\n', encoding="utf-8")
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
     store = tmp_path / "cas"
     produced = evidence_store_module.archive_evidence(
-        source, store, record_id="job-123", kind="job"
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
     )
-    original_restore = evidence_store_module.restore_evidence
+    record_path = _cas_record_path(store, produced)
+    blob_path = _cas_blob_path(store, produced)
+    if target == "record":
+        original_read = evidence_store_module.read_record
 
-    def mutate_source(*args: object, **kwargs: object) -> Path:
-        result.write_text('{"finished": false}\n', encoding="utf-8")
-        return original_restore(*args, **kwargs)
+        def snapshot_then_replace(*args, **kwargs) -> bytes:
+            captured = original_read(*args, **kwargs)
+            record_path.write_bytes(b"[]")
+            return captured
 
-    monkeypatch.setattr(evidence_store_module, "restore_evidence", mutate_source)
-    with pytest.raises(ValueError, match="source changed"):
+        monkeypatch.setattr(evidence_store_module, "read_record", snapshot_then_replace)
+    else:
+        original_read = evidence_store_module.read_archive
+
+        def snapshot_then_replace(*args, **kwargs) -> bytes:
+            captured = original_read(*args, **kwargs)
+            replacement = bytearray(blob_path.read_bytes())
+            replacement[4] ^= 1
+            blob_path.write_bytes(replacement)
+            return captured
+
+        monkeypatch.setattr(evidence_store_module, "read_archive", snapshot_then_replace)
+
+    reopened, _record_bytes = evidence_store_module.reopen_evidence_archive(
+        store,
+        kind="job",
+        record_id="job-123",
+        expected_record_digest=produced.record_digest,
+        expected_content_digest=produced.content_digest,
+    )
+    assert reopened == produced
+    if target == "record":
+        monkeypatch.setattr(evidence_store_module, "read_record", original_read)
+    else:
+        monkeypatch.setattr(evidence_store_module, "read_archive", original_read)
+    with pytest.raises(ValueError):
         evidence_store_module.reopen_evidence_archive(
             store,
             kind="job",
             record_id="job-123",
             expected_record_digest=produced.record_digest,
-            source=source,
+            expected_content_digest=produced.content_digest,
         )
+
+
+def test_former_producer_path_mutation_is_irrelevant_after_freeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer_path = tmp_path / "runs" / "job"
+    producer_path.mkdir(parents=True)
+    (producer_path / "result.json").write_text(
+        '{"finished": true}\n',
+        encoding="utf-8",
+    )
+    store = tmp_path / "cas"
+    original_archive = runner_module.archive_evidence
+
+    def mutate_old_namespace(frozen_source: Path, *args, **kwargs):
+        assert frozen_source != producer_path
+        assert not producer_path.exists()
+        producer_path.mkdir()
+        (producer_path / "result.json").write_text(
+            '{"finished":false}\n',
+            encoding="utf-8",
+        )
+        return original_archive(frozen_source, *args, **kwargs)
+
+    monkeypatch.setattr(runner_module, "archive_evidence", mutate_old_namespace)
+    locator, archive = runner_module._settle_completed_job(
+        producer_path,
+        store_root=store,
+        record_id="job-123",
+    )
+
+    assert archive.content_digest == locator.expected_content_digest
+    with evidence_store_module.materialize_evidence(locator) as restored:
+        assert json.loads((restored / "result.json").read_text())["finished"] is True
+    assert json.loads((producer_path / "result.json").read_text())["finished"] is False
 
 
 def test_executable_identity_drift_refuses_replacement(
@@ -1617,24 +1737,25 @@ def test_staging_cleaned_up_after_success(
     )
 
     settled_run = run_experiment(request, repo_root=tmp_path)
-    job_dir = settled_run.job_dir
 
     staging_dir = request.jobs_dir / ".exec-stage" / request.name
     assert not staging_dir.exists()
+    assert not (request.jobs_dir / request.name).exists()
     network_adaptation_path = runner_module._network_adaptation_path(request)
     assert network_adaptation_path.is_file()
     manifest = json.loads(network_adaptation_path.read_text())
     assert manifest["schema_version"] == "1.0"
     assert manifest["network_adaptation"]["effective_verifier_network"] == "public"
-    metadata = json.loads((job_dir / "lab-metadata.json").read_text())
-    assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
-    assert metadata["harbor_runtime"] == {
-        "declared_version": "0.22.0",
-        "actual_version": "0.22.0",
-        "executable_path": str(tmp_path / "harbor"),
-        "executable_digest": runner_module._executable_snapshot(tmp_path / "harbor")[4],
-    }
-    assert settled_run.cas_record.manifest_path.is_file()
+    with evidence_store_module.materialize_evidence(settled_run.cas_locator) as job_dir:
+        metadata = json.loads((job_dir / "lab-metadata.json").read_text())
+        assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
+        assert metadata["harbor_runtime"] == {
+            "declared_version": "0.22.0",
+            "actual_version": "0.22.0",
+            "executable_path": str(tmp_path / "harbor"),
+            "executable_digest": runner_module._executable_snapshot(tmp_path / "harbor")[4],
+        }
+    assert settled_run.cas_locator.expected_record_digest == (settled_run.cas_record.record_digest)
 
 
 def test_staging_cleaned_up_after_harbor_failure(

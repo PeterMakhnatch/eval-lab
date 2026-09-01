@@ -17,7 +17,7 @@ import tempfile
 import threading
 import time
 import tomllib
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,7 +27,9 @@ from pydantic import ValidationError
 
 from evallab.evidence_store import (
     EvidenceArchive,
+    EvidenceLocator,
     archive_evidence,
+    evidence_locator,
     reopen_evidence_archive,
 )
 from evallab.execution_contracts import (
@@ -150,11 +152,10 @@ class HarborRuntimeIdentity:
 
 @dataclass(frozen=True)
 class SettledRun:
-    """A completed workspace bound to a reopened canonical CAS record."""
+    """A completed run whose only downstream authority is a CAS locator."""
 
-    job_dir: Path
+    cas_locator: EvidenceLocator
     cas_record: EvidenceArchive
-    record_digest: str
 
 
 def _run_text_command(
@@ -1362,7 +1363,59 @@ def _evidence_store_root() -> Path:
             "evidence_cas_unconfigured",
             "EVALLAB_EVIDENCE_STORE_ROOT is required before Harbor execution",
         )
-    return Path(configured)
+    return Path(configured).absolute()
+
+
+def _freeze_completed_job(job_dir: Path) -> Path:
+    """Atomically remove completed output from the mutable producer namespace."""
+
+    job_dir = job_dir.absolute()
+    executor_root = job_dir.parent / ".executor"
+    if executor_root.is_symlink():
+        raise ValueError("executor state root cannot be a symlink")
+    executor_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    settlement_root = executor_root / "settled"
+    if settlement_root.is_symlink():
+        raise ValueError("settlement root cannot be a symlink")
+    settlement_root.mkdir(mode=0o700, exist_ok=True)
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    with ExitStack() as descriptors:
+        source_parent_descriptor = os.open(job_dir.parent, flags)
+        descriptors.callback(os.close, source_parent_descriptor)
+        settlement_descriptor = os.open(settlement_root, flags)
+        descriptors.callback(os.close, settlement_descriptor)
+        source_info = os.stat(
+            job_dir.name,
+            dir_fd=source_parent_descriptor,
+            follow_symlinks=False,
+        )
+        if not stat.S_ISDIR(source_info.st_mode):
+            raise ValueError("completed Harbor job is not a regular directory")
+        if source_info.st_dev != os.fstat(settlement_descriptor).st_dev:
+            raise ValueError("completed job and settlement root must share a filesystem")
+        os.fchmod(settlement_descriptor, 0o700)
+        frozen_name = f"source-{secrets.token_hex(16)}"
+        os.rename(
+            job_dir.name,
+            frozen_name,
+            src_dir_fd=source_parent_descriptor,
+            dst_dir_fd=settlement_descriptor,
+        )
+        frozen_info = os.stat(
+            frozen_name,
+            dir_fd=settlement_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISDIR(frozen_info.st_mode)
+            or frozen_info.st_dev != source_info.st_dev
+            or frozen_info.st_ino != source_info.st_ino
+        ):
+            raise ValueError("frozen Harbor job identity changed during settlement")
+        os.fsync(source_parent_descriptor)
+        os.fsync(settlement_descriptor)
+    return settlement_root / frozen_name
 
 
 def _settle_completed_job(
@@ -1370,24 +1423,30 @@ def _settle_completed_job(
     *,
     store_root: Path,
     record_id: str,
-) -> tuple[EvidenceArchive, str]:
-    """Archive and bind one completed mutable job to a reopened canonical CAS record."""
+) -> tuple[EvidenceLocator, EvidenceArchive]:
+    """Freeze a completed job and bind its exact content to canonical CAS identity."""
 
     try:
-        produced = archive_evidence(job_dir, store_root, record_id=record_id, kind="job")
-        archive, record_bytes = reopen_evidence_archive(
+        frozen_source = _freeze_completed_job(job_dir)
+        produced = archive_evidence(
+            frozen_source,
+            store_root,
+            record_id=record_id,
+            kind="job",
+        )
+        archive, _record_bytes = reopen_evidence_archive(
             store_root,
             kind="job",
             record_id=record_id,
             expected_record_digest=produced.record_digest,
-            source=job_dir,
+            expected_content_digest=produced.content_digest,
         )
     except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError, tarfile.TarError) as exc:
         raise ExecutionFailure(
             "evidence_cas_unsettled",
-            "completed Harbor job could not be archived and reopened from CAS",
+            "completed Harbor job could not be archived and reopened from its frozen source",
         ) from exc
-    return archive, f"sha256:{hashlib.sha256(record_bytes).hexdigest()}"
+    return evidence_locator(store_root, archive), archive
 
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
@@ -1550,7 +1609,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
                 message=transient_reason + cleanup_detail,
             )
         try:
-            archive, record_digest = _settle_completed_job(
+            locator, archive = _settle_completed_job(
                 job_dir,
                 store_root=evidence_store,
                 record_id=str(job.id),
@@ -1575,9 +1634,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
             process=process,
         )
         return SettledRun(
-            job_dir=job_dir,
+            cas_locator=locator,
             cas_record=archive,
-            record_digest=record_digest,
         )
     finally:
         _cleanup_stage(staging_dir)

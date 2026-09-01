@@ -37,16 +37,18 @@ def test_evidence_archive_is_content_addressed_deduplicated_and_restorable(
     second = archive_evidence(source, store, record_id="job-2")
 
     assert first.uri == second.uri
-    assert first.blob_path == second.blob_path
     assert first.archive_digest == second.archive_digest
-    assert len(list((store / "blobs").rglob("*.tar.gz"))) == 1
-    assert first.blob_path.stat().st_mode & 0o777 == 0o600
+    assert not hasattr(first, "blob_path")
+    assert not hasattr(first, "manifest_path")
+    blobs = list((store / "blobs").rglob("*.tar.gz"))
+    assert len(blobs) == 1
+    assert blobs[0].stat().st_mode & 0o777 == 0o600
 
     restored = restore_evidence(store, first.uri, tmp_path / "restored")
     assert (restored / "result.json").read_bytes() == (source / "result.json").read_bytes()
-    assert (
-        restored / "trial/agent/trajectory.json"
-    ).read_bytes() == (source / "trial/agent/trajectory.json").read_bytes()
+    assert (restored / "trial/agent/trajectory.json").read_bytes() == (
+        source / "trial/agent/trajectory.json"
+    ).read_bytes()
 
 
 def test_changed_evidence_creates_a_new_blob(tmp_path: Path) -> None:
@@ -65,17 +67,26 @@ def test_evidence_archive_cli_returns_durable_uri(tmp_path: Path, capsys) -> Non
     source = _evidence(tmp_path)
     store = tmp_path / "store"
 
-    rc = cli.run_cli([
-        "evidence", "archive", str(source),
-        "--store", str(store),
-        "--record-id", "cli-job",
-        "--json",
-    ])
+    rc = cli.run_cli(
+        [
+            "evidence",
+            "archive",
+            str(source),
+            "--store",
+            str(store),
+            "--record-id",
+            "cli-job",
+            "--json",
+        ]
+    )
 
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["uri"].startswith("cas://sha256/")
-    assert Path(payload["manifest_path"]).is_file()
+    assert payload["record_digest"].startswith("sha256:")
+    assert payload["content_digest"].startswith("sha256:")
+    assert "manifest_path" not in payload
+    assert "blob_path" not in payload
 
 
 @pytest.mark.parametrize(

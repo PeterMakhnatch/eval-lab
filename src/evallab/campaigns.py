@@ -34,11 +34,13 @@ from evallab.benchmark_program_contracts import (
 )
 from evallab.credentials import available_credentials, missing_credential_for
 from evallab.evidence_store import (
+    EvidenceLocator,
     archive_evidence,
     evidence_tree_digest,
-    read_archive,
+    materialize_evidence,
+    materialize_evidence_at,
     read_record,
-    restore_evidence,
+    reopen_evidence_archive,
 )
 from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, DispatchCapacity
 from evallab.queue import (
@@ -335,7 +337,6 @@ class CampaignAnalysisCell(_FrozenContract):
         return self
 
 
-
 class CampaignDefinitionAttempt(_FrozenContract):
     cell_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
@@ -397,11 +398,14 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 raise ValueError("estimated cost exceeds the trial cost ceiling")
             if self.limits.max_requests < 1:
                 raise ValueError("billable attempts require a provider request ceiling")
-            if min(
-                self.limits.max_input_tokens,
-                self.limits.max_output_tokens,
-                self.limits.max_total_tokens,
-            ) < 1:
+            if (
+                min(
+                    self.limits.max_input_tokens,
+                    self.limits.max_output_tokens,
+                    self.limits.max_total_tokens,
+                )
+                < 1
+            ):
                 raise ValueError("billable attempts require token ceilings")
         return self
 
@@ -639,22 +643,16 @@ def _resolve_campaign_task_contract(
             f"campaign task {item.task_id!r} is missing from the explicit task registry"
         )
     if registry_record.state != "registered":
-        raise ValueError(
-            f"campaign task {item.task_id!r} is not in registered admission state"
-        )
+        raise ValueError(f"campaign task {item.task_id!r} is not in registered admission state")
     if "measurement" not in registry_record.allowed_uses:
-        raise ValueError(
-            f"campaign task {item.task_id!r} is not approved for measurement"
-        )
+        raise ValueError(f"campaign task {item.task_id!r} is not approved for measurement")
     if item.spec.task_family is None:
         raise ValueError("campaign specs must declare the registered task family")
     if (
         item.spec.task_family != registry_record.task_family
         or registry_record.task_family != definition.benchmark
     ):
-        raise ValueError(
-            "campaign task family does not match the registered benchmark family"
-        )
+        raise ValueError("campaign task family does not match the registered benchmark family")
     if item.spec.task.startswith("registered/"):
         if item.spec.task != f"registered/{item.task_id}":
             raise ValueError("campaign registered task reference disagrees with task_id")
@@ -715,17 +713,13 @@ def _resolve_campaign_matrix_contract(
 def _analysis_cell_holds(
     attempts: Sequence[CampaignDefinitionAttempt | CampaignAttempt],
 ) -> tuple[str, ...]:
-    eligible = [
-        item for item in attempts if item.spec.purpose in {"comparison", "elicitation"}
-    ]
+    eligible = [item for item in attempts if item.spec.purpose in {"comparison", "elicitation"}]
     holds: list[str] = []
     by_cell_id: dict[str, set[str]] = {}
     by_identity: dict[str, list[CampaignDefinitionAttempt | CampaignAttempt]] = {}
     for item in eligible:
         cell_id = (
-            item.cell_id
-            if isinstance(item, CampaignDefinitionAttempt)
-            else item.identity.cell_id
+            item.cell_id if isinstance(item, CampaignDefinitionAttempt) else item.identity.cell_id
         )
         if item.analysis_cell is None or item.repeat_seed is None:
             holds.append(f"analysis_cell_incomplete:{cell_id}")
@@ -738,9 +732,7 @@ def _analysis_cell_holds(
             holds.append(f"analysis_cell_mixed:{cell_id}")
     for cell_attempts in by_identity.values():
         cell_ids = [
-            item.cell_id
-            if isinstance(item, CampaignDefinitionAttempt)
-            else item.identity.cell_id
+            item.cell_id if isinstance(item, CampaignDefinitionAttempt) else item.identity.cell_id
             for item in cell_attempts
         ]
         if any(len(by_cell_id[cell_id]) > 1 for cell_id in cell_ids):
@@ -769,9 +761,7 @@ def build_campaign_manifest(
             or task_contract.verifier_digest != matrix_contract.verifier_digest
             or task_contract.package_digest != matrix_contract.package_digest
         ):
-            raise ValueError(
-                "campaign task registry identity does not match the frozen matrix"
-            )
+            raise ValueError("campaign task registry identity does not match the frozen matrix")
         task_fields = {
             "task_id": task_contract.task_id,
             "task_path": task_contract.task_path,
@@ -813,9 +803,7 @@ def build_campaign_manifest(
                     source_spec.timeout_seconds,
                     item.limits.max_wall_clock_seconds,
                 ),
-                "max_requests": (
-                    item.limits.max_requests if source_spec.billable else None
-                ),
+                "max_requests": (item.limits.max_requests if source_spec.billable else None),
                 "max_input_tokens": (
                     item.limits.max_input_tokens if source_spec.billable else None
                 ),
@@ -1069,9 +1057,7 @@ class CampaignStore:
                 yield None
                 return
             except OSError as exc:
-                raise CampaignAmbiguityError(
-                    "campaign state root is unsafe"
-                ) from exc
+                raise CampaignAmbiguityError("campaign state root is unsafe") from exc
         finally:
             os.close(state_descriptor)
         try:
@@ -1102,9 +1088,7 @@ class CampaignStore:
         except FileExistsError:
             raise
         except OSError as exc:
-            raise CampaignAmbiguityError(
-                f"campaign state node is unsafe: {name}"
-            ) from exc
+            raise CampaignAmbiguityError(f"campaign state node is unsafe: {name}") from exc
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             os.close(descriptor)
             raise CampaignAmbiguityError(f"campaign state node is not a file: {name}")
@@ -1173,6 +1157,7 @@ class CampaignStore:
                 manifest,
                 required=required,
             )
+
     def load_manifest(self) -> CampaignManifest:
         with self._root_descriptor(create=False) as root_descriptor:
             if root_descriptor is None:
@@ -1193,7 +1178,6 @@ class CampaignStore:
                 "frozen campaign manifest identity does not match its state directory"
             )
         return manifest
-
 
     def freeze(self, manifest: CampaignManifest) -> Path:
         payload = (manifest.model_dump_json(indent=2) + "\n").encode()
@@ -1517,11 +1501,7 @@ class CampaignOrchestrator:
                 package_digest=digests.package,
             )
         if current != contract:
-            raise CampaignDriftError(
-                f"campaign task contract drifted: {attempt.identity.task_id}"
-            )
-
-
+            raise CampaignDriftError(f"campaign task contract drifted: {attempt.identity.task_id}")
 
     @classmethod
     def from_path(
@@ -1584,6 +1564,41 @@ class CampaignOrchestrator:
             raise CampaignDriftError(f"queued campaign spec drifted: {attempt.spec_id}")
         return path, queued, state
 
+    def _queue_cas_locator(self, attempt: CampaignAttempt) -> EvidenceLocator:
+        matches = [
+            event
+            for event in load_events(self.executor.queue.events_path)
+            if event.spec_id == attempt.spec_id and event.cas_record_id is not None
+        ]
+        if len(matches) != 1:
+            raise CampaignAmbiguityError(
+                f"campaign attempt lacks one exact queue CAS locator: {attempt.attempt_id}"
+            )
+        event = matches[0]
+        try:
+            return EvidenceLocator(
+                store_root=Path(event.cas_store_root or ""),
+                kind=str(event.cas_record_kind or ""),
+                record_id=str(event.cas_record_id or ""),
+                expected_record_digest=str(event.cas_record_digest or ""),
+                expected_content_digest=str(event.cas_content_digest or ""),
+            )
+        except ValueError as exc:
+            raise CampaignAmbiguityError("queue CAS locator is invalid") from exc
+
+    def _materialize_queue_job(
+        self,
+        attempt: CampaignAttempt,
+        destination: Path,
+    ) -> Path:
+        try:
+            return materialize_evidence_at(
+                self._queue_cas_locator(attempt),
+                destination,
+            )
+        except (OSError, ValueError, tarfile.TarError) as exc:
+            raise CampaignAmbiguityError("queue CAS evidence is unreadable") from exc
+
     @staticmethod
     def _event_exists(
         events: list[CampaignEvent], event: str, attempt: CampaignAttempt | None = None
@@ -1596,12 +1611,7 @@ class CampaignOrchestrator:
     def _job_dir(self, attempt: CampaignAttempt) -> Path:
         return (self.repo_root / attempt.spec.jobs_dir / attempt.job_name).resolve()
 
-    def _validate_job(self, attempt: CampaignAttempt) -> JobRecord:
-        job_dir = self._job_dir(attempt)
-        try:
-            job_dir.relative_to(self.repo_root)
-        except ValueError as exc:
-            raise CampaignDriftError("campaign job directory escapes the repository") from exc
+    def _validate_job(self, attempt: CampaignAttempt, job_dir: Path) -> JobRecord:
         try:
             job = load_job(job_dir)
         except Exception as exc:
@@ -1669,9 +1679,7 @@ class CampaignOrchestrator:
             finished = datetime.fromisoformat(str(finished_raw).replace("Z", "+00:00"))
             candidate = (finished - started).total_seconds()
             if not math.isfinite(candidate) or candidate < 0:
-                raise CampaignAmbiguityError(
-                    "invalid campaign usage field: wall_clock_seconds"
-                )
+                raise CampaignAmbiguityError("invalid campaign usage field: wall_clock_seconds")
             duration = candidate
         except (TypeError, ValueError, OverflowError):
             pass
@@ -1752,8 +1760,7 @@ class CampaignOrchestrator:
             "cost_micros": computed_cost,
         }
         if (
-            {name: provider_integer(totals, name) for name in expected_totals}
-            != expected_totals
+            {name: provider_integer(totals, name) for name in expected_totals} != expected_totals
             or provider_integer(provider, "unresolved_requests") != 0
             or provider_integer(provider, "sequence") != request_count * 2
         ):
@@ -1763,14 +1770,9 @@ class CampaignOrchestrator:
         if (
             (reported_input is not None and reported_input > computed_input)
             or (reported_output is not None and reported_output > computed_output)
-            or (
-                reported_cost is not None
-                and reported_cost > authoritative_cost + 1 / 1_000_000
-            )
+            or (reported_cost is not None and reported_cost > authoritative_cost + 1 / 1_000_000)
         ):
-            raise CampaignAmbiguityError(
-                "agent usage exceeds authoritative provider accounting"
-            )
+            raise CampaignAmbiguityError("agent usage exceeds authoritative provider accounting")
         return {
             "request_count": request_count,
             "input_tokens": computed_input,
@@ -1824,8 +1826,7 @@ class CampaignOrchestrator:
     ) -> Mapping[str, Any]:
         self.sanitizer.assert_tree_safe(job_dir)
         store_root = self._evidence_store_root()
-        record_path = store_root / "records/campaign-job" / f"{attempt.attempt_id}.json"
-        expected_digest = evidence_tree_digest(job_dir)
+        expected_content = evidence_tree_digest(job_dir)
         try:
             record_bytes = read_record(
                 store_root,
@@ -1833,37 +1834,35 @@ class CampaignOrchestrator:
                 record_id=attempt.attempt_id,
             )
         except FileNotFoundError:
-            pass
+            archive = archive_evidence(
+                job_dir,
+                store_root,
+                record_id=attempt.attempt_id,
+                kind="campaign-job",
+            )
         except (OSError, ValueError) as exc:
             raise CampaignAmbiguityError("campaign CAS record is unreadable") from exc
         else:
+            record_digest = f"sha256:{hashlib.sha256(record_bytes).hexdigest()}"
             try:
-                record = json.loads(record_bytes)
-            except json.JSONDecodeError as exc:
-                raise CampaignAmbiguityError("campaign CAS record is unreadable") from exc
-            if record.get("content_digest") != expected_digest:
-                raise CampaignDriftError("campaign CAS record points at different evidence")
-            uri = str(record.get("uri") or "")
-            archive_digest = f"sha256:{hashlib.sha256(read_archive(store_root, uri)).hexdigest()}"
-            if record.get("archive_digest") != archive_digest:
-                raise CampaignDriftError("campaign CAS archive digest mismatch")
-            return {
-                "uri": uri,
-                "content_digest": expected_digest,
-                "archive_digest": archive_digest,
-                "record_path": record_path.relative_to(self.repo_root).as_posix(),
-            }
-        archive = archive_evidence(
-            job_dir,
-            store_root,
-            record_id=attempt.attempt_id,
-            kind="campaign-job",
-        )
+                archive, _record_bytes = reopen_evidence_archive(
+                    store_root,
+                    kind="campaign-job",
+                    record_id=attempt.attempt_id,
+                    expected_record_digest=record_digest,
+                    expected_content_digest=expected_content,
+                )
+            except (OSError, ValueError, tarfile.TarError) as exc:
+                raise CampaignDriftError(
+                    "campaign CAS record points at different evidence"
+                ) from exc
         return {
+            "record_kind": archive.kind,
+            "record_id": archive.record_id,
+            "record_digest": archive.record_digest,
             "uri": archive.uri,
             "content_digest": archive.content_digest,
             "archive_digest": archive.archive_digest,
-            "record_path": archive.manifest_path.relative_to(self.repo_root).as_posix(),
         }
 
     def _verify_archive_details(
@@ -1874,47 +1873,50 @@ class CampaignOrchestrator:
     ) -> None:
         self.sanitizer.assert_tree_safe(job_dir)
         expected_content = evidence_tree_digest(job_dir)
-        expected_uri = f"cas://sha256/{expected_content.removeprefix('sha256:')}"
         store_root = self._evidence_store_root()
-        record_path = store_root / "records/campaign-job" / f"{attempt.attempt_id}.json"
-        expected_record_path = record_path.relative_to(self.repo_root).as_posix()
         try:
-            record = json.loads(
-                read_record(
-                    store_root,
-                    kind="campaign-job",
-                    record_id=attempt.attempt_id,
-                )
+            locator = EvidenceLocator(
+                store_root=store_root,
+                kind="campaign-job",
+                record_id=attempt.attempt_id,
+                expected_record_digest=str(details.get("record_digest") or ""),
+                expected_content_digest=expected_content,
             )
-            archive_bytes = read_archive(store_root, expected_uri)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            archive, _record_bytes = reopen_evidence_archive(
+                locator.store_root,
+                kind=locator.kind,
+                record_id=locator.record_id,
+                expected_record_digest=locator.expected_record_digest,
+                expected_content_digest=locator.expected_content_digest,
+            )
+            with materialize_evidence(locator) as restored:
+                self.sanitizer.assert_tree_safe(restored)
+        except ValueError as exc:
+            message = str(exc)
+            if "record digest" in message:
+                raise CampaignDriftError(
+                    "campaign archive event does not match CAS record digest"
+                ) from exc
+            if "archive digest mismatch" in message:
+                raise CampaignDriftError("campaign CAS archive digest mismatch") from exc
+            if (
+                "content digest mismatch" in message
+                or "restored evidence digest mismatch" in message
+            ):
+                raise CampaignDriftError("campaign CAS content digest mismatch") from exc
             raise CampaignAmbiguityError("campaign CAS evidence is unreadable") from exc
-        actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
-        if record.get("archive_digest") != actual_archive_digest:
-            raise CampaignDriftError("campaign CAS archive digest mismatch")
-        if details.get("archive_digest") != actual_archive_digest:
-            raise CampaignDriftError("campaign archive event does not match job evidence")
-        try:
-            with tempfile.TemporaryDirectory(prefix="evallab-campaign-cas-verify-") as temporary:
-                restore_evidence(store_root, expected_uri, Path(temporary))
-                self.sanitizer.assert_tree_safe(Path(temporary))
-        except (OSError, ValueError, tarfile.TarError) as exc:
-            raise CampaignDriftError("campaign CAS content digest mismatch") from exc
-        if (
-            details.get("content_digest") != expected_content
-            or details.get("uri") != expected_uri
-            or details.get("record_path") != expected_record_path
-        ):
-            raise CampaignDriftError("campaign archive event does not match job evidence")
-        expected_record = {
-            "record_id": attempt.attempt_id,
-            "kind": "campaign-job",
-            "content_digest": expected_content,
-            "uri": expected_uri,
-            "archive_digest": actual_archive_digest,
+        except (OSError, tarfile.TarError) as exc:
+            raise CampaignAmbiguityError("campaign CAS evidence is unreadable") from exc
+        expected_details = {
+            "record_kind": archive.kind,
+            "record_id": archive.record_id,
+            "record_digest": archive.record_digest,
+            "uri": archive.uri,
+            "content_digest": archive.content_digest,
+            "archive_digest": archive.archive_digest,
         }
-        if any(record.get(key) != value for key, value in expected_record.items()):
-            raise CampaignDriftError("campaign CAS record does not match job evidence")
+        if dict(details) != expected_details:
+            raise CampaignDriftError("campaign archive event does not match job evidence")
 
     @staticmethod
     def _attempt_event(
@@ -1942,9 +1944,7 @@ class CampaignOrchestrator:
         if reasons:
             return reasons[-1]
         report_path = (
-            self._evidence_store_root()
-            / "records/trial-compliance"
-            / f"{attempt.attempt_id}.json"
+            self._evidence_store_root() / "records/trial-compliance" / f"{attempt.attempt_id}.json"
         )
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -2029,10 +2029,6 @@ class CampaignOrchestrator:
                     raise CampaignAmbiguityError(
                         f"campaign journal references missing queue spec {attempt.spec_id}"
                     )
-                if self._job_dir(attempt).exists():
-                    raise CampaignAmbiguityError(
-                        f"job evidence exists without queue identity: {attempt.job_name}"
-                    )
                 continue
             _, _, state = record
             if state != "done" and any(
@@ -2042,8 +2038,12 @@ class CampaignOrchestrator:
                     "campaign evidence lifecycle exists outside queue done state"
                 )
             if state == "done":
-                job_dir = self._job_dir(attempt)
-                job = self._validate_job(attempt)
+                materialized_job = tempfile.TemporaryDirectory(prefix="evallab-campaign-queue-cas-")
+                job_dir = self._materialize_queue_job(
+                    attempt,
+                    Path(materialized_job.name),
+                )
+                job = self._validate_job(attempt, job_dir)
                 if backfill_event is not None and archive_event is None:
                     raise CampaignAmbiguityError(
                         "campaign backfill completed before evidence archival"
@@ -2125,6 +2125,7 @@ class CampaignOrchestrator:
                         reason="campaign_usage_invalid",
                         attempt=attempt,
                     )
+                    materialized_job.cleanup()
                     continue
                 if completed_event is None:
                     self.store.append(
@@ -2155,6 +2156,7 @@ class CampaignOrchestrator:
                 if reason is not None:
                     events = self._open_circuit(events, reason=reason, attempt=attempt)
                 consecutive_transient = 0
+                materialized_job.cleanup()
             elif state == "failed":
                 reason = self._latest_failure_reason(attempt)
                 if not self._event_exists(events, "attempt_failed", attempt):
@@ -2260,6 +2262,7 @@ class CampaignOrchestrator:
     ) -> tuple[dict[str, Mapping[str, int | float | None]], str | None]:
         """Prefer terminal job evidence over lagging completion journal entries."""
         usage_by_attempt: dict[str, Mapping[str, int | float | None]] = {}
+        queue_events = None
         for attempt in self.manifest.attempts:
             completed = self._attempt_event(events, "attempt_completed", attempt)
             if completed is not None:
@@ -2270,10 +2273,17 @@ class CampaignOrchestrator:
             record = self._queue_record(attempt)
             if record is None or record[2] not in {"done", "failed"}:
                 continue
-            if not (self._job_dir(attempt) / "result.json").is_file():
+            if queue_events is None:
+                queue_events = load_events(self.executor.queue.events_path)
+            if not any(
+                event.spec_id == attempt.spec_id and event.cas_record_id is not None
+                for event in queue_events
+            ):
                 return usage_by_attempt, "campaign_usage_missing"
             try:
-                usage = self._usage(self._validate_job(attempt), attempt)
+                with tempfile.TemporaryDirectory(prefix="evallab-campaign-usage-cas-") as temporary:
+                    job_dir = self._materialize_queue_job(attempt, Path(temporary))
+                    usage = self._usage(self._validate_job(attempt, job_dir), attempt)
             except CampaignAmbiguityError:
                 return usage_by_attempt, "campaign_usage_invalid"
             journaled = usage_by_attempt.get(attempt.attempt_id)
@@ -2418,8 +2428,12 @@ class CampaignOrchestrator:
                     raise CampaignAmbiguityError(
                         "completed campaign attempt lacks archive evidence"
                     )
-                self._validate_job(attempt)
-                self._verify_archive_details(attempt, self._job_dir(attempt), archive.details)
+                with tempfile.TemporaryDirectory(
+                    prefix="evallab-campaign-status-cas-"
+                ) as temporary:
+                    job_dir = self._materialize_queue_job(attempt, Path(temporary))
+                    self._validate_job(attempt, job_dir)
+                    self._verify_archive_details(attempt, job_dir, archive.details)
                 completed = True
             latest_queue_event = next(
                 (event for event in reversed(queue_events) if event.spec_id == attempt.spec_id),

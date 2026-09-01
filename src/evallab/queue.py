@@ -29,7 +29,12 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
-from evallab.evidence_store import EvidenceArchive, archive_evidence
+from evallab.evidence_store import (
+    EvidenceArchive,
+    EvidenceLocator,
+    archive_evidence,
+    materialize_evidence,
+)
 from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,
@@ -72,6 +77,8 @@ from evallab.runner import (
     RunRequest,
     SettledRun,
     TransientHarnessFailure,
+    _evidence_store_root,
+    _settle_completed_job,
     assert_no_secret_material,
     collected_secret_values,
     database_url_from_environment,
@@ -817,6 +824,7 @@ class DirectoryQueue:
         approved_spec_digest: str | None = None,
         approved_campaign_manifest_digest: str | None = None,
         approved_campaign_spec_digest: str | None = None,
+        cas_locator: EvidenceLocator | None = None,
     ) -> Path:
         source_state = source.parent.name
         if source_state not in QUEUE_STATES:
@@ -841,6 +849,15 @@ class DirectoryQueue:
                 approved_spec_digest=approved_spec_digest,
                 approved_campaign_manifest_digest=approved_campaign_manifest_digest,
                 approved_campaign_spec_digest=approved_campaign_spec_digest,
+                cas_store_root=(str(cas_locator.store_root) if cas_locator is not None else None),
+                cas_record_kind=cas_locator.kind if cas_locator is not None else None,
+                cas_record_id=cas_locator.record_id if cas_locator is not None else None,
+                cas_record_digest=(
+                    cas_locator.expected_record_digest if cas_locator is not None else None
+                ),
+                cas_content_digest=(
+                    cas_locator.expected_content_digest if cas_locator is not None else None
+                ),
             )
         )
         return destination
@@ -1276,7 +1293,7 @@ class DirectoryQueue:
 
 CredentialProbe = Callable[[], frozenset[str]]
 RunCallable = Callable[[RunRequest], SettledRun]
-IngestCallable = Callable[[Path], IngestProjectionResult | None]
+IngestCallable = Callable[[EvidenceLocator], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
@@ -1524,38 +1541,41 @@ class Executor:
 
     def _settle_post_run(
         self,
-        job_dir: Path,
+        settled_run: SettledRun,
         spec: ExperimentSpec,
         *,
         actor: str,
     ) -> PolicyDecision | None:
         stage = "artifact_scan"
         try:
-            self._assert_persistent_artifacts_safe(spec, job_dir)
-            archive: EvidenceArchive | None = None
-            if spec.campaign_ledger is not None:
-                stage = "post_run_archive"
-                archive = self._archive_post_run(job_dir, spec)
-            stage = "catalog_ingest"
-            ingest_result = self._ingester(job_dir)
-            if ingest_result is not None:
-                record_projection_failures(
-                    self.queue,
-                    ingest_result,
-                    actor=actor,
-                    spec_id=str(spec.spec_id),
-                )
-            if spec.campaign_ledger is not None:
-                stage = "post_run_compliance"
-                if archive is None:
-                    raise ValueError("post-run compliance archive is missing")
-                disposition = self._compliance(job_dir, spec, ingest_result, archive)
-                if disposition != "QUALITY_PASS":
-                    return PolicyDecision(
-                        admitted=False,
-                        reason_code=f"post_run_compliance_{disposition.casefold()}",
-                        message=(f"post-run compliance refused queue completion: {disposition}"),
+            with materialize_evidence(settled_run.cas_locator) as job_dir:
+                self._assert_persistent_artifacts_safe(spec, job_dir)
+                archive: EvidenceArchive | None = None
+                if spec.campaign_ledger is not None:
+                    stage = "post_run_archive"
+                    archive = self._archive_post_run(job_dir, spec)
+                stage = "catalog_ingest"
+                ingest_result = self._ingester(settled_run.cas_locator)
+                if ingest_result is not None:
+                    record_projection_failures(
+                        self.queue,
+                        ingest_result,
+                        actor=actor,
+                        spec_id=str(spec.spec_id),
                     )
+                if spec.campaign_ledger is not None:
+                    stage = "post_run_compliance"
+                    if archive is None:
+                        raise ValueError("post-run compliance archive is missing")
+                    disposition = self._compliance(job_dir, spec, ingest_result, archive)
+                    if disposition != "QUALITY_PASS":
+                        return PolicyDecision(
+                            admitted=False,
+                            reason_code=f"post_run_compliance_{disposition.casefold()}",
+                            message=(
+                                f"post-run compliance refused queue completion: {disposition}"
+                            ),
+                        )
         except Exception as exc:
             reason_code = (
                 exc.reason_code if isinstance(exc, ExecutionFailure) else f"{stage}_failed"
@@ -1740,7 +1760,6 @@ class Executor:
                     spec,
                     lease_generation=lease_generation,
                 )
-                job_dir = settled_run.job_dir
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
                 failure_error = execution_error
@@ -1772,7 +1791,7 @@ class Executor:
                 self._report_progress(f"failed {spec.name} ({failure.reason_code}); state: failed")
             else:
                 failure = self._settle_post_run(
-                    job_dir,
+                    settled_run,
                     spec,
                     actor="executor",
                 )
@@ -1788,6 +1807,7 @@ class Executor:
                             else "post_run_refused"
                         ),
                         reason_code=failure_reason,
+                        cas_locator=settled_run.cas_locator,
                     )
                     self.queue.write_reason(self.queue.load(failed), failure)
                     self._report_progress(
@@ -1800,6 +1820,7 @@ class Executor:
                         actor="executor",
                         event="dispatch_completed",
                         policy_rule=decision.policy_rule,
+                        cas_locator=settled_run.cas_locator,
                     )
                     self._report_progress(f"completed {spec.name}; state: done")
             return True
@@ -2101,7 +2122,8 @@ class Executor:
             ),
         )
         settled_run = self._run_with_transient_retries(spec, request)
-        self._assert_persistent_artifacts_safe(spec, settled_run.job_dir)
+        with materialize_evidence(settled_run.cas_locator) as restored_job:
+            self._assert_persistent_artifacts_safe(spec, restored_job)
         return settled_run
 
     def _run_with_transient_retries(
@@ -2277,7 +2299,7 @@ class Executor:
             )
         settled_run = self._runner(request)
         if ingest:
-            ingest_result = self._ingester(settled_run.job_dir)
+            ingest_result = self._ingester(settled_run.cas_locator)
             if ingest_result is not None:
                 provenance = request.provenance
                 record_projection_failures(
@@ -2391,13 +2413,29 @@ class Executor:
             if not isinstance(result, dict) or result.get("finished_at") is None:
                 continue
             try:
-                job = load_job(job_dir)
+                locator, archive = _settle_completed_job(
+                    job_dir,
+                    store_root=_evidence_store_root(),
+                    record_id=spec.name,
+                )
+            except ExecutionFailure as exc:
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code=exc.reason_code,
+                    message=str(exc),
+                )
+                continue
+            try:
+                with materialize_evidence(locator) as settled_job_dir:
+                    job = load_job(settled_job_dir)
             except Exception:
                 self._fail_reconciled_running(
                     path,
                     spec,
                     reason_code="running_reconcile_incomplete_evidence",
                     message="terminal trial evidence is unreadable; refusing reconciliation",
+                    cas_locator=locator,
                 )
                 continue
             if not job.trials:
@@ -2406,6 +2444,7 @@ class Executor:
                     spec,
                     reason_code="running_reconcile_incomplete_evidence",
                     message="terminal job has no trial evidence; refusing reconciliation",
+                    cas_locator=locator,
                 )
                 continue
             transient_reason = next(
@@ -2425,10 +2464,11 @@ class Executor:
                         "executor stopped after a transient provider failure; "
                         "preserved evidence requires operator resubmission"
                     ),
+                    cas_locator=locator,
                 )
                 continue
             failure = self._settle_post_run(
-                job_dir,
+                SettledRun(cas_locator=locator, cas_record=archive),
                 spec,
                 actor="executor-reconcile",
             )
@@ -2439,6 +2479,7 @@ class Executor:
                     spec,
                     reason_code=failure_reason,
                     message=failure.message,
+                    cas_locator=locator,
                 )
                 continue
             self.queue.transition(
@@ -2447,6 +2488,7 @@ class Executor:
                 actor="executor-reconcile",
                 event="running_reconciled",
                 policy_rule=spec.policy_rule,
+                cas_locator=locator,
             )
 
     def _fail_reconciled_running(
@@ -2456,6 +2498,7 @@ class Executor:
         *,
         reason_code: str,
         message: str,
+        cas_locator: EvidenceLocator | None = None,
     ) -> None:
         decision = PolicyDecision(
             admitted=False,
@@ -2469,6 +2512,7 @@ class Executor:
             event="running_reconcile_failed",
             reason_code=reason_code,
             policy_rule=spec.policy_rule,
+            cas_locator=cas_locator,
         )
         self.queue.write_reason(self.queue.load(failed), decision)
 
@@ -2481,14 +2525,15 @@ class Executor:
     def _run_harbor(self, request: RunRequest) -> SettledRun:
         return run_experiment(request, repo_root=self.repo_root)
 
-    def _ingest(self, job_dir: Path) -> IngestProjectionResult:
+    def _ingest(self, locator: EvidenceLocator) -> IngestProjectionResult:
         url = database_url_from_environment()
-        return ingest_and_project(
-            url,
-            [load_job(job_dir)],
-            root=self.repo_root,
-            output_root=derived_root_from_environment(self.repo_root),
-        )
+        with materialize_evidence(locator) as job_dir:
+            return ingest_and_project(
+                url,
+                [load_job(job_dir)],
+                root=self.repo_root,
+                output_root=derived_root_from_environment(self.repo_root),
+            )
 
     def _catalog_spend(self) -> float:
         try:

@@ -25,6 +25,7 @@ from evallab.campaigns import (
     build_campaign_manifest,
 )
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
+from evallab.evidence_store import EvidenceLocator, materialize_evidence
 from evallab.execution_contracts import RunRequest
 from evallab.queue import ExecutionFailure, load_events
 from evallab.registry import (
@@ -350,23 +351,48 @@ def _analyze_dispatched_jobs(repo: Path, requests: list[RunRequest]) -> None:
         "proposed_discriminator": "Repeat the exact control.",
         "confidence": "high",
     }
+    queue_events = load_events(repo / "queue/events.jsonl")
     for request in requests:
         assert not (repo / "runs" / request.name).exists()
-        job = load_job(repo / "research/evidence/runs" / request.name)
-        sidecar_path, sidecar = run_trial_analysis(
-            job,
-            job.trials[0],
-            analyzer=lambda _prompt, _schema: AnalyzerCallResult(raw_output=json.dumps(output)),
-            repo_root=repo,
-            destination_root=repo / "research/evidence/analysis",
-            prompt_path=prompt,
-            rubric_path=rubric,
-            agent="test-analyzer",
-            agent_version="1.0.0",
-            model="test-model",
+        matching_events = [
+            e
+            for e in queue_events
+            if e.job_name == request.name and e.event == "dispatch_completed"
+        ]
+        assert matching_events, f"No dispatch_completed event found for {request.name}"
+        event = matching_events[-1]
+        assert event.cas_store_root is not None
+        assert event.cas_record_kind is not None
+        assert event.cas_record_id is not None
+        assert event.cas_record_digest is not None
+        assert event.cas_content_digest is not None
+        locator = EvidenceLocator(
+            store_root=Path(event.cas_store_root),
+            kind=event.cas_record_kind,
+            record_id=event.cas_record_id,
+            expected_record_digest=event.cas_record_digest,
+            expected_content_digest=event.cas_content_digest,
         )
-        assert sidecar.analysis_id
-        assert sidecar_path.is_file()
+        # Authenticate and materialize from exact terminal event locator with live lifetime
+        with materialize_evidence(locator) as materialized_job_dir:
+            job = load_job(materialized_job_dir)
+            trial = job.trials[0]
+            canonical_trial_path = repo / f"research/evidence/runs/{request.name}/{trial.name}"
+            sidecar_path, sidecar = run_trial_analysis(
+                job,
+                trial,
+                analyzer=lambda _prompt, _schema: AnalyzerCallResult(raw_output=json.dumps(output)),
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_trial_path=canonical_trial_path,
+            )
+            assert sidecar.analysis_id
+            assert sidecar_path.is_file()
 
 
 def _prepare_campaign(
@@ -564,3 +590,50 @@ def test_direct_execute_spec_cannot_bypass_control_runtime_binding(
         executor.execute_spec(spec)
     assert identity_calls == []
     assert runner_calls == []
+
+
+def test_control_bootstrap_tampered_durable_publication_refuses_promotion(
+    tmp_path: Path,
+) -> None:
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+
+    def live_identity(
+        evidence: NetworkIsolationEvidenceV1,
+    ) -> NetworkIsolationDispatchIdentityV1:
+        return NetworkIsolationDispatchIdentityV1(
+            runtime_identity=evidence.runtime_identity,
+            probe_identity=evidence.probe_identity,
+        )
+
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+        isolation_identity_provider=live_identity,
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+    _analyze_dispatched_jobs(repo, requests)
+
+    # TAMPER: Corrupt published durable result.json
+    published_trial = (
+        repo / f"research/evidence/runs/{requests[0].name}/uppercase-fixture__{requests[0].agent}"
+    )
+    assert published_trial.is_dir()
+    result_file = published_trial / "result.json"
+    result_file.write_text('{"tampered": true}\n', encoding="utf-8")
+
+    from evallab.registry import TaskControlEvidenceError
+
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="control evidence",
+    ):
+        promote_task(
+            task,
+            repo,
+            task_id=staged.task_id,
+            task_family=staged.task_family,
+            state="registered",
+            actor="admission-reviewer",
+        )

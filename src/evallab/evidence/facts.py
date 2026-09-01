@@ -1496,6 +1496,7 @@ def run_trial_analysis(
     agent_version: str,
     model: str,
     created_at: datetime | None = None,
+    canonical_trial_path: Path | None = None,
 ) -> tuple[Path, TrialAnalysisSidecar]:
     before = _trial_tree_digests(trial.path)
     prompt_template = prompt_path.read_text()
@@ -1514,10 +1515,31 @@ def run_trial_analysis(
     )
     validation_errors = validate_analysis_evidence(trial, output)
     analysis_id = uuid4()
-    try:
-        source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        source_path = trial.path.resolve().as_posix()
+    if canonical_trial_path is not None:
+        resolved_canonical = canonical_trial_path.resolve()
+        if not resolved_canonical.is_dir():
+            from evallab.trial_admissibility import TrialAdmissibilityError
+
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:missing-canonical-trial-path"
+            )
+        if _trial_tree_digests(resolved_canonical) != before:
+            from evallab.trial_admissibility import TrialAdmissibilityError
+
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-content-mismatch"
+            )
+        try:
+            source_path = resolved_canonical.relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            source_path = resolved_canonical.as_posix()
+        target_trial_dir = resolved_canonical
+    else:
+        try:
+            source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            source_path = trial.path.resolve().as_posix()
+        target_trial_dir = trial.path.resolve()
     sidecar = TrialAnalysisSidecar(
         analysis_id=analysis_id,
         experiment_id=experiment_id(job),
@@ -1556,6 +1578,7 @@ def run_trial_analysis(
         trial=trial,
         repo_root=repo_root,
         interpretation_path=sidecar_path,
+        trial_dir=target_trial_dir,
     )
     return sidecar_path, sidecar
 

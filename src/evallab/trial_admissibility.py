@@ -610,13 +610,14 @@ def finalize_trial_admissibility(
     repo_root: Path,
     interpretation_path: Path | None = None,
     artifact_path: Path | None = None,
+    trial_dir: Path | None = None,
 ) -> VerifiedTrialAdmissibility | None:
     """Publish authority only after every exact causal source exists."""
     destination = canonical_trial_admissibility_path(repo_root, trial.id)
     if artifact_path is not None and artifact_path.resolve() != destination.resolve():
         raise TrialAdmissibilityError("trial_admissibility_invalid:alternate-authority-path")
 
-    root = trial.path.resolve()
+    root = (trial_dir or trial.path).resolve()
     result_snapshot = _capture_result_snapshot(root, required=False)
     provenance = job_run_provenance(job)
     source_paths, source_digests = _source_authority(

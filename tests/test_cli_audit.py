@@ -216,3 +216,74 @@ def test_report_card_default_renders_without_writing(
     )
 
     assert cli.run_cli(["report", "card", "done.json"], workspace=tmp_path) == 0
+
+
+def test_cli_ingest_requires_store_and_settles_from_locator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CLI ingest requires explicit --store and settles projections from authenticated locators."""
+    import json
+
+    from evallab import database
+    from evallab.evidence import facts as facts_module
+    from evallab.storage import settlement as settlement_module
+
+    monkeypatch.setattr(database, "initialize", lambda _url: None)
+    monkeypatch.setattr(database, "ingest", lambda _url, jobs, root: len(jobs))
+    monkeypatch.setattr(
+        facts_module, "ingest_catalog", lambda _url, _jobs, root, derived_root: None
+    )
+    monkeypatch.setattr(
+        settlement_module, "persist_settlement_manifest", lambda _url, _manifest: None
+    )
+
+    job_dir = tmp_path / "raw-jobs" / "job-cli"
+    trial_dir = job_dir / "trial-1"
+    agent_dir = trial_dir / "agent"
+    agent_dir.mkdir(parents=True)
+
+    result_payload = {
+        "job_id": "job-cli",
+        "trial_id": "trial-1",
+        "trial_name": "trial-1",
+        "task_name": "event-summary",
+        "agent_name": "mini-swe-agent",
+        "started_at": "2026-08-25T12:00:00Z",
+        "finished_at": "2026-08-25T12:05:00Z",
+        "primary_reward": 1.0,
+    }
+    (trial_dir / "result.json").write_text(json.dumps(result_payload), encoding="utf-8")
+    (agent_dir / "trajectory.json").write_text(
+        json.dumps({"schema_version": "ATIF-1.0.0", "session_id": "s1", "steps": []}),
+        encoding="utf-8",
+    )
+    (trial_dir / "lock.json").write_text("{}", encoding="utf-8")
+    (job_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "job-cli",
+                "n_total_trials": 1,
+                "stats": {},
+                "finished_at": "2026-08-25T12:05:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    store_root = tmp_path / "cas-store"
+    derived_root = tmp_path / "derived"
+
+    # 1. Missing --store fails the CLI parser before running
+    with pytest.raises(SystemExit):
+        cli.run_cli(["ingest", str(job_dir)], workspace=tmp_path)
+
+    # 2. Explicit --store succeeds
+    res_ok = cli.run_cli(
+        ["ingest", "--store", str(store_root), "--derived-dir", str(derived_root), str(job_dir)],
+        workspace=tmp_path,
+    )
+    assert res_ok == 0
+    assert (derived_root / "job_id=job-cli/jobs.parquet").is_file()
+    assert (
+        derived_root / "job_id=job-cli/trial_id=trial-1/trajectory_quality_reports.parquet"
+    ).is_file()

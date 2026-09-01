@@ -1142,7 +1142,11 @@ def _ingest_command(
     )
     from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
 
-    store_raw = getattr(args, "store", None) or os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT") or "derived/run-cas"
+    store_raw = (
+        getattr(args, "store", None)
+        or os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
+        or "derived/run-cas"
+    )
     store_root = _resolve(root, Path(str(store_raw)))
     source_locators: dict[str, EvidenceLocator] = {}
     for job_path, job in zip(resolved_paths, jobs, strict=True):
@@ -4047,6 +4051,12 @@ def parser() -> argparse.ArgumentParser:
     summarize.set_defaults(func=_summarize_command)
 
     ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
+    ingest.add_argument(
+        "--store",
+        type=Path,
+        required=True,
+        help="Path to the authoritative CAS evidence store root",
+    )
     ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
     ingest.add_argument("--database-url")
     ingest.add_argument(

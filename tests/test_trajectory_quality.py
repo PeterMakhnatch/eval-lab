@@ -22,6 +22,7 @@ from evallab.analysis_worker import (
     AnalysisRequest,
     RequestStore,
     admit,
+    freeze_request,
 )
 from evallab.evidence.atif import ingest_and_project
 from evallab.evidence_store import archive_evidence, evidence_locator
@@ -31,6 +32,7 @@ from evallab.interpretation.trajectory_quality import (
     evaluate_trial_quality,
 )
 from evallab.profiles import AgentProfile
+from evallab.results import load_job
 from evallab.schemas import StandingApprovalsPolicy
 from evallab.status_generator import StatusReportData, render_status_markdown
 from evallab.storage.attach import attach
@@ -250,6 +252,7 @@ def test_analysis_worker_admission_fails_closed_on_missing_quality(
     # Missing result.json -> unreadable evidence
     request = AnalysisRequest.model_validate(
         {
+            "schema_version": 2,
             "request_id": "0123456789abcdef",
             "created_at": datetime.now(UTC),
             "experiment_id": "exp-1",
@@ -269,6 +272,12 @@ def test_analysis_worker_admission_fails_closed_on_missing_quality(
             "rubric_sha256": "sha256:3333",
             "prompt_sha256": "sha256:4444",
             "profile_digest": "sha256:5555",
+            "quality_status": "pass",
+            "quality_check_version": "v1.0.0",
+            "quality_check_digest": "sha256:0000",
+            "quality_quarantine_reason": None,
+            "quality_report_digest": "sha256:0000",
+            "quality_inputs_digest": "sha256:0000",
         }
     )
     policy = StandingApprovalsPolicy(
@@ -316,6 +325,7 @@ def test_analysis_worker_quarantines_quarantined_quality_evidence(
         {
             "job_id": "job-1",
             "trial_id": "trial-1",
+            "trial_name": "trial-1",
             "task_name": "task",
             "agent_name": "agent",
             "exception": "runner timeout error",
@@ -333,31 +343,29 @@ def test_analysis_worker_quarantines_quarantined_quality_evidence(
         encoding="utf-8",
     )
 
-    import hashlib
-
-    request = AnalysisRequest.model_validate(
-        {
-            "request_id": "0123456789abcdef",
-            "created_at": datetime.now(UTC),
-            "experiment_id": "exp-1",
-            "job_id": "job-1",
-            "trial_id": "trial-1",
-            "job_name": "job-1",
-            "trial_name": "trial-1",
-            "trial_path": "runs/job-1/trial-1",
-            "profile_id": "profile-1",
-            "adapter": "test-adapter",
-            "model": "test-model",
-            "result_sha256": "sha256:" + hashlib.sha256(res_bytes).hexdigest(),
-            "trajectory_sha256": "sha256:" + hashlib.sha256(traj_bytes).hexdigest(),
-            "lock_sha256": "sha256:" + hashlib.sha256(lock_bytes).hexdigest(),
-            "task_digest": "sha256:1111",
-            "verifier_digest": "sha256:2222",
-            "rubric_sha256": "sha256:3333",
-            "prompt_sha256": "sha256:4444",
-            "profile_digest": "sha256:5555",
-        }
+    prompt = repo_root / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo_root / "rubric.json"
+    rubric.write_text("{}")
+    prof = AgentProfile(
+        profile_id="profile-1",
+        adapter="test-adapter",
+        model="test-model",
+        auth_mode="subscription-keychain",
+        secret_source="keychain:eval-lab",
+        verified_facts=("2026-08-06: proven run",),
     )
+    job = load_job(repo_root / "runs/job-1")
+    request = freeze_request(
+        job,
+        job.trials[0],
+        profile=prof,
+        prompt_path=prompt,
+        rubric_path=rubric,
+        repo_root=repo_root,
+    )
+    assert request is not None
+    assert request.quality_status == "quarantine"
     policy = StandingApprovalsPolicy(
         version=1,
         daily_cost_ceiling_usd=20.0,
@@ -425,7 +433,9 @@ def test_duckdb_attach_and_adversary_immutability(
         root=repo_root,
         output_root=derived_root,
         source_locators={job.id: locator},
-        settlement_recorder=lambda _url, d_root, manifest: write_settlement_manifest(d_root, manifest),
+        settlement_recorder=lambda _url, d_root, manifest: write_settlement_manifest(
+            d_root, manifest
+        ),
     )
     assert len(result.failures) == 0
 
@@ -490,3 +500,90 @@ def test_status_generator_renders_quality_ledger_without_leaks() -> None:
     md = render_status_markdown(data)
     assert "### Evidence Quality Ledger" in md
     assert "- **Evaluated Trials:** 10 (Passed: 6, Warnings: 2, Failed: 0, Quarantined: 2)" in md
+
+
+def test_staged_quarantine_drift_by_removing_exception_file_is_rejected_with_zero_calls(
+    tmp_path: Path,
+) -> None:
+    """Architect adversary B1: staged quarantined trial with exception.txt removed before admit fails closed with 0 calls."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True)
+    trial_path = repo_root / "runs" / "job-1" / "trial-1"
+    agent_dir = trial_path / "agent"
+    agent_dir.mkdir(parents=True)
+
+    res_bytes = json.dumps(
+        {
+            "job_id": "job-1",
+            "trial_id": "trial-1",
+            "trial_name": "trial-1",
+            "task_name": "task",
+            "agent_name": "agent",
+        }
+    ).encode()
+    traj_bytes = json.dumps(
+        {"schema_version": "ATIF-1.0.0", "session_id": "s1", "steps": []}
+    ).encode()
+    lock_bytes = b"{}"
+    (trial_path / "result.json").write_bytes(res_bytes)
+    (agent_dir / "trajectory.json").write_bytes(traj_bytes)
+    (trial_path / "lock.json").write_bytes(lock_bytes)
+    (repo_root / "runs" / "job-1" / "result.json").write_text(
+        json.dumps(
+            {"id": "job-1", "n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:05:00Z"}
+        )
+    )
+    # Add exception.txt -> quality status will freeze as quarantine
+    (trial_path / "exception.txt").write_text("DockerTimeoutException\n")
+
+    prompt = repo_root / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo_root / "rubric.json"
+    rubric.write_text("{}")
+    prof = AgentProfile(
+        profile_id="profile-1",
+        adapter="test-adapter",
+        model="test-model",
+        auth_mode="subscription-keychain",
+        secret_source="keychain:eval-lab",
+        verified_facts=("2026-08-06: proven run",),
+    )
+    job = load_job(repo_root / "runs/job-1")
+    request = freeze_request(
+        job,
+        job.trials[0],
+        profile=prof,
+        prompt_path=prompt,
+        rubric_path=rubric,
+        repo_root=repo_root,
+    )
+    assert request is not None
+    assert request.quality_status == "quarantine"
+
+    # ADVERSARY: Remove exception.txt without altering result.json / trajectory.json
+    (trial_path / "exception.txt").unlink()
+
+    policy = StandingApprovalsPolicy(
+        version=1,
+        daily_cost_ceiling_usd=20.0,
+        per_job_cost_ceiling_usd=3.0,
+        quiet_failure_rule=3,
+        auto_run=[{"name": "local-controls", "agents": ["oracle", "nop"]}],
+        escalate_to_human=[],
+    )
+    ctx = AdmissionContext(
+        stop_present=lambda: False,
+        policy=policy,
+        profile=prof,
+        probe=None,
+        spent_today_usd=lambda: 0.0,
+        est_call_cost_usd=0.01,
+        services_healthy=lambda: True,
+        requirement_checks={},
+    )
+    store = RequestStore(repo_root / "derived" / "analyses" / "worker")
+    decision = admit(request, store, ctx, repo_root)
+
+    # Must be quarantined due to quality inputs drift with zero model calls!
+    assert decision.kind == "quarantine"
+    assert decision.reason == "evidence_tampered:quality_inputs"

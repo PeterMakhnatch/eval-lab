@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
 from evallab.evidence.parquet_io import write_table_atomic
+from evallab.evidence_store import EvidenceLocator
 from evallab.outcome_authority import (
     OutcomeRecord,
     VerifierOutcomeStatus,
@@ -1130,6 +1131,16 @@ AnalyzerCallable = Callable[[str, dict[str, Any]], AnalyzerCallResult]
 
 
 @dataclass(frozen=True)
+class CanonicalPublicationBinding:
+    """Narrow typed binding between terminal event, locator, and canonical durable path."""
+
+    job_name: str
+    spec_id: str
+    locator: EvidenceLocator
+    publication_root: Path
+
+
+@dataclass(frozen=True)
 class AnalysisPlan:
     experiment_id: str | None
     job_id: str
@@ -1496,9 +1507,72 @@ def run_trial_analysis(
     agent_version: str,
     model: str,
     created_at: datetime | None = None,
-    canonical_trial_path: Path | None = None,
+    canonical_binding: CanonicalPublicationBinding | None = None,
 ) -> tuple[Path, TrialAnalysisSidecar]:
     before = _trial_tree_digests(trial.path)
+
+    # Validate canonical source binding strictly BEFORE any model call
+    if canonical_binding is not None:
+        from evallab.trial_admissibility import TrialAdmissibilityError
+
+        durable_runs = canonical_binding.publication_root.resolve()
+        repo_resolved = repo_root.resolve()
+        if not durable_runs.is_dir() or not (
+            durable_runs == (repo_resolved / "research/evidence/runs")
+            or durable_runs.is_relative_to(repo_resolved)
+        ):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:invalid-canonical-publication-root"
+            )
+
+        if (
+            canonical_binding.locator.kind != "job"
+            or canonical_binding.locator.record_id != canonical_binding.job_name
+        ):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:locator-job-binding-mismatch"
+            )
+
+        job_target = durable_runs / canonical_binding.job_name
+        trial_target = job_target / trial.name
+        if job_target.is_symlink() or trial_target.is_symlink():
+            raise TrialAdmissibilityError("trial_admissibility_invalid:symlinked-canonical-source")
+
+        canonical_job = job_target.resolve()
+        canonical_trial = trial_target.resolve()
+
+        if not canonical_job.is_dir() or not canonical_trial.is_dir():
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:missing-canonical-trial-path"
+            )
+        if not canonical_trial.is_relative_to(durable_runs):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-path-escape"
+            )
+        if canonical_trial.is_symlink() or canonical_job.is_symlink():
+            raise TrialAdmissibilityError("trial_admissibility_invalid:symlinked-canonical-source")
+        if _trial_tree_digests(canonical_trial) != before:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-content-mismatch"
+            )
+
+        exp_provenance = job.metadata.get("experiment")
+        if (
+            isinstance(exp_provenance, dict)
+            and exp_provenance.get("spec_id")
+            and exp_provenance.get("spec_id") != canonical_binding.spec_id
+        ):
+            raise TrialAdmissibilityError("trial_admissibility_invalid:provenance-spec-id-mismatch")
+
+        source_path = canonical_trial.relative_to(repo_resolved).as_posix()
+        target_trial_dir = canonical_trial
+    else:
+        try:
+            source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            source_path = trial.path.resolve().as_posix()
+        target_trial_dir = trial.path.resolve()
+
     prompt_template = prompt_path.read_text()
     rubric = json.loads(rubric_path.read_text())
     schema = TrialAnalysisOutput.model_json_schema()
@@ -1515,31 +1589,13 @@ def run_trial_analysis(
     )
     validation_errors = validate_analysis_evidence(trial, output)
     analysis_id = uuid4()
-    if canonical_trial_path is not None:
-        resolved_canonical = canonical_trial_path.resolve()
-        if not resolved_canonical.is_dir():
-            from evallab.trial_admissibility import TrialAdmissibilityError
 
-            raise TrialAdmissibilityError(
-                "trial_admissibility_invalid:missing-canonical-trial-path"
-            )
-        if _trial_tree_digests(resolved_canonical) != before:
-            from evallab.trial_admissibility import TrialAdmissibilityError
+    # Recheck immutability after model call
+    if _trial_tree_digests(trial.path) != before:
+        raise RuntimeError("analysis modified the immutable source trial")
+    if canonical_binding is not None and _trial_tree_digests(target_trial_dir) != before:
+        raise RuntimeError("canonical durable publication modified during analysis")
 
-            raise TrialAdmissibilityError(
-                "trial_admissibility_invalid:canonical-source-content-mismatch"
-            )
-        try:
-            source_path = resolved_canonical.relative_to(repo_root.resolve()).as_posix()
-        except ValueError:
-            source_path = resolved_canonical.as_posix()
-        target_trial_dir = resolved_canonical
-    else:
-        try:
-            source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
-        except ValueError:
-            source_path = trial.path.resolve().as_posix()
-        target_trial_dir = trial.path.resolve()
     sidecar = TrialAnalysisSidecar(
         analysis_id=analysis_id,
         experiment_id=experiment_id(job),
@@ -1567,19 +1623,21 @@ def run_trial_analysis(
         validation_errors=validation_errors,
         raw_response_digest=_digest_bytes(call_result.raw_output.encode()),
     )
-    if _trial_tree_digests(trial.path) != before:
-        raise RuntimeError("analysis modified the immutable source trial")
+
     sidecar_dir = destination_root.resolve() / str(analysis_id)
     sidecar_dir.mkdir(parents=True, exist_ok=False)
     sidecar_path = sidecar_dir / ANALYSIS_SIDECAR_FILENAME
     sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
-    finalize_trial_admissibility(
-        job=job,
-        trial=trial,
-        repo_root=repo_root,
-        interpretation_path=sidecar_path,
-        trial_dir=target_trial_dir,
-    )
+
+    # Mint trial admissibility authority ONLY for valid interpretations (B6)
+    if sidecar.validation_status == "valid" and not sidecar.validation_errors:
+        finalize_trial_admissibility(
+            job=job,
+            trial=trial,
+            repo_root=repo_root,
+            interpretation_path=sidecar_path,
+            trial_dir=target_trial_dir,
+        )
     return sidecar_path, sidecar
 
 

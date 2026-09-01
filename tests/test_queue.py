@@ -1411,3 +1411,60 @@ def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ExecutionFailure, match="no longer matches"):
         executor(tmp_path).execute_spec(item)
+
+
+def test_control_bootstrap_atomic_publication_and_conflict_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2 adversary: control bootstrap publication is atomic, fail-clean, and refuses destination overwrite."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    (root / "research/evidence/runs").mkdir(parents=True)
+
+    # 1. Create a valid settled control job
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="bootstrap-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("bootstrap-spec", agent="oracle", task="registered/task-1")
+
+    # First promotion succeeds
+    dest = service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert dest.is_dir()
+    assert (dest / "result.json").is_file()
+    # Ensure no staging directory leaked in research/evidence/runs
+    assert not list((root / "research/evidence/runs").glob(".staging-*"))
+
+    # Conflict refusal: destination already exists -> must raise control_bootstrap_job_conflict without overwrite
+    with pytest.raises(
+        ExecutionFailure, match="durable control-bootstrap job destination already exists"
+    ):
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+
+    # Failure injection: if validation fails, staging directory must be cleaned up and no partial directory left
+    fail_spec = spec("fail-bootstrap-spec", agent="oracle", task="registered/task-1")
+    monkeypatch.setattr(
+        service,
+        "_assert_persistent_artifacts_safe",
+        lambda _spec, _dir: (_ for _ in ()).throw(ValueError("injected validation failure")),
+    )
+    with pytest.raises(ValueError, match="injected validation failure"):
+        service._promote_control_bootstrap_job(settled_run, fail_spec)
+    assert not (root / "research/evidence/runs/fail-bootstrap-spec").exists()
+    assert not list((root / "research/evidence/runs").glob(".staging-*"))

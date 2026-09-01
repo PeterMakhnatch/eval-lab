@@ -595,20 +595,28 @@ def test_analysis_producer_cannot_publish_invalid_interpretation(
         "confidence": "low",
     }
 
-    with pytest.raises(TrialAdmissibilityError, match="invalid-interpretation"):
-        run_trial_analysis(
-            job,
-            trial,
-            analyzer=lambda _prompt, _schema: AnalyzerCallResult(
-                raw_output=json.dumps(invalid_output)
-            ),
-            repo_root=tmp_path,
-            destination_root=tmp_path / "analysis",
-            prompt_path=prompt,
-            rubric_path=rubric,
-            agent="test-analyzer",
-            agent_version="1",
-            model="test-model",
-            created_at=NOW,
-        )
+    # B6: run_trial_analysis returns invalid sidecar without minting admissibility authority
+    sidecar_path, sidecar = run_trial_analysis(
+        job,
+        trial,
+        analyzer=lambda _prompt, _schema: AnalyzerCallResult(raw_output=json.dumps(invalid_output)),
+        repo_root=tmp_path,
+        destination_root=tmp_path / "analysis",
+        prompt_path=prompt,
+        rubric_path=rubric,
+        agent="test-analyzer",
+        agent_version="1",
+        model="test-model",
+        created_at=NOW,
+    )
+    assert sidecar.validation_status == "invalid"
     assert not canonical_trial_admissibility_path(tmp_path, trial.id).exists()
+
+    # Direct finalization attempt of invalid sidecar raises TrialAdmissibilityError
+    with pytest.raises(TrialAdmissibilityError, match="invalid-interpretation"):
+        finalize_trial_admissibility(
+            job=job,
+            trial=trial,
+            repo_root=tmp_path,
+            interpretation_path=sidecar_path,
+        )

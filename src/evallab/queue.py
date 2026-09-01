@@ -1358,6 +1358,78 @@ def record_projection_failures(
         )
 
 
+def _atomic_no_replace_rename(source: Path, destination: Path) -> None:
+    """Atomically publish a directory without replacing any existing target."""
+    import ctypes
+    import ctypes.util
+    import errno
+    import platform
+
+    system = platform.system()
+    if system == "Darwin":
+        try:
+            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+            RENAME_EXCL = 0x00000004
+            AT_FDCWD = -2
+            res = libc.renameatx_np(
+                AT_FDCWD,
+                str(source).encode("utf-8"),
+                AT_FDCWD,
+                str(destination).encode("utf-8"),
+                ctypes.c_uint(RENAME_EXCL),
+            )
+            if res != 0:
+                err = ctypes.get_errno()
+                if err in (errno.EEXIST, errno.ENOTEMPTY):
+                    raise ExecutionFailure(
+                        "control_bootstrap_job_conflict",
+                        f"durable control-bootstrap job destination already exists: {destination}",
+                    )
+                raise OSError(err, os.strerror(err), str(destination))
+            return
+        except AttributeError:
+            pass
+    elif system == "Linux":
+        try:
+            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+            RENAME_NOREPLACE = 1
+            AT_FDCWD = -100
+            if hasattr(libc, "renameat2"):
+                res = libc.renameat2(
+                    AT_FDCWD,
+                    str(source).encode("utf-8"),
+                    AT_FDCWD,
+                    str(destination).encode("utf-8"),
+                    ctypes.c_uint(RENAME_NOREPLACE),
+                )
+            else:
+                syscall_nr = 276 if platform.machine().startswith("aarch") else 316
+                res = libc.syscall(
+                    ctypes.c_long(syscall_nr),
+                    AT_FDCWD,
+                    str(source).encode("utf-8"),
+                    AT_FDCWD,
+                    str(destination).encode("utf-8"),
+                    ctypes.c_uint(RENAME_NOREPLACE),
+                )
+            if res != 0:
+                err = ctypes.get_errno()
+                if err in (errno.EEXIST, errno.ENOTEMPTY):
+                    raise ExecutionFailure(
+                        "control_bootstrap_job_conflict",
+                        f"durable control-bootstrap job destination already exists: {destination}",
+                    )
+                raise OSError(err, os.strerror(err), str(destination))
+            return
+        except Exception:
+            pass
+
+    raise ExecutionFailure(
+        "platform_unsupported",
+        "atomic no-replace directory publication is unavailable on this platform",
+    )
+
+
 class Executor:
     """The sole application boundary allowed to start Harbor experiments."""
 
@@ -2271,21 +2343,42 @@ class Executor:
     ) -> Path:
         durable_root = (self.repo_root / "research/evidence/runs").resolve()
         durable_root.mkdir(parents=True, exist_ok=True)
-        destination = durable_root / spec.name
+        destination = (durable_root / spec.name).resolve()
+        if destination.parent != durable_root:
+            raise ExecutionFailure(
+                "control_bootstrap_job_path_invalid",
+                f"destination escapes durable root: {destination}",
+            )
         if destination.exists():
             raise ExecutionFailure(
                 "control_bootstrap_job_conflict",
-                "durable control-bootstrap job destination already exists",
+                f"durable control-bootstrap job destination already exists: {destination}",
             )
-        materialize_evidence_at(settled_run.cas_locator, destination)
-        load_job(destination)
-        self._assert_persistent_artifacts_safe(spec, destination)
-        descriptor = os.open(durable_root, os.O_RDONLY)
+        staging_dir = durable_root / f".staging-{spec.name}-{secrets.token_hex(12)}"
+        staging_dir.mkdir(mode=0o700, exist_ok=False)
         try:
-            os.fsync(descriptor)
+            materialize_evidence_at(settled_run.cas_locator, staging_dir)
+            load_job(staging_dir)
+            self._assert_persistent_artifacts_safe(spec, staging_dir)
+            for path in staging_dir.rglob("*"):
+                if path.is_file():
+                    with path.open("rb") as handle:
+                        os.fsync(handle.fileno())
+                elif path.is_dir():
+                    fd = os.open(path, os.O_RDONLY)
+                    try:
+                        os.fsync(fd)
+                    finally:
+                        os.close(fd)
+            _atomic_no_replace_rename(staging_dir, destination)
+            parent_fd = os.open(durable_root, os.O_RDONLY)
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
+            return destination
         finally:
-            os.close(descriptor)
-        return destination
+            shutil.rmtree(staging_dir, ignore_errors=True)
 
     def _run_with_transient_retries(
         self,

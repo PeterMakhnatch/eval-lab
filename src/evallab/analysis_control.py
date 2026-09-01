@@ -176,26 +176,14 @@ def _resolve_evidence_artifacts(
         artifacts["metric_config"] = payload["metric_config"]
     elif isinstance(payload.get("metric_spec"), dict):
         artifacts["metric_config"] = payload["metric_spec"]
-    elif isinstance(payload.get("scores"), dict) and isinstance(
-        payload["scores"].get("metric_config"), dict
-    ):
-        artifacts["metric_config"] = payload["scores"]["metric_config"]
 
     # 3. Resolve visible outcome
     if isinstance(payload.get("visible_outcome"), dict):
         artifacts["visible_outcome"] = payload["visible_outcome"]
-    elif isinstance(payload.get("scores"), dict) and isinstance(
-        payload["scores"].get("visible"), dict
-    ):
-        artifacts["visible_outcome"] = payload["scores"]["visible"]
 
     # 4. Resolve hidden outcome
     if isinstance(payload.get("hidden_outcome"), dict):
         artifacts["hidden_outcome"] = payload["hidden_outcome"]
-    elif isinstance(payload.get("scores"), dict) and isinstance(
-        payload["scores"].get("sealed"), dict
-    ):
-        artifacts["hidden_outcome"] = payload["scores"]["sealed"]
 
     return artifacts
 
@@ -229,14 +217,10 @@ def load_calibration_evidence(
             p_path: Path,
             p_payload: Mapping[str, Any],
             p_binding: Any,
-        ) -> Callable[[ResearchRunTraceV1], Mapping[str, Any]]:
-            def resolver(t: ResearchRunTraceV1) -> Mapping[str, Any]:
+        ) -> Callable[[ResearchRunTraceV1], Any]:
+            def resolver(t: ResearchRunTraceV1) -> Any:
                 if artifact_resolver is not None:
-                    try:
-                        res = artifact_resolver(t)
-                        return res if isinstance(res, Mapping) else {}
-                    except Exception:
-                        return {}
+                    return artifact_resolver(t)
                 return _resolve_evidence_artifacts(root, p_path, p_payload, p_binding, t)
 
             return resolver
@@ -492,10 +476,22 @@ def _calibration_row(evidence: CalibrationEvidence) -> tuple[Any, ...]:
     )
     scale_reason = None
     if not arithmetic_permitted:
-        explicit_reason = (
-            scores.get("transfer_gap_null_reason") if isinstance(scores, dict) else None
-        )
-        scale_reason = str(explicit_reason) if explicit_reason else "validated scale binding absent"
+        if scale_binding is not None:
+            if features.scale_binding_unresolved_reason:
+                scale_reason = features.scale_binding_unresolved_reason
+            elif features.scale_binding_status == "mismatch":
+                scale_reason = "scale binding artifact mismatch"
+            elif features.scale_binding_status == "unresolved":
+                scale_reason = "scale binding source artifacts unresolved"
+            else:
+                scale_reason = "scale binding verification incomplete"
+        else:
+            explicit_reason = (
+                scores.get("transfer_gap_null_reason") if isinstance(scores, dict) else None
+            )
+            scale_reason = (
+                str(explicit_reason) if explicit_reason else "no validated score-scale binding"
+            )
 
     selected_version = (
         str(process.get("selected_version") or trace.selected_iteration_id or "") or None

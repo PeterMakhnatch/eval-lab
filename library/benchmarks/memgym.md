@@ -49,15 +49,15 @@ The exact released fixture from `tests/fixtures/trajectories/tau2_bench_run/memo
 
 ## Source Mapping & Ingestion Contract (C0)
 
-- **`trial_id`:** Composed from `domain` + `task_id` (`memgym:{domain}:{task_id}`).
-- **`session_id`:** `steps[].side` (`"agent"` or `"user"`).
+- **`trial_id`:** Canonical domain-separated structured composite digest binding exact `{domain, task_id}` (`memgym:trial:{sha256}`).
+- **`session_id`:** Exact validated string `steps[].side` (`"agent"` or `"user"`; whitespace, case variants, nonstrings refuse).
 - **`step_index`:** Strictly mapped from `steps[].msg_index`. Globally unique integer establishing total order across interleaved agent and user turns. `steps[].step` is rejected for total order as it restarts per side and collides.
-- **`operation_id`:** Canonical composite `memgym:{domain}:{task_id}:{side}:{msg_index}`.
-- **`operation`:** `session_boundary` for step/message boundary events.
+- **`operation_id`:** Canonical domain-separated structured composite digest binding exact `{trial_id, side, msg_index}` (`memgym:op:{sha256}`).
+- **`operation`:** `session_boundary` for step/message boundary events; `compaction` for compaction events.
 - **`before_token_count` / `after_token_count`:** Direct mapping from `steps[].memory.original_tokens` and `filtered_tokens`.
-- **`prompt_tokens`:** Direct mapping from `steps[].memory.summarizer_prompt_tokens` (when present, > 0, and exact integer).
-- **Outcome:** `episode_reward`, `episode_outcome`, `result.reward`, and `result.success` extracted directly with cross-record task ID validation.
-
+- **`prompt_tokens`:** Direct mapping from `steps[].memory.summarizer_prompt_tokens` (when present, strict non-negative integer `>= 0` including `0`; null/absent unavailable; bool/string/float/negative fails closed).
+- **Exact-Byte Authority:** Public API accepts captured raw bytes; SHA-256 is computed before parsing; when result is absent, outcome provenance/digest binds to training artifact, never defaulting to `result.json`.
+- **Outcome:** `episode_reward`, `episode_outcome`, `result.reward`, and `result.success` extracted directly with fail-closed native type and value task ID validation.
 ## Status & Scope Holds
 
 - **C0 Step/Session/Token/Outcome Ingestion:** **GO** (implemented in `src/evallab/interpretation/producers/memgym.py`).

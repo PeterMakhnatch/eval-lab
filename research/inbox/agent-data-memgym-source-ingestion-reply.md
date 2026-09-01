@@ -10,44 +10,52 @@ topic: memgym-source-ingestion
 author: agent-data-engineer
 date: 2026-08-31
 status: distilled
-epistemic: MemGym C0 source-only ingestion adapter and fixtures prepared on canonical base 9768ad60
+epistemic: MemGym C0 source-only ingestion adapter and fixtures repaired with exact identity and source authority on canonical base 9768ad60
 collection: trajectory-analysis
 reviewed: 2026-08-31
-requested_by: Agent Data brief research/inbox/agent-data-prepare-memgym-source-ingestion.md
+requested_by: Agent Data brief research/inbox/agent-data-repair-memgym-identity-source-authority.md
 evidence_pin: 50b404e6ae4e1fcd453d3e07963eb3e6312cbded
 ---
 
-# Agent Data Reply: MemGym Source-Only C0 Ingestion
+# Agent Data Reply: MemGym Source-Only C0 Ingestion (Identity & Authority Repaired)
 
 ## Lane location
 
 - Worktree: `/private/tmp/eval-lab-memgym-source-ingestion`
 - Branch: `data/memgym-source-ingestion`
 - Base: `9768ad60a6d5a0cb90e4ff5dd1fbe116b050cc63`
-- Head: `d1e1b31dfad53ca9c7f09d11cfc82af6dfc259c7` (tracking `origin/data/memgym-source-ingestion`)
 - Upstream: `https://github.com/WujiangXu/MemGym` @ `50b404e6ae4e1fcd453d3e07963eb3e6312cbded` (tree `68c081f0271cfd7951e490afd59457b029ba0535`)
 
-## Summary of deliverables
+## Summary of M1–M5 Closures
 
-1. **Adapter (`src/evallab/interpretation/producers/memgym.py`):**
-   - Maps `steps[].msg_index` to `ContextOperationFact.step_index` as the globally unique total order coordinate across interleaved agent/user messages. Rejects `step` for total order.
-   - Maps `steps[].side` to `session_id`.
-   - Constructs composite `operation_id = f"memgym:{domain}:{task_id}:{side}:{msg_index}"`.
-   - Maps token counts from `original_tokens` and `filtered_tokens`; prompt tokens from `summarizer_prompt_tokens` when exact integer > 0.
-   - Compactions omit ordered forgotten indices (`ContextOperationPayloadV1` refused/unconstructed; `content_digest=None`).
-   - Extracts task outcomes (`episode_reward`, `episode_outcome`, `result.reward`, `result.success`) with fail-closed task identity validation.
-2. **Vendored Fixtures (`tests/fixtures/memgym/`):**
-   - Exact upstream files from `tests/fixtures/trajectories/tau2_bench_run/memory/retail/0/`: `0_training.json`, `0_replay.json`, `result.json`, `LICENSE`, `NOTICE`, and machine-readable `ATTRIBUTION.json`.
-3. **Benchmark Card (`library/benchmarks/memgym.md`):**
-   - Documents arXiv `2605.20833`, repo pin/tree, Apache-2.0 license with NOTICE attribution, paper MIT vs repo Apache discrepancy, missing corpus license, non-hermetic installer, track determinism (SWE-bench deterministic, WebArena deterministic, tau2 model-judged), and C0 scope holds.
-4. **Tests (`tests/test_producer_memgym.py`):**
-   - 9 test cases covering fixture digest/byte verification, total ordering, token mapping, outcome extraction, continuity feature extraction (0 writes/reads/uses $\rightarrow$ observed with null link metrics), representation order invariance, fail-closed duplicate `msg_index`, bool-vs-int rejection, task ID mismatch, and compaction payload refusal.
+1. **M1 — Exact Native Identity Types & Collision-Free Structured Composites:**
+   - Native `task_id` preserves exact JSON scalar type (`str | int`, excluding bool). Conflicting types (e.g. training `0` vs result `"0"`) refuse fail-closed with `ValueError`.
+   - String `domain` and `task_id` are preserved verbatim without `.strip()` or case-normalization.
+   - Structured domain-separated composite IDs:
+     - `trial_id`: `f"memgym:trial:{sha256(canonical_json({'domain': domain, 'task_id': task_id}))}"`
+     - `operation_id`: `f"memgym:op:{sha256(canonical_json({'msg_index': msg_index, 'side': side, 'trial_id': trial_id}))}"`
+     - Completely prevents delimiter collisions (`(domain='a:b', task_id='c')` vs `(domain='a', task_id='b:c')` yield distinct IDs).
+2. **M2 — Remove Caller Identity Substitution:**
+   - Removed arbitrary caller `trial_id` override. Derived solely from native fields.
+   - Added `expected_trial_id` assertion parameter; caller string `"path:list-position:7"` fails closed against derived native identity.
+3. **M3 — Exact Side/Session Admission:**
+   - `steps[].side` strictly validated as exact member of `{"agent", "user"}` without `.strip()`.
+   - Leading/trailing whitespace (`" agent "`), case variants (`"Agent"`), non-strings, and empty values fail closed.
+4. **M4 — Direct Prompt Token Semantics:**
+   - Null/absent `summarizer_prompt_tokens` $\rightarrow$ unavailable (`None`).
+   - Present strict non-negative integer $\ge 0$ $\rightarrow$ preserved exactly, including `0` (released fixture's direct zeros preserved).
+   - Present bool, numeric string, float, negative $\rightarrow$ fail closed (`ValueError`).
+   - Updated `library/benchmarks/memgym.md` to remove unsupported `> 0` rule.
+5. **M5 — Exact-Byte Source & Provenance Authority:**
+   - Public API accepts captured `training_bytes: bytes | str | Path` and optional `result_bytes: bytes | str | Path | None`. Parsed mapping dict input is refused (`TypeError`).
+   - SHA-256 is computed directly over captured bytes prior to parsing.
+   - When `result_bytes` is absent, outcome provenance source and digest bind explicitly to training artifact (`training_source_ref` / `t_digest`), never defaulting to `result.json`.
 
 ## Verification evidence
 
 ```text
 uv run pytest -q -o addopts='' tests/test_producer_memgym.py tests/test_memory_continuity_producer.py tests/test_semantic_facts.py tests/test_feature_governance_control.py::test_feature_registry_zero_contract_errors
-77 passed, 2 warnings in 0.33s
+92 passed, 2 warnings in 0.33s
 
 uvx ty@0.0.71 check src/evallab/interpretation/producers/memgym.py src/evallab/interpretation/producers/__init__.py src/evallab/interpretation/producers/memory_continuity.py --output-format=concise
 All checks passed!

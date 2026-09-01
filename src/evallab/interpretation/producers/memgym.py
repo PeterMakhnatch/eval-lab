@@ -13,6 +13,7 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from evallab.semantic_facts import ContextOperationFact
@@ -32,26 +33,76 @@ def _optional_strict_non_negative_int(value: Any, *, field_name: str) -> int | N
     return _strict_non_negative_int(value, field_name=field_name)
 
 
-def _strict_str(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip():
+def _validate_identity_str(value: Any, *, field_name: str) -> str:
+    if not isinstance(value, str) or len(value) == 0:
         raise ValueError(f"{field_name} must be a non-empty string, got {value!r}")
-    return value.strip()
+    return value
 
 
-def _compute_sha256(data: Mapping[str, Any] | str | bytes) -> str:
+def _validate_task_id(value: Any, *, field_name: str) -> str | int:
+    if isinstance(value, bool) or (not isinstance(value, str) and not isinstance(value, int)):
+        raise ValueError(
+            f"{field_name} must be a non-empty string or non-negative integer, got {value!r}"
+        )
+    if isinstance(value, str):
+        if len(value) == 0:
+            raise ValueError(f"{field_name} string must be non-empty")
+        return value
+    if value < 0:
+        raise ValueError(f"{field_name} integer must be non-negative, got {value}")
+    return value
+
+
+def _canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _compute_trial_id(domain: str, task_id: str | int) -> str:
+    payload = {"domain": domain, "task_id": task_id}
+    digest = hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+    return f"memgym:trial:{digest}"
+
+
+def _compute_operation_id(trial_id: str, side: str, msg_index: int) -> str:
+    payload = {"msg_index": msg_index, "side": side, "trial_id": trial_id}
+    digest = hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+    return f"memgym:op:{digest}"
+
+
+def _load_raw_bytes(data: bytes | str | Path, *, field_name: str) -> tuple[bytes, str]:
     if isinstance(data, bytes):
-        encoded = data
-    elif isinstance(data, str):
-        encoded = data.encode("utf-8")
-    else:
-        encoded = json.dumps(
-            data,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            allow_nan=False,
-        ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+        return data, "<raw_bytes>"
+    if isinstance(data, Path):
+        return data.read_bytes(), str(data)
+    if isinstance(data, str):
+        path = Path(data)
+        if path.is_file():
+            return path.read_bytes(), str(path)
+        return data.encode("utf-8"), "<string_payload>"
+    raise TypeError(
+        f"{field_name} must be bytes, str, or Path, got {type(data).__name__}; "
+        "parsed mappings cannot guarantee exact-byte provenance"
+    )
+
+
+def _parse_strict_json(raw_bytes: bytes, *, field_name: str) -> dict[str, Any]:
+    try:
+        decoded = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as err:
+        raise ValueError(f"{field_name} is not valid UTF-8: {err}") from err
+    try:
+        parsed = json.loads(decoded)
+    except json.JSONDecodeError as err:
+        raise ValueError(f"{field_name} is not valid JSON: {err}") from err
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{field_name} JSON root must be an object, got {type(parsed).__name__}")
+    return parsed
 
 
 @dataclass(frozen=True)
@@ -59,7 +110,7 @@ class MemGymOutcome:
     """Task-level outcome extracted from MemGym training and result records."""
 
     domain: str
-    task_id: str
+    task_id: str | int
     trial_id: str
     episode_reward: float | None
     episode_outcome: str | None
@@ -74,11 +125,11 @@ class MemGymOutcome:
 
 
 def extract_context_operation_facts_from_memgym(
-    training_data: Mapping[str, Any],
+    training_bytes: bytes | str | Path,
     *,
-    source_ref: str,
-    source_digest: str | None = None,
-    trial_id: str | None = None,
+    source_ref: str | None = None,
+    expected_source_digest: str | None = None,
+    expected_trial_id: str | None = None,
 ) -> tuple[ContextOperationFact, ...]:
     """Extract canonical ContextOperationFact rows from MemGym training records.
 
@@ -86,17 +137,24 @@ def extract_context_operation_facts_from_memgym(
     across agent and user messages). step restarts per side and is never used as
     total ordering.
     """
-    if not isinstance(training_data, Mapping):
-        raise ValueError("training_data must be a mapping")
+    raw_bytes, default_ref = _load_raw_bytes(training_bytes, field_name="training_bytes")
+    digest = f"sha256:{hashlib.sha256(raw_bytes).hexdigest()}"
+    if expected_source_digest is not None and expected_source_digest != digest:
+        raise ValueError(
+            f"Expected source digest {expected_source_digest!r} does not match computed byte digest {digest!r}"
+        )
+    effective_ref = source_ref if source_ref is not None else default_ref
 
-    domain = _strict_str(training_data.get("domain"), field_name="domain")
-    raw_task_id = training_data.get("task_id")
-    task_id = _strict_str(
-        str(raw_task_id) if raw_task_id is not None else None, field_name="task_id"
-    )
+    training_data = _parse_strict_json(raw_bytes, field_name="training_bytes")
 
-    tid = trial_id if trial_id is not None else f"memgym:{domain}:{task_id}"
-    digest = source_digest if source_digest is not None else _compute_sha256(training_data)
+    domain = _validate_identity_str(training_data.get("domain"), field_name="domain")
+    task_id = _validate_task_id(training_data.get("task_id"), field_name="task_id")
+
+    tid = _compute_trial_id(domain, task_id)
+    if expected_trial_id is not None and expected_trial_id != tid:
+        raise ValueError(
+            f"Derived trial_id {tid!r} does not match expected_trial_id {expected_trial_id!r}"
+        )
 
     raw_steps = training_data.get("steps")
     if not isinstance(raw_steps, Sequence) or isinstance(raw_steps, str | bytes):
@@ -109,11 +167,12 @@ def extract_context_operation_facts_from_memgym(
         if not isinstance(raw_step, Mapping):
             raise ValueError(f"Step at index {idx} must be a mapping")
 
-        side = _strict_str(raw_step.get("side"), field_name=f"steps[{idx}].side")
-        if side not in _SANCTIONED_SIDES:
+        raw_side = raw_step.get("side")
+        if not isinstance(raw_side, str) or raw_side not in _SANCTIONED_SIDES:
             raise ValueError(
-                f"Invalid side {side!r} at step {idx}; must be one of {sorted(_SANCTIONED_SIDES)}"
+                f"steps[{idx}].side must be an exact string member of {sorted(_SANCTIONED_SIDES)}, got {raw_side!r}"
             )
+        side = raw_side
 
         msg_index = _strict_non_negative_int(
             raw_step.get("msg_index"), field_name=f"steps[{idx}].msg_index"
@@ -140,23 +199,22 @@ def extract_context_operation_facts_from_memgym(
                 memory.get("filtered_tokens"), field_name=f"steps[{idx}].memory.filtered_tokens"
             )
             raw_prompt_tokens = memory.get("summarizer_prompt_tokens")
-            if (
-                raw_prompt_tokens is not None
-                and not isinstance(raw_prompt_tokens, bool)
-                and isinstance(raw_prompt_tokens, int)
-                and raw_prompt_tokens > 0
-            ):
-                prompt_tokens = raw_prompt_tokens
+            if raw_prompt_tokens is not None:
+                prompt_tokens = _strict_non_negative_int(
+                    raw_prompt_tokens,
+                    field_name=f"steps[{idx}].memory.summarizer_prompt_tokens",
+                )
+
             new_compaction = memory.get("new_compaction")
             if isinstance(new_compaction, bool) and new_compaction:
                 is_compaction = True
 
         operation = "compaction" if is_compaction else "session_boundary"
-        operation_id = f"memgym:{domain}:{task_id}:{side}:{msg_index}"
+        operation_id = _compute_operation_id(tid, side, msg_index)
 
         fact = ContextOperationFact.model_validate(
             {
-                "source_ref": f"{source_ref}#msg_{msg_index}",
+                "source_ref": f"{effective_ref}#msg_{msg_index}",
                 "source_digest": digest,
                 "provenance_kind": "mechanical",
                 "trial_id": tid,
@@ -181,25 +239,32 @@ def extract_context_operation_facts_from_memgym(
 
 
 def extract_memgym_outcome(
-    training_data: Mapping[str, Any],
-    result_data: Mapping[str, Any] | None = None,
+    training_bytes: bytes | str | Path,
+    result_bytes: bytes | str | Path | None = None,
     *,
-    source_ref: str = "result.json",
-    source_digest: str | None = None,
-    trial_id: str | None = None,
+    training_source_ref: str | None = None,
+    result_source_ref: str | None = None,
+    expected_source_digest: str | None = None,
+    expected_trial_id: str | None = None,
 ) -> MemGymOutcome:
     """Extract task outcome and verification status from MemGym records.
 
-    If result_data is provided, validates domain and task_id parity fail-closed.
+    If result_bytes is provided, validates domain and task_id parity fail-closed.
     """
-    if not isinstance(training_data, Mapping):
-        raise ValueError("training_data must be a mapping")
+    t_raw, default_t_ref = _load_raw_bytes(training_bytes, field_name="training_bytes")
+    t_digest = f"sha256:{hashlib.sha256(t_raw).hexdigest()}"
+    t_ref = training_source_ref if training_source_ref is not None else default_t_ref
 
-    domain = _strict_str(training_data.get("domain"), field_name="domain")
-    raw_task_id = training_data.get("task_id")
-    task_id = _strict_str(
-        str(raw_task_id) if raw_task_id is not None else None, field_name="task_id"
-    )
+    training_data = _parse_strict_json(t_raw, field_name="training_bytes")
+
+    domain = _validate_identity_str(training_data.get("domain"), field_name="domain")
+    task_id = _validate_task_id(training_data.get("task_id"), field_name="task_id")
+
+    tid = _compute_trial_id(domain, task_id)
+    if expected_trial_id is not None and expected_trial_id != tid:
+        raise ValueError(
+            f"Derived trial_id {tid!r} does not match expected_trial_id {expected_trial_id!r}"
+        )
 
     raw_ep_reward = training_data.get("episode_reward")
     episode_reward: float | None = None
@@ -215,20 +280,33 @@ def extract_memgym_outcome(
     result_success: bool | None = None
     evaluation_status = "unavailable"
 
-    if result_data is not None:
-        if not isinstance(result_data, Mapping):
-            raise ValueError("result_data must be a mapping")
+    if result_bytes is not None:
+        r_raw, default_r_ref = _load_raw_bytes(result_bytes, field_name="result_bytes")
+        r_digest = f"sha256:{hashlib.sha256(r_raw).hexdigest()}"
+        r_ref = result_source_ref if result_source_ref is not None else default_r_ref
 
-        res_domain = _strict_str(result_data.get("domain"), field_name="result_data.domain")
-        res_raw_task_id = result_data.get("task_id")
-        res_task_id = _strict_str(
-            str(res_raw_task_id) if res_raw_task_id is not None else None,
-            field_name="result_data.task_id",
+        if expected_source_digest is not None and expected_source_digest != r_digest:
+            raise ValueError(
+                f"Expected source digest {expected_source_digest!r} does not match computed result digest {r_digest!r}"
+            )
+
+        result_data = _parse_strict_json(r_raw, field_name="result_bytes")
+
+        res_domain = _validate_identity_str(
+            result_data.get("domain"), field_name="result_data.domain"
+        )
+        res_task_id = _validate_task_id(
+            result_data.get("task_id"), field_name="result_data.task_id"
         )
 
-        if res_domain != domain or res_task_id != task_id:
+        if (
+            type(res_domain) is not type(domain)
+            or res_domain != domain
+            or type(res_task_id) is not type(task_id)
+            or res_task_id != task_id
+        ):
             raise ValueError(
-                f"Task identity mismatch: training has ({domain}, {task_id}) but result has ({res_domain}, {res_task_id})"
+                f"Task identity mismatch: training has (domain={domain!r}, task_id={task_id!r}) but result has (domain={res_domain!r}, task_id={res_task_id!r})"
             )
 
         raw_res_reward = result_data.get("reward")
@@ -257,12 +335,15 @@ def extract_memgym_outcome(
             if any(f is not None for f in eval_fields):
                 evaluation_status = "observed"
 
-    tid = trial_id if trial_id is not None else f"memgym:{domain}:{task_id}"
-    digest = (
-        source_digest
-        if source_digest is not None
-        else _compute_sha256(result_data or training_data)
-    )
+        provenance_source = r_ref
+        source_digest = r_digest
+    else:
+        if expected_source_digest is not None and expected_source_digest != t_digest:
+            raise ValueError(
+                f"Expected source digest {expected_source_digest!r} does not match computed training digest {t_digest!r}"
+            )
+        provenance_source = t_ref
+        source_digest = t_digest
 
     return MemGymOutcome(
         domain=domain,
@@ -273,8 +354,8 @@ def extract_memgym_outcome(
         result_reward=result_reward,
         result_success=result_success,
         evaluation_status=evaluation_status,
-        provenance_source=source_ref,
-        source_digest=digest,
+        provenance_source=provenance_source,
+        source_digest=source_digest,
     )
 
 

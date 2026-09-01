@@ -1395,6 +1395,7 @@ def test_executor_rejects_secret_bearing_job_before_ingest(
         leaking_runner,
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
     )
+    _orchestrator(root, manifest, executor).store.freeze(manifest)
 
     with pytest.raises(ExecutionFailure, match="credential material reached persistent artifacts"):
         executor.execute_spec(manifest.attempts[0].spec)
@@ -1971,7 +1972,19 @@ def test_registered_task_resolution_must_match_frozen_package_digest(
     root = _repo(tmp_path)
     manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     frozen = manifest.attempts[0].spec
-    spec = frozen.model_copy(update={"task": "registered/task-one"})
+    spec = frozen.model_copy(
+        update={
+            "spec_id": "direct-frozen-package-check",
+            "task": "registered/task-one",
+            "campaign_ledger": None,
+            "campaign_cell_id": None,
+            "campaign_attempt_id": None,
+            "campaign_attempt_index": None,
+            "campaign_manifest_digest": None,
+            "campaign_spec_digest": None,
+            "campaign_evidence_store": None,
+        }
+    )
     calls: list[RunRequest] = []
     executor = _executor(root, lambda request: calls.append(request))
     resolved = type(

@@ -127,6 +127,7 @@ DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
 DEFAULT_LEASE_STALE_SECONDS = 300.0
 _TICK_THREAD_LOCK = threading.Lock()
+_CAMPAIGN_DISPATCH_VALIDATED = object()
 
 
 def approved_spec_digest(spec: ExperimentSpec) -> str:
@@ -1604,14 +1605,9 @@ class Executor:
             and spec.task.startswith("registered/")
         )
 
-    def _validate_campaign_dispatch_spec(
-        self,
-        spec: ExperimentSpec,
-        *,
-        source: Path,
-    ) -> None:
-        spec_id = str(spec.spec_id or "")
-        provenance_present = any(
+    @staticmethod
+    def _has_campaign_provenance(spec: ExperimentSpec) -> bool:
+        return any(
             value is not None
             for value in (
                 spec.campaign_ledger,
@@ -1622,6 +1618,15 @@ class Executor:
                 spec.campaign_evidence_store,
             )
         )
+
+    def _validate_campaign_dispatch_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        source: Path,
+    ) -> None:
+        spec_id = str(spec.spec_id or "")
+        provenance_present = self._has_campaign_provenance(spec)
         campaign_source = "campaign-" in source.name
         control_bootstrap = self._is_control_bootstrap_spec(spec)
         if control_bootstrap and not provenance_present:
@@ -1827,6 +1832,7 @@ class Executor:
                 job_dir = self.execute_spec(
                     spec,
                     lease_generation=lease_generation,
+                    _campaign_validation=_CAMPAIGN_DISPATCH_VALIDATED,
                 )
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
@@ -1991,7 +1997,13 @@ class Executor:
         spec: ExperimentSpec,
         *,
         lease_generation: str | None = None,
+        _campaign_validation: object | None = None,
     ) -> Path:
+        if _campaign_validation is not _CAMPAIGN_DISPATCH_VALIDATED:
+            self._validate_campaign_dispatch_spec(
+                spec,
+                source=Path(),
+            )
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest

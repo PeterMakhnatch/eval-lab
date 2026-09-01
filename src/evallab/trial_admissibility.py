@@ -288,21 +288,24 @@ def job_run_provenance(job: JobRecord) -> RunProvenance | None:
     return _provenance_from(value if isinstance(value, Mapping) else None)
 
 
-def _evaluated_at(
-    provenance: RunProvenance | None,
-    *,
-    trial: TrialRecord | None = None,
-) -> datetime:
-    if trial is not None:
-        raw = trial.result.get("finished_at") or trial.result.get("started_at")
-        if raw is not None:
-            try:
-                parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-            except ValueError:
-                parsed = None
-            if parsed is not None and parsed.tzinfo is not None:
-                return parsed
-    return datetime(1970, 1, 1, tzinfo=UTC)
+def _trial_finished_at(root: Path) -> datetime:
+    result_path = root / "result.json"
+    try:
+        result = json.loads(result_path.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:malformed-finished-at") from exc
+    raw = result.get("finished_at") if isinstance(result, Mapping) else None
+    if raw is None:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:missing-finished-at")
+    if not isinstance(raw, str):
+        raise TrialAdmissibilityError("trial_admissibility_invalid:malformed-finished-at")
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:malformed-finished-at") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:naive-finished-at")
+    return parsed
 
 
 def _provenance_binding(
@@ -431,7 +434,7 @@ def verify_trial_admissibility(
             source_digests=source_digests,
             source_paths=source_paths,
             network_isolation_evidence=None,
-            evaluated_at=_evaluated_at(parsed_provenance),
+            evaluated_at=datetime(1970, 1, 1, tzinfo=UTC),
         )
         return VerifiedTrialAdmissibility(
             record=unavailable,
@@ -440,6 +443,7 @@ def verify_trial_admissibility(
             provenance_binding_verified=False,
             registry_binding_verified=False,
         )
+    finished_at = _trial_finished_at(root)
     if raw != _canonical_bytes(record.model_dump(mode="json")):
         raise TrialAdmissibilityError("trial_admissibility_invalid:noncanonical-artifact-encoding")
     if record.trial_id != trial_id:
@@ -448,6 +452,8 @@ def verify_trial_admissibility(
         raise TrialAdmissibilityError("trial_admissibility_invalid:source-path-drift")
     if record.source_digests != source_digests:
         raise TrialAdmissibilityError("trial_admissibility_invalid:source-digest-drift")
+    if record.evaluated_at != finished_at:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:completion-time-drift")
     provenance_verified = _provenance_binding(record, parsed_provenance)
     if not provenance_verified:
         raise TrialAdmissibilityError("trial_admissibility_invalid:provenance-drift")
@@ -513,6 +519,7 @@ def finalize_trial_admissibility(
     )
     if any(value is None for value in source_digests.model_dump().values()):
         return None
+    finished_at = _trial_finished_at(trial.path.resolve())
     record = build_trial_admissibility(
         trial_id=trial.id,
         task_runtime_identity=(
@@ -521,7 +528,7 @@ def finalize_trial_admissibility(
         source_digests=source_digests,
         source_paths=source_paths,
         network_isolation_evidence=evidence,
-        evaluated_at=_evaluated_at(provenance, trial=trial),
+        evaluated_at=finished_at,
     )
     payload = _canonical_bytes(record.model_dump(mode="json"))
     _atomic_publish(destination, payload)

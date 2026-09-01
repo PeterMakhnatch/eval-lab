@@ -25,7 +25,7 @@ from evallab.campaigns import (
 )
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.execution_contracts import RunRequest
-from evallab.queue import load_events
+from evallab.queue import ExecutionFailure, load_events
 from evallab.registry import (
     TaskCertificationError,
     TaskRegistry,
@@ -524,3 +524,36 @@ def test_noncampaign_registered_control_cannot_bypass_runtime_binding(
         event.reason_code == "control_bootstrap_binding_missing"
         for event in load_events(executor.queue.events_path)
     )
+
+
+def test_direct_execute_spec_cannot_bypass_control_runtime_binding(
+    tmp_path: Path,
+) -> None:
+    repo, _, _, staged = _stage_task(tmp_path)
+    runner_calls: list[RunRequest] = []
+    identity_calls: list[NetworkIsolationEvidenceV1] = []
+
+    def identity_provider(
+        evidence: NetworkIsolationEvidenceV1,
+    ) -> NetworkIsolationDispatchIdentityV1:
+        identity_calls.append(evidence)
+        raise AssertionError("unbound control reached isolation identity provider")
+
+    executor = _executor(
+        repo,
+        lambda request: runner_calls.append(request),
+        isolation_identity_provider=identity_provider,
+    )
+    spec = ExperimentSpec(
+        name="direct-unbound-control",
+        hypothesis="Direct execution cannot bypass causal binding",
+        purpose="baseline",
+        task=f"registered/{staged.task_id}",
+        agent="oracle",
+        submitted_by="test",
+    )
+
+    with pytest.raises(ExecutionFailure, match="frozen campaign runtime binding"):
+        executor.execute_spec(spec)
+    assert identity_calls == []
+    assert runner_calls == []

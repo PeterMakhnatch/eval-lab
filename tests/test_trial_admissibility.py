@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -32,6 +33,7 @@ from evallab.schemas import (
 )
 from evallab.trial_admissibility import (
     TrialAdmissibilityError,
+    _source_authority,
     canonical_trial_admissibility_path,
     finalize_trial_admissibility,
     verify_trial_admissibility,
@@ -228,6 +230,63 @@ def _canonical_bytes(value: object) -> bytes:
     return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
+def _rewrite_trial_result(
+    trial: TrialRecord,
+    result: dict[str, object],
+) -> TrialRecord:
+    result_path = trial.path / "result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    digest = f"sha256:{sha256(result_path.read_bytes()).hexdigest()}"
+    interpretation_path = trial.path / "analysis/interpretation.json"
+    interpretation = json.loads(interpretation_path.read_text())
+    interpretation["source_digests"]["result"] = digest
+    interpretation["source_digests"]["files"]["result.json"] = digest
+    interpretation_path.write_text(json.dumps(interpretation), encoding="utf-8")
+    return replace(trial, result=result)
+
+
+def _completion_case(trial: TrialRecord, case: str) -> TrialRecord:
+    result: dict[str, object] = dict(trial.result)
+    if case == "missing":
+        result.pop("finished_at", None)
+        result.pop("started_at", None)
+    elif case == "start-only":
+        result.pop("finished_at", None)
+        result["started_at"] = NOW.isoformat()
+    elif case == "malformed":
+        result["finished_at"] = "not-a-timestamp"
+    elif case == "naive":
+        result["finished_at"] = NOW.replace(tzinfo=None).isoformat()
+    else:
+        raise AssertionError(f"unknown completion case: {case}")
+    return _rewrite_trial_result(trial, result)
+
+
+def _publish_forged_authority(
+    repo_root: Path,
+    trial: TrialRecord,
+    provenance: RunProvenance,
+    *,
+    evaluated_at: datetime,
+) -> None:
+    source_paths, source_digests = _source_authority(
+        trial.path.resolve(),
+        repo_root=repo_root,
+        trial_id=trial.id,
+    )
+    record = build_trial_admissibility(
+        trial_id=trial.id,
+        task_runtime_identity=provenance.task_runtime_identity,
+        source_digests=source_digests,
+        source_paths=source_paths,
+        network_isolation_evidence=provenance.network_isolation_evidence,
+        evaluated_at=evaluated_at,
+    )
+    authority = canonical_trial_admissibility_path(repo_root, trial.id)
+    authority.parent.mkdir(parents=True, exist_ok=True)
+    authority.write_bytes(_canonical_bytes(record.model_dump(mode="json")))
+
+
 def test_finalization_atomically_generates_exactly_one_canonical_artifact(
     tmp_path: Path,
 ) -> None:
@@ -253,6 +312,88 @@ def test_finalization_atomically_generates_exactly_one_canonical_artifact(
     assert list(artifact.parent.glob(f"{TRIAL_ID}.json")) == [artifact]
     assert first.record == second.record
     assert first.record.decision == "admissible"
+    assert first.record.evaluated_at == NOW
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    (
+        ("missing", "missing-finished-at"),
+        ("start-only", "missing-finished-at"),
+        ("malformed", "malformed-finished-at"),
+        ("naive", "naive-finished-at"),
+    ),
+)
+def test_finalizer_requires_exact_aware_completion_time(
+    tmp_path: Path,
+    case: str,
+    reason: str,
+) -> None:
+    job, trial, _ = _records(tmp_path)
+    changed_trial = _completion_case(trial, case)
+
+    with pytest.raises(TrialAdmissibilityError, match=reason):
+        finalize_trial_admissibility(
+            job=job,
+            trial=changed_trial,
+            repo_root=tmp_path,
+        )
+    assert not canonical_trial_admissibility_path(tmp_path, trial.id).exists()
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    (
+        ("missing", "missing-finished-at"),
+        ("start-only", "missing-finished-at"),
+        ("malformed", "malformed-finished-at"),
+        ("naive", "naive-finished-at"),
+    ),
+)
+def test_strict_loader_requires_exact_aware_completion_time(
+    tmp_path: Path,
+    case: str,
+    reason: str,
+) -> None:
+    _, trial, provenance = _records(tmp_path)
+    changed_trial = _completion_case(trial, case)
+    _publish_forged_authority(
+        tmp_path,
+        changed_trial,
+        provenance,
+        evaluated_at=NOW,
+    )
+
+    with pytest.raises(TrialAdmissibilityError, match=reason):
+        verify_trial_admissibility(
+            trial_dir=changed_trial.path,
+            trial_id=changed_trial.id,
+            provenance=provenance,
+            repo_root=tmp_path,
+        )
+
+
+def test_strict_loader_rejects_preexpiry_time_for_postexpiry_completion(
+    tmp_path: Path,
+) -> None:
+    _, trial, provenance = _records(tmp_path)
+    result: dict[str, object] = dict(trial.result)
+    result["finished_at"] = (NOW + timedelta(days=8)).isoformat()
+    changed_trial = _rewrite_trial_result(trial, result)
+    _publish_forged_authority(
+        tmp_path,
+        changed_trial,
+        provenance,
+        evaluated_at=NOW,
+    )
+
+    with pytest.raises(TrialAdmissibilityError, match="completion-time-drift"):
+        verify_trial_admissibility(
+            trial_dir=changed_trial.path,
+            trial_id=changed_trial.id,
+            provenance=provenance,
+            repo_root=tmp_path,
+        )
 
 
 def test_self_consistent_forged_source_chain_is_rejected_by_every_consumer(

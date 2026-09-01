@@ -1349,7 +1349,7 @@ def _canonical_utc_timestamp(value: str, label: str) -> str:
         raise ValueError(
             f"{label} must be a canonical UTC ISO-8601 timestamp ending in 'Z': {value!r}"
         )
-    pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$"
+    pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{6})?Z$"
     if not re.match(pattern, value):
         raise ValueError(
             f"{label} must be a canonical UTC ISO-8601 timestamp ending in 'Z': {value!r}"
@@ -1360,7 +1360,17 @@ def _canonical_utc_timestamp(value: str, label: str) -> str:
             raise ValueError(f"{label} must be timezone-aware UTC: {value!r}")
     except ValueError as exc:
         raise ValueError(f"{label} is not a valid ISO-8601 datetime: {value!r}") from exc
-    return value
+
+    if dt.microsecond == 0:
+        canonical = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    else:
+        canonical = dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    if value != canonical:
+        raise ValueError(
+            f"{label} must be byte-equal to canonical UTC ISO-8601 serialization (expected {canonical!r}, got {value!r})"
+        )
+    return canonical
 
 
 def _external_import_path(value: str, label: str) -> str:

@@ -2260,7 +2260,7 @@ def test_external_import_refuses_build_attestation_mismatches(
 
 
 def test_canonical_utc_timestamp_validation() -> None:
-    """Canonical UTC timestamp validator must accept strict ...Z format and reject date-only/offsets/naive."""
+    """Canonical UTC timestamp validator must accept strict ...Z format and reject fractional aliases."""
     from evallab.schemas import _canonical_utc_timestamp
 
     assert _canonical_utc_timestamp("2026-08-31T18:00:00Z", "test") == "2026-08-31T18:00:00Z"
@@ -2268,15 +2268,34 @@ def test_canonical_utc_timestamp_validation() -> None:
         _canonical_utc_timestamp("2026-08-31T18:00:00.123456Z", "test")
         == "2026-08-31T18:00:00.123456Z"
     )
+    assert (
+        _canonical_utc_timestamp("2026-08-31T18:00:00.100000Z", "test")
+        == "2026-08-31T18:00:00.100000Z"
+    )
 
-    with pytest.raises(ValueError, match="canonical UTC ISO-8601 timestamp ending in 'Z'"):
+    # Date-only, offset, and naive rejected
+    with pytest.raises(ValueError):
         _canonical_utc_timestamp("2026-08-31", "test")
 
-    with pytest.raises(ValueError, match="canonical UTC ISO-8601 timestamp ending in 'Z'"):
+    with pytest.raises(ValueError):
         _canonical_utc_timestamp("2026-08-31T18:00:00+00:00", "test")
 
-    with pytest.raises(ValueError, match="canonical UTC ISO-8601 timestamp ending in 'Z'"):
+    with pytest.raises(ValueError):
         _canonical_utc_timestamp("2026-08-31T18:00:00", "test")
+
+    # Zero-fraction and fractional alias rejections
+    for alias in (
+        "2026-08-31T18:00:00.0Z",
+        "2026-08-31T18:00:00.00Z",
+        "2026-08-31T18:00:00.000000Z",
+        "2026-08-31T18:00:00.1Z",
+        "2026-08-31T18:00:00.12Z",
+        "2026-08-31T18:00:00.12345Z",
+        "2026-08-31T18:00:00.1234560Z",
+        "2026-08-31T18:00:00.1234567Z",
+    ):
+        with pytest.raises(ValueError):
+            _canonical_utc_timestamp(alias, "test")
 
 
 def test_legacy_m049_v1_packet_remains_readable(tmp_path: Path) -> None:

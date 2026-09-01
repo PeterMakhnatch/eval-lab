@@ -1686,3 +1686,105 @@ def test_promotion_refuses_explicit_lineage_when_candidate_packet_has_none(tmp_p
             certification_path=cert_rel,
             external_import_lineage=valid_lineage,
         )
+
+
+def test_register_task_refuses_stored_legacy_v1_candidate_with_controls(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Stored legacy m049-v1 candidate records must not transition to registered state."""
+    from test_task_workbench import (
+        _bundle,
+        _copy_candidate,
+        _inspect,
+    )
+
+    from evallab.cli import run_cli
+    from evallab.registry import (
+        TaskCertificationError,
+        TaskRegistry,
+        _canonical_bytes,
+        _digest_bytes,
+        certification_envelope_from_packet,
+        register_task,
+    )
+    from evallab.task_workbench import check_candidate, write_packet
+
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task)
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    cand_path, cert_path = write_packet(repo_root=repo, report=report)
+
+    # Rewrite packet to legacy m049-v1 format
+    cand = json.loads(cand_path.read_text())
+    cand["workbench_version"] = "m049-v1"
+    cand.pop("candidate_record_digest")
+    cand_digest = _digest_bytes(_canonical_bytes(cand))
+    cand["candidate_record_digest"] = cand_digest
+    cand_path.write_bytes(_canonical_bytes(cand))
+
+    cert = json.loads(cert_path.read_text())
+    cert["workbench_version"] = "m049-v1"
+    cert["candidate_record_digest"] = cand_digest
+    cert.pop("certification_id")
+    cert["certification_id"] = "cert-" + hashlib.sha256(_canonical_bytes(cert)).hexdigest()[:24]
+    cert_path.write_bytes(_canonical_bytes(cert))
+    # Add valid control evidence jobs
+    _make_control_job(repo, task, "oracle", 1.0)
+    _make_control_job(repo, task, "nop", 0.0)
+    control_evidence = discover_control_evidence(task, repo)
+
+    # Create stored candidate record in registry
+    reg_dir = repo / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    rec_file = reg_dir / "uppercase-fixture.json"
+    envelope = certification_envelope_from_packet(
+        repo,
+        cert_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        package_digest=compute_task_digests(task).package,
+        allow_legacy_v1=True,
+    )
+    from evallab.schemas import TaskLimits, TaskRegistryRecord
+
+    record = TaskRegistryRecord(
+        schema_version=2,
+        task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
+        version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        digests=compute_task_digests(task),
+        source_uri="local/uppercase-fixture@1.0.0",
+        source_ref="local/uppercase-fixture@1.0.0",
+        license="MIT",
+        provenance_zone="02-local-evidence",
+        is_synthetic=False,
+        limits=TaskLimits(),
+        control_evidence=control_evidence,
+        certification=envelope,
+        state="candidate",
+        allowed_uses=["measurement"],
+    )
+    rec_file.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
+
+    # 1. API call must fail closed
+    with pytest.raises(
+        TaskCertificationError,
+        match="registration requires m049-v2 certification; legacy 'm049-v1' candidates cannot be registered",
+    ):
+        register_task("uppercase-fixture", actor="reviewer", repo_root=repo)
+
+    # 2. CLI call must fail closed
+    exit_code = run_cli(
+        ["registry", "register", "uppercase-fixture", "--actor", "reviewer"],
+        workspace=repo,
+    )
+    assert exit_code != 0
+    _, err = capsys.readouterr()
+    assert "registration requires m049-v2 certification" in err
+
+    # Record remains candidate
+    reg = TaskRegistry.from_repo(repo)
+    assert reg.get("uppercase-fixture").state == "candidate"

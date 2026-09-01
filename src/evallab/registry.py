@@ -739,7 +739,8 @@ def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> 
         task_path=record.task_path,
         package_digest=record.digests.package,
         external_import_lineage=record.external_import_lineage,
-        allow_legacy_v1=True,
+        allow_legacy_v1=record.state == "registered"
+        and record.certification.workbench_version == "m049-v1",
     )
     if rebuilt != record.certification:
         raise TaskCertificationError("stored certification envelope does not match packet bytes")
@@ -1340,6 +1341,10 @@ def promote_task(
                         raise TaskCertificationError(
                             "new registered promotion requires a valid --certification-packet"
                         )
+                    if certification.workbench_version != "m049-v2":
+                        raise TaskCertificationError(
+                            f"registration requires m049-v2 certification; legacy {certification.workbench_version!r} cannot be registered"
+                        )
                     updates.update(
                         {
                             "state": "registered",
@@ -1373,6 +1378,10 @@ def promote_task(
         if certification.state != "bound":
             raise TaskCertificationError(
                 "new registered promotion requires a valid --certification-packet"
+            )
+        if certification.workbench_version != "m049-v2":
+            raise TaskCertificationError(
+                f"registration requires m049-v2 certification; legacy {certification.workbench_version!r} cannot be registered"
             )
         approved_by = actor
         approved_timestamp = approved_at or datetime.now(UTC)
@@ -1447,9 +1456,13 @@ def register_task(
         record = TaskRegistryRecord.model_validate(
             record.model_copy(update={"certification": certification}).model_dump()
         )
-    if record.state != "registered" and record.certification.state != "bound":
-        raise TaskCertificationError("new registration requires a valid --certification-packet")
-
+    if record.state != "registered":
+        if record.certification.state != "bound":
+            raise TaskCertificationError("new registration requires a valid --certification-packet")
+        if record.certification.workbench_version != "m049-v2":
+            raise TaskCertificationError(
+                f"registration requires m049-v2 certification; legacy {record.certification.workbench_version!r} candidates cannot be registered"
+            )
     if record.state == "registered" and record.approved_by == actor:
         verify_certification_packet(repo_root, record)
         if certification_path is not None:

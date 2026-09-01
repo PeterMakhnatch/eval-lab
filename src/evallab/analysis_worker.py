@@ -980,6 +980,50 @@ class AnalysisWorker:
                     )
                     return self.store.transitions(request_id)[-1]
 
+            # Quality Gate: Re-verify that the live original source has not drifted post-freeze.
+            # If the original trial was mutated during adapter_factory or concurrently, quarantine
+            # with ZERO model calls before starting an invocation or calling run_trial_analysis.
+            live_trial_dir = self.repo_root / request.trial_path
+            try:
+                (
+                    live_status,
+                    live_check_ver,
+                    live_check_dig,
+                    live_quar_reason,
+                    live_rep_dig,
+                    live_inp_dig,
+                ) = _quality_identity(
+                    live_trial_dir,
+                    live_trial_dir.parent,
+                    job_id=request.job_id,
+                    trial_id=request.trial_id,
+                )
+            except Exception:
+                self.store.append(request_id, "quarantined", "quality_evaluation_failed")
+                return self.store.transitions(request_id)[-1]
+
+            if live_inp_dig != request.quality_inputs_digest:
+                self.store.append(request_id, "quarantined", "evidence_tampered:quality_inputs")
+                return self.store.transitions(request_id)[-1]
+
+            if (
+                live_rep_dig != request.quality_report_digest
+                or live_status != request.quality_status
+                or live_check_dig != request.quality_check_digest
+            ):
+                self.store.append(
+                    request_id, "quarantined", "evidence_tampered:quality_status_drift"
+                )
+                return self.store.transitions(request_id)[-1]
+
+            if live_status == "quarantine":
+                self.store.append(
+                    request_id,
+                    "quarantined",
+                    f"quality_quarantined:{live_quar_reason or 'infrastructure_fault'}",
+                )
+                return self.store.transitions(request_id)[-1]
+
             attempt_id = self.store.begin_invocation(
                 request_id,
                 owner_token=lease.owner_token,

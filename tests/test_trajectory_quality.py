@@ -31,7 +31,7 @@ from evallab.interpretation.trajectory_quality import (
     QualityStatus,
     evaluate_trial_quality,
 )
-from evallab.profiles import AgentProfile
+from evallab.profiles import AgentProfile, ProbeResult
 from evallab.results import load_job
 from evallab.schemas import StandingApprovalsPolicy
 from evallab.status_generator import StatusReportData, render_status_markdown
@@ -588,3 +588,134 @@ def test_staged_quarantine_drift_by_removing_exception_file_is_rejected_with_zer
     # Must be quarantined due to quality inputs drift with zero model calls!
     assert decision.kind == "quarantine"
     assert decision.reason == "evidence_tampered:quality_inputs"
+
+
+def test_post_admission_quality_tampering_of_original_path_quarantines_with_zero_calls_and_preserves_snapshot(
+    tmp_path: Path,
+) -> None:
+    """Architect adversary B1: mutating original trial path post-admission quarantines with zero model calls and preserves snapshot isolation."""
+    from evallab.analysis_worker import RESEARCHER_RULE, AnalysisWorker
+    from evallab.evidence.facts import AnalyzerCallResult
+    from evallab.evidence_store import evidence_tree_digest
+    from evallab.results import JobRecord, TrialRecord
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True)
+    trial_path = repo_root / "runs" / "job-1" / "trial-1"
+    agent_dir = trial_path / "agent"
+    agent_dir.mkdir(parents=True)
+
+    res_bytes = json.dumps(
+        {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "job_id": "00000000-0000-0000-0000-000000000001",
+            "trial_id": "00000000-0000-0000-0000-000000000002",
+            "trial_name": "trial-1",
+            "task_name": "task",
+            "agent_name": "test-adapter",
+            "primary_reward": 1.0,
+        }
+    ).encode()
+    traj_bytes = json.dumps(
+        {"schema_version": "ATIF-1.0.0", "session_id": "s1", "steps": []}
+    ).encode()
+    lock_bytes = b"{}"
+    (trial_path / "result.json").write_bytes(res_bytes)
+    (agent_dir / "trajectory.json").write_bytes(traj_bytes)
+    (trial_path / "lock.json").write_bytes(lock_bytes)
+    (repo_root / "runs" / "job-1" / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "n_total_trials": 1,
+                "stats": {},
+                "finished_at": "2026-08-25T12:05:00Z",
+            }
+        )
+    )
+
+    prompt = repo_root / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo_root / "rubric.json"
+    rubric.write_text("{}")
+    prof = AgentProfile(
+        profile_id="profile-1",
+        adapter="test-adapter",
+        model="test-model",
+        auth_mode="subscription-keychain",
+        secret_source="keychain:eval-lab",
+        verified_facts=("2026-08-06: proven run",),
+    )
+    job = load_job(repo_root / "runs/job-1")
+    request = freeze_request(
+        job,
+        job.trials[0],
+        profile=prof,
+        prompt_path=prompt,
+        rubric_path=rubric,
+        repo_root=repo_root,
+    )
+    assert request is not None
+    assert request.quality_status == "warn"
+
+    store = RequestStore(repo_root / "derived" / "analyses" / "worker")
+    assert store.freeze(request, trial_path=trial_path)
+
+    snapshot_dir = store.request_dir(request.request_id) / "snapshot"
+    assert snapshot_dir.is_dir()
+    initial_snapshot_digest = evidence_tree_digest(snapshot_dir)
+    assert initial_snapshot_digest == request.source_snapshot_digest
+
+    policy = StandingApprovalsPolicy(
+        version=1,
+        daily_cost_ceiling_usd=20.0,
+        per_job_cost_ceiling_usd=3.0,
+        quiet_failure_rule=3,
+        auto_run=[{"name": RESEARCHER_RULE, "agents": ["test-adapter"]}],
+        escalate_to_human=[],
+    )
+    ctx = AdmissionContext(
+        stop_present=lambda: False,
+        policy=policy,
+        profile=prof,
+        probe=lambda _p: ProbeResult(ok=True),
+        spent_today_usd=lambda: 0.0,
+        est_call_cost_usd=0.01,
+        services_healthy=lambda: True,
+        requirement_checks={},
+    )
+
+    model_calls = 0
+
+    def counting_adapter(p: str, s: dict) -> AnalyzerCallResult:
+        nonlocal model_calls
+        model_calls += 1
+        return AnalyzerCallResult(raw_output="{}")
+
+    def mutating_adapter_factory(_j: JobRecord, _t: TrialRecord, _req: AnalysisRequest):
+        # Mutate the ORIGINAL mutable trial path AFTER admission
+        (trial_path / "exception.txt").write_text("LateDockerTimeoutException\n")
+        (trial_path / "result.json").write_text("CORRUPTED")
+        return counting_adapter
+
+    worker = AnalysisWorker(
+        store=store,
+        context=ctx,
+        repo_root=repo_root,
+        prompt_path=prompt,
+        rubric_path=rubric,
+        adapter=counting_adapter,
+        adapter_factory=mutating_adapter_factory,
+    )
+
+    transition = worker.run_one(request.request_id)
+    # Must quarantine with zero model calls!
+    assert transition.state == "quarantined"
+    assert transition.reason == "evidence_tampered:quality_inputs"
+    assert model_calls == 0
+    assert not store.sidecar_path(request.request_id).is_file()
+
+    # Snapshot remained uncorrupted, exact, and isolated
+    assert evidence_tree_digest(snapshot_dir) == request.source_snapshot_digest
+    assert not (snapshot_dir / "exception.txt").exists()
+    assert (snapshot_dir / "result.json").read_bytes() == res_bytes

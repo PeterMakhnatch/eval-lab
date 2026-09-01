@@ -46,9 +46,11 @@ from evallab.execution_contracts import DispatchCapacity
 from evallab.profiles import builtin_profiles, load_readiness_record
 from evallab.queue import (
     MAX_TRANSIENT_RETRIES,
+    ExecutionFailure,
     Executor,
     load_events,
     new_ulid,
+    select_terminal_job_locator,
 )
 from evallab.registry import (
     TaskRegistry,
@@ -1813,27 +1815,39 @@ class CampaignOrchestrator:
             raise CampaignDriftError(f"queued campaign spec drifted: {attempt.spec_id}")
         return path, queued, state
 
-    def _queue_cas_locator(self, attempt: CampaignAttempt) -> EvidenceLocator:
-        matches = [
-            event
-            for event in load_events(self.executor.queue.events_path)
-            if event.spec_id == attempt.spec_id and event.cas_record_id is not None
-        ]
-        if len(matches) != 1:
-            raise CampaignAmbiguityError(
-                f"campaign attempt lacks one exact queue CAS locator: {attempt.attempt_id}"
-            )
-        event = matches[0]
+    def _queue_cas_locator(
+        self,
+        attempt: CampaignAttempt,
+        *,
+        expected_event: str | None = None,
+    ) -> EvidenceLocator:
+        if expected_event is None:
+            record = self._queue_record(attempt)
+            state = record[2] if record is not None else None
+            if state == "done":
+                expected_event = "dispatch_completed"
+            elif state == "failed":
+                events = [
+                    e
+                    for e in load_events(self.executor.queue.events_path)
+                    if e.spec_id == attempt.spec_id
+                    and e.to_state == "failed"
+                    and e.cas_record_kind == "job"
+                ]
+                expected_event = events[-1].event if events else "dispatch_failed"
+            else:
+                expected_event = "dispatch_completed"
         try:
-            return EvidenceLocator(
-                store_root=Path(event.cas_store_root or ""),
-                kind=str(event.cas_record_kind or ""),
-                record_id=str(event.cas_record_id or ""),
-                expected_record_digest=str(event.cas_record_digest or ""),
-                expected_content_digest=str(event.cas_content_digest or ""),
+            return select_terminal_job_locator(
+                self.executor.queue.events_path,
+                expected_event=expected_event,
+                job_name=attempt.job_name,
+                spec_id=attempt.spec_id,
             )
-        except ValueError as exc:
-            raise CampaignAmbiguityError("queue CAS locator is invalid") from exc
+        except ExecutionFailure as exc:
+            raise CampaignAmbiguityError(
+                f"campaign attempt lacks one exact queue CAS locator: {exc}"
+            ) from exc
 
     def _materialize_queue_job(
         self,

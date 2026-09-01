@@ -96,7 +96,7 @@ class TrialRecord:
 
     @property
     def id(self) -> str:
-        return str(self.result.get("id", self.path.name))
+        return str(self.result.get("id") or self.result.get("trial_id") or self.path.name)
 
     @property
     def name(self) -> str:

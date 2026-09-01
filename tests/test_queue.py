@@ -1468,3 +1468,133 @@ def test_control_bootstrap_atomic_publication_and_conflict_refusal(
         service._promote_control_bootstrap_job(settled_run, fail_spec)
     assert not (root / "research/evidence/runs/fail-bootstrap-spec").exists()
     assert not list((root / "research/evidence/runs").glob(".staging-*"))
+
+
+def test_control_bootstrap_refuses_broken_in_root_destination_symlink(
+    tmp_path: Path,
+) -> None:
+    """B2a adversary: broken in-root destination symlink is refused as conflict without publishing under alias."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="symlink-dest-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    # Create broken symlink at destination
+    symlink_path = runs_dir / "symlink-dest-spec"
+    target_path = runs_dir / "nonexistent-alias-target"
+    symlink_path.symlink_to(target_path)
+
+    service = executor(root)
+    control_spec = spec("symlink-dest-spec", agent="oracle", task="registered/task-1")
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "control_bootstrap_job_conflict"
+
+    # Destination alias must NOT have been created!
+    assert not target_path.exists()
+    assert not list(runs_dir.glob(".staging-*"))
+
+
+def test_control_bootstrap_refuses_symlinked_durable_root(
+    tmp_path: Path,
+) -> None:
+    """B2a adversary: symlinked durable root is refused fail-closed."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    (root / "research/evidence").mkdir(parents=True)
+
+    real_runs = tmp_path / "real_runs"
+    real_runs.mkdir()
+    symlinked_runs = root / "research/evidence/runs"
+    symlinked_runs.symlink_to(real_runs)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="symlink-root-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("symlink-root-spec", agent="oracle", task="registered/task-1")
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "symlink_rejected"
+
+
+def test_control_bootstrap_refuses_post_validation_staging_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2b adversary: mutating staged bytes after validation fails reauthentication with no publication."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="post-val-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("post-val-spec", agent="oracle", task="registered/task-1")
+
+    def mutating_validation(_spec, staging_path: Path) -> None:
+        # Mutate a file in staging AFTER validation completes
+        (staging_path / "result.json").write_text("TAMPERED_AFTER_VALIDATION\n")
+
+    monkeypatch.setattr(service, "_assert_persistent_artifacts_safe", mutating_validation)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "staged_evidence_tampered"
+
+    assert not (runs_dir / "post-val-spec").exists()
+    assert not list(runs_dir.glob(".staging-*"))

@@ -204,6 +204,7 @@ class AnalysisRequest(BaseModel):
     quality_quarantine_reason: str | None = None
     quality_report_digest: str
     quality_inputs_digest: str
+    source_snapshot_digest: str
 
     @property
     def identity_digest(self) -> str:
@@ -263,10 +264,42 @@ class RequestStore:
     def request_dir(self, request_id: str) -> Path:
         return self.root / "requests" / request_id
 
-    def freeze(self, request: AnalysisRequest) -> bool:
-        """Persist a new request; False when the identity already exists."""
+    def freeze(self, request: AnalysisRequest, *, trial_path: Path | None = None) -> bool:
+        """Persist a new request and capture its immutable source snapshot."""
+        import shutil
+
         directory = self.request_dir(request.request_id)
         _durable_mkdir(directory)
+        snapshot_dir = directory / "snapshot"
+        if not snapshot_dir.is_dir():
+            _durable_mkdir(snapshot_dir)
+            source_trial = trial_path
+            if source_trial is None:
+                candidates = [
+                    self.root.parent.parent.parent / request.trial_path,
+                    self.root.parent.parent / request.trial_path,
+                    Path(request.trial_path),
+                ]
+                for cand in candidates:
+                    if cand.is_dir():
+                        source_trial = cand
+                        break
+            if source_trial is not None and source_trial.is_dir():
+                for root_dir, _dirs, files in os.walk(source_trial, followlinks=False):
+                    r_path = Path(root_dir)
+                    rel = r_path.relative_to(source_trial)
+                    target_dir = snapshot_dir / rel
+                    _durable_mkdir(target_dir)
+                    for f in files:
+                        src_f = r_path / f
+                        dst_f = target_dir / f
+                        if not dst_f.exists():
+                            shutil.copy2(src_f, dst_f)
+                            with open(dst_f, "rb") as h:
+                                os.fsync(h.fileno())
+                    _fsync_directory(target_dir)
+                _fsync_directory(snapshot_dir)
+
         path = directory / "request.json"
         try:
             with open(path, "x") as handle:
@@ -553,6 +586,9 @@ def freeze_request(
         trial_rel = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         trial_rel = trial.path.resolve().as_posix()
+    from evallab.evidence_store import evidence_tree_digest
+
+    source_snapshot_digest = evidence_tree_digest(trial.path)
     q_status, q_check_ver, q_check_dig, q_quar_reason, q_rep_dig, q_inp_dig = _quality_identity(
         trial.path,
         job.path,
@@ -583,6 +619,7 @@ def freeze_request(
         "quality_quarantine_reason": q_quar_reason,
         "quality_report_digest": q_rep_dig,
         "quality_inputs_digest": q_inp_dig,
+        "source_snapshot_digest": source_snapshot_digest,
     }
     # Identity keys on the TRIAL, not on content: one analysis record per
     # trial, frozen at first sight. Content digests are frozen inside the
@@ -873,6 +910,9 @@ class AnalysisWorker:
             self.store.append(request_id, "deferred", "lease_held_by_another_worker")
             return self.store.transitions(request_id)[-1]
         try:
+            from evallab.evidence_store import evidence_tree_digest
+            from evallab.results import load_trial
+
             job_dir = (self.repo_root / request.trial_path).parent
             jobs = load_jobs([job_dir.parent])
             match = next(
@@ -897,12 +937,37 @@ class AnalysisWorker:
                 self.store.append(request_id, "quarantined", "trial_vanished")
                 return self.store.transitions(request_id)[-1]
             if self.adapter is _no_adapter and self.adapter_factory is None:
-                # Provably local: no adapter can reach a provider, so this is
-                # a misconfiguration and not a possibly-paid attempt.
                 self.store.append(request_id, "deferred", "adapter_not_wired")
                 return self.store.transitions(request_id)[-1]
+
             self.store.append(request_id, "admitted", None)
-            job, trial = match
+
+            snapshot_trial_dir = self.store.request_dir(request_id) / "snapshot"
+            if not snapshot_trial_dir.is_dir():
+                source_trial = self.repo_root / request.trial_path
+                if source_trial.is_dir():
+                    self.store.freeze(request, trial_path=source_trial)
+
+            if not snapshot_trial_dir.is_dir():
+                self.store.append(request_id, "quarantined", "evidence_missing:source_snapshot")
+                return self.store.transitions(request_id)[-1]
+
+            cur_snap_dig = evidence_tree_digest(snapshot_trial_dir)
+            if cur_snap_dig != request.source_snapshot_digest:
+                self.store.append(request_id, "quarantined", "evidence_tampered:source_snapshot")
+                return self.store.transitions(request_id)[-1]
+
+            trial = load_trial(snapshot_trial_dir)
+            snapshot_job_dir = snapshot_trial_dir.parent
+            job = JobRecord(
+                path=snapshot_job_dir,
+                result={"id": request.job_id},
+                config={},
+                lock=trial.lock,
+                metadata={"name": request.job_name},
+                trials=(trial,),
+            )
+
             analyzer = self.adapter
             if self.adapter_factory is not None:
                 try:
@@ -914,15 +979,13 @@ class AnalysisWorker:
                         f"adapter_configuration_error:{type(exc).__name__}",
                     )
                     return self.store.transitions(request_id)[-1]
+
             attempt_id = self.store.begin_invocation(
                 request_id,
                 owner_token=lease.owner_token,
                 at=self.clock(),
             )
             self.store.append(request_id, "running", f"attempt:{attempt_id}")
-            # The sidecar/ dirent is the name that proves a paid call produced
-            # a result. _durable_replace fsyncs sidecar/ itself, which does not
-            # persist sidecar/'s own entry in the request directory.
             _durable_mkdir(sidecar_path.parent)
             written_path, _sidecar = run_trial_analysis(
                 job,

@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import stat
 import subprocess
 from collections import Counter
 from collections.abc import Callable, Sequence
@@ -1139,6 +1141,24 @@ class CanonicalPublicationBinding:
     locator: EvidenceLocator
     publication_root: Path
 
+    @classmethod
+    def create(
+        cls,
+        *,
+        repo_root: Path,
+        job_name: str,
+        spec_id: str,
+        locator: EvidenceLocator,
+    ) -> CanonicalPublicationBinding:
+        """Create a trusted CanonicalPublicationBinding strictly rooted at <repo>/research/evidence/runs."""
+        canonical_root = repo_root / "research/evidence/runs"
+        return cls(
+            job_name=job_name,
+            spec_id=spec_id,
+            locator=locator,
+            publication_root=canonical_root,
+        )
+
 
 @dataclass(frozen=True)
 class AnalysisPlan:
@@ -1515,56 +1535,87 @@ def run_trial_analysis(
     if canonical_binding is not None:
         from evallab.trial_admissibility import TrialAdmissibilityError
 
-        durable_runs = canonical_binding.publication_root.resolve()
-        repo_resolved = repo_root.resolve()
-        if not durable_runs.is_dir() or not (
-            durable_runs == (repo_resolved / "research/evidence/runs")
-            or durable_runs.is_relative_to(repo_resolved)
-        ):
+        expected_durable_runs = repo_root / "research/evidence/runs"
+        durable_runs = canonical_binding.publication_root
+        if durable_runs != expected_durable_runs:
             raise TrialAdmissibilityError(
                 "trial_admissibility_invalid:invalid-canonical-publication-root"
             )
 
-        if (
-            canonical_binding.locator.kind != "job"
-            or canonical_binding.locator.record_id != canonical_binding.job_name
-        ):
+        if not durable_runs.is_dir() or os.path.islink(durable_runs):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:invalid-canonical-publication-root"
+            )
+
+        if canonical_binding.locator.kind != "job":
             raise TrialAdmissibilityError(
                 "trial_admissibility_invalid:locator-job-binding-mismatch"
             )
 
         job_target = durable_runs / canonical_binding.job_name
         trial_target = job_target / trial.name
-        if job_target.is_symlink() or trial_target.is_symlink():
+
+        if os.path.islink(job_target) or os.path.islink(trial_target):
             raise TrialAdmissibilityError("trial_admissibility_invalid:symlinked-canonical-source")
 
-        canonical_job = job_target.resolve()
-        canonical_trial = trial_target.resolve()
-
-        if not canonical_job.is_dir() or not canonical_trial.is_dir():
+        if not job_target.is_dir() or not trial_target.is_dir():
             raise TrialAdmissibilityError(
                 "trial_admissibility_invalid:missing-canonical-trial-path"
             )
-        if not canonical_trial.is_relative_to(durable_runs):
-            raise TrialAdmissibilityError(
-                "trial_admissibility_invalid:canonical-source-path-escape"
-            )
-        if canonical_trial.is_symlink() or canonical_job.is_symlink():
-            raise TrialAdmissibilityError("trial_admissibility_invalid:symlinked-canonical-source")
+
+        # Check for symlinks in EVERY component and nested file of job_target using os.lstat
+        def _check_no_symlinks(path: Path) -> None:
+            st = os.lstat(path)
+            if stat.S_ISLNK(st.st_mode):
+                raise TrialAdmissibilityError(
+                    "trial_admissibility_invalid:symlinked-canonical-source"
+                )
+            if stat.S_ISDIR(st.st_mode):
+                for entry in os.scandir(path):
+                    st_entry = entry.stat(follow_symlinks=False)
+                    if stat.S_ISLNK(st_entry.st_mode):
+                        raise TrialAdmissibilityError(
+                            "trial_admissibility_invalid:symlinked-canonical-source"
+                        )
+                    if stat.S_ISDIR(st_entry.st_mode):
+                        _check_no_symlinks(Path(entry.path))
+
+        _check_no_symlinks(job_target)
+
+        # Require exact loaded job UUID and required embedded provenance/spec identity
+        exp_provenance = job.metadata.get("experiment")
+        if (
+            not isinstance(exp_provenance, dict)
+            or exp_provenance.get("spec_id") != canonical_binding.spec_id
+        ):
+            raise TrialAdmissibilityError("trial_admissibility_invalid:provenance-spec-id-mismatch")
+
+        # Snapshot device, inode, and path identities before model call
+        def _snapshot_path_identities(path: Path) -> dict[str, tuple[int, int]]:
+            identities: dict[str, tuple[int, int]] = {}
+            for root_dir, _dirs, files in os.walk(path, followlinks=False):
+                r_path = Path(root_dir)
+                st = os.lstat(r_path)
+                rel = str(r_path.relative_to(path))
+                identities[f"dir:{rel}"] = (st.st_dev, st.st_ino)
+                for f in files:
+                    f_path = r_path / f
+                    st_f = os.lstat(f_path)
+                    rel_f = str(f_path.relative_to(path))
+                    identities[f"file:{rel_f}"] = (st_f.st_dev, st_f.st_ino)
+            return identities
+
+        initial_identities = _snapshot_path_identities(trial_target)
+        initial_job_st = os.lstat(job_target)
+        initial_job_identity = (initial_job_st.st_dev, initial_job_st.st_ino)
+
+        canonical_trial = trial_target
         if _trial_tree_digests(canonical_trial) != before:
             raise TrialAdmissibilityError(
                 "trial_admissibility_invalid:canonical-source-content-mismatch"
             )
 
-        exp_provenance = job.metadata.get("experiment")
-        if (
-            isinstance(exp_provenance, dict)
-            and exp_provenance.get("spec_id")
-            and exp_provenance.get("spec_id") != canonical_binding.spec_id
-        ):
-            raise TrialAdmissibilityError("trial_admissibility_invalid:provenance-spec-id-mismatch")
-
-        source_path = canonical_trial.relative_to(repo_resolved).as_posix()
+        source_path = canonical_trial.relative_to(repo_root).as_posix()
         target_trial_dir = canonical_trial
     else:
         try:
@@ -1628,6 +1679,29 @@ def run_trial_analysis(
     sidecar_dir.mkdir(parents=True, exist_ok=False)
     sidecar_path = sidecar_dir / ANALYSIS_SIDECAR_FILENAME
     sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
+
+    # Validate path-identity continuity and content integrity across the analyzer call
+    if canonical_binding is not None:
+        from evallab.trial_admissibility import TrialAdmissibilityError
+
+        _check_no_symlinks(job_target)
+
+        current_job_st = os.lstat(job_target)
+        if (current_job_st.st_dev, current_job_st.st_ino) != initial_job_identity:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-identity-drift"
+            )
+
+        current_identities = _snapshot_path_identities(trial_target)
+        if current_identities != initial_identities:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-identity-drift"
+            )
+
+        if _trial_tree_digests(canonical_trial) != before:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-content-mismatch"
+            )
 
     # Mint trial admissibility authority ONLY for valid interpretations (B6)
     if sidecar.validation_status == "valid" and not sidecar.validation_errors:

@@ -31,7 +31,7 @@ from evallab.evidence.facts import (
 )
 from evallab.evidence_store import EvidenceLocator, materialize_evidence
 from evallab.execution_contracts import RunRequest
-from evallab.queue import ExecutionFailure, load_events
+from evallab.queue import ExecutionFailure, load_events, select_terminal_job_locator
 from evallab.registry import (
     TaskCertificationError,
     TaskRegistry,
@@ -356,47 +356,22 @@ def _analyze_dispatched_jobs(repo: Path, requests: list[RunRequest]) -> None:
         "proposed_discriminator": "Repeat the exact control.",
         "confidence": "high",
     }
-    queue_events = load_events(repo / "queue/events.jsonl")
     for request in requests:
         assert not (repo / "runs" / request.name).exists()
-        matching_events = [
-            e
-            for e in queue_events
-            if e.event == "dispatch_completed"
-            and e.job_name == request.name
-            and e.spec_id == request.provenance.spec_id
-            and e.cas_record_kind == "job"
-        ]
-        if len(matching_events) != 1:
-            raise ValueError(
-                f"Expected exactly 1 matching dispatch_completed event for {request.name}, found {len(matching_events)}"
-            )
-        event = matching_events[0]
-        assert event.cas_store_root is not None
-        assert event.cas_record_kind is not None
-        assert event.cas_record_id is not None
-        assert event.cas_record_digest is not None
-        assert event.cas_content_digest is not None
-        locator = EvidenceLocator(
-            store_root=Path(event.cas_store_root),
-            kind=event.cas_record_kind,
-            record_id=event.cas_record_id,
-            expected_record_digest=event.cas_record_digest,
-            expected_content_digest=event.cas_content_digest,
+        locator = select_terminal_job_locator(
+            repo / "queue/events.jsonl",
+            expected_event="dispatch_completed",
+            job_name=request.name,
+            spec_id=request.provenance.spec_id,
         )
-        # Authenticate and materialize from exact terminal event locator with live lifetime
         with materialize_evidence(locator) as materialized_job_dir:
             job = load_job(materialized_job_dir)
-            if event.job_name != request.name or event.cas_record_id != request.name:
-                raise ValueError(
-                    f"Materialized job identity mismatch: event.job_name={event.job_name!r} req.name={request.name!r}"
-                )
             trial = job.trials[0]
-            binding = CanonicalPublicationBinding(
+            binding = CanonicalPublicationBinding.create(
+                repo_root=repo,
                 job_name=request.name,
                 spec_id=request.provenance.spec_id,
                 locator=locator,
-                publication_root=repo / "research/evidence/runs",
             )
             sidecar_path, sidecar = run_trial_analysis(
                 job,
@@ -804,3 +779,299 @@ def test_canonical_publication_binding_refuses_symlinked_source(
                 canonical_binding=binding,
             )
     assert calls == []
+
+
+def test_canonical_publication_binding_refuses_in_repo_unrelated_root(
+    tmp_path: Path,
+) -> None:
+    """B3a adversary: arbitrary in-repository publication root is rejected with zero calls."""
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+    )
+
+    unrelated_in_repo = repo / "unrelated-authority"
+    unrelated_in_repo.mkdir(parents=True)
+    shutil.copytree(
+        repo / f"research/evidence/runs/{requests[0].name}", unrelated_in_repo / requests[0].name
+    )
+
+    binding = CanonicalPublicationBinding(
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+        publication_root=unrelated_in_repo,
+    )
+
+    calls = []
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="invalid-canonical-publication-root"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=lambda _p, _s: (
+                    calls.append("called") or AnalyzerCallResult(raw_output="{}")
+                ),
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+    assert calls == []
+
+
+def test_canonical_publication_binding_refuses_nested_file_symlink(
+    tmp_path: Path,
+) -> None:
+    """B3b adversary: nested result.json symlinked to byte-identical file is rejected before model call with zero calls."""
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+    )
+
+    job_dir = repo / f"research/evidence/runs/{requests[0].name}"
+    canonical_trial_dir = next(p for p in job_dir.iterdir() if p.is_dir())
+
+    result_file = canonical_trial_dir / "result.json"
+    backup_file = canonical_trial_dir / ".backup_result.json"
+    result_file.rename(backup_file)
+    result_file.symlink_to(backup_file)
+
+    binding = CanonicalPublicationBinding.create(
+        repo_root=repo,
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+    )
+
+    calls = []
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="symlinked-canonical-source"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=lambda _p, _s: (
+                    calls.append("called") or AnalyzerCallResult(raw_output="{}")
+                ),
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+    assert calls == []
+
+
+def test_canonical_publication_binding_refuses_byte_identical_replacement_during_analysis(
+    tmp_path: Path,
+) -> None:
+    """B3c adversary: whole-directory byte-identical replacement during analyzer raises typed TrialAdmissibilityError with zero authority."""
+    from evallab.trial_admissibility import canonical_trial_admissibility_path
+
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+    )
+
+    canonical_job_dir = repo / f"research/evidence/runs/{requests[0].name}"
+    canonical_trial_dir = next(p for p in canonical_job_dir.iterdir() if p.is_dir())
+
+    binding = CanonicalPublicationBinding.create(
+        repo_root=repo,
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+    )
+
+    valid_analysis_output = {
+        "validity": "valid_agent_attempt",
+        "primary_category": "unknown",
+        "summary": "Byte replacement test.",
+        "evidence": [{"path": "result.json", "supports": "Reward observed."}],
+        "proposed_discriminator": "Check reward.",
+        "confidence": "high",
+    }
+
+    def replacing_analyzer(p: str, s: dict) -> AnalyzerCallResult:
+        # Inode-tamper adversary: Replace whole canonical trial directory with newly copied byte-identical tree
+        temp_copy = tmp_path / "temp_trial_copy"
+        shutil.copytree(canonical_trial_dir, temp_copy)
+        shutil.rmtree(canonical_trial_dir)
+        shutil.copytree(temp_copy, canonical_trial_dir)
+        shutil.rmtree(temp_copy)
+        return AnalyzerCallResult(raw_output=json.dumps(valid_analysis_output))
+
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="canonical-source-identity-drift"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=replacing_analyzer,
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+        # Authority must NOT have been minted!
+        assert not canonical_trial_admissibility_path(repo, job.trials[0].id).exists()
+
+
+def test_production_terminal_locator_selector_adversaries(
+    tmp_path: Path,
+) -> None:
+    """B4 adversaries: wrong event type, wrong job name, wrong kind, missing/duplicate events fail closed."""
+    from datetime import UTC, datetime
+
+    from evallab.queue import QueueEvent, new_ulid
+
+    events_file = tmp_path / "events.jsonl"
+
+    base_event = QueueEvent(
+        event_id=new_ulid(),
+        spec_id="spec-123",
+        occurred_at=datetime.now(UTC),
+        event="dispatch_completed",
+        actor="executor",
+        job_name="job-123",
+        cas_store_root=str(tmp_path / "cas"),
+        cas_record_kind="job",
+        cas_record_id="rec-123",
+        cas_record_digest="sha256:" + "a" * 64,
+        cas_content_digest="sha256:" + "b" * 64,
+    )
+
+    def write_events(evs: list[QueueEvent]) -> None:
+        lines = [ev.model_dump_json() for ev in evs]
+        events_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # 1. Missing events file
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            tmp_path / "nonexistent.jsonl",
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+        )
+    assert exc_info.value.reason_code == "terminal_event_missing"
+
+    # 2. Wrong event type (dispatch_started or refusal when expecting dispatch_completed)
+    ev_wrong_type = base_event.model_copy(update={"event": "dispatch_started"})
+    write_events([ev_wrong_type])
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            events_file,
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+        )
+    assert exc_info.value.reason_code == "terminal_event_missing"
+
+    # 3. Wrong job name
+    ev_wrong_job = base_event.model_copy(update={"job_name": "other-job"})
+    write_events([ev_wrong_job])
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            events_file,
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+        )
+    assert exc_info.value.reason_code == "terminal_event_missing"
+
+    # 4. Wrong kind (e.g. analysis instead of job)
+    ev_wrong_kind = base_event.model_copy(update={"cas_record_kind": "analysis"})
+    write_events([ev_wrong_kind])
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            events_file,
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+        )
+    assert exc_info.value.reason_code == "terminal_event_missing"
+
+    # 5. Duplicate exact match -> fails closed as ambiguous
+    ev_dup = base_event.model_copy(update={"event_id": new_ulid()})
+    write_events([base_event, ev_dup])
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            events_file,
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+        )
+    assert exc_info.value.reason_code == "terminal_event_ambiguous"
+
+    # 6. Clean single match -> returns locator
+    write_events([base_event])
+    loc = select_terminal_job_locator(
+        events_file,
+        expected_event="dispatch_completed",
+        job_name="job-123",
+        spec_id="spec-123",
+    )
+    assert loc.kind == "job"
+    assert loc.record_id == "rec-123"
+    assert loc.expected_content_digest == "sha256:" + "b" * 64

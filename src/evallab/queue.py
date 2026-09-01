@@ -1369,14 +1369,54 @@ def _atomic_no_replace_rename(source: Path, destination: Path) -> None:
     if system == "Darwin":
         try:
             libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-            RENAME_EXCL = 0x00000004
-            AT_FDCWD = -2
-            res = libc.renameatx_np(
+            if hasattr(libc, "renameatx_np"):
+                libc.renameatx_np.argtypes = [
+                    ctypes.c_int,
+                    ctypes.c_char_p,
+                    ctypes.c_int,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                ]
+                libc.renameatx_np.restype = ctypes.c_int
+                RENAME_EXCL = 0x00000004
+                AT_FDCWD = -2
+                res = libc.renameatx_np(
+                    AT_FDCWD,
+                    os.fspath(source).encode("utf-8"),
+                    AT_FDCWD,
+                    os.fspath(destination).encode("utf-8"),
+                    ctypes.c_uint(RENAME_EXCL),
+                )
+                if res != 0:
+                    err = ctypes.get_errno()
+                    if err in (errno.EEXIST, errno.ENOTEMPTY):
+                        raise ExecutionFailure(
+                            "control_bootstrap_job_conflict",
+                            f"durable control-bootstrap job destination already exists: {destination}",
+                        )
+                    raise OSError(err, os.strerror(err), str(destination))
+                return
+        except AttributeError:
+            pass
+    elif system == "Linux":
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        RENAME_NOREPLACE = 1
+        AT_FDCWD = -100
+        if hasattr(libc, "renameat2"):
+            libc.renameat2.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            libc.renameat2.restype = ctypes.c_int
+            res = libc.renameat2(
                 AT_FDCWD,
-                str(source).encode("utf-8"),
+                os.fspath(source).encode("utf-8"),
                 AT_FDCWD,
-                str(destination).encode("utf-8"),
-                ctypes.c_uint(RENAME_EXCL),
+                os.fspath(destination).encode("utf-8"),
+                ctypes.c_uint(RENAME_NOREPLACE),
             )
             if res != 0:
                 err = ctypes.get_errno()
@@ -1387,31 +1427,28 @@ def _atomic_no_replace_rename(source: Path, destination: Path) -> None:
                     )
                 raise OSError(err, os.strerror(err), str(destination))
             return
-        except AttributeError:
-            pass
-    elif system == "Linux":
-        try:
-            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-            RENAME_NOREPLACE = 1
-            AT_FDCWD = -100
-            if hasattr(libc, "renameat2"):
-                res = libc.renameat2(
-                    AT_FDCWD,
-                    str(source).encode("utf-8"),
-                    AT_FDCWD,
-                    str(destination).encode("utf-8"),
-                    ctypes.c_uint(RENAME_NOREPLACE),
-                )
-            else:
-                syscall_nr = 276 if platform.machine().startswith("aarch") else 316
-                res = libc.syscall(
-                    ctypes.c_long(syscall_nr),
-                    AT_FDCWD,
-                    str(source).encode("utf-8"),
-                    AT_FDCWD,
-                    str(destination).encode("utf-8"),
-                    ctypes.c_uint(RENAME_NOREPLACE),
-                )
+        else:
+            machine = platform.machine().lower()
+            syscall_nr = (
+                276 if (machine.startswith("aarch") or machine.startswith("arm64")) else 316
+            )
+            libc.syscall.argtypes = [
+                ctypes.c_long,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            libc.syscall.restype = ctypes.c_long
+            res = libc.syscall(
+                ctypes.c_long(syscall_nr),
+                AT_FDCWD,
+                os.fspath(source).encode("utf-8"),
+                AT_FDCWD,
+                os.fspath(destination).encode("utf-8"),
+                ctypes.c_uint(RENAME_NOREPLACE),
+            )
             if res != 0:
                 err = ctypes.get_errno()
                 if err in (errno.EEXIST, errno.ENOTEMPTY):
@@ -1421,13 +1458,81 @@ def _atomic_no_replace_rename(source: Path, destination: Path) -> None:
                     )
                 raise OSError(err, os.strerror(err), str(destination))
             return
-        except Exception:
-            pass
 
     raise ExecutionFailure(
         "platform_unsupported",
         "atomic no-replace directory publication is unavailable on this platform",
     )
+
+
+def select_terminal_job_locator(
+    events_path: Path,
+    *,
+    expected_event: str,
+    job_name: str,
+    spec_id: str,
+    attempt_number: int | None = None,
+) -> EvidenceLocator:
+    """Select the exact unique terminal event locator matching expected_event, job_name, and spec_id.
+
+    Fails closed if the event is missing, ambiguous, of the wrong kind, or has mismatched identity.
+    """
+    if not events_path.is_file():
+        raise ExecutionFailure("terminal_event_missing", f"events log missing at {events_path}")
+
+    events = load_events(events_path)
+    matches: list[QueueEvent] = []
+    for event in events:
+        if event.spec_id != spec_id:
+            continue
+        if event.event != expected_event:
+            continue
+        if event.job_name != job_name:
+            continue
+        if event.cas_record_kind != "job":
+            continue
+        if (
+            attempt_number is not None
+            and event.attempt_number is not None
+            and event.attempt_number != attempt_number
+        ):
+            continue
+        matches.append(event)
+
+    if len(matches) == 0:
+        raise ExecutionFailure(
+            "terminal_event_missing",
+            f"no terminal {expected_event!r} event found for job '{job_name}' and spec '{spec_id}'",
+        )
+    if len(matches) > 1:
+        raise ExecutionFailure(
+            "terminal_event_ambiguous",
+            f"multiple terminal {expected_event!r} events ({len(matches)}) found for job '{job_name}' and spec '{spec_id}'",
+        )
+
+    event = matches[0]
+    if (
+        not event.cas_store_root
+        or not event.cas_record_kind
+        or not event.cas_record_id
+        or not event.cas_record_digest
+        or not event.cas_content_digest
+    ):
+        raise ExecutionFailure(
+            "terminal_event_incomplete",
+            f"terminal event for job '{job_name}' is missing required CAS locator fields",
+        )
+
+    try:
+        return EvidenceLocator(
+            store_root=Path(event.cas_store_root),
+            kind=event.cas_record_kind,
+            record_id=event.cas_record_id,
+            expected_record_digest=event.cas_record_digest,
+            expected_content_digest=event.cas_content_digest,
+        )
+    except (ValueError, TypeError) as exc:
+        raise ExecutionFailure("terminal_event_invalid", f"invalid CAS locator: {exc}") from exc
 
 
 class Executor:
@@ -2341,25 +2446,50 @@ class Executor:
         settled_run: SettledRun,
         spec: ExperimentSpec,
     ) -> Path:
-        durable_root = (self.repo_root / "research/evidence/runs").resolve()
+        durable_root = self.repo_root / "research/evidence/runs"
         durable_root.mkdir(parents=True, exist_ok=True)
-        destination = (durable_root / spec.name).resolve()
+        if os.path.islink(durable_root):
+            raise ExecutionFailure(
+                "symlink_rejected",
+                f"durable root cannot be a symlink: {durable_root}",
+            )
+        destination = durable_root / spec.name
         if destination.parent != durable_root:
             raise ExecutionFailure(
                 "control_bootstrap_job_path_invalid",
                 f"destination escapes durable root: {destination}",
             )
-        if destination.exists():
+        try:
+            st = os.lstat(destination)
+            if stat.S_ISLNK(st.st_mode):
+                raise ExecutionFailure(
+                    "control_bootstrap_job_conflict",
+                    f"durable destination is a symlink: {destination}",
+                )
             raise ExecutionFailure(
                 "control_bootstrap_job_conflict",
                 f"durable control-bootstrap job destination already exists: {destination}",
             )
+        except FileNotFoundError:
+            pass
+
         staging_dir = durable_root / f".staging-{spec.name}-{secrets.token_hex(12)}"
         staging_dir.mkdir(mode=0o700, exist_ok=False)
         try:
             materialize_evidence_at(settled_run.cas_locator, staging_dir)
             load_job(staging_dir)
             self._assert_persistent_artifacts_safe(spec, staging_dir)
+
+            # Re-inventory and reauthenticate every staged byte against CAS locator immediately before publish
+            from evallab.evidence_store import evidence_tree_digest
+
+            staged_digest = evidence_tree_digest(staging_dir)
+            if staged_digest != settled_run.cas_locator.expected_content_digest:
+                raise ExecutionFailure(
+                    "staged_evidence_tampered",
+                    f"staged evidence content digest {staged_digest} differs from locator {settled_run.cas_locator.expected_content_digest}",
+                )
+
             for path in staging_dir.rglob("*"):
                 if path.is_file():
                     with path.open("rb") as handle:

@@ -1142,12 +1142,7 @@ def _ingest_command(
     )
     from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
 
-    store_raw = (
-        getattr(args, "store", None)
-        or os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
-        or "derived/run-cas"
-    )
-    store_root = _resolve(root, Path(str(store_raw)))
+    store_root = _resolve(root, args.store)
     source_locators: dict[str, EvidenceLocator] = {}
     for job_path, job in zip(resolved_paths, jobs, strict=True):
         if not job_path.is_dir():

@@ -223,10 +223,15 @@ def test_cli_ingest_requires_store_and_settles_from_locator(
 ) -> None:
     """CLI ingest requires explicit --store and settles projections from authenticated locators."""
     import json
+    import shutil
 
     from evallab import database
+    from evallab import evidence_store as ev_store
     from evallab.evidence import facts as facts_module
     from evallab.storage import settlement as settlement_module
+    from evallab.storage.settlement import ProjectionSettlementManifest
+
+    captured_manifests: list[ProjectionSettlementManifest] = []
 
     monkeypatch.setattr(database, "initialize", lambda _url: None)
     monkeypatch.setattr(database, "ingest", lambda _url, jobs, root: len(jobs))
@@ -234,7 +239,9 @@ def test_cli_ingest_requires_store_and_settles_from_locator(
         facts_module, "ingest_catalog", lambda _url, _jobs, root, derived_root: None
     )
     monkeypatch.setattr(
-        settlement_module, "persist_settlement_manifest", lambda _url, _manifest: None
+        settlement_module,
+        "persist_settlement_manifest",
+        lambda _url, manifest: captured_manifests.append(manifest),
     )
 
     job_dir = tmp_path / "raw-jobs" / "job-cli"
@@ -277,13 +284,35 @@ def test_cli_ingest_requires_store_and_settles_from_locator(
     with pytest.raises(SystemExit):
         cli.run_cli(["ingest", str(job_dir)], workspace=tmp_path)
 
+    # Wrap archive_evidence to delete the raw job immediately after archive to prove
+    # projections strictly settle from CAS materialization.
+    real_archive = ev_store.archive_evidence
+
+    def _archive_and_delete_raw(*args, **kwargs):
+        res = real_archive(*args, **kwargs)
+        if job_dir.exists():
+            shutil.rmtree(job_dir)
+        return res
+
+    monkeypatch.setattr(ev_store, "archive_evidence", _archive_and_delete_raw)
+
     # 2. Explicit --store succeeds
     res_ok = cli.run_cli(
         ["ingest", "--store", str(store_root), "--derived-dir", str(derived_root), str(job_dir)],
         workspace=tmp_path,
     )
     assert res_ok == 0
+    # Raw source must no longer exist
+    assert not job_dir.exists()
+    # Projected parquet tables must exist and be settled from CAS
     assert (derived_root / "job_id=job-cli/jobs.parquet").is_file()
     assert (
         derived_root / "job_id=job-cli/trial_id=trial-1/trajectory_quality_reports.parquet"
     ).is_file()
+    assert len(captured_manifests) >= 1
+    manifest = captured_manifests[-1]
+    assert manifest.source.source_id == "job-cli"
+    assert manifest.source.cas_record_kind == "job"
+    assert manifest.source.cas_content_digest.startswith("sha256:")
+    assert manifest.source.authority_status == "verified"
+    assert manifest.state == "ready"

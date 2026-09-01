@@ -278,6 +278,7 @@ def test_analysis_worker_admission_fails_closed_on_missing_quality(
             "quality_quarantine_reason": None,
             "quality_report_digest": "sha256:0000",
             "quality_inputs_digest": "sha256:0000",
+            "source_snapshot_digest": "sha256:0000",
         }
     )
     policy = StandingApprovalsPolicy(

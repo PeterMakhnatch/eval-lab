@@ -113,6 +113,11 @@ from evallab.schemas import (
 )
 from evallab.storage.paths import derived_root_from_environment
 
+
+class _CampaignDispatchValidationError(ExecutionFailure):
+    """Campaign authority failed before runner execution."""
+
+
 QUEUE_STATES: tuple[QueueState, ...] = (
     "proposed",
     "pending",
@@ -127,7 +132,6 @@ DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
 DEFAULT_LEASE_STALE_SECONDS = 300.0
 _TICK_THREAD_LOCK = threading.Lock()
-_CAMPAIGN_DISPATCH_VALIDATED = object()
 
 
 def approved_spec_digest(spec: ExperimentSpec) -> str:
@@ -1624,13 +1628,14 @@ class Executor:
         spec: ExperimentSpec,
         *,
         source: Path,
+        live_rebind: bool = True,
     ) -> None:
         spec_id = str(spec.spec_id or "")
         provenance_present = self._has_campaign_provenance(spec)
         campaign_source = "campaign-" in source.name
         control_bootstrap = self._is_control_bootstrap_spec(spec)
         if control_bootstrap and not provenance_present:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "control_bootstrap_binding_missing",
                 "registered baseline controls require a frozen campaign runtime binding",
             )
@@ -1641,7 +1646,7 @@ class Executor:
             or spec.campaign_ledger is None
             or spec.campaign_manifest_digest is None
         ):
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_binding_missing",
                 "campaign queue record lost its frozen manifest binding",
             )
@@ -1655,13 +1660,13 @@ class Executor:
             with os.fdopen(descriptor, "rb") as handle:
                 manifest = CampaignManifest.model_validate_json(handle.read())
         except Exception as exc:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_manifest_unavailable",
                 "frozen campaign manifest cannot be validated at dispatch",
             ) from exc
         matches = [attempt for attempt in manifest.attempts if attempt.spec_id == spec_id]
         if len(matches) != 1:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_attempt_unbound",
                 "queued campaign spec is not uniquely present in the frozen manifest",
             )
@@ -1671,7 +1676,7 @@ class Executor:
             or spec.campaign_spec_digest != attempt.spec_digest
             or experiment_spec_digest(spec) != attempt.spec_digest
         ):
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_spec_drifted",
                 "queued campaign spec differs from its frozen attempt",
             )
@@ -1679,15 +1684,17 @@ class Executor:
         if spec.billable or control_bootstrap:
             if runtime_identity is None:
                 label = "billable" if spec.billable else "control-bootstrap"
-                raise ExecutionFailure(
+                raise _CampaignDispatchValidationError(
                     "campaign_isolation_identity_missing",
                     f"{label} campaign attempt has no isolation-bound runtime identity",
                 )
+            if not live_rebind:
+                return
             evidence = runtime_identity.network_isolation_evidence
             try:
                 live_identity = self._isolation_identity_provider(evidence)
             except Exception as exc:
-                raise ExecutionFailure(
+                raise _CampaignDispatchValidationError(
                     "campaign_isolation_identity_unavailable",
                     "live isolation runtime identity cannot be established",
                 ) from exc
@@ -1695,7 +1702,7 @@ class Executor:
                 live_identity.runtime_identity != evidence.runtime_identity
                 or live_identity.probe_identity != evidence.probe_identity
             ):
-                raise ExecutionFailure(
+                raise _CampaignDispatchValidationError(
                     "campaign_isolation_identity_drift",
                     "live runtime/image/adapter/probe identity differs from isolation evidence",
                 )
@@ -1711,7 +1718,7 @@ class Executor:
                 projection.reason,
                 projection.analysis_eligibility,
             ):
-                raise ExecutionFailure(
+                raise _CampaignDispatchValidationError(
                     "campaign_isolation_evidence_stale",
                     "campaign isolation evidence no longer matches its current projection",
                 )
@@ -1719,7 +1726,7 @@ class Executor:
                 spec.purpose in CAUSAL_EXPERIMENT_PURPOSES
                 and projection.analysis_eligibility != "causal-eligible"
             ):
-                raise ExecutionFailure(
+                raise _CampaignDispatchValidationError(
                     "campaign_isolation_ineligible",
                     "causal campaign attempt lacks enforced current isolation evidence",
                 )
@@ -1732,8 +1739,12 @@ class Executor:
         credentials: frozenset[str],
     ) -> bool:
         try:
-            self._validate_campaign_dispatch_spec(spec, source=path)
-        except ExecutionFailure as exc:
+            self._validate_campaign_dispatch_spec(
+                spec,
+                source=path,
+                live_rebind=False,
+            )
+        except _CampaignDispatchValidationError as exc:
             failure = PolicyDecision(
                 admitted=False,
                 reason_code=exc.reason_code,
@@ -1832,7 +1843,6 @@ class Executor:
                 job_dir = self.execute_spec(
                     spec,
                     lease_generation=lease_generation,
-                    _campaign_validation=_CAMPAIGN_DISPATCH_VALIDATED,
                 )
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
@@ -1863,6 +1873,8 @@ class Executor:
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
                 self._report_progress(f"failed {spec.name} ({failure.reason_code}); state: failed")
+                if isinstance(execution_error, _CampaignDispatchValidationError):
+                    return False
             else:
                 failure = self._settle_post_run(
                     job_dir,
@@ -1997,13 +2009,11 @@ class Executor:
         spec: ExperimentSpec,
         *,
         lease_generation: str | None = None,
-        _campaign_validation: object | None = None,
     ) -> Path:
-        if _campaign_validation is not _CAMPAIGN_DISPATCH_VALIDATED:
-            self._validate_campaign_dispatch_spec(
-                spec,
-                source=Path(),
-            )
+        self._validate_campaign_dispatch_spec(
+            spec,
+            source=Path(),
+        )
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest

@@ -11,6 +11,7 @@ import pytest
 from test_campaigns import _executor, _orchestrator
 from test_task_workbench import _bundle, _copy_candidate, _inspect
 
+import evallab.queue as queue_module
 from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
     SyntheticFamilyType,
@@ -552,6 +553,12 @@ def test_direct_execute_spec_cannot_bypass_control_runtime_binding(
         agent="oracle",
         submitted_by="test",
     )
+
+    assert not hasattr(queue_module, "_CAMPAIGN_DISPATCH_VALIDATED")
+    with pytest.raises(TypeError, match="_campaign_validation"):
+        executor.execute_spec(spec, _campaign_validation=object())  # type: ignore[call-arg]
+    assert identity_calls == []
+    assert runner_calls == []
 
     with pytest.raises(ExecutionFailure, match="frozen campaign runtime binding"):
         executor.execute_spec(spec)

@@ -910,3 +910,132 @@ GROUP BY
     composite.authoritative_outcome_id,
     composite.authority_axis,
     composite.refusal_reason;
+
+-- Projection settlement authority. Evidence bytes remain in CAS; these tables
+-- record the transactional state and exact analytical publication bindings
+-- consumed by the manifest-gated DuckDB attach surface.
+CREATE TABLE IF NOT EXISTS projection_settlements (
+    settlement_id text PRIMARY KEY,
+    source_id text NOT NULL,
+    source_kind text NOT NULL,
+    state text NOT NULL CHECK (
+        state IN (
+            'discovered', 'source_validated', 'cas_committed', 'cataloged',
+            'projecting', 'ready', 'projection_failed', 'quarantined'
+        )
+    ),
+    authority_status text NOT NULL CHECK (authority_status IN ('verified', 'unverified')),
+    cas_store_root text,
+    cas_record_kind text,
+    cas_record_id text,
+    cas_record_digest text,
+    cas_uri text,
+    cas_content_digest text,
+    cas_archive_digest text,
+    source_manifest_digest text,
+    runtime_identity jsonb,
+    compatibility_result text,
+    authority_error text,
+    required_tables jsonb NOT NULL,
+    optional_tables jsonb NOT NULL,
+    producer_name text NOT NULL,
+    producer_version text NOT NULL,
+    producer_code_digest text NOT NULL,
+    contract_digest text NOT NULL,
+    rebuild_sequence integer NOT NULL CHECK (rebuild_sequence >= 0),
+    supersedes_settlement_id text REFERENCES projection_settlements(settlement_id),
+    manifest_digest text NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    CHECK (
+        (
+            authority_status = 'verified'
+            AND cas_store_root IS NOT NULL
+            AND cas_record_kind IS NOT NULL
+            AND cas_record_id IS NOT NULL
+            AND cas_record_digest IS NOT NULL
+            AND cas_uri IS NOT NULL
+            AND cas_content_digest IS NOT NULL
+            AND cas_archive_digest IS NOT NULL
+            AND source_manifest_digest IS NOT NULL
+            AND cas_record_kind = source_kind
+            AND cas_record_id = source_id
+            AND cas_record_digest = source_manifest_digest
+            AND authority_error IS NULL
+        )
+        OR (
+            authority_status = 'unverified'
+            AND cas_store_root IS NULL
+            AND cas_record_kind IS NULL
+            AND cas_record_id IS NULL
+            AND cas_record_digest IS NULL
+            AND cas_uri IS NULL
+            AND cas_content_digest IS NULL
+            AND cas_archive_digest IS NULL
+            AND source_manifest_digest IS NULL
+            AND authority_error IS NOT NULL
+        )
+    ),
+    UNIQUE (source_kind, source_id, contract_digest, rebuild_sequence)
+);
+
+CREATE INDEX IF NOT EXISTS projection_settlements_source_idx
+    ON projection_settlements (source_kind, source_id, rebuild_sequence DESC);
+CREATE INDEX IF NOT EXISTS projection_settlements_state_idx
+    ON projection_settlements (state);
+CREATE UNIQUE INDEX IF NOT EXISTS projection_settlements_supersedes_idx
+    ON projection_settlements (supersedes_settlement_id)
+    WHERE supersedes_settlement_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS projection_settlement_events (
+    event_id text PRIMARY KEY,
+    settlement_id text NOT NULL
+        REFERENCES projection_settlements(settlement_id) ON DELETE CASCADE,
+    sequence integer NOT NULL CHECK (sequence >= 0),
+    from_state text,
+    to_state text NOT NULL,
+    reason_code text,
+    detail jsonb NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at timestamptz NOT NULL,
+    UNIQUE (settlement_id, sequence)
+);
+
+CREATE TABLE IF NOT EXISTS projection_table_settlements (
+    settlement_id text NOT NULL
+        REFERENCES projection_settlements(settlement_id) ON DELETE CASCADE,
+    table_name text NOT NULL,
+    partition_identity text NOT NULL,
+    required boolean NOT NULL,
+    state text NOT NULL CHECK (
+        state IN (
+            'missing', 'projecting', 'ready', 'not_applicable',
+            'failed', 'stale', 'quarantined'
+        )
+    ),
+    schema_version text NOT NULL,
+    schema_digest text NOT NULL,
+    columns_json jsonb NOT NULL,
+    relative_path text NOT NULL,
+    source_digest text,
+    file_digest text,
+    row_count bigint CHECK (row_count >= 0),
+    failure_reason text,
+    producer_name text NOT NULL,
+    producer_version text NOT NULL,
+    producer_code_digest text NOT NULL,
+    updated_at timestamptz NOT NULL,
+    PRIMARY KEY (settlement_id, table_name, partition_identity),
+    CHECK (
+        state <> 'ready'
+        OR (
+            source_digest IS NOT NULL
+            AND file_digest IS NOT NULL
+            AND row_count IS NOT NULL
+            AND failure_reason IS NULL
+        )
+    ),
+    CHECK (state <> 'not_applicable' OR required = false)
+);
+
+CREATE INDEX IF NOT EXISTS projection_table_settlements_state_idx
+    ON projection_table_settlements (table_name, state);

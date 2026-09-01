@@ -277,14 +277,16 @@ def test_single_invocation_exit_zero_exact_count(tmp_path: Path) -> None:
 
 
 def test_ready_cohort_analysis_ready_empty_holds(tmp_path: Path) -> None:
+    from evallab.storage.data_backfill import STORE_JOIN_UNAVAILABLE
+
     ids = _ready_world(tmp_path)
     ledger = _run_backfill(tmp_path)
     assert ledger.exit_code == 0
-    assert ledger.ready_count == 1
     row = ledger.dispositions[0]
     assert row.trial_id == ids["trial_id"]
-    assert row.readiness == "ANALYSIS_READY"
-    assert row.hold_reasons == []
+    # Fail-closed settlement/root contract: frozen legacy backfill lacks partitioned store joins
+    assert row.readiness == "HOLD"
+    assert row.hold_reasons == [STORE_JOIN_UNAVAILABLE]
     assert row.job_id == ids["job_id"]
     assert row.job_id != ids["job_name"]
     assert row.cas_uri == ids["cas_uri"]
@@ -294,6 +296,7 @@ def test_ready_cohort_analysis_ready_empty_holds(tmp_path: Path) -> None:
 def test_quarantined_trial_hold_absent_from_ready(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from evallab.storage.data_backfill import STORE_JOIN_UNAVAILABLE
     from evallab.storage.data_backfill import analyze_batch as real_analyze_batch
 
     seen: list[Path] = []
@@ -309,8 +312,9 @@ def test_quarantined_trial_hold_absent_from_ready(
     ready = next(row for row in ledger.dispositions if row.trial_id == ids["trial_id"])
     assert hold.readiness == "HOLD"
     assert "pre-fix auth timeout" in hold.hold_reasons
-    assert ready.readiness == "ANALYSIS_READY"
-    assert ledger.ready_count == 1
+    # Fail-closed settlement/root contract: partitioned store joins yield typed STORE_JOIN_UNAVAILABLE
+    assert ready.readiness == "HOLD"
+    assert ready.hold_reasons == [STORE_JOIN_UNAVAILABLE]
     assert ids["q_trial"] not in {
         row.trial_id for row in ledger.dispositions if row.readiness == "ANALYSIS_READY"
     }

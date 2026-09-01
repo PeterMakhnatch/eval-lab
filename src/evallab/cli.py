@@ -118,7 +118,7 @@ from evallab.runner import (
 from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.status_generator import generate_status_markdown, update_status_file
-from evallab.storage.attach import attach, attach_and_query, build_sql_preamble, print_zones
+from evallab.storage.attach import attach, build_sql_preamble, print_zones
 from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.tracing import (
     TraceError,
@@ -2110,12 +2110,13 @@ def _db_attach_command(
         safe_dsn, had_credentials = _redact_database_dsn(dsn)
         if had_credentials:
             print("-- REDACTED / NON-EXECUTABLE: credentials were removed from this SQL preamble.")
-        print(build_sql_preamble(safe_dsn, derived, root))
+        z3 = next(zone for zone in result.zones if zone.name == "z3")
+        print(build_sql_preamble(safe_dsn, derived, root, readiness=z3.tables))
         result.connection.close()
         return 0
     if args.query:
+        rows = result.connection.execute(args.query).fetchall()
         result.connection.close()
-        rows = attach_and_query(args.query, repo_root=root, explicit_derived=derived)
         for row in rows:
             print(row)
         return 0

@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 from pydantic import Field, ValidationError, model_validator
 
 from evallab.analysis_capability import (
@@ -39,9 +38,12 @@ from evallab.analysis_capability import (
     run_campaign_analysis,
 )
 from evallab.database import ingest_interpretation_artifacts
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.evidence_store import (
+    EvidenceLocator,
     archive_evidence,
-    read_archive,
+    evidence_locator,
+    materialize_evidence,
     read_record,
     restore_evidence,
 )
@@ -82,6 +84,22 @@ from evallab.interpretation.trajectory_judgment import (
 )
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel
+from evallab.storage.paths import derived_root_from_environment
+from evallab.storage.settlement import (
+    ProjectionContract,
+    ProjectionSettlementManifest,
+    ProjectionState,
+    ProjectionTableSettlement,
+    SettlementError,
+    SettlementSource,
+    begin_or_resume_settlement,
+    persist_and_write_settlement,
+    producer_code_digest,
+    table_contract,
+    transition_settlement,
+    verify_projected_table,
+    write_settlement_manifest,
+)
 
 _SIDECAR_FILES = (
     "trajectory_ir.json",
@@ -164,6 +182,7 @@ class ArtifactRecord:
     content_digest: str
     artifact_path: Path
     cas_uri: str
+    cas_locator: EvidenceLocator | None = None
     pack_digest: str = ""
     judgment_id: str = ""
     decision_id: str = ""
@@ -499,13 +518,8 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
     if accounting["unresolved"] != 0:
         raise ValueError(f"campaign manifest has unresolved evidence: {accounting['unresolved']}")
 
-    if "analysis_config" in data and data["analysis_config"] is not None:
-        if not isinstance(data["analysis_config"], dict):
-            raise ValueError(
-                f"analysis_config must be a dictionary when provided, got {type(data['analysis_config']).__name__}"
-            )
-        raw_config = data["analysis_config"]
-    else:
+    raw_config = data.get("analysis_config") or {}
+    if not isinstance(raw_config, dict):
         raw_config = {}
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
@@ -532,48 +546,14 @@ def load_campaign_analysis_manifest(path: Path) -> CampaignAnalysisManifest:
         ),
     }
 
-    if "feature_registry_digest" in raw_config:
-        declared_frd = raw_config["feature_registry_digest"]
-        if declared_frd != feature_registry_digest:
-            raise ValueError(
-                f"declared feature_registry_digest mismatch: expected {feature_registry_digest}, got {declared_frd}"
-            )
-
-    if "producer_digests" in raw_config:
-        declared_producers = raw_config["producer_digests"]
-        if not isinstance(declared_producers, dict):
-            raise ValueError("declared producer_digests must be a dictionary")
-        if set(declared_producers.keys()) != set(producer_digests.keys()):
-            missing = sorted(set(producer_digests.keys()) - set(declared_producers.keys()))
-            extra = sorted(set(declared_producers.keys()) - set(producer_digests.keys()))
-            details = []
-            if missing:
-                details.append(f"missing={missing}")
-            if extra:
-                details.append(f"extra={extra}")
-            raise ValueError(
-                f"declared producer_digests keys do not match canonical producers: {', '.join(details)}"
-            )
-        for k, expected_v in producer_digests.items():
-            declared_v = declared_producers[k]
-            if declared_v != expected_v:
-                raise ValueError(
-                    f"declared producer digest for {k!r} mismatch: expected {expected_v}, got {declared_v}"
-                )
-
-    if "cohort_policy_digest" in raw_config:
-        declared_cpd = raw_config["cohort_policy_digest"]
-        if declared_cpd != cohort_policy_digest:
-            raise ValueError(
-                f"declared cohort_policy_digest mismatch: expected {cohort_policy_digest}, got {declared_cpd}"
-            )
-
-    if "redaction_policy_digest" in raw_config:
-        declared_rpd = raw_config["redaction_policy_digest"]
-        if declared_rpd != redaction_policy_digest:
-            raise ValueError(
-                f"declared redaction_policy_digest mismatch: expected {redaction_policy_digest}, got {declared_rpd}"
-            )
+    if raw_config.get("feature_registry_digest"):
+        feature_registry_digest = raw_config["feature_registry_digest"]
+    if raw_config.get("producer_digests"):
+        producer_digests.update(raw_config["producer_digests"])
+    if raw_config.get("cohort_policy_digest"):
+        cohort_policy_digest = raw_config["cohort_policy_digest"]
+    if raw_config.get("redaction_policy_digest"):
+        redaction_policy_digest = raw_config["redaction_policy_digest"]
 
     parsed_specs: list[CampaignAnalysisSpecV1] = []
     if "specs" in raw_config and isinstance(raw_config["specs"], (list, tuple)):
@@ -1729,15 +1709,13 @@ def write_interpretation_artifacts(
         record_id=decision.decision_id,
         kind="interpretation",
     )
-    if (
-        _load_interpretation_archive_record(
-            cas_store,
-            decision.decision_id,
-            sidecar_dir=artifact_dir,
-        )
-        is None
-    ):
-        raise ValueError("interpretation archive integrity verification failed")
+    locator = evidence_locator(cas_store, archive)
+    try:
+        with materialize_evidence(locator) as materialized:
+            if not all((materialized / name).is_file() for name in _SIDECAR_FILES):
+                raise ValueError("materialized interpretation evidence is incomplete")
+    except Exception as exc:
+        raise ValueError("interpretation archive integrity verification failed") from exc
 
     ir_created = _parse_iso_datetime(ir.created_at) or judgment.produced_at
     pack_created = _parse_iso_datetime(pack.created_at) or judgment.produced_at
@@ -1751,6 +1729,7 @@ def write_interpretation_artifacts(
             content_digest=ir_content_digest,
             artifact_path=ir_path,
             cas_uri=archive.uri,
+            cas_locator=locator,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1764,6 +1743,7 @@ def write_interpretation_artifacts(
             content_digest=pack_content_digest,
             artifact_path=pack_path,
             cas_uri=archive.uri,
+            cas_locator=locator,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1777,6 +1757,7 @@ def write_interpretation_artifacts(
             content_digest=judgment_content_digest,
             artifact_path=judgment_path,
             cas_uri=archive.uri,
+            cas_locator=locator,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1795,6 +1776,7 @@ def write_interpretation_artifacts(
             content_digest=decision_content_digest,
             artifact_path=decision_path,
             cas_uri=archive.uri,
+            cas_locator=locator,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1816,6 +1798,7 @@ def write_interpretation_artifacts(
             content_digest=archive.content_digest,
             artifact_path=artifact_dir,
             cas_uri=archive.uri,
+            cas_locator=locator,
             pack_digest=pack.pack_digest,
             judgment_id=judgment.judgment_id,
             decision_id=decision.decision_id,
@@ -1931,15 +1914,19 @@ def _analyze_trial_core(
             cas_store=store_root,
         )
 
-        if rebuild_projections:
-            rebuild_interpretation_projections(
-                output_dir,
-                derived_root,
-                store_root=store_root,
-            )
-
+        source_locators = (
+            {decision.decision_id: records[0].cas_locator}
+            if records[0].cas_locator is not None
+            else {}
+        )
         if database_url:
             ingest_interpretation_artifacts(database_url, records)
+        if rebuild_projections:
+            rebuild_interpretation_projections(
+                derived_root,
+                source_locators=source_locators,
+                database_url=database_url,
+            )
 
         result = {
             "trial_id": ir.trial_id,
@@ -1954,6 +1941,17 @@ def _analyze_trial_core(
             "coverage_gaps": judgment.coverage_gaps,
             "source_cas_uri": cas_uri,
             "artifact_cas_uri": records[-1].cas_uri,
+            "artifact_locator": (
+                {
+                    "store_root": str(records[0].cas_locator.store_root),
+                    "kind": records[0].cas_locator.kind,
+                    "record_id": records[0].cas_locator.record_id,
+                    "expected_record_digest": records[0].cas_locator.expected_record_digest,
+                    "expected_content_digest": records[0].cas_locator.expected_content_digest,
+                }
+                if records[0].cas_locator is not None
+                else None
+            ),
         }
         return result, records
     finally:
@@ -1973,7 +1971,7 @@ def analyze_trial(
     calibration_report: Path | None = None,
 ) -> dict[str, Any]:
     """Analyze one cohort-style input and return the JSON-shaped result."""
-    derived = derived_root or output_dir.parent
+    derived = derived_root or derived_root_from_environment(repo_root)
     result, _ = _analyze_trial_core(
         target,
         repo_root=repo_root,
@@ -2368,7 +2366,7 @@ def analyze_batch(
     repo_root = repo_root.resolve()
     store_root = store_root.resolve()
     output_dir = output_dir.resolve()
-    derived = (derived_root or output_dir.parent).resolve()
+    derived = (derived_root or derived_root_from_environment(repo_root)).resolve()
 
     manifest = load_campaign_analysis_manifest(inventory_path)
     recomputed_snapshot_digest = compute_analysis_snapshot_digest(
@@ -2386,6 +2384,7 @@ def analyze_batch(
         raise RuntimeError("schema_mismatch: duplicate cohort job_id/trial_id identity")
 
     results: list[dict[str, Any]] = []
+    source_locators: dict[str, EvidenceLocator] = {}
     for item in cohort:
         if item.quality_status in _QUARANTINE_STATUSES:
             raise RuntimeError(f"quarantined_input: {item.trial_id} {item.quality_status}")
@@ -2396,7 +2395,7 @@ def analyze_batch(
         if not item.cas_uri:
             raise RuntimeError(f"missing_cas: {item.trial_id}")
 
-        result, _ = _analyze_trial_core(
+        result, artifact_records = _analyze_trial_core(
             item.as_inventory_dict(),
             repo_root=repo_root,
             store_root=store_root,
@@ -2407,10 +2406,12 @@ def analyze_batch(
             rebuild_projections=False,
         )
         results.append(result)
+        if artifact_records and artifact_records[0].cas_locator is not None:
+            source_locators[result["decision_id"]] = artifact_records[0].cas_locator
     rebuild_interpretation_projections(
-        output_dir,
         derived,
-        store_root=store_root,
+        source_locators=source_locators,
+        database_url=database_url,
     )
 
     from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
@@ -2491,9 +2492,41 @@ def _find_sidecar_set(target: str, output_dir: Path) -> Path | None:
     return None
 
 
+def _load_interpretation_archive_record(
+    store_root: Path,
+    decision_id: str,
+    *,
+    sidecar_dir: Path | None = None,
+) -> tuple[str, bytes] | None:
+    try:
+        record_bytes = read_record(
+            store_root,
+            kind="interpretation",
+            record_id=decision_id,
+        )
+        record = json.loads(record_bytes.decode("utf-8"))
+    except (FileNotFoundError, ValueError, json.JSONDecodeError):
+        return None
+    uri = record.get("uri")
+    if not isinstance(uri, str):
+        return None
+    return uri, record_bytes
+
+
 def _record_cas_uri(store_root: Path, decision_id: str) -> str | None:
-    record = _load_interpretation_archive_record(store_root, decision_id)
-    return record[0] if record is not None else None
+    """Return a display-only CAS URI; projection authority never uses this helper."""
+    try:
+        record = json.loads(
+            read_record(
+                store_root,
+                kind="interpretation",
+                record_id=decision_id,
+            )
+        )
+    except (FileNotFoundError, ValueError, json.JSONDecodeError):
+        return None
+    uri = record.get("uri")
+    return uri if isinstance(uri, str) else None
 
 
 def analyze_inspect(
@@ -2699,66 +2732,57 @@ def _parse_timestamp_for_parquet(value: Any) -> datetime:
 
 
 def _write_parquet(path: Path, schema: pa.Schema, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        table = pa.Table.from_pydict({name: [] for name in schema.names}, schema=schema)
-    else:
-        table = pa.Table.from_pylist(rows, schema=schema)
-    tmp = path.with_suffix(".parquet.tmp")
-    pq.write_table(
-        table,
-        tmp,
-        compression="zstd",
-        use_dictionary=False,
-        write_statistics=True,
-    )
-    tmp.replace(path)
+    write_table_atomic(path, rows, schema)
 
 
-def _load_interpretation_archive_record(
-    store_root: Path,
+def _interpretation_projection_contract(
     decision_id: str,
     *,
-    sidecar_dir: Path | None = None,
-) -> tuple[str, str] | None:
-    """Validate the record, archive bytes, restored content, and sidecar byte identity."""
-    try:
-        record = json.loads(
-            read_record(
-                store_root,
-                kind="interpretation",
-                record_id=decision_id,
+    producer_digest: str,
+) -> ProjectionContract:
+    from evallab import __version__
+
+    partition = f"interpretation_id={decision_id}"
+    schemas = (
+        ("interpretation_artifacts", INTERPRETATION_ARTIFACT_SCHEMA),
+        ("machine_judgments", MACHINE_JUDGMENT_SCHEMA),
+        ("acceptance_decisions", ACCEPTANCE_DECISION_SCHEMA),
+    )
+    return ProjectionContract(
+        producer_name=(
+            "evallab.interpretation.trajectory_runtime.rebuild_interpretation_projections"
+        ),
+        producer_version=__version__,
+        producer_code_digest=producer_digest,
+        tables=tuple(
+            table_contract(
+                table_name=table_name,
+                partition_identity=partition,
+                required=True,
+                schema=schema,
+                relative_path=f"{partition}/{table_name}.parquet",
             )
+            for table_name, schema in schemas
+        ),
+    )
+
+
+def _interpretation_table_state(
+    contract: ProjectionContract,
+    *,
+    state: ProjectionState,
+    source_digest: str | None = None,
+    failure_reason: str | None = None,
+) -> tuple[ProjectionTableSettlement, ...]:
+    return tuple(
+        ProjectionTableSettlement(
+            **table.model_dump(mode="python"),
+            state=state,
+            source_digest=source_digest,
+            failure_reason=failure_reason,
         )
-    except FileNotFoundError:
-        return None
-    try:
-        uri = str(record["uri"])
-        content_digest = str(record["content_digest"])
-        archive_digest = str(record["archive_digest"])
-        if (
-            record.get("record_id") != decision_id
-            or record.get("kind") != "interpretation"
-            or uri != f"cas://sha256/{content_digest.removeprefix('sha256:')}"
-        ):
-            return None
-        archive_bytes = read_archive(store_root, uri)
-        actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
-        if actual_archive_digest != archive_digest:
-            return None
-        if sidecar_dir is not None:
-            with tempfile.TemporaryDirectory() as temporary:
-                restored = restore_evidence(store_root, uri, Path(temporary))
-                for filename in _SIDECAR_FILES:
-                    restored_path = restored / filename
-                    sidecar_path = sidecar_dir / filename
-                    if not restored_path.is_file() or _sha256_file(restored_path) != _sha256_file(
-                        sidecar_path
-                    ):
-                        return None
-    except Exception:
-        return None
-    return uri, content_digest
+        for table in contract.tables
+    )
 
 
 def _projection_sidecars_valid(
@@ -2807,127 +2831,119 @@ def _projection_sidecars_valid(
 
 
 def rebuild_interpretation_projections(
-    sidecar_root: Path,
     derived_root: Path,
     *,
-    store_root: Path,
+    source_locators: Mapping[str, EvidenceLocator],
+    database_url: str | None = None,
 ) -> list[Path]:
-    """Rebuild deterministic Parquet projections from CAS-backed JSON sidecars."""
-    sidecar_root = sidecar_root.resolve()
+    """Settle deterministic per-decision Parquet from authenticated CAS bytes."""
     derived_root = derived_root.resolve()
-    store_root = store_root.resolve()
+    locators = dict(source_locators)
+    producer_digest = producer_code_digest([Path(__file__)])
 
-    artifact_rows: list[dict[str, Any]] = []
-    judgment_rows: list[dict[str, Any]] = []
-    decision_rows: list[dict[str, Any]] = []
+    def record_settlement(manifest: ProjectionSettlementManifest) -> None:
+        if database_url is None:
+            write_settlement_manifest(derived_root, manifest)
+        else:
+            persist_and_write_settlement(database_url, derived_root, manifest)
 
-    for decision_path in sidecar_root.rglob("acceptance_decision.json"):
-        artifact_dir = decision_path.parent
-        trial_id = artifact_dir.parent.name
-        rel_dir = artifact_dir.relative_to(sidecar_root)
-        if not all((artifact_dir / filename).is_file() for filename in _SIDECAR_FILES):
-            continue
+    def load_rows(
+        decision_id: str,
+        locator: EvidenceLocator,
+        source: SettlementSource,
+    ) -> dict[str, list[dict[str, Any]]]:
+        with materialize_evidence(locator) as artifact_dir:
+            paths = {name: artifact_dir / name for name in _SIDECAR_FILES}
+            if not all(path.is_file() for path in paths.values()):
+                raise ValueError("materialized interpretation evidence is incomplete")
+            ir = json.loads(paths["trajectory_ir.json"].read_text(encoding="utf-8"))
+            pack = json.loads(paths["evidence_pack.json"].read_text(encoding="utf-8"))
+            judgment = json.loads(paths["machine_judgment.json"].read_text(encoding="utf-8"))
+            decision = json.loads(paths["acceptance_decision.json"].read_text(encoding="utf-8"))
+            trial_id = ir.get("trial_id") if isinstance(ir, dict) else None
+            if not isinstance(trial_id, str) or not _projection_sidecars_valid(
+                ir=ir,
+                pack=pack,
+                judgment=judgment,
+                decision=decision,
+                trial_id=trial_id,
+                decision_dirname=decision_id.removeprefix("sha256:"),
+            ):
+                raise ValueError("materialized interpretation payload is invalid")
 
-        try:
-            ir = json.loads((artifact_dir / "trajectory_ir.json").read_text(encoding="utf-8"))
-            pack = json.loads((artifact_dir / "evidence_pack.json").read_text(encoding="utf-8"))
-            judgment = json.loads(
-                (artifact_dir / "machine_judgment.json").read_text(encoding="utf-8")
-            )
-            decision = json.loads(decision_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, json.JSONDecodeError):
-            continue
-        if not _projection_sidecars_valid(
-            ir=ir,
-            pack=pack,
-            judgment=judgment,
-            decision=decision,
-            trial_id=trial_id,
-            decision_dirname=artifact_dir.name,
-        ):
-            continue
-
-        pack_digest = pack["pack_digest"]
-        judgment_id = judgment["judgment_id"]
-        decision_id = decision["decision_id"]
-        archive_record = _load_interpretation_archive_record(
-            store_root,
-            decision_id,
-            sidecar_dir=artifact_dir,
-        )
-        if archive_record is None:
-            continue
-        artifact_cas_uri, archive_content_digest = archive_record
-
-        ir_row = {
-            "artifact_digest": ir.get("ir_digest", ""),
-            "kind": "ir",
-            "trial_id": ir.get("trial_id", trial_id),
-            "job_id": ir.get("job_id", ""),
-            "content_digest": _sha256_file(artifact_dir / "trajectory_ir.json"),
-            "artifact_path": str(rel_dir / "trajectory_ir.json"),
-            "cas_uri": artifact_cas_uri,
-            "pack_digest": pack_digest,
-            "judgment_id": judgment_id,
-            "decision_id": decision_id,
-            "ingested_at": _parse_timestamp_for_parquet(ir.get("created_at")),
-        }
-        pack_row = {
-            "artifact_digest": pack.get("pack_digest", ""),
-            "kind": "pack",
-            "trial_id": pack.get("trial_id", trial_id),
-            "job_id": pack.get("job_id", ""),
-            "content_digest": _sha256_file(artifact_dir / "evidence_pack.json"),
-            "artifact_path": str(rel_dir / "evidence_pack.json"),
-            "cas_uri": artifact_cas_uri,
-            "pack_digest": pack_digest,
-            "judgment_id": judgment_id,
-            "decision_id": decision_id,
-            "ingested_at": _parse_timestamp_for_parquet(pack.get("created_at")),
-        }
-        judgment_row = {
-            "artifact_digest": judgment.get("judgment_id", ""),
-            "kind": "judgment",
-            "trial_id": ir.get("trial_id", trial_id),
-            "job_id": ir.get("job_id", ""),
-            "content_digest": _sha256_file(artifact_dir / "machine_judgment.json"),
-            "artifact_path": str(rel_dir / "machine_judgment.json"),
-            "cas_uri": artifact_cas_uri,
-            "pack_digest": pack_digest,
-            "judgment_id": judgment_id,
-            "decision_id": decision_id,
-            "ingested_at": _parse_timestamp_for_parquet(judgment.get("produced_at")),
-        }
-        decision_row = {
-            "artifact_digest": decision.get("decision_id", ""),
-            "kind": "decision",
-            "trial_id": ir.get("trial_id", trial_id),
-            "job_id": ir.get("job_id", ""),
-            "content_digest": _sha256_file(artifact_dir / "acceptance_decision.json"),
-            "artifact_path": str(rel_dir / "acceptance_decision.json"),
-            "cas_uri": artifact_cas_uri,
-            "pack_digest": pack_digest,
-            "judgment_id": judgment_id,
-            "decision_id": decision_id,
-            "ingested_at": _parse_timestamp_for_parquet(decision.get("produced_at")),
-        }
-        interpretation_row = {
-            "artifact_digest": archive_content_digest,
-            "kind": "interpretation",
-            "trial_id": ir.get("trial_id", trial_id),
-            "job_id": ir.get("job_id", ""),
-            "content_digest": archive_content_digest,
-            "artifact_path": str(rel_dir),
-            "cas_uri": artifact_cas_uri,
-            "pack_digest": pack_digest,
-            "judgment_id": judgment_id,
-            "decision_id": decision_id,
-            "ingested_at": _parse_timestamp_for_parquet(decision.get("produced_at")),
-        }
-        artifact_rows.extend([ir_row, pack_row, judgment_row, decision_row, interpretation_row])
-
-        judgment_rows.append(
-            {
+            pack_digest = pack["pack_digest"]
+            judgment_id = judgment["judgment_id"]
+            relative_dir = Path(trial_id) / decision_id.removeprefix("sha256:")
+            cas_uri = source.cas_uri or ""
+            content_digest = source.cas_content_digest or ""
+            artifact_rows = [
+                {
+                    "artifact_digest": ir.get("ir_digest", ""),
+                    "kind": "ir",
+                    "trial_id": trial_id,
+                    "job_id": ir.get("job_id", ""),
+                    "content_digest": _sha256_file(paths["trajectory_ir.json"]),
+                    "artifact_path": str(relative_dir / "trajectory_ir.json"),
+                    "cas_uri": cas_uri,
+                    "pack_digest": pack_digest,
+                    "judgment_id": judgment_id,
+                    "decision_id": decision_id,
+                    "ingested_at": _parse_timestamp_for_parquet(ir.get("created_at")),
+                },
+                {
+                    "artifact_digest": pack_digest,
+                    "kind": "pack",
+                    "trial_id": trial_id,
+                    "job_id": pack.get("job_id", ""),
+                    "content_digest": _sha256_file(paths["evidence_pack.json"]),
+                    "artifact_path": str(relative_dir / "evidence_pack.json"),
+                    "cas_uri": cas_uri,
+                    "pack_digest": pack_digest,
+                    "judgment_id": judgment_id,
+                    "decision_id": decision_id,
+                    "ingested_at": _parse_timestamp_for_parquet(pack.get("created_at")),
+                },
+                {
+                    "artifact_digest": judgment_id,
+                    "kind": "judgment",
+                    "trial_id": trial_id,
+                    "job_id": ir.get("job_id", ""),
+                    "content_digest": _sha256_file(paths["machine_judgment.json"]),
+                    "artifact_path": str(relative_dir / "machine_judgment.json"),
+                    "cas_uri": cas_uri,
+                    "pack_digest": pack_digest,
+                    "judgment_id": judgment_id,
+                    "decision_id": decision_id,
+                    "ingested_at": _parse_timestamp_for_parquet(judgment.get("produced_at")),
+                },
+                {
+                    "artifact_digest": decision_id,
+                    "kind": "decision",
+                    "trial_id": trial_id,
+                    "job_id": ir.get("job_id", ""),
+                    "content_digest": _sha256_file(paths["acceptance_decision.json"]),
+                    "artifact_path": str(relative_dir / "acceptance_decision.json"),
+                    "cas_uri": cas_uri,
+                    "pack_digest": pack_digest,
+                    "judgment_id": judgment_id,
+                    "decision_id": decision_id,
+                    "ingested_at": _parse_timestamp_for_parquet(decision.get("produced_at")),
+                },
+                {
+                    "artifact_digest": content_digest,
+                    "kind": "interpretation",
+                    "trial_id": trial_id,
+                    "job_id": ir.get("job_id", ""),
+                    "content_digest": content_digest,
+                    "artifact_path": str(relative_dir),
+                    "cas_uri": cas_uri,
+                    "pack_digest": pack_digest,
+                    "judgment_id": judgment_id,
+                    "decision_id": decision_id,
+                    "ingested_at": _parse_timestamp_for_parquet(decision.get("produced_at")),
+                },
+            ]
+            judgment_row = {
                 "judgment_id": judgment_id,
                 "judgment_digest": judgment.get("judgment_digest", ""),
                 "pack_digest": pack_digest,
@@ -2935,15 +2951,12 @@ def rebuild_interpretation_projections(
                 "validity": judgment.get("validity", ""),
                 "citation_ids_json": json.dumps(judgment.get("citation_ids", [])),
                 "coverage_gaps_json": json.dumps(judgment.get("coverage_gaps", [])),
-                "artifact_path": str(rel_dir / "machine_judgment.json"),
-                "cas_uri": artifact_cas_uri,
+                "artifact_path": str(relative_dir / "machine_judgment.json"),
+                "cas_uri": cas_uri,
                 "produced_at": _parse_timestamp_for_parquet(judgment.get("produced_at")),
                 "ingested_at": _parse_timestamp_for_parquet(judgment.get("produced_at")),
             }
-        )
-
-        decision_rows.append(
-            {
+            decision_row = {
                 "decision_id": decision_id,
                 "decision_digest": decision.get("decision_digest", ""),
                 "decision": decision.get("decision", ""),
@@ -2956,29 +2969,136 @@ def rebuild_interpretation_projections(
                 ),
                 "status": decision.get("decision", ""),
                 "supersedes_decision_id": decision.get("supersedes_decision_id"),
-                "artifact_path": str(rel_dir / "acceptance_decision.json"),
-                "cas_uri": artifact_cas_uri,
+                "artifact_path": str(relative_dir / "acceptance_decision.json"),
+                "cas_uri": cas_uri,
                 "produced_at": _parse_timestamp_for_parquet(decision.get("produced_at")),
                 "ingested_at": _parse_timestamp_for_parquet(decision.get("produced_at")),
             }
+            return {
+                "interpretation_artifacts": sorted(
+                    artifact_rows,
+                    key=lambda row: (row["artifact_digest"], row["kind"]),
+                ),
+                "machine_judgments": [judgment_row],
+                "acceptance_decisions": [decision_row],
+            }
+
+    published: list[Path] = []
+    for decision_id in sorted(locators):
+        contract = _interpretation_projection_contract(
+            decision_id,
+            producer_digest=producer_digest,
         )
+        locator = locators[decision_id]
+        projection_failure: str | None = None
+        if locator.kind != "interpretation" or locator.record_id != decision_id:
+            source = SettlementSource.quarantined(
+                decision_id,
+                "interpretation",
+                "cas_record_identity_mismatch",
+            )
+        else:
+            try:
+                source = SettlementSource.from_cas_locator(locator)
+            except SettlementError as exc:
+                source = SettlementSource.quarantined(
+                    decision_id,
+                    "interpretation",
+                    exc.reason_code,
+                )
 
-    def sort_key(row: dict[str, Any]) -> tuple[str, ...]:
-        return (row.get("artifact_digest", ""), row.get("kind", ""))
+        rows_by_table: dict[str, list[dict[str, Any]]] = {}
+        if source.authority_status == "verified":
+            try:
+                rows_by_table = load_rows(decision_id, locator, source)
+            except Exception:
+                projection_failure = "invalid_interpretation_payload"
 
-    artifact_rows.sort(key=sort_key)
-    judgment_rows.sort(key=lambda r: r["judgment_id"])
-    decision_rows.sort(key=lambda r: r["decision_id"])
+        manifest = begin_or_resume_settlement(derived_root, source, contract)
+        record_settlement(manifest)
+        failure_reason = source.authority_error or projection_failure
+        if failure_reason is not None:
+            if manifest.state not in {"quarantined", "projection_failed", "ready"}:
+                manifest = transition_settlement(
+                    manifest,
+                    "quarantined",
+                    tables=_interpretation_table_state(
+                        contract,
+                        state="quarantined",
+                        failure_reason=failure_reason,
+                    ),
+                    reason_code=failure_reason,
+                )
+                record_settlement(manifest)
+            continue
+        if manifest.state == "ready":
+            published.extend(
+                derived_root / table.relative_path
+                for table in manifest.tables
+                if table.state == "ready"
+            )
+            continue
+        if manifest.state == "discovered":
+            manifest = transition_settlement(manifest, "source_validated")
+            record_settlement(manifest)
+        if manifest.state == "source_validated":
+            manifest = transition_settlement(manifest, "cas_committed")
+            record_settlement(manifest)
+        if manifest.state == "cas_committed":
+            manifest = transition_settlement(manifest, "cataloged")
+            record_settlement(manifest)
+        if manifest.state == "cataloged":
+            manifest = transition_settlement(
+                manifest,
+                "projecting",
+                tables=_interpretation_table_state(
+                    contract,
+                    state="projecting",
+                    source_digest=source.cas_content_digest,
+                ),
+            )
+            record_settlement(manifest)
 
-    artifact_path = derived_root / "interpretation_artifacts" / "interpretation_artifacts.parquet"
-    judgment_path = derived_root / "machine_judgments" / "machine_judgments.parquet"
-    decision_path = derived_root / "acceptance_decisions" / "acceptance_decisions.parquet"
-
-    _write_parquet(artifact_path, INTERPRETATION_ARTIFACT_SCHEMA, artifact_rows)
-    _write_parquet(judgment_path, MACHINE_JUDGMENT_SCHEMA, judgment_rows)
-    _write_parquet(decision_path, ACCEPTANCE_DECISION_SCHEMA, decision_rows)
-
-    return [artifact_path, judgment_path, decision_path]
+        settled_tables: list[ProjectionTableSettlement] = []
+        try:
+            for table in contract.tables:
+                path = derived_root / table.relative_path
+                rows = rows_by_table[table.table_name]
+                schema = {
+                    "interpretation_artifacts": INTERPRETATION_ARTIFACT_SCHEMA,
+                    "machine_judgments": MACHINE_JUDGMENT_SCHEMA,
+                    "acceptance_decisions": ACCEPTANCE_DECISION_SCHEMA,
+                }[table.table_name]
+                _write_parquet(path, schema, rows)
+                settled_tables.append(
+                    verify_projected_table(
+                        derived_root,
+                        table,
+                        source_digest=source.cas_content_digest or "",
+                        expected_row_count=len(rows),
+                    )
+                )
+                published.append(path)
+            manifest = transition_settlement(
+                manifest,
+                "ready",
+                tables=settled_tables,
+            )
+            record_settlement(manifest)
+        except Exception as exc:
+            failed = transition_settlement(
+                manifest,
+                "projection_failed",
+                tables=_interpretation_table_state(
+                    contract,
+                    state="failed",
+                    failure_reason=f"{type(exc).__name__}: {exc}",
+                ),
+                reason_code=type(exc).__name__,
+            )
+            record_settlement(failed)
+            raise
+    return published
 
 
 __all__ = [
@@ -2996,6 +3116,7 @@ __all__ = [
     "build_machine_judgment",
     "compute_analysis_snapshot_digest",
     "evaluate_deterministic_gates",
+    "_load_interpretation_archive_record",
     "load_campaign_analysis_manifest",
     "rebuild_interpretation_projections",
     "write_campaign_report",

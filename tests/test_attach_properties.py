@@ -11,6 +11,7 @@ from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from z3_settlement_helpers import admit_z3_tree
 
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_jobs
@@ -116,6 +117,7 @@ ANALYTICAL_QUERIES = [
 
 
 def _execute_query_suite(derived_dir: Path, repo_root: Path) -> dict[str, list[tuple[Any, ...]]]:
+    admit_z3_tree(derived_dir)
     res = attach(repo_root=repo_root, explicit_derived=derived_dir)
     results = {}
     try:
@@ -243,15 +245,28 @@ def test_property_attach_graceful_degradation_on_empty_or_missing_derived() -> N
         finally:
             res_nonexistent.connection.close()
 
-        # Case 2: Existing empty directory attaches with empty views (0 rows)
+        # Case 2: Existing but unmanifested state is unavailable.
         empty_dir = root / "empty_derived"
         empty_dir.mkdir()
         res_empty = attach(repo_root=root, explicit_derived=empty_dir)
         try:
             z3 = next(z for z in res_empty.zones if z.name == "z3")
-            assert z3.attached is True
-            for table in TABLES:
-                count = res_empty.connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
-                assert count == 0
+            assert z3.attached is False
+            assert z3.reason == "no manifest-admitted tables"
         finally:
             res_empty.connection.close()
+
+        # Case 3: A ready manifest may explicitly type every table as not applicable.
+        admit_z3_tree(empty_dir)
+        res_not_applicable = attach(repo_root=root, explicit_derived=empty_dir)
+        try:
+            z3 = next(z for z in res_not_applicable.zones if z.name == "z3")
+            assert z3.attached is True
+            assert all(table.state == "not_applicable" for table in z3.tables)
+            for table in TABLES:
+                count = res_not_applicable.connection.execute(
+                    f"SELECT count(*) FROM {table}"
+                ).fetchone()[0]
+                assert count == 0
+        finally:
+            res_not_applicable.connection.close()

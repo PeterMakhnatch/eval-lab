@@ -31,7 +31,6 @@ from evallab.interpretation.trajectory_hydration import (
 from evallab.interpretation.trajectory_judgment import MachineJudgment, canonical_json_digest
 from evallab.interpretation.trajectory_runtime import (
     CampaignAnalysisItem,
-    _load_interpretation_archive_record,
     _pack_payload_structure_errors,
     load_campaign_analysis_manifest,
 )
@@ -382,7 +381,6 @@ def _load_sidecar_generation(
     path: Path,
     item: CampaignAnalysisItem,
     *,
-    store_root: Path,
     locator: str | None = None,
 ) -> dict[str, Any]:
     display_path = locator or path.name
@@ -445,15 +443,7 @@ def _load_sidecar_generation(
             errors.append("decision_pack_mismatch")
         if validated_decision.judgment_ids != [validated_judgment.judgment_id]:
             errors.append("decision_judgment_mismatch")
-        archive_record = _load_interpretation_archive_record(
-            store_root,
-            validated_decision.decision_id,
-            sidecar_dir=path,
-        )
-        if archive_record is None:
-            errors.append("interpretation_cas_mismatch")
-        else:
-            artifact_cas_uri = archive_record[0]
+        errors.append("interpretation_cas_locator_unavailable")
     return {
         "status": "invalid" if errors else "valid",
         "reason": sorted(set(errors)) or None,
@@ -502,9 +492,7 @@ def _cas_record_anti_join(
         expectation["aliases"].update({job_id, item.job_name})
         expectation["uris"].add(str(item.cas_uri))
     conflicting_expected_job_ids = sorted(
-        job_id
-        for job_id, expectation in expected_jobs.items()
-        if len(expectation["uris"]) != 1
+        job_id for job_id, expectation in expected_jobs.items() if len(expectation["uris"]) != 1
     )
     alias_to_jobs: dict[str, set[str]] = {}
     for job_id, expectation in expected_jobs.items():
@@ -534,11 +522,7 @@ def _cas_record_anti_join(
             continue
         record_id = payload.get("record_id")
         record_jobs = alias_to_jobs.get(record_id, set()) if isinstance(record_id, str) else set()
-        if (
-            payload.get("kind") != "job"
-            or record_id != path_id
-            or len(record_jobs) != 1
-        ):
+        if payload.get("kind") != "job" or record_id != path_id or len(record_jobs) != 1:
             if path_jobs or record_jobs:
                 invalid_records.append(record_path)
             continue
@@ -571,12 +555,7 @@ def _cas_record_anti_join(
     ]
     status = (
         "invalid"
-        if (
-            conflicting_expected_job_ids
-            or invalid_records
-            or orphan_records
-            or duplicate_records
-        )
+        if (conflicting_expected_job_ids or invalid_records or orphan_records or duplicate_records)
         else ("missing" if missing_bindings else "present")
     )
     return {
@@ -1142,7 +1121,6 @@ def campaign_data_quality_report(
                 _load_sidecar_generation(
                     path,
                     item,
-                    store_root=store_root,
                     locator=_sidecar_locator(
                         path,
                         output_dir=output_dir,

@@ -3020,11 +3020,13 @@ class Executor:
     def _ingest(self, locator: EvidenceLocator) -> IngestProjectionResult:
         url = database_url_from_environment()
         with materialize_evidence(locator) as job_dir:
+            job = load_job(job_dir)
             return ingest_and_project(
                 url,
-                [load_job(job_dir)],
+                [job],
                 root=self.repo_root,
                 output_root=derived_root_from_environment(self.repo_root),
+                source_locators={job.id: locator},
             )
 
     def _catalog_spend(self) -> float:

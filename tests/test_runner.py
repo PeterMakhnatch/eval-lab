@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import evallab.evidence_store as evidence_store_module
 import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
@@ -77,8 +78,13 @@ def _configured_settlement_identity(
             actual_version="0.22.0",
             executable_path=Path("/bin/tool"),
             executable_digest="sha256:" + "a" * 64,
+            executable_device=1,
+            executable_inode=1,
+            executable_size=1,
+            executable_mtime_ns=1,
         ),
     )
+    monkeypatch.setattr(runner_module, "_verify_harbor_runtime_identity", lambda _identity: None)
 
 
 def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
@@ -897,7 +903,7 @@ def test_settlement_reopens_canonical_record_and_refuses_verification_failure(
     assert record["uri"] == settled.uri
     assert record["source_path"] == str(job_dir.resolve())
 
-    original_restore = runner_module.restore_evidence
+    original_restore = evidence_store_module.restore_evidence
     assert (
         record_digest == "sha256:" + hashlib.sha256(settled.manifest_path.read_bytes()).hexdigest()
     )
@@ -907,7 +913,7 @@ def test_settlement_reopens_canonical_record_and_refuses_verification_failure(
         (restored / "result.json").write_text('{"finished": false}\n', encoding="utf-8")
         return restored
 
-    monkeypatch.setattr(runner_module, "restore_evidence", restore_wrong_content)
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", restore_wrong_content)
     with pytest.raises(ExecutionFailure) as exc_info:
         runner_module._settle_completed_job(
             job_dir,

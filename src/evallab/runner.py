@@ -28,10 +28,7 @@ from pydantic import ValidationError
 from evallab.evidence_store import (
     EvidenceArchive,
     archive_evidence,
-    evidence_tree_digest,
-    read_archive,
-    read_record,
-    restore_evidence,
+    reopen_evidence_archive,
 )
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
@@ -145,6 +142,10 @@ class HarborRuntimeIdentity:
     actual_version: str
     executable_path: Path
     executable_digest: str
+    executable_device: int
+    executable_inode: int
+    executable_size: int
+    executable_mtime_ns: int
 
 
 @dataclass(frozen=True)
@@ -336,14 +337,9 @@ def resolve_harbor_runtime_identity(repo_root: Path) -> HarborRuntimeIdentity:
     declared_version = _locked_harbor_version(repo_root)
     candidate = shutil.which("harbor")
     if candidate is None:
-        raise ExecutionFailure(
-            "harbor_identity_unavailable",
-            "Harbor executable is not installed or not on PATH",
-        )
+        raise ExecutionFailure("harbor_identity_unavailable", "Harbor executable is unavailable")
     try:
         executable_path = Path(candidate).resolve(strict=True)
-        if not executable_path.is_file():
-            raise OSError("Harbor executable is not a regular file")
         completed = subprocess.run(
             [str(executable_path), "--version"],
             check=False,
@@ -354,34 +350,76 @@ def resolve_harbor_runtime_identity(repo_root: Path) -> HarborRuntimeIdentity:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ExecutionFailure(
-            "harbor_identity_unavailable",
-            "cannot resolve Harbor executable identity",
+            "harbor_identity_unavailable", "cannot resolve Harbor executable identity"
         ) from exc
-    output = (completed.stdout or completed.stderr).strip()
     if completed.returncode != 0:
         raise ExecutionFailure(
-            "harbor_identity_unavailable",
-            "Harbor executable does not report a semantic version",
+            "harbor_identity_unavailable", "Harbor executable does not report a semantic version"
         )
-    actual_version = _canonical_semver(output, label="Harbor executable version")
+    actual_version = _canonical_semver(
+        (completed.stdout or completed.stderr).strip(),
+        label="Harbor executable version",
+    )
     if actual_version != declared_version:
         raise ExecutionFailure(
             "harbor_version_mismatch",
             f"Harbor executable {actual_version} does not match locked {declared_version}",
         )
     try:
-        executable_digest = _file_digest(executable_path)
+        (
+            executable_device,
+            executable_inode,
+            executable_size,
+            executable_mtime_ns,
+            executable_digest,
+        ) = _executable_snapshot(executable_path)
     except OSError as exc:
         raise ExecutionFailure(
-            "harbor_identity_unavailable",
-            "cannot digest Harbor executable identity",
+            "harbor_identity_unavailable", "cannot digest Harbor executable identity"
         ) from exc
     return HarborRuntimeIdentity(
         declared_version=declared_version,
         actual_version=actual_version,
         executable_path=executable_path,
         executable_digest=executable_digest,
+        executable_device=executable_device,
+        executable_inode=executable_inode,
+        executable_size=executable_size,
+        executable_mtime_ns=executable_mtime_ns,
     )
+
+
+def _executable_snapshot(path: Path) -> tuple[int, int, int, int, str]:
+    before = path.stat()
+    if not stat.S_ISREG(before.st_mode):
+        raise OSError("Harbor executable is not a regular file")
+    digest = _file_digest(path)
+    after = path.stat()
+    snapshot = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    if snapshot != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns):
+        raise OSError("Harbor executable changed while its identity was captured")
+    return (*snapshot, digest)
+
+
+def _verify_harbor_runtime_identity(identity: HarborRuntimeIdentity) -> None:
+    try:
+        snapshot = _executable_snapshot(identity.executable_path)
+    except OSError as exc:
+        raise ExecutionFailure(
+            "harbor_identity_drift",
+            "Harbor executable changed before launch",
+        ) from exc
+    if snapshot != (
+        identity.executable_device,
+        identity.executable_inode,
+        identity.executable_size,
+        identity.executable_mtime_ns,
+        identity.executable_digest,
+    ):
+        raise ExecutionFailure(
+            "harbor_identity_drift",
+            "Harbor executable changed before launch",
+        )
 
 
 def tool_version(command: str) -> str | None:
@@ -1316,50 +1354,21 @@ def _settle_completed_job(
     store_root: Path,
     record_id: str,
 ) -> tuple[EvidenceArchive, str]:
-    """Archive, reopen, and bind one completed mutable job to its CAS record."""
+    """Archive and bind one completed mutable job to a reopened canonical CAS record."""
 
     try:
-        expected_content = evidence_tree_digest(job_dir)
-        expected_source = str(job_dir.resolve())
-        archive = archive_evidence(
-            job_dir,
+        archive_evidence(job_dir, store_root, record_id=record_id, kind="job")
+        archive, record_bytes = reopen_evidence_archive(
             store_root,
-            record_id=record_id,
             kind="job",
+            record_id=record_id,
+            source=job_dir,
         )
-        record_bytes = read_record(store_root, kind="job", record_id=record_id)
-        record = json.loads(record_bytes)
-        archive_bytes = read_archive(store_root, archive.uri)
-        actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
-        with tempfile.TemporaryDirectory(prefix="evallab-run-cas-verify-") as temporary:
-            restored = restore_evidence(store_root, archive.uri, Path(temporary))
-            restored_content = evidence_tree_digest(restored)
-        current_content = evidence_tree_digest(job_dir)
-    except (OSError, ValueError, json.JSONDecodeError, tarfile.TarError) as exc:
+    except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError, tarfile.TarError) as exc:
         raise ExecutionFailure(
             "evidence_cas_unsettled",
             "completed Harbor job could not be archived and reopened from CAS",
         ) from exc
-    expected_record = {
-        "record_id": record_id,
-        "kind": "job",
-        "content_digest": expected_content,
-        "archive_digest": actual_archive_digest,
-        "uri": f"cas://sha256/{expected_content.removeprefix('sha256:')}",
-        "source_path": expected_source,
-    }
-    if (
-        archive.content_digest != expected_content
-        or archive.archive_digest != actual_archive_digest
-        or archive.uri != expected_record["uri"]
-        or restored_content != expected_content
-        or current_content != expected_content
-        or any(record.get(key) != value for key, value in expected_record.items())
-    ):
-        raise ExecutionFailure(
-            "evidence_cas_unsettled",
-            "completed Harbor job CAS record does not match archived source evidence",
-        )
     return archive, f"sha256:{hashlib.sha256(record_bytes).hexdigest()}"
 
 
@@ -1409,6 +1418,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
             log_path=executor_log,
         )
         try:
+            _verify_harbor_runtime_identity(harbor_identity)
             process = run_harbor_process(
                 command,
                 cwd=repo_root,
@@ -1527,15 +1537,16 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
                 store_root=evidence_store,
                 record_id=str(job.id),
             )
-        except ExecutionFailure:
-            _write_executor_state(
-                request,
-                started_at=started,
-                status="failed",
-                log_path=executor_log,
-                finished_at=finished,
-                process=process,
-            )
+        except BaseException:
+            with suppress(Exception):
+                _write_executor_state(
+                    request,
+                    started_at=started,
+                    status="failed",
+                    log_path=executor_log,
+                    finished_at=finished,
+                    process=process,
+                )
             raise
         _write_executor_state(
             request,

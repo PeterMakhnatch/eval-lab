@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import stat
@@ -407,19 +408,130 @@ def archive_evidence(
     )
 
 
+def _digest_value(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+        raise ValueError(f"invalid {label}")
+    return value
+
+
+def reopen_evidence_archive(
+    store_root: Path,
+    *,
+    kind: str,
+    record_id: str,
+    source: Path,
+) -> tuple[EvidenceArchive, bytes]:
+    """Reopen and authenticate one complete canonical evidence record."""
+
+    kind = _component(kind, label="record kind")
+    record_id = _component(record_id, label="record id")
+    source = source.resolve()
+    source_files = _inventory(source)
+    source_digest = _content_digest(source, source_files)
+    source_bytes = sum(path.stat().st_size for path in source_files)
+    record_path = _absolute(store_root) / "records" / kind / f"{record_id}.json"
+    try:
+        record_bytes = read_record(store_root, kind=kind, record_id=record_id)
+        record = json.loads(record_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("evidence record is unreadable") from exc
+    if not isinstance(record, dict):
+        raise ValueError("evidence record must be an object")
+    required = {
+        "schema_version",
+        "record_id",
+        "kind",
+        "content_digest",
+        "archive_digest",
+        "uri",
+        "blob_path",
+        "source_path",
+        "file_count",
+        "uncompressed_bytes",
+        "archived_at",
+    }
+    if set(record) != required:
+        raise ValueError("evidence record schema is not canonical")
+    if record["schema_version"] != 1 or record["record_id"] != record_id or record["kind"] != kind:
+        raise ValueError("evidence record identity is invalid")
+    content_digest = _digest_value(record["content_digest"], label="content digest")
+    archive_digest = _digest_value(record["archive_digest"], label="archive digest")
+    uri = record["uri"]
+    if not isinstance(uri, str) or _validate_uri(uri) != content_digest.removeprefix("sha256:"):
+        raise ValueError("evidence record URI is invalid")
+    expected_blob = (
+        Path("blobs/sha256")
+        / content_digest.removeprefix("sha256:")[:2]
+        / f"{content_digest.removeprefix('sha256:')}.tar.gz"
+    )
+    if record["blob_path"] != expected_blob.as_posix():
+        raise ValueError("evidence record blob path is noncanonical")
+    if record["source_path"] != str(source):
+        raise ValueError("evidence record source identity mismatch")
+    if (
+        isinstance(record["file_count"], bool)
+        or not isinstance(record["file_count"], int)
+        or isinstance(record["uncompressed_bytes"], bool)
+        or not isinstance(record["uncompressed_bytes"], int)
+        or record["file_count"] < 0
+        or record["uncompressed_bytes"] < 0
+    ):
+        raise ValueError("evidence record size fields are invalid")
+    if not isinstance(record["archived_at"], str):
+        raise ValueError("evidence record timestamp is invalid")
+    try:
+        archived_at = datetime.fromisoformat(record["archived_at"])
+    except ValueError as exc:
+        raise ValueError("evidence record timestamp is invalid") from exc
+    if archived_at.tzinfo is None or archived_at.utcoffset() != UTC.utcoffset(archived_at):
+        raise ValueError("evidence record timestamp is invalid")
+    archive_bytes = read_archive(store_root, uri)
+    actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
+    if archive_digest != actual_archive_digest:
+        raise ValueError("evidence archive digest mismatch")
+    with tempfile.TemporaryDirectory(prefix="evallab-evidence-reopen-") as temporary:
+        restored = restore_evidence(store_root, uri, Path(temporary))
+        restored_files = _inventory(restored)
+        restored_digest = _content_digest(restored, restored_files)
+        restored_bytes = sum(path.stat().st_size for path in restored_files)
+    if (
+        content_digest != source_digest
+        or restored_digest != source_digest
+        or record["file_count"] != len(source_files)
+        or len(restored_files) != len(source_files)
+        or record["uncompressed_bytes"] != source_bytes
+        or restored_bytes != source_bytes
+    ):
+        raise ValueError("evidence record content mismatch")
+    return (
+        EvidenceArchive(
+            record_id=record_id,
+            kind=kind,
+            content_digest=content_digest,
+            archive_digest=archive_digest,
+            uri=uri,
+            blob_path=_absolute(store_root) / expected_blob,
+            manifest_path=record_path,
+            file_count=record["file_count"],
+            uncompressed_bytes=record["uncompressed_bytes"],
+        ),
+        record_bytes,
+    )
+
+
 def load_archive(store_root: Path, uri: str) -> Path:
     """Validate a CAS archive through no-follow descriptors and return its path."""
     digest = _validate_uri(uri)
     with _open_archive_file(store_root, uri):
         pass
     return _absolute(store_root) / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz"
+
+
 @contextmanager
 def open_archive(store_root: Path, uri: str) -> Iterator[BinaryIO]:
     """Open a CAS archive while retaining no-follow directory descriptors."""
     with _open_archive_file(store_root, uri) as source:
         yield source
-
-
 
 
 def read_archive(store_root: Path, uri: str) -> bytes:
@@ -439,22 +551,21 @@ def restore_evidence(store_root: Path, uri: str, destination: Path) -> Path:
         for member in archive.getmembers():
             member_path = PurePosixPath(member.name)
             if member_path.is_absolute() or not member_path.parts:
-                raise ValueError(
-                    f"evidence archive path escapes destination: {member.name}"
-                )
+                raise ValueError(f"evidence archive path escapes destination: {member.name}")
             parts = tuple(_component(part) for part in member_path.parts)
             if not member.isfile():
-                raise ValueError(
-                    f"evidence archive contains non-file member: {member.name}"
-                )
+                raise ValueError(f"evidence archive contains non-file member: {member.name}")
             source = archive.extractfile(member)
             if source is None:
                 raise ValueError(f"cannot read evidence member: {member.name}")
-            with source, _open_nested_directory(
-                destination_descriptor,
-                parts[:-1],
-                create=True,
-            ) as target_directory:
+            with (
+                source,
+                _open_nested_directory(
+                    destination_descriptor,
+                    parts[:-1],
+                    create=True,
+                ) as target_directory,
+            ):
                 _atomic_write(target_directory, parts[-1], source=source)
     restored_files = _inventory(destination)
     actual_digest = _content_digest(destination, restored_files)
@@ -556,6 +667,4 @@ def read_record(store_root: Path, *, kind: str, record_id: str) -> bytes:
             finally:
                 os.close(descriptor)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"evidence record is missing: {kind}/{record_id}"
-        ) from exc
+        raise FileNotFoundError(f"evidence record is missing: {kind}/{record_id}") from exc

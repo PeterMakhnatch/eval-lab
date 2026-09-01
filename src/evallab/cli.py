@@ -1985,6 +1985,51 @@ def _data_backfill_command(
     return ledger.exit_code
 
 
+def _data_backfill_contracts_command(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    harbor: HarborBackend | None = None,
+) -> int:
+    del harbor
+    from evallab.storage.data_backfill import (
+        HistoricalRegenerationError,
+        run_historical_contract_regeneration,
+    )
+
+    try:
+        result = run_historical_contract_regeneration(
+            repo_root=(_resolve(root, args.repo_root) if args.repo_root is not None else root),
+            runs_root=args.runs_root,
+            source_revision=args.source_revision,
+            manifest_out=_resolve(root, args.manifest_out),
+            expect_promoted=args.expect_promoted,
+            expect_derivable=args.expect_derivable,
+            expect_source_snapshot=args.expect_source_snapshot,
+            expect_plan_digest=args.expect_plan_digest,
+            apply=args.apply,
+        )
+    except HistoricalRegenerationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    manifest = result.manifest
+    mode = "apply" if result.applied else "dry-run"
+    print(
+        f"historical contracts {mode}: commit={result.resolved_commit}; "
+        f"snapshot={manifest.source_snapshot.snapshot_digest}; "
+        f"{manifest.promoted_count} promoted, "
+        f"{manifest.descriptive_record_count} descriptive, "
+        f"{manifest.analysis_ready_count} ANALYSIS_READY, "
+        f"{manifest.admissible_count} admissible; "
+        f"truth final/missing-final={manifest.truth_with_final_state_count}/"
+        f"{manifest.truth_missing_final_state_count}; "
+        f"missing truth/events={manifest.truth_missing_count}/"
+        f"{manifest.truth_missing_events_count}; "
+        f"plan={manifest.content_digest}"
+    )
+    return 0
+
+
 def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4357,6 +4402,61 @@ def parser() -> argparse.ArgumentParser:
     )
     data_backfill.add_argument("--database-url")
     data_backfill.set_defaults(func=_data_backfill_command)
+    backfill_modes = data_backfill.add_subparsers(dest="data_backfill_mode")
+    backfill_contracts = backfill_modes.add_parser(
+        "contracts",
+        help="Classify historical promoted trials without inferring missing authority",
+    )
+    backfill_contracts.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Git worktree/repository root (default: discover from workspace)",
+    )
+    backfill_contracts.add_argument(
+        "--runs-root",
+        type=Path,
+        default=Path("research/evidence/runs"),
+    )
+    backfill_contracts.add_argument(
+        "--source-revision",
+        required=True,
+        help="Explicit immutable Git revision supplying selected source blobs",
+    )
+    backfill_contracts.add_argument(
+        "--expect-promoted",
+        type=int,
+        required=True,
+    )
+    backfill_contracts.add_argument(
+        "--expect-derivable",
+        type=int,
+        required=True,
+    )
+    backfill_contracts.add_argument(
+        "--manifest-out",
+        type=Path,
+        required=True,
+    )
+    backfill_contracts.add_argument(
+        "--expect-source-snapshot",
+        help="Expected canonical source snapshot digest (required for apply)",
+    )
+    backfill_contracts.add_argument(
+        "--expect-plan-digest",
+        help="Expected canonical regeneration plan digest (required for apply)",
+    )
+    backfill_mode = backfill_contracts.add_mutually_exclusive_group()
+    backfill_mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Classify and write only the deterministic manifest (default)",
+    )
+    backfill_mode.add_argument(
+        "--apply",
+        action="store_true",
+        help="Atomically create or verify predicted descriptive records",
+    )
+    backfill_contracts.set_defaults(func=_data_backfill_contracts_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)

@@ -88,6 +88,7 @@ from evallab.storage.paths import derived_root_from_environment
 from evallab.storage.settlement import (
     ProjectionContract,
     ProjectionSettlementManifest,
+    ProjectionState,
     ProjectionTableSettlement,
     SettlementError,
     SettlementSource,
@@ -2748,7 +2749,7 @@ def _interpretation_projection_contract(
 def _interpretation_table_state(
     contract: ProjectionContract,
     *,
-    state: str,
+    state: ProjectionState,
     source_digest: str | None = None,
     failure_reason: str | None = None,
 ) -> tuple[ProjectionTableSettlement, ...]:

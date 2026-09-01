@@ -1248,6 +1248,8 @@ def persist_settlement_manifest(
             )
             events_to_insert = manifest.events
         else:
+            if current_row is None:
+                raise AssertionError("advance settlement requires a locked current row")
             _execute_checked(
                 connection,
                 """

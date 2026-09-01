@@ -492,9 +492,7 @@ def _cas_record_anti_join(
         expectation["aliases"].update({job_id, item.job_name})
         expectation["uris"].add(str(item.cas_uri))
     conflicting_expected_job_ids = sorted(
-        job_id
-        for job_id, expectation in expected_jobs.items()
-        if len(expectation["uris"]) != 1
+        job_id for job_id, expectation in expected_jobs.items() if len(expectation["uris"]) != 1
     )
     alias_to_jobs: dict[str, set[str]] = {}
     for job_id, expectation in expected_jobs.items():
@@ -524,11 +522,7 @@ def _cas_record_anti_join(
             continue
         record_id = payload.get("record_id")
         record_jobs = alias_to_jobs.get(record_id, set()) if isinstance(record_id, str) else set()
-        if (
-            payload.get("kind") != "job"
-            or record_id != path_id
-            or len(record_jobs) != 1
-        ):
+        if payload.get("kind") != "job" or record_id != path_id or len(record_jobs) != 1:
             if path_jobs or record_jobs:
                 invalid_records.append(record_path)
             continue
@@ -561,12 +555,7 @@ def _cas_record_anti_join(
     ]
     status = (
         "invalid"
-        if (
-            conflicting_expected_job_ids
-            or invalid_records
-            or orphan_records
-            or duplicate_records
-        )
+        if (conflicting_expected_job_ids or invalid_records or orphan_records or duplicate_records)
         else ("missing" if missing_bindings else "present")
     )
     return {

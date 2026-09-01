@@ -8,31 +8,48 @@ still returned.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import unquote
 
 import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from evallab.contextpack import parse_doc
 from evallab.runner import database_url_from_environment
 from evallab.storage.paths import derived_root_from_environment
 from evallab.storage.settlement import (
     ProjectionColumn,
+    ProjectionState,
     ProjectionTableContract,
+    ProjectionTableSettlement,
     active_settlement_manifests,
+    columns_for_arrow_schema,
     load_settlement_manifests,
-    verify_ready_manifest,
+    schema_digest_for_columns,
 )
 
 TableReadinessState = Literal[
     "ready",
     "missing",
+    "projecting",
     "failed",
     "stale",
+    "quarantined",
     "not_applicable",
 ]
 ZoneReadinessState = Literal["ready", "partial", "unavailable"]
+
+
+@dataclass(frozen=True)
+class _CapturedParquet:
+    path: Path
+    file_digest: str
+    table: pa.Table
+    hive_partitions: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True)
@@ -44,6 +61,11 @@ class TableReadiness:
     reason: str
     paths: tuple[Path, ...] = ()
     contract: ProjectionTableContract | None = None
+    captured: tuple[_CapturedParquet, ...] = field(
+        default=(),
+        repr=False,
+        compare=False,
+    )
 
 
 @dataclass(frozen=True)
@@ -127,6 +149,96 @@ def _quote_identifier(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
+def _capture_ready_table(
+    root: Path,
+    contract: ProjectionTableContract,
+    settlement: ProjectionTableSettlement,
+    cache: dict[Path, _CapturedParquet],
+) -> _CapturedParquet:
+    resolved_root = root.resolve()
+    path = (resolved_root / contract.relative_path).resolve(strict=True)
+    if not path.is_relative_to(resolved_root):
+        raise ValueError(f"projection path escapes derived root: {contract.relative_path}")
+
+    captured = cache.get(path)
+    if captured is None:
+        payload = path.read_bytes()
+        hive_partitions: dict[str, str] = {}
+        for component in path.relative_to(resolved_root).parts[:-1]:
+            if "=" not in component:
+                continue
+            name, value = component.split("=", 1)
+            if name:
+                hive_partitions[name] = unquote(value)
+        captured = _CapturedParquet(
+            path=path,
+            file_digest=f"sha256:{hashlib.sha256(payload).hexdigest()}",
+            table=pq.read_table(pa.BufferReader(payload)),
+            hive_partitions=tuple(hive_partitions.items()),
+        )
+        cache[path] = captured
+
+    if captured.file_digest != settlement.file_digest:
+        raise ValueError(
+            "projection file digest mismatch: "
+            f"expected={settlement.file_digest} actual={captured.file_digest}"
+        )
+    if captured.table.num_rows != settlement.row_count:
+        raise ValueError(
+            "projection row count mismatch: "
+            f"expected={settlement.row_count} actual={captured.table.num_rows}"
+        )
+    columns = columns_for_arrow_schema(captured.table.schema)
+    if columns != contract.columns:
+        raise ValueError(
+            f"projection schema mismatch: {contract.table_name}:{contract.partition_identity}"
+        )
+    if (
+        schema_digest_for_columns(columns, schema_version=contract.schema_version)
+        != contract.schema_digest
+    ):
+        raise ValueError(f"projection schema digest mismatch: {contract.relative_path}")
+    return captured
+
+
+def _non_ready_table_state(
+    manifest_state: str,
+    projection_state: ProjectionState,
+) -> TableReadinessState:
+    if projection_state in {
+        "missing",
+        "projecting",
+        "failed",
+        "stale",
+        "quarantined",
+    }:
+        return projection_state
+    if manifest_state == "quarantined":
+        return "quarantined"
+    if manifest_state == "projection_failed":
+        return "failed"
+    return "projecting"
+
+
+def _non_ready_reason(
+    *,
+    settlement_id: str,
+    manifest_state: str,
+    final_event_reason: str | None,
+    table: ProjectionTableSettlement,
+) -> str:
+    parts = [
+        f"settlement={settlement_id}",
+        f"state={manifest_state}",
+        f"table_state={table.state}",
+    ]
+    if final_event_reason is not None:
+        parts.append(f"event_reason={final_event_reason}")
+    if table.failure_reason is not None:
+        parts.append(f"table_reason={table.failure_reason}")
+    return " ".join(parts)
+
+
 def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
     inventory = load_settlement_manifests(root)
     if inventory.errors:
@@ -135,37 +247,35 @@ def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
 
     manifests = active_settlement_manifests(inventory)
     entries: dict[str, list[TableReadiness]] = {table: [] for table in TABLES}
+    capture_cache: dict[Path, _CapturedParquet] = {}
     for manifest in manifests:
         contracts = {contract.key: contract for contract in manifest.contract.tables}
         if manifest.state == "ready":
-            try:
-                if not verify_ready_manifest(root, manifest):
-                    raise ValueError("ready settlement manifest failed verification")
-            except Exception as exc:
-                reason = f"{type(exc).__name__}: {exc}"
-                for contract in manifest.contract.tables:
-                    if contract.table_name in entries:
-                        entries[contract.table_name].append(
-                            TableReadiness(
-                                contract.table_name,
-                                "stale",
-                                reason,
-                                contract=contract,
-                            )
-                        )
-                continue
             for table in manifest.tables:
                 contract = contracts[table.key]
                 if table.table_name not in entries:
                     continue
                 if table.state == "ready":
+                    try:
+                        captured = _capture_ready_table(root, contract, table, capture_cache)
+                    except Exception as exc:
+                        entries[table.table_name].append(
+                            TableReadiness(
+                                table.table_name,
+                                "stale",
+                                f"{type(exc).__name__}: {exc}",
+                                contract=contract,
+                            )
+                        )
+                        continue
                     entries[table.table_name].append(
                         TableReadiness(
                             table.table_name,
                             "ready",
                             f"settlement={manifest.settlement_id}",
-                            paths=(root.resolve() / table.relative_path,),
+                            paths=(captured.path,),
                             contract=contract,
+                            captured=(captured,),
                         )
                     )
                 else:
@@ -179,16 +289,20 @@ def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
                     )
             continue
 
-        reason = f"settlement={manifest.settlement_id} state={manifest.state}" + (
-            f" reason={manifest.failure_reason}" if manifest.failure_reason else ""
-        )
-        for contract in manifest.contract.tables:
-            if contract.table_name in entries:
-                entries[contract.table_name].append(
+        final_event_reason = manifest.events[-1].reason_code
+        for table in manifest.tables:
+            contract = contracts[table.key]
+            if table.table_name in entries:
+                entries[table.table_name].append(
                     TableReadiness(
-                        contract.table_name,
-                        "failed",
-                        reason,
+                        table.table_name,
+                        _non_ready_table_state(manifest.state, table.state),
+                        _non_ready_reason(
+                            settlement_id=manifest.settlement_id,
+                            manifest_state=manifest.state,
+                            final_event_reason=final_event_reason,
+                            table=table,
+                        ),
                         contract=contract,
                     )
                 )
@@ -205,10 +319,30 @@ def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
                 )
             )
             continue
-        blocked = [entry for entry in table_entries if entry.state in {"failed", "stale"}]
+        blocked = [
+            entry
+            for entry in table_entries
+            if entry.state
+            in {
+                "missing",
+                "projecting",
+                "failed",
+                "stale",
+                "quarantined",
+            }
+        ]
         if blocked:
-            state: TableReadinessState = (
-                "stale" if any(entry.state == "stale" for entry in blocked) else "failed"
+            priority: tuple[TableReadinessState, ...] = (
+                "stale",
+                "quarantined",
+                "failed",
+                "projecting",
+                "missing",
+            )
+            state = next(
+                candidate
+                for candidate in priority
+                if any(entry.state == candidate for entry in blocked)
             )
             readiness.append(
                 TableReadiness(
@@ -232,12 +366,10 @@ def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
             continue
         contract = contracts[0]
         if ready_entries:
-            paths = tuple(
-                sorted(
-                    {path for entry in ready_entries for path in entry.paths},
-                    key=str,
-                )
-            )
+            captured_by_path = {
+                captured.path: captured for entry in ready_entries for captured in entry.captured
+            }
+            paths = tuple(sorted(captured_by_path, key=str))
             readiness.append(
                 TableReadiness(
                     table_name,
@@ -245,6 +377,7 @@ def _manifest_table_readiness(root: Path) -> tuple[TableReadiness, ...]:
                     f"{len(paths)} verified manifest-bound partition(s)",
                     paths=paths,
                     contract=contract,
+                    captured=tuple(captured_by_path[path] for path in paths),
                 )
             )
         else:
@@ -301,6 +434,87 @@ def _typed_empty_select(contract: ProjectionTableContract) -> str:
         for column in contract.columns
     )
     return f"SELECT {columns} WHERE FALSE"
+
+
+def _session_table_name(table_name: str) -> str:
+    return f"_evallab_z3_captured_{table_name}"
+
+
+def _captured_select_sql(
+    captured: _CapturedParquet,
+    registration_identifier: str,
+    partition_names: tuple[str, ...],
+) -> str:
+    partition_values = {
+        name: value for name, value in captured.hive_partitions if name in partition_names
+    }
+    physical_names = set(captured.table.column_names)
+    expressions = [
+        (
+            f"{_sql_string_literal(partition_values[name])} AS {_quote_identifier(name)}"
+            if name in partition_values
+            else _quote_identifier(name)
+        )
+        for name in captured.table.column_names
+    ]
+    for name in partition_names:
+        if name in physical_names:
+            continue
+        value = partition_values.get(name)
+        expressions.append(
+            f"{_sql_string_literal(value)} AS {_quote_identifier(name)}"
+            if value is not None
+            else f"CAST(NULL AS VARCHAR) AS {_quote_identifier(name)}"
+        )
+    return f"SELECT {', '.join(expressions)} FROM {registration_identifier}"
+
+
+def _bind_captured_table(
+    conn: duckdb.DuckDBPyConnection,
+    readiness: TableReadiness,
+) -> str:
+    if not readiness.captured:
+        raise ValueError(f"ready table has no captured bytes: {readiness.table_name}")
+    table_name = _session_table_name(readiness.table_name)
+    table_identifier = _quote_identifier(table_name)
+    first_partition_names = tuple(name for name, _value in readiness.captured[0].hive_partitions)
+    partition_names = tuple(
+        name
+        for name in first_partition_names
+        if all(name in dict(captured.hive_partitions) for captured in readiness.captured[1:])
+    )
+    conn.execute(f"DROP TABLE IF EXISTS {table_identifier}")
+    try:
+        for index, captured in enumerate(readiness.captured):
+            registration = f"{table_name}_arrow_{index}"
+            registration_identifier = _quote_identifier(registration)
+            conn.register(registration, captured.table)
+            try:
+                select_sql = _captured_select_sql(
+                    captured,
+                    registration_identifier,
+                    partition_names,
+                )
+                if index == 0:
+                    conn.execute(f"CREATE TEMP TABLE {table_identifier} AS {select_sql}")
+                else:
+                    conn.execute(f"INSERT INTO {table_identifier} BY NAME {select_sql}")
+            finally:
+                conn.unregister(registration)
+    except Exception:
+        conn.execute(f"DROP TABLE IF EXISTS {table_identifier}")
+        raise
+    return f"SELECT * FROM {table_identifier}"
+
+
+def _without_captured_tables(readiness: TableReadiness) -> TableReadiness:
+    return TableReadiness(
+        readiness.table_name,
+        readiness.state,
+        readiness.reason,
+        paths=readiness.paths,
+        contract=readiness.contract,
+    )
 
 
 def _readiness_rows(
@@ -457,18 +671,21 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
 
     for index, table in enumerate(readiness):
         identifier = _quote_identifier(table.table_name)
-        if table.state == "ready":
-            sources = ", ".join(_sql_string_literal(str(path)) for path in table.paths)
-            select_sql = f"SELECT * FROM read_parquet([{sources}])"
-        elif table.state == "not_applicable" and table.contract is not None:
-            select_sql = _typed_empty_select(table.contract)
-        else:
+        if table.state not in {"ready", "not_applicable"}:
+            readiness[index] = _without_captured_tables(table)
             continue
         try:
+            if table.state == "ready":
+                select_sql = _bind_captured_table(conn, table)
+            elif table.contract is not None:
+                select_sql = _typed_empty_select(table.contract)
+            else:
+                raise ValueError(f"not-applicable table lacks contract: {table.table_name}")
             conn.execute(f"CREATE OR REPLACE VIEW {identifier} AS {select_sql}")
             conn.execute(f"CREATE OR REPLACE VIEW z3.{identifier} AS {select_sql}")
             if table.state == "ready":
                 available_tables.add(table.table_name)
+            readiness[index] = _without_captured_tables(table)
         except Exception as exc:
             readiness[index] = TableReadiness(
                 table.table_name,
@@ -576,32 +793,42 @@ def attach(
     z4 = _attach_z4(conn, root)
 
     zones = (z2, z3, z4)
-    sql = build_sql_preamble(dsn, derived, root)
+    sql = build_sql_preamble(dsn, derived, root, readiness=z3.tables)
     return AttachResult(conn, zones, sql)
 
 
-def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
+def _build_sql_preamble(
+    dsn: str,
+    derived: Path,
+    root: Path,
+    readiness: tuple[TableReadiness, ...],
+) -> str:
     lines = [
         "INSTALL postgres_scanner;",
         "LOAD postgres_scanner;",
         f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres);",
         "CREATE SCHEMA IF NOT EXISTS z3;",
         "CREATE SCHEMA IF NOT EXISTS z4;",
+        "-- Z3 ready relations below require attach() session-owned captured tables;",
+        "-- mutable Parquet paths are diagnostics only and are never reopened by a view.",
     ]
-    readiness = _manifest_table_readiness(derived)
     available_tables: set[str] = set()
     for table in readiness:
         identifier = _quote_identifier(table.table_name)
         if table.state == "ready":
-            sources = ", ".join(_sql_string_literal(str(path)) for path in table.paths)
-            select_sql = f"SELECT * FROM read_parquet([{sources}])"
+            select_sql = f"SELECT * FROM {_quote_identifier(_session_table_name(table.table_name))}"
             available_tables.add(table.table_name)
         elif table.state == "not_applicable" and table.contract is not None:
             select_sql = _typed_empty_select(table.contract)
         else:
             continue
-        lines.append(f"CREATE OR REPLACE VIEW {identifier} AS {select_sql};")
-        lines.append(f"CREATE OR REPLACE VIEW z3.{identifier} AS {select_sql};")
+        for qualified_identifier in (identifier, f"z3.{identifier}"):
+            for path in table.paths:
+                lines.append(
+                    "-- authenticated captured source "
+                    f"{_sql_string_literal(str(path))} for {qualified_identifier}"
+                )
+            lines.append(f"CREATE OR REPLACE VIEW {qualified_identifier} AS {select_sql};")
     lines.append(
         "CREATE OR REPLACE TABLE z3.table_readiness "
         "(table_name VARCHAR, state VARCHAR, reason VARCHAR, path_count BIGINT);"
@@ -630,6 +857,20 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
     )
     lines.append("CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter;")
     return "\n".join(lines)
+
+
+def build_sql_preamble(
+    dsn: str,
+    derived: Path,
+    root: Path,
+    *,
+    readiness: tuple[TableReadiness, ...] | None = None,
+) -> str:
+    if readiness is None:
+        readiness = tuple(
+            _without_captured_tables(table) for table in _manifest_table_readiness(derived)
+        )
+    return _build_sql_preamble(dsn, derived, root, readiness)
 
 
 def print_zones(zones: tuple[ZoneStatus, ...]) -> None:

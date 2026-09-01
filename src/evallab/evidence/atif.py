@@ -19,6 +19,7 @@ from evallab.results import JobRecord, TrialRecord, load_job, sha256_file
 from evallab.storage.settlement import (
     ProjectionContract,
     ProjectionSettlementManifest,
+    ProjectionState,
     ProjectionTableContract,
     ProjectionTableSettlement,
     SettlementError,
@@ -914,7 +915,7 @@ def _job_projection_contract(job: JobRecord) -> ProjectionContract:
 def _table_state(
     contract: ProjectionTableContract,
     *,
-    state: str,
+    state: ProjectionState,
     source_digest: str | None = None,
     file_digest: str | None = None,
     row_count: int | None = None,

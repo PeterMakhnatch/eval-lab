@@ -1357,11 +1357,12 @@ def _settle_completed_job(
     """Archive and bind one completed mutable job to a reopened canonical CAS record."""
 
     try:
-        archive_evidence(job_dir, store_root, record_id=record_id, kind="job")
+        produced = archive_evidence(job_dir, store_root, record_id=record_id, kind="job")
         archive, record_bytes = reopen_evidence_archive(
             store_root,
             kind="job",
             record_id=record_id,
+            expected_record_digest=produced.record_digest,
             source=job_dir,
         )
     except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError, tarfile.TarError) as exc:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import os
 import re
@@ -13,7 +14,7 @@ import stat
 import tarfile
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -31,6 +32,7 @@ class EvidenceArchive:
     manifest_path: Path
     file_count: int
     uncompressed_bytes: int
+    record_digest: str = ""
 
 
 def _inventory(root: Path) -> list[Path]:
@@ -388,10 +390,11 @@ def archive_evidence(
             ("records", kind),
             create=True,
         ) as record_directory:
+            record_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
             _atomic_write(
                 record_directory,
                 record_name,
-                content=(json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode(),
+                content=record_bytes,
             )
 
     record_path = store_root / "records" / kind / record_name
@@ -405,6 +408,7 @@ def archive_evidence(
         manifest_path=record_path,
         file_count=manifest["file_count"],
         uncompressed_bytes=manifest["uncompressed_bytes"],
+        record_digest=f"sha256:{hashlib.sha256(record_bytes).hexdigest()}",
     )
 
 
@@ -419,6 +423,7 @@ def reopen_evidence_archive(
     *,
     kind: str,
     record_id: str,
+    expected_record_digest: str,
     source: Path | None = None,
 ) -> tuple[EvidenceArchive, bytes]:
     """Reopen and authenticate one canonical record; source adds live-tree equality."""
@@ -434,11 +439,18 @@ def reopen_evidence_archive(
         source_digest = _content_digest(source, source_files)
         source_bytes = sum(path.stat().st_size for path in source_files)
     record_path = _absolute(store_root) / "records" / kind / f"{record_id}.json"
+    expected_record_digest = _digest_value(
+        expected_record_digest,
+        label="expected record digest",
+    )
     try:
         record_bytes = read_record(store_root, kind=kind, record_id=record_id)
         record = json.loads(record_bytes)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("evidence record is unreadable") from exc
+    actual_record_digest = f"sha256:{hashlib.sha256(record_bytes).hexdigest()}"
+    if actual_record_digest != expected_record_digest:
+        raise ValueError("evidence record digest mismatch")
     if not isinstance(record, dict):
         raise ValueError("evidence record must be an object")
     required = {
@@ -513,7 +525,7 @@ def reopen_evidence_archive(
     if archive_digest != actual_archive_digest:
         raise ValueError("evidence archive digest mismatch")
     with tempfile.TemporaryDirectory(prefix="evallab-evidence-reopen-") as temporary:
-        restored = restore_evidence(store_root, uri, Path(temporary))
+        restored = restore_evidence(store_root, uri, Path(temporary), archive_bytes=archive_bytes)
         restored_files = _inventory(restored)
         restored_digest = _content_digest(restored, restored_files)
         restored_bytes = sum(path.stat().st_size for path in restored_files)
@@ -531,6 +543,21 @@ def reopen_evidence_archive(
         )
     ):
         raise ValueError("evidence record content mismatch")
+    if source is not None:
+        source_files_after = _inventory(source)
+        source_digest_after = _content_digest(source, source_files_after)
+        source_bytes_after = sum(path.stat().st_size for path in source_files_after)
+        if (
+            source_digest_after != source_digest
+            or len(source_files_after) != len(source_files)
+            or source_bytes_after != source_bytes
+        ):
+            raise ValueError("evidence source changed during restore")
+    if (
+        read_record(store_root, kind=kind, record_id=record_id) != record_bytes
+        or read_archive(store_root, uri) != archive_bytes
+    ):
+        raise ValueError("evidence CAS object changed during reopen")
     return (
         EvidenceArchive(
             record_id=record_id,
@@ -538,6 +565,7 @@ def reopen_evidence_archive(
             content_digest=content_digest,
             archive_digest=archive_digest,
             uri=uri,
+            record_digest=actual_record_digest,
             blob_path=_absolute(store_root) / expected_blob,
             manifest_path=record_path,
             file_count=record["file_count"],
@@ -558,22 +586,37 @@ def load_archive(store_root: Path, uri: str) -> Path:
 @contextmanager
 def open_archive(store_root: Path, uri: str) -> Iterator[BinaryIO]:
     """Open a CAS archive while retaining no-follow directory descriptors."""
+
     with _open_archive_file(store_root, uri) as source:
         yield source
 
 
 def read_archive(store_root: Path, uri: str) -> bytes:
     """Read a CAS archive without following store or blob symlinks."""
+
     with _open_archive_file(store_root, uri) as source:
         return source.read()
 
 
-def restore_evidence(store_root: Path, uri: str, destination: Path) -> Path:
+def restore_evidence(
+    store_root: Path,
+    uri: str,
+    destination: Path,
+    *,
+    archive_bytes: bytes | None = None,
+) -> Path:
+    """Restore trusted archive bytes, or open the current CAS archive when omitted."""
+
     expected_digest = f"sha256:{_validate_uri(uri)}"
     destination = _absolute(destination)
+    blob_context = (
+        nullcontext(io.BytesIO(archive_bytes))
+        if archive_bytes is not None
+        else _open_archive_file(store_root, uri)
+    )
     with (
         _open_directory_chain(destination, create=True) as destination_descriptor,
-        _open_archive_file(store_root, uri) as blob,
+        blob_context as blob,
         tarfile.open(fileobj=blob, mode="r:gz") as archive,
     ):
         for member in archive.getmembers():

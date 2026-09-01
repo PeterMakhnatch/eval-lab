@@ -1068,7 +1068,10 @@ def test_canonical_reopen_refuses_complete_record_tampering(
     payload = json.loads(archive.manifest_path.read_text(encoding="utf-8"))
     payload[field] = value
     reopened, reopened_bytes = evidence_store_module.reopen_evidence_archive(
-        store, kind="job", record_id="job-123"
+        store,
+        kind="job",
+        record_id="job-123",
+        expected_record_digest=archive.record_digest,
     )
     assert reopened.manifest_path == archive.manifest_path
     assert reopened_bytes == archive.manifest_path.read_bytes()
@@ -1078,7 +1081,11 @@ def test_canonical_reopen_refuses_complete_record_tampering(
     )
     with pytest.raises(ValueError):
         evidence_store_module.reopen_evidence_archive(
-            store, kind="job", record_id="job-123", source=source
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=archive.record_digest,
+            source=source,
         )
 
 
@@ -1095,7 +1102,12 @@ def test_canonical_reopen_refuses_noncanonical_record_bytes(
     archive.manifest_path.write_bytes(tampered_bytes + archive.manifest_path.read_bytes())
 
     with pytest.raises(ValueError):
-        evidence_store_module.reopen_evidence_archive(store, kind="job", record_id="job-123")
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=archive.record_digest,
+        )
 
 
 def test_canonical_reopen_refuses_absolute_source_alias(tmp_path: Path) -> None:
@@ -1112,7 +1124,12 @@ def test_canonical_reopen_refuses_absolute_source_alias(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError):
-        evidence_store_module.reopen_evidence_archive(store, kind="job", record_id="job-123")
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=archive.record_digest,
+        )
 
 
 def test_executable_identity_drift_refuses_replacement(

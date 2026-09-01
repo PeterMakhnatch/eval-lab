@@ -7,7 +7,6 @@ manifest that DuckDB can admit without inferring readiness from the filesystem.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -23,7 +22,7 @@ import pyarrow.parquet as pq
 from psycopg.types.json import Jsonb
 from pydantic import Field, model_validator
 
-from evallab.evidence_store import reopen_evidence_archive
+from evallab.evidence_store import EvidenceLocator, materialize_evidence, reopen_evidence_archive
 from evallab.interpretation.trajectory_judgment import canonical_json_digest
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel
@@ -75,24 +74,20 @@ class SettlementError(RuntimeError):
         self.reason_code = reason_code
 
 
-class CASRecordReference(ContractModel):
-    """Independent producer handoff for one immutable CAS record."""
-
-    record_path: Path
-    expected_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-
-
 class SettlementSource(ContractModel):
-    """Exact CAS authority bound to one source identity."""
+    """Exact independently anchored CAS authority bound to one source identity."""
 
     source_id: str = Field(min_length=1)
     source_kind: str = Field(min_length=1)
     authority_status: AuthorityStatus
+    cas_store_root: str | None = None
+    cas_record_kind: str | None = None
+    cas_record_id: str | None = None
+    cas_record_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     cas_uri: str | None = Field(default=None, pattern=r"^cas://sha256/[0-9a-f]{64}$")
     cas_content_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     cas_archive_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     source_manifest_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
-    record_path: str | None = None
     runtime_identity: dict[str, Any] | None = None
     compatibility_result: str | None = None
     authority_error: str | None = None
@@ -100,17 +95,29 @@ class SettlementSource(ContractModel):
     @model_validator(mode="after")
     def authority_is_complete_or_absent(self) -> SettlementSource:
         authority = (
+            self.cas_store_root,
+            self.cas_record_kind,
+            self.cas_record_id,
+            self.cas_record_digest,
             self.cas_uri,
             self.cas_content_digest,
             self.cas_archive_digest,
             self.source_manifest_digest,
-            self.record_path,
         )
         if self.authority_status == "verified":
             if any(value is None for value in authority):
                 raise ValueError("verified source requires complete CAS authority")
             if self.authority_error is not None:
                 raise ValueError("verified source cannot carry authority_error")
+            locator = self.evidence_locator
+            if locator.kind != self.source_kind or locator.record_id != self.source_id:
+                raise ValueError("settlement source identity differs from CAS locator")
+            if self.source_manifest_digest != locator.expected_record_digest:
+                raise ValueError("source manifest digest differs from CAS record digest")
+            if self.cas_uri != (
+                f"cas://sha256/{locator.expected_content_digest.removeprefix('sha256:')}"
+            ):
+                raise ValueError("CAS URI differs from locator content identity")
         else:
             if any(value is not None for value in authority):
                 raise ValueError("unverified source cannot carry partial CAS authority")
@@ -118,66 +125,50 @@ class SettlementSource(ContractModel):
                 raise ValueError("unverified source requires authority_error")
         return self
 
+    @property
+    def evidence_locator(self) -> EvidenceLocator:
+        if self.authority_status != "verified":
+            raise SettlementError("unverified_cas_authority", self.source_id)
+        return EvidenceLocator(
+            store_root=Path(str(self.cas_store_root)),
+            kind=str(self.cas_record_kind),
+            record_id=str(self.cas_record_id),
+            expected_record_digest=str(self.cas_record_digest),
+            expected_content_digest=str(self.cas_content_digest),
+        )
+
     @classmethod
-    def from_cas_record(
-        cls,
-        record_path: Path,
-        *,
-        expected_record_digest: str,
-    ) -> SettlementSource:
-        """Authenticate a record path against an independent producer digest."""
-        if not _DIGEST_PATTERN.fullmatch(expected_record_digest):
-            raise SettlementError(
-                "invalid_expected_record_digest",
-                expected_record_digest,
-            )
-        candidate = record_path.absolute()
-        if candidate.is_symlink() or not candidate.is_file():
-            raise SettlementError("invalid_cas_record_path", str(candidate))
-        path = candidate.resolve(strict=True)
-        if path.suffix != ".json" or path.parent.parent.name != "records":
-            raise SettlementError("invalid_cas_record_path", str(path))
-        source_kind = path.parent.name
-        source_id = path.stem
-        store_root = path.parents[2]
+    def from_cas_locator(cls, locator: EvidenceLocator) -> SettlementSource:
+        """Authenticate and materialize one independently anchored CAS record."""
+
         try:
-            handed_off_record_digest = f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
-        except OSError as exc:
-            raise SettlementError("invalid_cas_record", f"{type(exc).__name__}: {exc}") from exc
-        if handed_off_record_digest != expected_record_digest:
-            raise SettlementError(
-                "cas_record_digest_mismatch",
-                f"expected={expected_record_digest} actual={handed_off_record_digest}",
+            archive, _record_bytes = reopen_evidence_archive(
+                locator.store_root,
+                kind=locator.kind,
+                record_id=locator.record_id,
+                expected_record_digest=locator.expected_record_digest,
+                expected_content_digest=locator.expected_content_digest,
             )
-        try:
-            record, record_bytes = reopen_evidence_archive(
-                store_root,
-                kind=source_kind,
-                record_id=source_id,
-                expected_record_digest=expected_record_digest,
-            )
+            with materialize_evidence(locator) as restored:
+                if not restored.is_dir():
+                    raise ValueError("materialized CAS evidence is not a directory")
         except Exception as exc:
             raise SettlementError(
                 "invalid_cas_record",
                 f"{type(exc).__name__}: {exc}",
             ) from exc
-        actual_record_digest = f"sha256:{hashlib.sha256(record_bytes).hexdigest()}"
-        if actual_record_digest != expected_record_digest:
-            raise SettlementError(
-                "cas_record_digest_mismatch",
-                f"expected={expected_record_digest} actual={actual_record_digest}",
-            )
-        if record.manifest_path.resolve() != path:
-            raise SettlementError("cas_record_identity_mismatch", str(path))
         return cls(
-            source_id=source_id,
-            source_kind=source_kind,
+            source_id=locator.record_id,
+            source_kind=locator.kind,
             authority_status="verified",
-            cas_uri=record.uri,
-            cas_content_digest=record.content_digest,
-            cas_archive_digest=record.archive_digest,
-            source_manifest_digest=actual_record_digest,
-            record_path=str(path),
+            cas_store_root=str(locator.store_root),
+            cas_record_kind=locator.kind,
+            cas_record_id=locator.record_id,
+            cas_record_digest=locator.expected_record_digest,
+            cas_uri=archive.uri,
+            cas_content_digest=archive.content_digest,
+            cas_archive_digest=archive.archive_digest,
+            source_manifest_digest=locator.expected_record_digest,
         )
 
     @classmethod
@@ -191,6 +182,20 @@ class SettlementSource(ContractModel):
 
     def identity_payload(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
+
+    def catalog_identity(self) -> tuple[Any, ...]:
+        return (
+            self.source_id,
+            self.source_kind,
+            self.cas_store_root,
+            self.cas_record_kind,
+            self.cas_record_id,
+            self.cas_record_digest,
+            self.cas_uri,
+            self.cas_content_digest,
+            self.cas_archive_digest,
+            self.source_manifest_digest,
+        )
 
 
 class ProjectionColumn(ContractModel):
@@ -839,8 +844,10 @@ def _schema_from_columns(columns: Sequence[ProjectionColumn]) -> pa.Schema:
 
 
 def _arrow_type(value: str) -> pa.DataType:
-    aliases: dict[str, pa.DataType] = {
+    direct: dict[str, pa.DataType] = {
+        "null": pa.null(),
         "string": pa.string(),
+        "large_string": pa.large_string(),
         "bool": pa.bool_(),
         "int8": pa.int8(),
         "int16": pa.int16(),
@@ -853,14 +860,29 @@ def _arrow_type(value: str) -> pa.DataType:
         "float": pa.float32(),
         "double": pa.float64(),
         "binary": pa.binary(),
-        "timestamp[us, tz=UTC]": pa.timestamp("us", tz="UTC"),
-        "timestamp[ms, tz=UTC]": pa.timestamp("ms", tz="UTC"),
-        "list<item: string>": pa.list_(pa.string()),
+        "large_binary": pa.large_binary(),
+        "date32[day]": pa.date32(),
+        "date64[ms]": pa.date64(),
     }
-    try:
-        return aliases[value]
-    except KeyError as exc:
-        raise SettlementError("unsupported_manifest_arrow_type", value) from exc
+    if value in direct:
+        return direct[value]
+    if value.startswith(("list<", "large_list<")) and value.endswith(">"):
+        inner = value.split(": ", 1)
+        if len(inner) == 2:
+            item_type = _arrow_type(inner[1][:-1])
+            return (
+                pa.large_list(item_type) if value.startswith("large_list<") else pa.list_(item_type)
+            )
+    if value.startswith("timestamp[") and value.endswith("]"):
+        parameters = value[10:-1].split(", tz=", 1)
+        return pa.timestamp(parameters[0], tz=parameters[1] if len(parameters) == 2 else None)
+    if value.startswith("duration[") and value.endswith("]"):
+        return pa.duration(value[9:-1])
+    for prefix, factory in (("decimal128(", pa.decimal128), ("decimal256(", pa.decimal256)):
+        if value.startswith(prefix) and value.endswith(")"):
+            precision, scale = (int(part.strip()) for part in value[len(prefix) : -1].split(","))
+            return factory(precision, scale)
+    raise SettlementError("unsupported_manifest_arrow_type", value)
 
 
 def verify_projected_table(
@@ -985,9 +1007,7 @@ def _validate_manifest_file_replay(
     current_row = (
         current.state,
         current.manifest_digest,
-        source.source_id,
-        source.source_kind,
-        source.source_manifest_digest,
+        *source.catalog_identity(),
         contract.contract_digest,
         contract.producer_code_digest,
         current.rebuild_sequence,
@@ -1038,9 +1058,7 @@ def _validate_ledger_replay(
     source = manifest.source
     contract = manifest.contract
     expected_authority = (
-        source.source_id,
-        source.source_kind,
-        source.source_manifest_digest,
+        *source.catalog_identity(),
         contract.contract_digest,
         contract.producer_code_digest,
         manifest.rebuild_sequence,
@@ -1136,8 +1154,10 @@ def persist_settlement_manifest(
         current_row = connection.execute(
             """
             SELECT state, manifest_digest, source_id, source_kind,
-                   source_manifest_digest, contract_digest, producer_code_digest,
-                   rebuild_sequence, supersedes_settlement_id
+                   cas_store_root, cas_record_kind, cas_record_id,
+                   cas_record_digest, cas_uri, cas_content_digest,
+                   cas_archive_digest, source_manifest_digest, contract_digest,
+                   producer_code_digest, rebuild_sequence, supersedes_settlement_id
             FROM projection_settlements
             WHERE settlement_id = %s
             FOR UPDATE
@@ -1183,15 +1203,17 @@ def persist_settlement_manifest(
                 """
                 INSERT INTO projection_settlements (
                     settlement_id, source_id, source_kind, state, authority_status,
+                    cas_store_root, cas_record_kind, cas_record_id, cas_record_digest,
                     cas_uri, cas_content_digest, cas_archive_digest,
-                    source_manifest_digest, record_path, runtime_identity,
-                    compatibility_result, authority_error, required_tables,
-                    optional_tables, producer_name, producer_version,
-                    producer_code_digest, contract_digest, rebuild_sequence,
-                    supersedes_settlement_id, manifest_digest, created_at, updated_at
+                    source_manifest_digest, runtime_identity, compatibility_result,
+                    authority_error, required_tables, optional_tables, producer_name,
+                    producer_version, producer_code_digest, contract_digest,
+                    rebuild_sequence, supersedes_settlement_id, manifest_digest,
+                    created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -1200,11 +1222,14 @@ def persist_settlement_manifest(
                     source.source_kind,
                     manifest.state,
                     source.authority_status,
+                    source.cas_store_root,
+                    source.cas_record_kind,
+                    source.cas_record_id,
+                    source.cas_record_digest,
                     source.cas_uri,
                     source.cas_content_digest,
                     source.cas_archive_digest,
                     source.source_manifest_digest,
-                    source.record_path,
                     Jsonb(source.runtime_identity) if source.runtime_identity is not None else None,
                     source.compatibility_result,
                     source.authority_error,
@@ -1362,7 +1387,6 @@ __all__ = [
     "MANIFEST_DIRECTORY",
     "PROJECTION_SCHEMA_VERSION",
     "SETTLEMENT_DIRECTORY",
-    "CASRecordReference",
     "ManifestInventory",
     "ManifestLoadError",
     "ProjectionColumn",

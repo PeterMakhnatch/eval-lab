@@ -14,9 +14,9 @@ from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
 from evallab.evidence.parquet_io import write_table_atomic
-from evallab.results import JobRecord, TrialRecord, sha256_file
+from evallab.evidence_store import EvidenceLocator, materialize_evidence
+from evallab.results import JobRecord, TrialRecord, load_job, sha256_file
 from evallab.storage.settlement import (
-    CASRecordReference,
     ProjectionContract,
     ProjectionSettlementManifest,
     ProjectionTableContract,
@@ -1031,19 +1031,19 @@ def ingest_and_project(
     *,
     root: Path,
     output_root: Path,
-    source_records: Mapping[str, CASRecordReference] | None = None,
+    source_locators: Mapping[str, EvidenceLocator] | None = None,
     settlement_recorder: SettlementRecorder = persist_and_write_settlement,
 ) -> IngestProjectionResult:
-    """Catalog verified CAS sources, then settle exact Parquet publications."""
+    """Catalog independently authenticated CAS sources, then settle projections."""
     from evallab import database
     from evallab.evidence.facts import ingest_catalog
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
-    records = dict(source_records or {})
-    unexpected = sorted(set(records) - {job.id for job in ordered_jobs})
+    locators = dict(source_locators or {})
+    unexpected = sorted(set(locators) - {job.id for job in ordered_jobs})
     if unexpected:
-        raise SettlementError("unexpected_cas_source_records", ", ".join(unexpected))
+        raise SettlementError("unexpected_cas_source_locators", ", ".join(unexpected))
 
     database.initialize(database_url)
     manifests_by_job: dict[str, ProjectionSettlementManifest] = {}
@@ -1051,25 +1051,33 @@ def ingest_and_project(
     failures: list[ProjectionFailure] = []
 
     for job in ordered_jobs:
-        contract = _job_projection_contract(job)
-        record_reference = records.get(job.id)
-        if record_reference is None:
-            source = SettlementSource.quarantined(job.id, "job", "missing_cas_record")
+        effective_job = job
+        source_failure: str | None = None
+        locator = locators.get(job.id)
+        if locator is None:
+            source = SettlementSource.quarantined(job.id, "job", "missing_cas_locator")
         else:
             try:
-                source = SettlementSource.from_cas_record(
-                    record_reference.record_path,
-                    expected_record_digest=record_reference.expected_record_digest,
-                )
+                source = SettlementSource.from_cas_locator(locator)
             except SettlementError as exc:
                 source = SettlementSource.quarantined(job.id, "job", exc.reason_code)
-        if source.source_id != job.id or source.source_kind != "job":
-            source = SettlementSource.quarantined(
-                job.id,
-                "job",
-                "cas_record_identity_mismatch",
-            )
-
+            else:
+                if source.source_id != job.id or source.source_kind != "job":
+                    source = SettlementSource.quarantined(
+                        job.id,
+                        "job",
+                        "cas_record_identity_mismatch",
+                    )
+                else:
+                    try:
+                        with materialize_evidence(locator) as materialized:
+                            effective_job = load_job(materialized)
+                    except Exception:
+                        source_failure = "invalid_materialized_job"
+                    else:
+                        if effective_job.id != job.id:
+                            source_failure = "materialized_job_identity_mismatch"
+        contract = _job_projection_contract(effective_job)
         manifest = begin_or_resume_settlement(derived_root, source, contract)
         _record_settlement(
             settlement_recorder,
@@ -1077,12 +1085,13 @@ def ingest_and_project(
             derived_root,
             manifest,
         )
-        if source.authority_status != "verified":
+        failure_reason = source.authority_error or source_failure
+        if failure_reason is not None:
             quarantined_tables = [
                 _table_state(
                     table,
                     state="quarantined",
-                    failure_reason=source.authority_error,
+                    failure_reason=failure_reason,
                 )
                 for table in contract.tables
             ]
@@ -1091,7 +1100,7 @@ def ingest_and_project(
                     manifest,
                     "quarantined",
                     tables=quarantined_tables,
-                    reason_code=source.authority_error,
+                    reason_code=failure_reason,
                 )
                 _record_settlement(
                     settlement_recorder,
@@ -1100,12 +1109,17 @@ def ingest_and_project(
                     manifest,
                 )
             manifests_by_job[job.id] = manifest
+            error_type = (
+                "MissingCASAuthority"
+                if source.authority_status != "verified"
+                else "InvalidMaterializedJob"
+            )
             failures.append(
                 ProjectionFailure(
                     job_id=job.id,
                     job_name=job.name,
-                    error_type="MissingCASAuthority",
-                    message=f"MissingCASAuthority: {source.authority_error}",
+                    error_type=error_type,
+                    message=f"{error_type}: {failure_reason}",
                 )
             )
             continue
@@ -1117,7 +1131,7 @@ def ingest_and_project(
             manifest = transition_settlement(manifest, "cas_committed")
             _record_settlement(settlement_recorder, database_url, derived_root, manifest)
         manifests_by_job[job.id] = manifest
-        verified_jobs.append(job)
+        verified_jobs.append(effective_job)
 
     cataloged_jobs = 0
     if verified_jobs:

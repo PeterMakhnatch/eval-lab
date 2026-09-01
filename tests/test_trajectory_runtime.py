@@ -33,7 +33,7 @@ from evallab.analysis_capability import (
 from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts
 from evallab.evidence.capture_authority import CaptureAuthority
-from evallab.evidence_store import archive_evidence
+from evallab.evidence_store import EvidenceLocator, archive_evidence
 from evallab.interpretation.evidence_pack import OmittedRange, build_evidence_pack
 from evallab.interpretation.trajectory_acceptance import (
     AUTO_ACCEPTANCE_ENABLED,
@@ -76,11 +76,7 @@ from evallab.interpretation.trajectory_runtime import (
     load_campaign_analysis_manifest,
     rebuild_interpretation_projections,
 )
-from evallab.storage.settlement import (
-    CASRecordReference,
-    active_settlement_manifests,
-    load_settlement_manifests,
-)
+from evallab.storage.settlement import load_settlement_manifests
 
 REPO = Path(__file__).resolve().parents[1]
 REAL_INVENTORY = (
@@ -95,6 +91,18 @@ FAKE_CITATION = "sha256:" + "ab" * 32
 DIGEST_A = "sha256:" + "a" * 64
 DIGEST_B = "sha256:" + "b" * 64
 DIGEST_C = "sha256:" + "c" * 64
+
+
+def _artifact_locator(result: dict[str, object]) -> EvidenceLocator:
+    payload = result["artifact_locator"]
+    assert isinstance(payload, dict)
+    return EvidenceLocator(
+        store_root=Path(str(payload["store_root"])),
+        kind=str(payload["kind"]),
+        record_id=str(payload["record_id"]),
+        expected_record_digest=str(payload["expected_record_digest"]),
+        expected_content_digest=str(payload["expected_content_digest"]),
+    )
 
 
 def _report_payload() -> dict:
@@ -491,15 +499,8 @@ def test_parquet_rebuild_preserves_identities(tmp_path: Path) -> None:
     judgment_parquet.unlink()
     decision_parquet.unlink()
     rebuilt = rebuild_interpretation_projections(
-        output,
         derived,
-        store_root=tmp_path / "cas",
-        source_records={
-            result["decision_id"]: CASRecordReference(
-                record_path=Path(result["artifact_record_path"]),
-                expected_record_digest=result["artifact_record_digest"],
-            )
-        },
+        source_locators={result["decision_id"]: _artifact_locator(result)},
     )
     assert all(path.is_file() for path in rebuilt)
     import pyarrow.parquet as pq
@@ -514,58 +515,49 @@ def test_parquet_rebuild_preserves_identities(tmp_path: Path) -> None:
     assert set(artifacts.column("cas_uri").to_pylist()) == {result["artifact_cas_uri"]}
 
 
-def test_projection_rebuild_skips_partial_sidecar_set(tmp_path: Path) -> None:
+def test_projection_rebuild_ignores_live_sidecars_without_locator(tmp_path: Path) -> None:
     partial = tmp_path / "interpretation" / "trial" / "decision"
     partial.mkdir(parents=True)
     (partial / "acceptance_decision.json").write_text("{}")
 
     paths = rebuild_interpretation_projections(
-        tmp_path / "interpretation",
         tmp_path / "derived",
-        store_root=tmp_path / "cas",
+        source_locators={},
     )
 
     assert paths == []
     assert not list((tmp_path / "derived").rglob("*.parquet"))
 
 
-def test_projection_rebuild_quarantines_missing_independent_record_digest(
-    tmp_path: Path,
-) -> None:
-    trial_dir = _trial_tree(tmp_path, trial_name="projection-missing-digest")
-    output = tmp_path / "interpretation"
-    store = tmp_path / "cas"
+def test_projection_rebuild_requires_explicit_locator(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="projection-missing-locator")
     result = analyze_trial(
         trial_dir,
         repo_root=tmp_path,
-        store_root=store,
-        output_dir=output,
+        store_root=tmp_path / "cas",
+        output_dir=tmp_path / "interpretation",
         derived_root=tmp_path / "initial",
     )
 
     rebuilt = tmp_path / "rebuilt"
     paths = rebuild_interpretation_projections(
-        output,
         rebuilt,
-        store_root=store,
+        source_locators={},
     )
 
+    assert result["decision_id"]
     assert paths == []
-    manifest = active_settlement_manifests(load_settlement_manifests(rebuilt))[0]
-    assert manifest.source.source_id == result["decision_id"]
-    assert manifest.state == "quarantined"
-    assert manifest.events[-1].reason_code == "missing_independent_record_digest"
+    assert load_settlement_manifests(rebuilt).manifests == ()
     assert not list(rebuilt.rglob("*.parquet"))
 
 
-def test_projection_rebuild_rejects_tampered_complete_sidecars(tmp_path: Path) -> None:
-    trial_dir = _trial_tree(tmp_path, trial_name="projection-tamper")
+def test_projection_rebuild_ignores_tampered_live_sidecars(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="projection-live-tamper")
     output = tmp_path / "interpretation"
-    store = tmp_path / "cas"
     result = analyze_trial(
         trial_dir,
         repo_root=tmp_path,
-        store_root=store,
+        store_root=tmp_path / "cas",
         output_dir=output,
         derived_root=tmp_path / "derived",
     )
@@ -576,19 +568,12 @@ def test_projection_rebuild_rejects_tampered_complete_sidecars(tmp_path: Path) -
     judgment_path.write_text(json.dumps(judgment), encoding="utf-8")
 
     paths = rebuild_interpretation_projections(
-        output,
         tmp_path / "rebuilt",
-        store_root=store,
-        source_records={
-            result["decision_id"]: CASRecordReference(
-                record_path=Path(result["artifact_record_path"]),
-                expected_record_digest=result["artifact_record_digest"],
-            )
-        },
+        source_locators={result["decision_id"]: _artifact_locator(result)},
     )
 
-    assert paths == []
-    assert not list((tmp_path / "rebuilt").rglob("*.parquet"))
+    assert paths
+    assert all(path.is_file() for path in paths)
 
 
 def test_projection_rebuild_rejects_corrupt_interpretation_blob(tmp_path: Path) -> None:
@@ -602,23 +587,16 @@ def test_projection_rebuild_rejects_corrupt_interpretation_blob(tmp_path: Path) 
         output_dir=output,
         derived_root=tmp_path / "derived",
     )
-    record_path = Path(result["artifact_record_path"])
-    record = json.loads(record_path.read_text(encoding="utf-8"))
-    blob = store / record["blob_path"]
+    locator = _artifact_locator(result)
+    archive_digest = str(result["artifact_cas_uri"]).rsplit("/", 1)[-1]
+    blob = store / "blobs" / "sha256" / archive_digest[:2] / f"{archive_digest}.tar.gz"
     content = bytearray(blob.read_bytes())
     content[len(content) // 2] ^= 0x01
     blob.write_bytes(content)
 
     paths = rebuild_interpretation_projections(
-        output,
         tmp_path / "rebuilt",
-        store_root=store,
-        source_records={
-            result["decision_id"]: CASRecordReference(
-                record_path=record_path,
-                expected_record_digest=result["artifact_record_digest"],
-            )
-        },
+        source_locators={result["decision_id"]: locator},
     )
 
     assert paths == []

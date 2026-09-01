@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from evallab.evidence_store import EvidenceLocator
 from evallab.results import sha256_file
 from evallab.storage.settlement import (
     ProjectionSettlementManifest,
@@ -72,7 +73,9 @@ def read_postgres_settlement_rows(database_url: str) -> tuple[dict[str, Any], ..
     import psycopg
 
     query = """
-        SELECT settlement_id, source_kind, source_id, source_manifest_digest,
+        SELECT settlement_id, source_kind, source_id, authority_status,
+               cas_store_root, cas_record_kind, cas_record_id, cas_record_digest,
+               cas_uri, cas_content_digest, cas_archive_digest, source_manifest_digest,
                producer_code_digest, state
         FROM projection_settlements
         ORDER BY source_kind, source_id, rebuild_sequence, settlement_id
@@ -85,65 +88,79 @@ def read_postgres_settlement_rows(database_url: str) -> tuple[dict[str, Any], ..
 
 def _cas_sources(
     store_root: Path,
-    expected_source_digests: Mapping[tuple[str, str], str],
+    expected_source_locators: Mapping[tuple[str, str], EvidenceLocator],
 ) -> tuple[dict[tuple[str, str], SettlementSource], list[ReconciliationEntry]]:
+    store_root = store_root.resolve()
     sources: dict[tuple[str, str], SettlementSource] = {}
     errors: list[ReconciliationEntry] = []
-    records_root = store_root.resolve() / "records"
-    for kind in ("interpretation", "job"):
-        directory = records_root / kind
-        if not directory.is_dir():
+    records_root = store_root / "records"
+    observed_records: dict[tuple[str, str], Path] = {}
+    if records_root.is_dir():
+        for directory in sorted(records_root.iterdir(), key=lambda item: item.name):
+            if not directory.is_dir():
+                continue
+            for path in sorted(directory.glob("*.json"), key=lambda item: item.name):
+                observed_records[(directory.name, path.stem)] = path
+
+    for key, path in observed_records.items():
+        if key not in expected_source_locators:
+            errors.append(
+                ReconciliationEntry(
+                    source_kind=key[0],
+                    source_id=key[1],
+                    table_name=None,
+                    partition_identity=None,
+                    state="unverifiable",
+                    reason="CAS record has no independently supplied EvidenceLocator",
+                    source_record_path=path,
+                )
+            )
+
+    for key, locator in sorted(expected_source_locators.items()):
+        diagnostic_path = records_root / locator.kind / f"{locator.record_id}.json"
+        if key != (locator.kind, locator.record_id) or locator.store_root.resolve() != store_root:
+            errors.append(
+                ReconciliationEntry(
+                    source_kind=key[0],
+                    source_id=key[1],
+                    table_name=None,
+                    partition_identity=None,
+                    state="unverifiable",
+                    reason="EvidenceLocator coordinate does not match reconciliation inventory",
+                    source_record_path=diagnostic_path,
+                )
+            )
             continue
-        for path in sorted(directory.glob("*.json"), key=lambda item: item.name):
-            key = (kind, path.stem)
-            expected_record_digest = expected_source_digests.get(key)
-            if expected_record_digest is None:
-                errors.append(
-                    ReconciliationEntry(
-                        source_kind=kind,
-                        source_id=path.stem,
-                        table_name=None,
-                        partition_identity=None,
-                        state="unverifiable",
-                        reason="independent CAS record digest is unavailable",
-                        source_record_path=path,
-                    )
+        try:
+            sources[key] = SettlementSource.from_cas_locator(locator)
+        except Exception as exc:
+            errors.append(
+                ReconciliationEntry(
+                    source_kind=key[0],
+                    source_id=key[1],
+                    table_name=None,
+                    partition_identity=None,
+                    state="unverifiable",
+                    reason=f"invalid CAS locator: {type(exc).__name__}: {exc}",
+                    source_record_path=diagnostic_path,
                 )
-                continue
-            try:
-                source = SettlementSource.from_cas_record(
-                    path,
-                    expected_record_digest=expected_record_digest,
-                )
-            except Exception as exc:
-                errors.append(
-                    ReconciliationEntry(
-                        source_kind=kind,
-                        source_id=path.stem,
-                        table_name=None,
-                        partition_identity=None,
-                        state="unverifiable",
-                        reason=f"invalid CAS record: {type(exc).__name__}: {exc}",
-                        source_record_path=path,
-                    )
-                )
-                continue
-            key = (source.source_kind, source.source_id)
-            if key in sources:
-                errors.append(
-                    ReconciliationEntry(
-                        source_kind=kind,
-                        source_id=source.source_id,
-                        table_name=None,
-                        partition_identity=None,
-                        state="unverifiable",
-                        reason="duplicate CAS source identity",
-                        source_record_path=path,
-                    )
-                )
-                continue
-            sources[key] = source
+            )
     return sources, errors
+
+
+def _source_record_diagnostic_path(source: SettlementSource) -> Path | None:
+    if (
+        source.cas_store_root is None
+        or source.cas_record_kind is None
+        or source.cas_record_id is None
+    ):
+        return None
+    return (
+        Path(source.cas_store_root)
+        / "records"
+        / source.cas_record_kind
+        / f"{source.cas_record_id}.json"
+    )
 
 
 def _manifest_paths(root: Path, manifests: Iterable[ProjectionSettlementManifest]) -> set[Path]:
@@ -222,7 +239,7 @@ def reconcile_projection_inventory(
     database_url: str | None = None,
     interpretation_sidecar_roots: Sequence[Path] = (),
     expected_producer_digests: Mapping[str, str] | None = None,
-    expected_source_digests: Mapping[tuple[str, str], str] | None = None,
+    expected_source_locators: Mapping[tuple[str, str], EvidenceLocator] | None = None,
 ) -> ReconciliationInventory:
     """Return a deterministic inventory; never adopt, delete, or rewrite state."""
     if postgres_rows is not None and database_url is not None:
@@ -230,20 +247,28 @@ def reconcile_projection_inventory(
     if database_url is not None:
         postgres_rows = read_postgres_settlement_rows(database_url)
     catalog_rows = tuple(postgres_rows) if postgres_rows is not None else None
-    trusted_source_digests = dict(expected_source_digests or {})
+    trusted_source_locators = dict(expected_source_locators or {})
     if catalog_rows is not None:
         for row in catalog_rows:
-            source_kind = row.get("source_kind")
-            source_id = row.get("source_id")
-            record_digest = row.get("source_manifest_digest")
-            if all(
-                isinstance(value, str) and value
-                for value in (source_kind, source_id, record_digest)
-            ):
-                trusted_source_digests[(source_kind, source_id)] = record_digest
+            if row.get("authority_status") != "verified":
+                continue
+            try:
+                locator = EvidenceLocator(
+                    store_root=Path(str(row["cas_store_root"])),
+                    kind=str(row["cas_record_kind"]),
+                    record_id=str(row["cas_record_id"]),
+                    expected_record_digest=str(row["cas_record_digest"]),
+                    expected_content_digest=str(row["cas_content_digest"]),
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+            trusted_source_locators.setdefault(
+                (locator.kind, locator.record_id),
+                locator,
+            )
 
     derived_root = derived_root.resolve()
-    sources, entries = _cas_sources(store_root, trusted_source_digests)
+    sources, entries = _cas_sources(store_root, trusted_source_locators)
     manifest_inventory = load_settlement_manifests(derived_root)
     manifests = () if manifest_inventory.errors else active_settlement_manifests(manifest_inventory)
     for error in manifest_inventory.errors:
@@ -272,7 +297,7 @@ def reconcile_projection_inventory(
                     partition_identity=None,
                     state="missing_projection",
                     reason="verified CAS source has no active settlement",
-                    source_record_path=Path(source.source_record_path or ""),
+                    source_record_path=_source_record_diagnostic_path(source),
                 )
             )
 
@@ -299,7 +324,7 @@ def reconcile_projection_inventory(
                     settlement_id=manifest.settlement_id,
                 )
             )
-        elif verified_source.source_manifest_digest != manifest.source.source_manifest_digest:
+        elif verified_source.catalog_identity() != manifest.source.catalog_identity():
             entries.append(
                 ReconciliationEntry(
                     source_kind=source_key[0],
@@ -307,8 +332,8 @@ def reconcile_projection_inventory(
                     table_name=None,
                     partition_identity=None,
                     state="digest_mismatch",
-                    reason="settlement source record digest differs from verified CAS record",
-                    source_record_path=Path(verified_source.source_record_path or ""),
+                    reason="settlement EvidenceLocator identity differs from verified CAS source",
+                    source_record_path=_source_record_diagnostic_path(verified_source),
                     settlement_id=manifest.settlement_id,
                 )
             )
@@ -348,8 +373,19 @@ def reconcile_projection_inventory(
                     )
                 )
             else:
-                catalog_digest = row.get("source_manifest_digest")
-                if catalog_digest != manifest.source.source_manifest_digest:
+                catalog_source_identity = (
+                    row.get("source_id"),
+                    row.get("source_kind"),
+                    row.get("cas_store_root"),
+                    row.get("cas_record_kind"),
+                    row.get("cas_record_id"),
+                    row.get("cas_record_digest"),
+                    row.get("cas_uri"),
+                    row.get("cas_content_digest"),
+                    row.get("cas_archive_digest"),
+                    row.get("source_manifest_digest"),
+                )
+                if catalog_source_identity != manifest.source.catalog_identity():
                     entries.append(
                         ReconciliationEntry(
                             source_kind=source_key[0],
@@ -357,7 +393,7 @@ def reconcile_projection_inventory(
                             table_name=None,
                             partition_identity=None,
                             state="digest_mismatch",
-                            reason="PostgreSQL source record digest differs from manifest",
+                            reason="PostgreSQL EvidenceLocator identity differs from manifest",
                             settlement_id=manifest.settlement_id,
                         )
                     )

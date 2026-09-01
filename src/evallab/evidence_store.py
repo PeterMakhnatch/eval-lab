@@ -449,7 +449,6 @@ def archive_evidence(
         file_count=manifest["file_count"],
         uncompressed_bytes=manifest["uncompressed_bytes"],
         record_digest=f"sha256:{hashlib.sha256(record_bytes).hexdigest()}",
-
     )
 
 

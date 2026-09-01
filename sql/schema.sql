@@ -674,11 +674,14 @@ CREATE TABLE IF NOT EXISTS projection_settlements (
         )
     ),
     authority_status text NOT NULL CHECK (authority_status IN ('verified', 'unverified')),
+    cas_store_root text,
+    cas_record_kind text,
+    cas_record_id text,
+    cas_record_digest text,
     cas_uri text,
     cas_content_digest text,
     cas_archive_digest text,
     source_manifest_digest text,
-    record_path text,
     runtime_identity jsonb,
     compatibility_result text,
     authority_error text,
@@ -696,20 +699,29 @@ CREATE TABLE IF NOT EXISTS projection_settlements (
     CHECK (
         (
             authority_status = 'verified'
+            AND cas_store_root IS NOT NULL
+            AND cas_record_kind IS NOT NULL
+            AND cas_record_id IS NOT NULL
+            AND cas_record_digest IS NOT NULL
             AND cas_uri IS NOT NULL
             AND cas_content_digest IS NOT NULL
             AND cas_archive_digest IS NOT NULL
             AND source_manifest_digest IS NOT NULL
-            AND record_path IS NOT NULL
+            AND cas_record_kind = source_kind
+            AND cas_record_id = source_id
+            AND cas_record_digest = source_manifest_digest
             AND authority_error IS NULL
         )
         OR (
             authority_status = 'unverified'
+            AND cas_store_root IS NULL
+            AND cas_record_kind IS NULL
+            AND cas_record_id IS NULL
+            AND cas_record_digest IS NULL
             AND cas_uri IS NULL
             AND cas_content_digest IS NULL
             AND cas_archive_digest IS NULL
             AND source_manifest_digest IS NULL
-            AND record_path IS NULL
             AND authority_error IS NOT NULL
         )
     ),

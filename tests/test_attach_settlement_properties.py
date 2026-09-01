@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import duckdb
 import pyarrow as pa
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from evallab.storage.attach import TABLES, _attach_z3
+from evallab.storage.attach import TABLES, attach
 from evallab.storage.settlement import (
     ProjectionContract,
     ProjectionTableSettlement,
@@ -31,11 +30,14 @@ def _partial_manifest(root: Path, table_count: int) -> None:
         source_id="fixture",
         source_kind="job",
         authority_status="verified",
+        cas_store_root="/tmp/cas",
+        cas_record_kind="job",
+        cas_record_id="fixture",
+        cas_record_digest=_DIGEST_C,
         cas_uri="cas://sha256/" + "a" * 64,
         cas_content_digest=_DIGEST_A,
         cas_archive_digest=_DIGEST_B,
         source_manifest_digest=_DIGEST_C,
-        record_path="/tmp/records/job/fixture.json",
     )
     contracts = tuple(
         table_contract(
@@ -91,29 +93,27 @@ def _partial_manifest(root: Path, table_count: int) -> None:
 def test_any_incomplete_manifest_coverage_is_never_ready(tmp_path: Path, table_count: int) -> None:
     root = tmp_path / f"case-{table_count}"
     _partial_manifest(root, table_count)
-    connection = duckdb.connect(":memory:")
-    connection.execute("CREATE SCHEMA z3")
-    status = _attach_z3(connection, root)
+    result = attach(repo_root=tmp_path, explicit_derived=root)
+    status = next(zone for zone in result.zones if zone.name == "z3")
     try:
         assert status.state == "partial"
         assert status.attached is False
         assert sum(table.state == "not_applicable" for table in status.tables) == table_count
         assert sum(table.state == "missing" for table in status.tables) == len(TABLES) - table_count
     finally:
-        connection.close()
+        result.connection.close()
 
 
 def test_missing_and_empty_derived_roots_are_explicitly_unavailable(tmp_path: Path) -> None:
     for root in (tmp_path / "missing", tmp_path / "empty"):
         if root.name == "empty":
             root.mkdir()
-        connection = duckdb.connect(":memory:")
-        connection.execute("CREATE SCHEMA z3")
-        status = _attach_z3(connection, root)
+        result = attach(repo_root=tmp_path, explicit_derived=root)
+        status = next(zone for zone in result.zones if zone.name == "z3")
         try:
             assert status.state == "unavailable"
             assert status.attached is False
             assert len(status.tables) == len(TABLES)
             assert {table.state for table in status.tables} == {"missing"}
         finally:
-            connection.close()
+            result.connection.close()

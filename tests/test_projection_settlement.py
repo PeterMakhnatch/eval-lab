@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,7 +12,7 @@ from pydantic import ValidationError
 from evallab import database
 from evallab.evidence import atif, parquet_io
 from evallab.evidence.parquet_io import write_table_atomic
-from evallab.evidence_store import archive_evidence
+from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
 from evallab.interpretation import trajectory_runtime
 from evallab.storage import settlement as settlement_module
 from evallab.storage.attach import _attach_z3
@@ -52,11 +51,14 @@ def _source() -> SettlementSource:
         source_id="job-1",
         source_kind="job",
         authority_status="verified",
+        cas_store_root="/tmp/cas",
+        cas_record_kind="job",
+        cas_record_id="job-1",
+        cas_record_digest=_DIGEST_C,
         cas_uri="cas://sha256/" + "a" * 64,
         cas_content_digest=_DIGEST_A,
         cas_archive_digest=_DIGEST_B,
         source_manifest_digest=_DIGEST_C,
-        record_path="/tmp/records/job/job-1.json",
     )
 
 
@@ -135,33 +137,45 @@ def _ready_manifest(
     return manifest, path
 
 
-def test_record_path_handoff_binds_exact_record_bytes(tmp_path: Path) -> None:
+def test_evidence_locator_handoff_binds_exact_record_and_content_bytes(tmp_path: Path) -> None:
     source_dir = tmp_path / "job-source"
     source_dir.mkdir()
     (source_dir / "result.json").write_text('{"ok": true}\n')
+    store_root = tmp_path / "store"
     archive = archive_evidence(
         source_dir,
-        tmp_path / "store",
+        store_root,
         kind="job",
         record_id="job-1",
     )
+    locator = evidence_locator(store_root, archive)
+    source = SettlementSource.from_cas_locator(locator)
 
-    expected_record_digest = (
-        "sha256:" + hashlib.sha256(archive.manifest_path.read_bytes()).hexdigest()
-    )
-    source = SettlementSource.from_cas_record(
-        archive.manifest_path,
-        expected_record_digest=expected_record_digest,
-    )
-
-    assert source.source_manifest_digest == expected_record_digest
-    with pytest.raises(SettlementError, match="cas_record_digest_mismatch"):
-        SettlementSource.from_cas_record(
-            archive.manifest_path,
-            expected_record_digest=_DIGEST_A,
-        )
+    assert source.evidence_locator == locator
+    assert source.source_manifest_digest == archive.record_digest
     assert source.cas_content_digest == archive.content_digest
     assert source.cas_archive_digest == archive.archive_digest
+
+    with pytest.raises(SettlementError, match="invalid_cas_record"):
+        SettlementSource.from_cas_locator(
+            EvidenceLocator(
+                store_root=store_root,
+                kind="job",
+                record_id="job-1",
+                expected_record_digest=_DIGEST_A,
+                expected_content_digest=archive.content_digest,
+            )
+        )
+    with pytest.raises(SettlementError, match="invalid_cas_record"):
+        SettlementSource.from_cas_locator(
+            EvidenceLocator(
+                store_root=store_root,
+                kind="job",
+                record_id="job-1",
+                expected_record_digest=archive.record_digest,
+                expected_content_digest=_DIGEST_A,
+            )
+        )
 
 
 def test_missing_cas_authority_is_quarantined_before_catalog(
@@ -334,9 +348,7 @@ def _catalog_snapshot(manifest):
     current = (
         manifest.state,
         manifest.manifest_digest,
-        source.source_id,
-        source.source_kind,
-        source.source_manifest_digest,
+        *source.catalog_identity(),
         contract.contract_digest,
         contract.producer_code_digest,
         manifest.rebuild_sequence,
@@ -460,11 +472,8 @@ def test_reconciliation_reports_matched_and_extra_without_mutation(tmp_path: Pat
         kind="job",
         record_id="job-1",
     )
-    record_digest = "sha256:" + hashlib.sha256(archive.manifest_path.read_bytes()).hexdigest()
-    source = SettlementSource.from_cas_record(
-        archive.manifest_path,
-        expected_record_digest=record_digest,
-    )
+    locator = evidence_locator(tmp_path / "store", archive)
+    source = SettlementSource.from_cas_locator(locator)
     root = tmp_path / "derived" / "parquet"
     _ready_manifest(root, source, _contract())
     orphan = root / "orphan.parquet"
@@ -474,12 +483,12 @@ def test_reconciliation_reports_matched_and_extra_without_mutation(tmp_path: Pat
     first = reconcile_projection_inventory(
         store_root=tmp_path / "store",
         derived_root=root,
-        expected_source_digests={("job", "job-1"): record_digest},
+        expected_source_locators={("job", "job-1"): locator},
     )
     second = reconcile_projection_inventory(
         store_root=tmp_path / "store",
         derived_root=root,
-        expected_source_digests={("job", "job-1"): record_digest},
+        expected_source_locators={("job", "job-1"): locator},
     )
 
     assert first == second
@@ -545,6 +554,7 @@ def test_supersession_inventory_rejects_dangling_cross_source_and_fork(
         **{
             **_source().model_dump(mode="python"),
             "source_id": "job-2",
+            "cas_record_id": "job-2",
         }
     )
     cross_source = create_settlement_manifest(
@@ -563,6 +573,7 @@ def test_supersession_inventory_rejects_dangling_cross_source_and_fork(
         successor_source = SettlementSource(
             **{
                 **_source().model_dump(mode="python"),
+                "cas_record_digest": "sha256:" + suffix * 64,
                 "source_manifest_digest": "sha256:" + suffix * 64,
             }
         )

@@ -1285,7 +1285,7 @@ class TestDuckDBViews:
             assert regraded is not None
             assert regraded[5] == "regrade_authoritative"
             assert regraded[6] == pytest.approx(0.5)
-            assert regraded[7] is True
+            assert regraded[7] is False
             assert regraded[9] == "o4"
 
             disputed = con.execute(

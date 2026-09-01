@@ -45,6 +45,7 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     evaluate_trial_compliance,
 )
+from evallab.network_isolation_runtime import current_dispatch_isolation_identity
 from evallab.profiles import (
     CONTROL_ADAPTERS,
     AgentProfile,
@@ -52,6 +53,7 @@ from evallab.profiles import (
     SecurityRunner,
     compute_qualification_digest,
     evaluate_profile_readiness,
+    load_readiness_record,
     save_readiness_record,
 )
 from evallab.quota import (
@@ -73,6 +75,7 @@ from evallab.registry import (
     TaskUsageNotAllowedError,
     TaskVersionMismatchError,
     compute_task_digests,
+    task_runtime_identity,
 )
 from evallab.results import duration_seconds, load_job
 from evallab.runner import (
@@ -90,6 +93,7 @@ from evallab.runner import (
     transient_provider_exception,
 )
 from evallab.schemas import (
+    CAUSAL_EXPERIMENT_PURPOSES,
     EXPERIMENT_PURPOSES,
     AgentGateEvaluations,
     AgentQualificationDigest,
@@ -97,6 +101,8 @@ from evallab.schemas import (
     AgentSmokeRecord,
     AutoRunRule,
     ExperimentSpec,
+    NetworkIsolationDispatchIdentityV1,
+    NetworkIsolationEvidenceV1,
     PolicyDecision,
     QueueEvent,
     QueueReason,
@@ -106,6 +112,11 @@ from evallab.schemas import (
     canonical_grid_point_id,
 )
 from evallab.storage.paths import derived_root_from_environment
+
+
+class _CampaignDispatchValidationError(ExecutionFailure):
+    """Campaign authority failed before runner execution."""
+
 
 QUEUE_STATES: tuple[QueueState, ...] = (
     "proposed",
@@ -1290,6 +1301,9 @@ class DirectoryQueue:
 CredentialProbe = Callable[[], frozenset[str]]
 RunCallable = Callable[[RunRequest], Path]
 IngestCallable = Callable[[Path], IngestProjectionResult | None]
+IsolationIdentityProvider = Callable[
+    [NetworkIsolationEvidenceV1], NetworkIsolationDispatchIdentityV1
+]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
@@ -1343,6 +1357,7 @@ class Executor:
         progress: ProgressCallable | None = None,
         sleeper: Sleeper = time.sleep,
         compliance: ComplianceCallable | None = None,
+        isolation_identity_provider: IsolationIdentityProvider | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
@@ -1358,6 +1373,9 @@ class Executor:
         self._runner = runner or self._run_harbor
         self._compliance = compliance or self._evaluate_post_run_compliance
         self._ingester = ingester or self._ingest
+        self._isolation_identity_provider = (
+            isolation_identity_provider or current_dispatch_isolation_identity
+        )
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
         self._progress = progress
@@ -1583,14 +1601,17 @@ class Executor:
             )
         return None
 
-    def _validate_campaign_dispatch_spec(
-        self,
-        spec: ExperimentSpec,
-        *,
-        source: Path,
-    ) -> None:
-        spec_id = str(spec.spec_id or "")
-        provenance_present = any(
+    @staticmethod
+    def _is_control_bootstrap_spec(spec: ExperimentSpec) -> bool:
+        return (
+            spec.agent in {"oracle", "nop"}
+            and spec.purpose == "baseline"
+            and spec.task.startswith("registered/")
+        )
+
+    @staticmethod
+    def _has_campaign_provenance(spec: ExperimentSpec) -> bool:
+        return any(
             value is not None
             for value in (
                 spec.campaign_ledger,
@@ -1601,7 +1622,23 @@ class Executor:
                 spec.campaign_evidence_store,
             )
         )
+
+    def _validate_campaign_dispatch_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        source: Path,
+        live_rebind: bool = True,
+    ) -> None:
+        spec_id = str(spec.spec_id or "")
+        provenance_present = self._has_campaign_provenance(spec)
         campaign_source = "campaign-" in source.name
+        control_bootstrap = self._is_control_bootstrap_spec(spec)
+        if control_bootstrap and not provenance_present:
+            raise _CampaignDispatchValidationError(
+                "control_bootstrap_binding_missing",
+                "registered baseline controls require a frozen campaign runtime binding",
+            )
         if not provenance_present and not campaign_source and not spec_id.startswith("campaign-"):
             return
         if (
@@ -1609,7 +1646,7 @@ class Executor:
             or spec.campaign_ledger is None
             or spec.campaign_manifest_digest is None
         ):
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_binding_missing",
                 "campaign queue record lost its frozen manifest binding",
             )
@@ -1623,13 +1660,13 @@ class Executor:
             with os.fdopen(descriptor, "rb") as handle:
                 manifest = CampaignManifest.model_validate_json(handle.read())
         except Exception as exc:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_manifest_unavailable",
                 "frozen campaign manifest cannot be validated at dispatch",
             ) from exc
         matches = [attempt for attempt in manifest.attempts if attempt.spec_id == spec_id]
         if len(matches) != 1:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_attempt_unbound",
                 "queued campaign spec is not uniquely present in the frozen manifest",
             )
@@ -1639,10 +1676,60 @@ class Executor:
             or spec.campaign_spec_digest != attempt.spec_digest
             or experiment_spec_digest(spec) != attempt.spec_digest
         ):
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_spec_drifted",
                 "queued campaign spec differs from its frozen attempt",
             )
+        runtime_identity = attempt.runtime_identity
+        if spec.billable or control_bootstrap:
+            if runtime_identity is None:
+                label = "billable" if spec.billable else "control-bootstrap"
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_identity_missing",
+                    f"{label} campaign attempt has no isolation-bound runtime identity",
+                )
+            if not live_rebind:
+                return
+            evidence = runtime_identity.network_isolation_evidence
+            try:
+                live_identity = self._isolation_identity_provider(evidence)
+            except Exception as exc:
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_identity_unavailable",
+                    "live isolation runtime identity cannot be established",
+                ) from exc
+            if (
+                live_identity.runtime_identity != evidence.runtime_identity
+                or live_identity.probe_identity != evidence.probe_identity
+            ):
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_identity_drift",
+                    "live runtime/image/adapter/probe identity differs from isolation evidence",
+                )
+            projection = runtime_identity.network_isolation_evidence.project(
+                as_of=datetime.now(UTC)
+            )
+            if (
+                runtime_identity.network_isolation_status,
+                runtime_identity.network_isolation_reason,
+                runtime_identity.analysis_eligibility,
+            ) != (
+                projection.status,
+                projection.reason,
+                projection.analysis_eligibility,
+            ):
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_evidence_stale",
+                    "campaign isolation evidence no longer matches its current projection",
+                )
+            if (
+                spec.purpose in CAUSAL_EXPERIMENT_PURPOSES
+                and projection.analysis_eligibility != "causal-eligible"
+            ):
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_ineligible",
+                    "causal campaign attempt lacks enforced current isolation evidence",
+                )
 
     def _dispatch_one(
         self,
@@ -1652,8 +1739,12 @@ class Executor:
         credentials: frozenset[str],
     ) -> bool:
         try:
-            self._validate_campaign_dispatch_spec(spec, source=path)
-        except ExecutionFailure as exc:
+            self._validate_campaign_dispatch_spec(
+                spec,
+                source=path,
+                live_rebind=False,
+            )
+        except _CampaignDispatchValidationError as exc:
             failure = PolicyDecision(
                 admitted=False,
                 reason_code=exc.reason_code,
@@ -1782,6 +1873,8 @@ class Executor:
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
                 self._report_progress(f"failed {spec.name} ({failure.reason_code}); state: failed")
+                if isinstance(execution_error, _CampaignDispatchValidationError):
+                    return False
             else:
                 failure = self._settle_post_run(
                     job_dir,
@@ -1917,12 +2010,18 @@ class Executor:
         *,
         lease_generation: str | None = None,
     ) -> Path:
+        self._validate_campaign_dispatch_spec(
+            spec,
+            source=Path(),
+        )
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
         package_digest = None
         timeout_seconds = spec.timeout_seconds
         canonical_task_path = spec.executable_task_path
+        resolved_task_runtime = spec.task_runtime_identity
+        resolved_registry_record = None
         task_id = spec.task_id
 
         if spec.task.startswith("registered/"):
@@ -1938,6 +2037,7 @@ class Executor:
             task_version = resolved.version
             verifier_digest = resolved.digests.verifier
             package_digest = resolved.digests.package
+            resolved_registry_record = resolved
             task_id = resolved.task_id
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
         elif spec.task_package_digest is not None:
@@ -1954,6 +2054,24 @@ class Executor:
             raise ExecutionFailure(
                 "task_digest_mismatch",
                 "resolved task package differs from the frozen campaign digest",
+            )
+        if resolved_registry_record is not None:
+            current_task_runtime = task_runtime_identity(resolved_registry_record)
+            if resolved_task_runtime is not None and resolved_task_runtime != current_task_runtime:
+                raise ExecutionFailure(
+                    "task_runtime_identity_mismatch",
+                    "resolved registry revision differs from the frozen task runtime identity",
+                )
+            resolved_task_runtime = current_task_runtime
+        if resolved_task_runtime is not None and (
+            resolved_task_runtime.registry_admission_state != "registered"
+            or resolved_task_runtime.task_id != task_id
+            or resolved_task_runtime.task_version != task_version
+            or resolved_task_runtime.certified_runtime_package_digest != package_digest
+        ):
+            raise ExecutionFailure(
+                "task_runtime_identity_mismatch",
+                "execution task bytes or registry admission differ from the frozen identity",
             )
         grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
         bound_values = (
@@ -2109,12 +2227,46 @@ class Executor:
                 campaign_attempt_id=spec.campaign_attempt_id,
                 campaign_attempt_index=spec.campaign_attempt_index,
                 campaign_manifest_digest=spec.campaign_manifest_digest,
+                task_runtime_identity=resolved_task_runtime,
+                network_isolation_evidence=spec.network_isolation_evidence,
+                network_isolation_evidence_digest=spec.network_isolation_evidence_digest,
+                network_isolation_status=spec.network_isolation_status,
+                network_isolation_reason=spec.network_isolation_reason,
+                analysis_eligibility=spec.analysis_eligibility,
                 campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
         job_dir = self._run_with_transient_retries(spec, request)
         self._assert_persistent_artifacts_safe(spec, job_dir)
+        if self._is_control_bootstrap_spec(spec):
+            job_dir = self._promote_control_bootstrap_job(job_dir)
         return job_dir
+
+    def _promote_control_bootstrap_job(self, job_dir: Path) -> Path:
+        source = job_dir.resolve()
+        exploration_root = (self.repo_root / "runs").resolve()
+        if source.parent != exploration_root:
+            raise ExecutionFailure(
+                "control_bootstrap_job_path_invalid",
+                "control-bootstrap job must originate as one immediate runs/ child",
+            )
+        load_job(source)
+        durable_root = (self.repo_root / "research/evidence/runs").resolve()
+        durable_root.mkdir(parents=True, exist_ok=True)
+        destination = durable_root / source.name
+        if destination.exists():
+            raise ExecutionFailure(
+                "control_bootstrap_job_conflict",
+                "durable control-bootstrap job destination already exists",
+            )
+        source.rename(destination)
+        for directory in (exploration_root, durable_root):
+            descriptor = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        return destination
 
     def _run_with_transient_retries(
         self,
@@ -2563,6 +2715,11 @@ class Executor:
                     canary="blocked",
                 ),
                 last_smoke=smoke_record,
+                network_isolation_evidence=readiness.network_isolation_evidence,
+                network_isolation_evidence_digest=readiness.network_isolation_evidence_digest,
+                network_isolation_status=readiness.network_isolation_status,
+                network_isolation_reason=readiness.network_isolation_reason,
+                analysis_eligibility=readiness.analysis_eligibility,
                 updated_at=datetime.now(UTC),
             ),
         )
@@ -2599,6 +2756,10 @@ class Executor:
             if not ok or smoke_rec is None:
                 return False, None, f"Repeat {index + 1}/{repeats} failed: {err}"
             smoke_records.append(smoke_rec)
+
+        current_readiness = load_readiness_record(profile.profile_id, root=self.repo_root)
+        if current_readiness is None:
+            return False, None, "Qualification lost its persisted readiness evidence"
 
         qualification = AgentQualificationDigest(
             schema_version=2,
@@ -2639,6 +2800,13 @@ class Executor:
                 ),
                 last_smoke=smoke_records[-1],
                 qualification=qualification,
+                network_isolation_evidence=current_readiness.network_isolation_evidence,
+                network_isolation_evidence_digest=(
+                    current_readiness.network_isolation_evidence_digest
+                ),
+                network_isolation_status=current_readiness.network_isolation_status,
+                network_isolation_reason=current_readiness.network_isolation_reason,
+                analysis_eligibility=current_readiness.analysis_eligibility,
                 updated_at=datetime.now(UTC),
             ),
         )
@@ -2809,9 +2977,10 @@ class Executor:
 
     def _ingest(self, job_dir: Path) -> IngestProjectionResult:
         url = database_url_from_environment()
+        job = load_job(job_dir)
         return ingest_and_project(
             url,
-            [load_job(job_dir)],
+            [job],
             root=self.repo_root,
             output_root=derived_root_from_environment(self.repo_root),
         )

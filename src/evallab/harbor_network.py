@@ -25,9 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from evallab.schemas import DARWIN_ISOLATION_UNAVAILABLE_REASON
+
 NetworkMode = Literal["public", "no-network", "allowlist"]
 
-ADAPTER_VERSION = "1.0.0"
+ADAPTER_VERSION = "1.1.0"
 
 
 def adapter_digest() -> str:
@@ -40,9 +42,9 @@ def adapter_digest() -> str:
 class HarborNetworkPolicy:
     """Network policy the current host can actually run.
 
-    ``network_isolation_enforced`` is ``True`` only when the host platform is
-    known to support Harbor's no-network Docker enforcement (Linux). On other
-    platforms the policy is ``public`` and no isolation is claimed.
+    ``network_isolation_enforced`` is a host capability hint used only to adapt
+    the executable task policy. Causal admission requires the independent,
+    digest-bound five-class probe evidence contract.
     """
 
     network_mode: NetworkMode
@@ -53,8 +55,9 @@ class HarborNetworkPolicy:
 def host_harbor_network_policy() -> HarborNetworkPolicy:
     """Return the network policy appropriate for the current host.
 
-    Linux: ``no-network`` with isolation enforced. macOS and other unsupported
-    platforms: ``public`` with isolation unenforced and a documented reason.
+    Linux requests ``no-network`` when supported. macOS and other unsupported
+    platforms adapt to ``public``. Neither platform name nor this capability
+    hint is isolation evidence.
     """
     system = platform.system()
     if system == "Linux":
@@ -67,7 +70,7 @@ def host_harbor_network_policy() -> HarborNetworkPolicy:
         return HarborNetworkPolicy(
             network_mode="public",
             network_isolation_enforced=False,
-            network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+            network_isolation_reason=DARWIN_ISOLATION_UNAVAILABLE_REASON,
         )
     return HarborNetworkPolicy(
         network_mode="public",

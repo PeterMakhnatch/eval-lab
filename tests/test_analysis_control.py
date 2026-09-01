@@ -87,6 +87,27 @@ def test_materializes_all_stable_control_views() -> None:
 
         for view_name in CONTROL_VIEW_NAMES:
             connection.execute(f"SELECT * FROM {view_name} LIMIT 1").fetchall()
+        readiness_authority = connection.execute(
+            "SELECT DISTINCT network_isolation_status, analysis_eligibility, "
+            "causal_analysis_eligible FROM v_agent_readiness"
+        ).fetchall()
+        assert {row[0] for row in readiness_authority} == {"unknown", "unavailable"}
+        assert {row[1:] for row in readiness_authority} == {("calibration-only", False)}
+
+        outcome_authority = connection.execute(
+            "SELECT DISTINCT network_isolation_status, analysis_eligibility, "
+            "trial_admissibility_decision, trial_allowed_use, "
+            "is_admissible_for_aggregation FROM v_composite_outcome_validity"
+        ).fetchall()
+        assert outcome_authority == [
+            (
+                "unknown",
+                "calibration-only",
+                "unavailable",
+                "descriptive-only",
+                False,
+            )
+        ]
 
 
 def test_bbo_and_game2048_authority_bindings() -> None:
@@ -113,12 +134,12 @@ def test_bbo_and_game2048_authority_bindings() -> None:
             "original_verifier_authoritative",
         )
         assert bbo_row[5] == pytest.approx(0.18143598030936073)
-        assert bbo_row[6] is True
+        assert bbo_row[6] is False
 
         game_row = composite["game2048_policy_search__QzNuUbN"]
         assert game_row[1:5] == ("timed_out", "regrade_valid", "preserved", "regrade_authoritative")
         assert game_row[5] == pytest.approx(0.3780081907722421)
-        assert game_row[6] is True
+        assert game_row[6] is False
 
         rewards = {
             row[0]: row[1:]
@@ -130,7 +151,7 @@ def test_bbo_and_game2048_authority_bindings() -> None:
         }
         bbo_reward = rewards["bbo_noisy_continuous__y6S5nSJ"]
         assert bbo_reward[0] == pytest.approx(0.18143598030936073)
-        assert bbo_reward[1] is True
+        assert bbo_reward[1] is False
         assert bbo_reward[2] == 0
         assert bbo_reward[3] == 0
         assert bbo_reward[4] is False
@@ -138,7 +159,7 @@ def test_bbo_and_game2048_authority_bindings() -> None:
 
         game_reward = rewards["game2048_policy_search__QzNuUbN"]
         assert game_reward[0] == pytest.approx(0.3780081907722421)
-        assert game_reward[1] is True
+        assert game_reward[1] is False
         assert game_reward[2] == 2
         assert game_reward[3] == 1
         assert game_reward[4] is False

@@ -1,5 +1,6 @@
 {
   "adapter": "zai-opencode",
+  "analysis_eligibility": "calibration-only",
   "blocker": null,
   "gates": {
     "canary": "pass",
@@ -35,6 +36,92 @@
     "trial_name": "smoke-zai-opencode-glm-5-3-01m1c__X42mZ85"
   },
   "model": "zai-coding-plan/glm-5.3",
+  "network_isolation_evidence": {
+    "analysis_eligibility": "calibration-only",
+    "effective_agent_policy": {
+      "allowed_hosts": [],
+      "mode": "public"
+    },
+    "effective_verifier_phase_policy": {
+      "allowed_hosts": [],
+      "mode": "public"
+    },
+    "effective_verifier_policy": {
+      "allowed_hosts": [],
+      "mode": "public"
+    },
+    "evaluated_at": "2026-09-01T00:34:10.465868Z",
+    "evidence_digest": "sha256:0dea81047ac365ea89e1e3d4be5f10aacfac114b36c6550e0e721dc61a93f792",
+    "observed_at": "2026-09-01T00:34:10.465868Z",
+    "probe_identity": {
+      "config_digest": "sha256:3ac7d92caa07ca7ce514d995492c079620bd244128e61ab6d110784b7d294e67",
+      "implementation": "evallab.network_isolation.run_docker_network_isolation_probe",
+      "implementation_digest": "sha256:5e62412506dc8c7c040c6b8146c3ec17eb22e2fcadab70567e19a4c674f21286",
+      "implementation_version": "1.0.0"
+    },
+    "probe_results": [
+      {
+        "detail": "http-response:probe-ok",
+        "escape_class": "hostname",
+        "outcome": "escaped",
+        "target": "http://host.docker.internal:54083/hostname"
+      },
+      {
+        "detail": "http-response:probe-ok",
+        "escape_class": "direct-ip",
+        "outcome": "escaped",
+        "target": "http://192.168.65.254:54083/direct-ip"
+      },
+      {
+        "detail": "http-response:probe-ok",
+        "escape_class": "alternate-port",
+        "outcome": "escaped",
+        "target": "http://host.docker.internal:54084/alternate-port"
+      },
+      {
+        "detail": "http-response:probe-ok",
+        "escape_class": "redirect",
+        "outcome": "escaped",
+        "target": "http://host.docker.internal:54083/redirect"
+      },
+      {
+        "detail": "http-response:probe-ok",
+        "escape_class": "dns-rebinding",
+        "outcome": "escaped",
+        "target": "http://isolation-rebind.test:54083/dns-rebinding"
+      }
+    ],
+    "reason": "network_isolation_unavailable:darwin-docker-public-egress-allows-hostname-direct-ip-alternate-port-redirect-dns-rebinding",
+    "requested_agent_policy": {
+      "allowed_hosts": [],
+      "mode": "no-network"
+    },
+    "requested_verifier_phase_policy": {
+      "allowed_hosts": [],
+      "mode": "no-network"
+    },
+    "requested_verifier_policy": {
+      "allowed_hosts": [],
+      "mode": "no-network"
+    },
+    "runtime_identity": {
+      "adapter": "zai-opencode",
+      "adapter_digest": "sha256:60aaf01d8141447ef2925295927c5bc42c62543c625c624758c3e5d8ee22eeab",
+      "adapter_version": "1.1.0",
+      "container_image_digest": "sha256:d09d15e60962ca365d1cd544a48773bac9d33f2fb1b00f2aa0deec78ade7dc31",
+      "container_runtime": "docker",
+      "container_runtime_version": "29.4.1",
+      "platform_machine": "arm64",
+      "platform_release": "25.5.0",
+      "platform_system": "Darwin"
+    },
+    "schema_version": "network-isolation-evidence/v1",
+    "status": "unavailable",
+    "valid_until": "2026-09-08T00:34:10.465868Z"
+  },
+  "network_isolation_evidence_digest": "sha256:0dea81047ac365ea89e1e3d4be5f10aacfac114b36c6550e0e721dc61a93f792",
+  "network_isolation_reason": "network_isolation_unavailable:darwin-docker-public-egress-allows-hostname-direct-ip-alternate-port-redirect-dns-rebinding",
+  "network_isolation_status": "unavailable",
   "profile_digest": "sha256:31838ef0a8a37a75811edcceb6694d81a17dc8435b64144eb4232d9d36e6fc9c",
   "profile_id": "zai-opencode-glm-5.3",
   "qualification": {
@@ -120,5 +207,5 @@
   },
   "schema_version": 1,
   "state": "canary-qualified",
-  "updated_at": "2026-08-31T22:45:54.982552Z"
+  "updated_at": "2026-09-01T00:34:10.465868Z"
 }

@@ -66,10 +66,17 @@ from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentMatrix,
     ExperimentSpec,
+    NetworkEscapeProbeResultV1,
+    NetworkIsolationDispatchIdentityV1,
+    NetworkIsolationEvidenceV1,
+    NetworkIsolationProbeIdentityV1,
+    NetworkIsolationRuntimeIdentityV1,
+    NetworkPolicyEvidenceV1,
     QueueEvent,
     TaskControlEvidence,
     TaskLimits,
     TaskRegistryRecord,
+    build_network_isolation_evidence,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -124,9 +131,58 @@ QUALIFICATIONS = {
 }
 
 
+def _enforced_isolation_evidence(profile_id: str):
+    profile = builtin_profiles()[profile_id]
+    policy = NetworkPolicyEvidenceV1(mode="no-network")
+    return build_network_isolation_evidence(
+        requested_agent_policy=policy,
+        effective_agent_policy=policy,
+        requested_verifier_policy=policy,
+        effective_verifier_policy=policy,
+        requested_verifier_phase_policy=policy,
+        effective_verifier_phase_policy=policy,
+        runtime_identity=NetworkIsolationRuntimeIdentityV1(
+            platform_system="Linux",
+            platform_release="test",
+            platform_machine="aarch64",
+            container_runtime="docker",
+            container_runtime_version="test",
+            container_image_digest="sha256:" + "1" * 64,
+            adapter=profile.adapter,
+            adapter_version="test",
+            adapter_digest="sha256:" + "2" * 64,
+        ),
+        probe_identity=NetworkIsolationProbeIdentityV1(
+            implementation="test-network-isolation-probe",
+            implementation_version="1",
+            implementation_digest="sha256:" + "3" * 64,
+            config_digest="sha256:" + "4" * 64,
+        ),
+        probe_results=tuple(
+            NetworkEscapeProbeResultV1(
+                escape_class=escape_class,
+                target=f"https://test.invalid/{escape_class}",
+                outcome="blocked",
+                detail="test-blocked",
+            )
+            for escape_class in (
+                "hostname",
+                "direct-ip",
+                "alternate-port",
+                "redirect",
+                "dns-rebinding",
+            )
+        ),
+        observed_at=NOW,
+        valid_until=NOW + timedelta(days=365),
+        evaluated_at=NOW,
+    )
+
+
 def _write_qualified_readiness(root: Path, profile_id: str) -> None:
     profile = builtin_profiles()[profile_id]
     qualification, last_smoke = QUALIFICATIONS[profile_id]
+    isolation_evidence = _enforced_isolation_evidence(profile_id)
     save_readiness_record(
         AgentReadinessRecord(
             schema_version=1,
@@ -147,6 +203,11 @@ def _write_qualified_readiness(root: Path, profile_id: str) -> None:
             ),
             last_smoke=last_smoke,
             qualification=qualification,
+            network_isolation_evidence=isolation_evidence,
+            network_isolation_evidence_digest=isolation_evidence.evidence_digest,
+            network_isolation_status=isolation_evidence.status,
+            network_isolation_reason=isolation_evidence.reason,
+            analysis_eligibility=isolation_evidence.analysis_eligibility,
             updated_at=NOW,
         ),
         root=root,
@@ -564,6 +625,7 @@ def _executor(
     capacity: DispatchCapacity | None = None,
     credentials: frozenset[str] = frozenset(),
     compliance: Any = lambda _job, _spec, _ingest, _archive: "QUALITY_PASS",
+    isolation_identity_provider: Any | None = None,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -572,6 +634,15 @@ def _executor(
         runner=runner,
         ingester=lambda _job: None,
         compliance=compliance,
+        isolation_identity_provider=(
+            isolation_identity_provider
+            or (
+                lambda evidence: NetworkIsolationDispatchIdentityV1(
+                    runtime_identity=evidence.runtime_identity,
+                    probe_identity=evidence.probe_identity,
+                )
+            )
+        ),
         spent_today=lambda: 0.0,
         consecutive_harness_failures=lambda: 0,
         credential_probe=lambda: credentials,
@@ -1324,6 +1395,7 @@ def test_executor_rejects_secret_bearing_job_before_ingest(
         leaking_runner,
         credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
     )
+    _orchestrator(root, manifest, executor).store.freeze(manifest)
 
     with pytest.raises(ExecutionFailure, match="credential material reached persistent artifacts"):
         executor.execute_spec(manifest.attempts[0].spec)
@@ -1753,6 +1825,61 @@ def test_executor_rejects_campaign_spec_id_prefix_substitution(
     )
 
 
+@pytest.mark.parametrize(
+    ("identity_part", "field", "value"),
+    [
+        ("runtime", "container_runtime_version", "drifted-runtime"),
+        ("runtime", "container_image_digest", "sha256:" + "0" * 64),
+        ("runtime", "adapter_version", "drifted-adapter"),
+        ("runtime", "adapter_digest", "sha256:" + "1" * 64),
+        ("probe", "implementation_digest", "sha256:" + "2" * 64),
+        ("probe", "config_digest", "sha256:" + "3" * 64),
+    ],
+)
+def test_executor_rejects_live_isolation_identity_drift_before_runner(
+    tmp_path: Path,
+    identity_part: str,
+    field: str,
+    value: str,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+
+    def drifted_identity(
+        evidence: NetworkIsolationEvidenceV1,
+    ) -> NetworkIsolationDispatchIdentityV1:
+        assert evidence.runtime_identity is not None
+        assert evidence.probe_identity is not None
+        runtime = evidence.runtime_identity
+        probe = evidence.probe_identity
+        if identity_part == "runtime":
+            runtime = runtime.model_copy(update={field: value})
+        else:
+            probe = probe.model_copy(update={field: value})
+        return NetworkIsolationDispatchIdentityV1(
+            runtime_identity=runtime,
+            probe_identity=probe,
+        )
+
+    executor = _executor(
+        root,
+        lambda request: calls.append(request),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+        isolation_identity_provider=drifted_identity,
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+
+    assert executor.tick(spec_ids=[manifest.attempts[0].spec_id]) == 0
+    assert calls == []
+    assert any(
+        event.reason_code == "campaign_isolation_identity_drift"
+        for event in load_events(executor.queue.events_path)
+    )
+
+
 def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
@@ -1845,7 +1972,19 @@ def test_registered_task_resolution_must_match_frozen_package_digest(
     root = _repo(tmp_path)
     manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     frozen = manifest.attempts[0].spec
-    spec = frozen.model_copy(update={"task": "registered/task-one"})
+    spec = frozen.model_copy(
+        update={
+            "spec_id": "direct-frozen-package-check",
+            "task": "registered/task-one",
+            "campaign_ledger": None,
+            "campaign_cell_id": None,
+            "campaign_attempt_id": None,
+            "campaign_attempt_index": None,
+            "campaign_manifest_digest": None,
+            "campaign_spec_digest": None,
+            "campaign_evidence_store": None,
+        }
+    )
     calls: list[RunRequest] = []
     executor = _executor(root, lambda request: calls.append(request))
     resolved = type(

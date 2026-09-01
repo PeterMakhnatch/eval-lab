@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from evallab.results import load_job
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
@@ -33,11 +34,17 @@ from evallab.schemas import (
     TaskDigests,
     TaskLimits,
     TaskRegistryRecord,
+    TaskRuntimeIdentityV1,
 )
 from evallab.storage.paths import shared_checkout_root
 from evallab.task_workbench import (
     ISOLATION_DIAGNOSTIC_CODES,
     LEAKAGE_DIAGNOSTIC_CODES,
+)
+from evallab.trial_admissibility import (
+    TrialAdmissibilityError,
+    job_run_provenance,
+    verify_trial_admissibility,
 )
 
 IGNORED_FILE_NAMES = {".DS_Store", ".git", "__pycache__", ".pytest_cache"}
@@ -213,6 +220,33 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _digest_bytes(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def task_registry_record_digest(record: TaskRegistryRecord) -> str:
+    """Digest the immutable runnable revision, excluding its admission envelope."""
+    revision = record.model_dump(
+        mode="json",
+        exclude={
+            "control_evidence",
+            "state",
+            "allowed_uses",
+            "approved_by",
+            "approved_at",
+            "state_reason",
+        },
+    )
+    return _digest_bytes(_canonical_bytes(revision))
+
+
+def task_runtime_identity(record: TaskRegistryRecord) -> TaskRuntimeIdentityV1:
+    """Project the exact registered task revision and certified runtime package."""
+    return TaskRuntimeIdentityV1(
+        task_id=record.task_id,
+        task_version=record.version,
+        registry_record_digest=task_registry_record_digest(record),
+        certified_runtime_package_digest=record.digests.package,
+        registry_admission_state=record.state,
+    )
 
 
 def _external_import_artifact(repo_root: Path, relative: str, label: str) -> Path:
@@ -817,6 +851,30 @@ def _extract_reward_and_agent(
     return agent_name, None
 
 
+def _require_causal_control_admissibility(
+    trial_dir: Path,
+    *,
+    repo_root: Path,
+) -> None:
+    try:
+        job = load_job(trial_dir.parent)
+        trial = next(item for item in job.trials if item.path.resolve() == trial_dir.resolve())
+        verified = verify_trial_admissibility(
+            trial_dir=trial.path,
+            trial_id=trial.id,
+            provenance=job_run_provenance(job),
+            repo_root=repo_root,
+        )
+    except (OSError, StopIteration, TrialAdmissibilityError, ValueError) as exc:
+        raise TaskControlEvidenceError(
+            "control evidence lacks strict trial admissibility authority"
+        ) from exc
+    if not verified.causal_eligible:
+        raise TaskControlEvidenceError(
+            "control evidence lacks strict trial admissibility authority"
+        )
+
+
 def _verify_control_result(
     data: dict[str, Any],
     lock_data: dict[str, Any],
@@ -825,6 +883,8 @@ def _verify_control_result(
     expected_reward: float,
     record: TaskRegistryRecord,
     evidence_ref: ControlEvidenceRef,
+    trial_dir: Path,
+    repo_root: Path,
 ) -> None:
     """Validate one Harbor trial and its lock against the registered package."""
     if "stats" in data or not isinstance(data.get("trial_name"), str):
@@ -881,6 +941,10 @@ def _verify_control_result(
         raise TaskControlEvidenceError(
             f"control evidence result identity mismatch for {record.task_id!r}"
         )
+    _require_causal_control_admissibility(
+        trial_dir,
+        repo_root=repo_root,
+    )
 
 
 def discover_control_evidence(
@@ -1020,6 +1084,14 @@ def discover_control_evidence(
             f"nop control evidence for {task_id!r} did not fail "
             f"(reward: {nop_ref.reward}, expected: 0.0)"
         )
+    _require_causal_control_admissibility(
+        (repo_root / oracle_ref.evidence_path).parent,
+        repo_root=repo_root,
+    )
+    _require_causal_control_admissibility(
+        (repo_root / nop_ref.evidence_path).parent,
+        repo_root=repo_root,
+    )
     return TaskControlEvidence(oracle=oracle_ref, nop=nop_ref)
 
 
@@ -1050,6 +1122,7 @@ def promote_task(
     approved_at: datetime | None = None,
     jobs_roots: Sequence[Path] | None = None,
     certification_path: Path | str | None = None,
+    stage_controls: bool = False,
 ) -> TaskRegistryRecord:
     """Promote a task package on disk into the explicit task registry."""
     repo_root = repo_root.resolve()
@@ -1280,6 +1353,11 @@ def promote_task(
         raise TaskCertificationError(
             "external import packages must be registered under 01-external provenance zone"
         )
+    if stage_controls:
+        if state != "registered":
+            raise ValueError("control staging requires registered target state")
+        allowed_uses = ["canary"]
+
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"
 
@@ -1310,12 +1388,74 @@ def promote_task(
                     f"registered task family {existing_record.task_family!r} does not match "
                     f"requested family {task_family!r}"
                 )
+            if (
+                existing_record.state == "registered"
+                and existing_record.state_reason == "control_evidence_pending"
+            ):
+                if stage_controls:
+                    return existing_record
+                if existing_record.certification.state != "bound":
+                    raise TaskCertificationError(
+                        "control-pending finalization requires bound certification"
+                    )
+                if (
+                    certification_path is not None
+                    and certification != existing_record.certification
+                ):
+                    raise TaskCertificationError(
+                        "control-pending finalization cannot replace certification"
+                    )
+                if actor != existing_record.approved_by:
+                    raise ValueError("control-pending finalization cannot change approved_by")
+                if approved_at is not None and approved_at != existing_record.approved_at:
+                    raise ValueError("control-pending finalization cannot change approved_at")
+                verify_certification_packet(repo_root, existing_record)
+                pending_identity = task_runtime_identity(existing_record)
+                discovered_evidence = discover_control_evidence(
+                    target_path,
+                    repo_root,
+                    jobs_roots=jobs_roots,
+                    task_version=version,
+                )
+                updated_record = TaskRegistryRecord.model_validate(
+                    existing_record.model_copy(
+                        update={
+                            "control_evidence": discovered_evidence,
+                            "state_reason": None,
+                            "allowed_uses": allowed_uses,
+                        }
+                    ).model_dump()
+                )
+                if (
+                    updated_record.certification.state != "bound"
+                    or task_runtime_identity(updated_record) != pending_identity
+                ):
+                    raise TaskCertificationError(
+                        "control-pending finalization changed immutable runtime identity"
+                    )
+                verify_control_evidence(repo_root, updated_record)
+                verify_certification_packet(repo_root, updated_record)
+                record_file.write_text(
+                    json.dumps(updated_record.model_dump(mode="json"), indent=2) + "\n"
+                )
+                return updated_record
             if existing_record.external_import_lineage != external_import_lineage:
                 raise TaskCertificationError(
                     "requested external import lineage does not match the existing registry record"
                 )
 
             if existing_record.state == "candidate":
+                if state == "registered":
+                    if not actor or not actor.strip():
+                        raise ValueError("registered task records require approved_by / --actor")
+                    if certification.state != "bound":
+                        raise TaskCertificationError(
+                            "new registered promotion requires a valid --certification-packet"
+                        )
+                    if certification.workbench_version != "m049-v2":
+                        raise TaskCertificationError(
+                            f"registration requires m049-v2 certification; legacy {certification.workbench_version!r} cannot be registered"
+                        )
                 try:
                     discovered_evidence = discover_control_evidence(
                         target_path,
@@ -1365,13 +1505,6 @@ def promote_task(
 
             return existing_record
 
-    # Discover control evidence
-    control_evidence = discover_control_evidence(
-        target_path,
-        repo_root,
-        jobs_roots=jobs_roots,
-        task_version=version,
-    )
     if state == "registered":
         if not actor or not actor.strip():
             raise ValueError("registered task records require approved_by / --actor")
@@ -1388,6 +1521,21 @@ def promote_task(
     else:
         approved_by = None
         approved_timestamp = None
+
+    if stage_controls:
+        control_evidence = None
+    else:
+        control_evidence = discover_control_evidence(
+            target_path,
+            repo_root,
+            jobs_roots=jobs_roots,
+            task_version=version,
+        )
+    limits = TaskLimits(
+        timeout_seconds=timeout_seconds,
+        max_memory_mb=max_memory_mb,
+        max_cpus=max_cpus,
+    )
     record = TaskRegistryRecord(
         schema_version=2,
         task_id=task_id,
@@ -1401,11 +1549,7 @@ def promote_task(
         license=license_str,
         provenance_zone=provenance_zone,
         is_synthetic=is_synthetic,
-        limits=TaskLimits(
-            timeout_seconds=timeout_seconds,
-            max_memory_mb=max_memory_mb,
-            max_cpus=max_cpus,
-        ),
+        limits=limits,
         control_evidence=control_evidence,
         certification=certification,
         state=state,
@@ -1414,6 +1558,15 @@ def promote_task(
         human_minutes=human_minutes,
         approved_by=approved_by,
         approved_at=approved_timestamp,
+        state_reason=(
+            "control_evidence_pending"
+            if stage_controls
+            else (
+                "durable_identity_bound_control_evidence_missing"
+                if control_evidence is None
+                else None
+            )
+        ),
     )
     verify_external_import_lineage(repo_root, record)
 
@@ -1527,7 +1680,7 @@ def register_task(
 
 def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
     """Verify committed trial evidence, lock identity, and registered package binding."""
-    if record.state != "registered":
+    if record.state != "registered" or record.state_reason == "control_evidence_pending":
         return
     if record.control_evidence is None:
         raise TaskControlEvidenceError(
@@ -1606,6 +1759,8 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             expected_reward=expected_reward,
             record=record,
             evidence_ref=evidence_ref,
+            trial_dir=evidence_path.parent,
+            repo_root=root,
         )
 
 
@@ -1721,7 +1876,16 @@ class TaskRegistry:
                 "registered state required for registered/* execution"
             )
 
-        if "measurement" not in record.allowed_uses:
+        pending_controls = record.state_reason == "control_evidence_pending"
+        is_control_bootstrap = (
+            pending_controls and spec.agent in {"oracle", "nop"} and spec.purpose == "baseline"
+        )
+        if pending_controls and not is_control_bootstrap:
+            raise TaskUsageNotAllowedError(
+                f"task {task_id!r} is pending control evidence; only baseline "
+                "oracle/nop controls are permitted"
+            )
+        if not pending_controls and "measurement" not in record.allowed_uses:
             raise TaskUsageNotAllowedError(
                 f"task {task_id!r} allows uses {record.allowed_uses!r}; "
                 "measurement is not permitted"
@@ -1777,7 +1941,8 @@ class TaskRegistry:
                 f"registered verifier {record.digests.verifier!r}"
             )
 
-        verify_control_evidence(repo_root, record)
+        if not pending_controls:
+            verify_control_evidence(repo_root, record)
         verify_certification_packet(repo_root, record)
 
         return record
@@ -2005,17 +2170,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                     message=record.certification.reason,
                 )
             )
-            try:
-                verify_external_import_lineage(root, record)
-            except TaskCertificationError as exc:
-                findings.append(
-                    AuditFinding(
-                        severity="error",
-                        category="invalid_external_import_lineage",
-                        target=record.task_id,
-                        message=str(exc),
-                    )
-                )
         else:
             try:
                 verify_certification_packet(root, record)

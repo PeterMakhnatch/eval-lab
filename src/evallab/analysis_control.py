@@ -29,6 +29,7 @@ from evallab.outcome_authority import (
     OutcomeKind,
     OutcomeRecord,
     VerifierOutcomeStatus,
+    bind_outcome_admissibility,
 )
 from evallab.profiles import AgentProfile, builtin_profiles, evaluate_profile_readiness
 from evallab.schemas import AgentReadinessRecord, ContractModel
@@ -69,6 +70,14 @@ _OUTCOME_COLUMNS = (
     "cas_uri",
     "evidence_path",
     "recorded_at",
+    "network_isolation_evidence_digest",
+    "network_isolation_status",
+    "network_isolation_reason",
+    "analysis_eligibility",
+    "trial_admissibility_digest",
+    "trial_admissibility_decision",
+    "trial_admissibility_reason",
+    "trial_allowed_use",
 )
 
 
@@ -375,7 +384,22 @@ def _calibration_outcomes(evidence: CalibrationEvidence) -> tuple[OutcomeRecord,
             recorded_at=str(payload.get("recorded_at")) if payload.get("recorded_at") else None,
         )
         records.append(regrade.model_copy(update={"outcome_id": _outcome_id(regrade)}))
-    return tuple(records)
+    return tuple(
+        bind_outcome_admissibility(
+            record,
+            network_isolation_evidence_digest=None,
+            network_isolation_status="unknown",
+            network_isolation_reason="network_isolation_unknown:missing-independent-evidence",
+            analysis_eligibility="calibration-only",
+            trial_admissibility_digest=None,
+            trial_admissibility_decision="unavailable",
+            trial_admissibility_reason=(
+                "trial_admissibility_unavailable:historical-calibration-evidence"
+            ),
+            trial_allowed_use="descriptive-only",
+        )
+        for record in records
+    )
 
 
 def _readiness_rows(
@@ -410,6 +434,14 @@ def _readiness_rows(
                 blocker.remediation if blocker else None,
                 record.last_smoke.atif_digest if record.last_smoke else None,
                 record.qualification.qualification_digest if record.qualification else None,
+                record.network_isolation_evidence_digest,
+                record.network_isolation_status,
+                record.network_isolation_reason,
+                record.analysis_eligibility,
+                (
+                    record.network_isolation_status == "enforced"
+                    and record.analysis_eligibility == "causal-eligible"
+                ),
                 record.updated_at.isoformat(),
             )
         )
@@ -652,6 +684,11 @@ def materialize_analysis_control_views(
             remediation VARCHAR,
             smoke_evidence_digest VARCHAR,
             qualification_digest VARCHAR,
+            network_isolation_evidence_digest VARCHAR,
+            network_isolation_status VARCHAR NOT NULL,
+            network_isolation_reason VARCHAR,
+            analysis_eligibility VARCHAR NOT NULL,
+            causal_analysis_eligible BOOLEAN NOT NULL,
             updated_at VARCHAR NOT NULL
         );
         CREATE OR REPLACE VIEW v_agent_readiness AS
@@ -660,7 +697,7 @@ def materialize_analysis_control_views(
     )
     readiness_rows = _readiness_rows(root, readiness_evaluator)
     connection.executemany(
-        "INSERT INTO analysis_agent_readiness VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO analysis_agent_readiness VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         readiness_rows,
     )
 

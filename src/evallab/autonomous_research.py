@@ -851,46 +851,63 @@ def extract_autonomous_research_features(
     if trace.score_scale_binding is not None:
         scale_binding_digest = trace.score_scale_binding.binding_digest
 
+        resolver_error_reason: str | None = None
+        resolved: Mapping[str, Any] = {}
         if artifact_resolver is not None:
             try:
                 res_output = artifact_resolver(trace)
-                resolved = res_output if isinstance(res_output, Mapping) else {}
-            except Exception:
-                resolved = {}
-        else:
-            resolved = {}
-        t_dir = task_dir if task_dir is not None else resolved.get("task_dir")
-        m_cfg = metric_config if metric_config is not None else resolved.get("metric_config")
-        v_out = visible_outcome if visible_outcome is not None else resolved.get("visible_outcome")
-        h_out = hidden_outcome if hidden_outcome is not None else resolved.get("hidden_outcome")
+                if isinstance(res_output, Mapping):
+                    resolved = res_output
+                else:
+                    resolver_error_reason = f"artifact_resolver_invalid_return: expected Mapping, got {type(res_output).__name__}"
+            except Exception as exc:
+                resolver_error_reason = f"artifact_resolver_error: {exc}"
 
-        v_res = trace.score_scale_binding.verify_against_artifacts(
-            task_dir=t_dir,
-            metric_config=m_cfg,
-            visible_outcome=v_out,
-            hidden_outcome=h_out,
-            fail_closed=False,
-        )
-
-        scale_binding_status = v_res.status
-        scale_binding_unresolved_reason = v_res.reason
-        scale_binding_task_status = v_res.task_status
-        scale_binding_verifier_status = v_res.verifier_status
-        scale_binding_metric_config_status = v_res.metric_config_status
-        scale_binding_visible_outcome_status = v_res.visible_outcome_status
-        scale_binding_hidden_outcome_status = v_res.hidden_outcome_status
-
-        if (
-            v_res.verified is True
-            and v_res.status == "verified"
-            and v_res.binding_digest == trace.score_scale_binding.binding_digest
-        ):
-            score_scale_compatible = True
-            if trace.hidden_score is not None and final_visible is not None:
-                transfer_gap = trace.hidden_score - final_visible
-        else:
+        if resolver_error_reason is not None:
+            scale_binding_status = "unresolved"
+            scale_binding_unresolved_reason = resolver_error_reason
+            scale_binding_task_status = "unresolved"
+            scale_binding_verifier_status = "unresolved"
+            scale_binding_metric_config_status = "unresolved"
+            scale_binding_visible_outcome_status = "unresolved"
+            scale_binding_hidden_outcome_status = "unresolved"
             score_scale_compatible = False
             transfer_gap = None
+        else:
+            t_dir = task_dir if task_dir is not None else resolved.get("task_dir")
+            m_cfg = metric_config if metric_config is not None else resolved.get("metric_config")
+            v_out = (
+                visible_outcome if visible_outcome is not None else resolved.get("visible_outcome")
+            )
+            h_out = hidden_outcome if hidden_outcome is not None else resolved.get("hidden_outcome")
+
+            v_res = trace.score_scale_binding.verify_against_artifacts(
+                task_dir=t_dir,
+                metric_config=m_cfg,
+                visible_outcome=v_out,
+                hidden_outcome=h_out,
+                fail_closed=False,
+            )
+
+            scale_binding_status = v_res.status
+            scale_binding_unresolved_reason = v_res.reason
+            scale_binding_task_status = v_res.task_status
+            scale_binding_verifier_status = v_res.verifier_status
+            scale_binding_metric_config_status = v_res.metric_config_status
+            scale_binding_visible_outcome_status = v_res.visible_outcome_status
+            scale_binding_hidden_outcome_status = v_res.hidden_outcome_status
+
+            if (
+                v_res.verified is True
+                and v_res.status == "verified"
+                and v_res.binding_digest == trace.score_scale_binding.binding_digest
+            ):
+                score_scale_compatible = True
+                if trace.hidden_score is not None and final_visible is not None:
+                    transfer_gap = trace.hidden_score - final_visible
+            else:
+                score_scale_compatible = False
+                transfer_gap = None
     else:
         scale_binding_status = "not_provided"
 

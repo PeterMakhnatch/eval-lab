@@ -14,6 +14,7 @@ import pytest
 import evallab.queue as queue_module
 from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
+from evallab.evidence_store import EvidenceArchive
 from evallab.queue import (
     DirectoryQueue,
     DispatchCapacity,
@@ -25,6 +26,7 @@ from evallab.queue import (
 from evallab.runner import (
     ExecutionFailure,
     RunRequest,
+    SettledRun,
     TransientHarnessFailure,
     TrialTimeoutFailure,
 )
@@ -103,6 +105,26 @@ def identified(item: ExperimentSpec) -> tuple[ExperimentSpec, PaidRunAuthorizati
     )
 
 
+def settled(job_dir: Path) -> SettledRun:
+    """Return a typed runner result for queue tests that do not inspect CAS bytes."""
+
+    return SettledRun(
+        job_dir=job_dir,
+        cas_record=EvidenceArchive(
+            record_id="test-job",
+            kind="job",
+            content_digest="sha256:" + "a" * 64,
+            archive_digest="sha256:" + "b" * 64,
+            uri="cas://sha256/" + "a" * 64,
+            blob_path=job_dir / "archive.tar.gz",
+            manifest_path=job_dir / "record.json",
+            file_count=0,
+            uncompressed_bytes=0,
+        ),
+        record_digest="sha256:" + "c" * 64,
+    )
+
+
 def executor(
     root: Path,
     *,
@@ -119,7 +141,7 @@ def executor(
         repo_root=root,
         queue=DirectoryQueue(root / "queue"),
         policy=policy(),
-        runner=runner or (lambda request: request.jobs_dir / request.name),
+        runner=runner or (lambda request: settled(request.jobs_dir / request.name)),
         ingester=ingester or (lambda path: None),
         spent_today=lambda: spent,
         consecutive_harness_failures=lambda: 0,
@@ -282,11 +304,11 @@ def test_tick_uses_stub_runner_ingests_and_records_every_transition(tmp_path: Pa
     requests = []
     ingested = []
 
-    def run(request):
+    def run(request: RunRequest) -> SettledRun:
         requests.append(request)
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True)
-        return destination
+        return settled(destination)
 
     service = executor(tmp_path, runner=run, ingester=ingested.append)
     approved, _ = service.submit(spec("completed-oracle-control"))
@@ -533,14 +555,14 @@ def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
     calls: list[str] = []
     sleeps: list[float] = []
 
-    def run(request: RunRequest) -> Path:
+    def run(request: RunRequest) -> SettledRun:
         calls.append(request.name)
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True)
         (destination / "attempt.txt").write_text(str(len(calls)))
         if len(calls) < 3:
             raise TransientHarnessFailure("transient_harness:provider_http_429")
-        return destination
+        return settled(destination)
 
     service = executor(tmp_path, runner=run, sleeper=sleeps.append)
     service.submit(spec("provider-recovers"))
@@ -1208,7 +1230,7 @@ def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) 
     max_concurrent = [0]
     lock = threading.Lock()
 
-    def parallel_run(request: RunRequest) -> Path:
+    def parallel_run(request: RunRequest) -> SettledRun:
         with lock:
             concurrently_running[0] += 1
             if concurrently_running[0] > max_concurrent[0]:
@@ -1218,7 +1240,7 @@ def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) 
             concurrently_running[0] -= 1
         dest = request.jobs_dir / request.name
         dest.mkdir(parents=True, exist_ok=True)
-        return dest
+        return settled(dest)
 
     service = executor(tmp_path, runner=parallel_run)
     service.submit(spec("p-spec-1"))
@@ -1235,11 +1257,11 @@ def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) 
 def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> None:
     order: list[str] = []
 
-    def tracking_run(request: RunRequest) -> Path:
+    def tracking_run(request: RunRequest) -> SettledRun:
         order.append(request.name)
         dest = request.jobs_dir / request.name
         dest.mkdir(parents=True, exist_ok=True)
-        return dest
+        return settled(dest)
 
     service = executor(tmp_path, runner=tracking_run)
     service.submit(spec("seq-spec-1"))
@@ -1255,7 +1277,10 @@ def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> Non
 
 def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> None:
     requests: list[RunRequest] = []
-    service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
+    service = executor(
+        tmp_path,
+        runner=lambda request: requests.append(request) or settled(tmp_path),
+    )
     item = spec("bound-factor", concurrency=2).model_copy(
         update={
             "timeout_seconds": 60,

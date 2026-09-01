@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -58,6 +59,26 @@ def no_network_task(tmp_path: Path) -> Path:
         'network_mode = "no-network"\n'
     )
     return task_dir
+
+
+@pytest.fixture(autouse=True)
+def _configured_settlement_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep process mocks on the real mandatory CAS and typed identity contract."""
+
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
+    monkeypatch.setattr(
+        runner_module,
+        "resolve_harbor_runtime_identity",
+        lambda _repo_root: runner_module.HarborRuntimeIdentity(
+            declared_version="0.22.0",
+            actual_version="0.22.0",
+            executable_path=Path("/bin/tool"),
+            executable_digest="sha256:" + "a" * 64,
+        ),
+    )
 
 
 def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
@@ -241,6 +262,7 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
     assert control.returncode == 0
     assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
 
+
 def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -350,6 +372,8 @@ def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
     assert result.timed_out is False
     assert result.returncode != 0
     assert time.monotonic() - started < 2
+
+
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
     tmp_path: Path,
 ) -> None:
@@ -710,11 +734,9 @@ def test_successful_harbor_process_with_transient_trial_is_retried(
     assert state["status"] == "failed"
 
 
-@pytest.mark.parametrize("note_write_fails", [False, True])
-def test_completed_run_survives_evidence_archive_failure(
+def test_completed_run_refuses_unsettled_evidence_archive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    note_write_fails: bool,
 ) -> None:
     request = RunRequest(
         task=task(tmp_path),
@@ -734,15 +756,6 @@ def test_completed_run_survives_evidence_archive_failure(
     def archive_fails(*_args, **_kwargs) -> None:
         raise OSError("evidence store unavailable")
 
-    original_write_text = Path.write_text
-
-    def write_text(path: Path, data: str, *args, **kwargs) -> int:
-        if note_write_fails and path.name == "evidence-archive-error.txt":
-            raise OSError("job directory became read-only")
-        return original_write_text(path, data, *args, **kwargs)
-
-    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence"))
-    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
     monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
     monkeypatch.setattr(runner_module, "run_harbor_process", completed)
     monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
@@ -751,19 +764,158 @@ def test_completed_run_survives_evidence_archive_failure(
         "load_job",
         lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
     )
-    monkeypatch.setattr("evallab.evidence_store.archive_evidence", archive_fails)
-    monkeypatch.setattr(Path, "write_text", write_text)
+    monkeypatch.setattr(runner_module, "archive_evidence", archive_fails)
 
-    job_dir = run_experiment(request, repo_root=tmp_path)
+    with pytest.raises(ExecutionFailure, match="could not be archived and reopened"):
+        run_experiment(request, repo_root=tmp_path)
 
-    assert job_dir == request.jobs_dir / request.name
     state = json.loads(runner_module.executor_state_path(request).read_text())
-    assert state["status"] == "completed"
-    note = job_dir / "evidence-archive-error.txt"
-    if note_write_fails:
-        assert not note.exists()
-    else:
-        assert note.read_text() == "OSError: evidence store unavailable\n"
+    assert state["status"] == "failed"
+    assert not (request.jobs_dir / request.name / "evidence-archive-error.txt").exists()
+
+
+def test_missing_cas_configuration_refuses_before_harbor_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="missing-cas-config",
+        jobs_dir=tmp_path / "runs",
+    )
+    launched = False
+
+    def must_not_launch(*_args, **_kwargs) -> HarborProcessResult:
+        nonlocal launched
+        launched = True
+        raise AssertionError("Harbor must not launch without configured CAS")
+
+    monkeypatch.delenv("EVALLAB_EVIDENCE_STORE_ROOT")
+    monkeypatch.setattr(runner_module, "run_harbor_process", must_not_launch)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "evidence_cas_unconfigured"
+    assert launched is False
+    assert not (request.jobs_dir / request.name).exists()
+
+
+def test_harbor_version_mismatch_refuses_before_harbor_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="harbor-version-mismatch",
+        jobs_dir=tmp_path / "runs",
+    )
+    launched = False
+
+    def mismatch(_repo_root: Path) -> runner_module.HarborRuntimeIdentity:
+        raise ExecutionFailure("harbor_version_mismatch", "0.21.0 does not match 0.22.0")
+
+    def must_not_launch(*_args, **_kwargs) -> HarborProcessResult:
+        nonlocal launched
+        launched = True
+        raise AssertionError("Harbor must not launch when identity drifts")
+
+    monkeypatch.setattr(runner_module, "resolve_harbor_runtime_identity", mismatch)
+    monkeypatch.setattr(runner_module, "run_harbor_process", must_not_launch)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "harbor_version_mismatch"
+    assert launched is False
+    assert not (request.jobs_dir / request.name).exists()
+
+
+@pytest.mark.parametrize(
+    ("reported_version", "reason_code"),
+    [
+        ("0.21.0", "harbor_version_mismatch"),
+        ("harbor 0.22.0", "harbor_identity_unavailable"),
+        ("not harbor 0.22.0 python 3.12.0", "harbor_identity_unavailable"),
+        ("0.22.0 3.12.0", "harbor_identity_unavailable"),
+        ("harbor unknown", "harbor_identity_unavailable"),
+    ],
+)
+def test_runtime_identity_refuses_version_drift_and_unparseable_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reported_version: str,
+    reason_code: str,
+) -> None:
+    (tmp_path / "uv.lock").write_text(
+        'version = 1\n\n[[package]]\nname = "harbor"\nversion = "0.22.0"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.undo()
+    executable = tmp_path / "harbor"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o700)
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: str(executable))
+    monkeypatch.setattr(
+        runner_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=["harbor", "--version"],
+            returncode=0,
+            stdout=reported_version,
+            stderr="",
+        ),
+    )
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        runner_module.resolve_harbor_runtime_identity(tmp_path)
+
+    assert exc_info.value.reason_code == reason_code
+
+
+def test_settlement_reopens_canonical_record_and_refuses_verification_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store_root = tmp_path / "evidence-cas"
+
+    settled, record_digest = runner_module._settle_completed_job(
+        job_dir,
+        store_root=store_root,
+        record_id="job-123",
+    )
+    record = json.loads(settled.manifest_path.read_text(encoding="utf-8"))
+    assert record["record_id"] == "job-123"
+    assert record["kind"] == "job"
+    assert record["content_digest"] == settled.content_digest
+    assert record["archive_digest"] == settled.archive_digest
+    assert record["uri"] == settled.uri
+    assert record["source_path"] == str(job_dir.resolve())
+
+    original_restore = runner_module.restore_evidence
+    assert (
+        record_digest == "sha256:" + hashlib.sha256(settled.manifest_path.read_bytes()).hexdigest()
+    )
+
+    def restore_wrong_content(*args, **kwargs) -> Path:
+        restored = original_restore(*args, **kwargs)
+        (restored / "result.json").write_text('{"finished": false}\n', encoding="utf-8")
+        return restored
+
+    monkeypatch.setattr(runner_module, "restore_evidence", restore_wrong_content)
+    with pytest.raises(ExecutionFailure) as exc_info:
+        runner_module._settle_completed_job(
+            job_dir,
+            store_root=store_root,
+            record_id="job-123",
+        )
+
+    assert exc_info.value.reason_code == "evidence_cas_unsettled"
 
 
 def test_secret_scan_precedes_generic_evidence_archive(
@@ -1151,7 +1303,8 @@ def test_staging_cleaned_up_after_success(
         lambda _root: {"commit": None, "dirty": None},
     )
 
-    job_dir = run_experiment(request, repo_root=tmp_path)
+    settled_run = run_experiment(request, repo_root=tmp_path)
+    job_dir = settled_run.job_dir
 
     staging_dir = request.jobs_dir / ".exec-stage" / request.name
     assert not staging_dir.exists()
@@ -1162,6 +1315,13 @@ def test_staging_cleaned_up_after_success(
     assert manifest["network_adaptation"]["effective_verifier_network"] == "public"
     metadata = json.loads((job_dir / "lab-metadata.json").read_text())
     assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
+    assert metadata["harbor_runtime"] == {
+        "declared_version": "0.22.0",
+        "actual_version": "0.22.0",
+        "executable_path": "/bin/tool",
+        "executable_digest": "sha256:" + "a" * 64,
+    }
+    assert settled_run.cas_record.manifest_path.is_file()
 
 
 def test_staging_cleaned_up_after_harbor_failure(

@@ -70,6 +70,7 @@ from evallab.runner import (
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     ExecutionFailure,
     RunRequest,
+    SettledRun,
     TransientHarnessFailure,
     assert_no_secret_material,
     collected_secret_values,
@@ -1274,7 +1275,7 @@ class DirectoryQueue:
 
 
 CredentialProbe = Callable[[], frozenset[str]]
-RunCallable = Callable[[RunRequest], Path]
+RunCallable = Callable[[RunRequest], SettledRun]
 IngestCallable = Callable[[Path], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
@@ -1735,10 +1736,11 @@ class Executor:
         )
         try:
             try:
-                job_dir = self.execute_spec(
+                settled_run = self.execute_spec(
                     spec,
                     lease_generation=lease_generation,
                 )
+                job_dir = settled_run.job_dir
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
                 failure_error = execution_error
@@ -1902,7 +1904,7 @@ class Executor:
         spec: ExperimentSpec,
         *,
         lease_generation: str | None = None,
-    ) -> Path:
+    ) -> SettledRun:
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
@@ -2098,15 +2100,15 @@ class Executor:
                 campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
-        job_dir = self._run_with_transient_retries(spec, request)
-        self._assert_persistent_artifacts_safe(spec, job_dir)
-        return job_dir
+        settled_run = self._run_with_transient_retries(spec, request)
+        self._assert_persistent_artifacts_safe(spec, settled_run.job_dir)
+        return settled_run
 
     def _run_with_transient_retries(
         self,
         spec: ExperimentSpec,
         request: RunRequest,
-    ) -> Path:
+    ) -> SettledRun:
         for retry_number in range(self._max_transient_retries + 1):
             self._reserve_attempt(spec, retry_number + 1)
             try:
@@ -2267,15 +2269,15 @@ class Executor:
             raise RuntimeError(f"Harbor dataset download exited {completed.returncode}")
         return destination
 
-    def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> Path:
+    def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> SettledRun:
         if request.agent not in CONTROL_AGENTS:
             raise ValueError(
                 "direct execution is restricted to oracle/nop; --allow-billable records "
                 "spend consent but does not bypass the standing-policy queue"
             )
-        job_dir = self._runner(request)
+        settled_run = self._runner(request)
         if ingest:
-            ingest_result = self._ingester(job_dir)
+            ingest_result = self._ingester(settled_run.job_dir)
             if ingest_result is not None:
                 provenance = request.provenance
                 record_projection_failures(
@@ -2286,7 +2288,7 @@ class Executor:
                         provenance.spec_id if provenance is not None else f"system-{new_ulid()}"
                     ),
                 )
-        return job_dir
+        return settled_run
 
     def local_runtime_checks(self) -> list[tuple[str, bool, str]]:
         """Inspect executable runtimes through the executor's process boundary."""
@@ -2476,7 +2478,7 @@ class Executor:
             raise ValueError(f"path escapes repository: {relative}")
         return candidate
 
-    def _run_harbor(self, request: RunRequest) -> Path:
+    def _run_harbor(self, request: RunRequest) -> SettledRun:
         return run_experiment(request, repo_root=self.repo_root)
 
     def _ingest(self, job_dir: Path) -> IngestProjectionResult:

@@ -163,29 +163,31 @@ def test_headline_scale_and_selection_refusals() -> None:
         scale = {
             row[0]: row[1:]
             for row in connection.execute(
-                "SELECT run_id, arithmetic_permitted, visible_hidden_transfer_gap, "
-                "scale_refusal_reason, scale_binding_status, "
-                "scale_binding_task_status, scale_binding_verifier_status, "
-                "scale_binding_metric_config_status, scale_binding_visible_outcome_status, "
-                "scale_binding_hidden_outcome_status "
+                "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+                "visible_hidden_transfer_gap, scale_refusal_reason, "
+                "scale_binding_status, scale_binding_task_status, "
+                "scale_binding_verifier_status, scale_binding_metric_config_status, "
+                "scale_binding_visible_outcome_status, scale_binding_hidden_outcome_status "
                 "FROM v_scale_binding_status"
             ).fetchall()
         }
         # Checked-in BBO has no resolvable task/verifier/metric/outcome artifacts.
         bbo_scale = scale["bbo_noisy_continuous__y6S5nSJ"]
-        assert bbo_scale[0] is False  # arithmetic_permitted
-        assert bbo_scale[1] is None  # visible_hidden_transfer_gap
-        assert bbo_scale[2] == (
+        assert bbo_scale[0] is False  # score_scale_compatible
+        assert bbo_scale[1] is False  # arithmetic_permitted
+        assert bbo_scale[2] is None  # visible_hidden_transfer_gap
+        assert bbo_scale[3] == (
             "unresolved_components: ['task', 'verifier', 'metric_config', "
             "'visible_outcome', 'hidden_outcome']"
         )
-        assert bbo_scale[3:] == ("unresolved",) * 6
+        assert bbo_scale[4:] == ("unresolved",) * 6
 
         game_scale = scale["game2048_policy_search__QzNuUbN"]
         assert game_scale[0] is False
-        assert game_scale[1] is None
-        assert "no validated score-scale binding" in (game_scale[2] or "")
-        assert game_scale[3] == "not_provided"
+        assert game_scale[1] is False
+        assert game_scale[2] is None
+        assert "no validated score-scale binding" in (game_scale[3] or "")
+        assert game_scale[4] == "not_provided"
 
         selections = connection.execute(
             "SELECT run_id, selection_reconstructible, selection_refusal_reason "
@@ -697,30 +699,14 @@ def test_materialize_views_with_partial_and_mismatched_artifacts(
         assert row[7] == "verified"
 
 
-def test_materialize_views_with_raising_custom_mapping_records_typed_error(
-    tmp_path: Path,
-) -> None:
-    """A custom Mapping whose item access raises records artifact_resolver_error."""
+def test_materialize_views_with_raising_custom_mapping_records_typed_error() -> None:
+    """A custom Mapping access error fails closed with an exact typed reason."""
 
     class BrokenMapping(dict):
         def get(self, key: str, default: Any = None) -> Any:
             raise RuntimeError("custom mapping access failed")
 
-    with duckdb.connect(":memory:") as connection:
-        materialize_analysis_control_views(
-            connection,
-            root=REPO_ROOT,
-            readiness_evaluator=_offline_readiness,
-            artifact_resolver=lambda _: BrokenMapping(),
-        )
-        row = connection.execute(
-            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
-            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
-            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
-        ).fetchone()
-        assert row is not None
-        assert row[1] is False
-        assert row[2] is False
-        assert row[3] is None
-        assert "artifact_resolver_error: custom mapping access failed" in (row[4] or "")
-        assert row[5] == "unresolved"
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(lambda _: BrokenMapping()),
+        reason="artifact_resolver_error: custom mapping access failed",
+    )

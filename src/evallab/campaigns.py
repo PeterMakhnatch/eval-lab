@@ -1819,30 +1819,15 @@ class CampaignOrchestrator:
         self,
         attempt: CampaignAttempt,
         *,
-        expected_event: str | None = None,
+        expected_event: str,
     ) -> EvidenceLocator:
-        if expected_event is None:
-            record = self._queue_record(attempt)
-            state = record[2] if record is not None else None
-            if state == "done":
-                expected_event = "dispatch_completed"
-            elif state == "failed":
-                events = [
-                    e
-                    for e in load_events(self.executor.queue.events_path)
-                    if e.spec_id == attempt.spec_id
-                    and e.to_state == "failed"
-                    and e.cas_record_kind == "job"
-                ]
-                expected_event = events[-1].event if events else "dispatch_failed"
-            else:
-                expected_event = "dispatch_completed"
         try:
             return select_terminal_job_locator(
                 self.executor.queue.events_path,
                 expected_event=expected_event,
                 job_name=attempt.job_name,
                 spec_id=attempt.spec_id,
+                expected_attempt=attempt.identity.attempt,
             )
         except ExecutionFailure as exc:
             raise CampaignAmbiguityError(
@@ -1853,10 +1838,12 @@ class CampaignOrchestrator:
         self,
         attempt: CampaignAttempt,
         destination: Path,
+        *,
+        expected_event: str,
     ) -> Path:
         try:
             return materialize_evidence_at(
-                self._queue_cas_locator(attempt),
+                self._queue_cas_locator(attempt, expected_event=expected_event),
                 destination,
             )
         except (OSError, ValueError, tarfile.TarError) as exc:
@@ -2310,6 +2297,7 @@ class CampaignOrchestrator:
                 job_dir = self._materialize_queue_job(
                     attempt,
                     Path(materialized_job.name),
+                    expected_event="dispatch_completed",
                 )
                 job = self._validate_job(attempt, job_dir)
                 if backfill_event is not None and archive_event is None:
@@ -2548,9 +2536,33 @@ class CampaignOrchestrator:
                 for event in queue_events
             ):
                 return usage_by_attempt, "campaign_usage_missing"
+            state = record[2]
+            if state == "done":
+                expected_event = "dispatch_completed"
+            elif state == "failed":
+                reason = next(
+                    (
+                        e.reason_code
+                        for e in reversed(queue_events)
+                        if e.spec_id == attempt.spec_id and e.to_state == "failed"
+                    ),
+                    None,
+                )
+                if reason and reason.startswith("post_run_compliance_"):
+                    expected_event = "post_run_compliance_refused"
+                elif reason and reason.startswith("post_run_"):
+                    expected_event = "post_run_refused"
+                else:
+                    expected_event = "dispatch_failed"
+            else:
+                expected_event = "dispatch_completed"
             try:
                 with tempfile.TemporaryDirectory(prefix="evallab-campaign-usage-cas-") as temporary:
-                    job_dir = self._materialize_queue_job(attempt, Path(temporary))
+                    job_dir = self._materialize_queue_job(
+                        attempt,
+                        Path(temporary),
+                        expected_event=expected_event,
+                    )
                     usage = self._usage(self._validate_job(attempt, job_dir), attempt)
             except CampaignAmbiguityError:
                 return usage_by_attempt, "campaign_usage_invalid"
@@ -2699,7 +2711,11 @@ class CampaignOrchestrator:
                 with tempfile.TemporaryDirectory(
                     prefix="evallab-campaign-status-cas-"
                 ) as temporary:
-                    job_dir = self._materialize_queue_job(attempt, Path(temporary))
+                    job_dir = self._materialize_queue_job(
+                        attempt,
+                        Path(temporary),
+                        expected_event="dispatch_completed",
+                    )
                     self._validate_job(attempt, job_dir)
                     self._verify_archive_details(attempt, job_dir, archive.details)
                 completed = True

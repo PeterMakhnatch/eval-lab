@@ -1563,6 +1563,16 @@ def run_trial_analysis(
                 "trial_admissibility_invalid:missing-canonical-trial-path"
             )
 
+        # Check for symlinks in EVERY ancestor component between repo_root and trial_target
+        current_ancestor = repo_root
+        for part in trial_target.relative_to(repo_root).parts:
+            current_ancestor = current_ancestor / part
+            st = os.lstat(current_ancestor)
+            if stat.S_ISLNK(st.st_mode):
+                raise TrialAdmissibilityError(
+                    "trial_admissibility_invalid:symlinked-canonical-source"
+                )
+
         # Check for symlinks in EVERY component and nested file of job_target using os.lstat
         def _check_no_symlinks(path: Path) -> None:
             st = os.lstat(path)
@@ -1582,11 +1592,45 @@ def run_trial_analysis(
 
         _check_no_symlinks(job_target)
 
-        # Require exact loaded job UUID and required embedded provenance/spec identity
-        exp_provenance = job.metadata.get("experiment")
+        # Authenticate canonical durable job-level result.json
+        canonical_job_res_file = job_target / "result.json"
+        if not canonical_job_res_file.is_file() or os.path.islink(canonical_job_res_file):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:missing-canonical-job-result"
+            )
+        try:
+            canonical_job_res = json.loads(canonical_job_res_file.read_text())
+        except (OSError, ValueError) as exc:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:corrupted-canonical-job-result"
+            ) from exc
+
+        # Require canonical durable job UUID to equal the independently CAS-materialized job UUID
+        durable_job_id = canonical_job_res.get("id")
+        if not durable_job_id or str(durable_job_id) != str(job.id):
+            raise TrialAdmissibilityError("trial_admissibility_invalid:job-identity-mismatch")
+
+        # Require canonical job-level embedded provenance / spec identity
+        canonical_lab_meta_file = job_target / "lab-metadata.json"
+        canonical_lab_metadata = None
+        if canonical_lab_meta_file.is_file() and not os.path.islink(canonical_lab_meta_file):
+            import contextlib
+
+            with contextlib.suppress(OSError, ValueError):
+                canonical_lab_metadata = json.loads(canonical_lab_meta_file.read_text())
+
+        canonical_provenance = (
+            canonical_lab_metadata.get("experiment")
+            if isinstance(canonical_lab_metadata, dict) and canonical_lab_metadata.get("experiment")
+            else (
+                canonical_job_res.get("metadata", {}).get("experiment")
+                if isinstance(canonical_job_res.get("metadata"), dict)
+                else canonical_job_res.get("experiment")
+            )
+        )
         if (
-            not isinstance(exp_provenance, dict)
-            or exp_provenance.get("spec_id") != canonical_binding.spec_id
+            not isinstance(canonical_provenance, dict)
+            or canonical_provenance.get("spec_id") != canonical_binding.spec_id
         ):
             raise TrialAdmissibilityError("trial_admissibility_invalid:provenance-spec-id-mismatch")
 
@@ -1606,8 +1650,7 @@ def run_trial_analysis(
             return identities
 
         initial_identities = _snapshot_path_identities(trial_target)
-        initial_job_st = os.lstat(job_target)
-        initial_job_identity = (initial_job_st.st_dev, initial_job_st.st_ino)
+        initial_job_identities = _snapshot_path_identities(job_target)
 
         canonical_trial = trial_target
         if _trial_tree_digests(canonical_trial) != before:
@@ -1643,9 +1686,11 @@ def run_trial_analysis(
 
     # Recheck immutability after model call
     if _trial_tree_digests(trial.path) != before:
-        raise RuntimeError("analysis modified the immutable source trial")
+        raise TrialAdmissibilityError("trial_admissibility_invalid:source-digest-drift")
     if canonical_binding is not None and _trial_tree_digests(target_trial_dir) != before:
-        raise RuntimeError("canonical durable publication modified during analysis")
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:canonical-source-content-mismatch"
+        )
 
     sidecar = TrialAnalysisSidecar(
         analysis_id=analysis_id,
@@ -1686,8 +1731,8 @@ def run_trial_analysis(
 
         _check_no_symlinks(job_target)
 
-        current_job_st = os.lstat(job_target)
-        if (current_job_st.st_dev, current_job_st.st_ino) != initial_job_identity:
+        current_job_identities = _snapshot_path_identities(job_target)
+        if current_job_identities != initial_job_identities:
             raise TrialAdmissibilityError(
                 "trial_admissibility_invalid:canonical-source-identity-drift"
             )
@@ -1775,18 +1820,21 @@ class CodexExecAnalyzer:
         self,
         *,
         repo_root: Path,
-        trial: TrialRecord,
         model: str,
         authorization_path: Path,
         scratch_dir: Path,
+        source_trial_id: str | None = None,
+        trial: TrialRecord | None = None,
     ) -> None:
+        trial_id = source_trial_id or (trial.id if trial is not None else "")
         validate_queue_authorization(
             authorization_path,
             repo_root=repo_root,
-            source_trial_id=trial.id,
+            source_trial_id=trial_id,
         )
         self.repo_root = repo_root
         self.trial = trial
+        self.source_trial_id = trial_id
         self.model = model
         self.authorization_path = authorization_path
         self.scratch_dir = scratch_dir.resolve()
@@ -1797,7 +1845,7 @@ class CodexExecAnalyzer:
         validate_queue_authorization(
             self.authorization_path,
             repo_root=self.repo_root,
-            source_trial_id=self.trial.id,
+            source_trial_id=self.source_trial_id,
         )
         if self._calls >= 2:
             raise RuntimeError("queue authorization caps analysis at two model calls")
@@ -1820,7 +1868,7 @@ class CodexExecAnalyzer:
                 "--output-last-message",
                 str(output_path),
                 "--cd",
-                str(self.trial.path),
+                str(self.trial.path if self.trial is not None else self.repo_root),
                 prompt,
             ],
             check=False,

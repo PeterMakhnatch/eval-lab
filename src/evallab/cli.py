@@ -1679,10 +1679,12 @@ def _analyze_worker_run_one_command(
         authorization_path = _resolve(root, args.authorization)
         scratch_root = _resolve(root, args.scratch_dir)
 
-        def adapter_factory(job, trial, request):
+        from evallab.analysis_worker import AnalysisRequest
+
+        def adapter_factory(request: AnalysisRequest):
             return CodexExecAnalyzer(
                 repo_root=root,
-                trial=trial,
+                source_trial_id=request.trial_id,
                 model=request.model,
                 authorization_path=authorization_path,
                 scratch_dir=scratch_root / request.request_id,

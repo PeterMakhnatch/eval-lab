@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -616,6 +617,8 @@ def test_control_bootstrap_tampered_durable_publication_refuses_promotion(
     )
     assert published_trial.is_dir()
     final_state_file = published_trial / "final-state.json"
+    os.chmod(published_trial, 0o700)
+    os.chmod(final_state_file, 0o600)
     final_state_file.write_text(
         json.dumps(
             {
@@ -744,6 +747,8 @@ def test_canonical_publication_binding_refuses_symlinked_source(
     # Symlink canonical job dir
     real_dir = repo / f"research/evidence/runs/{requests[0].name}"
     hidden_dir = repo / f"research/evidence/runs/.hidden_{requests[0].name}"
+    os.chmod(repo / "research/evidence/runs", 0o700)
+    os.chmod(real_dir, 0o700)
     real_dir.rename(hidden_dir)
     real_dir.symlink_to(hidden_dir)
 
@@ -866,6 +871,8 @@ def test_canonical_publication_binding_refuses_nested_file_symlink(
 
     result_file = canonical_trial_dir / "result.json"
     backup_file = canonical_trial_dir / ".backup_result.json"
+    os.chmod(canonical_trial_dir, 0o700)
+    os.chmod(result_file, 0o600)
     result_file.rename(backup_file)
     result_file.symlink_to(backup_file)
 
@@ -948,8 +955,17 @@ def test_canonical_publication_binding_refuses_byte_identical_replacement_during
         # Inode-tamper adversary: Replace whole canonical trial directory with newly copied byte-identical tree
         temp_copy = tmp_path / "temp_trial_copy"
         shutil.copytree(canonical_trial_dir, temp_copy)
+        os.chmod(canonical_job_dir, 0o700)
+        for r, _d, fs in os.walk(canonical_trial_dir):
+            os.chmod(r, 0o700)
+            for f in fs:
+                os.chmod(os.path.join(r, f), 0o600)
         shutil.rmtree(canonical_trial_dir)
         shutil.copytree(temp_copy, canonical_trial_dir)
+        for r, _d, fs in os.walk(temp_copy):
+            os.chmod(r, 0o700)
+            for f in fs:
+                os.chmod(os.path.join(r, f), 0o600)
         shutil.rmtree(temp_copy)
         return AnalyzerCallResult(raw_output=json.dumps(valid_analysis_output))
 
@@ -1064,14 +1080,320 @@ def test_production_terminal_locator_selector_adversaries(
         )
     assert exc_info.value.reason_code == "terminal_event_ambiguous"
 
-    # 6. Clean single match -> returns locator
-    write_events([base_event])
+    # 6. Missing attempt number when expected_attempt is specified -> fails closed
+    ev_no_attempt = base_event.model_copy(update={"attempt_number": None})
+    write_events([ev_no_attempt])
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            events_file,
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+            expected_attempt=1,
+        )
+    assert exc_info.value.reason_code == "terminal_event_missing"
+
+    # 7. Wrong attempt number -> fails closed
+    ev_attempt_2 = base_event.model_copy(update={"attempt_number": 2})
+    write_events([ev_attempt_2])
+    with pytest.raises(ExecutionFailure) as exc_info:
+        select_terminal_job_locator(
+            events_file,
+            expected_event="dispatch_completed",
+            job_name="job-123",
+            spec_id="spec-123",
+            expected_attempt=1,
+        )
+    assert exc_info.value.reason_code == "terminal_event_missing"
+
+    # 8. Clean single match with matching expected_attempt -> returns locator
+    ev_attempt_1 = base_event.model_copy(update={"attempt_number": 1})
+    write_events([ev_attempt_1])
     loc = select_terminal_job_locator(
         events_file,
         expected_event="dispatch_completed",
         job_name="job-123",
         spec_id="spec-123",
+        expected_attempt=1,
     )
     assert loc.kind == "job"
     assert loc.record_id == "rec-123"
     assert loc.expected_content_digest == "sha256:" + "b" * 64
+
+
+def test_canonical_publication_binding_refuses_ancestor_symlink(
+    tmp_path: Path,
+) -> None:
+    """B3a adversary: ancestor symlink (e.g. repo/research -> external) is rejected with zero model calls."""
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        expected_attempt=requests[0].provenance.campaign_attempt_index
+        if hasattr(requests[0].provenance, "campaign_attempt_index")
+        else None,
+    )
+
+    # Symlink repo/research to external directory
+    external_research = tmp_path / "external-research"
+    shutil.copytree(repo / "research", external_research)
+    for r, _d, fs in os.walk(repo / "research"):
+        os.chmod(r, 0o700)
+        for f in fs:
+            os.chmod(os.path.join(r, f), 0o600)
+    shutil.rmtree(repo / "research")
+    (repo / "research").symlink_to(external_research)
+
+    binding = CanonicalPublicationBinding.create(
+        repo_root=repo,
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+    )
+
+    calls = []
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="symlinked-canonical-source"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=lambda _p, _s: (
+                    calls.append("called") or AnalyzerCallResult(raw_output="{}")
+                ),
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+    assert calls == []
+
+
+def test_canonical_publication_binding_refuses_job_uuid_mismatch(
+    tmp_path: Path,
+) -> None:
+    """B3b adversary: canonical durable job result.json UUID mismatch mints zero authority."""
+    from evallab.trial_admissibility import canonical_trial_admissibility_path
+
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+    )
+
+    # Corrupt UUID in canonical durable job-level result.json
+    job_result_file = repo / f"research/evidence/runs/{requests[0].name}/result.json"
+    os.chmod(job_result_file.parent, 0o700)
+    os.chmod(job_result_file, 0o600)
+    job_res = json.loads(job_result_file.read_text())
+    job_res["id"] = "00000000-0000-0000-0000-000000000099"
+    job_result_file.write_text(json.dumps(job_res, indent=2))
+
+    binding = CanonicalPublicationBinding.create(
+        repo_root=repo,
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+    )
+
+    valid_analysis_output = {
+        "validity": "valid_agent_attempt",
+        "primary_category": "unknown",
+        "summary": "UUID mismatch test.",
+        "evidence": [{"path": "result.json", "supports": "Reward observed."}],
+        "proposed_discriminator": "Check reward.",
+        "confidence": "high",
+    }
+
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="job-identity-mismatch"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=lambda _p, _s: AnalyzerCallResult(
+                    raw_output=json.dumps(valid_analysis_output)
+                ),
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+        assert not canonical_trial_admissibility_path(repo, job.trials[0].id).exists()
+
+
+def test_canonical_publication_binding_refuses_missing_canonical_provenance(
+    tmp_path: Path,
+) -> None:
+    """B3 adversary: missing canonical job provenance fails closed with zero calls/authority."""
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+    )
+
+    # Remove provenance from canonical durable job-level lab-metadata.json and result.json
+    job_dir = repo / f"research/evidence/runs/{requests[0].name}"
+    os.chmod(job_dir, 0o700)
+    lab_meta = job_dir / "lab-metadata.json"
+    if lab_meta.exists():
+        os.chmod(lab_meta, 0o600)
+        lab_meta.unlink()
+    job_result_file = job_dir / "result.json"
+    os.chmod(job_result_file, 0o600)
+    job_res = json.loads(job_result_file.read_text())
+    job_res.pop("metadata", None)
+    job_res.pop("experiment", None)
+    job_result_file.write_text(json.dumps(job_res, indent=2))
+
+    binding = CanonicalPublicationBinding.create(
+        repo_root=repo,
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+    )
+
+    calls = []
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="provenance-spec-id-mismatch"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=lambda _p, _s: (
+                    calls.append("called") or AnalyzerCallResult(raw_output="{}")
+                ),
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+    assert calls == []
+
+
+def test_canonical_publication_binding_refuses_post_call_content_drift(
+    tmp_path: Path,
+) -> None:
+    """B3c adversary: post-call canonical content drift raises typed TrialAdmissibilityError with zero authority."""
+    from evallab.trial_admissibility import canonical_trial_admissibility_path
+
+    repo, task, certification_path, staged, manifest = _prepare_campaign(tmp_path)
+    requests: list[RunRequest] = []
+    executor = _executor(
+        repo,
+        lambda request: requests.append(request) or _write_runner_job(request, task, staged),
+    )
+    completed = _orchestrator(repo, manifest, executor).run()
+    assert completed.state == "completed"
+
+    locator = select_terminal_job_locator(
+        repo / "queue/events.jsonl",
+        expected_event="dispatch_completed",
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+    )
+
+    canonical_job_dir = repo / f"research/evidence/runs/{requests[0].name}"
+    canonical_trial_dir = next(p for p in canonical_job_dir.iterdir() if p.is_dir())
+
+    binding = CanonicalPublicationBinding.create(
+        repo_root=repo,
+        job_name=requests[0].name,
+        spec_id=requests[0].provenance.spec_id,
+        locator=locator,
+    )
+
+    valid_analysis_output = {
+        "validity": "valid_agent_attempt",
+        "primary_category": "unknown",
+        "summary": "Content drift test.",
+        "evidence": [{"path": "result.json", "supports": "Reward observed."}],
+        "proposed_discriminator": "Check reward.",
+        "confidence": "high",
+    }
+
+    def drifting_analyzer(p: str, s: dict) -> AnalyzerCallResult:
+        # Mutate canonical trial result.json content during analyzer
+        os.chmod(canonical_trial_dir / "result.json", 0o600)
+        (canonical_trial_dir / "result.json").write_text("TAMPERED_POST_CALL\n")
+        return AnalyzerCallResult(raw_output=json.dumps(valid_analysis_output))
+
+    prompt = repo / "prompt.txt"
+    prompt.write_text("{source_trial_path}\n{rubric}\n{output_schema}")
+    rubric = repo / "rubric.json"
+    rubric.write_text("{}")
+
+    with materialize_evidence(locator) as mat:
+        job = load_job(mat)
+        with pytest.raises(TrialAdmissibilityError, match="canonical-source-content-mismatch"):
+            run_trial_analysis(
+                job,
+                job.trials[0],
+                analyzer=drifting_analyzer,
+                repo_root=repo,
+                destination_root=repo / "research/evidence/analysis",
+                prompt_path=prompt,
+                rubric_path=rubric,
+                agent="test-analyzer",
+                agent_version="1.0.0",
+                model="test-model",
+                canonical_binding=binding,
+            )
+        assert not canonical_trial_admissibility_path(repo, job.trials[0].id).exists()

@@ -1754,6 +1754,7 @@ def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) 
     job_dir = orchestrator._materialize_queue_job(
         manifest.attempts[0],
         tmp_path / "materialized-queue-job",
+        expected_event="dispatch_completed",
     )
 
     with pytest.raises(CampaignDriftError, match="CAS content digest mismatch"):

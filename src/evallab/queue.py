@@ -872,6 +872,7 @@ class DirectoryQueue:
                 policy_rule=policy_rule or spec.policy_rule,
                 reason_code=reason_code,
                 job_name=spec.name,
+                attempt_number=spec.campaign_attempt_index,
                 approved_spec_digest=approved_spec_digest,
                 approved_campaign_manifest_digest=approved_campaign_manifest_digest,
                 approved_campaign_spec_digest=approved_campaign_spec_digest,
@@ -1358,8 +1359,25 @@ def record_projection_failures(
         )
 
 
-def _atomic_no_replace_rename(source: Path, destination: Path) -> None:
-    """Atomically publish a directory without replacing any existing target."""
+def _atomic_no_replace_publish(
+    source: Path,
+    destination: Path,
+    *,
+    expected_content_digest: str | None = None,
+) -> None:
+    """Atomically publish a directory without replacing any existing target.
+
+    Performs final locator digest verification immediately before the raw native syscall.
+    """
+    if expected_content_digest is not None:
+        from evallab.evidence_store import evidence_tree_digest
+
+        actual_digest = evidence_tree_digest(source)
+        if actual_digest != expected_content_digest:
+            raise ExecutionFailure(
+                "staged_evidence_tampered",
+                f"staged evidence content digest {actual_digest} differs from locator {expected_content_digest}",
+            )
     import ctypes
     import ctypes.util
     import errno
@@ -1471,6 +1489,7 @@ def select_terminal_job_locator(
     expected_event: str,
     job_name: str,
     spec_id: str,
+    expected_attempt: int | None = None,
     attempt_number: int | None = None,
 ) -> EvidenceLocator:
     """Select the exact unique terminal event locator matching expected_event, job_name, and spec_id.
@@ -1480,6 +1499,7 @@ def select_terminal_job_locator(
     if not events_path.is_file():
         raise ExecutionFailure("terminal_event_missing", f"events log missing at {events_path}")
 
+    target_attempt = expected_attempt if expected_attempt is not None else attempt_number
     events = load_events(events_path)
     matches: list[QueueEvent] = []
     for event in events:
@@ -1491,11 +1511,7 @@ def select_terminal_job_locator(
             continue
         if event.cas_record_kind != "job":
             continue
-        if (
-            attempt_number is not None
-            and event.attempt_number is not None
-            and event.attempt_number != attempt_number
-        ):
+        if target_attempt is not None and event.attempt_number != target_attempt:
             continue
         matches.append(event)
 
@@ -2480,27 +2496,24 @@ class Executor:
             load_job(staging_dir)
             self._assert_persistent_artifacts_safe(spec, staging_dir)
 
-            # Re-inventory and reauthenticate every staged byte against CAS locator immediately before publish
-            from evallab.evidence_store import evidence_tree_digest
-
-            staged_digest = evidence_tree_digest(staging_dir)
-            if staged_digest != settled_run.cas_locator.expected_content_digest:
-                raise ExecutionFailure(
-                    "staged_evidence_tampered",
-                    f"staged evidence content digest {staged_digest} differs from locator {settled_run.cas_locator.expected_content_digest}",
-                )
-
             for path in staging_dir.rglob("*"):
                 if path.is_file():
                     with path.open("rb") as handle:
                         os.fsync(handle.fileno())
+                    os.chmod(path, 0o400)
                 elif path.is_dir():
                     fd = os.open(path, os.O_RDONLY)
                     try:
                         os.fsync(fd)
                     finally:
                         os.close(fd)
-            _atomic_no_replace_rename(staging_dir, destination)
+                    os.chmod(path, 0o500)
+
+            _atomic_no_replace_publish(
+                staging_dir,
+                destination,
+                expected_content_digest=settled_run.cas_locator.expected_content_digest,
+            )
             parent_fd = os.open(durable_root, os.O_RDONLY)
             try:
                 os.fsync(parent_fd)
@@ -2508,7 +2521,17 @@ class Executor:
                 os.close(parent_fd)
             return destination
         finally:
-            shutil.rmtree(staging_dir, ignore_errors=True)
+            if staging_dir.exists():
+                import contextlib
+
+                with contextlib.suppress(OSError):
+                    for root_dir, _dirs, files in os.walk(staging_dir, followlinks=False):
+                        with contextlib.suppress(OSError):
+                            os.chmod(root_dir, 0o700)
+                        for f in files:
+                            with contextlib.suppress(OSError):
+                                os.chmod(os.path.join(root_dir, f), 0o600)
+                shutil.rmtree(staging_dir, ignore_errors=True)
 
     def _run_with_transient_retries(
         self,

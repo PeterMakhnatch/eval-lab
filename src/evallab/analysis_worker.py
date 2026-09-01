@@ -39,6 +39,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shutil
 from collections.abc import Callable, Iterable  # noqa: F401  (Iterable in signatures)
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -216,7 +217,7 @@ class AnalysisRequest(BaseModel):
 
 
 AnalyzerFactory = Callable[
-    [JobRecord, TrialRecord, AnalysisRequest],
+    [AnalysisRequest],
     AnalyzerCallable,
 ]
 
@@ -885,8 +886,6 @@ class AnalysisWorker:
         if state == "deferred":
             last = self.store.transitions(request_id)[-1]
             if _is_permanent_deferral(last):
-                # run_one is the production entrypoint, so permanence is
-                # enforced here too — not only in the run_cycle loop.
                 return last
 
         # Crash-after-call adoption: sidecar exists -> never call again.
@@ -895,9 +894,6 @@ class AnalysisWorker:
             self._complete(request_id, sidecar_path, adopted=True)
             return self.store.transitions(request_id)[-1]
 
-        # A durable invocation-start marker with no sidecar crosses the only
-        # boundary we cannot infer across: the provider may have returned and
-        # charged before this process crashed. Never replay it automatically.
         if self.store.unresolved_invocation(request_id) is not None:
             reason = "ambiguous_invocation_requires_operator_resolution"
             previous = self.store.transitions(request_id)[-1]
@@ -910,6 +906,8 @@ class AnalysisWorker:
             self.store.append(request_id, "deferred", "lease_held_by_another_worker")
             return self.store.transitions(request_id)[-1]
         try:
+            import tempfile
+
             from evallab.evidence_store import evidence_tree_digest
             from evallab.results import load_trial
 
@@ -942,36 +940,11 @@ class AnalysisWorker:
 
             self.store.append(request_id, "admitted", None)
 
-            snapshot_trial_dir = self.store.request_dir(request_id) / "snapshot"
-            if not snapshot_trial_dir.is_dir():
-                source_trial = self.repo_root / request.trial_path
-                if source_trial.is_dir():
-                    self.store.freeze(request, trial_path=source_trial)
-
-            if not snapshot_trial_dir.is_dir():
-                self.store.append(request_id, "quarantined", "evidence_missing:source_snapshot")
-                return self.store.transitions(request_id)[-1]
-
-            cur_snap_dig = evidence_tree_digest(snapshot_trial_dir)
-            if cur_snap_dig != request.source_snapshot_digest:
-                self.store.append(request_id, "quarantined", "evidence_tampered:source_snapshot")
-                return self.store.transitions(request_id)[-1]
-
-            trial = load_trial(snapshot_trial_dir)
-            snapshot_job_dir = snapshot_trial_dir.parent
-            job = JobRecord(
-                path=snapshot_job_dir,
-                result={"id": request.job_id},
-                config={},
-                lock=trial.lock,
-                metadata={"name": request.job_name},
-                trials=(trial,),
-            )
-
+            # 1. Construct adapter from frozen metadata only
             analyzer = self.adapter
             if self.adapter_factory is not None:
                 try:
-                    analyzer = self.adapter_factory(job, trial, request)
+                    analyzer = self.adapter_factory(request)
                 except Exception as exc:
                     self.store.append(
                         request_id,
@@ -980,9 +953,7 @@ class AnalysisWorker:
                     )
                     return self.store.transitions(request_id)[-1]
 
-            # Quality Gate: Re-verify that the live original source has not drifted post-freeze.
-            # If the original trial was mutated during adapter_factory or concurrently, quarantine
-            # with ZERO model calls before starting an invocation or calling run_trial_analysis.
+            # 2. Quality Gate: Re-verify that the live original source has not drifted post-freeze.
             live_trial_dir = self.repo_root / request.trial_path
             try:
                 (
@@ -1024,38 +995,110 @@ class AnalysisWorker:
                 )
                 return self.store.transitions(request_id)[-1]
 
-            attempt_id = self.store.begin_invocation(
-                request_id,
-                owner_token=lease.owner_token,
-                at=self.clock(),
-            )
-            self.store.append(request_id, "running", f"attempt:{attempt_id}")
-            _durable_mkdir(sidecar_path.parent)
-            written_path, _sidecar = run_trial_analysis(
-                job,
-                trial,
-                analyzer=analyzer,
-                repo_root=self.repo_root,
-                destination_root=sidecar_path.parent,
-                prompt_path=self.prompt_path,
-                rubric_path=self.rubric_path,
-                agent=request.adapter,
-                agent_version=request.profile_id,
-                model=request.model,
-                created_at=self.clock(),
-            )
-            # Normalize to the stable per-request location and make the file
-            # durable before resolving the possibly-paid invocation marker.
-            _durable_replace(written_path, sidecar_path)
-            self.store.resolve_invocation(
-                request_id,
-                attempt_id,
-                resolution="sidecar_persisted",
-                actor="analysis-worker",
-                at=self.clock(),
-            )
-            self._complete(request_id, sidecar_path, adopted=False)
-            return self.store.transitions(request_id)[-1]
+            # 3. Verify stored snapshot integrity and absence of symlinks
+            snapshot_trial_dir = self.store.request_dir(request_id) / "snapshot"
+            if not snapshot_trial_dir.is_dir():
+                source_trial = self.repo_root / request.trial_path
+                if source_trial.is_dir():
+                    self.store.freeze(request, trial_path=source_trial)
+
+            if not snapshot_trial_dir.is_dir():
+                self.store.append(request_id, "quarantined", "evidence_missing:source_snapshot")
+                return self.store.transitions(request_id)[-1]
+
+            if os.path.islink(snapshot_trial_dir):
+                self.store.append(
+                    request_id, "quarantined", "evidence_tampered:source_snapshot_symlink"
+                )
+                return self.store.transitions(request_id)[-1]
+
+            for root_dir, _dirs, files in os.walk(snapshot_trial_dir, followlinks=False):
+                r_p = Path(root_dir)
+                if os.path.islink(r_p):
+                    self.store.append(
+                        request_id, "quarantined", "evidence_tampered:source_snapshot_symlink"
+                    )
+                    return self.store.transitions(request_id)[-1]
+                for f in files:
+                    if os.path.islink(r_p / f):
+                        self.store.append(
+                            request_id, "quarantined", "evidence_tampered:source_snapshot_symlink"
+                        )
+                        return self.store.transitions(request_id)[-1]
+
+            cur_snap_dig = evidence_tree_digest(snapshot_trial_dir)
+            if cur_snap_dig != request.source_snapshot_digest:
+                self.store.append(request_id, "quarantined", "evidence_tampered:source_snapshot")
+                return self.store.transitions(request_id)[-1]
+
+            # 4. Materialize verified snapshot into private, read-only execution directory
+            with tempfile.TemporaryDirectory(prefix="evallab-exec-") as exec_tmp:
+                private_exec_dir = Path(exec_tmp) / "trial"
+                shutil.copytree(snapshot_trial_dir, private_exec_dir, symlinks=False)
+
+                for root_dir, _dirs, files in os.walk(private_exec_dir, followlinks=False):
+                    r_p = Path(root_dir)
+                    for f in files:
+                        os.chmod(r_p / f, 0o400)
+                    os.chmod(r_p, 0o500)
+
+                if evidence_tree_digest(private_exec_dir) != request.source_snapshot_digest:
+                    self.store.append(request_id, "quarantined", "evidence_tampered:execution_tree")
+                    return self.store.transitions(request_id)[-1]
+
+                trial = load_trial(private_exec_dir)
+                snapshot_job_dir = private_exec_dir.parent
+                job = JobRecord(
+                    path=snapshot_job_dir,
+                    result={"id": request.job_id},
+                    config={},
+                    lock=trial.lock,
+                    metadata={"name": request.job_name},
+                    trials=(trial,),
+                )
+
+                attempt_id = self.store.begin_invocation(
+                    request_id,
+                    owner_token=lease.owner_token,
+                    at=self.clock(),
+                )
+                self.store.append(request_id, "running", f"attempt:{attempt_id}")
+                _durable_mkdir(sidecar_path.parent)
+                written_path, _sidecar = run_trial_analysis(
+                    job,
+                    trial,
+                    analyzer=analyzer,
+                    repo_root=self.repo_root,
+                    destination_root=sidecar_path.parent,
+                    prompt_path=self.prompt_path,
+                    rubric_path=self.rubric_path,
+                    agent=request.adapter,
+                    agent_version=request.profile_id,
+                    model=request.model,
+                    created_at=self.clock(),
+                )
+
+                # Recheck immutability of private execution directory after analysis
+                if evidence_tree_digest(private_exec_dir) != request.source_snapshot_digest:
+                    self.store.append(request_id, "quarantined", "evidence_tampered:execution_tree")
+                    return self.store.transitions(request_id)[-1]
+
+                for root_dir, _dirs, files in os.walk(private_exec_dir, followlinks=False):
+                    r_p = Path(root_dir)
+                    for f in files:
+                        os.chmod(r_p / f, 0o600)
+                    os.chmod(r_p, 0o700)
+
+                _durable_replace(written_path, sidecar_path)
+                self.store.resolve_invocation(
+                    request_id,
+                    attempt_id,
+                    resolution="sidecar_persisted",
+                    actor="analysis-worker",
+                    at=self.clock(),
+                )
+                self._complete(request_id, sidecar_path, adopted=False)
+                return self.store.transitions(request_id)[-1]
         finally:
             self._release_lease(request_id, lease)
 

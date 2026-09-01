@@ -1598,3 +1598,56 @@ def test_control_bootstrap_refuses_post_validation_staging_mutation(
 
     assert not (runs_dir / "post-val-spec").exists()
     assert not list(runs_dir.glob(".staging-*"))
+
+
+def test_control_bootstrap_refuses_mutation_inside_atomic_publish_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2 adversary: mutation injected right at the native publication boundary is caught with no publication."""
+    from evallab import queue as queue_module
+
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="native-boundary-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("native-boundary-spec", agent="oracle", task="registered/task-1")
+
+    real_publish = queue_module._atomic_no_replace_publish
+
+    def mutating_publish(
+        source: Path, destination: Path, *, expected_content_digest: str | None = None
+    ):
+        # Mutate the staged file right at the publication boundary
+        os.chmod(source / "result.json", 0o600)
+        (source / "result.json").write_text("TAMPERED_AT_PUBLISH_BOUNDARY\n")
+        return real_publish(source, destination, expected_content_digest=expected_content_digest)
+
+    monkeypatch.setattr(queue_module, "_atomic_no_replace_publish", mutating_publish)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "staged_evidence_tampered"
+
+    assert not (runs_dir / "native-boundary-spec").exists()
+    assert not list(runs_dir.glob(".staging-*"))

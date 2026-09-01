@@ -924,6 +924,80 @@ def test_settlement_reopens_canonical_record_and_refuses_verification_failure(
     assert exc_info.value.reason_code == "evidence_cas_unsettled"
 
 
+def _completed_run_request(tmp_path: Path, name: str) -> RunRequest:
+    return RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name=name,
+        jobs_dir=tmp_path / "runs",
+    )
+
+
+def _install_completed_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def completed(*_args, **kwargs) -> HarborProcessResult:
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+
+
+@pytest.mark.parametrize("record_bytes", [b"[]", b"\xff"])
+def test_unreadable_reopened_record_fails_terminally(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record_bytes: bytes,
+) -> None:
+    request = _completed_run_request(tmp_path, "malformed-reopened-record")
+    _install_completed_run(monkeypatch)
+    original_archive = runner_module.archive_evidence
+
+    def archive_with_bad_record(*args, **kwargs):
+        archive = original_archive(*args, **kwargs)
+        archive.manifest_path.write_bytes(record_bytes)
+        return archive
+
+    monkeypatch.setattr(runner_module, "archive_evidence", archive_with_bad_record)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "evidence_cas_unsettled"
+    state = json.loads(runner_module.executor_state_path(request).read_text())
+    assert state["status"] == "failed"
+
+
+def test_unexpected_settlement_exception_fails_terminally(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _completed_run_request(tmp_path, "unexpected-settlement-error")
+    _install_completed_run(monkeypatch)
+
+    def unexpected(*_args, **_kwargs):
+        raise RuntimeError("injected settlement programmer error")
+
+    monkeypatch.setattr(runner_module, "_settle_completed_job", unexpected)
+
+    with pytest.raises(RuntimeError, match="injected settlement programmer error"):
+        run_experiment(request, repo_root=tmp_path)
+
+    state = json.loads(runner_module.executor_state_path(request).read_text())
+    assert state["status"] == "failed"
+
+
 def test_secret_scan_precedes_generic_evidence_archive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

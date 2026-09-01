@@ -992,6 +992,11 @@ def test_canonical_reopen_refuses_complete_record_tampering(
     archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
     payload = json.loads(archive.manifest_path.read_text(encoding="utf-8"))
     payload[field] = value
+    reopened, reopened_bytes = evidence_store_module.reopen_evidence_archive(
+        store, kind="job", record_id="job-123"
+    )
+    assert reopened.manifest_path == archive.manifest_path
+    assert reopened_bytes == archive.manifest_path.read_bytes()
     archive.manifest_path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError):
         evidence_store_module.reopen_evidence_archive(

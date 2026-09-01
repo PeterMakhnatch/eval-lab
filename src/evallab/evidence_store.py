@@ -419,16 +419,20 @@ def reopen_evidence_archive(
     *,
     kind: str,
     record_id: str,
-    source: Path,
+    source: Path | None = None,
 ) -> tuple[EvidenceArchive, bytes]:
-    """Reopen and authenticate one complete canonical evidence record."""
+    """Reopen and authenticate one canonical record; source adds live-tree equality."""
 
     kind = _component(kind, label="record kind")
     record_id = _component(record_id, label="record id")
-    source = source.resolve()
-    source_files = _inventory(source)
-    source_digest = _content_digest(source, source_files)
-    source_bytes = sum(path.stat().st_size for path in source_files)
+    source_files: list[Path] | None = None
+    source_digest: str | None = None
+    source_bytes: int | None = None
+    if source is not None:
+        source = source.resolve()
+        source_files = _inventory(source)
+        source_digest = _content_digest(source, source_files)
+        source_bytes = sum(path.stat().st_size for path in source_files)
     record_path = _absolute(store_root) / "records" / kind / f"{record_id}.json"
     try:
         record_bytes = read_record(store_root, kind=kind, record_id=record_id)
@@ -466,7 +470,10 @@ def reopen_evidence_archive(
     )
     if record["blob_path"] != expected_blob.as_posix():
         raise ValueError("evidence record blob path is noncanonical")
-    if record["source_path"] != str(source):
+    source_path = record["source_path"]
+    if not isinstance(source_path, str) or not Path(source_path).is_absolute():
+        raise ValueError("evidence record source identity is invalid")
+    if source is not None and source_path != str(source):
         raise ValueError("evidence record source identity mismatch")
     if (
         isinstance(record["file_count"], bool)
@@ -483,7 +490,11 @@ def reopen_evidence_archive(
         archived_at = datetime.fromisoformat(record["archived_at"])
     except ValueError as exc:
         raise ValueError("evidence record timestamp is invalid") from exc
-    if archived_at.tzinfo is None or archived_at.utcoffset() != UTC.utcoffset(archived_at):
+    if (
+        archived_at.tzinfo is None
+        or archived_at.utcoffset() != UTC.utcoffset(archived_at)
+        or archived_at.isoformat() != record["archived_at"]
+    ):
         raise ValueError("evidence record timestamp is invalid")
     archive_bytes = read_archive(store_root, uri)
     actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
@@ -495,12 +506,17 @@ def reopen_evidence_archive(
         restored_digest = _content_digest(restored, restored_files)
         restored_bytes = sum(path.stat().st_size for path in restored_files)
     if (
-        content_digest != source_digest
-        or restored_digest != source_digest
-        or record["file_count"] != len(source_files)
-        or len(restored_files) != len(source_files)
-        or record["uncompressed_bytes"] != source_bytes
-        or restored_bytes != source_bytes
+        restored_digest != content_digest
+        or record["file_count"] != len(restored_files)
+        or record["uncompressed_bytes"] != restored_bytes
+        or (
+            source_files is not None
+            and (
+                content_digest != source_digest
+                or len(restored_files) != len(source_files)
+                or restored_bytes != source_bytes
+            )
+        )
     ):
         raise ValueError("evidence record content mismatch")
     return (

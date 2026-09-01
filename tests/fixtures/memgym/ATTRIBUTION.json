@@ -1,0 +1,30 @@
+{
+  "schema_version": "memgym-fixture-attribution/v1",
+  "upstream_repository": "https://github.com/WujiangXu/MemGym",
+  "upstream_commit": "50b404e6ae4e1fcd453d3e07963eb3e6312cbded",
+  "upstream_tree": "68c081f0271cfd7951e490afd59457b029ba0535",
+  "upstream_license": "Apache-2.0",
+  "upstream_fixture_directory": "tests/fixtures/trajectories/tau2_bench_run/memory/retail/0/",
+  "files": {
+    "LICENSE": {
+      "sha256": "sha256:04a6dfa6a8e2222a1dc9959758c94e29335eaa7bb782da9470788396aa5bf64f",
+      "bytes": 11305
+    },
+    "NOTICE": {
+      "sha256": "sha256:67866b5f1f5c41843e68f5c435e529d5ec86af31c2fe5265de868fd7986fe989",
+      "bytes": 5652
+    },
+    "0_training.json": {
+      "sha256": "sha256:85c55f353ec12712d0d208c401fa6dbedfdbabe4314d6f879656d4f49629680f",
+      "bytes": 4717
+    },
+    "0_replay.json": {
+      "sha256": "sha256:cce417c236c4cec0e6fdc3c134b24d32d571d904b7c5dcae2430bb5d9f0a1c7a",
+      "bytes": 28214
+    },
+    "result.json": {
+      "sha256": "sha256:c74cd64ec2fdff2cfb107ddfc14f9b4b135f83038b971a893c1e47d20ac1d4c5",
+      "bytes": 7153
+    }
+  }
+}

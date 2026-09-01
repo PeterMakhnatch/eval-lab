@@ -21,6 +21,11 @@ from evallab.interpretation.producers.mcp_recovery import (
     build_recovery_persistence_curve,
     extract_mcp_recovery_features,
 )
+from evallab.interpretation.producers.memgym import (
+    MemGymOutcome,
+    extract_context_operation_facts_from_memgym,
+    extract_memgym_outcome,
+)
 from evallab.interpretation.producers.memory_continuity import (
     MemoryContinuityFeatures,
     MemoryContinuityStatus,
@@ -45,6 +50,9 @@ __all__ = [
     "extract_memory_continuity_features_from_atif",
     "extract_mcp_recovery_features",
     "extract_benchmark_features",
+    "extract_context_operation_facts_from_memgym",
+    "extract_memgym_outcome",
+    "MemGymOutcome",
 ]
 
 

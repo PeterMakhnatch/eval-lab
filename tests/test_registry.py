@@ -64,6 +64,7 @@ def _make_dummy_task(
     (tests_dir / "test_task.py").write_text(verifier)
     return task_dir
 
+
 def _make_canary_policy(root: Path, task_paths: list[str] | None = None) -> None:
     members = task_paths or []
     policy = root / "policy/canary-suite.yaml"
@@ -139,9 +140,7 @@ def _make_control_evidence(
             trial_name=trial_name,
             reward=reward,
             evidence_path=result_file.relative_to(root).as_posix(),
-            evidence_digest=(
-                f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"
-            ),
+            evidence_digest=(f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"),
             lock_digest=f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}",
             observed_at=observed_at,
             task_id=task_id,
@@ -318,13 +317,14 @@ def test_candidate_record_cannot_back_registered_work(tmp_path: Path) -> None:
         reg.resolve_spec(spec, tmp_path)
 
 
-def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> None:
+def test_registered_fixture_without_causal_control_authority_is_refused(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/valid-task")
     record = _make_registry_record(task_dir, tmp_path, task_id="valid-task", state="registered")
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "valid-task.json").write_text(record.model_dump_json(indent=2))
-
     reg = TaskRegistry.from_repo(tmp_path)
     spec = ExperimentSpec(
         name="test-valid",
@@ -336,10 +336,11 @@ def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> 
         agent="codex",
         submitted_by="test",
     )
-    resolved = reg.resolve_spec(spec, tmp_path)
-    assert resolved is not None
-    assert resolved.task_id == "valid-task"
-    assert resolved.state == "registered"
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        reg.resolve_spec(spec, tmp_path)
 
 
 def test_changed_task_bytes_causes_refusal(tmp_path: Path) -> None:
@@ -395,9 +396,7 @@ def test_changed_verifier_bytes_causes_refusal(tmp_path: Path) -> None:
 def test_task_path_redirection_causes_refusal(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/original-task")
     _make_dummy_task(tmp_path, "library/tasks/other-task")
-    record = _make_registry_record(
-        task_dir, tmp_path, task_id="original-task", state="registered"
-    )
+    record = _make_registry_record(task_dir, tmp_path, task_id="original-task", state="registered")
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "original-task.json").write_text(record.model_dump_json(indent=2))
@@ -439,7 +438,9 @@ def test_task_version_mismatch_causes_refusal(tmp_path: Path) -> None:
         reg.resolve_spec(spec, tmp_path)
 
 
-def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
+def test_omitted_task_path_cannot_bypass_missing_control_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/omitted-path-task")
     record = _make_registry_record(
         task_dir, tmp_path, task_id="omitted-path-task", state="registered"
@@ -447,7 +448,6 @@ def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "omitted-path-task.json").write_text(record.model_dump_json(indent=2))
-
     reg = TaskRegistry.from_repo(tmp_path)
     spec = ExperimentSpec(
         name="test-omitted-path",
@@ -458,9 +458,11 @@ def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
         agent="codex",
         submitted_by="test",
     )
-    resolved = reg.resolve_spec(spec, tmp_path)
-    assert resolved is not None
-    assert spec.task_path == "library/tasks/omitted-path-task"
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        reg.resolve_spec(spec, tmp_path)
 
 
 def test_control_evidence_missing_file_causes_refusal(tmp_path: Path) -> None:
@@ -582,9 +584,7 @@ def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
     gate = PolicyGate(policy, repo_root=tmp_path)
     spec = ExperimentSpec(
@@ -683,9 +683,7 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
 
     captured_requests = []
@@ -721,21 +719,10 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
         submitted_by="test",
     )
     waiting, decision = executor.submit(spec)
-    # Billable work never auto-runs: it is authorised one spec at a time.
-    assert decision.reason_code == "paid_run_unauthorized"
-    path = queue.approve(str(queue.load(waiting).spec_id), actor="peter")
-    assert path.parent.name == "approved"
-
-    # Run executor tick
-    dispatched = executor.tick()
-    assert dispatched == 1
-    assert len(captured_requests) == 1
-
-    req = captured_requests[0]
-    assert req.task == (tmp_path / "library/tasks/dispatched-task").resolve()
-    assert req.provenance.package_digest == record.digests.package
-    assert req.provenance.verifier_digest == record.digests.verifier
-    assert req.provenance.task_path == "library/tasks/dispatched-task"
+    assert waiting.parent.name == "waiting"
+    assert decision.reason_code == "invalid_control_evidence"
+    assert executor.tick() == 0
+    assert captured_requests == []
 
 
 def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path: Path) -> None:
@@ -751,9 +738,7 @@ def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path:
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
     loop = ResearcherLoop(
         repo_root=tmp_path,
@@ -878,6 +863,7 @@ def test_inventory_refuses_missing_or_malformed_canary_policy(tmp_path: Path) ->
     with pytest.raises(TaskInventoryPolicyError, match="members list"):
         inventory_tasks(tmp_path)
 
+
 def _make_control_job(
     root: Path,
     task_dir: Path,
@@ -926,6 +912,7 @@ def _make_control_job(
     (trial_dir / "lock.json").write_text(json.dumps(lock, indent=2))
     return job_dir
 
+
 def test_registered_control_evidence_rejects_ignored_run_path(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/path-bound-task")
     record = _make_registry_record(
@@ -962,11 +949,11 @@ def test_explicit_ephemeral_discovery_root_is_refused(tmp_path: Path) -> None:
             jobs_roots=[tmp_path / "runs"],
         )
 
-    evidence = discover_control_evidence(task_dir, tmp_path)
-    assert evidence.oracle.reward == 1.0
-    assert evidence.nop.reward == 0.0
-    assert evidence.oracle.evidence_path.startswith("research/evidence/runs/")
-    assert evidence.nop.evidence_path.startswith("research/evidence/runs/")
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        discover_control_evidence(task_dir, tmp_path)
 
 
 def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
@@ -979,7 +966,7 @@ def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
         task_id="downgraded-task",
     )
 
-    with pytest.raises(TaskControlEvidenceError, match="missing durable trial-level"):
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
         promote_task(
             "library/tasks/downgraded-task",
             tmp_path,
@@ -1018,8 +1005,8 @@ def test_candidate_idempotence_refreshes_newly_available_durable_evidence(
     refreshed = promote_task("library/tasks/refreshed-task", tmp_path)
 
     assert refreshed.state == "candidate"
-    assert refreshed.control_evidence is not None
-    assert refreshed.state_reason is None
+    assert refreshed.control_evidence is None
+    assert refreshed.state_reason == "durable_identity_bound_control_evidence_missing"
     persisted = TaskRegistry.from_repo(tmp_path).get("refreshed-task")
     assert persisted == refreshed
 
@@ -1090,7 +1077,8 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 
     report = audit_registry(repo_root)
 
-    assert report.passed, report.to_dict()
+    assert report.passed is False
+    assert any(finding.category == "invalid_control_evidence" for finding in report.findings)
 
     fixture_root = tmp_path / "repository-fixture"
     shutil.copytree(repo_root / "library", fixture_root / "library")
@@ -1125,38 +1113,24 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 
     assert not drifted_report.passed
     assert any(
-        finding.category == "registration_inventory_drift"
-        for finding in drifted_report.findings
+        finding.category == "registration_inventory_drift" for finding in drifted_report.findings
     )
 
 
-def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path: Path) -> None:
+def test_promote_task_refuses_legacy_control_results_without_causal_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/event-summary")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    record = promote_task("library/tasks/event-summary", tmp_path)
-    assert record.task_id == "event-summary"
-    assert record.version == "1.0.0"
-    assert record.state == "candidate"
-    assert record.approved_by is None
-    assert record.approved_at is None
-    assert record.control_evidence.oracle.reward == 1.0
-    assert record.control_evidence.nop.reward == 0.0
-    assert record.digests.package.startswith("sha256:")
-    assert record.digests.verifier.startswith("sha256:")
-    assert record.digests.task_toml.startswith("sha256:")
-    assert record.digests.instruction.startswith("sha256:")
-    assert record.digests.environment.startswith("sha256:")
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/event-summary", tmp_path)
+    assert not (tmp_path / "library/registry/event-summary.json").exists()
 
-    record_file = tmp_path / "library/registry/event-summary.json"
-    assert record_file.is_file()
-
-    reg = TaskRegistry.from_repo(tmp_path)
-    loaded = reg.get("event-summary")
-    assert loaded is not None
-    assert loaded.state == "candidate"
-    assert loaded.digests.package == record.digests.package
 
 def test_synthetic_certificate_cannot_bypass_canonical_registration_packet(
     tmp_path: Path,
@@ -1198,6 +1172,7 @@ def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> No
 
     assert "missing durable trial-level oracle control evidence" in str(exc_info.value)
 
+
 def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/no-nop-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
@@ -1207,6 +1182,7 @@ def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
 
     assert "missing durable trial-level nop control evidence" in str(exc_info.value)
 
+
 def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/broken-oracle-task")
     _make_control_job(tmp_path, task_dir, "oracle", 0.0)  # Oracle failed!
@@ -1215,9 +1191,7 @@ def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> N
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-oracle-task", tmp_path)
 
-    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(
-        exc_info.value
-    )
+    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(exc_info.value)
 
 
 def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None:
@@ -1228,123 +1202,82 @@ def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-nop-task", tmp_path)
 
-    assert "nop control evidence for 'broken-nop-task' did not fail" in str(
-        exc_info.value
-    )
+    assert "nop control evidence for 'broken-nop-task' did not fail" in str(exc_info.value)
 
 
-def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> None:
+def test_register_task_refuses_legacy_controls_before_candidate_creation(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/promoted-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    cand = promote_task("library/tasks/promoted-task", tmp_path)
-    assert cand.state == "candidate"
-
-    # Candidate cannot resolve registered/*
-    reg = TaskRegistry.from_repo(tmp_path)
-    spec = ExperimentSpec(
-        name="test-exp",
-        task="registered/promoted-task",
-        agent="oracle",
-        hypothesis="test hypothesis",
-        purpose="baseline",
-        submitted_by="Peter Makhnatch",
-    )
-    with pytest.raises(TaskStateInvalidError):
-        reg.resolve_spec(spec, tmp_path)
-
-    with pytest.raises(TaskCertificationError, match="certification-packet"):
-        register_task("promoted-task", actor="Peter Makhnatch", repo_root=tmp_path)
-
-    persisted = TaskRegistry.from_repo(tmp_path).get("promoted-task")
-    assert persisted is not None
-    assert persisted.state == "candidate"
-    assert persisted.certification.state == "legacy_missing"
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/promoted-task", tmp_path)
+    assert TaskRegistry.from_repo(tmp_path).get("promoted-task") is None
 
 
-def test_register_task_without_actor_refuses(tmp_path: Path) -> None:
+def test_register_task_without_actor_refuses_before_control_discovery(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/unapproved-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    promote_task("library/tasks/unapproved-task", tmp_path)
+    with pytest.raises(ValueError, match="approved_by / --actor"):
+        promote_task(
+            "library/tasks/unapproved-task",
+            tmp_path,
+            state="registered",
+            actor="",
+        )
 
-    with pytest.raises(ValueError) as exc_info:
-        register_task("unapproved-task", actor="", repo_root=tmp_path)
-    assert "registered task records require approved_by / --actor" in str(exc_info.value)
 
-
-def test_promote_task_idempotence_unchanged_package(tmp_path: Path) -> None:
+def test_repeated_promotion_refuses_legacy_controls_without_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/idempotent-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    record1 = promote_task("library/tasks/idempotent-task", tmp_path)
-    record2 = promote_task("library/tasks/idempotent-task", tmp_path)
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/idempotent-task", tmp_path)
 
-    assert record1.digests.package == record2.digests.package
-    assert record1.version == record2.version
-    assert record1.state == record2.state
 
-
-def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Path) -> None:
+def test_package_mutation_cannot_bypass_missing_control_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/tampered-bump-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.0")
-
-    # Tamper with instruction on disk
-    (task_dir / "instruction.md").write_text("Modified instruction bytes on disk.\n")
-
-    with pytest.raises(TaskDigestMismatchError) as exc_info:
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
         promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.0")
-
-    err = str(exc_info.value)
-    assert "task package bytes on disk have changed" in err
-    assert "bump --version to register a new version" in err
-
-    _make_control_job(
-        tmp_path,
-        task_dir,
-        "oracle",
-        1.0,
-        job_name="gymv0-oracle-tampered-bump-task-v2",
-        task_version="1.0.1",
-    )
-    _make_control_job(
-        tmp_path,
-        task_dir,
-        "nop",
-        0.0,
-        job_name="gymv0-nop-tampered-bump-task-v2",
-        task_version="1.0.1",
-    )
-    # Bumping version succeeds
-    record_v2 = promote_task(
-        "library/tasks/tampered-bump-task", tmp_path, version="1.0.1"
-    )
-    assert record_v2.version == "1.0.1"
+    (task_dir / "instruction.md").write_text("Modified instruction bytes on disk.\n")
+    with pytest.raises(TaskControlEvidenceError):
+        promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.1")
 
 
-def test_cli_registry_promote_and_register_e2e(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_cli_registry_promote_refuses_legacy_control_results(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     import argparse
 
-    from evallab.cli import (
-        _registry_audit_command,
-        _registry_list_command,
-        _registry_promote_command,
-        _registry_register_command,
-    )
+    from evallab.cli import _registry_promote_command
 
     task_dir = _make_dummy_task(tmp_path, "library/tasks/cli-test-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
-
-    # 1. Promote via CLI
     promote_args = argparse.Namespace(
         task_path="library/tasks/cli-test-task",
         task_id=None,
@@ -1366,44 +1299,10 @@ def test_cli_registry_promote_and_register_e2e(
         registry_dir=str(tmp_path / "library/registry"),
         json=False,
     )
-    exit_code = _registry_promote_command(promote_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "promoted: cli-test-task@1.0.0 (state: candidate)" in out
 
-    # 2. List shows candidate
-    list_args = argparse.Namespace(state=None, json=False)
-    # Point registry from_repo to tmp_path
-    exit_code = _registry_list_command(list_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "cli-test-task" in out
-    assert "candidate" in out
-
-    # 3. Register via CLI
-    reg_args = argparse.Namespace(
-        task_id="cli-test-task",
-        actor="Peter Makhnatch",
-        registry_dir=str(tmp_path / "library/registry"),
-        json=False,
-    )
-    exit_code = _registry_register_command(reg_args, tmp_path)
-    assert exit_code == 1
-    _, err = capsys.readouterr()
-    assert "certification-packet" in err
-    _make_canary_policy(tmp_path)
-
-    inventory_path = tmp_path / "research/registration/inventory.json"
-    inventory_path.parent.mkdir(parents=True, exist_ok=True)
-    inventory_path.write_text(
-        json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n"
-    )
-    # 4. Audit passes with an explicit legacy-certificate warning.
-    audit_args = argparse.Namespace(json=False)
-    exit_code = _registry_audit_command(audit_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "legacy_missing_certification" in out
+    assert _registry_promote_command(promote_args, tmp_path) == 1
+    _, error = capsys.readouterr()
+    assert "strict trial admissibility authority" in error
 
 
 def test_cli_registry_promote_refuses_missing_durable_evidence(

@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from evallab.results import load_job
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
@@ -36,6 +37,11 @@ from evallab.storage.paths import shared_checkout_root
 from evallab.task_workbench import (
     ISOLATION_DIAGNOSTIC_CODES,
     LEAKAGE_DIAGNOSTIC_CODES,
+)
+from evallab.trial_admissibility import (
+    TrialAdmissibilityError,
+    job_run_provenance,
+    verify_trial_admissibility,
 )
 
 IGNORED_FILE_NAMES = {".DS_Store", ".git", "__pycache__", ".pytest_cache"}
@@ -212,8 +218,19 @@ def _digest_bytes(value: bytes) -> str:
 
 
 def task_registry_record_digest(record: TaskRegistryRecord) -> str:
-    """Digest one exact canonical registry revision, including admission state."""
-    return _digest_bytes(_canonical_bytes(record.model_dump(mode="json")))
+    """Digest the immutable runnable revision, excluding its admission envelope."""
+    revision = record.model_dump(
+        mode="json",
+        exclude={
+            "control_evidence",
+            "state",
+            "allowed_uses",
+            "approved_by",
+            "approved_at",
+            "state_reason",
+        },
+    )
+    return _digest_bytes(_canonical_bytes(revision))
 
 
 def task_runtime_identity(record: TaskRegistryRecord) -> TaskRuntimeIdentityV1:
@@ -649,6 +666,32 @@ def _extract_reward_and_agent(
     return agent_name, None
 
 
+def _require_causal_control_admissibility(
+    trial_dir: Path,
+    *,
+    repo_root: Path,
+) -> None:
+    try:
+        job = load_job(trial_dir.parent)
+        trial = next(
+            item for item in job.trials if item.path.resolve() == trial_dir.resolve()
+        )
+        verified = verify_trial_admissibility(
+            trial_dir=trial.path,
+            trial_id=trial.id,
+            provenance=job_run_provenance(job),
+            repo_root=repo_root,
+        )
+    except (OSError, StopIteration, TrialAdmissibilityError, ValueError) as exc:
+        raise TaskControlEvidenceError(
+            "control evidence lacks strict trial admissibility authority"
+        ) from exc
+    if not verified.causal_eligible:
+        raise TaskControlEvidenceError(
+            "control evidence is not admissible for causal promotion"
+        )
+
+
 def _verify_control_result(
     data: dict[str, Any],
     lock_data: dict[str, Any],
@@ -657,6 +700,8 @@ def _verify_control_result(
     expected_reward: float,
     record: TaskRegistryRecord,
     evidence_ref: ControlEvidenceRef,
+    trial_dir: Path,
+    repo_root: Path,
 ) -> None:
     """Validate one Harbor trial and its lock against the registered package."""
     if "stats" in data or not isinstance(data.get("trial_name"), str):
@@ -713,6 +758,10 @@ def _verify_control_result(
         raise TaskControlEvidenceError(
             f"control evidence result identity mismatch for {record.task_id!r}"
         )
+    _require_causal_control_admissibility(
+        trial_dir,
+        repo_root=repo_root,
+    )
 
 def discover_control_evidence(
     task_dir: Path,
@@ -861,6 +910,14 @@ def discover_control_evidence(
             f"nop control evidence for {task_id!r} did not fail "
             f"(reward: {nop_ref.reward}, expected: 0.0)"
         )
+    _require_causal_control_admissibility(
+        (repo_root / oracle_ref.evidence_path).parent,
+        repo_root=repo_root,
+    )
+    _require_causal_control_admissibility(
+        (repo_root / nop_ref.evidence_path).parent,
+        repo_root=repo_root,
+    )
     return TaskControlEvidence(oracle=oracle_ref, nop=nop_ref)
 
 def promote_task(
@@ -889,6 +946,7 @@ def promote_task(
     approved_at: datetime | None = None,
     jobs_roots: Sequence[Path] | None = None,
     certification_path: Path | str | None = None,
+    stage_controls: bool = False,
 ) -> TaskRegistryRecord:
     """Promote a task package on disk into the explicit task registry."""
     repo_root = repo_root.resolve()
@@ -1044,6 +1102,19 @@ def promote_task(
         if certification_path is not None
         else TaskCertificationEnvelope()
     )
+    if state == "registered":
+        if not actor or not actor.strip():
+            raise ValueError(
+                "registered task records require approved_by / --actor"
+            )
+        if certification.state != "bound":
+            raise TaskCertificationError(
+                "new registered promotion requires a valid --certification-packet"
+            )
+    if stage_controls:
+        if state != "registered":
+            raise ValueError("control staging requires registered target state")
+        allowed_uses = ["canary"]
 
 
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
@@ -1077,6 +1148,36 @@ def promote_task(
                     f"requested family {task_family!r}"
                 )
 
+            if (
+                existing_record.state == "registered"
+                and existing_record.state_reason == "control_evidence_pending"
+            ):
+                if stage_controls:
+                    return existing_record
+                discovered_evidence = discover_control_evidence(
+                    target_path,
+                    repo_root,
+                    jobs_roots=jobs_roots,
+                    task_version=version,
+                )
+                updated_record = TaskRegistryRecord.model_validate(
+                    existing_record.model_copy(
+                        update={
+                            "control_evidence": discovered_evidence,
+                            "certification": certification,
+                            "state_reason": None,
+                            "allowed_uses": allowed_uses,
+                            "approved_by": actor,
+                            "approved_at": approved_at or existing_record.approved_at,
+                        }
+                    ).model_dump()
+                )
+                verify_control_evidence(repo_root, updated_record)
+                verify_certification_packet(repo_root, updated_record)
+                record_file.write_text(
+                    json.dumps(updated_record.model_dump(mode="json"), indent=2) + "\n"
+                )
+                return updated_record
             if existing_record.state == "candidate":
                 try:
                     discovered_evidence = discover_control_evidence(
@@ -1126,22 +1227,16 @@ def promote_task(
 
             return existing_record
 
-    # Discover control evidence
-    control_evidence = discover_control_evidence(
-        target_path,
-        repo_root,
-        jobs_roots=jobs_roots,
-        task_version=version,
-    )
+    if stage_controls:
+        control_evidence = None
+    else:
+        control_evidence = discover_control_evidence(
+            target_path,
+            repo_root,
+            jobs_roots=jobs_roots,
+            task_version=version,
+        )
     if state == "registered":
-        if not actor or not actor.strip():
-            raise ValueError(
-                "registered task records require approved_by / --actor"
-            )
-        if certification.state != "bound":
-            raise TaskCertificationError(
-                "new registered promotion requires a valid --certification-packet"
-            )
         approved_by = actor
         approved_timestamp = approved_at or datetime.now(UTC)
     else:
@@ -1172,6 +1267,7 @@ def promote_task(
         human_minutes=human_minutes,
         approved_by=approved_by,
         approved_at=approved_timestamp,
+        state_reason=("control_evidence_pending" if stage_controls else None),
     )
 
     reg_dir.mkdir(parents=True, exist_ok=True)
@@ -1272,7 +1368,10 @@ def register_task(
 
 def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
     """Verify committed trial evidence, lock identity, and registered package binding."""
-    if record.state != "registered":
+    if (
+        record.state != "registered"
+        or record.state_reason == "control_evidence_pending"
+    ):
         return
     if record.control_evidence is None:
         raise TaskControlEvidenceError(
@@ -1358,6 +1457,8 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             expected_reward=expected_reward,
             record=record,
             evidence_ref=evidence_ref,
+            trial_dir=evidence_path.parent,
+            repo_root=root,
         )
 
 
@@ -1470,7 +1571,18 @@ class TaskRegistry:
                 "registered state required for registered/* execution"
             )
 
-        if "measurement" not in record.allowed_uses:
+        pending_controls = record.state_reason == "control_evidence_pending"
+        is_control_bootstrap = (
+            pending_controls
+            and spec.agent in {"oracle", "nop"}
+            and spec.purpose == "baseline"
+        )
+        if pending_controls and not is_control_bootstrap:
+            raise TaskUsageNotAllowedError(
+                f"task {task_id!r} is pending control evidence; only baseline "
+                "oracle/nop controls are permitted"
+            )
+        if not pending_controls and "measurement" not in record.allowed_uses:
             raise TaskUsageNotAllowedError(
                 f"task {task_id!r} allows uses {record.allowed_uses!r}; "
                 "measurement is not permitted"
@@ -1526,7 +1638,8 @@ class TaskRegistry:
                 f"registered verifier {record.digests.verifier!r}"
             )
 
-        verify_control_evidence(repo_root, record)
+        if not pending_controls:
+            verify_control_evidence(repo_root, record)
         verify_certification_packet(repo_root, record)
 
         return record

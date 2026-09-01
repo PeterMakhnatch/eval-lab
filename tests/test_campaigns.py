@@ -67,6 +67,8 @@ from evallab.schemas import (
     ExperimentMatrix,
     ExperimentSpec,
     NetworkEscapeProbeResultV1,
+    NetworkIsolationDispatchIdentityV1,
+    NetworkIsolationEvidenceV1,
     NetworkIsolationProbeIdentityV1,
     NetworkIsolationRuntimeIdentityV1,
     NetworkPolicyEvidenceV1,
@@ -623,6 +625,7 @@ def _executor(
     capacity: DispatchCapacity | None = None,
     credentials: frozenset[str] = frozenset(),
     compliance: Any = lambda _job, _spec, _ingest, _archive: "QUALITY_PASS",
+    isolation_identity_provider: Any | None = None,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -631,6 +634,15 @@ def _executor(
         runner=runner,
         ingester=lambda _job: None,
         compliance=compliance,
+        isolation_identity_provider=(
+            isolation_identity_provider
+            or (
+                lambda evidence: NetworkIsolationDispatchIdentityV1(
+                    runtime_identity=evidence.runtime_identity,
+                    probe_identity=evidence.probe_identity,
+                )
+            )
+        ),
         spent_today=lambda: 0.0,
         consecutive_harness_failures=lambda: 0,
         credential_probe=lambda: credentials,
@@ -1808,6 +1820,61 @@ def test_executor_rejects_campaign_spec_id_prefix_substitution(
     assert calls == []
     assert any(
         event.reason_code == "campaign_binding_missing"
+        for event in load_events(executor.queue.events_path)
+    )
+
+
+@pytest.mark.parametrize(
+    ("identity_part", "field", "value"),
+    [
+        ("runtime", "container_runtime_version", "drifted-runtime"),
+        ("runtime", "container_image_digest", "sha256:" + "0" * 64),
+        ("runtime", "adapter_version", "drifted-adapter"),
+        ("runtime", "adapter_digest", "sha256:" + "1" * 64),
+        ("probe", "implementation_digest", "sha256:" + "2" * 64),
+        ("probe", "config_digest", "sha256:" + "3" * 64),
+    ],
+)
+def test_executor_rejects_live_isolation_identity_drift_before_runner(
+    tmp_path: Path,
+    identity_part: str,
+    field: str,
+    value: str,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+
+    def drifted_identity(
+        evidence: NetworkIsolationEvidenceV1,
+    ) -> NetworkIsolationDispatchIdentityV1:
+        assert evidence.runtime_identity is not None
+        assert evidence.probe_identity is not None
+        runtime = evidence.runtime_identity
+        probe = evidence.probe_identity
+        if identity_part == "runtime":
+            runtime = runtime.model_copy(update={field: value})
+        else:
+            probe = probe.model_copy(update={field: value})
+        return NetworkIsolationDispatchIdentityV1(
+            runtime_identity=runtime,
+            probe_identity=probe,
+        )
+
+    executor = _executor(
+        root,
+        lambda request: calls.append(request),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+        isolation_identity_provider=drifted_identity,
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+
+    assert executor.tick(spec_ids=[manifest.attempts[0].spec_id]) == 0
+    assert calls == []
+    assert any(
+        event.reason_code == "campaign_isolation_identity_drift"
         for event in load_events(executor.queue.events_path)
     )
 

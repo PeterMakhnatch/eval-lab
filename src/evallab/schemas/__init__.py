@@ -224,6 +224,11 @@ class NetworkIsolationProbeIdentityV1(ContractModel):
     config_digest: Digest
 
 
+class NetworkIsolationDispatchIdentityV1(ContractModel):
+    runtime_identity: NetworkIsolationRuntimeIdentityV1
+    probe_identity: NetworkIsolationProbeIdentityV1
+
+
 class NetworkEscapeProbeResultV1(ContractModel):
     escape_class: NetworkEscapeClass
     target: str = Field(min_length=1)
@@ -254,11 +259,19 @@ def _derive_network_isolation_projection(
 ) -> NetworkIsolationProjectionV1:
     if as_of.tzinfo is None:
         raise ValueError("network-isolation evaluation time must be timezone-aware")
+    if requested_verifier_phase_policy is None or effective_verifier_phase_policy is None:
+        return NetworkIsolationProjectionV1(
+            status="unavailable",
+            reason="network_isolation_unavailable:missing-verifier-phase-policy-evidence",
+            analysis_eligibility="calibration-only",
+        )
     required = (
         requested_agent_policy,
         effective_agent_policy,
         requested_verifier_policy,
         effective_verifier_policy,
+        requested_verifier_phase_policy,
+        effective_verifier_phase_policy,
         runtime_identity,
         probe_identity,
         observed_at,
@@ -273,6 +286,12 @@ def _derive_network_isolation_projection(
     assert runtime_identity is not None
     assert observed_at is not None
     assert valid_until is not None
+    assert requested_agent_policy is not None
+    assert effective_agent_policy is not None
+    assert requested_verifier_policy is not None
+    assert effective_verifier_policy is not None
+    assert requested_verifier_phase_policy is not None
+    assert effective_verifier_phase_policy is not None
     if observed_at.tzinfo is None or valid_until.tzinfo is None:
         return NetworkIsolationProjectionV1(
             status="unknown",
@@ -297,19 +316,26 @@ def _derive_network_isolation_projection(
         and requested_verifier_policy == effective_verifier_policy
         and requested_verifier_phase_policy == effective_verifier_phase_policy
     )
+    policies = (
+        requested_agent_policy,
+        effective_agent_policy,
+        requested_verifier_policy,
+        effective_verifier_policy,
+        requested_verifier_phase_policy,
+        effective_verifier_phase_policy,
+    )
+    isolation_capable = all(policy.mode in {"no-network", "allowlist"} for policy in policies)
     escaped = tuple(result.escape_class for result in probe_results if result.outcome == "escaped")
     errors = tuple(result.escape_class for result in probe_results if result.outcome == "error")
-    if not policies_match or escaped:
-        reason = (
-            DARWIN_ISOLATION_UNAVAILABLE_REASON
-            if runtime_identity.platform_system == "Darwin"
-            else "network_isolation_unavailable:"
-            + (
-                "requested-effective-policy-mismatch"
-                if not policies_match
-                else "escape-observed-" + "-".join(escaped)
-            )
-        )
+    if not policies_match or not isolation_capable or escaped:
+        if runtime_identity.platform_system == "Darwin" and escaped:
+            reason = DARWIN_ISOLATION_UNAVAILABLE_REASON
+        elif not policies_match:
+            reason = "network_isolation_unavailable:requested-effective-policy-mismatch"
+        elif not isolation_capable:
+            reason = "network_isolation_unavailable:non-isolating-policy-mode"
+        else:
+            reason = "network_isolation_unavailable:escape-observed-" + "-".join(escaped)
         return NetworkIsolationProjectionV1(
             status="unavailable",
             reason=reason,
@@ -462,11 +488,21 @@ class TrialSourceDigestsV1(ContractModel):
     interpretation: Digest | None = None
 
 
+class TrialSourcePathsV1(ContractModel):
+    contract: tuple[str, ...] = ()
+    trajectory: tuple[str, ...] = ()
+    final_state: tuple[str, ...] = ()
+    verifier: tuple[str, ...] = ()
+    outcome: tuple[str, ...] = ()
+    interpretation: tuple[str, ...] = ()
+
+
 class TrialAdmissibilityV1(ContractModel):
     schema_version: Literal["trial-admissibility/v1"] = "trial-admissibility/v1"
     trial_id: str = Field(min_length=1)
     task_runtime_identity: TaskRuntimeIdentityV1 | None = None
     source_digests: TrialSourceDigestsV1
+    source_paths: TrialSourcePathsV1 | None = None
     network_isolation_evidence: NetworkIsolationEvidenceV1 | None = None
     network_isolation_evidence_digest: Digest | None = None
     network_isolation_status: NetworkIsolationStatus
@@ -484,6 +520,7 @@ class TrialAdmissibilityV1(ContractModel):
             trial_id=self.trial_id,
             task_runtime_identity=self.task_runtime_identity,
             source_digests=self.source_digests,
+            source_paths=self.source_paths,
             network_isolation_evidence=self.network_isolation_evidence,
             evaluated_at=self.evaluated_at,
         )
@@ -522,6 +559,7 @@ def derive_trial_admissibility(
     trial_id: str,
     task_runtime_identity: TaskRuntimeIdentityV1 | None,
     source_digests: TrialSourceDigestsV1,
+    source_paths: TrialSourcePathsV1 | None,
     network_isolation_evidence: NetworkIsolationEvidenceV1 | None,
     evaluated_at: datetime,
 ) -> dict[str, Any]:
@@ -544,6 +582,9 @@ def derive_trial_admissibility(
             "trial_admissibility_rejected:registry-state-"
             + task_runtime_identity.registry_admission_state
         )
+    elif source_paths is None or any(not value for value in source_paths.model_dump().values()):
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:incomplete-source-path-chain"
     elif any(value is None for value in source_digests.model_dump().values()):
         decision = "unavailable"
         reason = "trial_admissibility_unavailable:incomplete-source-digest-chain"
@@ -575,6 +616,7 @@ def build_trial_admissibility(
     trial_id: str,
     task_runtime_identity: TaskRuntimeIdentityV1 | None,
     source_digests: TrialSourceDigestsV1,
+    source_paths: TrialSourcePathsV1 | None,
     network_isolation_evidence: NetworkIsolationEvidenceV1 | None,
     evaluated_at: datetime,
 ) -> TrialAdmissibilityV1:
@@ -582,12 +624,14 @@ def build_trial_admissibility(
         trial_id=trial_id,
         task_runtime_identity=task_runtime_identity,
         source_digests=source_digests,
+        source_paths=source_paths,
         network_isolation_evidence=network_isolation_evidence,
         evaluated_at=evaluated_at,
     )
     draft = TrialAdmissibilityV1.model_construct(
         task_runtime_identity=task_runtime_identity,
         source_digests=source_digests,
+        source_paths=source_paths,
         network_isolation_evidence=network_isolation_evidence,
         evaluated_at=evaluated_at,
         admissibility_digest="sha256:" + "0" * 64,
@@ -2073,37 +2117,50 @@ class TaskRegistryRecord(ContractModel):
     @model_validator(mode="after")
     def validate_state_invariants(self) -> TaskRegistryRecord:
         if self.state == "registered":
-            if self.state_reason is not None:
-                raise ValueError("registered task records cannot carry state_reason")
-            if self.control_evidence is None:
-                raise ValueError("registered task records require control_evidence")
+            pending_controls = self.state_reason == "control_evidence_pending"
+            if pending_controls:
+                if self.control_evidence is not None:
+                    raise ValueError(
+                        "control-pending registry records cannot carry control_evidence"
+                    )
+                if self.allowed_uses != ["canary"]:
+                    raise ValueError("control-pending registry records permit only canary use")
+                if self.certification.state != "bound":
+                    raise ValueError("control-pending registry records require bound certification")
+            else:
+                if self.state_reason is not None:
+                    raise ValueError("registered task records cannot carry state_reason")
+                if self.control_evidence is None:
+                    raise ValueError("registered task records require control_evidence")
             if not self.approved_by or not self.approved_by.strip():
                 raise ValueError("registered task records require approved_by")
             if self.approved_at is None:
                 raise ValueError("registered task records require approved_at")
-            if self.control_evidence.oracle.reward != 1.0:
-                raise ValueError(
-                    "registered task requires oracle reward 1.0 "
-                    f"(got {self.control_evidence.oracle.reward})"
-                )
-            if self.control_evidence.nop.reward != 0.0:
-                raise ValueError(
-                    "registered task requires nop reward 0.0 "
-                    f"(got {self.control_evidence.nop.reward})"
-                )
-            for label, ref in (
-                ("oracle", self.control_evidence.oracle),
-                ("nop", self.control_evidence.nop),
-            ):
-                if ref.task_id != self.task_id or ref.task_version != self.version:
+            if not pending_controls:
+                assert self.control_evidence is not None
+                if self.control_evidence.oracle.reward != 1.0:
                     raise ValueError(
-                        f"registered task {label} evidence identity does not match "
-                        "the registry record"
+                        "registered task requires oracle reward 1.0 "
+                        f"(got {self.control_evidence.oracle.reward})"
                     )
-                if ref.task_digests != self.digests:
+                if self.control_evidence.nop.reward != 0.0:
                     raise ValueError(
-                        f"registered task {label} evidence digests do not match the registry record"
+                        "registered task requires nop reward 0.0 "
+                        f"(got {self.control_evidence.nop.reward})"
                     )
+                for label, ref in (
+                    ("oracle", self.control_evidence.oracle),
+                    ("nop", self.control_evidence.nop),
+                ):
+                    if ref.task_id != self.task_id or ref.task_version != self.version:
+                        raise ValueError(
+                            f"registered task {label} evidence identity does not match "
+                            "the registry record"
+                        )
+                    if ref.task_digests != self.digests:
+                        raise ValueError(
+                            f"registered task {label} evidence digests do not match the registry record"
+                        )
             if self.provenance_zone == "01-external":
                 if not self.license or not self.license.strip():
                     raise ValueError("external registered task requires license")

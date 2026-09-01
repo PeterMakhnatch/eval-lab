@@ -10,9 +10,8 @@ Enforces:
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal
@@ -24,10 +23,10 @@ from evallab.benchmark_program_contracts import (
     FaultInjectionRecord,
     SyntheticFamilyType,
 )
-from evallab.schemas import (
-    TrialAdmissibilityV1,
-    TrialSourceDigestsV1,
-    build_trial_admissibility,
+from evallab.schemas import RunProvenance, TrialAdmissibilityV1
+from evallab.trial_admissibility import (
+    TrialAdmissibilityError,
+    verify_trial_admissibility,
 )
 
 
@@ -1289,116 +1288,12 @@ def correlate_tool_calls(
     return correlated
 
 
-def _combined_digest(paths: Sequence[Path | None]) -> str | None:
-    values = [
-        _prefixed_sha256_of(path)
-        for path in paths
-        if path is not None and path.is_file() and not path.is_symlink()
-    ]
-    if not values or any(value is None for value in values):
-        return None
-    canonical = json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
-    return f"sha256:{sha256(canonical).hexdigest()}"
-
-
-def _trial_source_digests(
-    path: Path,
-    *,
-    contract_path: Path,
-    final_state_path: Path,
-) -> TrialSourceDigestsV1:
-    trajectory_path = _first_regular_file(path, _TRAJECTORY_CANDIDATES)
-    verifier_result = _first_regular_file(path, _VERIFIER_RESULT_CANDIDATES)
-    verifier_reward = _first_regular_file(path, _VERIFIER_REWARD_CANDIDATES)
-    outcome_path = _first_regular_file(path, _SOURCE_RESULT_CANDIDATES)
-    interpretation_path = _first_regular_file(path, _INTERPRETATION_CANDIDATES)
-    return TrialSourceDigestsV1(
-        contract=_prefixed_sha256_of(contract_path),
-        trajectory=_prefixed_sha256_of(trajectory_path),
-        final_state=_prefixed_sha256_of(final_state_path),
-        verifier=_combined_digest((verifier_result, verifier_reward)),
-        outcome=_prefixed_sha256_of(outcome_path),
-        interpretation=_prefixed_sha256_of(interpretation_path),
-    )
-
-
-def _load_trial_admissibility(
-    path: Path,
-    *,
-    trial_id: str,
-    contract: BenchmarkContractRecord,
-    source_digests: TrialSourceDigestsV1,
-    repo_root: Path | None,
-) -> tuple[TrialAdmissibilityV1, bool]:
-    evidence_path = path / _TRIAL_ADMISSIBILITY_FILENAME
-    if evidence_path.is_file() and not evidence_path.is_symlink():
-        try:
-            admissibility = TrialAdmissibilityV1.model_validate_json(
-                evidence_path.read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise BenchmarkEventSchemaError(
-                "trial admissibility evidence is malformed or digest-invalid"
-            ) from exc
-        if admissibility.trial_id != trial_id:
-            raise BenchmarkContractDriftError(
-                "trial admissibility identity does not match the loaded trial"
-            )
-        if admissibility.source_digests != source_digests:
-            raise BenchmarkContractDriftError(
-                "trial admissibility source digest chain does not match loaded artifacts"
-            )
-        task_identity = admissibility.task_runtime_identity
-        if (
-            task_identity is not None
-            and contract.task_id_explicit
-            and task_identity.task_id != contract.task_id
-        ):
-            raise BenchmarkContractDriftError(
-                "trial admissibility task identity does not match benchmark contract"
-            )
-    else:
-        admissibility = build_trial_admissibility(
-            trial_id=trial_id,
-            task_runtime_identity=None,
-            source_digests=source_digests,
-            network_isolation_evidence=None,
-            evaluated_at=datetime(1970, 1, 1, tzinfo=UTC),
-        )
-    if admissibility.task_runtime_identity is not None and not contract.task_id_explicit:
-        return admissibility, False
-    if repo_root is None or admissibility.task_runtime_identity is None:
-        return admissibility, False
-    from evallab.registry import (
-        RegistryError,
-        TaskRegistry,
-        compute_task_digests,
-        task_runtime_identity,
-    )
-
-    registry_record = TaskRegistry.from_repo(repo_root).get(
-        admissibility.task_runtime_identity.task_id
-    )
-    if registry_record is None:
-        return admissibility, False
-    try:
-        current_digests = compute_task_digests(repo_root / registry_record.task_path)
-    except (OSError, RegistryError):
-        return admissibility, False
-    verified = (
-        task_runtime_identity(registry_record) == admissibility.task_runtime_identity
-        and current_digests == registry_record.digests
-        and current_digests.package
-        == admissibility.task_runtime_identity.certified_runtime_package_digest
-    )
-    return admissibility, verified
-
-
 def load_trial_bundle(
     trial_dir: Path | str,
     trial_id: str | None = None,
     *,
     repo_root: Path | None = None,
+    provenance: RunProvenance | Mapping[str, Any] | None = None,
 ) -> TrialBundle:
     """Load and strictly validate a complete trial evidence directory."""
     path = Path(trial_dir)
@@ -1421,18 +1316,24 @@ def load_trial_bundle(
     events = parse_benchmark_events(events_path)
     final_state = parse_final_state(final_state_path)
     correlated = correlate_tool_calls(events)
-    source_digests = _trial_source_digests(
-        path,
-        contract_path=contract_path,
-        final_state_path=final_state_path,
-    )
-    admissibility, registry_binding_verified = _load_trial_admissibility(
-        path,
-        trial_id=tid,
-        contract=contract,
-        source_digests=source_digests,
-        repo_root=repo_root,
-    )
+    try:
+        verified = verify_trial_admissibility(
+            trial_dir=path,
+            trial_id=tid,
+            provenance=provenance,
+            repo_root=repo_root,
+        )
+    except TrialAdmissibilityError as exc:
+        raise BenchmarkContractDriftError(str(exc)) from exc
+    admissibility = verified.record
+    identity = admissibility.task_runtime_identity
+    if identity is not None and (
+        not contract.task_id_explicit or identity.task_id != contract.task_id
+    ):
+        raise BenchmarkContractDriftError(
+            "trial admissibility task identity does not match benchmark contract"
+        )
+    registry_binding_verified = verified.causal_eligible
 
     return TrialBundle(
         trial_id=tid,

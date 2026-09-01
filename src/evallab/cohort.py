@@ -295,7 +295,7 @@ def _member(
     trial: TrialRecord,
     reward_name: str,
 ) -> CohortMember:
-    fact: TrialFact = extract_trial_fact(job, trial)
+    fact: TrialFact = extract_trial_fact(job, trial, repo_root=root)
     agent_lock = _json_object(trial.lock.get("agent"))
     model_settings = {
         key: value

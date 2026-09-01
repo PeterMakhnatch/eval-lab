@@ -871,7 +871,11 @@ def ingest_and_project(
         derived_root=derived_root,
     )
 
-    tables, failures = project_jobs(ordered_jobs, derived_root)
+    tables, failures = project_jobs(
+        ordered_jobs,
+        derived_root,
+        repo_root=root,
+    )
     return IngestProjectionResult(
         cataloged_jobs=cataloged_jobs,
         tables=tables,
@@ -880,7 +884,10 @@ def ingest_and_project(
 
 
 def project_jobs(
-    jobs: list[JobRecord], output_root: Path
+    jobs: list[JobRecord],
+    output_root: Path,
+    *,
+    repo_root: Path | None = None,
 ) -> tuple[tuple[ExportedTable, ...], tuple[ProjectionFailure, ...]]:
     """Project raw jobs without requiring the PostgreSQL catalog.
 
@@ -903,7 +910,7 @@ def project_jobs(
                 [{"job_id": job.id, "job_name": job.name, "trial_count": len(job.trials)}],
             )
             tables.append(job_table)
-            rebuilt = rebuild_from_raw([job], derived_root)
+            rebuilt = rebuild_from_raw([job], derived_root, repo_root=repo_root)
         except Exception as exc:  # Projection failure is data, not an agent result.
             failures.append(
                 ProjectionFailure(

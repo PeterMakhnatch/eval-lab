@@ -45,6 +45,7 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     evaluate_trial_compliance,
 )
+from evallab.network_isolation_runtime import current_dispatch_isolation_identity
 from evallab.profiles import (
     CONTROL_ADAPTERS,
     AgentProfile,
@@ -100,6 +101,8 @@ from evallab.schemas import (
     AgentSmokeRecord,
     AutoRunRule,
     ExperimentSpec,
+    NetworkIsolationDispatchIdentityV1,
+    NetworkIsolationEvidenceV1,
     PolicyDecision,
     QueueEvent,
     QueueReason,
@@ -1293,6 +1296,9 @@ class DirectoryQueue:
 CredentialProbe = Callable[[], frozenset[str]]
 RunCallable = Callable[[RunRequest], Path]
 IngestCallable = Callable[[Path], IngestProjectionResult | None]
+IsolationIdentityProvider = Callable[
+    [NetworkIsolationEvidenceV1], NetworkIsolationDispatchIdentityV1
+]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
@@ -1346,6 +1352,7 @@ class Executor:
         progress: ProgressCallable | None = None,
         sleeper: Sleeper = time.sleep,
         compliance: ComplianceCallable | None = None,
+        isolation_identity_provider: IsolationIdentityProvider | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
@@ -1361,6 +1368,9 @@ class Executor:
         self._runner = runner or self._run_harbor
         self._compliance = compliance or self._evaluate_post_run_compliance
         self._ingester = ingester or self._ingest
+        self._isolation_identity_provider = (
+            isolation_identity_provider or current_dispatch_isolation_identity
+        )
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
         self._progress = progress
@@ -1652,6 +1662,22 @@ class Executor:
                 raise ExecutionFailure(
                     "campaign_isolation_identity_missing",
                     "billable campaign attempt has no isolation-bound runtime identity",
+                )
+            evidence = runtime_identity.network_isolation_evidence
+            try:
+                live_identity = self._isolation_identity_provider(evidence)
+            except Exception as exc:
+                raise ExecutionFailure(
+                    "campaign_isolation_identity_unavailable",
+                    "live isolation runtime identity cannot be established",
+                ) from exc
+            if (
+                live_identity.runtime_identity != evidence.runtime_identity
+                or live_identity.probe_identity != evidence.probe_identity
+            ):
+                raise ExecutionFailure(
+                    "campaign_isolation_identity_drift",
+                    "live runtime/image/adapter/probe identity differs from isolation evidence",
                 )
             projection = runtime_identity.network_isolation_evidence.project(
                 as_of=datetime.now(UTC)
@@ -2886,9 +2912,10 @@ class Executor:
 
     def _ingest(self, job_dir: Path) -> IngestProjectionResult:
         url = database_url_from_environment()
+        job = load_job(job_dir)
         return ingest_and_project(
             url,
-            [load_job(job_dir)],
+            [job],
             root=self.repo_root,
             output_root=derived_root_from_environment(self.repo_root),
         )

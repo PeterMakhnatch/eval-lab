@@ -269,7 +269,10 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                 ],
             )
 
-        ingest_trial_outcomes(connection, extract_outcome_records(job, trial))
+        ingest_trial_outcomes(
+            connection,
+            extract_outcome_records(job, trial, repo_root=root),
+        )
 
 
 def ingest(database_url: str, jobs: Iterable[JobRecord], *, root: Path) -> int:

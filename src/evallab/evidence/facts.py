@@ -38,7 +38,6 @@ from evallab.schemas import (
     AnalysisReview,
     AnalysisSourceDigests,
     FailureCategory,
-    TrialAdmissibilityV1,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
@@ -48,6 +47,12 @@ from evallab.state_events import (
     invalid_state_event_fact,
     load_state_diff,
     load_state_event_facts,
+)
+from evallab.trial_admissibility import (
+    VerifiedTrialAdmissibility,
+    finalize_trial_admissibility,
+    job_run_provenance,
+    verify_trial_admissibility,
 )
 
 JsonObject = dict[str, Any]
@@ -431,10 +436,26 @@ def _state_change_fact(
     )
 
 
+def _verified_trial_authority(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    repo_root: Path | None,
+) -> VerifiedTrialAdmissibility:
+    return verify_trial_admissibility(
+        trial_dir=trial.path,
+        trial_id=trial.id,
+        provenance=job_run_provenance(job),
+        repo_root=repo_root,
+    )
+
+
 def extract_trial_fact(
     job: JobRecord,
     trial: TrialRecord,
     state_journal: StateJournalRecord | None = None,
+    *,
+    repo_root: Path | None = None,
 ) -> TrialFact:
     projection = project_trial(job, trial)
     journal = state_journal or load_state_journal(trial)
@@ -507,41 +528,26 @@ def extract_trial_fact(
     )
     runtime_identity = provenance.get("task_runtime_identity")
     runtime_identity = runtime_identity if isinstance(runtime_identity, dict) else {}
-    isolation_status = _string(provenance.get("network_isolation_status")) or "unknown"
-    isolation_reason = _string(provenance.get("network_isolation_reason"))
-    analysis_eligibility = _string(provenance.get("analysis_eligibility")) or "calibration-only"
-    admissibility_path = trial.path / "trial-admissibility.json"
-    admissibility: TrialAdmissibilityV1 | None = None
-    if admissibility_path.is_file() and not admissibility_path.is_symlink():
-        try:
-            admissibility = TrialAdmissibilityV1.model_validate_json(
-                admissibility_path.read_text(encoding="utf-8")
-            )
-        except (OSError, ValidationError) as exc:
-            raise ValueError(f"invalid trial admissibility evidence: {admissibility_path}") from exc
-        expected_runtime = runtime_identity if runtime_identity else None
-        actual_runtime = (
-            admissibility.task_runtime_identity.model_dump(mode="json")
-            if admissibility.task_runtime_identity is not None
-            else None
-        )
-        if admissibility.trial_id != trial.id or actual_runtime != expected_runtime:
-            raise ValueError("trial admissibility task/trial identity parity mismatch")
-        if (
-            admissibility.network_isolation_evidence_digest
-            != _string(provenance.get("network_isolation_evidence_digest"))
-            or admissibility.network_isolation_status != isolation_status
-            or admissibility.analysis_eligibility != analysis_eligibility
-        ):
-            raise ValueError("trial admissibility network-isolation parity mismatch")
-    admissibility_digest = admissibility.admissibility_digest if admissibility is not None else None
-    admissibility_decision = admissibility.decision if admissibility is not None else "unavailable"
-    admissibility_reason = (
-        admissibility.reason
-        if admissibility is not None
-        else "trial_admissibility_unavailable:missing-evidence-artifact"
+    authority = _verified_trial_authority(job, trial, repo_root=repo_root)
+    admissibility = authority.record
+    isolation_status = admissibility.network_isolation_status
+    isolation_reason = admissibility.network_isolation_reason
+    analysis_eligibility = admissibility.analysis_eligibility
+    admissibility_digest = (
+        admissibility.admissibility_digest if authority.artifact_present else None
     )
-    allowed_use = admissibility.allowed_use if admissibility is not None else "descriptive-only"
+    if admissibility.causal_eligible and not authority.causal_eligible:
+        admissibility_decision = "unavailable"
+        admissibility_reason = "trial_admissibility_unavailable:unverified-registry-binding"
+        allowed_use = "descriptive-only"
+    else:
+        admissibility_decision = admissibility.decision
+        admissibility_reason = (
+            admissibility.reason
+            if authority.artifact_present
+            else "trial_admissibility_unavailable:missing-evidence-artifact"
+        )
+        allowed_use = admissibility.allowed_use
     resolved_reward, _ = resolve_trial_primary_reward(job, trial)
     return TrialFact(
         experiment_id=experiment_id(job),
@@ -632,7 +638,11 @@ def extract_trial_fact(
     )
 
 
-def extract_job_facts(job: JobRecord) -> JobFacts:
+def extract_job_facts(
+    job: JobRecord,
+    *,
+    repo_root: Path | None = None,
+) -> JobFacts:
     trial_facts: list[TrialFact] = []
     reward_facts: list[RewardFact] = []
     artifact_facts: list[ArtifactFact] = []
@@ -643,7 +653,7 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
     for trial in sorted(job.trials, key=lambda item: item.id):
         projection = project_trial(job, trial)
         state_journal = load_state_journal(trial)
-        trial_facts.append(extract_trial_fact(job, trial, state_journal))
+        trial_facts.append(extract_trial_fact(job, trial, state_journal, repo_root=repo_root))
         try:
             state_event_facts.extend(
                 load_state_event_facts(
@@ -886,11 +896,16 @@ def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -
     )
 
 
-def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
+def export_facts(
+    jobs: list[JobRecord],
+    output_root: Path,
+    *,
+    repo_root: Path | None = None,
+) -> ExportResult:
     output_root = output_root.resolve()
     exported: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
-        facts = extract_job_facts(job)
+        facts = extract_job_facts(job, repo_root=repo_root)
         trial_by_id = {item.trial_id: item for item in facts.trials}
         for trial_id in sorted(trial_by_id):
             partition = output_root / f"job_id={job.id}" / f"trial_id={trial_id}"
@@ -919,12 +934,17 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
     return ExportResult(root=output_root, tables=tuple(exported))
 
 
-def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
+def rebuild_from_raw(
+    jobs: list[JobRecord],
+    output_root: Path,
+    *,
+    repo_root: Path | None = None,
+) -> RebuildResult:
     from evallab.evidence.event_mart import export_event_mart
 
     return RebuildResult(
         trajectory_export=export_trajectories(jobs, output_root),
-        fact_export=export_facts(jobs, output_root),
+        fact_export=export_facts(jobs, output_root, repo_root=repo_root),
         event_mart_export=export_event_mart(jobs, output_root),
     )
 
@@ -969,7 +989,7 @@ def ingest_catalog(
                     "UPDATE jobs SET experiment_id = %s WHERE id = %s",
                     (association, job.id),
                 )
-            facts = extract_job_facts(job)
+            facts = extract_job_facts(job, repo_root=root)
             for trial, trial_fact in zip(
                 sorted(job.trials, key=lambda item: item.id), facts.trials, strict=True
             ):
@@ -1266,49 +1286,34 @@ def _explicit_job_summary_reward(job: JobRecord, trial: TrialRecord) -> float | 
 def _outcome_admissibility_fields(
     job: JobRecord,
     trial: TrialRecord,
+    *,
+    repo_root: Path | None = None,
 ) -> dict[str, str | None]:
     provenance = _experiment_provenance(job)
-    status = _string(provenance.get("network_isolation_status")) or "unknown"
-    eligibility = _string(provenance.get("analysis_eligibility")) or "calibration-only"
-    evidence_path = trial.path / "trial-admissibility.json"
-    admissibility: TrialAdmissibilityV1 | None = None
-    if evidence_path.is_file() and not evidence_path.is_symlink():
-        try:
-            admissibility = TrialAdmissibilityV1.model_validate_json(
-                evidence_path.read_text(encoding="utf-8")
-            )
-        except (OSError, ValidationError) as exc:
-            raise ValueError(f"invalid trial admissibility evidence: {evidence_path}") from exc
-        if admissibility.trial_id != trial.id:
-            raise ValueError("trial admissibility identity parity mismatch")
-        if (
-            admissibility.network_isolation_evidence_digest
-            != _string(provenance.get("network_isolation_evidence_digest"))
-            or admissibility.network_isolation_status != status
-            or admissibility.analysis_eligibility != eligibility
-        ):
-            raise ValueError("trial admissibility network-isolation parity mismatch")
+    authority = _verified_trial_authority(job, trial, repo_root=repo_root)
+    admissibility = authority.record
+    decision = admissibility.decision
+    reason = admissibility.reason
+    allowed_use = admissibility.allowed_use
+    if admissibility.causal_eligible and not authority.causal_eligible:
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:unverified-registry-binding"
+        allowed_use = "descriptive-only"
+    elif not authority.artifact_present:
+        reason = "trial_admissibility_unavailable:missing-evidence-artifact"
     return {
         "network_isolation_evidence_digest": _string(
             provenance.get("network_isolation_evidence_digest")
         ),
-        "network_isolation_status": status,
-        "network_isolation_reason": _string(provenance.get("network_isolation_reason")),
-        "analysis_eligibility": eligibility,
+        "network_isolation_status": admissibility.network_isolation_status,
+        "network_isolation_reason": admissibility.network_isolation_reason,
+        "analysis_eligibility": admissibility.analysis_eligibility,
         "trial_admissibility_digest": (
-            admissibility.admissibility_digest if admissibility is not None else None
+            admissibility.admissibility_digest if authority.artifact_present else None
         ),
-        "trial_admissibility_decision": (
-            admissibility.decision if admissibility is not None else "unavailable"
-        ),
-        "trial_admissibility_reason": (
-            admissibility.reason
-            if admissibility is not None
-            else "trial_admissibility_unavailable:missing-evidence-artifact"
-        ),
-        "trial_allowed_use": (
-            admissibility.allowed_use if admissibility is not None else "descriptive-only"
-        ),
+        "trial_admissibility_decision": decision,
+        "trial_admissibility_reason": reason,
+        "trial_allowed_use": allowed_use,
     }
 
 
@@ -1316,6 +1321,8 @@ def extract_outcome_records(
     job: JobRecord,
     trial: TrialRecord,
     regrade_trials: Sequence[TrialRecord] = (),
+    *,
+    repo_root: Path | None = None,
 ) -> list[OutcomeRecord]:
     """Build immutable outcome facts for a source trial and explicit regrades."""
     source_digest = _analysis_file_digest(trial.path / "result.json")
@@ -1353,7 +1360,7 @@ def extract_outcome_records(
                 source_agent_exception=original.agent_exception,
             )
         )
-    authority = _outcome_admissibility_fields(job, trial)
+    authority = _outcome_admissibility_fields(job, trial, repo_root=repo_root)
     return [bind_outcome_admissibility(record, **authority) for record in records]
 
 
@@ -1544,6 +1551,12 @@ def run_trial_analysis(
     sidecar_dir.mkdir(parents=True, exist_ok=False)
     sidecar_path = sidecar_dir / ANALYSIS_SIDECAR_FILENAME
     sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
+    finalize_trial_admissibility(
+        job=job,
+        trial=trial,
+        repo_root=repo_root,
+        interpretation_path=sidecar_path,
+    )
     return sidecar_path, sidecar
 
 

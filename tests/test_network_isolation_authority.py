@@ -26,6 +26,7 @@ from evallab.schemas import (
     NetworkPolicyEvidenceV1,
     TaskRuntimeIdentityV1,
     TrialSourceDigestsV1,
+    TrialSourcePathsV1,
     build_network_isolation_evidence,
     build_trial_admissibility,
 )
@@ -41,6 +42,8 @@ def _evidence(
     requested_mode: str = "no-network",
     effective_mode: str = "no-network",
     outcomes: tuple[str, ...] = ("blocked",) * 5,
+    requested_verifier_phase_mode: str | None = "no-network",
+    effective_verifier_phase_mode: str | None = "no-network",
     classes: tuple[str, ...] = NETWORK_ESCAPE_CLASSES,
 ) -> NetworkIsolationEvidenceV1:
     requested = NetworkPolicyEvidenceV1(mode=requested_mode)
@@ -50,8 +53,16 @@ def _evidence(
         effective_agent_policy=effective,
         requested_verifier_policy=requested,
         effective_verifier_policy=effective,
-        requested_verifier_phase_policy=requested,
-        effective_verifier_phase_policy=effective,
+        requested_verifier_phase_policy=(
+            NetworkPolicyEvidenceV1(mode=requested_verifier_phase_mode)
+            if requested_verifier_phase_mode is not None
+            else None
+        ),
+        effective_verifier_phase_policy=(
+            NetworkPolicyEvidenceV1(mode=effective_verifier_phase_mode)
+            if effective_verifier_phase_mode is not None
+            else None
+        ),
         runtime_identity=NetworkIsolationRuntimeIdentityV1(
             platform_system=platform_system,
             platform_release="test",
@@ -129,6 +140,37 @@ def test_darwin_policy_mismatch_and_all_five_escapes_are_unavailable() -> None:
     assert evidence.analysis_eligibility == "calibration-only"
 
 
+@pytest.mark.parametrize(
+    ("requested_phase", "effective_phase"),
+    ((None, "no-network"), ("no-network", None)),
+)
+def test_missing_either_verifier_phase_policy_is_unavailable(
+    requested_phase: str | None,
+    effective_phase: str | None,
+) -> None:
+    evidence = _evidence(
+        requested_verifier_phase_mode=requested_phase,
+        effective_verifier_phase_mode=effective_phase,
+    )
+
+    assert evidence.status == "unavailable"
+    assert evidence.reason == "network_isolation_unavailable:missing-verifier-phase-policy-evidence"
+    assert evidence.analysis_eligibility == "calibration-only"
+
+
+def test_matching_public_policies_never_establish_isolation() -> None:
+    evidence = _evidence(
+        requested_mode="public",
+        effective_mode="public",
+        requested_verifier_phase_mode="public",
+        effective_verifier_phase_mode="public",
+    )
+
+    assert evidence.status == "unavailable"
+    assert evidence.reason == "network_isolation_unavailable:non-isolating-policy-mode"
+    assert evidence.analysis_eligibility == "calibration-only"
+
+
 def test_evidence_projection_and_digest_cannot_be_forged() -> None:
     evidence = _evidence()
     payload = evidence.model_dump(mode="json")
@@ -153,10 +195,19 @@ def test_trial_admissibility_requires_registered_runtime_complete_sources_and_is
         outcome=DIGEST,
         interpretation=DIGEST,
     )
+    source_paths = TrialSourcePathsV1(
+        contract=("contract.json",),
+        trajectory=("agent/trajectory.json",),
+        final_state=("final-state.json",),
+        verifier=("verifier/result.json", "verifier/reward.txt"),
+        outcome=("result.json",),
+        interpretation=("analysis/interpretation.json",),
+    )
     admitted = build_trial_admissibility(
         trial_id="trial-one",
         task_runtime_identity=_task_identity(),
         source_digests=sources,
+        source_paths=source_paths,
         network_isolation_evidence=_evidence(),
         evaluated_at=NOW,
     )
@@ -168,6 +219,7 @@ def test_trial_admissibility_requires_registered_runtime_complete_sources_and_is
         task_runtime_identity=_task_identity("candidate"),
         source_digests=sources,
         network_isolation_evidence=_evidence(),
+        source_paths=source_paths,
         evaluated_at=NOW,
     )
     assert candidate.decision == "rejected"
@@ -178,6 +230,7 @@ def test_trial_admissibility_requires_registered_runtime_complete_sources_and_is
         task_runtime_identity=_task_identity(),
         source_digests=sources.model_copy(update={"interpretation": None}),
         network_isolation_evidence=_evidence(),
+        source_paths=source_paths,
         evaluated_at=NOW,
     )
     assert incomplete.decision == "unavailable"
@@ -195,6 +248,10 @@ def test_reviewed_darwin_evidence_is_separate_and_transport_digest_is_unchanged(
     assert readiness.network_isolation_status == "unavailable"
     assert readiness.analysis_eligibility == "calibration-only"
     assert evidence.reason == DARWIN_ISOLATION_UNAVAILABLE_REASON
+    assert (
+        evidence.evidence_digest
+        == "sha256:0dea81047ac365ea89e1e3d4be5f10aacfac114b36c6550e0e721dc61a93f792"
+    )
     assert tuple(result.escape_class for result in evidence.probe_results) == (
         NETWORK_ESCAPE_CLASSES
     )

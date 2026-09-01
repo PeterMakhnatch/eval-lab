@@ -205,9 +205,19 @@ def extract_context_operation_facts_from_memgym(
                     field_name=f"steps[{idx}].memory.summarizer_prompt_tokens",
                 )
 
+            was_compacted = memory.get("was_compacted")
+            if was_compacted is not None and type(was_compacted) is not bool:
+                raise ValueError(
+                    f"steps[{idx}].memory.was_compacted must be a boolean or null, got {was_compacted!r} of type {type(was_compacted).__name__}"
+                )
+
             new_compaction = memory.get("new_compaction")
-            if isinstance(new_compaction, bool) and new_compaction:
-                is_compaction = True
+            if new_compaction is not None:
+                if type(new_compaction) is not bool:
+                    raise ValueError(
+                        f"steps[{idx}].memory.new_compaction must be a boolean or null, got {new_compaction!r} of type {type(new_compaction).__name__}"
+                    )
+                is_compaction = new_compaction
 
         operation = "compaction" if is_compaction else "session_boundary"
         operation_id = _compute_operation_id(tid, side, msg_index)
@@ -274,8 +284,13 @@ def extract_memgym_outcome(
         episode_reward = float(raw_ep_reward)
 
     raw_outcome = training_data.get("episode_outcome")
-    episode_outcome = str(raw_outcome) if raw_outcome is not None else None
-
+    episode_outcome: str | None = None
+    if raw_outcome is not None:
+        if not isinstance(raw_outcome, str):
+            raise ValueError(
+                f"episode_outcome must be a string or null, got {raw_outcome!r} of type {type(raw_outcome).__name__}"
+            )
+        episode_outcome = raw_outcome
     result_reward: float | None = None
     result_success: bool | None = None
     evaluation_status = "unavailable"

@@ -471,3 +471,144 @@ def test_memgym_compaction_lacks_ordered_indices_refuses_positive_payload() -> N
     assert facts[0].content_digest is None  # Payload digest is refused / typed unavailable!
     assert facts[0].before_token_count == 500
     assert facts[0].after_token_count == 200
+
+
+# ==============================================================================
+# S1 Adversaries: Exact Outcome String or Null (No str Coercion)
+# ==============================================================================
+
+
+def test_memgym_s1_episode_outcome_exact_string_or_null() -> None:
+    def _make_training_with_outcome(outcome: object, *, present: bool = True) -> bytes:
+        payload: dict[str, object] = {"domain": "retail", "task_id": "0", "steps": []}
+        if present:
+            payload["episode_outcome"] = outcome
+        return json.dumps(payload).encode("utf-8")
+
+    # 1. Exact valid string -> preserved byte-decoded value exactly
+    res_str = extract_memgym_outcome(_make_training_with_outcome("unresolved"))
+    assert res_str.episode_outcome == "unresolved"
+
+    res_custom = extract_memgym_outcome(_make_training_with_outcome("success_with_drift"))
+    assert res_custom.episode_outcome == "success_with_drift"
+
+    # 2. Explicit null / None -> None (unavailable)
+    res_none = extract_memgym_outcome(_make_training_with_outcome(None))
+    assert res_none.episode_outcome is None
+
+    # 3. Missing key -> None (unavailable)
+    res_missing = extract_memgym_outcome(_make_training_with_outcome(None, present=False))
+    assert res_missing.episode_outcome is None
+
+    # 4. Bool -> fail closed (ValueError)
+    with pytest.raises(ValueError, match="episode_outcome must be a string or null"):
+        extract_memgym_outcome(_make_training_with_outcome(True))
+
+    with pytest.raises(ValueError, match="episode_outcome must be a string or null"):
+        extract_memgym_outcome(_make_training_with_outcome(False))
+
+    # 5. Integer -> fail closed (ValueError)
+    with pytest.raises(ValueError, match="episode_outcome must be a string or null"):
+        extract_memgym_outcome(_make_training_with_outcome(7))
+
+    # 6. Float -> fail closed (ValueError)
+    with pytest.raises(ValueError, match="episode_outcome must be a string or null"):
+        extract_memgym_outcome(_make_training_with_outcome(0.5))
+
+    # 7. List -> fail closed (ValueError)
+    with pytest.raises(ValueError, match="episode_outcome must be a string or null"):
+        extract_memgym_outcome(_make_training_with_outcome(["unresolved"]))
+
+    # 8. Dict -> fail closed (ValueError), never Python repr string
+    with pytest.raises(ValueError, match="episode_outcome must be a string or null"):
+        extract_memgym_outcome(_make_training_with_outcome({"state": "unresolved"}))
+
+
+# ==============================================================================
+# S2 Adversaries: Exact Compaction Bool (Refuse Malformed Values Before Mapping)
+# ==============================================================================
+
+
+def test_memgym_s2_compaction_exact_bool_and_malformed_refusal() -> None:
+    def _make_step_compaction(new_compaction: object, *, present: bool = True) -> bytes:
+        step: dict[str, object] = {"side": "agent", "msg_index": 1}
+        if present:
+            step["memory"] = {"new_compaction": new_compaction}
+        else:
+            step["memory"] = {}
+        return json.dumps({"domain": "retail", "task_id": "0", "steps": [step]}).encode("utf-8")
+
+    # 1. True -> maps to compaction with content_digest=None
+    facts_true = extract_context_operation_facts_from_memgym(_make_step_compaction(True))
+    assert len(facts_true) == 1
+    assert facts_true[0].operation == "compaction"
+    assert facts_true[0].content_digest is None
+
+    # 2. False -> maps to session_boundary
+    facts_false = extract_context_operation_facts_from_memgym(_make_step_compaction(False))
+    assert len(facts_false) == 1
+    assert facts_false[0].operation == "session_boundary"
+
+    # 3. Explicit null / None -> maps to session_boundary
+    facts_none = extract_context_operation_facts_from_memgym(_make_step_compaction(None))
+    assert len(facts_none) == 1
+    assert facts_none[0].operation == "session_boundary"
+
+    # 4. Missing key -> maps to session_boundary
+    facts_missing = extract_context_operation_facts_from_memgym(
+        _make_step_compaction(None, present=False)
+    )
+    assert len(facts_missing) == 1
+    assert facts_missing[0].operation == "session_boundary"
+
+    # 5. Malformed integers (1 or 0) -> fail closed (ValueError), never positive or negative boundary
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction(1))
+
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction(0))
+
+    # 6. Malformed strings ("true" or "false") -> fail closed (ValueError)
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction("true"))
+
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction("false"))
+
+    # 7. Malformed float -> fail closed (ValueError)
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction(1.0))
+
+    # 8. Malformed list / dict -> fail closed (ValueError)
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction([True]))
+
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.new_compaction must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(_make_step_compaction({"compacted": True}))
+
+    # 9. Malformed was_compacted -> fail closed (ValueError)
+    step_bad_was_compacted = {
+        "domain": "retail",
+        "task_id": "0",
+        "steps": [{"side": "agent", "msg_index": 1, "memory": {"was_compacted": 1}}],
+    }
+    with pytest.raises(
+        ValueError, match=r"steps\[0\]\.memory\.was_compacted must be a boolean or null"
+    ):
+        extract_context_operation_facts_from_memgym(
+            json.dumps(step_bad_was_compacted).encode("utf-8")
+        )

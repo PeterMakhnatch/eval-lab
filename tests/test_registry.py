@@ -1788,3 +1788,134 @@ def test_register_task_refuses_stored_legacy_v1_candidate_with_controls(
     # Record remains candidate
     reg = TaskRegistry.from_repo(repo)
     assert reg.get("uppercase-fixture").state == "candidate"
+
+
+def test_registered_historical_m049_v1_record_is_strictly_readonly_and_refuses_mutations(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Already registered historical m049-v1 records are strictly read-only and refuse all mutations."""
+    from datetime import UTC, datetime
+
+    from test_task_workbench import _bundle, _copy_candidate, _inspect
+
+    from evallab.cli import run_cli
+    from evallab.registry import (
+        TaskCertificationError,
+        _canonical_bytes,
+        _digest_bytes,
+        audit_registry,
+        certification_envelope_from_packet,
+        discover_control_evidence,
+        register_task,
+    )
+    from evallab.schemas import TaskLimits, TaskRegistryRecord
+    from evallab.task_workbench import check_candidate, write_packet
+
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task)
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    cand_path, cert_path = write_packet(repo_root=repo, report=report)
+
+    # Rewrite packet to legacy m049-v1 format
+    cand = json.loads(cand_path.read_text())
+    cand["workbench_version"] = "m049-v1"
+    cand.pop("candidate_record_digest")
+    cand_digest = _digest_bytes(_canonical_bytes(cand))
+    cand["candidate_record_digest"] = cand_digest
+    cand_path.write_bytes(_canonical_bytes(cand))
+
+    cert = json.loads(cert_path.read_text())
+    cert["workbench_version"] = "m049-v1"
+    cert["candidate_record_digest"] = cand_digest
+    cert.pop("certification_id")
+    cert["certification_id"] = "cert-" + hashlib.sha256(_canonical_bytes(cert)).hexdigest()[:24]
+    cert_path.write_bytes(_canonical_bytes(cert))
+
+    _make_control_job(repo, task, "oracle", 1.0)
+    _make_control_job(repo, task, "nop", 0.0)
+    control_evidence = discover_control_evidence(task, repo)
+
+    reg_dir = repo / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    rec_file = reg_dir / "uppercase-fixture.json"
+    envelope = certification_envelope_from_packet(
+        repo,
+        cert_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        package_digest=compute_task_digests(task).package,
+        allow_legacy_v1=True,
+    )
+    record = TaskRegistryRecord(
+        schema_version=2,
+        task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
+        version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        digests=compute_task_digests(task),
+        source_uri="local/uppercase-fixture@1.0.0",
+        source_ref="local/uppercase-fixture@1.0.0",
+        license="MIT",
+        provenance_zone="02-local-evidence",
+        is_synthetic=False,
+        limits=TaskLimits(),
+        control_evidence=control_evidence,
+        certification=envelope,
+        state="registered",
+        allowed_uses=["measurement"],
+        approved_by="original-author",
+        approved_at=datetime(2026, 8, 15, 12, 0, 0, tzinfo=UTC),
+    )
+    initial_bytes = json.dumps(record.model_dump(mode="json"), indent=2).encode("utf-8") + b"\n"
+    rec_file.write_bytes(initial_bytes)
+
+    # 1. Refuse different actor via API
+    with pytest.raises(
+        TaskCertificationError,
+        match="historical m049-v1 registered records are read-only and cannot be re-approved by a different actor 'new-reviewer'",
+    ):
+        register_task("uppercase-fixture", actor="new-reviewer", repo_root=repo)
+    assert rec_file.read_bytes() == initial_bytes
+
+    # 2. Refuse different actor via parsed CLI
+    exit_code = run_cli(
+        ["registry", "register", "uppercase-fixture", "--actor", "cli-reviewer"],
+        workspace=repo,
+    )
+    assert exit_code != 0
+    _, err = capsys.readouterr()
+    assert "historical m049-v1 registered records are read-only" in err
+    assert rec_file.read_bytes() == initial_bytes
+
+    # 3. Refuse replacement certification packet
+    with pytest.raises(
+        TaskCertificationError,
+        match="historical m049-v1 registered records are read-only and cannot accept replacement certification",
+    ):
+        register_task(
+            "uppercase-fixture",
+            actor="original-author",
+            repo_root=repo,
+            certification_path=cert_path.relative_to(repo).as_posix(),
+        )
+    assert rec_file.read_bytes() == initial_bytes
+
+    # 4. Same actor read-only reopen / verification succeeds and returns unchanged
+    reopened = register_task("uppercase-fixture", actor="original-author", repo_root=repo)
+    assert reopened.approved_by == "original-author"
+    assert reopened.approved_at == datetime(2026, 8, 15, 12, 0, 0, tzinfo=UTC)
+    assert rec_file.read_bytes() == initial_bytes
+
+    # Audit passes
+    policy = repo / "policy/canary-suite.yaml"
+    policy.parent.mkdir(parents=True, exist_ok=True)
+    policy.write_text("version: 1\nmembers:\n  []\n")
+    inv_dir = repo / "research/registration"
+    inv_dir.mkdir(parents=True, exist_ok=True)
+    (inv_dir / "inventory.json").write_text(
+        json.dumps(inventory_tasks(repo).to_dict(), indent=2) + "\n"
+    )
+    report = audit_registry(repo)
+    assert report.passed

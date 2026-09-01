@@ -1443,6 +1443,21 @@ def register_task(
 
     raw = json.loads(record_file.read_text())
     record = TaskRegistryRecord.model_validate(raw)
+
+    # Historical m049-v1 registered records are strictly read-only
+    if record.state == "registered" and record.certification.workbench_version == "m049-v1":
+        if certification_path is not None:
+            raise TaskCertificationError(
+                "historical m049-v1 registered records are read-only and cannot accept replacement certification"
+            )
+        if actor != record.approved_by:
+            raise TaskCertificationError(
+                f"historical m049-v1 registered records are read-only and cannot be re-approved by a different actor '{actor}' (registered by '{record.approved_by}')"
+            )
+        verify_certification_packet(repo_root, record)
+        verify_control_evidence(repo_root, record)
+        return record
+
     if certification_path is not None:
         certification = certification_envelope_from_packet(
             repo_root,
@@ -1452,10 +1467,12 @@ def register_task(
             task_path=record.task_path,
             package_digest=record.digests.package,
             external_import_lineage=record.external_import_lineage,
+            allow_legacy_v1=False,
         )
         record = TaskRegistryRecord.model_validate(
             record.model_copy(update={"certification": certification}).model_dump()
         )
+
     if record.state != "registered":
         if record.certification.state != "bound":
             raise TaskCertificationError("new registration requires a valid --certification-packet")

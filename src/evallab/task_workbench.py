@@ -37,6 +37,7 @@ from pydantic import ValidationError
 from evallab.results import load_job
 from evallab.runner import subscription_environment
 from evallab.schemas import (
+    ExternalImportBuildAttestationV1,
     ExternalImportLineageV1,
     ExternalImportTransformationRecordV1,
 )
@@ -4431,6 +4432,10 @@ def _validate_external_import_lineage(
         raise WorkbenchError("semantic equivalence evidence digest mismatch")
 
     seen_paths = {record_path, evidence_path}
+    seen_digests = {
+        lineage.transformation_record_digest,
+        record.semantic_equivalence.evidence_digest,
+    }
     for idx, build in enumerate(record.reproducibility.builds, start=1):
         build_evidence_path = _external_import_artifact(
             repo_root,
@@ -4442,11 +4447,48 @@ def _validate_external_import_lineage(
                 f"reproducibility build {idx} evidence path aliases another import artifact"
             )
         seen_paths.add(build_evidence_path)
-        if _sha256_bytes(build_evidence_path.read_bytes()) != build.evidence_digest:
+        build_raw_bytes = build_evidence_path.read_bytes()
+        actual_digest = _sha256_bytes(build_raw_bytes)
+        if actual_digest != build.evidence_digest:
             raise WorkbenchError(f"reproducibility build {idx} evidence digest mismatch")
+        if actual_digest in seen_digests:
+            raise WorkbenchError(
+                f"reproducibility build {idx} evidence digest aliases another import artifact"
+            )
+        seen_digests.add(actual_digest)
         if build.output_package_digest != registry_package_digest:
             raise WorkbenchError(
                 f"reproducibility build {idx} output package digest does not match registered package"
+            )
+        try:
+            attestation = ExternalImportBuildAttestationV1.model_validate_json(build_raw_bytes)
+        except ValidationError as exc:
+            raise WorkbenchError(
+                f"reproducibility build {idx} evidence is not a valid build attestation: {exc}"
+            ) from exc
+        if attestation.build_id != build.build_id:
+            raise WorkbenchError(
+                f"reproducibility build {idx} attestation build_id '{attestation.build_id}' does not match record '{build.build_id}'"
+            )
+        if attestation.built_at != build.built_at:
+            raise WorkbenchError(
+                f"reproducibility build {idx} attestation built_at '{attestation.built_at}' does not match record '{build.built_at}'"
+            )
+        if attestation.environment_digest != build.environment_digest:
+            raise WorkbenchError(
+                f"reproducibility build {idx} attestation environment_digest does not match record"
+            )
+        if attestation.toolchain_digest != build.toolchain_digest:
+            raise WorkbenchError(
+                f"reproducibility build {idx} attestation toolchain_digest does not match record"
+            )
+        if attestation.output_package_digest != build.output_package_digest:
+            raise WorkbenchError(
+                f"reproducibility build {idx} attestation output_package_digest does not match record"
+            )
+        if attestation.output_package_digest != registry_package_digest:
+            raise WorkbenchError(
+                f"reproducibility build {idx} attestation output_package_digest does not match registered package"
             )
 
 

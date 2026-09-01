@@ -22,6 +22,7 @@ from pydantic import ValidationError
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
+    ExternalImportBuildAttestationV1,
     ExternalImportLineageV1,
     ExternalImportTransformationRecordV1,
     TaskAdmissionState,
@@ -275,6 +276,10 @@ def _verify_external_import_binding(
         raise TaskCertificationError("semantic equivalence evidence digest mismatch")
 
     seen_paths = {record_path, evidence_path}
+    seen_digests = {
+        lineage.transformation_record_digest,
+        record.semantic_equivalence.evidence_digest,
+    }
     for idx, build in enumerate(record.reproducibility.builds, start=1):
         build_evidence_path = _external_import_artifact(
             repo_root,
@@ -286,11 +291,48 @@ def _verify_external_import_binding(
                 f"reproducibility build {idx} evidence path aliases another import artifact"
             )
         seen_paths.add(build_evidence_path)
-        if _digest_bytes(build_evidence_path.read_bytes()) != build.evidence_digest:
+        build_raw_bytes = build_evidence_path.read_bytes()
+        actual_digest = _digest_bytes(build_raw_bytes)
+        if actual_digest != build.evidence_digest:
             raise TaskCertificationError(f"reproducibility build {idx} evidence digest mismatch")
+        if actual_digest in seen_digests:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} evidence digest aliases another import artifact"
+            )
+        seen_digests.add(actual_digest)
         if build.output_package_digest != package_digest:
             raise TaskCertificationError(
                 f"reproducibility build {idx} output package digest does not match registered package"
+            )
+        try:
+            attestation = ExternalImportBuildAttestationV1.model_validate_json(build_raw_bytes)
+        except ValidationError as exc:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} evidence is not a valid build attestation: {exc}"
+            ) from exc
+        if attestation.build_id != build.build_id:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} attestation build_id '{attestation.build_id}' does not match record '{build.build_id}'"
+            )
+        if attestation.built_at != build.built_at:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} attestation built_at '{attestation.built_at}' does not match record '{build.built_at}'"
+            )
+        if attestation.environment_digest != build.environment_digest:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} attestation environment_digest does not match record"
+            )
+        if attestation.toolchain_digest != build.toolchain_digest:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} attestation toolchain_digest does not match record"
+            )
+        if attestation.output_package_digest != build.output_package_digest:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} attestation output_package_digest does not match record"
+            )
+        if attestation.output_package_digest != package_digest:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} attestation output_package_digest does not match registered package"
             )
 
 
@@ -361,8 +403,8 @@ def certification_envelope_from_packet(
     task_path: str,
     package_digest: str,
     external_import_lineage: ExternalImportLineageV1 | None = None,
+    allow_legacy_v1: bool = False,
 ) -> TaskCertificationEnvelope:
-    """Read and validate a durable workbench packet against one exact task identity."""
     repo_root = repo_root.resolve()
     packet = (
         (repo_root / packet_path).resolve()
@@ -452,14 +494,16 @@ def certification_envelope_from_packet(
     external_source = source.get("provenance_zone") == "01-external" or (
         isinstance(source_uri, str) and source_uri.startswith("external/")
     )
-    if external_source:
-        if packet_version == "m049-v2" and raw_lineage is None:
-            raise TaskCertificationError("m049-v2 external packet requires external import lineage")
+    if not allow_legacy_v1 and packet_version != "m049-v2":
+        raise TaskCertificationError(
+            f"new task promotion requires m049-v2 certification; got {packet_version!r}"
+        )
+    if packet_version == "m049-v2" and external_source and raw_lineage is None:
+        raise TaskCertificationError("m049-v2 external packet requires external import lineage")
     elif not external_source and raw_lineage is not None:
         raise TaskCertificationError(
             "external import lineage is ambiguous on a non-external packet"
         )
-
     if raw_lineage is None:
         if external_import_lineage is not None:
             raise TaskCertificationError(
@@ -695,6 +739,7 @@ def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> 
         task_path=record.task_path,
         package_digest=record.digests.package,
         external_import_lineage=record.external_import_lineage,
+        allow_legacy_v1=True,
     )
     if rebuilt != record.certification:
         raise TaskCertificationError("stored certification envelope does not match packet bytes")
@@ -1060,7 +1105,72 @@ def promote_task(
     except ValueError:
         rel_task_path = str(target_path)
 
-    # Inferred defaults
+    # Derive metadata and external_import_lineage from candidate source packet FIRST
+    if certification_path is not None:
+        cert_p = (
+            (repo_root / certification_path).resolve()
+            if not Path(certification_path).is_absolute()
+            else Path(certification_path).resolve()
+        )
+        cand_p = cert_p.parent / "candidate.json"
+        if cand_p.is_file():
+            try:
+                c_data = json.loads(cand_p.read_text(encoding="utf-8"))
+                cand_source = c_data.get("source", {})
+                if cand_source:
+                    cand_uri = cand_source.get("source_uri")
+                    cand_ref = cand_source.get("source_ref")
+                    cand_lic = cand_source.get("license")
+                    cand_zone = cand_source.get("provenance_zone")
+                    cand_raw_lin = cand_source.get("external_import_lineage")
+
+                    # B2: Exact equality assertions when caller explicitly supplies values
+                    if source_uri is not None and cand_uri is not None and source_uri != cand_uri:
+                        raise TaskCertificationError(
+                            f"promotion source_uri '{source_uri}' does not match candidate source_uri '{cand_uri}'"
+                        )
+                    if source_ref is not None and cand_ref is not None and source_ref != cand_ref:
+                        raise TaskCertificationError(
+                            f"promotion source_ref '{source_ref}' does not match candidate source_ref '{cand_ref}'"
+                        )
+                    if license_str is not None and cand_lic is not None and license_str != cand_lic:
+                        raise TaskCertificationError(
+                            f"promotion license '{license_str}' does not match candidate license '{cand_lic}'"
+                        )
+                    if (
+                        provenance_zone is not None
+                        and cand_zone is not None
+                        and provenance_zone != cand_zone
+                    ):
+                        raise TaskCertificationError(
+                            f"promotion provenance_zone '{provenance_zone}' does not match candidate provenance_zone '{cand_zone}'"
+                        )
+                    if external_import_lineage is not None and cand_raw_lin is not None:
+                        cand_lin_obj = ExternalImportLineageV1.model_validate(cand_raw_lin)
+                        if external_import_lineage != cand_lin_obj:
+                            raise TaskCertificationError(
+                                "promotion lineage does not match candidate source metadata"
+                            )
+
+                    # Derive missing caller fields from candidate source
+                    if source_uri is None:
+                        source_uri = cand_uri
+                    if source_ref is None:
+                        source_ref = cand_ref
+                    if license_str is None:
+                        license_str = cand_lic
+                    if provenance_zone is None:
+                        provenance_zone = cand_zone
+                    if external_import_lineage is None and cand_raw_lin is not None:
+                        external_import_lineage = ExternalImportLineageV1.model_validate(
+                            cand_raw_lin
+                        )
+            except TaskCertificationError:
+                raise
+            except Exception:
+                pass
+
+    # Inferred defaults for values not set by caller or candidate packet
     if provenance_zone is None:
         if rel_task_path.startswith("library/benchmarks/"):
             provenance_zone = "01-external"
@@ -1110,34 +1220,6 @@ def promote_task(
     if allowed_uses is None:
         allowed_uses = ["measurement", "training"]
 
-    # Derive metadata and external_import_lineage from candidate source packet if not explicitly provided
-    if certification_path is not None:
-        cert_p = (
-            (repo_root / certification_path).resolve()
-            if not Path(certification_path).is_absolute()
-            else Path(certification_path).resolve()
-        )
-        cand_p = cert_p.parent / "candidate.json"
-        if cand_p.is_file():
-            try:
-                c_data = json.loads(cand_p.read_text(encoding="utf-8"))
-                cand_source = c_data.get("source", {})
-                if external_import_lineage is None:
-                    raw_l = cand_source.get("external_import_lineage")
-                    if raw_l is not None:
-                        external_import_lineage = ExternalImportLineageV1.model_validate(raw_l)
-                if (
-                    source_uri is None or source_uri == f"local/{task_id}@{version}"
-                ) and cand_source.get("source_uri"):
-                    source_uri = cand_source.get("source_uri")
-                if source_ref is None and cand_source.get("source_ref"):
-                    source_ref = cand_source.get("source_ref")
-                if license_str is None and cand_source.get("license"):
-                    license_str = cand_source.get("license")
-                if provenance_zone is None and cand_source.get("provenance_zone"):
-                    provenance_zone = cand_source.get("provenance_zone")
-            except Exception:
-                pass
     # Compute digests
     digests = compute_task_digests(target_path)
     certification = (
@@ -1149,10 +1231,17 @@ def promote_task(
             task_path=rel_task_path,
             package_digest=digests.package,
             external_import_lineage=external_import_lineage,
+            allow_legacy_v1=False,
         )
         if certification_path is not None
         else TaskCertificationEnvelope()
     )
+
+    # B1: Reject all newly promoted packet-backed m049-v1 certifications
+    if certification_path is not None and certification.workbench_version != "m049-v2":
+        raise TaskCertificationError(
+            f"new task promotion requires m049-v2 certification; got {certification.workbench_version!r}"
+        )
 
     is_external_promotion = (
         provenance_zone == "01-external"
@@ -1167,7 +1256,10 @@ def promote_task(
         raise TaskCertificationError(
             "external import packages require m049-v2 certification with external import lineage"
         )
-
+    if is_external_promotion and provenance_zone != "01-external":
+        raise TaskCertificationError(
+            "external import packages must be registered under 01-external provenance zone"
+        )
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"
 

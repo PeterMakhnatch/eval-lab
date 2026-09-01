@@ -1460,58 +1460,52 @@ def test_cli_registry_promote_external_task_with_lineage(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The real CLI promote path promotes m049-v2 external packet, carrying lineage from candidate source."""
-    import argparse
-
-    from evallab.cli import _registry_promote_command
+    from evallab.cli import run_cli
     from evallab.registry import TaskRegistry, verify_certification_packet
 
     repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
     _make_control_job(repo, task_dir, "oracle", 1.0)
     _make_control_job(repo, task_dir, "nop", 0.0)
 
-    promote_args = argparse.Namespace(
-        task_path=task_dir.relative_to(repo).as_posix(),
-        task_id=None,
-        task_family="uppercase-fixture",
-        version=None,
-        source_uri=None,
-        source_ref=None,
-        license=None,
-        provenance_zone="01-external",
-        synthetic=False,
-        timeout_seconds=None,
-        max_memory_mb=None,
-        max_cpus=None,
-        allowed_uses=None,
-        human_minutes=None,
-        state="candidate",
-        actor=None,
-        register=False,
-        jobs_dir=None,
-        registry_dir=str(repo / "library/registry"),
-        certification_packet=cert_rel,
-        json=True,
+    exit_code = run_cli(
+        [
+            "registry",
+            "promote",
+            task_dir.relative_to(repo).as_posix(),
+            "--task-family",
+            "uppercase-fixture",
+            "--certification-packet",
+            cert_rel,
+            "--json",
+        ],
+        workspace=repo,
     )
-
-    exit_code = _registry_promote_command(promote_args, repo)
     assert exit_code == 0
     out = json.loads(capsys.readouterr().out)
     assert out["task_id"] == "uppercase-fixture"
     assert out["external_import_lineage"] is not None
     assert out["external_import_lineage"]["source_task_id"] == "upstream/uppercase-fixture"
     assert out["certification"]["workbench_version"] == "m049-v2"
+    assert out["source_uri"] == "https://example.invalid/upstream"
+    assert out["source_ref"] == "0123456789abcdef0123456789abcdef01234567"
+    assert out["license"] == "MIT"
+    assert out["provenance_zone"] == "01-external"
 
     # Reload from registry and verify
     registry = TaskRegistry.from_repo(repo)
     record = registry.get("uppercase-fixture")
     assert record is not None
+    assert record.external_import_lineage is not None
     verify_certification_packet(repo, record)
 
 
-def test_external_import_refuses_m049_v1_downgrade_bypass(tmp_path: Path) -> None:
-    """An external task candidate packet downgraded to m049-v1 without lineage must fail closed on promotion."""
+def test_promotion_refuses_recomputed_v1_downgrade_even_when_relabeled_local_or_synthetic(
+    tmp_path: Path,
+) -> None:
+    """Adversarial v1 downgrade relabeled as local/synthetic must fail closed before persistence."""
     from evallab.registry import (
         TaskCertificationError,
+        TaskRegistry,
         _canonical_bytes,
         _digest_bytes,
         promote_task,
@@ -1525,8 +1519,11 @@ def test_external_import_refuses_m049_v1_downgrade_bypass(tmp_path: Path) -> Non
     cand = json.loads(cand_file.read_text())
     cert = json.loads(cert_file.read_text())
 
-    # Downgrade to m049-v1 and strip lineage
+    # Relabel candidate to local / synthetic and strip lineage
     cand["workbench_version"] = "m049-v1"
+    cand["source"]["source_uri"] = "local/uppercase-fixture@1.0.0"
+    cand["source"]["source_ref"] = "local/uppercase-fixture@1.0.0"
+    cand["source"]["provenance_zone"] = "02-local-evidence"
     cand["source"].pop("external_import_lineage", None)
     cand_unsigned = dict(cand)
     cand_unsigned.pop("candidate_record_digest", None)
@@ -1544,12 +1541,76 @@ def test_external_import_refuses_m049_v1_downgrade_bypass(tmp_path: Path) -> Non
     cert_file.write_text(json.dumps(cert, indent=2))
 
     with pytest.raises(
-        TaskCertificationError, match="external import packages require m049-v2 certification"
+        TaskCertificationError, match="new task promotion requires m049-v2 certification"
     ):
         promote_task(
             task_path=task_dir.relative_to(repo).as_posix(),
             repo_root=repo,
             task_family="uppercase-fixture",
-            provenance_zone="01-external",
             certification_path=cert_rel,
         )
+
+    # Ensure no registry record persisted
+    registry = TaskRegistry.from_repo(repo)
+    assert registry.get("uppercase-fixture") is None
+
+
+@pytest.mark.parametrize(
+    ("cli_flag", "mismatched_value", "error_match"),
+    [
+        (
+            "--license",
+            "Proprietary-Override",
+            "promotion license 'Proprietary-Override' does not match candidate license 'MIT'",
+        ),
+        (
+            "--source-uri",
+            "https://tampered.invalid",
+            "promotion source_uri 'https://tampered.invalid' does not match",
+        ),
+        (
+            "--source-ref",
+            "tampered-ref-1234",
+            "promotion source_ref 'tampered-ref-1234' does not match",
+        ),
+        (
+            "--provenance-zone",
+            "02-local-evidence",
+            "promotion provenance_zone '02-local-evidence' does not match",
+        ),
+    ],
+)
+def test_promotion_refuses_caller_source_metadata_mismatches(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    cli_flag: str,
+    mismatched_value: str,
+    error_match: str,
+) -> None:
+    """Explicit caller arguments that disagree with candidate source metadata must fail closed."""
+    from evallab.cli import run_cli
+    from evallab.registry import TaskRegistry
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    _make_control_job(repo, task_dir, "oracle", 1.0)
+    _make_control_job(repo, task_dir, "nop", 0.0)
+
+    exit_code = run_cli(
+        [
+            "registry",
+            "promote",
+            task_dir.relative_to(repo).as_posix(),
+            "--task-family",
+            "uppercase-fixture",
+            "--certification-packet",
+            cert_rel,
+            cli_flag,
+            mismatched_value,
+        ],
+        workspace=repo,
+    )
+    assert exit_code != 0
+    _, err = capsys.readouterr()
+    assert error_match in err
+    registry = TaskRegistry.from_repo(repo)
+    assert registry.get("uppercase-fixture") is None

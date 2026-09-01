@@ -175,14 +175,33 @@ def _external_source(
     )
     evidence_path.write_bytes(evidence_bytes)
 
+    env_digest = "sha256:" + "a" * 64
+    toolchain_digest = "sha256:" + "b" * 64
+    output_digest = _registry_package_digest(task)
+
     build1_path = imports / "build-1.json"
-    build1_bytes = _canonical({"build": 1, "status": "clean"})
+    build1_payload = {
+        "schema_version": 1,
+        "build_id": "build-1",
+        "built_at": "2026-08-31T17:50:00Z",
+        "environment_digest": env_digest,
+        "toolchain_digest": toolchain_digest,
+        "output_package_digest": output_digest,
+    }
+    build1_bytes = _canonical(build1_payload)
     build1_path.write_bytes(build1_bytes)
 
     build2_path = imports / "build-2.json"
-    build2_bytes = _canonical({"build": 2, "status": "clean"})
+    build2_payload = {
+        "schema_version": 1,
+        "build_id": "build-2",
+        "built_at": "2026-08-31T17:55:00Z",
+        "environment_digest": env_digest,
+        "toolchain_digest": toolchain_digest,
+        "output_package_digest": output_digest,
+    }
+    build2_bytes = _canonical(build2_payload)
     build2_path.write_bytes(build2_bytes)
-
     output_digest = _registry_package_digest(task)
     source_digest = "sha256:" + "1" * 64
     record = ExternalImportTransformationRecordV1.model_validate(
@@ -223,7 +242,8 @@ def _external_source(
                         "evidence_path": build1_path.relative_to(repo).as_posix(),
                         "evidence_digest": _digest(build1_bytes),
                         "built_at": "2026-08-31T17:50:00Z",
-                        "environment_digest": "sha256:" + "a" * 64,
+                        "environment_digest": env_digest,
+                        "toolchain_digest": toolchain_digest,
                         "output_package_digest": output_digest,
                     },
                     {
@@ -231,10 +251,11 @@ def _external_source(
                         "evidence_path": build2_path.relative_to(repo).as_posix(),
                         "evidence_digest": _digest(build2_bytes),
                         "built_at": "2026-08-31T17:55:00Z",
-                        "environment_digest": "sha256:" + "a" * 64,
+                        "environment_digest": env_digest,
+                        "toolchain_digest": toolchain_digest,
                         "output_package_digest": output_digest,
                     },
-                ]
+                ],
             },
             "semantic_equivalence": {
                 "status": "equivalent",
@@ -2163,6 +2184,101 @@ def test_external_import_lineage_refuses_ambiguous_record_path() -> None:
         )
 
 
+def test_external_import_refuses_identical_build_evidence_digests(tmp_path: Path) -> None:
+    """Two builds with identical evidence files/digests under different paths must be rejected."""
+    from evallab.schemas import ExternalImportReproducibilityV1
+
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    payload = json.loads(record_path.read_text())
+
+    # Point build 2 to build 1's digest and contents
+    b1_path = repo / payload["reproducibility"]["builds"][0]["evidence_path"]
+    b2_path = repo / payload["reproducibility"]["builds"][1]["evidence_path"]
+    b2_path.write_bytes(b1_path.read_bytes())
+    payload["reproducibility"]["builds"][1]["evidence_digest"] = payload["reproducibility"][
+        "builds"
+    ][0]["evidence_digest"]
+
+    # Schema validator rejects duplicate evidence digests
+    with pytest.raises(
+        ValueError, match="two clean builds must have distinct evidence_digest values"
+    ):
+        ExternalImportReproducibilityV1.model_validate(payload["reproducibility"])
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value", "error_match"),
+    [
+        (
+            "build_id",
+            "wrong-build-id",
+            "attestation build_id 'wrong-build-id' does not match record 'build-1'",
+        ),
+        (
+            "built_at",
+            "2026-08-31T12:00:00Z",
+            "attestation built_at '2026-08-31T12:00:00Z' does not match record '2026-08-31T17:50:00Z'",
+        ),
+        (
+            "environment_digest",
+            "sha256:" + "9" * 64,
+            "attestation environment_digest does not match record",
+        ),
+        (
+            "toolchain_digest",
+            "sha256:" + "8" * 64,
+            "attestation toolchain_digest does not match record",
+        ),
+        (
+            "output_package_digest",
+            "sha256:" + "7" * 64,
+            "attestation output_package_digest does not match record",
+        ),
+    ],
+)
+def test_external_import_refuses_build_attestation_mismatches(
+    tmp_path: Path,
+    field: str,
+    bad_value: str,
+    error_match: str,
+) -> None:
+    """Mismatch between build attestation artifact content and transformation record must fail."""
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    payload = json.loads(record_path.read_text())
+
+    b1_path = repo / payload["reproducibility"]["builds"][0]["evidence_path"]
+    attestation = json.loads(b1_path.read_text())
+    attestation[field] = bad_value
+    b1_path.write_bytes(_canonical(attestation))
+    payload["reproducibility"]["builds"][0]["evidence_digest"] = _digest(b1_path.read_bytes())
+
+    source = _rewrite_external_record(source, record_path, payload)
+    with pytest.raises(WorkbenchError, match=error_match):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)
+
+
+def test_canonical_utc_timestamp_validation() -> None:
+    """Canonical UTC timestamp validator must accept strict ...Z format and reject date-only/offsets/naive."""
+    from evallab.schemas import _canonical_utc_timestamp
+
+    assert _canonical_utc_timestamp("2026-08-31T18:00:00Z", "test") == "2026-08-31T18:00:00Z"
+    assert (
+        _canonical_utc_timestamp("2026-08-31T18:00:00.123456Z", "test")
+        == "2026-08-31T18:00:00.123456Z"
+    )
+
+    with pytest.raises(ValueError, match="canonical UTC ISO-8601 timestamp ending in 'Z'"):
+        _canonical_utc_timestamp("2026-08-31", "test")
+
+    with pytest.raises(ValueError, match="canonical UTC ISO-8601 timestamp ending in 'Z'"):
+        _canonical_utc_timestamp("2026-08-31T18:00:00+00:00", "test")
+
+    with pytest.raises(ValueError, match="canonical UTC ISO-8601 timestamp ending in 'Z'"):
+        _canonical_utc_timestamp("2026-08-31T18:00:00", "test")
+
+
 def test_legacy_m049_v1_packet_remains_readable(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path)
     inspection = _inspect(repo, task)
@@ -2194,6 +2310,7 @@ def test_legacy_m049_v1_packet_remains_readable(tmp_path: Path) -> None:
         task_version="1.0.0",
         task_path=task.relative_to(repo).as_posix(),
         package_digest=digests.package,
+        allow_legacy_v1=True,
     )
 
     assert envelope.workbench_version == "m049-v1"

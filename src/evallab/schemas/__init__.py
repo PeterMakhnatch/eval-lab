@@ -1344,6 +1344,25 @@ class CertificationCheckVector(ContractModel):
 DURABLE_EXTERNAL_IMPORT_PREFIX = "research/registration/imports/"
 
 
+def _canonical_utc_timestamp(value: str, label: str) -> str:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ValueError(
+            f"{label} must be a canonical UTC ISO-8601 timestamp ending in 'Z': {value!r}"
+        )
+    pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$"
+    if not re.match(pattern, value):
+        raise ValueError(
+            f"{label} must be a canonical UTC ISO-8601 timestamp ending in 'Z': {value!r}"
+        )
+    try:
+        dt = datetime.fromisoformat(value[:-1] + "+00:00")
+        if dt.tzinfo is None:
+            raise ValueError(f"{label} must be timezone-aware UTC: {value!r}")
+    except ValueError as exc:
+        raise ValueError(f"{label} is not a valid ISO-8601 datetime: {value!r}") from exc
+    return value
+
+
 def _external_import_path(value: str, label: str) -> str:
     path = PurePosixPath(value)
     if path.is_absolute() or ".." in path.parts:
@@ -1418,12 +1437,27 @@ class ExternalImportOutputV1(ContractModel):
     registry_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
+class ExternalImportBuildAttestationV1(ContractModel):
+    schema_version: Literal[1] = 1
+    build_id: str = Field(min_length=1)
+    built_at: str = Field(min_length=1)
+    environment_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    toolchain_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    output_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("built_at")
+    @classmethod
+    def built_at_is_canonical_utc(cls, value: str) -> str:
+        return _canonical_utc_timestamp(value, "built_at")
+
+
 class ExternalImportBuildEvidenceV1(ContractModel):
     build_id: str = Field(min_length=1)
     evidence_path: str = Field(min_length=1)
     evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     built_at: str = Field(min_length=1)
     environment_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    toolchain_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     output_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
     @field_validator("evidence_path")
@@ -1433,12 +1467,8 @@ class ExternalImportBuildEvidenceV1(ContractModel):
 
     @field_validator("built_at")
     @classmethod
-    def built_at_is_iso_timestamp(cls, value: str) -> str:
-        try:
-            datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise ValueError(f"built_at must be an ISO-8601 timestamp: {value!r}") from exc
-        return value
+    def built_at_is_canonical_utc(cls, value: str) -> str:
+        return _canonical_utc_timestamp(value, "built_at")
 
 
 class ExternalImportReproducibilityV1(ContractModel):
@@ -1456,6 +1486,8 @@ class ExternalImportReproducibilityV1(ContractModel):
             raise ValueError("two clean builds must have distinct build_id values")
         if b1.evidence_path == b2.evidence_path:
             raise ValueError("two clean builds must have distinct evidence_path references")
+        if b1.evidence_digest == b2.evidence_digest:
+            raise ValueError("two clean builds must have distinct evidence_digest values")
         return values
 
 
@@ -1483,12 +1515,8 @@ class ExternalImportTransformationRecordV1(ContractModel):
 
     @field_validator("created_at")
     @classmethod
-    def created_at_is_iso_timestamp(cls, value: str) -> str:
-        try:
-            datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise ValueError(f"created_at must be an ISO-8601 timestamp: {value!r}") from exc
-        return value
+    def created_at_is_canonical_utc(cls, value: str) -> str:
+        return _canonical_utc_timestamp(value, "created_at")
 
     @model_validator(mode="after")
     def validate_transformation_invariants(self) -> ExternalImportTransformationRecordV1:

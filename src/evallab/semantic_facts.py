@@ -67,6 +67,13 @@ class ContextOperationPayloadV1(ContractModel):
     ]
     compression_metadata: dict[str, JsonValue]
 
+    @field_validator("forgotten_message_indices", mode="before")
+    @classmethod
+    def indices_have_explicit_order(cls, value: Any) -> Any:
+        if type(value) not in (list, tuple):
+            raise ValueError("forgotten_message_indices must be an ordered list or tuple")
+        return value
+
     @field_validator("compression_metadata", mode="before")
     @classmethod
     def metadata_is_canonical_json(cls, value: Any) -> Any:

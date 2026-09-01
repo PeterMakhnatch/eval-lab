@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import deque
 
 import pyarrow.parquet as pq
 import pytest
@@ -334,6 +335,22 @@ def test_context_payload_rejects_missing_extra_or_mistyped_fields(
 def test_context_payload_rejects_malformed_indices(index: object) -> None:
     with pytest.raises(ValueError, match="forgotten_message_indices"):
         context_payload(forgotten_message_indices=[index])
+
+
+@pytest.mark.parametrize(
+    "indices",
+    [
+        {2, 5, 8},
+        frozenset({2, 5, 8}),
+        (index for index in [2, 5, 8]),
+        deque([2, 5, 8]),
+    ],
+)
+def test_context_payload_rejects_unordered_or_implicit_index_containers(
+    indices: object,
+) -> None:
+    with pytest.raises(ValueError, match="ordered list or tuple"):
+        context_payload(forgotten_message_indices=indices)
 
 
 @pytest.mark.parametrize(

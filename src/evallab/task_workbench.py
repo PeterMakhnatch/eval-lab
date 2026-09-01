@@ -541,7 +541,11 @@ def _registry_package_digest_from_entries(
     ignored_extensions = {".pyc", ".pyo", ".tmp"}
     for relative, entry_type, _size, digest in entries:
         pure = PurePosixPath(relative)
-        if entry_type != "file" or pure.name in ignored_names or pure.suffix in ignored_extensions:
+        if (
+            entry_type != "file"
+            or any(part in ignored_names for part in pure.parts)
+            or pure.suffix in ignored_extensions
+        ):
             continue
         aggregate.update(f"{digest.removeprefix('sha256:')}  ./{relative}\n".encode())
     return f"sha256:{aggregate.hexdigest()}"
@@ -4425,6 +4429,25 @@ def _validate_external_import_lineage(
         )
     if _sha256_bytes(evidence_path.read_bytes()) != record.semantic_equivalence.evidence_digest:
         raise WorkbenchError("semantic equivalence evidence digest mismatch")
+
+    seen_paths = {record_path, evidence_path}
+    for idx, build in enumerate(record.reproducibility.builds, start=1):
+        build_evidence_path = _external_import_artifact(
+            repo_root,
+            build.evidence_path,
+            f"reproducibility build {idx} evidence",
+        )
+        if build_evidence_path in seen_paths:
+            raise WorkbenchError(
+                f"reproducibility build {idx} evidence path aliases another import artifact"
+            )
+        seen_paths.add(build_evidence_path)
+        if _sha256_bytes(build_evidence_path.read_bytes()) != build.evidence_digest:
+            raise WorkbenchError(f"reproducibility build {idx} evidence digest mismatch")
+        if build.output_package_digest != registry_package_digest:
+            raise WorkbenchError(
+                f"reproducibility build {idx} output package digest does not match registered package"
+            )
 
 
 def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSource) -> Inspection:

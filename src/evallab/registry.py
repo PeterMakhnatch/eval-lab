@@ -274,6 +274,25 @@ def _verify_external_import_binding(
     if _digest_bytes(evidence_path.read_bytes()) != record.semantic_equivalence.evidence_digest:
         raise TaskCertificationError("semantic equivalence evidence digest mismatch")
 
+    seen_paths = {record_path, evidence_path}
+    for idx, build in enumerate(record.reproducibility.builds, start=1):
+        build_evidence_path = _external_import_artifact(
+            repo_root,
+            build.evidence_path,
+            f"reproducibility build {idx} evidence",
+        )
+        if build_evidence_path in seen_paths:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} evidence path aliases another import artifact"
+            )
+        seen_paths.add(build_evidence_path)
+        if _digest_bytes(build_evidence_path.read_bytes()) != build.evidence_digest:
+            raise TaskCertificationError(f"reproducibility build {idx} evidence digest mismatch")
+        if build.output_package_digest != package_digest:
+            raise TaskCertificationError(
+                f"reproducibility build {idx} output package digest does not match registered package"
+            )
+
 
 def verify_external_import_lineage(repo_root: Path, record: TaskRegistryRecord) -> None:
     """Reopen and verify a registry record's external transformation lineage."""
@@ -429,13 +448,18 @@ def certification_envelope_from_packet(
     source = _packet_mapping(candidate.get("source"), "candidate source")
     raw_lineage = source.get("external_import_lineage")
     packet_version = body.get("workbench_version")
-    external_source = source.get("provenance_zone") == "01-external"
-    if packet_version == "m049-v2" and external_source and raw_lineage is None:
-        raise TaskCertificationError("m049-v2 external packet requires external import lineage")
-    if packet_version == "m049-v2" and not external_source and raw_lineage is not None:
+    source_uri = source.get("source_uri")
+    external_source = source.get("provenance_zone") == "01-external" or (
+        isinstance(source_uri, str) and source_uri.startswith("external/")
+    )
+    if external_source:
+        if packet_version == "m049-v2" and raw_lineage is None:
+            raise TaskCertificationError("m049-v2 external packet requires external import lineage")
+    elif not external_source and raw_lineage is not None:
         raise TaskCertificationError(
             "external import lineage is ambiguous on a non-external packet"
         )
+
     if raw_lineage is None:
         if external_import_lineage is not None:
             raise TaskCertificationError(
@@ -448,7 +472,7 @@ def certification_envelope_from_packet(
             raise TaskCertificationError(
                 f"candidate external import lineage is invalid: {exc}"
             ) from exc
-        if external_import_lineage is None or candidate_lineage != external_import_lineage:
+        if external_import_lineage is not None and candidate_lineage != external_import_lineage:
             raise TaskCertificationError(
                 "promotion lineage does not match candidate source metadata"
             )
@@ -1086,6 +1110,34 @@ def promote_task(
     if allowed_uses is None:
         allowed_uses = ["measurement", "training"]
 
+    # Derive metadata and external_import_lineage from candidate source packet if not explicitly provided
+    if certification_path is not None:
+        cert_p = (
+            (repo_root / certification_path).resolve()
+            if not Path(certification_path).is_absolute()
+            else Path(certification_path).resolve()
+        )
+        cand_p = cert_p.parent / "candidate.json"
+        if cand_p.is_file():
+            try:
+                c_data = json.loads(cand_p.read_text(encoding="utf-8"))
+                cand_source = c_data.get("source", {})
+                if external_import_lineage is None:
+                    raw_l = cand_source.get("external_import_lineage")
+                    if raw_l is not None:
+                        external_import_lineage = ExternalImportLineageV1.model_validate(raw_l)
+                if (
+                    source_uri is None or source_uri == f"local/{task_id}@{version}"
+                ) and cand_source.get("source_uri"):
+                    source_uri = cand_source.get("source_uri")
+                if source_ref is None and cand_source.get("source_ref"):
+                    source_ref = cand_source.get("source_ref")
+                if license_str is None and cand_source.get("license"):
+                    license_str = cand_source.get("license")
+                if provenance_zone is None and cand_source.get("provenance_zone"):
+                    provenance_zone = cand_source.get("provenance_zone")
+            except Exception:
+                pass
     # Compute digests
     digests = compute_task_digests(target_path)
     certification = (
@@ -1101,6 +1153,20 @@ def promote_task(
         if certification_path is not None
         else TaskCertificationEnvelope()
     )
+
+    is_external_promotion = (
+        provenance_zone == "01-external"
+        or (isinstance(source_uri, str) and source_uri.startswith("external/"))
+        or (external_import_lineage is not None)
+    )
+    if is_external_promotion and certification.workbench_version != "m049-v2":
+        raise TaskCertificationError(
+            "external import packages require m049-v2 certification with external import lineage"
+        )
+    if is_external_promotion and external_import_lineage is None:
+        raise TaskCertificationError(
+            "external import packages require m049-v2 certification with external import lineage"
+        )
 
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"

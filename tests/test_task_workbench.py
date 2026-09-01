@@ -164,7 +164,7 @@ def _external_source(
     task: Path,
 ) -> tuple[CandidateSource, ExternalImportLineageV1, Path]:
     imports = repo / "research/registration/imports/external-fixture"
-    imports.mkdir(parents=True)
+    imports.mkdir(parents=True, exist_ok=True)
     evidence_path = imports / "semantic-equivalence.json"
     evidence_bytes = _canonical(
         {
@@ -174,11 +174,21 @@ def _external_source(
         }
     )
     evidence_path.write_bytes(evidence_bytes)
+
+    build1_path = imports / "build-1.json"
+    build1_bytes = _canonical({"build": 1, "status": "clean"})
+    build1_path.write_bytes(build1_bytes)
+
+    build2_path = imports / "build-2.json"
+    build2_bytes = _canonical({"build": 2, "status": "clean"})
+    build2_path.write_bytes(build2_bytes)
+
     output_digest = _registry_package_digest(task)
     source_digest = "sha256:" + "1" * 64
     record = ExternalImportTransformationRecordV1.model_validate(
         {
             "schema_version": 1,
+            "created_at": "2026-08-31T18:00:00Z",
             "import_mode": "transformed",
             "source": {
                 "source_uri": "https://example.invalid/upstream",
@@ -206,7 +216,26 @@ def _external_source(
                 "task_version": "1.0.0",
                 "registry_package_digest": output_digest,
             },
-            "reproducibility": {"clean_build_output_digests": [output_digest, output_digest]},
+            "reproducibility": {
+                "builds": [
+                    {
+                        "build_id": "build-1",
+                        "evidence_path": build1_path.relative_to(repo).as_posix(),
+                        "evidence_digest": _digest(build1_bytes),
+                        "built_at": "2026-08-31T17:50:00Z",
+                        "environment_digest": "sha256:" + "a" * 64,
+                        "output_package_digest": output_digest,
+                    },
+                    {
+                        "build_id": "build-2",
+                        "evidence_path": build2_path.relative_to(repo).as_posix(),
+                        "evidence_digest": _digest(build2_bytes),
+                        "built_at": "2026-08-31T17:55:00Z",
+                        "environment_digest": "sha256:" + "a" * 64,
+                        "output_package_digest": output_digest,
+                    },
+                ]
+            },
             "semantic_equivalence": {
                 "status": "equivalent",
                 "evidence_path": evidence_path.relative_to(repo).as_posix(),
@@ -2113,10 +2142,8 @@ def test_external_import_refuses_transformation_binding_mismatch(
     else:
         wrong_digest = "sha256:" + "5" * 64
         payload["output"]["registry_package_digest"] = wrong_digest
-        payload["reproducibility"]["clean_build_output_digests"] = [
-            wrong_digest,
-            wrong_digest,
-        ]
+        payload["reproducibility"]["builds"][0]["output_package_digest"] = wrong_digest
+        payload["reproducibility"]["builds"][1]["output_package_digest"] = wrong_digest
     source = _rewrite_external_record(source, record_path, payload)
 
     with pytest.raises(WorkbenchError, match=reason):
@@ -3769,3 +3796,63 @@ def test_run_controls_fails_closed_on_invalid_package_name(tmp_path: Path) -> No
             backend=backend,
         )
     assert backend.calls == []
+
+
+def test_workbench_and_registry_package_digest_parity_with_nested_ignores(
+    tmp_path: Path,
+) -> None:
+    """Workbench candidate package digest and registry task_directory_digest must agree on nested ignored files."""
+    repo, task = _copy_candidate(tmp_path)
+    from evallab.registry import task_directory_digest
+
+    digest_clean_wb = _registry_package_digest(task)
+    digest_clean_reg = task_directory_digest(task)
+    assert digest_clean_wb == digest_clean_reg
+
+    # Inject nested ignored paths
+    nested_pycache = task / "tests/__pycache__"
+    nested_pycache.mkdir(parents=True, exist_ok=True)
+    (nested_pycache / "ignored.py").write_text("# ignored\n")
+    (nested_pycache / "ignored.cpython-312.pyc").write_bytes(b"\x00" * 32)
+    (task / ".DS_Store").write_bytes(b"\x00" * 16)
+
+    digest_dirty_wb = _registry_package_digest(task)
+    digest_dirty_reg = task_directory_digest(task)
+    assert digest_dirty_wb == digest_clean_wb, "workbench digest must ignore nested __pycache__"
+    assert digest_dirty_reg == digest_clean_reg, "registry digest must ignore nested __pycache__"
+    assert digest_dirty_wb == digest_dirty_reg, "workbench and registry digests must be identical"
+
+
+@pytest.mark.parametrize(
+    "bad_path",
+    [
+        "research/registration/imports//x/record.json",
+        "research/registration/imports/./x/record.json",
+        "research/registration/imports/x/../record.json",
+        "research/registration/imports\\x\\record.json",
+    ],
+)
+def test_external_import_schema_refuses_non_canonical_paths(bad_path: str) -> None:
+    """Non-canonical path spellings with duplicate slashes or dot aliases must be rejected."""
+    with pytest.raises(
+        ValueError,
+        match="must stay repository-relative|must be under|canonical normalized POSIX path",
+    ):
+        ExternalImportLineageV1(
+            source_task_id="upstream/task",
+            source_package_digest="sha256:" + "1" * 64,
+            source_checkpoint_ref="checkpoint-1",
+            transformation_record_path=bad_path,
+            transformation_record_digest="sha256:" + "2" * 64,
+        )
+
+
+def test_external_import_refuses_reproducibility_evidence_tamper(tmp_path: Path) -> None:
+    """Tampering with build evidence file must fail verification."""
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    build_evidence = repo / "research/registration/imports/external-fixture/build-1.json"
+    build_evidence.write_bytes(b'{"build": 1, "tampered": true}')
+
+    with pytest.raises(WorkbenchError, match="reproducibility build 1 evidence digest mismatch"):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)

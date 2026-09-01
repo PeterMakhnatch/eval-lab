@@ -1426,3 +1426,130 @@ def test_cli_registry_promote_refuses_missing_durable_evidence(
     assert exit_code == 1
     _, err = capsys.readouterr()
     assert "missing durable trial-level oracle control evidence" in err
+
+
+def _make_external_packet_fixture(tmp_path: Path) -> tuple[Path, Path, str]:
+    """Helper creating a valid external task package and m049-v2 candidate packet using workbench."""
+    import sys
+
+    test_dir = str(Path(__file__).resolve().parent)
+    if test_dir not in sys.path:
+        sys.path.insert(0, test_dir)
+    from test_task_workbench import FixtureBackend, _copy_candidate, _external_source
+
+    from evallab.task_workbench import (
+        check_candidate,
+        inspect_candidate,
+        run_controls,
+        write_packet,
+    )
+
+    repo, task_dir = _copy_candidate(tmp_path)
+    source, lineage, rec_path = _external_source(repo, task_dir)
+    inspection = inspect_candidate(repo_root=repo, task_path=task_dir, source=source)
+    bundle = run_controls(
+        inspection=inspection, repo_root=repo, task_path=task_dir, backend=FixtureBackend()
+    )
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    cand_path, cert_path = write_packet(repo_root=repo, report=report)
+    return repo, task_dir, cert_path.relative_to(repo).as_posix()
+
+
+def test_cli_registry_promote_external_task_with_lineage(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The real CLI promote path promotes m049-v2 external packet, carrying lineage from candidate source."""
+    import argparse
+
+    from evallab.cli import _registry_promote_command
+    from evallab.registry import TaskRegistry, verify_certification_packet
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    _make_control_job(repo, task_dir, "oracle", 1.0)
+    _make_control_job(repo, task_dir, "nop", 0.0)
+
+    promote_args = argparse.Namespace(
+        task_path=task_dir.relative_to(repo).as_posix(),
+        task_id=None,
+        task_family="uppercase-fixture",
+        version=None,
+        source_uri=None,
+        source_ref=None,
+        license=None,
+        provenance_zone="01-external",
+        synthetic=False,
+        timeout_seconds=None,
+        max_memory_mb=None,
+        max_cpus=None,
+        allowed_uses=None,
+        human_minutes=None,
+        state="candidate",
+        actor=None,
+        register=False,
+        jobs_dir=None,
+        registry_dir=str(repo / "library/registry"),
+        certification_packet=cert_rel,
+        json=True,
+    )
+
+    exit_code = _registry_promote_command(promote_args, repo)
+    assert exit_code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["task_id"] == "uppercase-fixture"
+    assert out["external_import_lineage"] is not None
+    assert out["external_import_lineage"]["source_task_id"] == "upstream/uppercase-fixture"
+    assert out["certification"]["workbench_version"] == "m049-v2"
+
+    # Reload from registry and verify
+    registry = TaskRegistry.from_repo(repo)
+    record = registry.get("uppercase-fixture")
+    assert record is not None
+    verify_certification_packet(repo, record)
+
+
+def test_external_import_refuses_m049_v1_downgrade_bypass(tmp_path: Path) -> None:
+    """An external task candidate packet downgraded to m049-v1 without lineage must fail closed on promotion."""
+    from evallab.registry import (
+        TaskCertificationError,
+        _canonical_bytes,
+        _digest_bytes,
+        promote_task,
+    )
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    cert_path = repo / cert_rel
+    cand_file = cert_path.parent / "candidate.json"
+    cert_file = cert_path
+
+    cand = json.loads(cand_file.read_text())
+    cert = json.loads(cert_file.read_text())
+
+    # Downgrade to m049-v1 and strip lineage
+    cand["workbench_version"] = "m049-v1"
+    cand["source"].pop("external_import_lineage", None)
+    cand_unsigned = dict(cand)
+    cand_unsigned.pop("candidate_record_digest", None)
+    cand_digest = _digest_bytes(_canonical_bytes(cand_unsigned))
+    cand["candidate_record_digest"] = cand_digest
+    cand_file.write_text(json.dumps(cand, indent=2))
+
+    cert["workbench_version"] = "m049-v1"
+    cert["candidate_record_digest"] = cand_digest
+    cert_unsigned = dict(cert)
+    cert_unsigned.pop("certification_id", None)
+    cert["certification_id"] = (
+        "cert-" + hashlib.sha256(_canonical_bytes(cert_unsigned)).hexdigest()[:24]
+    )
+    cert_file.write_text(json.dumps(cert, indent=2))
+
+    with pytest.raises(
+        TaskCertificationError, match="external import packages require m049-v2 certification"
+    ):
+        promote_task(
+            task_path=task_dir.relative_to(repo).as_posix(),
+            repo_root=repo,
+            task_family="uppercase-fixture",
+            provenance_zone="01-external",
+            certification_path=cert_rel,
+        )

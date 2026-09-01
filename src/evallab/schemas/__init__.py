@@ -1350,7 +1350,18 @@ def _external_import_path(value: str, label: str) -> str:
         raise ValueError(f"{label} must stay repository-relative")
     if not value.startswith(DURABLE_EXTERNAL_IMPORT_PREFIX):
         raise ValueError(f"{label} must be under {DURABLE_EXTERNAL_IMPORT_PREFIX!r}")
-    return value
+    normalized = path.as_posix()
+    if (
+        value != normalized
+        or "//" in value
+        or "/./" in value
+        or value.endswith("/.")
+        or "\\" in value
+    ):
+        raise ValueError(
+            f"{label} must be a canonical normalized POSIX path without aliases: {value!r}"
+        )
+    return normalized
 
 
 class ExternalImportLineageV1(ContractModel):
@@ -1407,14 +1418,44 @@ class ExternalImportOutputV1(ContractModel):
     registry_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
-class ExternalImportReproducibilityV1(ContractModel):
-    clean_build_output_digests: tuple[str, str]
+class ExternalImportBuildEvidenceV1(ContractModel):
+    build_id: str = Field(min_length=1)
+    evidence_path: str = Field(min_length=1)
+    evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    built_at: str = Field(min_length=1)
+    environment_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    output_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
-    @field_validator("clean_build_output_digests")
+    @field_validator("evidence_path")
     @classmethod
-    def clean_build_digests_are_sha256(cls, values: tuple[str, str]) -> tuple[str, str]:
-        if any(not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values):
-            raise ValueError("clean build output digests must be sha256 values")
+    def evidence_path_is_durable(cls, value: str) -> str:
+        return _external_import_path(value, "build evidence_path")
+
+    @field_validator("built_at")
+    @classmethod
+    def built_at_is_iso_timestamp(cls, value: str) -> str:
+        try:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"built_at must be an ISO-8601 timestamp: {value!r}") from exc
+        return value
+
+
+class ExternalImportReproducibilityV1(ContractModel):
+    builds: tuple[ExternalImportBuildEvidenceV1, ExternalImportBuildEvidenceV1]
+
+    @field_validator("builds")
+    @classmethod
+    def validate_two_distinct_builds(
+        cls, values: tuple[ExternalImportBuildEvidenceV1, ExternalImportBuildEvidenceV1]
+    ) -> tuple[ExternalImportBuildEvidenceV1, ExternalImportBuildEvidenceV1]:
+        if len(values) != 2:
+            raise ValueError("reproducibility requires exactly two clean build evidence records")
+        b1, b2 = values
+        if b1.build_id == b2.build_id:
+            raise ValueError("two clean builds must have distinct build_id values")
+        if b1.evidence_path == b2.evidence_path:
+            raise ValueError("two clean builds must have distinct evidence_path references")
         return values
 
 
@@ -1431,6 +1472,7 @@ class ExternalImportSemanticEquivalenceV1(ContractModel):
 
 class ExternalImportTransformationRecordV1(ContractModel):
     schema_version: Literal[1] = 1
+    created_at: str = Field(min_length=1)
     import_mode: Literal["no-op", "transformed"]
     source: ExternalImportSourceV1
     transformer: ExternalImportTransformerV1
@@ -1438,6 +1480,15 @@ class ExternalImportTransformationRecordV1(ContractModel):
     output: ExternalImportOutputV1
     reproducibility: ExternalImportReproducibilityV1
     semantic_equivalence: ExternalImportSemanticEquivalenceV1
+
+    @field_validator("created_at")
+    @classmethod
+    def created_at_is_iso_timestamp(cls, value: str) -> str:
+        try:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"created_at must be an ISO-8601 timestamp: {value!r}") from exc
+        return value
 
     @model_validator(mode="after")
     def validate_transformation_invariants(self) -> ExternalImportTransformationRecordV1:
@@ -1452,10 +1503,14 @@ class ExternalImportTransformationRecordV1(ContractModel):
             raise ValueError(
                 "transformed import requires unequal source and output package digests"
             )
-        if any(
-            digest != output_digest for digest in self.reproducibility.clean_build_output_digests
-        ):
-            raise ValueError("both clean builds must reproduce the output package digest")
+        for b in self.reproducibility.builds:
+            if b.output_package_digest != output_digest:
+                raise ValueError("both clean builds must reproduce the output package digest")
+        build_paths = {b.evidence_path for b in self.reproducibility.builds}
+        if self.semantic_equivalence.evidence_path in build_paths:
+            raise ValueError(
+                "semantic equivalence evidence path cannot alias a build evidence path"
+            )
         return self
 
 

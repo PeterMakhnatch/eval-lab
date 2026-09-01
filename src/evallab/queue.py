@@ -35,6 +35,7 @@ from evallab.evidence_store import (
     EvidenceLocator,
     archive_evidence,
     materialize_evidence,
+    materialize_evidence_at,
 )
 from evallab.execution_contracts import (
     ZAI_OPENCODE_AGENT,
@@ -2259,32 +2260,31 @@ class Executor:
         settled_run = self._run_with_transient_retries(spec, request)
         with materialize_evidence(settled_run.cas_locator) as restored_job:
             self._assert_persistent_artifacts_safe(spec, restored_job)
+        if self._is_control_bootstrap_spec(spec):
+            self._promote_control_bootstrap_job(settled_run, spec)
         return settled_run
 
-    def _promote_control_bootstrap_job(self, job_dir: Path) -> Path:
-        source = job_dir.resolve()
-        exploration_root = (self.repo_root / "runs").resolve()
-        if source.parent != exploration_root:
-            raise ExecutionFailure(
-                "control_bootstrap_job_path_invalid",
-                "control-bootstrap job must originate as one immediate runs/ child",
-            )
-        load_job(source)
+    def _promote_control_bootstrap_job(
+        self,
+        settled_run: SettledRun,
+        spec: ExperimentSpec,
+    ) -> Path:
         durable_root = (self.repo_root / "research/evidence/runs").resolve()
         durable_root.mkdir(parents=True, exist_ok=True)
-        destination = durable_root / source.name
+        destination = durable_root / spec.name
         if destination.exists():
             raise ExecutionFailure(
                 "control_bootstrap_job_conflict",
                 "durable control-bootstrap job destination already exists",
             )
-        source.rename(destination)
-        for directory in (exploration_root, durable_root):
-            descriptor = os.open(directory, os.O_RDONLY)
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+        materialize_evidence_at(settled_run.cas_locator, destination)
+        load_job(destination)
+        self._assert_persistent_artifacts_safe(spec, destination)
+        descriptor = os.open(durable_root, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
         return destination
 
     def _run_with_transient_retries(

@@ -587,21 +587,23 @@ def admit(
     if current_lock != request.lock_sha256:
         return Admission("quarantine", "evidence_tampered:lock.json")
 
-    # Quality Ledger Gate: Failed, quarantined, or unevaluated evidence cannot enter analysis.
-    # Missing historical reports defer as quality_not_evaluated, never assumed good.
+    # Quality Gate: Failed, quarantined, or unevaluated evidence cannot enter analysis.
+    # Evaluates deterministically from exact frozen source bytes; never reopens mutable Parquet.
     from evallab.interpretation.trajectory_quality import (
         QualityStatus,
-        load_quality_report_for_trial,
+        evaluate_trial_quality,
     )
-    from evallab.storage.paths import derived_root_from_environment
 
-    derived_root = derived_root_from_environment(repo_root)
-    quality_report = load_quality_report_for_trial(request.trial_id, derived_root)
-    if quality_report is None:
-        quality_report = load_quality_report_for_trial(request.trial_name, derived_root)
-
-    if quality_report is None:
+    try:
+        quality_report, _ = evaluate_trial_quality(
+            trial_dir,
+            trial_dir.parent,
+            job_id_override=request.job_id,
+            trial_id_override=request.trial_id,
+        )
+    except Exception:
         return Admission("defer", "quality_not_evaluated")
+
     if quality_report.status == QualityStatus.QUARANTINE:
         return Admission(
             "quarantine",
@@ -708,32 +710,10 @@ class AnalysisWorker:
 
     def stage(self, job_roots: list[Path]) -> CycleReport:
         """Discover and freeze. Never calls a model, never admits."""
-        from evallab.interpretation.trajectory_quality import (
-            evaluate_trial_quality,
-            persist_quality_ledger,
-        )
-        from evallab.storage.paths import derived_root_from_environment
-
         jobs = load_jobs(job_roots)
         discovered = staged = 0
         deferred: dict[str, int] = {}
         quarantined: dict[str, int] = {}
-
-        derived_root = derived_root_from_environment(self.repo_root)
-        q_reports = []
-        q_findings = []
-        for job in jobs:
-            for trial in job.trials:
-                rep, fnds = evaluate_trial_quality(
-                    trial.path,
-                    job.path,
-                    job_id_override=str(job.id),
-                    trial_id_override=str(trial.id),
-                )
-                q_reports.append(rep)
-                q_findings.extend(fnds)
-        if q_reports:
-            persist_quality_ledger(q_reports, q_findings, derived_root)
 
         for job, trial, reason in eligible_trials(jobs):
             discovered += 1

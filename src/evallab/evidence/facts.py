@@ -861,7 +861,7 @@ FACT_SCHEMAS = {
             pa.field("precedence", pa.int64(), nullable=False),
             pa.field("predecessor_sequence", pa.int64()),
             pa.field("event_at", pa.string()),
-            pa.field("operations", pa.list_(pa.string()), nullable=False),
+            pa.field("operations", pa.list_(pa.field("element", pa.string())), nullable=False),
             pa.field("path", pa.string()),
             pa.field("is_directory", pa.bool_()),
             pa.field("cookie", pa.int64()),

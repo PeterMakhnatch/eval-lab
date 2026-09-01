@@ -1130,7 +1130,8 @@ def _summarize_command(
 def _ingest_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    jobs = load_jobs([_resolve(root, path) for path in args.paths])
+    resolved_paths = [_resolve(root, path) for path in args.paths]
+    jobs = load_jobs(resolved_paths)
     if not jobs:
         print("No completed Harbor jobs found.", file=sys.stderr)
         return 1
@@ -1139,11 +1140,28 @@ def _ingest_command(
         root,
         explicit=args.derived_dir,
     )
+    from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
+
+    store_raw = getattr(args, "store", None) or os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT") or "derived/run-cas"
+    store_root = _resolve(root, Path(str(store_raw)))
+    source_locators: dict[str, EvidenceLocator] = {}
+    for job_path, job in zip(resolved_paths, jobs, strict=True):
+        if not job_path.is_dir():
+            continue
+        archive = archive_evidence(
+            job_path,
+            store_root=store_root,
+            kind="job",
+            record_id=str(job.id),
+        )
+        source_locators[str(job.id)] = evidence_locator(store_root, archive)
+
     result = ingest_and_project(
         url,
         jobs,
         root=root,
         output_root=derived_root,
+        source_locators=source_locators,
     )
     record_projection_failures(
         DirectoryQueue(root / "queue"),
@@ -1151,26 +1169,6 @@ def _ingest_command(
         actor="manual-ingest",
         spec_id=f"system-{new_ulid()}",
     )
-    from evallab.interpretation.trajectory_quality import (
-        evaluate_trial_quality,
-        persist_quality_ledger,
-    )
-
-    all_reports = []
-    all_findings = []
-    for job in jobs:
-        for trial in job.trials:
-            rep, findings = evaluate_trial_quality(
-                trial.path,
-                job.path,
-                job_id_override=str(job.id),
-                trial_id_override=str(trial.id),
-            )
-            all_reports.append(rep)
-            all_findings.extend(findings)
-    if all_reports:
-        persist_quality_ledger(all_reports, all_findings, derived_root)
-
     print(f"ingested {result.cataloged_jobs} job(s)")
     for table, rows in sorted(result.row_counts.items()):
         print(f"{table}: {rows} row(s)")

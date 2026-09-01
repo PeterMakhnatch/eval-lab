@@ -857,11 +857,14 @@ SettlementRecorder = Callable[
 def _job_projection_contract(job: JobRecord) -> ProjectionContract:
     from evallab import __version__
     from evallab.evidence import event_mart, facts, parquet_io
+    from evallab.interpretation import trajectory_quality
 
     schemas = {
         **PARQUET_SCHEMAS,
         **facts.FACT_SCHEMAS,
         **event_mart.EVENT_MART_SCHEMAS,
+        "trajectory_quality_reports": trajectory_quality.REPORT_SCHEMA,
+        "trajectory_quality_findings": trajectory_quality.FINDING_SCHEMA,
     }
     tables = [
         table_contract(
@@ -890,6 +893,10 @@ def _job_projection_contract(job: JobRecord) -> ProjectionContract:
             "trajectory_phases",
             "action_effects",
         ),
+        (
+            "trajectory_quality_reports",
+            "trajectory_quality_findings",
+        ),
     )
     for table_group in table_groups:
         for trial in ordered_trials:
@@ -913,6 +920,7 @@ def _job_projection_contract(job: JobRecord) -> ProjectionContract:
                 Path(facts.__file__ or ""),
                 Path(event_mart.__file__ or ""),
                 Path(parquet_io.__file__ or ""),
+                Path(trajectory_quality.__file__ or ""),
             ]
         ),
         tables=tuple(tables),
@@ -1195,7 +1203,13 @@ def ingest_and_project(
                 ],
             )
             _record_settlement(settlement_recorder, database_url, derived_root, manifest)
-        exported, projection_failures = project_jobs([job], derived_root)
+        locator = locators.get(job.id)
+        if locator is not None:
+            with materialize_evidence(locator) as materialized_root:
+                live_job = load_job(materialized_root)
+                exported, projection_failures = project_jobs([live_job], derived_root)
+        else:
+            exported, projection_failures = project_jobs([job], derived_root)
         projection_failure = projection_failures[0] if projection_failures else None
         try:
             manifest, projection_failure = _settle_projection_result(
@@ -1269,6 +1283,11 @@ def project_jobs(
                 rebuilt = facts_module.rebuild_from_raw([job], derived_root, repo_root=repo_root)
             else:
                 rebuilt = facts_module.rebuild_from_raw([job], derived_root)
+            tables.extend(rebuilt.tables)
+            from evallab.interpretation.trajectory_quality import _export_quality_tables
+
+            quality_result = _export_quality_tables([job], derived_root)
+            tables.extend(quality_result.tables)
         except Exception as exc:  # Projection failure is data, not an agent result.
             failures.append(
                 ProjectionFailure(
@@ -1279,7 +1298,6 @@ def project_jobs(
                 )
             )
             continue
-        tables.extend(rebuilt.tables)
     return tuple(tables), tuple(failures)
 
 

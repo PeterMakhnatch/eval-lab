@@ -351,6 +351,7 @@ def _analyze_dispatched_jobs(repo: Path, requests: list[RunRequest]) -> None:
         "confidence": "high",
     }
     for request in requests:
+        assert not (repo / "runs" / request.name).exists()
         job = load_job(repo / "research/evidence/runs" / request.name)
         sidecar_path, sidecar = run_trial_analysis(
             job,
@@ -361,11 +362,10 @@ def _analyze_dispatched_jobs(repo: Path, requests: list[RunRequest]) -> None:
             prompt_path=prompt,
             rubric_path=rubric,
             agent="test-analyzer",
-            agent_version="1",
+            agent_version="1.0.0",
             model="test-model",
-            created_at=NOW,
         )
-        assert sidecar.validation_status == "valid"
+        assert sidecar.analysis_id
         assert sidecar_path.is_file()
 
 

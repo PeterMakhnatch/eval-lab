@@ -25,9 +25,11 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-import duckdb
 import pyarrow as pa
-import pyarrow.parquet as pq
+
+from evallab.evidence.atif import ExportedTable, ExportResult
+from evallab.evidence.parquet_io import write_table_atomic
+from evallab.results import JobRecord, sha256_file
 
 QUALITY_CHECK_VERSION = "v1.0.0"
 CHECK_CODE_DIGEST = "sha256:7e91a0b3f8c2e4d56719a8b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1"
@@ -457,158 +459,58 @@ def evaluate_trial_quality(
     return report, findings
 
 
-def persist_quality_ledger(
-    reports: Sequence[TrajectoryQualityReport],
-    findings: Sequence[TrajectoryQualityFinding],
-    derived_root: Path,
-) -> tuple[Path, Path]:
-    """Persist quality reports and findings into deterministic Parquet tables.
-
-    Re-ingestion is idempotent: replacing old rows for updated trials while
-    retaining historical integrity.
-    """
-    derived_root = Path(derived_root).resolve()
-    derived_root.mkdir(parents=True, exist_ok=True)
-
-    reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
-    findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
-
-    # Merge with existing data if present to ensure idempotency
-    existing_reports: dict[str, dict[str, Any]] = {}
-    if reports_path.is_file():
-        try:
-            old_table = pq.read_table(reports_path)
-            for row in old_table.to_pylist():
-                existing_reports[row["trial_id"]] = row
-        except Exception:
-            existing_reports = {}
-
-    for r in reports:
-        existing_reports[r.trial_id] = r.to_dict()
-
-    # Sort deterministically by job_id, trial_id
-    sorted_reports = sorted(
-        existing_reports.values(), key=lambda r: (r.get("job_id", ""), r.get("trial_id", ""))
+def _write_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
+    schema = REPORT_SCHEMA if table_name == QUALITY_REPORT_TABLE else FINDING_SCHEMA
+    write_table_atomic(path, rows, schema)
+    return ExportedTable(
+        table=table_name,
+        path=path,
+        rows=len(rows),
+        sha256=f"sha256:{sha256_file(path)}",
     )
-    rep_table = pa.Table.from_pylist(sorted_reports, schema=REPORT_SCHEMA)
-    pq.write_table(rep_table, reports_path)
-
-    existing_findings: dict[str, dict[str, Any]] = {}
-    if findings_path.is_file():
-        try:
-            old_f_table = pq.read_table(findings_path)
-            for row in old_f_table.to_pylist():
-                existing_findings[row["finding_id"]] = row
-        except Exception:
-            existing_findings = {}
-
-    for f in findings:
-        existing_findings[f.finding_id] = f.to_dict()
-
-    sorted_findings = sorted(
-        existing_findings.values(),
-        key=lambda f: (
-            f.get("job_id", ""),
-            f.get("trial_id", ""),
-            f.get("step_id") or -1,
-            f.get("finding_id", ""),
-        ),
-    )
-    find_table = pa.Table.from_pylist(sorted_findings, schema=FINDING_SCHEMA)
-    pq.write_table(find_table, findings_path)
-
-    return reports_path, findings_path
 
 
-def load_quality_report_for_trial(
-    trial_id: str, derived_root: Path
-) -> TrajectoryQualityReport | None:
-    """Load the quality report for a specific trial if it exists in the ledger."""
-    reports_path = Path(derived_root).resolve() / f"{QUALITY_REPORT_TABLE}.parquet"
-    if not reports_path.is_file():
-        return None
-    try:
-        table = pq.read_table(reports_path, filters=[("trial_id", "=", trial_id)])
-        rows = table.to_pylist()
-        if not rows:
-            return None
-        r = rows[0]
-        return TrajectoryQualityReport(
-            job_id=r["job_id"],
-            trial_id=r["trial_id"],
-            document_id=r["document_id"],
-            raw_atif_digest=r["raw_atif_digest"] or None,
-            raw_result_digest=r["raw_result_digest"] or None,
-            check_version=r["check_version"],
-            check_digest=r["check_digest"],
-            status=QualityStatus(r["status"]),
-            is_ingestable=r["is_ingestable"],
-            is_analysis_ready=r["is_analysis_ready"],
-            quarantine_reason=r["quarantine_reason"] or None,
-            findings_count=r["findings_count"],
-            warnings_count=r["warnings_count"],
-            errors_count=r["errors_count"],
-            evaluated_at=r["evaluated_at"],
-        )
-    except Exception:
-        return None
+def _export_quality_tables(jobs: Sequence[JobRecord], output_root: Path) -> ExportResult:
+    """Private helper for authenticated ingest/projection settlement only."""
+    output_root = output_root.resolve()
+    exported: list[ExportedTable] = []
+    for job in sorted(jobs, key=lambda item: item.id):
+        for trial in sorted(job.trials, key=lambda item: item.id):
+            report, findings = evaluate_trial_quality(
+                trial.path,
+                job.path,
+                job_id_override=str(job.id),
+                trial_id_override=str(trial.id),
+            )
+            partition = output_root / f"job_id={job.id}" / f"trial_id={trial.id}"
+            exported.append(
+                _write_table(
+                    partition / f"{QUALITY_REPORT_TABLE}.parquet",
+                    QUALITY_REPORT_TABLE,
+                    [report.to_dict()],
+                )
+            )
+            exported.append(
+                _write_table(
+                    partition / f"{QUALITY_FINDINGS_TABLE}.parquet",
+                    QUALITY_FINDINGS_TABLE,
+                    [f.to_dict() for f in findings],
+                )
+            )
+    return ExportResult(root=output_root, tables=tuple(exported))
 
 
-def register_quality_tables_in_duckdb(
-    conn: duckdb.DuckDBPyConnection, derived_root: Path
-) -> tuple[bool, bool]:
-    # Expose quality reports and findings as queryable DuckDB tables
-    derived_root = Path(derived_root).resolve()
-    reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
-    findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
-
-    has_reports = reports_path.is_file()
-    has_findings = findings_path.is_file()
-
-    if has_reports:
-        conn.execute(
-            f"CREATE OR REPLACE VIEW {QUALITY_REPORT_TABLE} AS SELECT * FROM read_parquet('{reports_path.as_posix()}')"
-        )
-    else:
-        empty_reports_sql = (
-            f"CREATE OR REPLACE VIEW {QUALITY_REPORT_TABLE} AS "
-            "SELECT CAST('' AS VARCHAR) AS job_id, "
-            "CAST('' AS VARCHAR) AS trial_id, "
-            "CAST('' AS VARCHAR) AS document_id, "
-            "CAST('' AS VARCHAR) AS raw_atif_digest, "
-            "CAST('' AS VARCHAR) AS raw_result_digest, "
-            "CAST('' AS VARCHAR) AS check_version, "
-            "CAST('' AS VARCHAR) AS check_digest, "
-            "CAST('' AS VARCHAR) AS status, "
-            "CAST(false AS BOOLEAN) AS is_ingestable, "
-            "CAST(false AS BOOLEAN) AS is_analysis_ready, "
-            "CAST('' AS VARCHAR) AS quarantine_reason, "
-            "CAST(0 AS BIGINT) AS findings_count, "
-            "CAST(0 AS BIGINT) AS warnings_count, "
-            "CAST(0 AS BIGINT) AS errors_count, "
-            "CAST('' AS VARCHAR) AS evaluated_at WHERE false"
-        )
-        conn.execute(empty_reports_sql)
-
-    if has_findings:
-        conn.execute(
-            f"CREATE OR REPLACE VIEW {QUALITY_FINDINGS_TABLE} AS SELECT * FROM read_parquet('{findings_path.as_posix()}')"
-        )
-    else:
-        empty_findings_sql = (
-            f"CREATE OR REPLACE VIEW {QUALITY_FINDINGS_TABLE} AS "
-            "SELECT CAST('' AS VARCHAR) AS finding_id, "
-            "CAST('' AS VARCHAR) AS job_id, "
-            "CAST('' AS VARCHAR) AS trial_id, "
-            "CAST('' AS VARCHAR) AS document_id, "
-            "CAST('' AS VARCHAR) AS severity, "
-            "CAST('' AS VARCHAR) AS category, "
-            "CAST('' AS VARCHAR) AS code, "
-            "CAST('' AS VARCHAR) AS message, "
-            "CAST(0 AS BIGINT) AS step_id, "
-            "CAST('' AS VARCHAR) AS tool_call_id, "
-            "CAST('' AS VARCHAR) AS evaluated_at WHERE false"
-        )
-        conn.execute(empty_findings_sql)
-
-    return has_reports, has_findings
+__all__ = [
+    "CHECK_CODE_DIGEST",
+    "FINDING_SCHEMA",
+    "FindingSeverity",
+    "QUALITY_CHECK_VERSION",
+    "QUALITY_FINDINGS_TABLE",
+    "QUALITY_REPORT_TABLE",
+    "QualityStatus",
+    "REPORT_SCHEMA",
+    "TrajectoryQualityFinding",
+    "TrajectoryQualityReport",
+    "evaluate_trial_quality",
+    "make_finding_id",
+]

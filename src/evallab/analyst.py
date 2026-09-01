@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import tarfile
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
@@ -24,7 +23,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import Field, model_validator
 
-from evallab.evidence_store import open_archive
+from evallab.evidence_store import EvidenceLocator, materialize_evidence
 from evallab.lance import TrajectoryWindowV1
 from evallab.lineage import compute_file_digest
 from evallab.queue import new_ulid
@@ -801,94 +800,36 @@ def _load_json_object(path: Path | None) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _normalized_archive_member(name: str) -> str:
-    normalized = name
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    path = PurePosixPath(normalized)
-    if not normalized or path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise ValueError(f"invalid CAS evidence member path: {name}")
-    return path.as_posix()
-
-
-def _load_verified_cas_members(store_root: Path, uri: str) -> dict[str, bytes]:
-    """Read and content-verify a CAS archive without extracting it."""
-    expected_digest = f"sha256:{uri.removeprefix('cas://sha256/')}"
-    members: dict[str, bytes] = {}
-    with (
-        open_archive(store_root, uri) as blob,
-        tarfile.open(
-            fileobj=blob,
-            mode="r:gz",
-        ) as archive,
-    ):
-        entries: list[tuple[str, tarfile.TarInfo]] = []
-        for member in archive.getmembers():
-            if not member.isfile():
-                raise ValueError(f"CAS evidence archive contains non-file member: {member.name}")
-            entries.append((_normalized_archive_member(member.name), member))
-        digest = hashlib.sha256()
-        for name, member in sorted(entries, key=lambda item: item[0]):
-            if name in members:
-                raise ValueError(f"duplicate CAS evidence member: {name}")
-            source = archive.extractfile(member)
-            if source is None:
-                raise ValueError(f"cannot read CAS evidence member: {member.name}")
-            content = source.read()
-            members[name] = content
-            encoded_name = name.encode()
-            digest.update(len(encoded_name).to_bytes(8, "big"))
-            digest.update(encoded_name)
-            digest.update(len(content).to_bytes(8, "big"))
-            digest.update(content)
-    actual_digest = f"sha256:{digest.hexdigest()}"
-    if actual_digest != expected_digest:
-        raise ValueError(
-            f"CAS evidence digest mismatch: expected {expected_digest}, got {actual_digest}"
-        )
-    return members
-
-
-def _select_cas_member(
-    members: Mapping[str, bytes],
-    names: tuple[str, ...],
-) -> tuple[str, bytes] | None:
-    for name in names:
-        if name in members:
-            return name, members[name]
-        matches = sorted(
-            (member_name, content)
-            for member_name, content in members.items()
-            if member_name.endswith("/" + name)
-        )
-        if len(matches) > 1:
-            raise ValueError(f"ambiguous CAS evidence member: {name}")
-        if matches:
-            return matches[0]
-    return None
-
-
-def _cas_uri_for_trial(
+def _materialized_trial_root(
+    root: Path,
     trial_identifier: str,
-    trial_row: dict[str, Any] | None,
-    store_root: Path,
-) -> str | None:
-    targets = {trial_identifier}
-    if trial_row:
-        targets.update(str(trial_row.get(key)) for key in ("trial_id", "trial_name", "job_id"))
-    records_root = store_root / "records"
-    if not records_root.is_dir():
-        return None
-    for manifest_path in sorted(records_root.rglob("*.json")):
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if str(manifest.get("record_id")) in targets:
-            uri = manifest.get("uri")
-            if isinstance(uri, str):
-                return uri
-    return None
+    trial_row: Mapping[str, Any] | None,
+    locator: EvidenceLocator,
+) -> Path:
+    """Select one trial from authenticated bytes without trusting store metadata."""
+
+    raw_aliases = [trial_identifier]
+    if trial_row is not None:
+        raw_aliases.extend(
+            str(trial_row[key])
+            for key in ("trial_id", "trial_name")
+            if trial_row.get(key) is not None
+        )
+    trial_aliases = {
+        alias
+        for alias in raw_aliases
+        if alias and alias not in {".", ".."} and "/" not in alias and "\x00" not in alias
+    }
+    matches = {candidate for alias in trial_aliases if (candidate := root / alias).is_dir()}
+    if len(matches) > 1:
+        raise ValueError(f"authenticated CAS evidence has ambiguous trial: {trial_identifier}")
+    if matches:
+        return matches.pop()
+    if locator.record_id in trial_aliases:
+        return root
+    raise FileNotFoundError(
+        f"authenticated CAS evidence has no requested trial: {trial_identifier}"
+    )
 
 
 @dataclass(frozen=True)
@@ -910,6 +851,12 @@ class TrialData:
     inputs: list[dict[str, Any]]
     result_payload: dict[str, Any] = field(default_factory=dict)
     cas_uri: str | None = None
+    evidence_locator: EvidenceLocator | None = None
+    source_authority: Literal[
+        "filesystem",
+        "caller-selected-locator",
+        "unresolved",
+    ] = "unresolved"
 
 
 def resolve_trial(
@@ -918,10 +865,9 @@ def resolve_trial(
     *,
     explicit_derived: Path | None = None,
     runs_root: Path | None = None,
-    evidence_store_root: Path | None = None,
-    cas_uri: str | None = None,
+    evidence_locator: EvidenceLocator | None = None,
 ) -> TrialData:
-    """Resolve trial metadata and, when explicitly requested, hydrate CAS bytes."""
+    """Resolve filesystem evidence or an explicit caller-selected CAS locator."""
     att = attach(repo_root=repo_root, explicit_derived=explicit_derived)
     trial_row: dict[str, Any] | None = None
     try:
@@ -977,28 +923,44 @@ def resolve_trial(
         if r_path.is_file():
             found_result = r_path
 
-    # A CAS URI is an explicit source selection.  It never silently falls back
-    # to an absent filesystem artifact, and hydration is read-only.
-    store_root = evidence_store_root
-    if store_root is None and os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT"):
-        store_root = Path(os.environ["EVALLAB_EVIDENCE_STORE_ROOT"])
-    if cas_uri is None and store_root is not None and found_traj is None and found_result is None:
-        cas_uri = _cas_uri_for_trial(trial_identifier, trial_row, store_root)
+    if evidence_locator is None and found_traj is None and found_result is None:
+        raise ValueError(
+            "automatic CAS hydration requires an independently authenticated "
+            "EvidenceLocator; mutable record discovery is forbidden"
+        )
+
     hydrated_steps: list[dict[str, Any]] | None = None
     hydrated_result: dict[str, Any] | None = None
     trajectory_member: tuple[str, bytes] | None = None
     result_member: tuple[str, bytes] | None = None
-    if cas_uri is not None:
-        if store_root is None:
-            raise ValueError("CAS hydration requested without an evidence store root")
-        members = _load_verified_cas_members(store_root, cas_uri)
-        trajectory_member = _select_cas_member(
-            members,
-            ("agent/trajectory.json", "trajectory.json"),
-        )
-        result_member = _select_cas_member(members, ("result.json",))
+    cas_uri: str | None = None
+    if evidence_locator is not None:
+        cas_uri = f"cas://sha256/{evidence_locator.expected_content_digest.removeprefix('sha256:')}"
+        with materialize_evidence(evidence_locator) as materialized:
+            selected_root = _materialized_trial_root(
+                materialized,
+                trial_identifier,
+                trial_row,
+                evidence_locator,
+            )
+            trajectory_path = selected_root / "agent" / "trajectory.json"
+            if not trajectory_path.is_file():
+                trajectory_path = selected_root / "trajectory.json"
+            result_path = selected_root / "result.json"
+            if trajectory_path.is_file():
+                trajectory_member = (
+                    trajectory_path.relative_to(materialized).as_posix(),
+                    trajectory_path.read_bytes(),
+                )
+            if result_path.is_file():
+                result_member = (
+                    result_path.relative_to(materialized).as_posix(),
+                    result_path.read_bytes(),
+                )
         if trajectory_member is None and result_member is None:
-            raise FileNotFoundError(f"CAS evidence has no trajectory or result: {cas_uri}")
+            raise FileNotFoundError(
+                f"authenticated CAS evidence has no trajectory or result: {cas_uri}"
+            )
         if trajectory_member is not None:
             try:
                 hydrated_steps = _steps_from_payload(json.loads(trajectory_member[1]))
@@ -1027,8 +989,7 @@ def resolve_trial(
     )
 
     inputs: list[dict[str, Any]] = []
-    if cas_uri is not None:
-        content_digest = f"sha256:{cas_uri.removeprefix('cas://sha256/')}"
+    if evidence_locator is not None:
         for selected in (trajectory_member, result_member):
             if selected is None:
                 continue
@@ -1038,7 +999,12 @@ def resolve_trial(
                     "path": cas_uri,
                     "member": member_name,
                     "digest": f"sha256:{hashlib.sha256(member_content).hexdigest()}",
-                    "content_digest": content_digest,
+                    "authority": "caller-selected-locator",
+                    "store_root": str(evidence_locator.store_root),
+                    "record_kind": evidence_locator.kind,
+                    "record_id": evidence_locator.record_id,
+                    "record_digest": evidence_locator.expected_record_digest,
+                    "content_digest": evidence_locator.expected_content_digest,
                 }
             )
     else:
@@ -1102,6 +1068,14 @@ def resolve_trial(
         inputs=inputs,
         result_payload=result_payload,
         cas_uri=cas_uri,
+        evidence_locator=evidence_locator,
+        source_authority=(
+            "caller-selected-locator"
+            if evidence_locator is not None
+            else "filesystem"
+            if found_traj is not None or found_result is not None
+            else "unresolved"
+        ),
     )
 
 
@@ -1352,8 +1326,7 @@ def run_analysis(
     repo_root: Path | None = None,
     derived_root: Path | None = None,
     runs_root: Path | None = None,
-    evidence_store_root: Path | None = None,
-    cas_uri: str | None = None,
+    evidence_locator: EvidenceLocator | None = None,
     analysis_id: str | None = None,
     analysis_role: Literal[
         "trial_review", "review_queue_review", "counterexample_review"
@@ -1395,15 +1368,17 @@ def run_analysis(
         root,
         explicit_derived=derived,
         runs_root=runs_root,
-        evidence_store_root=evidence_store_root,
-        cas_uri=cas_uri,
+        evidence_locator=evidence_locator,
     )
     analyst_steps.append(
         {
             "step_id": 1,
             "source": "reader",
             "timestamp": datetime.now(UTC).isoformat(),
-            "message": f"Loaded {len(trial.trajectory_steps)} trajectory steps from raw artifacts",
+            "message": (
+                f"Loaded {len(trial.trajectory_steps)} trajectory steps via "
+                f"{trial.source_authority}"
+            ),
         }
     )
 

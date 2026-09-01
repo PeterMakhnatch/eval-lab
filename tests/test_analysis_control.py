@@ -45,6 +45,29 @@ def test_materializes_all_stable_control_views() -> None:
 
         for view_name in CONTROL_VIEW_NAMES:
             connection.execute(f"SELECT * FROM {view_name} LIMIT 1").fetchall()
+        readiness_authority = connection.execute(
+            "SELECT DISTINCT network_isolation_status, analysis_eligibility, "
+            "causal_analysis_eligible FROM v_agent_readiness"
+        ).fetchall()
+        assert {row[0] for row in readiness_authority} == {"unknown", "unavailable"}
+        assert {row[1:] for row in readiness_authority} == {
+            ("calibration-only", False)
+        }
+
+        outcome_authority = connection.execute(
+            "SELECT DISTINCT network_isolation_status, analysis_eligibility, "
+            "trial_admissibility_decision, trial_allowed_use, "
+            "is_admissible_for_aggregation FROM v_composite_outcome_validity"
+        ).fetchall()
+        assert outcome_authority == [
+            (
+                "unknown",
+                "calibration-only",
+                "unavailable",
+                "descriptive-only",
+                False,
+            )
+        ]
 
 
 def test_bbo_and_game2048_authority_bindings() -> None:
@@ -71,7 +94,7 @@ def test_bbo_and_game2048_authority_bindings() -> None:
             "original_verifier_authoritative",
         )
         assert bbo[5] == pytest.approx(0.18143598030936073)
-        assert bbo[6] is True
+        assert bbo[6] is False
 
         game = composite["game2048_policy_search__QzNuUbN"]
         assert game[1:5] == (
@@ -81,7 +104,7 @@ def test_bbo_and_game2048_authority_bindings() -> None:
             "regrade_authoritative",
         )
         assert game[5] == pytest.approx(0.37800819)
-        assert game[6] is True
+        assert game[6] is False
 
         game_reward = connection.execute(
             "SELECT authoritative_reward, superseded_count, "

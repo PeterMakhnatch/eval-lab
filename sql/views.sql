@@ -78,8 +78,33 @@ CREATE TABLE IF NOT EXISTS trial_outcomes (
     is_summable BOOLEAN NOT NULL DEFAULT false,
     cas_uri TEXT,
     evidence_path TEXT,
-    recorded_at TEXT
+    recorded_at TEXT,
+    network_isolation_evidence_digest TEXT,
+    network_isolation_status TEXT,
+    network_isolation_reason TEXT,
+    analysis_eligibility TEXT,
+    trial_admissibility_digest TEXT,
+    trial_admissibility_decision TEXT,
+    trial_admissibility_reason TEXT,
+    trial_allowed_use TEXT
 );
+
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS network_isolation_evidence_digest TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS network_isolation_status TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS network_isolation_reason TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS analysis_eligibility TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_admissibility_digest TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_admissibility_decision TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_admissibility_reason TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_allowed_use TEXT;
 
 CREATE OR REPLACE VIEW v_composite_outcome_validity AS
 WITH normalized AS (
@@ -199,6 +224,10 @@ SELECT
         AND is_summable
         AND artifact_status = 'preserved'
         AND is_valid_reward
+        AND COALESCE(network_isolation_status = 'enforced', false)
+        AND COALESCE(analysis_eligibility = 'causal-eligible', false)
+        AND COALESCE(trial_admissibility_decision = 'admissible', false)
+        AND COALESCE(trial_allowed_use = 'causal', false)
     ) AS is_admissible_for_aggregation,
     (
         authority_axis IN ('regrade_authoritative', 'original_verifier_authoritative')
@@ -210,7 +239,15 @@ SELECT
             THEN outcome_id
         ELSE NULL
     END AS authoritative_outcome_id,
-    refusal_reason
+    refusal_reason,
+    network_isolation_evidence_digest,
+    network_isolation_status,
+    network_isolation_reason,
+    analysis_eligibility,
+    trial_admissibility_digest,
+    trial_admissibility_decision,
+    trial_admissibility_reason,
+    trial_allowed_use
 FROM ranked
 WHERE ranking = 1;
 

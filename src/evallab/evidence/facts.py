@@ -23,6 +23,7 @@ from evallab.evidence.parquet_io import write_table_atomic
 from evallab.outcome_authority import (
     OutcomeRecord,
     VerifierOutcomeStatus,
+    bind_outcome_admissibility,
     outcome_record_from_regrade,
     outcome_record_from_trial,
     resolve_outcome_authority,
@@ -37,6 +38,7 @@ from evallab.schemas import (
     AnalysisReview,
     AnalysisSourceDigests,
     FailureCategory,
+    TrialAdmissibilityV1,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
@@ -235,6 +237,18 @@ class TrialFact:
     generator_seed_json: str | None
     task_block_inputs_json: str | None
     task_block_id: str | None
+    task_runtime_version: str | None
+    task_registry_record_digest: str | None
+    task_runtime_package_digest: str | None
+    task_registry_admission_state: str | None
+    network_isolation_evidence_digest: str | None
+    network_isolation_status: str
+    network_isolation_reason: str | None
+    analysis_eligibility: str
+    trial_admissibility_digest: str | None
+    trial_admissibility_decision: str
+    trial_admissibility_reason: str
+    trial_allowed_use: str
     agent_config_digest: str
     agent_name: str | None
     agent_version: str | None
@@ -491,6 +505,43 @@ def extract_trial_fact(
         verifier_digest=verifier_digest,
         environment_digest=environment_digest,
     )
+    runtime_identity = provenance.get("task_runtime_identity")
+    runtime_identity = runtime_identity if isinstance(runtime_identity, dict) else {}
+    isolation_status = _string(provenance.get("network_isolation_status")) or "unknown"
+    isolation_reason = _string(provenance.get("network_isolation_reason"))
+    analysis_eligibility = _string(provenance.get("analysis_eligibility")) or "calibration-only"
+    admissibility_path = trial.path / "trial-admissibility.json"
+    admissibility: TrialAdmissibilityV1 | None = None
+    if admissibility_path.is_file() and not admissibility_path.is_symlink():
+        try:
+            admissibility = TrialAdmissibilityV1.model_validate_json(
+                admissibility_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValidationError) as exc:
+            raise ValueError(f"invalid trial admissibility evidence: {admissibility_path}") from exc
+        expected_runtime = runtime_identity if runtime_identity else None
+        actual_runtime = (
+            admissibility.task_runtime_identity.model_dump(mode="json")
+            if admissibility.task_runtime_identity is not None
+            else None
+        )
+        if admissibility.trial_id != trial.id or actual_runtime != expected_runtime:
+            raise ValueError("trial admissibility task/trial identity parity mismatch")
+        if (
+            admissibility.network_isolation_evidence_digest
+            != _string(provenance.get("network_isolation_evidence_digest"))
+            or admissibility.network_isolation_status != isolation_status
+            or admissibility.analysis_eligibility != analysis_eligibility
+        ):
+            raise ValueError("trial admissibility network-isolation parity mismatch")
+    admissibility_digest = admissibility.admissibility_digest if admissibility is not None else None
+    admissibility_decision = admissibility.decision if admissibility is not None else "unavailable"
+    admissibility_reason = (
+        admissibility.reason
+        if admissibility is not None
+        else "trial_admissibility_unavailable:missing-evidence-artifact"
+    )
+    allowed_use = admissibility.allowed_use if admissibility is not None else "descriptive-only"
     resolved_reward, _ = resolve_trial_primary_reward(job, trial)
     return TrialFact(
         experiment_id=experiment_id(job),
@@ -528,6 +579,22 @@ def extract_trial_fact(
         generator_seed_json=generator_seed_json,
         task_block_inputs_json=task_block_inputs_json,
         task_block_id=task_block_id,
+        task_runtime_version=_string(runtime_identity.get("task_version")),
+        task_registry_record_digest=_string(runtime_identity.get("registry_record_digest")),
+        task_runtime_package_digest=_string(
+            runtime_identity.get("certified_runtime_package_digest")
+        ),
+        task_registry_admission_state=_string(runtime_identity.get("registry_admission_state")),
+        network_isolation_evidence_digest=_string(
+            provenance.get("network_isolation_evidence_digest")
+        ),
+        network_isolation_status=isolation_status,
+        network_isolation_reason=isolation_reason,
+        analysis_eligibility=analysis_eligibility,
+        trial_admissibility_digest=admissibility_digest,
+        trial_admissibility_decision=admissibility_decision,
+        trial_admissibility_reason=admissibility_reason,
+        trial_allowed_use=allowed_use,
         agent_name=_string(agent_info.get("name")),
         agent_version=_string(agent_info.get("version")),
         model_name=_string(model_info.get("name") or model_info.get("model_name")),
@@ -680,6 +747,18 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("generator_seed_json", pa.string()),
         pa.field("task_block_inputs_json", pa.string()),
         pa.field("task_block_id", pa.string()),
+        pa.field("task_runtime_version", pa.string()),
+        pa.field("task_registry_record_digest", pa.string()),
+        pa.field("task_runtime_package_digest", pa.string()),
+        pa.field("task_registry_admission_state", pa.string()),
+        pa.field("network_isolation_evidence_digest", pa.string()),
+        pa.field("network_isolation_status", pa.string(), nullable=False),
+        pa.field("network_isolation_reason", pa.string()),
+        pa.field("analysis_eligibility", pa.string(), nullable=False),
+        pa.field("trial_admissibility_digest", pa.string()),
+        pa.field("trial_admissibility_decision", pa.string(), nullable=False),
+        pa.field("trial_admissibility_reason", pa.string(), nullable=False),
+        pa.field("trial_allowed_use", pa.string(), nullable=False),
         pa.field("agent_config_digest", pa.string(), nullable=False),
         pa.field("agent_name", pa.string()),
         pa.field("agent_version", pa.string()),
@@ -1184,6 +1263,55 @@ def _explicit_job_summary_reward(job: JobRecord, trial: TrialRecord) -> float | 
     return None
 
 
+def _outcome_admissibility_fields(
+    job: JobRecord,
+    trial: TrialRecord,
+) -> dict[str, str | None]:
+    provenance = _experiment_provenance(job)
+    status = _string(provenance.get("network_isolation_status")) or "unknown"
+    eligibility = _string(provenance.get("analysis_eligibility")) or "calibration-only"
+    evidence_path = trial.path / "trial-admissibility.json"
+    admissibility: TrialAdmissibilityV1 | None = None
+    if evidence_path.is_file() and not evidence_path.is_symlink():
+        try:
+            admissibility = TrialAdmissibilityV1.model_validate_json(
+                evidence_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValidationError) as exc:
+            raise ValueError(f"invalid trial admissibility evidence: {evidence_path}") from exc
+        if admissibility.trial_id != trial.id:
+            raise ValueError("trial admissibility identity parity mismatch")
+        if (
+            admissibility.network_isolation_evidence_digest
+            != _string(provenance.get("network_isolation_evidence_digest"))
+            or admissibility.network_isolation_status != status
+            or admissibility.analysis_eligibility != eligibility
+        ):
+            raise ValueError("trial admissibility network-isolation parity mismatch")
+    return {
+        "network_isolation_evidence_digest": _string(
+            provenance.get("network_isolation_evidence_digest")
+        ),
+        "network_isolation_status": status,
+        "network_isolation_reason": _string(provenance.get("network_isolation_reason")),
+        "analysis_eligibility": eligibility,
+        "trial_admissibility_digest": (
+            admissibility.admissibility_digest if admissibility is not None else None
+        ),
+        "trial_admissibility_decision": (
+            admissibility.decision if admissibility is not None else "unavailable"
+        ),
+        "trial_admissibility_reason": (
+            admissibility.reason
+            if admissibility is not None
+            else "trial_admissibility_unavailable:missing-evidence-artifact"
+        ),
+        "trial_allowed_use": (
+            admissibility.allowed_use if admissibility is not None else "descriptive-only"
+        ),
+    }
+
+
 def extract_outcome_records(
     job: JobRecord,
     trial: TrialRecord,
@@ -1225,7 +1353,8 @@ def extract_outcome_records(
                 source_agent_exception=original.agent_exception,
             )
         )
-    return records
+    authority = _outcome_admissibility_fields(job, trial)
+    return [bind_outcome_admissibility(record, **authority) for record in records]
 
 
 def resolve_trial_primary_reward(

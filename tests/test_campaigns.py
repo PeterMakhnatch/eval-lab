@@ -66,10 +66,15 @@ from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentMatrix,
     ExperimentSpec,
+    NetworkEscapeProbeResultV1,
+    NetworkIsolationProbeIdentityV1,
+    NetworkIsolationRuntimeIdentityV1,
+    NetworkPolicyEvidenceV1,
     QueueEvent,
     TaskControlEvidence,
     TaskLimits,
     TaskRegistryRecord,
+    build_network_isolation_evidence,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -124,9 +129,58 @@ QUALIFICATIONS = {
 }
 
 
+def _enforced_isolation_evidence(profile_id: str):
+    profile = builtin_profiles()[profile_id]
+    policy = NetworkPolicyEvidenceV1(mode="no-network")
+    return build_network_isolation_evidence(
+        requested_agent_policy=policy,
+        effective_agent_policy=policy,
+        requested_verifier_policy=policy,
+        effective_verifier_policy=policy,
+        requested_verifier_phase_policy=policy,
+        effective_verifier_phase_policy=policy,
+        runtime_identity=NetworkIsolationRuntimeIdentityV1(
+            platform_system="Linux",
+            platform_release="test",
+            platform_machine="aarch64",
+            container_runtime="docker",
+            container_runtime_version="test",
+            container_image_digest="sha256:" + "1" * 64,
+            adapter=profile.adapter,
+            adapter_version="test",
+            adapter_digest="sha256:" + "2" * 64,
+        ),
+        probe_identity=NetworkIsolationProbeIdentityV1(
+            implementation="test-network-isolation-probe",
+            implementation_version="1",
+            implementation_digest="sha256:" + "3" * 64,
+            config_digest="sha256:" + "4" * 64,
+        ),
+        probe_results=tuple(
+            NetworkEscapeProbeResultV1(
+                escape_class=escape_class,
+                target=f"https://test.invalid/{escape_class}",
+                outcome="blocked",
+                detail="test-blocked",
+            )
+            for escape_class in (
+                "hostname",
+                "direct-ip",
+                "alternate-port",
+                "redirect",
+                "dns-rebinding",
+            )
+        ),
+        observed_at=NOW,
+        valid_until=NOW + timedelta(days=365),
+        evaluated_at=NOW,
+    )
+
+
 def _write_qualified_readiness(root: Path, profile_id: str) -> None:
     profile = builtin_profiles()[profile_id]
     qualification, last_smoke = QUALIFICATIONS[profile_id]
+    isolation_evidence = _enforced_isolation_evidence(profile_id)
     save_readiness_record(
         AgentReadinessRecord(
             schema_version=1,
@@ -147,6 +201,11 @@ def _write_qualified_readiness(root: Path, profile_id: str) -> None:
             ),
             last_smoke=last_smoke,
             qualification=qualification,
+            network_isolation_evidence=isolation_evidence,
+            network_isolation_evidence_digest=isolation_evidence.evidence_digest,
+            network_isolation_status=isolation_evidence.status,
+            network_isolation_reason=isolation_evidence.reason,
+            analysis_eligibility=isolation_evidence.analysis_eligibility,
             updated_at=NOW,
         ),
         root=root,

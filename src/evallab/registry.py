@@ -30,6 +30,7 @@ from evallab.schemas import (
     TaskDigests,
     TaskLimits,
     TaskRegistryRecord,
+    TaskRuntimeIdentityV1,
 )
 from evallab.storage.paths import shared_checkout_root
 from evallab.task_workbench import (
@@ -208,6 +209,22 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _digest_bytes(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def task_registry_record_digest(record: TaskRegistryRecord) -> str:
+    """Digest one exact canonical registry revision, including admission state."""
+    return _digest_bytes(_canonical_bytes(record.model_dump(mode="json")))
+
+
+def task_runtime_identity(record: TaskRegistryRecord) -> TaskRuntimeIdentityV1:
+    """Project the exact registered task revision and certified runtime package."""
+    return TaskRuntimeIdentityV1(
+        task_id=record.task_id,
+        task_version=record.version,
+        registry_record_digest=task_registry_record_digest(record),
+        certified_runtime_package_digest=record.digests.package,
+        registry_admission_state=record.state,
+    )
 
 
 def _packet_mapping(value: Any, label: str) -> dict[str, Any]:

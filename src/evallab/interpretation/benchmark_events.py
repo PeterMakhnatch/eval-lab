@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +23,11 @@ from evallab.benchmark_program_contracts import (
     CellFactorsC,
     FaultInjectionRecord,
     SyntheticFamilyType,
+)
+from evallab.schemas import (
+    TrialAdmissibilityV1,
+    TrialSourceDigestsV1,
+    build_trial_admissibility,
 )
 
 
@@ -119,8 +125,6 @@ def is_application_error(payload: Any) -> bool:
     return False
 
 
-
-
 @dataclass(frozen=True)
 class BenchmarkEventRecord:
     """A single canonical event record from benchmark-events.jsonl."""
@@ -179,6 +183,7 @@ class BenchmarkContractRecord:
     seed: int
     cell_factors: dict[str, Any]
     task_id: str
+    task_id_explicit: bool
     opportunity_counts: dict[str, Any]
     verifier_truth_digest: str
     artifact_paths: dict[str, str]
@@ -215,6 +220,19 @@ class TrialBundle:
     final_state: FinalStateRecord
     events: list[BenchmarkEventRecord]
     correlated_calls: list[CorrelatedToolCall]
+    admissibility: TrialAdmissibilityV1
+    registry_binding_verified: bool = False
+
+    def require_causal_admissibility(self) -> None:
+        if not self.admissibility.causal_eligible:
+            raise BenchmarkIngestionError(
+                f"trial {self.trial_id} is descriptive-only: {self.admissibility.reason}"
+            )
+        if not self.registry_binding_verified:
+            raise BenchmarkIngestionError(
+                f"trial {self.trial_id} registry revision was not verified"
+            )
+
     raw_dir: Path | None = None
 
     def build_citation(
@@ -325,6 +343,22 @@ _TRAJECTORY_CANDIDATES = ("agent/trajectory.json", "trajectory.json", "agent/tra
 _VERIFIER_RESULT_CANDIDATES = ("verifier/result.json", "verifier_result.json")
 _VERIFIER_REWARD_CANDIDATES = ("verifier/reward.txt", "verifier_reward.txt")
 _SOURCE_RESULT_CANDIDATES = ("artifacts/app/output/result.json", "result.json")
+_INTERPRETATION_CANDIDATES = ("analysis/interpretation.json",)
+_TRIAL_ADMISSIBILITY_FILENAME = "trial-admissibility.json"
+_FORBIDDEN_CELL_AUTHORITY_FIELDS = frozenset(
+    {
+        "host_platform",
+        "network_isolation_enforced",
+        "network_isolation_status",
+        "network_isolation_reason",
+        "analysis_eligibility",
+        "evidence_class",
+        "registry_admission_state",
+        "runtime_package_digest",
+        "task_runtime_identity",
+        "trial_admissibility",
+    }
+)
 _HARNESS_RESULT_CANDIDATES = ("result.json",)
 
 
@@ -343,6 +377,11 @@ def _sha256_of(path: Path | None) -> str | None:
         return sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
+
+
+def _prefixed_sha256_of(path: Path | None) -> str | None:
+    value = _sha256_of(path)
+    return f"sha256:{value}" if value is not None else None
 
 
 def _read_json_safely(path: Path | None) -> Any:
@@ -444,9 +483,7 @@ def project_c0_screening(
 
     # Explicit opportunity denominator: the number of tool-call opportunities
     # (NULL-preserving). Rates are never fabricated with a 0 denominator.
-    opportunity_denominator: str | None = (
-        "tool_call_count" if tool_call_count is not None else None
-    )
+    opportunity_denominator: str | None = "tool_call_count" if tool_call_count is not None else None
     opportunity_count = tool_call_count
 
     # Harness exception from the top-level harness result.
@@ -596,11 +633,7 @@ def refuse_causal_promotion(
 def _projection_body(proj: C0ScreeningProjection) -> dict[str, Any]:
     """Canonical projection body: every field except the projection digest and raw evidence digests."""
     data = asdict(proj)
-    return {
-        k: v
-        for k, v in data.items()
-        if k != "projection_digest" and not k.endswith("_sha256")
-    }
+    return {k: v for k, v in data.items() if k != "projection_digest" and not k.endswith("_sha256")}
 
 
 def _compute_projection_digest(proj: C0ScreeningProjection) -> str:
@@ -749,47 +782,60 @@ def parse_benchmark_contract(
     version = str(data.get("version", "1.0.0"))
     construct = str(data.get("construct", ""))
 
-    # Seeds handling: list or scalar
     seeds = data.get("seeds")
-    if isinstance(seeds, list) and seeds:
-        seed = int(data.get("seed", seeds[0]))
+    seed_value = data.get("seed")
+    if type(seed_value) is int:
+        seed = seed_value
+    elif isinstance(seeds, list) and seeds and type(seeds[0]) is int:
+        seed = seeds[0]
     else:
-        seed = int(data.get("seed", data.get("cell_factors", {}).get("seed", 0)))
+        cell_seed = data.get("cell_factors", {}).get("seed")
+        seed = cell_seed if type(cell_seed) is int else 0
 
-    cell_factors = dict(data.get("cell_factors", {}))
+    raw_cell_factors = data.get("cell_factors", {})
+    if not isinstance(raw_cell_factors, dict):
+        raise BenchmarkEventSchemaError("Benchmark contract cell_factors must be an object")
+    cell_factors = dict(raw_cell_factors)
+    forbidden_authority = _FORBIDDEN_CELL_AUTHORITY_FIELDS.intersection(
+        set(data) | set(cell_factors)
+    )
+    if forbidden_authority:
+        raise BenchmarkEventSchemaError(
+            "Runtime/admissibility authority cannot be stored in cell_factors: "
+            + ", ".join(sorted(forbidden_authority))
+        )
     if "cells" in data and isinstance(data["cells"], list):
         cell_factors["cells"] = data["cells"]
         if data["cells"] and isinstance(data["cells"][0], dict):
-            for ck, cv in data["cells"][0].items():
-                if ck not in cell_factors:
-                    cell_factors[ck] = cv
+            for key, value in data["cells"][0].items():
+                if key not in cell_factors:
+                    cell_factors[key] = value
     if isinstance(seeds, list):
         cell_factors["seeds"] = seeds
+    reserved = {
+        "family",
+        "benchmark_family",
+        "version",
+        "construct",
+        "seed",
+        "seeds",
+        "cells",
+        "cell_factors",
+        "task_id",
+        "task_name",
+        "opportunity_counts",
+        "verifier_truth_digest",
+        "artifact_paths",
+        "fault_record",
+        "fault_injection_record",
+    }
+    for key, value in data.items():
+        if key not in reserved and key not in cell_factors:
+            cell_factors[key] = value
 
-    for k, v in data.items():
-        if (
-            k
-            not in (
-                "family",
-                "benchmark_family",
-                "version",
-                "construct",
-                "seed",
-                "seeds",
-                "cells",
-                "cell_factors",
-                "task_id",
-                "task_name",
-                "opportunity_counts",
-                "verifier_truth_digest",
-                "artifact_paths",
-                "fault_record",
-                "fault_injection_record",
-            )
-            and k not in cell_factors
-        ):
-            cell_factors[k] = v
-    task_id = str(data.get("task_id") or data.get("task_name") or family)
+    raw_task_id = data.get("task_id")
+    task_id_explicit = isinstance(raw_task_id, str) and bool(raw_task_id)
+    task_id = str(raw_task_id or data.get("task_name") or family)
     opportunity_counts = dict(data.get("opportunity_counts", {}))
     verifier_truth_digest = str(data.get("verifier_truth_digest", ""))
     artifact_paths = {str(k): str(v) for k, v in data.get("artifact_paths", {}).items()}
@@ -805,6 +851,7 @@ def parse_benchmark_contract(
         seed=seed,
         cell_factors=cell_factors,
         task_id=task_id,
+        task_id_explicit=task_id_explicit,
         opportunity_counts=opportunity_counts,
         verifier_truth_digest=verifier_truth_digest,
         artifact_paths=artifact_paths,
@@ -1242,9 +1289,116 @@ def correlate_tool_calls(
     return correlated
 
 
+def _combined_digest(paths: Sequence[Path | None]) -> str | None:
+    values = [
+        _prefixed_sha256_of(path)
+        for path in paths
+        if path is not None and path.is_file() and not path.is_symlink()
+    ]
+    if not values or any(value is None for value in values):
+        return None
+    canonical = json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
+    return f"sha256:{sha256(canonical).hexdigest()}"
+
+
+def _trial_source_digests(
+    path: Path,
+    *,
+    contract_path: Path,
+    final_state_path: Path,
+) -> TrialSourceDigestsV1:
+    trajectory_path = _first_regular_file(path, _TRAJECTORY_CANDIDATES)
+    verifier_result = _first_regular_file(path, _VERIFIER_RESULT_CANDIDATES)
+    verifier_reward = _first_regular_file(path, _VERIFIER_REWARD_CANDIDATES)
+    outcome_path = _first_regular_file(path, _SOURCE_RESULT_CANDIDATES)
+    interpretation_path = _first_regular_file(path, _INTERPRETATION_CANDIDATES)
+    return TrialSourceDigestsV1(
+        contract=_prefixed_sha256_of(contract_path),
+        trajectory=_prefixed_sha256_of(trajectory_path),
+        final_state=_prefixed_sha256_of(final_state_path),
+        verifier=_combined_digest((verifier_result, verifier_reward)),
+        outcome=_prefixed_sha256_of(outcome_path),
+        interpretation=_prefixed_sha256_of(interpretation_path),
+    )
+
+
+def _load_trial_admissibility(
+    path: Path,
+    *,
+    trial_id: str,
+    contract: BenchmarkContractRecord,
+    source_digests: TrialSourceDigestsV1,
+    repo_root: Path | None,
+) -> tuple[TrialAdmissibilityV1, bool]:
+    evidence_path = path / _TRIAL_ADMISSIBILITY_FILENAME
+    if evidence_path.is_file() and not evidence_path.is_symlink():
+        try:
+            admissibility = TrialAdmissibilityV1.model_validate_json(
+                evidence_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            raise BenchmarkEventSchemaError(
+                "trial admissibility evidence is malformed or digest-invalid"
+            ) from exc
+        if admissibility.trial_id != trial_id:
+            raise BenchmarkContractDriftError(
+                "trial admissibility identity does not match the loaded trial"
+            )
+        if admissibility.source_digests != source_digests:
+            raise BenchmarkContractDriftError(
+                "trial admissibility source digest chain does not match loaded artifacts"
+            )
+        task_identity = admissibility.task_runtime_identity
+        if (
+            task_identity is not None
+            and contract.task_id_explicit
+            and task_identity.task_id != contract.task_id
+        ):
+            raise BenchmarkContractDriftError(
+                "trial admissibility task identity does not match benchmark contract"
+            )
+    else:
+        admissibility = build_trial_admissibility(
+            trial_id=trial_id,
+            task_runtime_identity=None,
+            source_digests=source_digests,
+            network_isolation_evidence=None,
+            evaluated_at=datetime(1970, 1, 1, tzinfo=UTC),
+        )
+    if admissibility.task_runtime_identity is not None and not contract.task_id_explicit:
+        return admissibility, False
+    if repo_root is None or admissibility.task_runtime_identity is None:
+        return admissibility, False
+    from evallab.registry import (
+        RegistryError,
+        TaskRegistry,
+        compute_task_digests,
+        task_runtime_identity,
+    )
+
+    registry_record = TaskRegistry.from_repo(repo_root).get(
+        admissibility.task_runtime_identity.task_id
+    )
+    if registry_record is None:
+        return admissibility, False
+    try:
+        current_digests = compute_task_digests(repo_root / registry_record.task_path)
+    except (OSError, RegistryError):
+        return admissibility, False
+    verified = (
+        task_runtime_identity(registry_record) == admissibility.task_runtime_identity
+        and current_digests == registry_record.digests
+        and current_digests.package
+        == admissibility.task_runtime_identity.certified_runtime_package_digest
+    )
+    return admissibility, verified
+
+
 def load_trial_bundle(
     trial_dir: Path | str,
     trial_id: str | None = None,
+    *,
+    repo_root: Path | None = None,
 ) -> TrialBundle:
     """Load and strictly validate a complete trial evidence directory."""
     path = Path(trial_dir)
@@ -1267,6 +1421,18 @@ def load_trial_bundle(
     events = parse_benchmark_events(events_path)
     final_state = parse_final_state(final_state_path)
     correlated = correlate_tool_calls(events)
+    source_digests = _trial_source_digests(
+        path,
+        contract_path=contract_path,
+        final_state_path=final_state_path,
+    )
+    admissibility, registry_binding_verified = _load_trial_admissibility(
+        path,
+        trial_id=tid,
+        contract=contract,
+        source_digests=source_digests,
+        repo_root=repo_root,
+    )
 
     return TrialBundle(
         trial_id=tid,
@@ -1274,6 +1440,8 @@ def load_trial_bundle(
         final_state=final_state,
         events=events,
         correlated_calls=correlated,
+        admissibility=admissibility,
+        registry_binding_verified=registry_binding_verified,
         raw_dir=path,
     )
 

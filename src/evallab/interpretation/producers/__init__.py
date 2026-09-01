@@ -47,8 +47,12 @@ def extract_benchmark_features(
     step_tokens: Sequence[int] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
+    *,
+    governed: bool = False,
 ) -> ActionMemoryFeatures | McpFuncDagFeatures | McpRecoveryFeatures:
     """Extract benchmark-specific features according to the trial bundle's family."""
+    if governed:
+        bundle.require_causal_admissibility()
     family = bundle.contract.family
     if family == "action-memory-v1":
         return extract_action_memory_features(

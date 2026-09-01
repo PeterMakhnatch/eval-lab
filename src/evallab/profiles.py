@@ -1179,6 +1179,13 @@ def evaluate_profile_readiness(
     else:
         state = ProfileState.DECLARED
 
+    updated_at = clock()
+    isolation_evidence = (
+        saved_record.network_isolation_evidence if saved_record is not None else None
+    )
+    isolation_projection = (
+        isolation_evidence.project(as_of=updated_at) if isolation_evidence is not None else None
+    )
     return AgentReadinessRecord(
         schema_version=1,
         profile_id=profile.profile_id,
@@ -1190,5 +1197,22 @@ def evaluate_profile_readiness(
         blocker=active_blocker,
         last_smoke=last_smoke,
         qualification=qualification,
-        updated_at=datetime.now(UTC),
+        updated_at=updated_at,
+        network_isolation_evidence=isolation_evidence,
+        network_isolation_evidence_digest=(
+            isolation_evidence.evidence_digest if isolation_evidence is not None else None
+        ),
+        network_isolation_status=(
+            isolation_projection.status if isolation_projection is not None else "unknown"
+        ),
+        network_isolation_reason=(
+            isolation_projection.reason
+            if isolation_projection is not None
+            else "network_isolation_unknown:missing-evidence"
+        ),
+        analysis_eligibility=(
+            isolation_projection.analysis_eligibility
+            if isolation_projection is not None
+            else "calibration-only"
+        ),
     )

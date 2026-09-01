@@ -52,6 +52,7 @@ from evallab.profiles import (
     SecurityRunner,
     compute_qualification_digest,
     evaluate_profile_readiness,
+    load_readiness_record,
     save_readiness_record,
 )
 from evallab.quota import (
@@ -73,6 +74,7 @@ from evallab.registry import (
     TaskUsageNotAllowedError,
     TaskVersionMismatchError,
     compute_task_digests,
+    task_runtime_identity,
 )
 from evallab.results import duration_seconds, load_job
 from evallab.runner import (
@@ -90,6 +92,7 @@ from evallab.runner import (
     transient_provider_exception,
 )
 from evallab.schemas import (
+    CAUSAL_EXPERIMENT_PURPOSES,
     EXPERIMENT_PURPOSES,
     AgentGateEvaluations,
     AgentQualificationDigest,
@@ -1643,6 +1646,37 @@ class Executor:
                 "campaign_spec_drifted",
                 "queued campaign spec differs from its frozen attempt",
             )
+        runtime_identity = attempt.runtime_identity
+        if spec.billable:
+            if runtime_identity is None:
+                raise ExecutionFailure(
+                    "campaign_isolation_identity_missing",
+                    "billable campaign attempt has no isolation-bound runtime identity",
+                )
+            projection = runtime_identity.network_isolation_evidence.project(
+                as_of=datetime.now(UTC)
+            )
+            if (
+                runtime_identity.network_isolation_status,
+                runtime_identity.network_isolation_reason,
+                runtime_identity.analysis_eligibility,
+            ) != (
+                projection.status,
+                projection.reason,
+                projection.analysis_eligibility,
+            ):
+                raise ExecutionFailure(
+                    "campaign_isolation_evidence_stale",
+                    "campaign isolation evidence no longer matches its current projection",
+                )
+            if (
+                spec.purpose in CAUSAL_EXPERIMENT_PURPOSES
+                and projection.analysis_eligibility != "causal-eligible"
+            ):
+                raise ExecutionFailure(
+                    "campaign_isolation_ineligible",
+                    "causal campaign attempt lacks enforced current isolation evidence",
+                )
 
     def _dispatch_one(
         self,
@@ -1923,6 +1957,8 @@ class Executor:
         package_digest = None
         timeout_seconds = spec.timeout_seconds
         canonical_task_path = spec.executable_task_path
+        resolved_task_runtime = spec.task_runtime_identity
+        resolved_registry_record = None
         task_id = spec.task_id
 
         if spec.task.startswith("registered/"):
@@ -1938,6 +1974,7 @@ class Executor:
             task_version = resolved.version
             verifier_digest = resolved.digests.verifier
             package_digest = resolved.digests.package
+            resolved_registry_record = resolved
             task_id = resolved.task_id
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
         elif spec.task_package_digest is not None:
@@ -1954,6 +1991,24 @@ class Executor:
             raise ExecutionFailure(
                 "task_digest_mismatch",
                 "resolved task package differs from the frozen campaign digest",
+            )
+        if resolved_registry_record is not None:
+            current_task_runtime = task_runtime_identity(resolved_registry_record)
+            if resolved_task_runtime is not None and resolved_task_runtime != current_task_runtime:
+                raise ExecutionFailure(
+                    "task_runtime_identity_mismatch",
+                    "resolved registry revision differs from the frozen task runtime identity",
+                )
+            resolved_task_runtime = current_task_runtime
+        if resolved_task_runtime is not None and (
+            resolved_task_runtime.registry_admission_state != "registered"
+            or resolved_task_runtime.task_id != task_id
+            or resolved_task_runtime.task_version != task_version
+            or resolved_task_runtime.certified_runtime_package_digest != package_digest
+        ):
+            raise ExecutionFailure(
+                "task_runtime_identity_mismatch",
+                "execution task bytes or registry admission differ from the frozen identity",
             )
         grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
         bound_values = (
@@ -2109,6 +2164,12 @@ class Executor:
                 campaign_attempt_id=spec.campaign_attempt_id,
                 campaign_attempt_index=spec.campaign_attempt_index,
                 campaign_manifest_digest=spec.campaign_manifest_digest,
+                task_runtime_identity=resolved_task_runtime,
+                network_isolation_evidence=spec.network_isolation_evidence,
+                network_isolation_evidence_digest=spec.network_isolation_evidence_digest,
+                network_isolation_status=spec.network_isolation_status,
+                network_isolation_reason=spec.network_isolation_reason,
+                analysis_eligibility=spec.analysis_eligibility,
                 campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
@@ -2563,6 +2624,11 @@ class Executor:
                     canary="blocked",
                 ),
                 last_smoke=smoke_record,
+                network_isolation_evidence=readiness.network_isolation_evidence,
+                network_isolation_evidence_digest=readiness.network_isolation_evidence_digest,
+                network_isolation_status=readiness.network_isolation_status,
+                network_isolation_reason=readiness.network_isolation_reason,
+                analysis_eligibility=readiness.analysis_eligibility,
                 updated_at=datetime.now(UTC),
             ),
         )
@@ -2599,6 +2665,10 @@ class Executor:
             if not ok or smoke_rec is None:
                 return False, None, f"Repeat {index + 1}/{repeats} failed: {err}"
             smoke_records.append(smoke_rec)
+
+        current_readiness = load_readiness_record(profile.profile_id, root=self.repo_root)
+        if current_readiness is None:
+            return False, None, "Qualification lost its persisted readiness evidence"
 
         qualification = AgentQualificationDigest(
             schema_version=2,
@@ -2639,6 +2709,13 @@ class Executor:
                 ),
                 last_smoke=smoke_records[-1],
                 qualification=qualification,
+                network_isolation_evidence=current_readiness.network_isolation_evidence,
+                network_isolation_evidence_digest=(
+                    current_readiness.network_isolation_evidence_digest
+                ),
+                network_isolation_status=current_readiness.network_isolation_status,
+                network_isolation_reason=current_readiness.network_isolation_reason,
+                analysis_eligibility=current_readiness.analysis_eligibility,
                 updated_at=datetime.now(UTC),
             ),
         )

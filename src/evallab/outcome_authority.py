@@ -95,6 +95,14 @@ class OutcomeRecord(ContractModel):
     cas_uri: str | None = None
     evidence_path: str | None = None
     recorded_at: str | None = None
+    network_isolation_evidence_digest: str | None = None
+    network_isolation_status: str | None = None
+    network_isolation_reason: str | None = None
+    analysis_eligibility: str | None = None
+    trial_admissibility_digest: str | None = None
+    trial_admissibility_decision: str | None = None
+    trial_admissibility_reason: str | None = None
+    trial_allowed_use: str | None = None
 
     @model_validator(mode="after")
     def validate_outcome_invariants(self) -> OutcomeRecord:
@@ -110,6 +118,22 @@ class OutcomeRecord(ContractModel):
             raise ValueError("a synthetic fallback cannot be valid reward evidence")
         if self.authority_state == AuthorityState.non_decision and self.is_summable:
             raise ValueError("a non-decision outcome cannot be summable")
+        authority_values = (
+            self.network_isolation_status,
+            self.analysis_eligibility,
+            self.trial_admissibility_decision,
+            self.trial_allowed_use,
+        )
+        if any(value is not None for value in authority_values) and any(
+            value is None for value in authority_values
+        ):
+            raise ValueError("outcome isolation/admissibility authority must be complete")
+        if (
+            self.is_summable
+            and authority_values[0] is not None
+            and authority_values != ("enforced", "causal-eligible", "admissible", "causal")
+        ):
+            raise ValueError("a summable outcome requires causal isolation and trial admissibility")
         return self
 
 
@@ -130,6 +154,42 @@ class OutcomeAuthorityResolution(ContractModel):
     superseded_outcomes: list[OutcomeRecord]
     composite_vector: CompositeOutcomeVector
     refusal_reason: str | None
+
+
+def bind_outcome_admissibility(
+    record: OutcomeRecord,
+    *,
+    network_isolation_evidence_digest: str | None,
+    network_isolation_status: str,
+    network_isolation_reason: str | None,
+    analysis_eligibility: str,
+    trial_admissibility_digest: str | None,
+    trial_admissibility_decision: str,
+    trial_admissibility_reason: str,
+    trial_allowed_use: str,
+) -> OutcomeRecord:
+    """Bind normalized outcome authority without allowing descriptive rows to summarize."""
+    causal = (
+        network_isolation_status == "enforced"
+        and analysis_eligibility == "causal-eligible"
+        and trial_admissibility_decision == "admissible"
+        and trial_allowed_use == "causal"
+    )
+    rebound = OutcomeRecord.model_validate(
+        {
+            **record.model_dump(mode="json", exclude={"outcome_id"}),
+            "network_isolation_evidence_digest": network_isolation_evidence_digest,
+            "network_isolation_status": network_isolation_status,
+            "network_isolation_reason": network_isolation_reason,
+            "analysis_eligibility": analysis_eligibility,
+            "trial_admissibility_digest": trial_admissibility_digest,
+            "trial_admissibility_decision": trial_admissibility_decision,
+            "trial_admissibility_reason": trial_admissibility_reason,
+            "trial_allowed_use": trial_allowed_use,
+            "is_summable": record.is_summable and causal,
+        }
+    )
+    return rebound.model_copy(update={"outcome_id": _stable_outcome_id(rebound)})
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -630,6 +690,15 @@ def resolve_outcome_authority(
         if original_candidates:
             authoritative = min(original_candidates, key=lambda outcome: outcome.outcome_id)
 
+    authority_allows_summation = authoritative is not None and (
+        authoritative.network_isolation_status is None
+        or (
+            authoritative.network_isolation_status == "enforced"
+            and authoritative.analysis_eligibility == "causal-eligible"
+            and authoritative.trial_admissibility_decision == "admissible"
+            and authoritative.trial_allowed_use == "causal"
+        )
+    )
     if refusal_reason:
         for outcome in (*originals, *regrades):
             superseded.append(
@@ -644,7 +713,7 @@ def resolve_outcome_authority(
         authoritative = authoritative.model_copy(
             update={
                 "authority_state": AuthorityState.authoritative,
-                "is_summable": True,
+                "is_summable": authority_allows_summation,
             }
         )
         for outcome in (*originals, *regrades):

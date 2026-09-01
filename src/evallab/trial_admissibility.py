@@ -18,6 +18,7 @@ from evallab.schemas import (
     RunProvenance,
     TaskRuntimeIdentityV1,
     TrialAdmissibilityV1,
+    TrialAnalysisSidecar,
     TrialSourceDigestsV1,
     TrialSourcePathsV1,
     build_trial_admissibility,
@@ -149,13 +150,106 @@ def _source_path_label(path: Path, *, root: Path, repo_root: Path | None) -> str
         return f"repo:{relative}"
 
 
+def _validate_interpretation_source(
+    path: Path,
+    *,
+    root: Path,
+    repo_root: Path | None,
+    trial_id: str,
+) -> None:
+    try:
+        sidecar = TrialAnalysisSidecar.model_validate_json(path.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:malformed-interpretation"
+        ) from exc
+    if sidecar.validation_status != "valid" or sidecar.validation_errors:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:invalid-interpretation")
+    if str(sidecar.source_trial_id) != trial_id:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:interpretation-trial-id-drift")
+    declared_source = Path(sidecar.source_trial_path)
+    if declared_source.is_absolute():
+        bound_source = declared_source.resolve()
+    elif repo_root is not None:
+        bound_source = (repo_root.resolve() / declared_source).resolve()
+    else:
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:relative-interpretation-source-without-root"
+        )
+    if bound_source != root:
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:interpretation-source-path-drift"
+        )
+    result_path = root / "result.json"
+    trajectory_path = root / "agent/trajectory.json"
+    lock_path = root / "lock.json"
+    if not result_path.is_file() or not lock_path.is_file():
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:interpretation-source-digest-drift"
+        )
+    try:
+        lock = json.loads(lock_path.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:interpretation-source-digest-drift"
+        ) from exc
+    task = lock.get("task") if isinstance(lock, Mapping) else None
+    task_digest = task.get("digest") if isinstance(task, Mapping) else None
+    expected_task_digest = (
+        task_digest
+        if isinstance(task_digest, str)
+        and len(task_digest) == 71
+        and task_digest.startswith("sha256:")
+        else _digest_file(lock_path)
+    )
+    expected_trajectory_digest = (
+        _digest_file(trajectory_path) if trajectory_path.is_file() else None
+    )
+    if (
+        sidecar.source_digests.result != _digest_file(result_path)
+        or sidecar.source_digests.task != expected_task_digest
+        or sidecar.source_digests.trajectory != expected_trajectory_digest
+    ):
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:interpretation-source-digest-drift"
+        )
+    required_files = {
+        "result.json",
+        "lock.json",
+        *(citation.path for citation in sidecar.output.evidence),
+    }
+    if set(sidecar.source_digests.files) != required_files:
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:interpretation-source-digest-drift"
+        )
+    for relative, digest in sidecar.source_digests.files.items():
+        source = (root / relative).resolve()
+        if root != source and root not in source.parents:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:interpretation-source-path-escape"
+            )
+        if not source.is_file() or _digest_file(source) != digest:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:interpretation-source-digest-drift"
+            )
+
+
 def _source_authority(
     root: Path,
     *,
     interpretation_path: Path | None = None,
     repo_root: Path | None = None,
+    trial_id: str,
 ) -> tuple[TrialSourcePathsV1, TrialSourceDigestsV1]:
     resolved = _resolve_sources(root, interpretation_path=interpretation_path)
+    interpretation = resolved["interpretation"]
+    if interpretation:
+        _validate_interpretation_source(
+            interpretation[0],
+            root=root,
+            repo_root=repo_root,
+            trial_id=trial_id,
+        )
     labels = {
         name: tuple(_source_path_label(path, root=root, repo_root=repo_root) for path in values)
         for name, values in resolved.items()
@@ -194,9 +288,21 @@ def job_run_provenance(job: JobRecord) -> RunProvenance | None:
     return _provenance_from(value if isinstance(value, Mapping) else None)
 
 
-def _evaluated_at(provenance: RunProvenance | None) -> datetime:
-    evidence = provenance.network_isolation_evidence if provenance is not None else None
-    return evidence.observed_at if evidence is not None else datetime(1970, 1, 1, tzinfo=UTC)
+def _evaluated_at(
+    provenance: RunProvenance | None,
+    *,
+    trial: TrialRecord | None = None,
+) -> datetime:
+    if trial is not None:
+        raw = trial.result.get("finished_at") or trial.result.get("started_at")
+        if raw is not None:
+            try:
+                parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+            if parsed is not None and parsed.tzinfo is not None:
+                return parsed
+    return datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def _provenance_binding(
@@ -287,15 +393,14 @@ def verify_trial_admissibility(
 ) -> VerifiedTrialAdmissibility:
     root = trial_dir.resolve()
     parsed_provenance = _provenance_from(provenance)
-    authority_path = (
-        artifact_path.resolve()
-        if artifact_path is not None
-        else (
-            canonical_trial_admissibility_path(repo_root, trial_id)
-            if repo_root is not None
-            else root / TRIAL_ADMISSIBILITY_FILENAME
-        )
+    expected_authority = (
+        canonical_trial_admissibility_path(repo_root, trial_id)
+        if repo_root is not None
+        else root / TRIAL_ADMISSIBILITY_FILENAME
     )
+    if artifact_path is not None and artifact_path.resolve() != expected_authority.resolve():
+        raise TrialAdmissibilityError("trial_admissibility_invalid:alternate-authority-path")
+    authority_path = expected_authority
     if authority_path.is_symlink():
         raise TrialAdmissibilityError("trial_admissibility_invalid:symlink-admissibility-artifact")
     record: TrialAdmissibilityV1 | None = None
@@ -317,6 +422,7 @@ def verify_trial_admissibility(
         root,
         interpretation_path=interpretation_path,
         repo_root=repo_root,
+        trial_id=trial_id,
     )
     if record is None or raw is None:
         unavailable = build_trial_admissibility(
@@ -358,6 +464,7 @@ def verify_trial_admissibility(
 def _atomic_publish(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(12)}.tmp")
+    published = False
     try:
         with temporary.open("xb") as stream:
             stream.write(payload)
@@ -365,11 +472,18 @@ def _atomic_publish(path: Path, payload: bytes) -> None:
             os.fsync(stream.fileno())
         try:
             os.link(temporary, path)
+            published = True
         except FileExistsError:
             if path.is_symlink() or not path.is_file() or path.read_bytes() != payload:
                 raise TrialAdmissibilityError(
                     "trial_admissibility_invalid:conflicting-existing-artifact"
                 ) from None
+        if published:
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -383,12 +497,16 @@ def finalize_trial_admissibility(
     artifact_path: Path | None = None,
 ) -> VerifiedTrialAdmissibility | None:
     """Publish authority only after every exact causal source exists."""
+    destination = canonical_trial_admissibility_path(repo_root, trial.id)
+    if artifact_path is not None and artifact_path.resolve() != destination.resolve():
+        raise TrialAdmissibilityError("trial_admissibility_invalid:alternate-authority-path")
 
     provenance = job_run_provenance(job)
     source_paths, source_digests = _source_authority(
         trial.path.resolve(),
         interpretation_path=interpretation_path,
         repo_root=repo_root,
+        trial_id=trial.id,
     )
     evidence: NetworkIsolationEvidenceV1 | None = (
         provenance.network_isolation_evidence if provenance is not None else None
@@ -403,13 +521,9 @@ def finalize_trial_admissibility(
         source_digests=source_digests,
         source_paths=source_paths,
         network_isolation_evidence=evidence,
-        evaluated_at=_evaluated_at(provenance),
+        evaluated_at=_evaluated_at(provenance, trial=trial),
     )
     payload = _canonical_bytes(record.model_dump(mode="json"))
-    destination = artifact_path or canonical_trial_admissibility_path(
-        repo_root,
-        trial.id,
-    )
     _atomic_publish(destination, payload)
     return verify_trial_admissibility(
         trial_dir=trial.path,

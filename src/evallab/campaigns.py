@@ -351,6 +351,14 @@ class CampaignAnalysisCell(_FrozenContract):
         return self
 
 
+def _is_control_bootstrap_spec(spec: ExperimentSpec) -> bool:
+    return (
+        spec.agent in {"oracle", "nop"}
+        and spec.purpose == "baseline"
+        and spec.task.startswith("registered/")
+    )
+
+
 class CampaignRuntimeIdentity(_FrozenContract):
     """Transport qualification plus independently bound isolation authority."""
 
@@ -389,6 +397,39 @@ class CampaignRuntimeIdentity(_FrozenContract):
         return self
 
 
+class ControlBootstrapRuntimeIdentity(_FrozenContract):
+    """Explicit isolation authority for causal, nonbillable registry controls."""
+
+    adapter: Literal["oracle", "nop"]
+    network_isolation_evidence: NetworkIsolationEvidenceV1
+    network_isolation_evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    network_isolation_status: NetworkIsolationStatus
+    network_isolation_reason: str | None = None
+    analysis_eligibility: AnalysisEligibility
+    evaluated_at: datetime
+
+    @model_validator(mode="after")
+    def isolation_evidence_is_exact_and_causal(
+        self,
+    ) -> ControlBootstrapRuntimeIdentity:
+        projection = self.network_isolation_evidence.project(as_of=self.evaluated_at)
+        if (
+            self.network_isolation_evidence_digest,
+            self.network_isolation_status,
+            self.network_isolation_reason,
+            self.analysis_eligibility,
+        ) != (
+            self.network_isolation_evidence.evidence_digest,
+            projection.status,
+            projection.reason,
+            projection.analysis_eligibility,
+        ):
+            raise ValueError("control-bootstrap isolation evidence parity mismatch")
+        if projection.status != "enforced" or projection.analysis_eligibility != "causal-eligible":
+            raise ValueError("control-bootstrap runtime requires causal isolation evidence")
+        return self
+
+
 class CampaignDefinitionAttempt(_FrozenContract):
     cell_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
@@ -405,6 +446,7 @@ class CampaignDefinitionAttempt(_FrozenContract):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    control_runtime_identity: ControlBootstrapRuntimeIdentity | None = None
 
     @model_validator(mode="after")
     def source_spec_is_unbound(self) -> CampaignDefinitionAttempt:
@@ -449,6 +491,18 @@ class CampaignDefinitionAttempt(_FrozenContract):
             raise ValueError("spec timeout exceeds the trial wall-clock ceiling")
         if (self.profile_id is None) != (self.readiness_evidence_digest is None):
             raise ValueError("profile_id and readiness_evidence_digest must be declared together")
+        control_bootstrap = _is_control_bootstrap_spec(self.spec)
+        if control_bootstrap:
+            if self.control_runtime_identity is None:
+                raise ValueError(
+                    "registered baseline controls require explicit control-bootstrap runtime"
+                )
+            if self.control_runtime_identity.adapter != self.spec.agent:
+                raise ValueError("control-bootstrap runtime adapter disagrees with ExperimentSpec")
+        elif self.control_runtime_identity is not None:
+            raise ValueError(
+                "control-bootstrap runtime is only valid for registered baseline controls"
+            )
         if self.spec.billable:
             if self.profile_id is None or self.readiness_evidence_digest is None:
                 raise ValueError(
@@ -546,7 +600,7 @@ class CampaignAttempt(_FrozenContract):
     task_contract: CampaignTaskContract
     analysis_cell: CampaignAnalysisCell | None = None
     repeat_seed: int | str | None = None
-    runtime_identity: CampaignRuntimeIdentity | None = None
+    runtime_identity: CampaignRuntimeIdentity | ControlBootstrapRuntimeIdentity | None = None
 
     @model_validator(mode="after")
     def spec_is_bound_to_attempt(self) -> CampaignAttempt:
@@ -581,12 +635,13 @@ class CampaignAttempt(_FrozenContract):
             )
             if not all(task_expected):
                 raise ValueError("campaign task contract disagrees with its ExperimentSpec")
-        if self.spec.billable:
+        control_bootstrap = _is_control_bootstrap_spec(self.spec)
+        if self.spec.billable or control_bootstrap:
             if self.runtime_identity is None:
-                raise ValueError("billable campaign attempts require a qualified runtime identity")
+                label = "billable" if self.spec.billable else "control-bootstrap"
+                raise ValueError(f"{label} campaign attempts require a qualified runtime identity")
             runtime_expected = (
                 self.runtime_identity.adapter == self.spec.agent,
-                self.runtime_identity.model == self.spec.model,
                 self.runtime_identity.network_isolation_evidence
                 == self.spec.network_isolation_evidence,
                 self.runtime_identity.network_isolation_evidence_digest
@@ -597,10 +652,15 @@ class CampaignAttempt(_FrozenContract):
                 == self.spec.network_isolation_reason,
                 self.runtime_identity.analysis_eligibility == self.spec.analysis_eligibility,
             )
+            if isinstance(self.runtime_identity, CampaignRuntimeIdentity):
+                runtime_expected = (
+                    *runtime_expected,
+                    self.runtime_identity.model == self.spec.model,
+                )
             if not all(runtime_expected):
                 raise ValueError("campaign runtime identity disagrees with its ExperimentSpec")
         elif self.runtime_identity is not None:
-            raise ValueError("non-billable attempts cannot claim qualified runtime identity")
+            raise ValueError("non-causal non-billable attempts cannot claim runtime identity")
         if self.analysis_cell is not None:
             analysis_expected = (
                 self.analysis_cell.model == self.spec.model,
@@ -731,7 +791,11 @@ def _resolve_campaign_task_contract(
         )
     if registry_record.state != "registered":
         raise ValueError(f"campaign task {item.task_id!r} is not in registered admission state")
-    if "measurement" not in registry_record.allowed_uses:
+    control_pending = (
+        registry_record.state_reason == "control_evidence_pending"
+        and _is_control_bootstrap_spec(item.spec)
+    )
+    if "measurement" not in registry_record.allowed_uses and not control_pending:
         raise ValueError(f"campaign task {item.task_id!r} is not approved for measurement")
     if item.spec.task_family is None:
         raise ValueError("campaign specs must declare the registered task family")
@@ -801,7 +865,17 @@ def _resolve_campaign_matrix_contract(
 def _resolve_campaign_runtime_identity(
     item: CampaignDefinitionAttempt,
     repo_root: Path,
-) -> CampaignRuntimeIdentity | None:
+) -> CampaignRuntimeIdentity | ControlBootstrapRuntimeIdentity | None:
+    if _is_control_bootstrap_spec(item.spec):
+        runtime = item.control_runtime_identity
+        if runtime is None:
+            raise ValueError(
+                "registered baseline control has no control-bootstrap runtime identity"
+            )
+        projection = runtime.network_isolation_evidence.project(as_of=datetime.now(UTC))
+        if projection.status != "enforced" or projection.analysis_eligibility != "causal-eligible":
+            raise ValueError("control-bootstrap isolation evidence is not current and causal")
+        return runtime
     if not item.spec.billable:
         return None
     assert item.profile_id is not None
@@ -1747,7 +1821,12 @@ class CampaignOrchestrator:
         )
 
     def _job_dir(self, attempt: CampaignAttempt) -> Path:
-        return (self.repo_root / attempt.spec.jobs_dir / attempt.job_name).resolve()
+        exploration = (self.repo_root / attempt.spec.jobs_dir / attempt.job_name).resolve()
+        if _is_control_bootstrap_spec(attempt.spec) and not exploration.exists():
+            durable = (self.repo_root / "research/evidence/runs" / attempt.job_name).resolve()
+            if durable.exists():
+                return durable
+        return exploration
 
     def _validate_job(self, attempt: CampaignAttempt) -> JobRecord:
         job_dir = self._job_dir(attempt)

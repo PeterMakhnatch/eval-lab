@@ -1596,6 +1596,14 @@ class Executor:
             )
         return None
 
+    @staticmethod
+    def _is_control_bootstrap_spec(spec: ExperimentSpec) -> bool:
+        return (
+            spec.agent in {"oracle", "nop"}
+            and spec.purpose == "baseline"
+            and spec.task.startswith("registered/")
+        )
+
     def _validate_campaign_dispatch_spec(
         self,
         spec: ExperimentSpec,
@@ -1615,6 +1623,12 @@ class Executor:
             )
         )
         campaign_source = "campaign-" in source.name
+        control_bootstrap = self._is_control_bootstrap_spec(spec)
+        if control_bootstrap and not provenance_present:
+            raise ExecutionFailure(
+                "control_bootstrap_binding_missing",
+                "registered baseline controls require a frozen campaign runtime binding",
+            )
         if not provenance_present and not campaign_source and not spec_id.startswith("campaign-"):
             return
         if (
@@ -1657,11 +1671,12 @@ class Executor:
                 "queued campaign spec differs from its frozen attempt",
             )
         runtime_identity = attempt.runtime_identity
-        if spec.billable:
+        if spec.billable or control_bootstrap:
             if runtime_identity is None:
+                label = "billable" if spec.billable else "control-bootstrap"
                 raise ExecutionFailure(
                     "campaign_isolation_identity_missing",
-                    "billable campaign attempt has no isolation-bound runtime identity",
+                    f"{label} campaign attempt has no isolation-bound runtime identity",
                 )
             evidence = runtime_identity.network_isolation_evidence
             try:
@@ -2201,7 +2216,35 @@ class Executor:
         )
         job_dir = self._run_with_transient_retries(spec, request)
         self._assert_persistent_artifacts_safe(spec, job_dir)
+        if self._is_control_bootstrap_spec(spec):
+            job_dir = self._promote_control_bootstrap_job(job_dir)
         return job_dir
+
+    def _promote_control_bootstrap_job(self, job_dir: Path) -> Path:
+        source = job_dir.resolve()
+        exploration_root = (self.repo_root / "runs").resolve()
+        if source.parent != exploration_root:
+            raise ExecutionFailure(
+                "control_bootstrap_job_path_invalid",
+                "control-bootstrap job must originate as one immediate runs/ child",
+            )
+        load_job(source)
+        durable_root = (self.repo_root / "research/evidence/runs").resolve()
+        durable_root.mkdir(parents=True, exist_ok=True)
+        destination = durable_root / source.name
+        if destination.exists():
+            raise ExecutionFailure(
+                "control_bootstrap_job_conflict",
+                "durable control-bootstrap job destination already exists",
+            )
+        source.rename(destination)
+        for directory in (exploration_root, durable_root):
+            descriptor = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        return destination
 
     def _run_with_transient_retries(
         self,

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +41,35 @@ def _offline_readiness(profile: AgentProfile) -> AgentReadinessRecord:
 def _digest_json(value: Any) -> str:
     canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
+
+
+def _assert_fail_closed_scale_row(
+    row: tuple[Any, ...] | None,
+    *,
+    reason: str,
+) -> None:
+    assert row is not None
+    assert row[1:4] == (False, False, None)
+    assert row[4] == reason
+    assert row[5:] == ("unresolved",) * 6
+
+
+def _scale_status_row_for_resolver(resolver: Any) -> tuple[Any, ...] | None:
+    with duckdb.connect(":memory:") as connection:
+        materialize_analysis_control_views(
+            connection,
+            root=REPO_ROOT,
+            readiness_evaluator=_offline_readiness,
+            artifact_resolver=resolver,
+        )
+        return connection.execute(
+            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
+            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status, "
+            "scale_binding_task_status, scale_binding_verifier_status, "
+            "scale_binding_metric_config_status, scale_binding_visible_outcome_status, "
+            "scale_binding_hidden_outcome_status "
+            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
+        ).fetchone()
 
 
 def test_materializes_all_stable_control_views() -> None:
@@ -140,17 +171,15 @@ def test_headline_scale_and_selection_refusals() -> None:
                 "FROM v_scale_binding_status"
             ).fetchall()
         }
-        # Without explicit resolved artifacts, checked-in BBO truthfully reports unresolved and refuses arithmetic
+        # Checked-in BBO has no resolvable task/verifier/metric/outcome artifacts.
         bbo_scale = scale["bbo_noisy_continuous__y6S5nSJ"]
         assert bbo_scale[0] is False  # arithmetic_permitted
         assert bbo_scale[1] is None  # visible_hidden_transfer_gap
-        assert "unresolved_components" in (bbo_scale[2] or "")
-        assert bbo_scale[3] == "unresolved"  # scale_binding_status
-        assert bbo_scale[4] == "unresolved"  # task_status
-        assert bbo_scale[5] == "unresolved"  # verifier_status
-        assert bbo_scale[6] == "unresolved"  # metric_config_status
-        assert bbo_scale[7] == "unresolved"  # visible_outcome_status
-        assert bbo_scale[8] == "unresolved"  # hidden_outcome_status
+        assert bbo_scale[2] == (
+            "unresolved_components: ['task', 'verifier', 'metric_config', "
+            "'visible_outcome', 'hidden_outcome']"
+        )
+        assert bbo_scale[3:] == ("unresolved",) * 6
 
         game_scale = scale["game2048_policy_search__QzNuUbN"]
         assert game_scale[0] is False
@@ -252,8 +281,20 @@ def test_analysis_control_cli_queries_v_scale_binding_status(
     rows = {r["run_id"]: r for r in payload["rows"]}
     assert "bbo_noisy_continuous__y6S5nSJ" in rows
     assert "game2048_policy_search__QzNuUbN" in rows
-    assert rows["bbo_noisy_continuous__y6S5nSJ"]["arithmetic_permitted"] is False
-    assert rows["bbo_noisy_continuous__y6S5nSJ"]["scale_binding_status"] == "unresolved"
+    bbo_row = rows["bbo_noisy_continuous__y6S5nSJ"]
+    assert bbo_row["arithmetic_permitted"] is False
+    assert bbo_row["score_scale_compatible"] is False
+    assert bbo_row["visible_hidden_transfer_gap"] is None
+    assert bbo_row["scale_binding_status"] == "unresolved"
+    assert bbo_row["scale_binding_task_status"] == "unresolved"
+    assert bbo_row["scale_binding_verifier_status"] == "unresolved"
+    assert bbo_row["scale_binding_metric_config_status"] == "unresolved"
+    assert bbo_row["scale_binding_visible_outcome_status"] == "unresolved"
+    assert bbo_row["scale_binding_hidden_outcome_status"] == "unresolved"
+    assert bbo_row["scale_refusal_reason"] == (
+        "unresolved_components: ['task', 'verifier', 'metric_config', "
+        "'visible_outcome', 'hidden_outcome']"
+    )
 
 
 def test_materialize_views_with_exact_default_locator_and_cli_permits_arithmetic(
@@ -408,64 +449,93 @@ def test_materialize_views_with_exact_default_locator_and_cli_permits_arithmetic
     assert cli_row["visible_hidden_transfer_gap"] == pytest.approx(2.0)
     assert cli_row["scale_refusal_reason"] is None
     assert cli_row["scale_binding_status"] == "verified"
+    assert cli_row["scale_binding_task_status"] == "verified"
+    assert cli_row["scale_binding_verifier_status"] == "verified"
+    assert cli_row["scale_binding_metric_config_status"] == "verified"
+    assert cli_row["scale_binding_visible_outcome_status"] == "verified"
+    assert cli_row["scale_binding_hidden_outcome_status"] == "verified"
 
 
-def test_materialize_views_with_malformed_mapping_value_records_typed_reason(
-    tmp_path: Path,
-) -> None:
-    """A resolver returning a Mapping with malformed value types records typed invalid return."""
+def test_materialize_views_with_malformed_mapping_value_records_typed_reason() -> None:
+    """A resolver returning a malformed known value fails closed."""
 
     def bad_value_resolver(trace: ResearchRunTraceV1) -> Any:
         return {"task_dir": [1, 2, 3]}  # list instead of str/PathLike
 
-    with duckdb.connect(":memory:") as connection:
-        materialize_analysis_control_views(
-            connection,
-            root=REPO_ROOT,
-            readiness_evaluator=_offline_readiness,
-            artifact_resolver=bad_value_resolver,
-        )
-        row = connection.execute(
-            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
-            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
-            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
-        ).fetchone()
-        assert row is not None
-        assert row[1] is False
-        assert row[2] is False
-        assert row[3] is None
-        assert "artifact_resolver_invalid_return: task_dir must be a str or PathLike, got list" in (
-            row[4] or ""
-        )
-        assert row[5] == "unresolved"
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(bad_value_resolver),
+        reason="artifact_resolver_invalid_return: task_dir must be a str or PathLike, got list",
+    )
 
 
-def test_materialize_views_with_raising_resolver_records_typed_error(
-    tmp_path: Path,
-) -> None:
-    """A resolver that raises an exception records a typed artifact_resolver_error reason."""
+def test_materialize_views_with_non_mapping_resolver_return_fails_closed() -> None:
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(lambda trace: []),
+        reason="artifact_resolver_invalid_return: expected Mapping, got list",
+    )
+
+
+def test_materialize_views_with_raising_resolver_records_typed_error() -> None:
+    """A resolver exception is exposed only as a typed fail-closed reason."""
 
     def raising_resolver(trace: ResearchRunTraceV1) -> Any:
         raise RuntimeError("resolver exploded")
 
-    with duckdb.connect(":memory:") as connection:
-        materialize_analysis_control_views(
-            connection,
-            root=REPO_ROOT,
-            readiness_evaluator=_offline_readiness,
-            artifact_resolver=raising_resolver,
-        )
-        row = connection.execute(
-            "SELECT run_id, score_scale_compatible, arithmetic_permitted, "
-            "visible_hidden_transfer_gap, scale_refusal_reason, scale_binding_status "
-            "FROM v_scale_binding_status WHERE run_id = 'bbo_noisy_continuous__y6S5nSJ'"
-        ).fetchone()
-        assert row is not None
-        assert row[1] is False
-        assert row[2] is False
-        assert row[3] is None
-        assert "artifact_resolver_error: resolver exploded" in (row[4] or "")
-        assert row[5] == "unresolved"
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(raising_resolver),
+        reason="artifact_resolver_error: resolver exploded",
+    )
+
+
+def test_materialize_views_with_custom_mapping_value_fails_closed() -> None:
+    class BrokenInnerMapping(Mapping[str, Any]):
+        def __getitem__(self, key: str) -> Any:
+            raise KeyError(key)
+
+        def __iter__(self):
+            raise RuntimeError("inner mapping iteration exploded")
+
+        def __len__(self) -> int:
+            return 1
+
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(lambda trace: {"metric_config": BrokenInnerMapping()}),
+        reason="artifact_resolver_error: inner mapping iteration exploded",
+    )
+
+
+@pytest.mark.parametrize(
+    ("task_dir", "reason"),
+    [
+        (
+            type(
+                "RaisingPath",
+                (os.PathLike,),
+                {"__fspath__": lambda self: (_ for _ in ()).throw(RuntimeError("path exploded"))},
+            )(),
+            "artifact_resolver_error: path exploded",
+        ),
+        (
+            type("BytesPath", (os.PathLike,), {"__fspath__": lambda self: b"."})(),
+            "artifact_resolver_error: task_dir PathLike must resolve to str",
+        ),
+    ],
+)
+def test_materialize_views_with_invalid_pathlike_fails_closed(
+    task_dir: os.PathLike[str],
+    reason: str,
+) -> None:
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(lambda trace: {"task_dir": task_dir}),
+        reason=reason,
+    )
+
+
+def test_materialize_views_with_non_json_known_value_fails_closed() -> None:
+    _assert_fail_closed_scale_row(
+        _scale_status_row_for_resolver(lambda trace: {"metric_config": {"bad": object()}}),
+        reason="artifact_resolver_error: Object of type object is not JSON serializable",
+    )
 
 
 def test_materialize_views_with_partial_and_mismatched_artifacts(

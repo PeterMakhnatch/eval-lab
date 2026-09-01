@@ -866,8 +866,13 @@ def extract_autonomous_research_features(
                         raw_task_dir, (str, os.PathLike)
                     ):
                         resolver_error_reason = f"artifact_resolver_invalid_return: task_dir must be a str or PathLike, got {type(raw_task_dir).__name__}"
+                    elif raw_task_dir is not None:
+                        normalized_task_dir = os.fspath(raw_task_dir)
+                        if not isinstance(normalized_task_dir, str):
+                            raise TypeError("task_dir PathLike must resolve to str")
+                        resolved["task_dir"] = normalized_task_dir
                     else:
-                        resolved["task_dir"] = raw_task_dir
+                        resolved["task_dir"] = None
 
                     if resolver_error_reason is None:
                         for field_name in ("metric_config", "visible_outcome", "hidden_outcome"):
@@ -878,7 +883,12 @@ def extract_autonomous_research_features(
                             ):
                                 resolver_error_reason = f"artifact_resolver_invalid_return: {field_name} must be a Mapping, got {type(raw_val).__name__}"
                                 break
-                            resolved[field_name] = raw_val
+                            if raw_val is not None:
+                                normalized_value = dict(raw_val)
+                                _digest(normalized_value)
+                                resolved[field_name] = normalized_value
+                            else:
+                                resolved[field_name] = None
             except Exception as exc:
                 resolver_error_reason = f"artifact_resolver_error: {exc}"
 

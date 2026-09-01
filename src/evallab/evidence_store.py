@@ -456,7 +456,15 @@ def reopen_evidence_archive(
     }
     if set(record) != required:
         raise ValueError("evidence record schema is not canonical")
-    if record["schema_version"] != 1 or record["record_id"] != record_id or record["kind"] != kind:
+    canonical_bytes = (json.dumps(record, indent=2, sort_keys=True) + "\n").encode()
+    if record_bytes != canonical_bytes:
+        raise ValueError("evidence record bytes are noncanonical")
+    if (
+        type(record["schema_version"]) is not int
+        or record["schema_version"] != 1
+        or record["record_id"] != record_id
+        or record["kind"] != kind
+    ):
         raise ValueError("evidence record identity is invalid")
     content_digest = _digest_value(record["content_digest"], label="content digest")
     archive_digest = _digest_value(record["archive_digest"], label="archive digest")
@@ -471,7 +479,11 @@ def reopen_evidence_archive(
     if record["blob_path"] != expected_blob.as_posix():
         raise ValueError("evidence record blob path is noncanonical")
     source_path = record["source_path"]
-    if not isinstance(source_path, str) or not Path(source_path).is_absolute():
+    if (
+        not isinstance(source_path, str)
+        or not Path(source_path).is_absolute()
+        or source_path != str(Path(source_path).resolve())
+    ):
         raise ValueError("evidence record source identity is invalid")
     if source is not None and source_path != str(source):
         raise ValueError("evidence record source identity mismatch")

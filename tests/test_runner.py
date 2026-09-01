@@ -1048,6 +1048,7 @@ def test_secret_scan_precedes_generic_evidence_archive(
     ("field", "value"),
     [
         ("schema_version", 2),
+        ("schema_version", True),
         ("blob_path", "blobs/sha256/00/not-canonical.tar.gz"),
         ("file_count", 999),
         ("uncompressed_bytes", 999),
@@ -1071,11 +1072,47 @@ def test_canonical_reopen_refuses_complete_record_tampering(
     )
     assert reopened.manifest_path == archive.manifest_path
     assert reopened_bytes == archive.manifest_path.read_bytes()
-    archive.manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    archive.manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     with pytest.raises(ValueError):
         evidence_store_module.reopen_evidence_archive(
             store, kind="job", record_id="job-123", source=source
         )
+
+
+@pytest.mark.parametrize("tampered_bytes", [b" ", b'{"kind":"job"}\n'])
+def test_canonical_reopen_refuses_noncanonical_record_bytes(
+    tmp_path: Path,
+    tampered_bytes: bytes,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
+    archive.manifest_path.write_bytes(tampered_bytes + archive.manifest_path.read_bytes())
+
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(store, kind="job", record_id="job-123")
+
+
+def test_canonical_reopen_refuses_absolute_source_alias(tmp_path: Path) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    archive = evidence_store_module.archive_evidence(source, store, record_id="job-123", kind="job")
+    payload = json.loads(archive.manifest_path.read_text(encoding="utf-8"))
+    payload["source_path"] = str(source / ".." / source.name)
+    archive.manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(store, kind="job", record_id="job-123")
 
 
 def test_executable_identity_drift_refuses_replacement(

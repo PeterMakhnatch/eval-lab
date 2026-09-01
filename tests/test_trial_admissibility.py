@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import evallab.trial_admissibility as trial_authority
 from evallab.evidence.facts import (
     AnalyzerCallResult,
     extract_outcome_records,
@@ -287,6 +288,12 @@ def _publish_forged_authority(
     authority.write_bytes(_canonical_bytes(record.model_dump(mode="json")))
 
 
+def _replace_result_completion(trial: TrialRecord, finished_at: datetime) -> None:
+    result = json.loads((trial.path / "result.json").read_text(encoding="utf-8"))
+    result["finished_at"] = finished_at.isoformat()
+    (trial.path / "result.json").write_text(json.dumps(result), encoding="utf-8")
+
+
 def test_finalization_atomically_generates_exactly_one_canonical_artifact(
     tmp_path: Path,
 ) -> None:
@@ -394,6 +401,69 @@ def test_strict_loader_rejects_preexpiry_time_for_postexpiry_completion(
             provenance=provenance,
             repo_root=tmp_path,
         )
+
+
+def test_strict_loader_rejects_result_replacement_between_digest_and_time(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, trial, provenance = _records(tmp_path)
+    later = NOW + timedelta(days=1)
+    _publish_forged_authority(
+        tmp_path,
+        trial,
+        provenance,
+        evaluated_at=later,
+    )
+    original_source_authority = trial_authority._source_authority
+
+    def hash_then_replace_result(*args: object, **kwargs: object):
+        authority = original_source_authority(*args, **kwargs)
+        _replace_result_completion(trial, later)
+        return authority
+
+    monkeypatch.setattr(
+        trial_authority,
+        "_source_authority",
+        hash_then_replace_result,
+    )
+    with pytest.raises(
+        TrialAdmissibilityError,
+        match="completion-time-drift|result-snapshot-drift",
+    ):
+        verify_trial_admissibility(
+            trial_dir=trial.path,
+            trial_id=trial.id,
+            provenance=provenance,
+            repo_root=tmp_path,
+        )
+
+
+def test_finalizer_rejects_result_replacement_after_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job, trial, _ = _records(tmp_path)
+    later = NOW + timedelta(days=1)
+    original_source_authority = trial_authority._source_authority
+
+    def hash_then_replace_result(*args: object, **kwargs: object):
+        authority = original_source_authority(*args, **kwargs)
+        _replace_result_completion(trial, later)
+        return authority
+
+    monkeypatch.setattr(
+        trial_authority,
+        "_source_authority",
+        hash_then_replace_result,
+    )
+    with pytest.raises(TrialAdmissibilityError, match="result-snapshot-drift"):
+        finalize_trial_admissibility(
+            job=job,
+            trial=trial,
+            repo_root=tmp_path,
+        )
+    assert not canonical_trial_admissibility_path(tmp_path, trial.id).exists()
 
 
 def test_self_consistent_forged_source_chain_is_rejected_by_every_consumer(

@@ -98,8 +98,8 @@ were sent there. `research/inbox/` is a drop box, not a map.
 
 One writer per worktree. Before editing, check `gh pr list` and
 `git worktree list` — they are the live inventory; this file does not repeat
-it. As of 2026-09-02 the open PRs are #346, #349, #350, #351, #352, and this
-branch's #272. Storage / execution / data lanes under `.worktrees/lane-*`
+it. As of 2026-09-02 the open PRs other than this branch (#272) are #346,
+#350, and #351. Storage / execution / data lanes under `.worktrees/lane-*`
 remain active worktrees. Do not revive `hardening/repo-lean-v1` as a prune;
 it is old CI/type hardening that still touches live `src/` files.
 

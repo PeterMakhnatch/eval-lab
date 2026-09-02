@@ -15,7 +15,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:a3a77d25e539492a110b63c6cfb438575d7d190be0a5571916e578b603763015
+    digest: sha256:d8aabe3e434acb4249a6d5ae75f54bbde5a1595ce16335fa0b4f9797d2863250
   - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
     digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
   - path: docs/STATUS.md

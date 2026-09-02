@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import subprocess
@@ -392,8 +393,25 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
     assert '"api_key", "api_base", "base_url", "model"' in generated
     assert '"user_simulator"' in generated
     assert '"model": os.environ["TAU2_USER_MODEL"]' in generated
-    exposed_tool = generated.split("@mcp.tool()", 1)[1]
-    assert "user_llm_args_json" not in exposed_tool
+    tree = ast.parse(generated)
+    exposed_tool = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "configure_run"
+        and any(ast.unparse(decorator) == "mcp.tool()" for decorator in node.decorator_list)
+    )
+    parameters = [
+        argument.arg
+        for argument in (
+            *exposed_tool.args.posonlyargs,
+            *exposed_tool.args.args,
+            *exposed_tool.args.kwonlyargs,
+        )
+    ]
+    assert parameters == ["seed", "max_steps", "max_errors"]
+    assert exposed_tool.args.vararg is None
+    assert exposed_tool.args.kwarg is None
 
 
 def test_wheelhouse_metadata_inspection_and_dummy_rejection(tmp_path: Path) -> None:

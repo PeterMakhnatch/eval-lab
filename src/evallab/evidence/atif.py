@@ -120,7 +120,6 @@ class StepFact:
     llm_metadata_available: bool = False
     usage_status: str | None = None
 
-
 @dataclass(frozen=True)
 class ToolCallFact:
     job_id: str
@@ -135,7 +134,6 @@ class ToolCallFact:
 
     call_index: int | None = None
     result_error_flag: bool | None = None
-
 
 @dataclass(frozen=True)
 class ObservationFact:
@@ -263,6 +261,7 @@ class ProjectionInvariant:
             )
             base += breakdown
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
+
 
 
 class _HarborTrajectory(Protocol):

@@ -1,13 +1,16 @@
 """Secure structural projection for Goose ``llm_request.*.jsonl`` records."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import re
+from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from evallab.interpretation.trajectory_hydration import RedactionPolicy
 from evallab.results import JobRecord, TrialRecord, sha256_file
@@ -42,9 +45,7 @@ class _Record:
 
 
 def _bytes(value: Any) -> bytes:
-    return json.dumps(
-        value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-    ).encode()
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
 
 
 def _digest(value: Any) -> str:
@@ -80,10 +81,7 @@ def _usage(
     if found is None:
         return "unavailable", (None, None, None)
     values = tuple(found.get(key) for key in _USAGE)
-    if any(
-        not isinstance(value, int) or isinstance(value, bool) or value < 0
-        for value in values
-    ):
+    if any(not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in values):
         return "unavailable", (None, None, None)
     if not any(values):
         return "unavailable_zero", (None, None, None)
@@ -102,26 +100,18 @@ def _record(path: Path, trial: TrialRecord, index: int) -> _Record:
         try:
             row = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise LlmRequestProjectionError(
-                f"malformed {path.name} line {line_number}"
-            ) from exc
+            raise LlmRequestProjectionError(f"malformed {path.name} line {line_number}") from exc
         if not isinstance(row, Mapping):
-            raise LlmRequestProjectionError(
-                f"unsupported {path.name} line {line_number}"
-            )
+            raise LlmRequestProjectionError(f"unsupported {path.name} line {line_number}")
         events.append(row)
     inputs = [row for row in events if isinstance(row.get("input"), Mapping)]
     if len(inputs) != 1:
         raise LlmRequestProjectionError(f"{path.name} must contain one input")
     request, raw = inputs[0], inputs[0]["input"]
     messages, tools = raw.get("messages"), raw.get("tools", [])
-    if not isinstance(messages, list) or not all(
-        isinstance(row, Mapping) for row in messages
-    ):
+    if not isinstance(messages, list) or not all(isinstance(row, Mapping) for row in messages):
         raise LlmRequestProjectionError("unsupported input.messages")
-    if not isinstance(tools, list) or not all(
-        isinstance(row, Mapping) for row in tools
-    ):
+    if not isinstance(tools, list) or not all(isinstance(row, Mapping) for row in tools):
         raise LlmRequestProjectionError("unsupported input.tools")
     if any(
         row.get("role") not in {"system", "developer", "user", "assistant", "tool"}
@@ -136,17 +126,14 @@ def _record(path: Path, trial: TrialRecord, index: int) -> _Record:
         (
             data.get("created")
             for row in reversed(events)
-            if isinstance((data := row.get("data")), Mapping)
-            and data.get("created") is not None
+            if isinstance((data := row.get("data")), Mapping) and data.get("created") is not None
         ),
         None,
     )
     timestamp = None
     if isinstance(created, int | float) and not isinstance(created, bool):
-        try:
+        with suppress(OSError, OverflowError, ValueError):
             timestamp = datetime.fromtimestamp(float(created), tz=UTC).isoformat()
-        except (OSError, OverflowError, ValueError):
-            pass
     status, tokens = _usage(events)
     return _Record(
         index,
@@ -183,18 +170,12 @@ def _records(trial: TrialRecord) -> tuple[_Record, ...]:
         or len(indices) > 10
     ):
         raise LlmRequestProjectionError("unsupported llm_request ring layout")
-    return tuple(
-        _record(path, trial, index) for index, path in sorted(indexed)
-    )
+    return tuple(_record(path, trial, index) for index, path in sorted(indexed))
 
 
 def _tool_name(tool: Mapping[str, Any]) -> str:
     function = tool.get("function")
-    name = (
-        function.get("name")
-        if isinstance(function, Mapping)
-        else tool.get("name")
-    )
+    name = function.get("name") if isinstance(function, Mapping) else tool.get("name")
     if not isinstance(name, str):
         raise LlmRequestProjectionError("offered tool has no name")
     return _safe(name, "tool name")
@@ -249,9 +230,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
     if not records:
         return None
     latest = records[0]
-    assistants = [
-        row for row in latest.messages if row.get("role") == "assistant"
-    ]
+    assistants = [row for row in latest.messages if row.get("role") == "assistant"]
     lower_bound = max(
         len(assistants) + 1,
         len(records),
@@ -280,9 +259,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
     sequence = 0
     first_fault: str | None = None
     for ordinal in range(1, lower_bound + 1):
-        message = (
-            assistants[ordinal - 1] if ordinal <= len(assistants) else None
-        )
+        message = assistants[ordinal - 1] if ordinal <= len(assistants) else None
         raw_calls = message.get("tool_calls", []) if message else []
         raw_calls = [] if raw_calls is None else raw_calls
         if not isinstance(raw_calls, list) or not all(
@@ -295,9 +272,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
             if call_id in seen:
                 raise LlmRequestProjectionError("duplicate tool call")
             seen.add(call_id)
-            classification = (
-                _error(results[call_id]) if call_id in results else None
-            )
+            classification = _error(results[call_id]) if call_id in results else None
             if first_fault is None and classification in {
                 "missing_credentials",
                 "litellm_internal_server_error",
@@ -316,21 +291,13 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
                     function_name=name,
                     arguments_sha256=_digest(arguments),
                     call_index=sequence,
-                    result_error_flag=(
-                        classification is not None
-                        if call_id in results
-                        else None
-                    ),
+                    result_error_flag=(classification is not None if call_id in results else None),
                 )
             )
             sequence += 1
             if call_id in results:
                 result = results[call_id]
-                content = (
-                    result.encode()
-                    if isinstance(result, str)
-                    else _bytes(result)
-                )
+                content = result.encode() if isinstance(result, str) else _bytes(result)
                 observations.append(
                     ObservationFact(
                         job_id=job.id,
@@ -374,11 +341,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
                 llm_source_path=record.path if record else None,
                 llm_source_sha256=record.digest if record else None,
                 llm_metadata_available=record is not None,
-                usage_status=(
-                    record.usage_status
-                    if record
-                    else "unavailable_unknown_prefix"
-                ),
+                usage_status=(record.usage_status if record else "unavailable_unknown_prefix"),
             )
         )
 

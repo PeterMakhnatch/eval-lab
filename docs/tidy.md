@@ -22,16 +22,39 @@ is explicitly passed.
 ## Five Sweeps
 
 ### 1. Stale Worktrees
-Inspects `.worktrees/*` in the repository for linked worktrees whose branch is fully
-merged into `origin/main` (or `main`) or whose branch no longer exists in Git refs.
+The inventory authority is Git: candidates come from parsing `git worktree list
+--porcelain`, never from directory listings. Registered linked worktrees may live
+anywhere on disk (including outside `.worktrees/`, e.g. `/private/tmp`-style scratch
+locations) and are all inventoried; worktree paths are never inferred from directory
+names. Unregistered directories under `.worktrees/` are ignored. On Git failure or
+malformed output the sweep fails closed: no candidates, no actions.
 - **Exclusion of current invocation:** The worktree running `evallab tidy` is excluded
-  entirely from candidates and never reported as stale.
+  from candidates before any status checks or size walks, and never reported as stale.
+  The primary checkout is likewise never a stale candidate.
 - **Active worktrees separation:** Worktrees with uncommitted changes or active unmerged
   branches are reported under a separate `Active worktrees (not swept)` section with the
   count of uncommitted files or branch status, protecting in-progress missions. The stale
   count includes only genuinely sweepable worktrees.
-- **Action under `--apply`:** Removes clean worktrees whose branch has merged or vanished,
-  pruning the worktree registration in Git.
+- **Sizes are intentionally not walked for non-reclaimed entries:** Recursive byte
+  counting runs only for clean merged worktrees whose path still exists, so `--dry-run`
+  stays a cheap reclaim estimate. Active entries are reported as `sizes not walked`;
+  prunable registrations report 0 bytes because apply removes registration metadata
+  only and never reclaims a surviving directory.
+- **Prunable registrations:** When Git itself reports a registration `prunable` (stale
+  metadata, e.g. the worktree directory was deleted elsewhere), tidy classifies it as
+  `prunable` and actionable — a registration-only cleanup with 0 reported bytes. Locked
+  registrations are never actionable.
+- **Missing branches are preserved:** A worktree whose branch no longer exists in Git
+  refs cannot be proven merged, so it classifies as `unproven` and is preserved —
+  never reported as stale, never removed.
+- **Action under `--apply`:** Removes clean worktrees whose branch has merged through
+  `git worktree remove` — if that fails for any reason (e.g. a lock or state change
+  after the sweep), tidy fails closed: the path and registration are preserved and
+  nothing is reported as deleted. Removes Git-reported prunable registrations
+  exclusively through `git worktree prune`, and reports a prunable deletion only after
+  a fresh porcelain relist confirms the registration is actually gone. Prune never
+  deletes branch refs and never touches any directory's contents — a prunable marker
+  can never escalate into deleting a live directory.
 
 ### 2. Merged Local Branches
 Inspects local branches matching `role/*` to see if their commits are fully contained

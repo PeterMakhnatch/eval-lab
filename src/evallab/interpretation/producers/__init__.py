@@ -32,6 +32,7 @@ __all__ = [
     "ActionMemoryFeatures",
     "McpFuncDagFeatures",
     "McpRecoveryFeatures",
+    "MemoryContinuityFeatures",
     "RecoveryPersistencePoint",
     "build_recovery_persistence_curve",
     "compute_prompt_cache_hit_rate",

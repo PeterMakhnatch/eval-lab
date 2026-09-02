@@ -101,6 +101,35 @@ def test_user_simulator_credential_and_oracle_boundary_isolation(tmp_path: Path)
         },
     )
     assert refused.reason_code == "blocked:unregistered_simulated_user_route"
+    assert "base_url" not in refused.to_dict()["simulator"]
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://user:secret@api.openai.com/v1",
+        "https://api.openai.com/v1?tenant=other",
+        "https://api.openai.com/v1#fragment",
+        "https://api.openai.com:443/v1",
+        "https://api.openai.com:8443/v1",
+        "https://api.openai.com/v1/",
+    ],
+)
+def test_user_simulator_route_requires_exact_registered_url(base_url: str) -> None:
+    preflight = _load(PREFLIGHT, "tau_knowledge_route")
+    decision = preflight.credential_preflight(
+        "evaluation",
+        env={
+            "TAU3_SIMULATOR_API_KEY": "secret",
+            "TAU3_SIMULATOR_BASE_URL": base_url,
+        },
+    )
+
+    assert decision.proceed is False
+    assert decision.reason_code == "blocked:unregistered_simulated_user_route"
+    serialized = json.dumps(decision.to_dict())
+    assert base_url not in serialized
+    assert "secret" not in serialized
 
 
 def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
@@ -280,6 +309,25 @@ def test_control_reads_persisted_reward(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert controls._persisted_reward(tmp_path) == 0.0
+
+def test_control_rejects_nonempty_trials_directory_before_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controls = _load(CONTROLS, "tau_knowledge_stale_reward")
+    task = tmp_path / "tau3-banking_knowledge-task-001"
+    task.mkdir()
+    (task / "task.toml").write_text("[task]\n", encoding="utf-8")
+    trials_dir = tmp_path / "controls/oracle"
+    stale_result = trials_dir / "stale/result.json"
+    stale_result.parent.mkdir(parents=True)
+    stale_result.write_text(json.dumps({"reward": 1.0}), encoding="utf-8")
+
+    def unexpected_dispatch(*args, **kwargs):
+        pytest.fail("Harbor must not run with a non-empty trials directory")
+
+    monkeypatch.setattr(controls.subprocess, "run", unexpected_dispatch)
+    with pytest.raises(RuntimeError, match="refusing non-empty trials directory"):
+        controls.run_control(task, "oracle", trials_dir=trials_dir)
 
 
 def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) -> None:

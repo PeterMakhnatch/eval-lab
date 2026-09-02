@@ -59,6 +59,17 @@ def _persisted_reward(trials_dir: Path) -> float:
         raise RuntimeError(f"Harbor produced no persisted result.json under {trials_dir}")
     raise RuntimeError(f"Harbor result files contain no persisted reward under {trials_dir}")
 
+def _prepare_trials_dir(trials_dir: Path) -> None:
+    if trials_dir.exists():
+        if not trials_dir.is_dir():
+            raise RuntimeError(f"trials path is not a directory: {trials_dir}")
+        if any(trials_dir.iterdir()):
+            raise RuntimeError(
+                f"refusing non-empty trials directory with potentially stale results: {trials_dir}"
+            )
+        return
+    trials_dir.mkdir(parents=True)
+
 
 def run_control(
     task: Path,
@@ -75,7 +86,7 @@ def run_control(
         agent_mode = "oracle" if mode == "mutant" else mode
         command = [item.replace("{task_path}", str(target)) for item in COMMANDS[agent_mode]]
         if trials_dir is not None:
-            trials_dir.mkdir(parents=True, exist_ok=True)
+            _prepare_trials_dir(trials_dir)
             command.extend(["--trials-dir", str(trials_dir)])
         if not dry_run:
             subprocess.run(command, check=True)

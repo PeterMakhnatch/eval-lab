@@ -12,12 +12,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 DEFAULT_SIMULATOR_PROVIDER = "openai"
 DEFAULT_SIMULATOR_MODEL = "gpt-4o-mini-2024-07-18"
 DEFAULT_SIMULATOR_CREDENTIAL_ENV = "TAU3_SIMULATOR_API_KEY"
 DEFAULT_SIMULATOR_BASE_URL_ENV = "TAU3_SIMULATOR_BASE_URL"
-ALLOWED_SIMULATOR_HOSTS = frozenset({"api.openai.com"})
+REGISTERED_SIMULATOR_BASE_URL = "https://api.openai.com/v1"
 
 
 @dataclass(frozen=True)
@@ -104,7 +105,6 @@ def credential_preflight(
         "model": simulator_model,
         "credential_env": simulator_credential_env,
         "base_url_env": simulator_base_url_env,
-        "base_url": base_url or None,
     }
     if phase in {"reference", "evaluation"}:
         key_val = (env.get(simulator_credential_env) or "").strip()
@@ -125,17 +125,32 @@ def credential_preflight(
                 f"Harness route block: tau3 simulated-user runtime requires explicit {simulator_base_url_env}.",
                 simulator_metadata=sim_meta,
             )
-        from urllib.parse import urlparse
-
-        parsed = urlparse(base_url)
-        if parsed.scheme != "https" or parsed.hostname not in ALLOWED_SIMULATOR_HOSTS:
+        try:
+            parsed = urlsplit(base_url)
+            has_canonical_port = parsed.port is None
+        except ValueError:
+            parsed = None
+            has_canonical_port = False
+        if (
+            parsed is None
+            or base_url != REGISTERED_SIMULATOR_BASE_URL
+            or parsed.scheme != "https"
+            or parsed.hostname != "api.openai.com"
+            or parsed.username is not None
+            or parsed.password is not None
+            or not has_canonical_port
+            or parsed.query
+            or parsed.fragment
+        ):
             return Decision(
                 phase,
                 False,
                 "blocked:unregistered_simulated_user_route",
-                f"Harness route block: {base_url!r} is not the registered {simulator_provider} cloud route.",
+                f"Harness route block: the supplied value is not the exact registered "
+                f"{simulator_provider} cloud route.",
                 simulator_metadata=sim_meta,
             )
+        sim_meta["base_url"] = REGISTERED_SIMULATOR_BASE_URL
     return Decision(
         phase,
         True,

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Materialize selected Tau tasks under ignored derived/harbor-tasks only."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,8 +23,7 @@ from typing import Any
 DEFAULT_MANIFEST = Path("library/benchmarks/tau-knowledge/cohort.manifest.json")
 DEFAULT_OUTPUT = Path("derived/harbor-tasks/tau")
 PYTHON_BASE_IMAGE = (
-    "python:3.12-slim@sha256:"
-    "09f7da3bc104798d0afb40bc08d23ab2da20a76130cec1f2ef170848f5d85217"
+    "python:3.12-slim@sha256:09f7da3bc104798d0afb40bc08d23ab2da20a76130cec1f2ef170848f5d85217"
 )
 DATA_PACKAGE_NAME = "tau2-bench-data"
 DATA_PACKAGE_DIR = "tau2_bench_data"
@@ -32,6 +32,7 @@ VOLUME_NAME = "tau3-logs"
 MOUNT_PATH = "/logs/agent"
 RUNTIME_STATE_PATH = "/logs/agent/tau3_runtime_state.json"
 ARTIFACT_PATH = "/app/tau3_runtime_state.json"
+SIMULATOR_MODEL = "gpt-4o-mini-2024-07-18"
 
 AGENT_DOCKERFILE = f"""FROM {PYTHON_BASE_IMAGE}
 
@@ -94,9 +95,7 @@ def _validate_adapter(root: Path, manifest: Mapping[str, Any]) -> Path:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(f"blocked:unreadable_adapter_checkout:{root}") from exc
     if actual != expected:
-        raise RuntimeError(
-            f"blocked:adapter_commit_mismatch:expected={expected}:actual={actual}"
-        )
+        raise RuntimeError(f"blocked:adapter_commit_mismatch:expected={expected}:actual={actual}")
     package_root = root / "adapters" / "tau3-bench"
     if not (package_root / "pyproject.toml").is_file():
         package_root = root / "harbor" / "adapters" / "tau3-bench"
@@ -180,14 +179,14 @@ def _build_tau2_data_package(source_root: Path, temp_dir: Path) -> Path:
         encoding="utf-8",
     )
     (data_pkg / "pyproject.toml").write_text(
-        '[build-system]\n'
+        "[build-system]\n"
         'requires = ["hatchling"]\n'
         'build-backend = "hatchling.build"\n\n'
-        '[project]\n'
+        "[project]\n"
         f'name = "{DATA_PACKAGE_NAME}"\n'
         'version = "1.0.1"\n'
         'requires-python = ">=3.12"\n\n'
-        '[tool.hatch.build.targets.wheel]\n'
+        "[tool.hatch.build.targets.wheel]\n"
         'packages = ["src/tau2_bench_data"]\n',
         encoding="utf-8",
     )
@@ -220,9 +219,7 @@ def _prepare_wheelhouse(wheelhouse: Path) -> None:
     (wheelhouse / "requirements.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _build_wheelhouse(
-    source_root: Path, adapter_root: Path, temp_dir: Path
-) -> Path:
+def _build_wheelhouse(source_root: Path, adapter_root: Path, temp_dir: Path) -> Path:
     """Create a Linux wheelhouse with tau2, data, the adapter, and fastmcp."""
     data_pkg = _build_tau2_data_package(source_root, temp_dir)
     adapter_pkg = _adapter_package_root(adapter_root)
@@ -259,9 +256,7 @@ def _copy_wheelhouse(source: Path, destination: Path) -> None:
     shutil.copytree(source, destination)
 
 
-def _write_build_proof(
-    context_dir: Path, wheelhouse_dir: Path, lockfile_rel: str
-) -> None:
+def _write_build_proof(context_dir: Path, wheelhouse_dir: Path, lockfile_rel: str) -> None:
     """Write a v2 offline build proof for the supplied build context."""
     lockfile_path = context_dir / lockfile_rel
     if not lockfile_path.is_file():
@@ -321,20 +316,18 @@ def _normalize_task_metadata(task_dir: Path) -> None:
     task_toml = task_dir / "task.toml"
     text = task_toml.read_text(encoding="utf-8")
     safe_name = "evallab/tau3-banking-knowledge-task-001"
-    description = "Rho-Bank customer-service task requiring KB retrieval and a credit-card application."
+    description = (
+        "Rho-Bank customer-service task requiring KB retrieval and a credit-card application."
+    )
     text = re.sub(
         r'^name\s*=\s*"[^"]*"',
-        (
-            f'name = "{safe_name}"\n'
-            f'version = "1.0.1"\n'
-            f'description = "{description}"'
-        ),
+        (f'name = "{safe_name}"\nversion = "1.0.1"\ndescription = "{description}"'),
         text,
         flags=re.MULTILINE,
         count=1,
     )
     text = re.sub(
-        r'^(\[metadata\]\s*\n)',
+        r"^(\[metadata\]\s*\n)",
         r'\1tags = ["tau3", "banking", "knowledge"]\n',
         text,
         flags=re.MULTILINE,
@@ -347,7 +340,7 @@ def harden_agent_environment(task_dir: Path) -> None:
     """Remove simulator secrets and benchmark source data from the agent service."""
     task_config = task_dir / "task.toml"
     text = task_config.read_text(encoding="utf-8")
-    text = _rewrite_env_in_section(text, "[environment]", 'env = {}')
+    text = _rewrite_env_in_section(text, "[environment]", "env = {}")
     text = _add_after_section(text, "[environment]", 'network_mode = "no-network"')
     task_config.write_text(text + "\n", encoding="utf-8")
 
@@ -365,7 +358,9 @@ def _generate_docker_compose() -> str:
         f"  {SIDECAR_NAME}:\n"
         f"    build: ./runtime-server\n"
         f"    environment:\n"
-        f"      - OPENAI_API_KEY=${{OPENAI_API_KEY}}\n"
+        f"      - OPENAI_API_KEY=${{TAU3_SIMULATOR_API_KEY:?TAU3_SIMULATOR_API_KEY is required}}\n"
+        f"      - OPENAI_BASE_URL=${{TAU3_SIMULATOR_BASE_URL:?TAU3_SIMULATOR_BASE_URL is required}}\n"
+        f"      - TAU2_USER_MODEL={SIMULATOR_MODEL}\n"
         f"    volumes:\n"
         f"      - {VOLUME_NAME}:{MOUNT_PATH}:rw\n"
         f"volumes:\n"
@@ -536,11 +531,11 @@ def harden_verifier_environment(
     """Move Tau evaluator dependencies into a verifier-only container."""
     task_config = task_dir / "task.toml"
     text = task_config.read_text(encoding="utf-8")
-    text = _rewrite_env_in_section(text, "[verifier]", 'env = {}')
+    text = _rewrite_env_in_section(text, "[verifier]", "env = {}")
     if "artifacts =" not in text:
         text = text.replace(
             'schema_version = "1.1"\n',
-            'schema_version = "1.1"\n' f'artifacts = [{json.dumps(ARTIFACT_PATH)}]\n',
+            f'schema_version = "1.1"\nartifacts = [{json.dumps(ARTIFACT_PATH)}]\n',
             1,
         )
     text = text.replace(
@@ -550,10 +545,10 @@ def harden_verifier_environment(
     )
     text = text.replace(
         "\n[agent]\n",
-        '\n[[verifier.collect]]\n'
+        "\n[[verifier.collect]]\n"
         f'command = "if [ ! -f {ARTIFACT_PATH} ] '
         f"&& [ -f {RUNTIME_STATE_PATH} ]; then "
-        f"cp {RUNTIME_STATE_PATH} {ARTIFACT_PATH}; fi\"\n"
+        f'cp {RUNTIME_STATE_PATH} {ARTIFACT_PATH}; fi"\n'
         'service = "main"\n\n'
         '[verifier.environment]\nnetwork_mode = "no-network"\n\n[agent]\n',
         1,
@@ -583,9 +578,7 @@ RUN chmod +x /tests/test.sh
     else:
         dest = task_dir / "tests" / "wheelhouse"
         _copy_wheelhouse(wheelhouse, dest)
-        _write_build_proof(
-            task_dir / "tests", dest, "wheelhouse/requirements.txt"
-        )
+        _write_build_proof(task_dir / "tests", dest, "wheelhouse/requirements.txt")
         dockerfile = f"""FROM {PYTHON_BASE_IMAGE}
 
 ARG TAU2_BENCH_COMMIT="{commit}"
@@ -605,9 +598,7 @@ RUN chmod +x /tests/test.sh
     runtime_log_declaration = (
         'DEFAULT_RUNTIME_LOG_PATH = Path("/logs/agent/tau3_runtime_state.json")'
     )
-    runtime_log_resolution = (
-        f'DEFAULT_RUNTIME_LOG_PATH = Path({json.dumps(ARTIFACT_PATH)})'
-    )
+    runtime_log_resolution = f"DEFAULT_RUNTIME_LOG_PATH = Path({json.dumps(ARTIFACT_PATH)})"
     if runtime_log_declaration not in evaluate_text:
         raise RuntimeError("blocked:tau_verifier_runtime_log_contract_drift")
     evaluate_text = evaluate_text.replace(runtime_log_declaration, runtime_log_resolution, 1)
@@ -632,7 +623,7 @@ RUN chmod +x /tests/test.sh
         command_end,
         command_end
         + " >/tmp/tau-evaluator.log 2>&1; then\n"
-        + '  cat /tmp/tau-evaluator.log >&2\n'
+        + "  cat /tmp/tau-evaluator.log >&2\n"
         + "  exit 1\n"
         + "fi",
         1,
@@ -640,7 +631,7 @@ RUN chmod +x /tests/test.sh
     test_path.write_text(test_text, encoding="utf-8")
 
 
-_OLD_TAU2_SETUP = '''def _setup_tau2_path(config: dict[str, Any]) -> bool:
+_OLD_TAU2_SETUP = """def _setup_tau2_path(config: dict[str, Any]) -> bool:
     candidates: list[Path] = []
 
     env_root = os.getenv("TAU2_BENCH_ROOT")
@@ -663,9 +654,9 @@ _OLD_TAU2_SETUP = '''def _setup_tau2_path(config: dict[str, Any]) -> bool:
                     os.environ["TAU2_DATA_DIR"] = str(data_dir)
             return True
     return False
-'''
+"""
 
-_OFFLINE_TAU2_SETUP = '''def _setup_tau2_path(config: dict[str, Any]) -> bool:
+_OFFLINE_TAU2_SETUP = """def _setup_tau2_path(config: dict[str, Any]) -> bool:
     import importlib.util
 
     if importlib.util.find_spec("tau2") is not None:
@@ -705,7 +696,7 @@ _OFFLINE_TAU2_SETUP = '''def _setup_tau2_path(config: dict[str, Any]) -> bool:
                     os.environ["TAU2_DATA_DIR"] = str(data_dir)
             return True
     return False
-'''
+"""
 
 
 def harden_sidecar_environment(
@@ -727,13 +718,11 @@ def harden_sidecar_environment(
         "max_steps": full_config.get("max_steps", 200),
         "max_errors": full_config.get("max_errors", 10),
     }
-    full_config_path.write_text(
-        json.dumps(minimal_config, indent=2) + "\n", encoding="utf-8"
-    )
+    full_config_path.write_text(json.dumps(minimal_config, indent=2) + "\n", encoding="utf-8")
 
     server_path = runtime_dir / "server.py"
     server_text = server_path.read_text(encoding="utf-8")
-    old_prepare = '''def _prepare_tau2_imports() -> None:
+    old_prepare = """def _prepare_tau2_imports() -> None:
     src = TAU2_RUNTIME_ROOT / "src"
     if not (src / "tau2").exists():
         raise ImportError(f"Could not locate tau2 sources under {src}")
@@ -743,8 +732,8 @@ def harden_sidecar_environment(
         data_dir = TAU2_RUNTIME_ROOT / "data"
         if data_dir.exists():
             os.environ["TAU2_DATA_DIR"] = str(data_dir)
-'''
-    new_prepare = '''def _prepare_tau2_imports() -> None:
+"""
+    new_prepare = """def _prepare_tau2_imports() -> None:
     import importlib.util
 
     if importlib.util.find_spec("tau2") is None:
@@ -760,11 +749,11 @@ def harden_sidecar_environment(
             data_dir = TAU2_RUNTIME_ROOT / "data"
             if data_dir.exists():
                 os.environ["TAU2_DATA_DIR"] = str(data_dir)
-'''
+"""
     if old_prepare in server_text:
         server_text = server_text.replace(old_prepare, new_prepare, 1)
     old_task = 'self.task = self.Task.model_validate(self.config["task"])'
-    new_task = '''task_payload = self.config.get("task")
+    new_task = """task_payload = self.config.get("task")
         if task_payload is None:
             import tau2_bench_data
             task_path = (
@@ -776,9 +765,63 @@ def harden_sidecar_environment(
                 / f"{self.config['source_task_id']}.json"
             )
             task_payload = json.loads(task_path.read_text(encoding="utf-8"))
-        self.task = self.Task.model_validate(task_payload)'''
+        self.task = self.Task.model_validate(task_payload)"""
     if old_task in server_text:
         server_text = server_text.replace(old_task, new_task, 1)
+    old_override = """        if not isinstance(decoded, dict):
+            raise ValueError("User LLM args override must decode to a JSON object.")
+        llm_args: dict[str, Any] = decoded"""
+    new_override = """        if not isinstance(decoded, dict):
+            raise ValueError("User LLM args override must decode to a JSON object.")
+        forbidden = {"api_key", "api_base", "base_url", "model"} & decoded.keys()
+        if forbidden:
+            raise ValueError(
+                "User simulator identity is operator-owned; forbidden overrides: "
+                + ", ".join(sorted(forbidden))
+            )
+        llm_args: dict[str, Any] = decoded"""
+    if old_override not in server_text:
+        raise RuntimeError("blocked:tau_user_simulator_override_contract_drift")
+    server_text = server_text.replace(old_override, new_override, 1)
+    old_state = '            "start_tool_called": self.start_tool_called,'
+    new_state = """            "start_tool_called": self.start_tool_called,
+            "user_simulator": {
+                "provider": "openai",
+                "model": os.environ["TAU2_USER_MODEL"],
+                "base_url": os.environ["OPENAI_BASE_URL"],
+            },"""
+    if old_state not in server_text:
+        raise RuntimeError("blocked:tau_runtime_state_contract_drift")
+    server_text = server_text.replace(old_state, new_state, 1)
+    old_mcp_tool = """@mcp.tool()
+def configure_run(
+    seed: int | None = None,
+    max_steps: int | None = None,
+    max_errors: int | None = None,
+    user_llm_args_json: str | None = None,
+) -> str:
+    \"\"\"Configure tau2 run parameters before the first conversation turn.\"\"\"
+    return runtime.configure_run(
+        seed=seed,
+        max_steps=max_steps,
+        max_errors=max_errors,
+        user_llm_args_json=user_llm_args_json,
+    )"""
+    new_mcp_tool = """@mcp.tool()
+def configure_run(
+    seed: int | None = None,
+    max_steps: int | None = None,
+    max_errors: int | None = None,
+) -> str:
+    \"\"\"Configure bounded run counters before the first conversation turn.\"\"\"
+    return runtime.configure_run(
+        seed=seed,
+        max_steps=max_steps,
+        max_errors=max_errors,
+    )"""
+    if old_mcp_tool not in server_text:
+        raise RuntimeError("blocked:tau_configure_run_tool_contract_drift")
+    server_text = server_text.replace(old_mcp_tool, new_mcp_tool, 1)
     compile(server_text, str(server_path), "exec")
     server_path.write_text(server_text, encoding="utf-8")
 
@@ -869,9 +912,7 @@ def validate_agent_boundary(
                 and not normalized.startswith(("#", "//", "/*", "*"))
                 and normalized in combined_visible
             ):
-                raise RuntimeError(
-                    f"blocked:oracle_boundary_leak:{path.relative_to(task_dir)}"
-                )
+                raise RuntimeError(f"blocked:oracle_boundary_leak:{path.relative_to(task_dir)}")
 
 
 def materialize(
@@ -899,12 +940,8 @@ def materialize(
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
     adapter_type = _load_adapter(adapter)
-    adapter_type(
-        destination, overwrite=False, task_ids=[task_id], tau2_root=source
-    ).run()
-    if not (task_dir / "task.toml").is_file() or not (
-        task_dir / "tests/config.json"
-    ).is_file():
+    adapter_type(destination, overwrite=False, task_ids=[task_id], tau2_root=source).run()
+    if not (task_dir / "task.toml").is_file() or not (task_dir / "tests/config.json").is_file():
         raise RuntimeError(f"adapter did not produce complete task: {task_dir}")
 
     with tempfile.TemporaryDirectory(prefix="tau-wheelhouse-") as temp:
@@ -943,9 +980,7 @@ def main() -> int:
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     source = args.source or (
-        Path(os.environ["TAU2_BENCH_ROOT"])
-        if os.environ.get("TAU2_BENCH_ROOT")
-        else None
+        Path(os.environ["TAU2_BENCH_ROOT"]) if os.environ.get("TAU2_BENCH_ROOT") else None
     )
     adapter = args.adapter or (
         Path(os.environ["TAU3_BENCH_ADAPTER_ROOT"])
@@ -953,9 +988,7 @@ def main() -> int:
         else None
     )
     if source is None or adapter is None:
-        raise SystemExit(
-            "blocked: TAU2_BENCH_ROOT and TAU3_BENCH_ADAPTER_ROOT are required"
-        )
+        raise SystemExit("blocked: TAU2_BENCH_ROOT and TAU3_BENCH_ADAPTER_ROOT are required")
     print(
         materialize(
             manifest_path=args.manifest,

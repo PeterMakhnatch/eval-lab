@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run Tau oracle, no-op, and deliberate-mutant controls through Harbor."""
+
 from __future__ import annotations
 
 import argparse
@@ -56,9 +57,7 @@ def _persisted_reward(trials_dir: Path) -> float:
             return float(payload["reward"])
     if not results:
         raise RuntimeError(f"Harbor produced no persisted result.json under {trials_dir}")
-    raise RuntimeError(
-        f"Harbor result files contain no persisted reward under {trials_dir}"
-    )
+    raise RuntimeError(f"Harbor result files contain no persisted reward under {trials_dir}")
 
 
 def run_control(
@@ -90,25 +89,58 @@ def run_control(
         return command
 
 
+def run_oracle_nop_gate(
+    task: Path,
+    *,
+    trials_dir: Path,
+    dry_run: bool = False,
+) -> dict[str, list[str]]:
+    """Run both free verifier controls as one explicit gate."""
+    return {
+        mode: run_control(
+            task,
+            mode,
+            dry_run=dry_run,
+            trials_dir=trials_dir / mode,
+        )
+        for mode in ("oracle", "nop")
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", type=Path, required=True)
-    parser.add_argument("--mode", choices=["oracle", "nop", "mutant"], required=True)
+    parser.add_argument("--mode", choices=["oracle", "nop", "mutant", "gate"], required=True)
     parser.add_argument("--trials-dir", type=Path, default=None)
     parser.add_argument("--expect-reward", type=float, default=None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    print(
-        " ".join(
-            run_control(
-                args.task.resolve(),
-                args.mode,
-                dry_run=args.dry_run,
-                trials_dir=args.trials_dir,
-                expected_reward=args.expect_reward,
+    task = args.task.resolve()
+    if args.mode == "gate":
+        if args.trials_dir is None:
+            parser.error("--trials-dir is required for --mode gate")
+        print(
+            json.dumps(
+                run_oracle_nop_gate(
+                    task,
+                    trials_dir=args.trials_dir.resolve(),
+                    dry_run=args.dry_run,
+                ),
+                indent=2,
             )
         )
-    )
+    else:
+        print(
+            " ".join(
+                run_control(
+                    task,
+                    args.mode,
+                    dry_run=args.dry_run,
+                    trials_dir=args.trials_dir,
+                    expected_reward=args.expect_reward,
+                )
+            )
+        )
     return 0
 
 

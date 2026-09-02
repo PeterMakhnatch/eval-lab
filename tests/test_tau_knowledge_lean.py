@@ -39,7 +39,11 @@ def test_cohort_preserves_immutable_pins_and_selected_order() -> None:
     simulator = manifest["credentials"]["simulated_user"]
     assert simulator["provider"] == "openai"
     assert simulator["model"] == "gpt-4o-mini-2024-07-18"
-    assert simulator["required_env"] == ["OPENAI_API_KEY"]
+    assert simulator["base_url"] == "https://api.openai.com/v1"
+    assert simulator["required_env"] == [
+        "TAU3_SIMULATOR_API_KEY",
+        "TAU3_SIMULATOR_BASE_URL",
+    ]
     assert simulator["required_phases"] == ["reference", "evaluation"]
     assert set(manifest["credentials"]) == {"simulated_user"}
 
@@ -61,7 +65,7 @@ def test_missing_source_and_credentials_fail_closed_without_trial() -> None:
     assert source.proceed is False
     assert source.reason_code == "blocked:missing_source_checkout"
     credential = preflight.credential_preflight("reference", env={})
-    assert credential.reason_code == "blocked:missing_openai_api_key_for_simulated_user"
+    assert credential.reason_code == "blocked:missing_tau3_simulator_api_key_for_simulated_user"
     assert credential.to_dict()["created_trial"] is False
 
 
@@ -71,10 +75,13 @@ def test_user_simulator_credential_and_oracle_boundary_isolation(tmp_path: Path)
     secret_key = "simulator-credential-value-marker-12345"
     decision = preflight.credential_preflight(
         "reference",
-        env={"OPENAI_API_KEY": secret_key},
+        env={
+            "TAU3_SIMULATOR_API_KEY": secret_key,
+            "TAU3_SIMULATOR_BASE_URL": "https://api.openai.com/v1",
+        },
         simulator_provider="openai",
         simulator_model="gpt-4o-mini-2024-07-18",
-        simulator_credential_env="OPENAI_API_KEY",
+        simulator_credential_env="TAU3_SIMULATOR_API_KEY",
     )
     assert decision.proceed is True
     decision_dict = decision.to_dict()
@@ -83,7 +90,16 @@ def test_user_simulator_credential_and_oracle_boundary_isolation(tmp_path: Path)
     assert secret_key not in decision.detail
     assert decision_dict["simulator"]["provider"] == "openai"
     assert decision_dict["simulator"]["model"] == "gpt-4o-mini-2024-07-18"
-    assert decision_dict["simulator"]["credential_env"] == "OPENAI_API_KEY"
+    assert decision_dict["simulator"]["credential_env"] == "TAU3_SIMULATOR_API_KEY"
+    assert decision_dict["simulator"]["base_url"] == "https://api.openai.com/v1"
+    refused = preflight.credential_preflight(
+        "evaluation",
+        env={
+            "TAU3_SIMULATOR_API_KEY": secret_key,
+            "TAU3_SIMULATOR_BASE_URL": "http://localhost:11434/v1",
+        },
+    )
+    assert refused.reason_code == "blocked:unregistered_simulated_user_route"
 
 
 def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
@@ -103,8 +119,8 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     task_toml.write_text(
         'schema_version = "1.1"\n'
         '[task]\nname = "tau3-banking_knowledge-task-001"\n'
-        '[verifier]\ntimeout_sec = 300.0\n'
-        '[agent]\ntimeout_sec = 3600.0\n'
+        "[verifier]\ntimeout_sec = 300.0\n"
+        "[agent]\ntimeout_sec = 3600.0\n"
         '[environment]\nenv = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n',
         encoding="utf-8",
     )
@@ -135,7 +151,7 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     )
     (tests / "config.json").write_text(hidden_payload + "\n", encoding="utf-8")
     (tests / "evaluate.py").write_text(
-        'from pathlib import Path\n'
+        "from pathlib import Path\n"
         'DEFAULT_RUNTIME_LOG_PATH = Path("/logs/agent/tau3_runtime_state.json")\n',
         encoding="utf-8",
     )
@@ -158,9 +174,9 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     assert "env = {}" in task_toml.read_text(encoding="utf-8")
     assert "tau2-bench" not in dockerfile.read_text(encoding="utf-8")
     assert "/opt/tau2-bench" not in (solution / "solve.sh").read_text(encoding="utf-8")
-    assert 'state_path = Path("/app/tau3_runtime_state.json")' in (
-        solution / "solve.sh"
-    ).read_text(encoding="utf-8")
+    assert 'state_path = Path("/app/tau3_runtime_state.json")' in (solution / "solve.sh").read_text(
+        encoding="utf-8"
+    )
     verifier_config = task_toml.read_text(encoding="utf-8")
     assert 'environment_mode = "separate"' in verifier_config
     assert '[verifier.environment]\nnetwork_mode = "no-network"' in verifier_config
@@ -169,22 +185,20 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     assert (
         "cp /logs/agent/tau3_runtime_state.json /app/tau3_runtime_state.json"
     ) in verifier_config
-    assert manifest["required_upstream"]["commit"] in (
-        tests / "Dockerfile"
-    ).read_text(encoding="utf-8")
-    assert 'Path("/app/tau3_runtime_state.json")' in (
-        tests / "evaluate.py"
-    ).read_text(encoding="utf-8")
-    assert "--runtime-log /app/tau3_runtime_state.json" in (
-        tests / "test.sh"
-    ).read_text(encoding="utf-8")
+    assert manifest["required_upstream"]["commit"] in (tests / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    assert 'Path("/app/tau3_runtime_state.json")' in (tests / "evaluate.py").read_text(
+        encoding="utf-8"
+    )
+    assert "--runtime-log /app/tau3_runtime_state.json" in (tests / "test.sh").read_text(
+        encoding="utf-8"
+    )
     test_entrypoint = (tests / "test.sh").read_text(encoding="utf-8")
     assert ">/tmp/tau-evaluator.log 2>&1" in test_entrypoint
     assert "cat /tmp/tau-evaluator.log >&2" in test_entrypoint
     oracle_script = (solution / "solve.sh").read_text(encoding="utf-8")
-    fair_script = (task_dir / "workbench/fair-alternative.sh").read_text(
-        encoding="utf-8"
-    )
+    fair_script = (task_dir / "workbench/fair-alternative.sh").read_text(encoding="utf-8")
     assert fair_script != oracle_script
     assert "indent=4," in fair_script
 
@@ -196,18 +210,24 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
 
     dockerfile.write_text(materializer.AGENT_DOCKERFILE, encoding="utf-8")
     credential_value = "simulator-credential-value-marker-12345"
-    task_toml.write_text("credential_env = OPENAI_API_KEY\n", encoding="utf-8")
+    task_toml.write_text("credential_env = TAU3_SIMULATOR_API_KEY\n", encoding="utf-8")
     materializer.validate_agent_boundary(
         task_dir,
         manifest,
-        credential_environment={"OPENAI_API_KEY": credential_value},
+        credential_environment={
+            "TAU3_SIMULATOR_API_KEY": credential_value,
+            "TAU3_SIMULATOR_BASE_URL": "https://api.openai.com/v1",
+        },
     )
     task_toml.write_text(credential_value + "\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="simulator_credential_value_leak"):
         materializer.validate_agent_boundary(
             task_dir,
             manifest,
-            credential_environment={"OPENAI_API_KEY": credential_value},
+            credential_environment={
+                "TAU3_SIMULATOR_API_KEY": credential_value,
+                "TAU3_SIMULATOR_BASE_URL": "https://api.openai.com/v1",
+            },
         )
 
 
@@ -216,9 +236,7 @@ def test_harbor_repository_layout_resolves_nested_tau_adapter(tmp_path: Path) ->
     package = tmp_path / "harbor/adapters/tau3-bench/src/tau3_bench"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / "adapter.py").write_text(
-        "class Tau3BenchAdapter: pass\n", encoding="utf-8"
-    )
+    (package / "adapter.py").write_text("class Tau3BenchAdapter: pass\n", encoding="utf-8")
     sys.modules.pop("tau3_bench", None)
     sys.modules.pop("tau3_bench.adapter", None)
     adapter = materializer._load_adapter(tmp_path / "harbor")
@@ -279,6 +297,23 @@ def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) ->
         ]
 
 
+def test_oracle_nop_gate_plans_both_free_controls(tmp_path: Path) -> None:
+    controls = _load(CONTROLS, "tau_knowledge_control_gate")
+    task = tmp_path / "tau3-banking_knowledge-task-001"
+    (task / "solution").mkdir(parents=True)
+    (task / "task.toml").write_text("[task]\n", encoding="utf-8")
+
+    commands = controls.run_oracle_nop_gate(
+        task,
+        trials_dir=tmp_path / "controls",
+        dry_run=True,
+    )
+
+    assert list(commands) == ["oracle", "nop"]
+    assert commands["oracle"][-2:] == ["--trials-dir", str(tmp_path / "controls/oracle")]
+    assert commands["nop"][-2:] == ["--trials-dir", str(tmp_path / "controls/nop")]
+
+
 def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None:
     materializer = _load(MATERIALIZER, "tau_knowledge_sidecar_syntax")
     task = tmp_path / "task"
@@ -295,9 +330,44 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
         encoding="utf-8",
     )
     (runtime / "server.py").write_text(
+        "import json\n"
+        "import os\n"
+        "from typing import Any\n\n"
+        "def _build_user_llm_args(override_json=None):\n"
+        "    if override_json:\n"
+        "        decoded = json.loads(override_json)\n"
+        "        if not isinstance(decoded, dict):\n"
+        '            raise ValueError("User LLM args override must decode to a JSON object.")\n'
+        "        llm_args: dict[str, Any] = decoded\n"
+        "    else:\n"
+        "        llm_args = {}\n"
+        "    return llm_args\n\n"
         "class Runtime:\n"
         "    def initialize(self):\n"
-        '        self.task = self.Task.model_validate(self.config["task"])\n',
+        '        self.task = self.Task.model_validate(self.config["task"])\n'
+        "    def _write_state(self):\n"
+        "        payload = {\n"
+        '            "start_tool_called": self.start_tool_called,\n'
+        "        }\n\n"
+        "class MCP:\n"
+        "    def tool(self):\n"
+        "        return lambda function: function\n\n"
+        "mcp = MCP()\n"
+        "runtime = Runtime()\n\n"
+        "@mcp.tool()\n"
+        "def configure_run(\n"
+        "    seed: int | None = None,\n"
+        "    max_steps: int | None = None,\n"
+        "    max_errors: int | None = None,\n"
+        "    user_llm_args_json: str | None = None,\n"
+        ") -> str:\n"
+        '    """Configure tau2 run parameters before the first conversation turn."""\n'
+        "    return runtime.configure_run(\n"
+        "        seed=seed,\n"
+        "        max_steps=max_steps,\n"
+        "        max_errors=max_errors,\n"
+        "        user_llm_args_json=user_llm_args_json,\n"
+        "    )\n",
         encoding="utf-8",
     )
     wheelhouse = tmp_path / "wheelhouse"
@@ -319,6 +389,11 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
     generated = (runtime / "server.py").read_text(encoding="utf-8")
     compile(generated, str(runtime / "server.py"), "exec")
     assert '"task"' not in (runtime / "task_config.json").read_text(encoding="utf-8")
+    assert '"api_key", "api_base", "base_url", "model"' in generated
+    assert '"user_simulator"' in generated
+    assert '"model": os.environ["TAU2_USER_MODEL"]' in generated
+    exposed_tool = generated.split("@mcp.tool()", 1)[1]
+    assert "user_llm_args_json" not in exposed_tool
 
 
 def test_wheelhouse_metadata_inspection_and_dummy_rejection(tmp_path: Path) -> None:
@@ -354,10 +429,14 @@ def test_wheelhouse_requirements_hash_locking(tmp_path: Path) -> None:
     wheelhouse.mkdir()
     whl1 = wheelhouse / "alpha-1.0.0-py3-none-any.whl"
     with zipfile.ZipFile(whl1, "w") as zf:
-        zf.writestr("alpha-1.0.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: alpha\nVersion: 1.0.0\n")
+        zf.writestr(
+            "alpha-1.0.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: alpha\nVersion: 1.0.0\n"
+        )
     whl2 = wheelhouse / "beta-2.0.0-py3-none-any.whl"
     with zipfile.ZipFile(whl2, "w") as zf:
-        zf.writestr("beta-2.0.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: beta\nVersion: 2.0.0\n")
+        zf.writestr(
+            "beta-2.0.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: beta\nVersion: 2.0.0\n"
+        )
 
     materializer._prepare_wheelhouse(wheelhouse)
     reqs_path = wheelhouse / "requirements.txt"
@@ -376,6 +455,15 @@ def test_docker_compose_structure_preserves_task_local_named_volume() -> None:
     assert "tau3-logs:/logs/agent:ro" in compose_yaml
     assert "tau3-logs:/logs/agent:rw" in compose_yaml
     assert "tau3-runtime" in compose_yaml
+    assert (
+        "OPENAI_API_KEY=${TAU3_SIMULATOR_API_KEY:?TAU3_SIMULATOR_API_KEY is required}"
+        in compose_yaml
+    )
+    assert (
+        "OPENAI_BASE_URL=${TAU3_SIMULATOR_BASE_URL:?TAU3_SIMULATOR_BASE_URL is required}"
+        in compose_yaml
+    )
+    assert "OPENAI_API_KEY=${OPENAI_API_KEY" not in compose_yaml
 
 
 def test_generated_corpus_is_not_tracked() -> None:
@@ -388,6 +476,5 @@ def test_generated_corpus_is_not_tracked() -> None:
     assert not [
         path
         for path in tracked
-        if path.startswith(forbidden)
-        or (path.endswith(".parquet") and "tau-knowledge" in path)
+        if path.startswith(forbidden) or (path.endswith(".parquet") and "tau-knowledge" in path)
     ]

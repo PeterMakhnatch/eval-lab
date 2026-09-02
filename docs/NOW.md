@@ -24,14 +24,14 @@ Three product layers, in this order:
 | **Research analysis** | Questions over those tables | `research/analysis/`, `sql/`, `src/evallab/cohort.py`, `curve.py` |
 
 **Harbor-native synthetic benchmarks are now.** They are measurement tasks on
-the platform, not a training stack. Three construct families are in flight on
-other branches:
+the platform, not a training stack. Three construct families are merged on
+main as benchmark packages under `library/benchmarks/`:
 
-| Vertical | Construct | Do not rewrite here |
+| Vertical | Construct | Package (PR) |
 |---|---|---|
-| A | Context / actionable memory | `feat/action-memory-v1` (PR #262) |
-| B | MCP-FuncDAG tool composition | `feat/mcp-funcdag-v1` (PR #263), shared substrate PR #268 |
-| C | MCP single-fault recovery | `feat/mcp-recovery-v1` (PR #261) |
+| A | Context / actionable memory | `library/benchmarks/action-memory-v1` (#262) |
+| B | MCP-FuncDAG tool composition | `library/benchmarks/mcp-funcdag-v1` (#263, shared substrate #268) |
+| C | MCP single-fault recovery | `library/benchmarks/mcp-recovery-v1` (#261) |
 
 **Later, not now:** synthetic *training* sets and SFT/RLVR
 (`docs/path-forward-2026-08.md` stages S3–S5). Do not start a trainer, a
@@ -97,15 +97,11 @@ were sent there. `research/inbox/` is a drop box, not a map.
 ## Live writers — do not collide
 
 One writer per worktree. Before editing, check `gh pr list` and
-`git worktree list`. As of 2026-08-28, leave these alone unless you own them:
-
-- Benchmark / MCP families: PRs #268, #267, #263, #262, #261.
-- Three-vertical spec: `architecture/three-vertical-program`.
-- Architect: `lane/architect` (overnight ledger / ADR-030, PR #230).
-- OMP skills: `research/repo-standards-pstack` (PR #260).
-- Storage / execution / data lanes under `.worktrees/lane-*`.
-- Do not revive `hardening/repo-lean-v1` as a prune; it is old CI/type
-  hardening that still touches live `src/` files.
+`git worktree list` — they are the live inventory; this file does not repeat
+it. As of 2026-09-02 the open PRs are #346, #349, #350, #351, #352, and this
+branch's #272. Storage / execution / data lanes under `.worktrees/lane-*`
+remain active worktrees. Do not revive `hardening/repo-lean-v1` as a prune;
+it is old CI/type hardening that still touches live `src/` files.
 
 If a path is in someone else's open PR, stop.
 

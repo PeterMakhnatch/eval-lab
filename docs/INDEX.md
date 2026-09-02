@@ -15,7 +15,9 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:1c667585de8b136caf52173505403b2542f5c5c23b5e3d504b3d5fff7253c4b4
+    digest: sha256:a3a77d25e539492a110b63c6cfb438575d7d190be0a5571916e578b603763015
+  - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
+    digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
   - path: docs/STATUS.md
     digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
   - path: docs/SYSTEM-TOUR.md
@@ -107,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:bb092a04b31ea55f8a8620ff20be2fd2780a2c7a1018898e342698ff32a84743
+    digest: sha256:374d6e4b97bc0827ce8a594626f83a913143e04213f7d316e9ea6da17066d604
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -197,6 +199,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
+| `docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md` | Eval-Lab: Current System State, Architecture Audit & Career Portfolio Roadmap | `historical` | `builder, analyst` |
 | `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
 | `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
@@ -252,6 +255,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
+| `docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md` | Eval-Lab: Current System State, Architecture Audit & Career Portfolio Roadmap | `historical` | `builder, analyst` |
 | `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
 | `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
@@ -370,6 +374,7 @@ Historical documents. These are archived records, not living contracts.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
+| `docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md` | Eval-Lab: Current System State, Architecture Audit & Career Portfolio Roadmap | `historical` | `builder, analyst` |
 | `docs/architecture-review-2026-08-16.md` | Architecture review — 2026-08-16 | `historical` | `operator` |
 | `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |

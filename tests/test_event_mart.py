@@ -115,6 +115,30 @@ def test_event_mart_pairs_actions_observations_and_temporal_effects(tmp_path: Pa
     assert any(row["event_type"] == "tool_result" for row in events)
 
 
+def test_event_mart_llm_calls_keep_matching_atif_source_digest(tmp_path: Path) -> None:
+    source = Path(__file__).parent / "fixtures/explorer/jobs/job-pass"
+    job_path = tmp_path / "runs/job-pass"
+    shutil.copytree(source, job_path)
+    trajectory_path = job_path / "t1/agent/trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    for step in trajectory["steps"]:
+        step["llm_call_count"] = 1
+    trajectory_path.write_text(json.dumps(trajectory), encoding="utf-8")
+    expected_digest = f"sha256:{hashlib.sha256(trajectory_path.read_bytes()).hexdigest()}"
+    job = load_job(job_path)
+    derived = tmp_path / "derived"
+
+    rebuild_from_raw([job], derived)
+
+    partition = derived / f"job_id={job.id}" / f"trial_id={job.trials[0].id}"
+    llm_calls = pq.read_table(partition / "llm_calls.parquet").to_pylist()
+    assert len(llm_calls) == 2
+    assert {
+        (row["source_path"], row["source_sha256"])
+        for row in llm_calls
+    } == {("agent/trajectory.json", expected_digest)}
+
+
 def test_event_mart_never_invents_an_action_effect_without_timestamps(tmp_path: Path) -> None:
     source = Path(__file__).parent / "fixtures/explorer/jobs/job-pass"
     job_path = tmp_path / "runs/job-pass"

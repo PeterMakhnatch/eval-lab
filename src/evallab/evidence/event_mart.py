@@ -223,7 +223,7 @@ def project_event_mart(
                     "one_call_step" if step.llm_call_count == 1 else "aggregated_step"
                 ),
                 "source_path": step.llm_source_path or step.source_path,
-                "source_sha256": step.llm_source_sha256,
+                "source_sha256": step.llm_source_sha256 or step.source_sha256,
                 "metadata_available": step.llm_metadata_available,
                 "usage_status": step.usage_status,
             })

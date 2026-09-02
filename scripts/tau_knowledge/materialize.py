@@ -349,13 +349,18 @@ def harden_agent_environment(task_dir: Path) -> None:
     agent_dockerfile.write_text(AGENT_DOCKERFILE, encoding="utf-8")
 
 
-def _generate_docker_compose(manifest: Mapping[str, Any]) -> str:
+def _registered_simulator_base_url(manifest: Mapping[str, Any]) -> str:
     try:
         simulator_base_url = manifest["credentials"]["simulated_user"]["base_url"]
     except (KeyError, TypeError) as exc:
         raise RuntimeError("blocked:missing_registered_simulator_base_url") from exc
     if simulator_base_url != REGISTERED_SIMULATOR_BASE_URL:
         raise RuntimeError("blocked:unregistered_simulator_base_url")
+    return simulator_base_url
+
+
+def _generate_docker_compose(manifest: Mapping[str, Any]) -> str:
+    _registered_simulator_base_url(manifest)
     return (
         f"services:\n"
         f"  main:\n"
@@ -365,9 +370,7 @@ def _generate_docker_compose(manifest: Mapping[str, Any]) -> str:
         f"  {SIDECAR_NAME}:\n"
         f"    build: ./runtime-server\n"
         f"    environment:\n"
-        f"      - OPENAI_API_KEY=${{TAU3_SIMULATOR_API_KEY:?TAU3_SIMULATOR_API_KEY is required}}\n"
-        f"      - OPENAI_BASE_URL={simulator_base_url}\n"
-        f"      - TAU2_USER_MODEL={SIMULATOR_MODEL}\n"
+        f"      - OPENAI_API_KEY=${{TAU3_SIMULATOR_API_KEY}}\n"
         f"    volumes:\n"
         f"      - {VOLUME_NAME}:{MOUNT_PATH}:rw\n"
         f"volumes:\n"
@@ -837,12 +840,15 @@ def configure_run(
     _write_build_proof(runtime_dir, sidecar_dest, "wheelhouse/requirements.txt")
 
     commit = manifest["required_upstream"]["commit"]
+    simulator_base_url = _registered_simulator_base_url(manifest)
     sidecar_dockerfile = f"""FROM {PYTHON_BASE_IMAGE}
 
 ARG TAU2_BENCH_COMMIT="{commit}"
 ENV PYTHONUNBUFFERED=1
 ENV TAU2_DATA_DIR=/usr/local/lib/python3.12/site-packages/tau2_bench_data/data
 ENV TAU3_RUNTIME_STATE_PATH={RUNTIME_STATE_PATH}
+ENV OPENAI_BASE_URL={simulator_base_url}
+ENV TAU2_USER_MODEL={SIMULATOR_MODEL}
 WORKDIR /app
 COPY wheelhouse /wheelhouse
 RUN pip install --no-index --find-links=/wheelhouse -r /wheelhouse/requirements.txt --require-hashes

@@ -444,6 +444,9 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
     assert '"api_key", "api_base", "base_url", "model"' in generated
     assert '"user_simulator"' in generated
     assert '"model": os.environ["TAU2_USER_MODEL"]' in generated
+    sidecar_dockerfile = (runtime / "Dockerfile").read_text(encoding="utf-8")
+    assert "ENV OPENAI_BASE_URL=https://api.openai.com/v1" in sidecar_dockerfile
+    assert "ENV TAU2_USER_MODEL=gpt-4o-mini-2024-07-18" in sidecar_dockerfile
     tree = ast.parse(generated)
     exposed_tool = next(
         node
@@ -525,12 +528,10 @@ def test_docker_compose_structure_preserves_task_local_named_volume() -> None:
     assert "tau3-logs:/logs/agent:ro" in compose_yaml
     assert "tau3-logs:/logs/agent:rw" in compose_yaml
     assert "tau3-runtime" in compose_yaml
-    assert (
-        "OPENAI_API_KEY=${TAU3_SIMULATOR_API_KEY:?TAU3_SIMULATOR_API_KEY is required}"
-        in compose_yaml
-    )
-    assert "OPENAI_BASE_URL=https://api.openai.com/v1" in compose_yaml
-    assert "TAU3_SIMULATOR_BASE_URL" not in compose_yaml
+    assert "OPENAI_API_KEY=${TAU3_SIMULATOR_API_KEY}" in compose_yaml
+    assert "TAU3_SIMULATOR_API_KEY:?" not in compose_yaml
+    assert "OPENAI_BASE_URL" not in compose_yaml
+    assert "TAU2_USER_MODEL" not in compose_yaml
     assert "OPENAI_API_KEY=${OPENAI_API_KEY" not in compose_yaml
 
     manifest["credentials"]["simulated_user"]["base_url"] = "http://localhost:11434/v1"

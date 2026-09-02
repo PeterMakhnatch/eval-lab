@@ -9,7 +9,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, get_args
+from typing import Any, Literal, TypedDict, get_args
 from uuid import UUID, uuid4
 
 import psycopg
@@ -56,6 +56,19 @@ from evallab.trial_admissibility import (
 )
 
 JsonObject = dict[str, Any]
+
+
+class _OutcomeAdmissibilityFields(TypedDict):
+    network_isolation_evidence_digest: str | None
+    network_isolation_status: str
+    network_isolation_reason: str | None
+    analysis_eligibility: str
+    trial_admissibility_digest: str | None
+    trial_admissibility_decision: str
+    trial_admissibility_reason: str
+    trial_allowed_use: str
+
+
 ReviewDisposition = Literal["accepted", "needs_revision", "rejected", "superseded"]
 
 
@@ -1288,7 +1301,7 @@ def _outcome_admissibility_fields(
     trial: TrialRecord,
     *,
     repo_root: Path | None = None,
-) -> dict[str, str | None]:
+) -> _OutcomeAdmissibilityFields:
     provenance = _experiment_provenance(job)
     authority = _verified_trial_authority(job, trial, repo_root=repo_root)
     admissibility = authority.record

@@ -619,14 +619,11 @@ def ingest_trial_outcomes(
         return
     columns = ", ".join(_TRIAL_OUTCOME_COLUMNS)
     placeholders = ", ".join(["%s"] * len(_TRIAL_OUTCOME_COLUMNS))
-    query = cast(
-        LiteralString,
-        f"""
+    query: LiteralString = f"""
         INSERT INTO trial_outcomes ({columns})
         VALUES ({placeholders})
         ON CONFLICT (outcome_id) DO NOTHING
-        """,
-    )
+        """
     _executemany(connection, query, [_outcome_record_to_row(outcome) for outcome in outcomes])
 
 

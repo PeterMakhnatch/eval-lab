@@ -276,10 +276,14 @@ def _outcome_id(record: OutcomeRecord) -> str:
 def _calibration_outcomes(evidence: CalibrationEvidence) -> tuple[OutcomeRecord, ...]:
     payload = evidence.payload
     trace = evidence.trace
-    run = payload.get("run") if isinstance(payload.get("run"), dict) else {}
-    axes = run.get("outcome_axes") if isinstance(run.get("outcome_axes"), dict) else {}
-    scores = payload.get("scores") if isinstance(payload.get("scores"), dict) else {}
-    sealed = scores.get("sealed") if isinstance(scores.get("sealed"), dict) else {}
+    run_value = payload.get("run")
+    run = run_value if isinstance(run_value, dict) else {}
+    axes_value = run.get("outcome_axes")
+    axes = axes_value if isinstance(axes_value, dict) else {}
+    scores_value = payload.get("scores")
+    scores = scores_value if isinstance(scores_value, dict) else {}
+    sealed_value = scores.get("sealed")
+    sealed = sealed_value if isinstance(sealed_value, dict) else {}
     trial_id = str(run.get("trial_id") or trace.run_id)
     artifact_status = (
         ArtifactOutcomeStatus.preserved
@@ -465,14 +469,10 @@ def _visible_candidates(evidence: CalibrationEvidence) -> dict[str, float | None
 def _calibration_row(evidence: CalibrationEvidence) -> tuple[Any, ...]:
     trace = evidence.trace
     features = evidence.features
-    process = (
-        evidence.payload.get("research_process")
-        if isinstance(evidence.payload.get("research_process"), dict)
-        else {}
-    )
-    scores = (
-        evidence.payload.get("scores") if isinstance(evidence.payload.get("scores"), dict) else {}
-    )
+    process_value = evidence.payload.get("research_process")
+    process = process_value if isinstance(process_value, dict) else {}
+    scores_value = evidence.payload.get("scores")
+    scores = scores_value if isinstance(scores_value, dict) else {}
     candidates = _visible_candidates(evidence)
     scalar = evidence.binding.headline_visible_scalar
     selected_value = candidates.get(scalar)
@@ -828,9 +828,8 @@ def materialize_analysis_control_views(
             activation_rows,
         )
 
-    predictor_count = connection.execute("SELECT count(*) FROM v_predictor_eligibility").fetchone()[
-        0
-    ]
+    predictor_row = connection.execute("SELECT count(*) FROM v_predictor_eligibility").fetchone()
+    predictor_count = predictor_row[0] if predictor_row is not None else 0
     return ControlMaterialization(
         readiness_profiles=len(readiness_rows),
         calibration_runs=len(evidence),

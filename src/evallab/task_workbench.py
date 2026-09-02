@@ -4380,7 +4380,7 @@ def _validate_external_import_lineage(
     repo_root: Path,
     task_dir: Path,
     task_id: str,
-    task_version: str,
+    task_version: str | None,
     registry_package_digest: str,
     source: CandidateSource,
 ) -> None:

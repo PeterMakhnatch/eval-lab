@@ -13,9 +13,11 @@ from pathlib import Path
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+
 import evallab.tidy as tidy_module
 from evallab.cli import run_cli
 from evallab.tidy import (
+    TidyReport,
     apply_deletions,
     check_branch_merged_status,
     classify_junk,
@@ -27,7 +29,6 @@ from evallab.tidy import (
     sweep_branches,
     sweep_untracked_strays,
     sweep_worktrees,
-    TidyReport,
 )
 
 

@@ -135,7 +135,7 @@ inputs:
   - path: docs/task-workbench.md
     digest: sha256:f77824bd91eaadead28d7495fbad0eefa5d7099905ac3adb5997e7dcf34bfbe8
   - path: docs/tidy.md
-    digest: sha256:d0a846245e70105e2d77a685d8121acbf7a1a12d8702e79b24f4d9cff724d8a7
+    digest: sha256:a06c1d8d34ba8246fae035bdf2c484aac8bfc82a81b5ab55bf880d7403a660e4
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

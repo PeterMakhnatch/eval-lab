@@ -38,6 +38,19 @@ other branches:
 preference dataset, or an RL loop. The word "synthetic" in those PRs means
 Harbor task generators, not fine-tuning data.
 
+**Reward Alignment & Verifier Validity Truth:** Hint-based minimax regret estimates
+task solvability/difficulty and guides curriculum selection; it does **not** certify
+verifier validity or eliminate reward hacking. Any claim of reward alignment strictly
+requires:
+1. An independent held-out verifier;
+2. NOP and negative mutant baseline controls;
+3. Strict prompt/environment contamination separation.
+
+**Benchmark Boundary Distinction (TB3 vs. Tau3):**
+- **Terminal-Bench v3 (TB3):** Tracked separately under `role/tbench3-screen@79dd74af`.
+- **Tau-Bench 3 (tau3):** In `.worktrees/tau-agentic-canary` on branch `feat/tau-agentic-canary@45484c4af` (8 `banking_knowledge` tasks digest-pinned, frozen pending `wH:p9` remote/provider reconciliation; no repo runs directory or local process).
+- **Never combine TB3 and Tau3 evidence, execution, or status reporting.**
+
 ## Honest bottleneck
 
 The bottleneck is **runs and populated columns**, not more methods or more

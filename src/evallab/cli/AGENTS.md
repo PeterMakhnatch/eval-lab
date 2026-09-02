@@ -1,9 +1,9 @@
-# CLI Subsystem (src/evallab/cli/)
+# CLI Subsystem
 
-## Responsibilities
-Provides the terminal CLI interface (`evallab <subcommand>`) and subcommands for runners, data backfills, and tidy operations.
+This directory is a **reserved empty package**. The CLI lives in
+`src/evallab/cli.py`. Do not add modules here; package locations are frozen.
 
-## Core Invariants
+## Invariants (enforced on `cli.py`)
 1. Golden Surface Preservation: Any CLI argument or command addition must be accompanied by a regeneration of `tests/golden/cli_surface.json`.
 2. Clean Exit Codes: Successful runs return code 0; invalid arguments or missing prerequisites return non-zero with informative stderr messages.
 3. Fast Startup: The CLI parser must defer heavy package imports until subcommand dispatch.

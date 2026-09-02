@@ -1,7 +1,10 @@
 # Schemas & Contracts Subsystem (src/evallab/schemas/)
 
 ## Responsibilities
-Defines core typed models, immutable DTOs, trial specs, and validation schemas across Eval Lab.
+Defines core typed models, immutable DTOs, trial specs, and validation schemas.
+The package body is `schemas/__init__.py`. Some contracts still live at
+top-level (`execution_contracts.py`, `capability_contract.py`); do not assume
+this directory is the only schema file.
 
 ## Core Invariants
 1. Backward Compatibility: Modifying schemas must preserve existing field serialization or provide default fallbacks.

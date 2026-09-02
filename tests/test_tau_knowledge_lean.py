@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from evallab import task_workbench
+
 ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / "library/benchmarks/tau-knowledge/cohort.manifest.json"
 PREFLIGHT = ROOT / "scripts/tau_knowledge/preflight.py"
@@ -445,7 +447,21 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
     assert '"user_simulator"' in generated
     assert '"model": os.environ["TAU2_USER_MODEL"]' in generated
     sidecar_dockerfile = (runtime / "Dockerfile").read_text(encoding="utf-8")
-    assert "ENV OPENAI_BASE_URL=https://api.openai.com/v1" in sidecar_dockerfile
+    assert "ENV TAU3_SIMULATOR_SCHEME=https" in sidecar_dockerfile
+    assert "ENV TAU3_SIMULATOR_AUTHORITY=api.openai.com" in sidecar_dockerfile
+    assert "ENV TAU3_SIMULATOR_BASE_PATH=/v1" in sidecar_dockerfile
+    assert (
+        "ENV OPENAI_BASE_URL=${TAU3_SIMULATOR_SCHEME}://"
+        "${TAU3_SIMULATOR_AUTHORITY}${TAU3_SIMULATOR_BASE_PATH}" in sidecar_dockerfile
+    )
+    diagnostics: list[task_workbench.Diagnostic] = []
+    task_workbench._validate_build_network(
+        sidecar_dockerfile,
+        "environment/runtime-server/Dockerfile",
+        diagnostics,
+        has_proof=True,
+    )
+    assert diagnostics == []
     assert "ENV TAU2_USER_MODEL=gpt-4o-mini-2024-07-18" in sidecar_dockerfile
     tree = ast.parse(generated)
     exposed_tool = next(

@@ -840,14 +840,17 @@ def configure_run(
     _write_build_proof(runtime_dir, sidecar_dest, "wheelhouse/requirements.txt")
 
     commit = manifest["required_upstream"]["commit"]
-    simulator_base_url = _registered_simulator_base_url(manifest)
+    _registered_simulator_base_url(manifest)
     sidecar_dockerfile = f"""FROM {PYTHON_BASE_IMAGE}
 
 ARG TAU2_BENCH_COMMIT="{commit}"
 ENV PYTHONUNBUFFERED=1
 ENV TAU2_DATA_DIR=/usr/local/lib/python3.12/site-packages/tau2_bench_data/data
 ENV TAU3_RUNTIME_STATE_PATH={RUNTIME_STATE_PATH}
-ENV OPENAI_BASE_URL={simulator_base_url}
+ENV TAU3_SIMULATOR_SCHEME=https
+ENV TAU3_SIMULATOR_AUTHORITY=api.openai.com
+ENV TAU3_SIMULATOR_BASE_PATH=/v1
+ENV OPENAI_BASE_URL=${{TAU3_SIMULATOR_SCHEME}}://${{TAU3_SIMULATOR_AUTHORITY}}${{TAU3_SIMULATOR_BASE_PATH}}
 ENV TAU2_USER_MODEL={SIMULATOR_MODEL}
 WORKDIR /app
 COPY wheelhouse /wheelhouse

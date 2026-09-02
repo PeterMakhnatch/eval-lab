@@ -310,6 +310,7 @@ def test_control_reads_persisted_reward(tmp_path: Path) -> None:
     )
     assert controls._persisted_reward(tmp_path) == 0.0
 
+
 def test_control_rejects_nonempty_trials_directory_before_dispatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -428,10 +429,12 @@ def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None
             "Metadata-Version: 2.1\nName: valid-pkg\nVersion: 1.0.0\n",
         )
     materializer._prepare_wheelhouse(wheelhouse)
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest["required_upstream"]["commit"] = "a" * 40
 
     materializer.harden_sidecar_environment(
         task,
-        {"required_upstream": {"commit": "a" * 40}},
+        manifest,
         wheelhouse,
     )
 
@@ -514,9 +517,10 @@ def test_wheelhouse_requirements_hash_locking(tmp_path: Path) -> None:
 
 
 def test_docker_compose_structure_preserves_task_local_named_volume() -> None:
-    """Ensure generated docker-compose.yaml satisfies single named volume topology."""
+    """Ensure compose pins the registered simulator route and named volume topology."""
     materializer = _load(MATERIALIZER, "tau_knowledge_compose_gen")
-    compose_yaml = materializer._generate_docker_compose()
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    compose_yaml = materializer._generate_docker_compose(manifest)
     assert "volumes:\n  tau3-logs:\n" in compose_yaml
     assert "tau3-logs:/logs/agent:ro" in compose_yaml
     assert "tau3-logs:/logs/agent:rw" in compose_yaml
@@ -525,11 +529,13 @@ def test_docker_compose_structure_preserves_task_local_named_volume() -> None:
         "OPENAI_API_KEY=${TAU3_SIMULATOR_API_KEY:?TAU3_SIMULATOR_API_KEY is required}"
         in compose_yaml
     )
-    assert (
-        "OPENAI_BASE_URL=${TAU3_SIMULATOR_BASE_URL:?TAU3_SIMULATOR_BASE_URL is required}"
-        in compose_yaml
-    )
+    assert "OPENAI_BASE_URL=https://api.openai.com/v1" in compose_yaml
+    assert "TAU3_SIMULATOR_BASE_URL" not in compose_yaml
     assert "OPENAI_API_KEY=${OPENAI_API_KEY" not in compose_yaml
+
+    manifest["credentials"]["simulated_user"]["base_url"] = "http://localhost:11434/v1"
+    with pytest.raises(RuntimeError, match="blocked:unregistered_simulator_base_url"):
+        materializer._generate_docker_compose(manifest)
 
 
 def test_generated_corpus_is_not_tracked() -> None:

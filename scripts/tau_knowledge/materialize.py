@@ -57,7 +57,7 @@ def _sha256_file(path: Path) -> str:
 
 
 try:
-    from preflight import sha256, validate_source
+    from preflight import REGISTERED_SIMULATOR_BASE_URL, sha256, validate_source
 except ImportError as exc:
     _spec = importlib.util.spec_from_file_location(
         "tau_knowledge_preflight", Path(__file__).with_name("preflight.py")
@@ -67,6 +67,7 @@ except ImportError as exc:
     _module = importlib.util.module_from_spec(_spec)
     sys.modules[_spec.name] = _module
     _spec.loader.exec_module(_module)
+    REGISTERED_SIMULATOR_BASE_URL = _module.REGISTERED_SIMULATOR_BASE_URL
     sha256, validate_source = _module.sha256, _module.validate_source
 
 
@@ -348,7 +349,13 @@ def harden_agent_environment(task_dir: Path) -> None:
     agent_dockerfile.write_text(AGENT_DOCKERFILE, encoding="utf-8")
 
 
-def _generate_docker_compose() -> str:
+def _generate_docker_compose(manifest: Mapping[str, Any]) -> str:
+    try:
+        simulator_base_url = manifest["credentials"]["simulated_user"]["base_url"]
+    except (KeyError, TypeError) as exc:
+        raise RuntimeError("blocked:missing_registered_simulator_base_url") from exc
+    if simulator_base_url != REGISTERED_SIMULATOR_BASE_URL:
+        raise RuntimeError("blocked:unregistered_simulator_base_url")
     return (
         f"services:\n"
         f"  main:\n"
@@ -359,7 +366,7 @@ def _generate_docker_compose() -> str:
         f"    build: ./runtime-server\n"
         f"    environment:\n"
         f"      - OPENAI_API_KEY=${{TAU3_SIMULATOR_API_KEY:?TAU3_SIMULATOR_API_KEY is required}}\n"
-        f"      - OPENAI_BASE_URL=${{TAU3_SIMULATOR_BASE_URL:?TAU3_SIMULATOR_BASE_URL is required}}\n"
+        f"      - OPENAI_BASE_URL={simulator_base_url}\n"
         f"      - TAU2_USER_MODEL={SIMULATOR_MODEL}\n"
         f"    volumes:\n"
         f"      - {VOLUME_NAME}:{MOUNT_PATH}:rw\n"
@@ -846,7 +853,7 @@ CMD ["python3", "/app/server.py"]
     (runtime_dir / "Dockerfile").write_text(sidecar_dockerfile, encoding="utf-8")
 
     (task_dir / "environment" / "docker-compose.yaml").write_text(
-        _generate_docker_compose(), encoding="utf-8"
+        _generate_docker_compose(manifest), encoding="utf-8"
     )
 
     # The main build context includes the sidecar wheelhouse, so provide a

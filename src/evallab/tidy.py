@@ -1074,8 +1074,9 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
 
     Deletes only clean stale worktrees, Git-reported prunable registrations,
     merged local branches without open PR, and untracked strays with recognized
-    junk signatures. Git is the only remover of worktrees: if
-    `git worktree remove --force` fails, the path and registration are preserved
+    junk signatures. Git is the only remover of worktrees: removal runs without
+    `--force`, so Git itself refuses a worktree that gained modified or untracked
+    files after the sweep; when it refuses, the path and registration are preserved
     and nothing is reported as deleted. Prunable registrations are removed
     exclusively through `git worktree prune` (contents never touched), and a
     deletion is only reported after a fresh porcelain relist confirms the
@@ -1095,10 +1096,11 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
             prunable_paths.append((_rel_path_str(wt.path, primary), str(wt.path)))
             continue
         rel = _rel_path_str(wt.path, primary)
-        # Git is the only remover: on failure fail closed (preserve path and
-        # registration, claim nothing).
+        # Git is the only remover, and it decides freshly: without --force it
+        # refuses a worktree that became dirty or locked after the sweep, which
+        # fails closed (preserve path and registration, claim nothing).
         res = subprocess.run(
-            ["git", "-C", str(primary), "worktree", "remove", "--force", str(wt.path)],
+            ["git", "-C", str(primary), "worktree", "remove", str(wt.path)],
             capture_output=True, text=True, check=False,
         )
         if res.returncode == 0:

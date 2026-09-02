@@ -5,8 +5,8 @@ Authority: docs/platform-architecture.md (T7, §2.6, §8).
 Sweeps:
 1. Stale worktrees: registered linked worktrees (authoritative inventory from
    `git worktree list --porcelain`; paths may live anywhere on disk) whose branch is
-   merged, whose branch no longer exists, or whose registration Git reports prunable
-   (skips dirty).
+   merged, or whose registration Git reports prunable (skips dirty; missing branches
+   classify unproven and are preserved, never removed).
 2. Merged local branches: role/* fully contained in origin/main without open PR.
 3. Unindexed docs: docs/ absent from docs/INDEX.md or with missing/invalid front-matter.
 4. Untracked strays: untracked files not gitignored, distinguishing recognized junk from drafts.
@@ -438,9 +438,11 @@ def sweep_worktrees(
       is excluded before any expensive work.
 
     Only clean_merged and Git-reported prunable registrations are actionable. Dirty,
-    unmerged, detached, broken, locked, current, and unproven worktrees are NEVER
-    actionable. Byte sizes are measured only for actionable entries whose path still
-    exists; active entries are intentionally not walked.
+    unmerged, detached, broken, locked, current, and unproven worktrees (including
+    worktrees whose branch no longer exists) are NEVER actionable and are preserved.
+    Byte sizes are measured only for clean_merged entries whose path still exists;
+    active entries and prunable registrations (metadata-only removal) are never
+    walked and report 0 bytes.
     """
     primary = shared_checkout_root(root)
     if porcelain_output is None:
@@ -503,7 +505,7 @@ def sweep_worktrees(
                     branch=reg.branch or "unknown",
                     status="prunable",
                     file_count=0,
-                    size_bytes=measured_size(wt_path),
+                    size_bytes=0,  # apply removes registration metadata only
                     reason=(
                         f"prunable — Git reports stale registration "
                         f"({reg.prunable_reason or 'unspecified'}); apply removes the "
@@ -1072,13 +1074,17 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
 
     Deletes only clean stale worktrees, Git-reported prunable registrations,
     merged local branches without open PR, and untracked strays with recognized
-    junk signatures. Prunable registrations are removed exclusively through
-    `git worktree prune`; their directory contents are never touched.
+    junk signatures. Git is the only remover of worktrees: if
+    `git worktree remove --force` fails, the path and registration are preserved
+    and nothing is reported as deleted. Prunable registrations are removed
+    exclusively through `git worktree prune` (contents never touched), and a
+    deletion is only reported after a fresh porcelain relist confirms the
+    registration is actually gone.
     """
     primary = shared_checkout_root(root)
 
     # 1. Actionable worktrees
-    prunable_paths: list[str] = []
+    prunable_paths: list[tuple[str, str]] = []
     for wt in report.worktrees:
         if not wt.actionable:
             continue
@@ -1086,21 +1092,17 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
             # Registration-only removal through Git's own prune operation. Never
             # rm/rmtree: a prunable marker must never escalate to deleting a
             # live directory.
-            prunable_paths.append(_rel_path_str(wt.path, primary))
+            prunable_paths.append((_rel_path_str(wt.path, primary), str(wt.path)))
             continue
         rel = _rel_path_str(wt.path, primary)
-        # Remove worktree safely
+        # Git is the only remover: on failure fail closed (preserve path and
+        # registration, claim nothing).
         res = subprocess.run(
             ["git", "-C", str(primary), "worktree", "remove", "--force", str(wt.path)],
             capture_output=True, text=True, check=False,
         )
-        if res.returncode != 0 and wt.path.exists():
-            shutil.rmtree(wt.path, ignore_errors=True)
-            subprocess.run(
-                ["git", "-C", str(primary), "worktree", "prune"],
-                capture_output=True, text=True, check=False,
-            )
-        report.deleted_worktrees.append(rel)
+        if res.returncode == 0:
+            report.deleted_worktrees.append(rel)
 
     if prunable_paths:
         prune_res = subprocess.run(
@@ -1108,7 +1110,21 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
             capture_output=True, text=True, check=False,
         )
         if prune_res.returncode == 0:
-            report.deleted_worktrees.extend(prunable_paths)
+            # Verify with a fresh Git listing: report only registrations that
+            # prune actually removed.
+            relist = subprocess.run(
+                ["git", "-C", str(primary), "worktree", "list", "--porcelain"],
+                capture_output=True, text=True, check=False,
+            )
+            if relist.returncode == 0:
+                registered = {
+                    line.removeprefix("worktree ").strip()
+                    for line in relist.stdout.splitlines()
+                    if line.startswith("worktree ")
+                }
+                for rel, raw in prunable_paths:
+                    if raw not in registered:
+                        report.deleted_worktrees.append(rel)
 
     # 2. Actionable branches
     for branch in report.branches:

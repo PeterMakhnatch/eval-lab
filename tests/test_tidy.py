@@ -1420,3 +1420,143 @@ def test_unregistered_directory_is_never_inventoried(tmp_path: Path) -> None:
 
     findings = sweep_worktrees(root)
     assert findings == []  # never inferred from directory names
+
+
+def test_apply_fail_closed_when_git_remove_fails(tmp_path: Path) -> None:
+    """If git worktree remove fails after the sweep, nothing is deleted or claimed."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    stale_wt = worktrees_dir / "stale-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/stale-task", str(stale_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (stale_wt / "done.txt").write_text("done\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=stale_wt, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "stale task"],
+        cwd=stale_wt,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "merge", "--squash", "role/stale-task"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "squash stale task"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+    findings = sweep_worktrees(root)
+    assert len(findings) == 1 and findings[0].actionable is True
+
+    # State changes after the sweep: the registration gets locked, so Git refuses
+    # `worktree remove --force`. Tidy must fail closed.
+    subprocess.run(
+        ["git", "-C", str(root), "worktree", "lock", str(stale_wt)],
+        check=True,
+        capture_output=True,
+    )
+    report = apply_deletions(TidyReport(worktrees=findings, apply=True), root)
+
+    assert report.deleted_worktrees == []  # nothing claimed
+    assert (stale_wt / "done.txt").is_file()  # path preserved
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert str(stale_wt) in listing  # registration preserved
+
+
+def test_prunable_with_surviving_directory_reports_zero_bytes_and_reclaims_nothing(
+    tmp_path: Path,
+) -> None:
+    """Prunable metadata cleanup: 0 reported bytes, surviving directory untouched."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    orphan_wt = tmp_path / "orphan-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/orphan", str(orphan_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (orphan_wt / "precious.txt").write_text("still here\n", encoding="utf-8")
+    # Deleting only the worktree's .git pointer file makes Git report the
+    # registration prunable while the directory and its files survive.
+    (orphan_wt / ".git").unlink()
+
+    findings = sweep_worktrees(root)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.status == "prunable"
+    assert finding.actionable is True
+    assert finding.size_bytes == 0  # metadata-only removal: nothing counted
+
+    report = apply_deletions(TidyReport(worktrees=findings, apply=True), root)
+    assert report.deleted_worktrees == [str(orphan_wt)]  # registration gone...
+    assert (orphan_wt / "precious.txt").is_file()  # ...but contents reclaimed never
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert str(orphan_wt) not in listing
+
+
+def test_prune_noop_is_not_claimed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prune that succeeds without removing anything is not reported as a deletion."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    external_wt = tmp_path / "vanished-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/vanish-wt", str(external_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    shutil.rmtree(external_wt)  # registration becomes prunable
+
+    findings = sweep_worktrees(root)
+    assert len(findings) == 1 and findings[0].status == "prunable"
+
+    real_run = subprocess.run
+
+    def noop_prune_spy(cmd, **kwargs):
+        # Simulate a raced prune: reports success but changes nothing.
+        if "prune" in cmd:
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", noop_prune_spy)
+    report = apply_deletions(TidyReport(worktrees=findings, apply=True), root)
+
+    assert report.deleted_worktrees == []  # relist still shows it: not claimed
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert str(external_wt) in listing

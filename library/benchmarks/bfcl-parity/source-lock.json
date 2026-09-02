@@ -1,0 +1,46 @@
+{
+  "schema_version": "bfcl-source-lock/v1",
+  "benchmark": "bfcl_parity",
+  "benchmark_version": "1.0",
+  "benchmark_surface": "instruction_to_result_file",
+  "license": "Apache-2.0",
+  "canonical_source": {
+    "repository": "https://github.com/ShishirPatil/gorilla.git",
+    "revision": "692f40b7a4865c018a6ae35ec9ad7fcaeded6552",
+    "path": "berkeley-function-call-leaderboard"
+  },
+  "parity_source": {
+    "repository": "https://github.com/Ternura143/gorilla.git",
+    "revision": "11e692dedc1f3a327af00b6ae2181889e6d4c708",
+    "canonical_parent_revision": "692f40b7a4865c018a6ae35ec9ad7fcaeded6552"
+  },
+  "adapter": {
+    "repository": "https://github.com/harbor-framework/harbor.git",
+    "pull_request_head_revision": "22a4e4353520dd26d7629e79fd8ea039cd922c2d",
+    "merge_revision": "364a072e5a31155fd6b127563cb0a0bd4e5654d8",
+    "version": "2.0"
+  },
+  "dataset": {
+    "repository": "https://github.com/harbor-framework/harbor-datasets.git",
+    "regeneration_revision": "fe68df5b1c6c83a60e42ea9ae43eeb9733f163b9",
+    "revision": "ceeec951001f03f5fffc6c593d2d16c430d3f89b",
+    "path": "datasets/bfcl_parity",
+    "task_count": 123
+  },
+  "canary_task": {
+    "name": "bfcl-live-simple-2-2-0",
+    "path": "datasets/bfcl_parity/bfcl-live-simple-2-2-0",
+    "material_digest": "sha256:1d16051a0b8427cd2f7d093d5e54b2daf0c6a8efb49b6c829520144f7df8ef37"
+  },
+  "registry": {
+    "status": "blocked_stale_legacy_pin",
+    "observed_harbor_revision": "657591ea60c419b06dee50ee1c40a2cc2e8269da",
+    "observed_dataset_revision": "6bedd7878dc5d6f3456b4d80b781eb3c2d84f262",
+    "required_action": "repin bfcl_parity to the locked dataset revision before registry-based execution"
+  },
+  "legacy_trial_policy": {
+    "dataset_revision": "6bedd7878dc5d6f3456b4d80b781eb3c2d84f262",
+    "analysis_eligibility": false,
+    "reason": "legacy simplified-Markdown bytes predate the April JSON-schema regeneration and cannot inherit this lineage"
+  }
+}

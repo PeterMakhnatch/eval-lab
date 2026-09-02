@@ -62,7 +62,7 @@ jobs:
             --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
             --license "MIT" \
             --zone "01-external" \
-            --credential OPENAI_API_KEY \
+            --credential TAU3_SIMULATOR_API_KEY \
             | tee artifacts/tau/plan.json
           candidate_id="$(jq -r '.candidate.candidate_id' artifacts/tau/plan.json)"
           test -n "$candidate_id"
@@ -70,8 +70,7 @@ jobs:
           echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
       - name: Run complete workbench controls
         env:
-          OPENAI_API_KEY: ci-unused-marker
-          OPENAI_BASE_URL: http://127.0.0.1:9/v1
+          TAU3_SIMULATOR_API_KEY: ci-unused-marker
         run: |
           set -euo pipefail
           uv run python -m evallab.task_workbench check "$TASK_PATH" \
@@ -79,7 +78,7 @@ jobs:
             --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
             --license "MIT" \
             --zone "01-external" \
-            --credential OPENAI_API_KEY \
+            --credential TAU3_SIMULATOR_API_KEY \
             --run-controls \
             | tee artifacts/tau/check.json
           test "$(jq -r '.disposition' artifacts/tau/check.json)" = "certified_for_review"
@@ -96,15 +95,14 @@ jobs:
             --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
             --license "MIT" \
             --zone "01-external" \
-            --credential OPENAI_API_KEY \
+            --credential TAU3_SIMULATOR_API_KEY \
             --controls "$controls" \
             --output-root "$packet_root" \
             | tee artifacts/tau/packet.json
           test "$(jq -r '.disposition' artifacts/tau/packet.json)" = "certified_for_review"
       - name: Produce durable exact-task controls
         env:
-          OPENAI_API_KEY: ci-unused-marker
-          OPENAI_BASE_URL: http://127.0.0.1:9/v1
+          TAU3_SIMULATOR_API_KEY: ci-unused-marker
         run: |
           set -euo pipefail
           jobs="research/evidence/runs"

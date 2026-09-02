@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fail-closed source and credential gates for the lean Tau lane."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,10 +12,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 DEFAULT_SIMULATOR_PROVIDER = "openai"
 DEFAULT_SIMULATOR_MODEL = "gpt-4o-mini-2024-07-18"
-DEFAULT_SIMULATOR_CREDENTIAL_ENV = "OPENAI_API_KEY"
+DEFAULT_SIMULATOR_CREDENTIAL_ENV = "TAU3_SIMULATOR_API_KEY"
+DEFAULT_SIMULATOR_BASE_URL_ENV = "TAU3_SIMULATOR_BASE_URL"
+REGISTERED_SIMULATOR_BASE_URL = "https://api.openai.com/v1"
 
 
 @dataclass(frozen=True)
@@ -85,8 +89,6 @@ def validate_source(root: Path, manifest: Mapping[str, Any]) -> Path:
     return root
 
 
-
-
 def credential_preflight(
     phase: str,
     *,
@@ -94,12 +96,15 @@ def credential_preflight(
     simulator_provider: str = DEFAULT_SIMULATOR_PROVIDER,
     simulator_model: str = DEFAULT_SIMULATOR_MODEL,
     simulator_credential_env: str = DEFAULT_SIMULATOR_CREDENTIAL_ENV,
+    simulator_base_url_env: str = DEFAULT_SIMULATOR_BASE_URL_ENV,
 ) -> Decision:
-    """Check presence/routing only; credential values never enter the decision."""
+    """Require a distinct, explicit cloud route for the simulated-user runtime."""
+    base_url = (env.get(simulator_base_url_env) or "").strip()
     sim_meta = {
         "provider": simulator_provider,
         "model": simulator_model,
         "credential_env": simulator_credential_env,
+        "base_url_env": simulator_base_url_env,
     }
     if phase in {"reference", "evaluation"}:
         key_val = (env.get(simulator_credential_env) or "").strip()
@@ -112,7 +117,46 @@ def credential_preflight(
                 f"requires {simulator_credential_env}; this is not a model or verifier failure.",
                 simulator_metadata=sim_meta,
             )
-    return Decision(phase, True, detail="Credential preflight passed.", simulator_metadata=sim_meta)
+        if not base_url:
+            return Decision(
+                phase,
+                False,
+                f"blocked:missing_{simulator_base_url_env.lower()}_for_simulated_user",
+                f"Harness route block: tau3 simulated-user runtime requires explicit {simulator_base_url_env}.",
+                simulator_metadata=sim_meta,
+            )
+        try:
+            parsed = urlsplit(base_url)
+            has_canonical_port = parsed.port is None
+        except ValueError:
+            parsed = None
+            has_canonical_port = False
+        if (
+            parsed is None
+            or base_url != REGISTERED_SIMULATOR_BASE_URL
+            or parsed.scheme != "https"
+            or parsed.hostname != "api.openai.com"
+            or parsed.username is not None
+            or parsed.password is not None
+            or not has_canonical_port
+            or parsed.query
+            or parsed.fragment
+        ):
+            return Decision(
+                phase,
+                False,
+                "blocked:unregistered_simulated_user_route",
+                f"Harness route block: the supplied value is not the exact registered "
+                f"{simulator_provider} cloud route.",
+                simulator_metadata=sim_meta,
+            )
+        sim_meta["base_url"] = REGISTERED_SIMULATOR_BASE_URL
+    return Decision(
+        phase,
+        True,
+        detail="Credential and cloud-route preflight passed.",
+        simulator_metadata=sim_meta,
+    )
 
 
 def preflight_tau_phase(
@@ -124,6 +168,7 @@ def preflight_tau_phase(
     simulator_provider: str = DEFAULT_SIMULATOR_PROVIDER,
     simulator_model: str = DEFAULT_SIMULATOR_MODEL,
     simulator_credential_env: str = DEFAULT_SIMULATOR_CREDENTIAL_ENV,
+    simulator_base_url_env: str = DEFAULT_SIMULATOR_BASE_URL_ENV,
 ) -> Decision:
     if source_root is not None and manifest is not None:
         try:
@@ -138,6 +183,7 @@ def preflight_tau_phase(
                     "provider": simulator_provider,
                     "model": simulator_model,
                     "credential_env": simulator_credential_env,
+                    "base_url_env": simulator_base_url_env,
                 },
             )
     return credential_preflight(
@@ -146,14 +192,13 @@ def preflight_tau_phase(
         simulator_provider=simulator_provider,
         simulator_model=simulator_model,
         simulator_credential_env=simulator_credential_env,
+        simulator_base_url_env=simulator_base_url_env,
     )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--phase", choices=["oracle", "reference", "evaluation"], default="oracle"
-    )
+    parser.add_argument("--phase", choices=["oracle", "reference", "evaluation"], default="oracle")
     parser.add_argument("--source", type=Path, default=None)
     parser.add_argument(
         "--manifest",
@@ -166,9 +211,7 @@ def main() -> int:
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     source = args.source or (
-        Path(os.environ["TAU2_BENCH_ROOT"])
-        if os.environ.get("TAU2_BENCH_ROOT")
-        else None
+        Path(os.environ["TAU2_BENCH_ROOT"]) if os.environ.get("TAU2_BENCH_ROOT") else None
     )
     decision = preflight_tau_phase(
         args.phase,

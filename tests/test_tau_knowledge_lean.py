@@ -103,6 +103,7 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
         'schema_version = "1.1"\n'
         '[task]\nname = "tau3-banking_knowledge-task-001"\n'
         '[verifier]\ntimeout_sec = 300.0\n'
+        'env = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n'
         '[agent]\ntimeout_sec = 3600.0\n'
         '[environment]\nenv = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n',
         encoding="utf-8",
@@ -124,6 +125,7 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
                 }
             ],
             "expected_communicate_info": [],
+            "reward_basis": ["DB"],
             "ground_truth": "hidden-database-state-for-task-001",
         },
         separators=(",", ":"),
@@ -152,7 +154,8 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     ).read_text(encoding="utf-8")
     verifier_config = task_toml.read_text(encoding="utf-8")
     assert 'environment_mode = "separate"' in verifier_config
-    assert '[verifier.environment]\nnetwork_mode = "no-network"' in verifier_config
+    assert "[verifier.environment]" not in verifier_config
+    assert "OPENAI_API_KEY" not in verifier_config
     assert 'artifacts = ["/app/tau3_runtime_state.json"]' in verifier_config
     assert "[[verifier.collect]]" in verifier_config
     assert (

@@ -128,6 +128,18 @@ def harden_verifier_environment(task_dir: Path, manifest: Mapping[str, Any]) -> 
     """Move Tau evaluator dependencies into a verifier-only container."""
     task_config = task_dir / "task.toml"
     text = task_config.read_text(encoding="utf-8")
+    config = json.loads((task_dir / "tests/config.json").read_text(encoding="utf-8"))
+    if config.get("reward_basis") == ["DB"]:
+        section = ""
+        lines: list[str] = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                section = stripped
+            if section == "[verifier]" and stripped.startswith("env ="):
+                continue
+            lines.append(line)
+        text = "\n".join(lines) + "\n"
     if "artifacts =" not in text:
         text = text.replace(
             'schema_version = "1.1"\n',
@@ -148,7 +160,7 @@ def harden_verifier_environment(task_dir: Path, manifest: Mapping[str, Any]) -> 
         "cp /logs/agent/tau3_runtime_state.json "
         '/app/tau3_runtime_state.json; fi"\n'
         'service = "main"\n\n'
-        '[verifier.environment]\nnetwork_mode = "no-network"\n\n[agent]\n',
+        '[agent]\n',
         1,
     )
     task_config.write_text(text, encoding="utf-8")

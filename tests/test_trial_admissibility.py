@@ -322,6 +322,22 @@ def test_finalization_atomically_generates_exactly_one_canonical_artifact(
     assert first.record.evaluated_at == NOW
 
 
+def test_agent_output_precedes_trial_result_as_outcome_source(tmp_path: Path) -> None:
+    job, trial, _ = _records(tmp_path)
+    agent_outcome = trial.path / "artifacts/app/output/result.json"
+    agent_outcome.parent.mkdir(parents=True)
+    agent_outcome.write_text(json.dumps({"answer": 42}), encoding="utf-8")
+
+    verified = finalize_trial_admissibility(
+        job=job,
+        trial=trial,
+        repo_root=tmp_path,
+    )
+
+    assert verified is not None
+    assert verified.record.source_paths.outcome == ("artifacts/app/output/result.json",)
+
+
 @pytest.mark.parametrize(
     ("case", "reason"),
     (

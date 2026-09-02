@@ -143,7 +143,13 @@ def _digest_file(path: Path) -> str:
     return f"sha256:{sha256(path.read_bytes()).hexdigest()}"
 
 
-def _resolve_one(root: Path, candidates: Sequence[str], source: str) -> tuple[Path, ...]:
+def _resolve_one(
+    root: Path,
+    candidates: Sequence[str],
+    source: str,
+    *,
+    prefer_first: bool = False,
+) -> tuple[Path, ...]:
     found: list[Path] = []
     for relative in candidates:
         candidate = root / relative
@@ -153,12 +159,12 @@ def _resolve_one(root: Path, candidates: Sequence[str], source: str) -> tuple[Pa
             )
         if candidate.is_file():
             found.append(candidate)
-    if len(found) > 1:
+    if len(found) > 1 and not prefer_first:
         aliases = ",".join(path.relative_to(root).as_posix() for path in found)
         raise TrialAdmissibilityError(
             f"trial_admissibility_invalid:ambiguous-{source}-sources:{aliases}"
         )
-    return tuple(found)
+    return tuple(found[:1] if prefer_first else found)
 
 
 def _resolve_sources(
@@ -187,7 +193,7 @@ def _resolve_sources(
         "trajectory": _resolve_one(root, _TRAJECTORY_CANDIDATES, "trajectory"),
         "final_state": _resolve_one(root, _FINAL_STATE_CANDIDATES, "final-state"),
         "verifier": verifier,
-        "outcome": _resolve_one(root, _OUTCOME_CANDIDATES, "outcome"),
+        "outcome": _resolve_one(root, _OUTCOME_CANDIDATES, "outcome", prefer_first=True),
         "interpretation": interpretation,
     }
 

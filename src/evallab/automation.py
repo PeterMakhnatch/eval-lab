@@ -505,23 +505,6 @@ def _analysis_stage_issue_reason(report: object, *, limit: int = 512) -> str | N
     return reason[:limit]
 
 
-def _quiet_command_succeeds(command: list[str]) -> bool:
-    """Run a health probe without retaining or emitting either output stream."""
-    try:
-        completed = subprocess.run(
-            command,
-            check=False,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-            env=subscription_environment(),
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return completed.returncode == 0
-
-
 class HeadlessDoctor:
     """Return boolean-only readiness without reading credential values into Python."""
 

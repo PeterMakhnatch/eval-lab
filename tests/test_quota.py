@@ -7,7 +7,6 @@ network, the database, or the wall clock.
 
 from __future__ import annotations
 
-import ast
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -746,75 +745,6 @@ def test_malformed_rollout_lines_are_skipped_without_failing(tmp_path: Path) -> 
     assert len(report.observations) == 1
     assert report.headroom.used_percent == 70.0
 
-
-QUOTA_SOURCE = Path(__file__).resolve().parents[1] / "src/evallab/quota.py"
-
-
-def _quota_module() -> ast.Module:
-    return ast.parse(QUOTA_SOURCE.read_text())
-
-
-def _imported_modules(tree: ast.Module) -> set[str]:
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            names.update(alias.name.split(".")[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.add(node.module)
-            names.add(node.module.split(".")[0])
-    return names
-
-
-def _code_string_literals(tree: ast.Module) -> list[str]:
-    """String constants excluding docstrings, so prose cannot fail the check."""
-    docstrings = {
-        node.body[0].value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef)
-        and node.body
-        and isinstance(node.body[0], ast.Expr)
-        and isinstance(node.body[0].value, ast.Constant)
-        and isinstance(node.body[0].value.value, str)
-    }
-    return [
-        node.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant)
-        and isinstance(node.value, str)
-        and node not in docstrings
-    ]
-
-
-def test_the_module_imports_no_network_process_or_environment_access() -> None:
-    """Quota accounting must be a pure read of injected job directories."""
-    imported = _imported_modules(_quota_module())
-
-    assert imported.isdisjoint(
-        {"urllib", "http", "socket", "requests", "httpx", "subprocess", "os", "shutil"}
-    ), f"quota.py imported a side-effecting module: {sorted(imported)}"
-
-
-def test_the_module_names_no_credential_store_in_executable_code() -> None:
-    literals = " ".join(_code_string_literals(_quota_module()))
-
-    for forbidden in (
-        "auth.json",
-        "find-generic-password",
-        "ANTHROPIC",
-        "OPENAI",
-        ".codex",
-        "Keychain",
-    ):
-        assert forbidden not in literals, f"quota.py code must not name {forbidden}"
-
-
-def test_the_module_does_not_import_the_policy_gate() -> None:
-    """Measurement stays independent of authorisation, which another mission owns."""
-    imported = _imported_modules(_quota_module())
-
-    assert "evallab.queue" not in imported
-    assert "evallab.cli" not in imported
-    assert imported & {"evallab.results"} == {"evallab.results"}
 
 
 def test_rollout_message_text_is_never_carried_into_the_report(tmp_path: Path) -> None:

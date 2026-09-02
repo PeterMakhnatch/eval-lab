@@ -21,11 +21,11 @@ from evallab.authoring import (
     SEED_CLASS_PASS_RATE_SQL,
     AuthoringError,
     AuthoringPipeline,
+    NovelSpecPlan,
     QualificationRecord,
     RegisterRefusal,
     StructuralControlRunner,
     bump_version,
-    design_novel_spec,
     find_all_craft_gaps,
     find_craft_gap,
     generate_stub_task,
@@ -230,8 +230,6 @@ class FakeDesignerAdapter:
         )
 
 
-
-
 def test_model_adapter_proposal_reaches_quarantine_with_complete_provenance(
     tmp_path: Path,
 ) -> None:
@@ -248,12 +246,14 @@ def test_model_adapter_proposal_reaches_quarantine_with_complete_provenance(
     assert provenance["spec_schema_version"] == "spec/1"
     assert provenance["model"] == adapter.model
     assert provenance["transport"] == adapter.transport
-    assert provenance["prompt_sha256"] == __import__("hashlib").sha256(
-        adapter.prompts[0].encode("utf-8")
-    ).hexdigest()
-    assert provenance["raw_output_sha256"] == __import__("hashlib").sha256(
-        adapter.output.encode("utf-8")
-    ).hexdigest()
+    assert (
+        provenance["prompt_sha256"]
+        == __import__("hashlib").sha256(adapter.prompts[0].encode("utf-8")).hexdigest()
+    )
+    assert (
+        provenance["raw_output_sha256"]
+        == __import__("hashlib").sha256(adapter.output.encode("utf-8")).hexdigest()
+    )
     assert adapter.schemas == [MODEL_SPEC_RESPONSE_SCHEMA]
     assert "chain-of-thought" in adapter.prompts[0]
     assert "raw_output" not in manifest
@@ -275,9 +275,7 @@ def test_model_designer_failures_leave_no_partial_proposal(
         )
     else:
         adapter = FakeDesignerAdapter(
-            error=ModelAdapterExecutionError(
-                "failed", returncode=7, argv=["fake"], stderr="failed"
-            )
+            error=ModelAdapterExecutionError("failed", returncode=7, argv=["fake"], stderr="failed")
         )
 
     pipe = pipeline_for(repo, adapter=adapter)
@@ -298,6 +296,8 @@ def test_model_designer_duplicate_coordinates_are_refused(tmp_path: Path) -> Non
 
     assert [record.proposal_id for record in pipe.records()] == [first.proposal_id]
     assert sorted(path.name for path in pipe.quarantine.iterdir()) == [first.proposal_id]
+
+
 def test_bump_version_never_returns_source() -> None:
     assert bump_version("1.0.0") == "1.0.1"
     assert bump_version("2.3") == "2.4.0"
@@ -1152,12 +1152,12 @@ def test_ledger_duplicate_exclusion(tmp_path: Path) -> None:
     assert all(s["name"] != initial["name"] for s in new_specs)
 
 
-def test_multi_phase_novel_spec_mode_with_injected_stub(tmp_path: Path) -> None:
-    """Multi-phase novel-spec mode works with injected designer stub and default stub."""
+def test_multi_phase_novel_spec_mode_requires_an_explicit_designer(tmp_path: Path) -> None:
+    """Novel sampling carries its designer in the request instead of a test fallback."""
     repo = make_repo(tmp_path)
     derived = repo / "derived" / "parquet"
 
-    # 1. Custom injected designer stub
+    # Explicit deterministic designer; production supplies ModelBackedDesigner.
     def custom_designer(topic: str, style: str) -> dict[str, Any]:
         return {
             "schema_version": "spec/1",
@@ -1179,8 +1179,7 @@ def test_multi_phase_novel_spec_mode_with_injected_stub(tmp_path: Path) -> None:
         repo,
         count=10,
         derived_root=derived,
-        novel_designer=custom_designer,
-        novel_count=4,
+        novel=NovelSpecPlan(count=4, designer=custom_designer),
     )
     novel_specs = [s for s in specs if s.get("provenance") == "novel-spec"]
     assert len(novel_specs) == 4
@@ -1188,12 +1187,19 @@ def test_multi_phase_novel_spec_mode_with_injected_stub(tmp_path: Path) -> None:
         assert ns["name"].startswith("injected-")
         assert ns["category"].startswith("synth-")
 
-    # 2. Default deterministic designer stub (invokes no provider)
-    default_spec = design_novel_spec("distributed-tracing", "incident-emergency")
-    assert default_spec["provenance"] == "novel-spec"
-    assert default_spec["category"] == "novel-distributed-tracing"
-    assert default_spec["scenario"] == "novel-incident-emergency"
-    assert default_spec["difficulty"] == "intermediate"
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        ["sample", "--count", "0"],
+        ["sample", "--novel", "-1"],
+    ),
+)
+def test_sample_cli_rejects_invalid_counts_during_argument_parsing(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        main(arguments)
 
 
 def test_proposal_records_axis_coordinates_lineage(tmp_path: Path) -> None:

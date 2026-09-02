@@ -591,12 +591,11 @@ def collect_findings(
 ) -> list[RecipeFinding]:
     findings: list[RecipeFinding] = []
     for trial_id, selected in sorted(selections.items()):
-        try:
-            artifacts: TrialArtifacts = load_trial_artifacts(
-                analyses_dir, trial_id, digest=selected.digest
-            )
-        except TypeError:  # Supports focused tests that monkeypatch the pre-amendment two-arg seam.
-            artifacts = load_trial_artifacts(analyses_dir, trial_id)
+        artifacts: TrialArtifacts = load_trial_artifacts(
+            analyses_dir,
+            trial_id,
+            digest=selected.digest,
+        )
         pack_path = getattr(artifacts, "pack_path", None)
         if pack_path and Path(pack_path).parent.name != selected.digest:
             raise ValueError(

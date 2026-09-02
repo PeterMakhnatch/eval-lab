@@ -80,7 +80,6 @@ from evallab.runner import (
     transient_provider_exception,
 )
 from evallab.schemas import (
-    EXPERIMENT_PURPOSES,
     AutoRunRule,
     ExperimentSpec,
     PolicyDecision,
@@ -127,41 +126,6 @@ def authorization_required_message(spec: ExperimentSpec) -> str:
         f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
         "  then run:  uv run evallab tick\n"
         "The free oracle and nop controls are unaffected and still run unattended."
-    )
-
-
-def purposeless_spec_message(spec: ExperimentSpec) -> str:
-    """The refusal for a spec that does not say why it exists.
-
-    `ExperimentSpec.purpose` is required, so validation is the first and
-    strongest rejection: a purposeless spec cannot be submitted at all. This
-    message backs the *dispatch-time* refusal asked for by `docs/build-plan.md`
-    WS-E item 1, which is not redundant with validation. Readers that
-    deliberately tolerate an unparseable spec are growing — `status.py`
-    reports one as an error string rather than raising, and the digest does the
-    same — so a spec can be *read* without ever being validated. This keeps
-    "tolerant enough to display" from becoming "tolerant enough to run", and
-    also catches a `model_construct` bypass.
-
-    Names the allowed values, because the operator's next action is to pick one.
-    """
-    declared = getattr(spec, "purpose", None)
-    allowed = " | ".join(EXPERIMENT_PURPOSES)
-    subject = spec.spec_id or spec.name
-    heading = (
-        f"spec {subject} declares no purpose"
-        if declared is None
-        else (
-            f"spec {subject} declares purpose {declared!r}, which is not a purpose "
-            "this lab recognises"
-        )
-    )
-    return (
-        f"{heading}. Every experiment spec must declare its intent so work can be "
-        "grouped, budgeted, and reviewed by intent rather than merely listed.\n"
-        f"  allowed values: {allowed}\n"
-        '  fix: set "purpose" in the spec file to one of the values above, then '
-        "resubmit with `uv run evallab submit <spec.json>`"
     )
 
 
@@ -439,17 +403,6 @@ class PolicyGate:
         consecutive_harness_failures: int = 0,
         authorization: PaidRunAuthorization | None = None,
     ) -> PolicyDecision:
-        # First, because a spec that does not say why it exists is not a
-        # question this gate can answer — and because this costs no filesystem
-        # read, unlike the registry resolution below. A purposeless *billable*
-        # spec is still refused, just named by its more proximate defect; no
-        # spec is admitted here that was admitted before.
-        if getattr(spec, "purpose", None) not in EXPERIMENT_PURPOSES:
-            return PolicyDecision(
-                admitted=False,
-                reason_code="purposeless_spec",
-                message=purposeless_spec_message(spec),
-            )
 
         if spec.task.startswith("registered/"):
             reg = self.registry

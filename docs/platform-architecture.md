@@ -473,19 +473,20 @@ Build protocol: E00, E02, E04, E05, E07, E11, E12, E13, E14, E16, E18, and SG-1.
 have shipped; E01 and E03 and E10 are partial; remaining epics (E08, E09, E17 SFT
 export, E-board) remain unbuilt.
 
-**The model-call seams are unimplemented, which no epic row states.** Three injection
-points exist and every default is a refusing stub, so the study loop cannot close on a
-real model today regardless of spend authorisation:
+**Two analysis model-call seams remain unimplemented.** Their defaults refuse
+rather than fabricate model output. Authoring is different: novel-spec sampling
+now requires a `NovelSpecPlan` that pairs the requested count with an explicit
+model-backed designer, so it has no local test fallback.
 
-| Seam | Default | Behaviour |
+| Surface | Default | Behaviour |
 |---|---|---|
 | `analyst.ModelAnalyzer.analyze()` | — | raises `ModelProviderRefusedError` **even when `--model` is supplied** (`analyst.py:150`) |
 | `analysis_worker.AnalyzerCallable` | `_no_adapter` | raises `no analysis adapter is wired` (`analysis_worker.py:657`) |
-| `authoring.design_novel_spec(designer=…)` | `local_test_designer` | deterministic test-only fallback; production `model-propose` requires explicit pinned model and transport (`authoring.py`) |
+| `authoring.NovelSpecPlan` | none | requires an explicit designer; production CLI requires pinned model and transport |
 
-Trial *execution* against real agents does work — the catalog holds 33 `codex` trials
-beside 57 `oracle` and 2 `nop` controls — so the gap is confined to the analysis and
-generation halves, and it is code, not policy.
+Trial *execution* and authoring against real agents are wired. The remaining
+model-call gap is confined to the analysis paths above, and it is code, not
+policy.
 
 ## 13. Non-goals and risks (unchanged from v1)
 

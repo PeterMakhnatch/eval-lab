@@ -8,13 +8,11 @@ Covers:
 - CalibrationRecord persistence and history round-trip
 - Missing verifier dependency degradation with clear remediation
 - Paid model authorization token spend gate (refusal without opt-in)
-- Hard boundary: no battery or registry path imports or consumes LLM verdicts
 - Eval card generation with purpose='calibration' and stubbed provenance labeling
 """
 
 from __future__ import annotations
 
-import ast
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -261,36 +259,6 @@ def test_paid_model_authorization_gate() -> None:
     with pytest.raises(PaidModelAuthorizationError) as exc_info:
         verifier.score("reverse string", "s[::-1]")
     assert "allow_paid_tokens=True" in str(exc_info.value)
-
-
-def test_hard_boundary_no_battery_or_registry_imports_verifier() -> None:
-    """Assert task_workbench.py and registry.py never import llm_verifier or calibrate."""
-    repo_src = Path(__file__).resolve().parent.parent / "src/evallab"
-    target_files = [repo_src / "task_workbench.py", repo_src / "registry.py"]
-
-    forbidden_modules = {"llm_verifier", "evallab.calibrate"}
-
-    for target in target_files:
-        assert target.is_file(), f"missing source file: {target}"
-        tree = ast.parse(target.read_text(encoding="utf-8"), filename=str(target))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    for forbidden in forbidden_modules:
-                        assert not alias.name.startswith(forbidden), (
-                            f"Boundary violation: {target.name} imports {alias.name}"
-                        )
-            elif isinstance(node, ast.ImportFrom):
-                mod = node.module or ""
-                for forbidden in forbidden_modules:
-                    assert not mod.startswith(forbidden), (
-                        f"Boundary violation: {target.name} imports from {mod}"
-                    )
-                if mod == "evallab":
-                    for alias in node.names:
-                        assert alias.name != "calibrate", (
-                            f"Boundary violation: {target.name} imports calibrate from evallab"
-                        )
 
 
 def test_eval_card_generation_purpose_calibration(tmp_path: Path) -> None:

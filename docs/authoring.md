@@ -102,7 +102,7 @@ Unlike the paper (arXiv:2607.27929) which samples the axis space randomly, this 
 
 1. **Primary — CRAFT Gap Queries**: Queries unexercised facet combinations (`verifier_type × env_multi_container × pinned_deps`) with zero coverage in `derived/parquet/craft/craft.parquet`. All available craft gaps are emitted first.
 2. **Secondary — Random Axis Product**: Samples uniformly from the Cartesian product of `category × scenario × difficulty` to fill the remaining requested batch count once gaps are exhausted.
-3. **Multi-Phase Novel-Spec Mode**: The production CLI requires an explicitly pinned `--model` and `--transport`; model calls spend subscription quota. Tests and offline controls may inject the explicitly named `local_test_designer`, which never invokes a provider.
+3. **Multi-Phase Novel-Spec Mode**: The production CLI requires an explicitly pinned `--model` and `--transport`; model calls spend subscription quota. The resulting `NovelSpecPlan` always pairs a positive requested count with its model-backed designer. There is no deterministic production fallback.
 
 ### 3. Ledger Deduplication and Lineage
 

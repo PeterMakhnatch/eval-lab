@@ -545,8 +545,6 @@ def _registry_package_digest_from_entries(
     return f"sha256:{aggregate.hexdigest()}"
 
 
-def _registry_package_digest(root: Path) -> str:
-    return _registry_package_digest_from_entries(_tree_entries(root))
 
 
 def _verifier_output_digest(trial_dir: Path) -> str | None:

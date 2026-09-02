@@ -147,8 +147,8 @@ ExperimentPurpose = Literal[
     "practice",
 ]
 
-#: The allowed values as data, derived from the type so a refusal can name them
-#: and the two can never drift. ``queue.purposeless_spec_message`` prints these.
+#: The allowed values as data, derived from the type for callers that enumerate
+#: valid research purposes.
 EXPERIMENT_PURPOSES: tuple[ExperimentPurpose, ...] = get_args(ExperimentPurpose)
 
 #: The only research purposes allowed to feed causal comparisons, capability

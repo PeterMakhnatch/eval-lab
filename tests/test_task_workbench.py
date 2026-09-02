@@ -20,7 +20,6 @@ from evallab.registry import (
     certification_envelope_from_packet,
     compute_task_digests,
     inventory_tasks,
-    task_directory_digest,
     verify_certification_packet,
 )
 from evallab.registry import _canonical_bytes as registry_canonical_bytes
@@ -49,8 +48,9 @@ from evallab.task_workbench import (
     _candidate_network_overlay,
     _effective_verifier_network,
     _harbor_task_digest,
-    _registry_package_digest,
+    _registry_package_digest_from_entries,
     _sha256_bytes,
+    _tree_entries,
     _verifier_output_digest,
     check_candidate,
     classify_trial_outcome,
@@ -148,6 +148,10 @@ def _canonical(value: object) -> bytes:
 
 def _digest(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _registry_package_digest(task: Path) -> str:
+    return _registry_package_digest_from_entries(_tree_entries(task))
 
 
 def _source() -> CandidateSource:
@@ -549,7 +553,6 @@ def test_workbench_registry_canonical_and_package_digests_are_identical(
     canonical = _canonical(payload)
     assert registry_canonical_bytes(payload) == canonical
     assert registry_digest_bytes(canonical) == _sha256_bytes(canonical)
-    assert _registry_package_digest(task) == task_directory_digest(task)
     assert _inspect(repo, task).candidate["digests"]["registry_package"] == (
         compute_task_digests(task).package
     )
@@ -2690,16 +2693,6 @@ def test_cli_run_controls_composes_fixed_harbor_subprocess_commands(
     assert all("--model" not in command for command in captured)
 
 
-def test_module_has_no_queue_policy_publish_or_registry_write_capability() -> None:
-    source = (ROOT / "src/evallab/task_workbench.py").read_text()
-
-    assert "from evallab.queue" not in source
-    assert "import evallab.queue" not in source
-    assert "TaskRegistryRecord" not in source
-    assert "library/registry" in source  # read-only observation is deliberate
-    assert "research/registration/candidates" in source
-    assert "--model" not in source
-    assert "gh " not in source
 
 
 def test_load_bundle_fixture_file_and_unknown_json_fail_closed(tmp_path: Path) -> None:

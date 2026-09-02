@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from evallab.recovery.bundle import (
     FileEntry,
     PackageInventory,
@@ -13,10 +11,6 @@ from evallab.recovery.certify import (
     certify_state_restoration,
     evaluate_package_equivalence,
     evaluate_process_and_service_state,
-)
-from evallab.recovery.wrapper import (
-    RecoveryTrialConfig,
-    evaluate_paired_recovery_trial,
 )
 
 
@@ -99,42 +93,3 @@ def test_adversarial_idempotency_divergence_fails_certification():
     assert cert.overall_status == "FAIL"
     assert cert.idempotent_pass is False
     assert any(c.name == "idempotency_check" and c.status == "FAIL" for c in cert.criteria)
-
-
-def test_adversarial_wrapper_refuses_uncertified_bundle():
-    bundle, archive_bytes = build_recovery_bundle(
-        task_id="task-fail",
-        task_digest="sha256:1",
-        base_image="img",
-        base_image_digest="sha256:2",
-        verifier_digest="sha256:3",
-        source_trial_id="t-1",
-        source_atif_path="p",
-        source_atif_digest="sha256:4",
-        step_cutoff=1,
-        command_ledger=[],
-        file_entries=[FileEntry(path="/app/f.txt", mode=0o644, size_bytes=10, sha256="hash1")],
-        archive_bytes=b"ARCHIVE",
-        package_inventory=PackageInventory(),
-        process_inventory=ProcessInventory(),
-        raw_env={},
-    )
-
-    # Corrupt the archive to force a FAIL certificate
-    cert = certify_state_restoration(
-        bundle, b"CORRUPTED_BYTES", lambda: ([], PackageInventory(), [], True)
-    )
-    assert cert.overall_status == "FAIL"
-
-    config = RecoveryTrialConfig(
-        task_id="task-fail",
-        bundle=bundle,
-        certificate=cert,
-        message_mode="summary",
-        agent_name="codex",
-        agent_model="gpt-5.6",
-    )
-
-    err_msg = "Cannot execute recovery trial on uncertified state bundle"
-    with pytest.raises(ValueError, match=err_msg):
-        evaluate_paired_recovery_trial(config, "Instruction", {})

@@ -962,10 +962,6 @@ def _recorded_projection_exceptions_map(events_path: Path) -> dict[str, str]:
     return exceptions
 
 
-def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
-    return frozenset(_recorded_projection_exceptions_map(events_path).keys())
-
-
 def check_projection_invariant(
     database_url: str,
     output_root: Path,

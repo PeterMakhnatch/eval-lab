@@ -25,37 +25,7 @@ from evallab.cohort import (
     minimum_detectable_effect,
     required_tasks_for_effect,
 )
-from evallab.design_effect import (
-    clustered_minimum_detectable_effect as de_mde,
-)
-from evallab.design_effect import (
-    clustered_power_requirements as de_power,
-)
-from evallab.design_effect import (
-    clustered_required_tasks_for_effect as de_req,
-)
-from evallab.design_effect import (
-    design_effect as de_func,
-)
-from evallab.design_effect import (
-    effective_sample_size as de_eff,
-)
 
-# ===========================================================================
-# 1. Public API & Re-Export Parity
-# ===========================================================================
-
-
-def test_design_effect_module_exports_all_contract_symbols() -> None:
-    """The dedicated design_effect module re-exports the exact cohort functions."""
-    assert de_func is design_effect
-    assert de_eff is effective_sample_size
-    assert de_req is clustered_required_tasks_for_effect
-    assert de_mde is clustered_minimum_detectable_effect
-    assert de_power is clustered_power_requirements
-
-
-# ===========================================================================
 # 2. Deterministic Boundary & Exact Values
 # ===========================================================================
 

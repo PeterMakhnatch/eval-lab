@@ -517,12 +517,6 @@ def _numeric_summary(values: list[float]) -> dict[str, float | int | None]:
     }
 
 
-def _scored_reward(member: CohortMember) -> float:
-    if member.reward is None:
-        raise ValueError(f"trial {member.trial_id} has no scored reward")
-    return float(member.reward)
-
-
 def _pairing_value(member: CohortMember, pairing_key: str) -> str | None:
     value = getattr(member, pairing_key)
     return str(value) if value is not None else None

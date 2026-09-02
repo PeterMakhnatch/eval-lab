@@ -402,17 +402,6 @@ class _StreamingRedactor:
         return safe
 
 
-def _drain_redacted_output(
-    source: Any,
-    destination: Any,
-    secrets: frozenset[str],
-) -> None:
-    redactor = _StreamingRedactor(secrets)
-    while chunk := source.read(64 * 1024):
-        destination.write(redactor.feed(chunk))
-        destination.flush()
-    destination.write(redactor.finish())
-    destination.flush()
 
 
 def assert_no_secret_material(
@@ -965,14 +954,6 @@ def run_harbor_process(
         _unlink_secret_dir(owned_usage_dir, owned_usage_path)
 
 
-def _tail_text(path: Path, *, limit_bytes: int = 1_000_000) -> str:
-    if not path.is_file():
-        return ""
-    with path.open("rb") as source:
-        source.seek(0, os.SEEK_END)
-        size = source.tell()
-        source.seek(max(0, size - limit_bytes))
-        return source.read().decode(errors="replace")
 
 
 def _executor_log_path(request: RunRequest) -> Path:

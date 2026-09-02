@@ -47,29 +47,6 @@ class CatalogEntry:
     projected: bool = False
 
 
-class MemoryCatalog:
-    """In-memory catalog used by tests and as the default injectable store."""
-
-    def __init__(self, entries: Iterable[CatalogEntry] = ()) -> None:
-        self._entries = {item.job_id: item for item in entries}
-
-    def get(self, job_id: str) -> CatalogEntry | None:
-        return self._entries.get(job_id)
-
-    def set_path(self, job_id: str, evidence_path: str) -> None:
-        existing = self._entries.get(job_id)
-        if existing is None:
-            self._entries[job_id] = CatalogEntry(
-                job_id=job_id, evidence_path=evidence_path, ingested=True, projected=True
-            )
-            return
-        existing.evidence_path = evidence_path
-
-    def lookup_path(self, job_id: str) -> str | None:
-        entry = self.get(job_id)
-        return None if entry is None else entry.evidence_path
-
-
 @dataclass(frozen=True)
 class GcAction:
     action: ActionKind

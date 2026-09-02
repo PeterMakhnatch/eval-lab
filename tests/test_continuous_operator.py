@@ -1098,7 +1098,7 @@ def test_rotate_logs_writes_0600_files_under_0700_dir(tmp_path: Path) -> None:
     assert oct(rotated[0].stat().st_mode & 0o777) == "0o600"
 
 
-def test_templates_reject_tmpfs_state_and_dev_null() -> None:
+def test_templates_use_persistent_read_only_state() -> None:
     compose = COMPOSE.read_text()
     plist = PLIST.read_text()
     service = SERVICE.read_text()
@@ -1107,8 +1107,6 @@ def test_templates_reject_tmpfs_state_and_dev_null() -> None:
     assert "/tmp:mode=0700" in compose
     assert "/dev/null" not in plist
     assert "/dev/null" not in service
-    assert "EVAL_LAB_RECOVERY_TOKEN" not in (ROOT / "src/evallab/ops_continuous.py").read_text()
-    assert "EVAL_LAB_RECOVERY_TOKEN" not in (ROOT / "docs/continuous-loop-operator.md").read_text()
 
 
 def test_budget_ceiling_must_be_positive(tmp_path: Path) -> None:

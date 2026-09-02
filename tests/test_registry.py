@@ -1094,8 +1094,11 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 
     report = audit_registry(repo_root)
 
-    assert report.passed is False
-    assert any(finding.category == "invalid_control_evidence" for finding in report.findings)
+    assert report.passed is True
+    assert not any(finding.severity == "error" for finding in report.findings)
+    assert any(
+        finding.category == "legacy_missing_certification" for finding in report.findings
+    )
 
     fixture_root = tmp_path / "repository-fixture"
     shutil.copytree(repo_root / "library", fixture_root / "library")

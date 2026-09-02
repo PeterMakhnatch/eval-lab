@@ -8,7 +8,6 @@ from evallab.gc import (
     COMPRESS_AFTER,
     PRUNE_AFTER,
     CatalogEntry,
-    MemoryCatalog,
     apply_gc,
     archive_path,
     catalog_path_exists,
@@ -21,6 +20,18 @@ from evallab.gc import (
     tombstone_path,
 )
 from evallab.queue import DirectoryQueue
+
+
+class MemoryCatalog:
+    def __init__(self, entries: list[CatalogEntry]) -> None:
+        self._entries = {entry.job_id: entry for entry in entries}
+
+    def get(self, job_id: str) -> CatalogEntry | None:
+        return self._entries.get(job_id)
+
+    def set_path(self, job_id: str, evidence_path: str) -> None:
+        entry = self._entries[job_id]
+        entry.evidence_path = evidence_path
 
 
 def write_json(path: Path, value: object) -> None:

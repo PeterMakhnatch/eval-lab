@@ -1456,11 +1456,6 @@ def admission_reason(ctx: OperatorContext) -> str | None:
     return None
 
 
-def _fenced_mode(state_dir: Path) -> str | None:
-    mode = read_mode(state_dir)
-    if mode in {"KILLED", "DRAINING"}:
-        return mode
-    return None
 
 
 def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
@@ -1515,8 +1510,6 @@ def _load_leases(state_dir: Path) -> tuple[list[dict[str, Any]] | None, str | No
     return leases, None
 
 
-def _leases_unsettled(state_dir: Path) -> bool:
-    return fenced_leases_unsettled(state_dir) is not None
 
 
 def _lease_evidence(item: Mapping[str, Any]) -> bool:

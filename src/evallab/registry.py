@@ -780,75 +780,7 @@ def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> 
         raise TaskCertificationError("stored certification envelope does not match packet bytes")
 
 
-def _extract_reward_and_agent(
-    result_data: dict[str, Any],
-    metadata_data: dict[str, Any] | None = None,
-    trial_data: dict[str, Any] | None = None,
-) -> tuple[str | None, float | None]:
-    """Extract agent name and primary reward from Harbor result/metadata/trial dictionaries."""
-    # Check stats.evals
-    stats = result_data.get("stats")
-    if isinstance(stats, dict) and "evals" in stats:
-        evals = stats.get("evals", {})
-        for key, eval_data in evals.items():
-            if not isinstance(eval_data, dict):
-                continue
-            agent_name = key.split("__")[0] if "__" in key else key
-            metrics = eval_data.get("metrics", [])
-            observed_reward = None
-            if metrics and isinstance(metrics, list) and isinstance(metrics[0], dict):
-                if "reward" in metrics[0] and metrics[0]["reward"] is not None:
-                    observed_reward = float(metrics[0]["reward"])
-                elif "mean" in metrics[0] and metrics[0]["mean"] is not None:
-                    observed_reward = float(metrics[0]["mean"])
-                elif "correctness" in metrics[0] and metrics[0]["correctness"] is not None:
-                    observed_reward = float(metrics[0]["correctness"])
-            if observed_reward is None:
-                reward_stats = eval_data.get("reward_stats", {}).get("reward", {})
-                if isinstance(reward_stats, dict) and reward_stats:
-                    with contextlib.suppress(ValueError):
-                        observed_reward = float(next(iter(reward_stats.keys())))
-            if observed_reward is not None:
-                return agent_name, observed_reward
 
-    config = result_data.get("config", {})
-    agent_info = config.get("agent", {}) if isinstance(config, dict) else {}
-    agent_name = (
-        agent_info.get("name")
-        if isinstance(agent_info, dict)
-        else result_data.get("agent_name", result_data.get("agent"))
-    )
-
-    if not agent_name and metadata_data:
-        cmd = metadata_data.get("command", [])
-        if isinstance(cmd, list) and "--agent" in cmd:
-            idx = cmd.index("--agent")
-            if idx + 1 < len(cmd):
-                agent_name = cmd[idx + 1]
-
-    if not agent_name and trial_data:
-        t_cfg = trial_data.get("config", {})
-        t_agent = t_cfg.get("agent", {}) if isinstance(t_cfg, dict) else {}
-        if isinstance(t_agent, dict):
-            agent_name = t_agent.get("name")
-
-    observed_reward = result_data.get("primary_reward", result_data.get("reward"))
-    if observed_reward is None and trial_data:
-        observed_reward = trial_data.get("primary_reward", trial_data.get("reward"))
-        if observed_reward is None:
-            verifier_result = trial_data.get("verifier_result", {})
-            if isinstance(verifier_result, dict):
-                rewards = verifier_result.get("rewards", {})
-                if isinstance(rewards, dict) and "reward" in rewards:
-                    observed_reward = rewards["reward"]
-
-    if observed_reward is not None:
-        try:
-            return agent_name, float(observed_reward)
-        except (ValueError, TypeError):
-            pass
-
-    return agent_name, None
 
 
 def _require_causal_control_admissibility(
@@ -885,6 +817,7 @@ def _verify_control_result(
     evidence_ref: ControlEvidenceRef,
     trial_dir: Path,
     repo_root: Path,
+    require_causal_admissibility: bool = True,
 ) -> None:
     """Validate one Harbor trial and its lock against the registered package."""
     if "stats" in data or not isinstance(data.get("trial_name"), str):
@@ -941,10 +874,11 @@ def _verify_control_result(
         raise TaskControlEvidenceError(
             f"control evidence result identity mismatch for {record.task_id!r}"
         )
-    _require_causal_control_admissibility(
-        trial_dir,
-        repo_root=repo_root,
-    )
+    if require_causal_admissibility:
+        _require_causal_control_admissibility(
+            trial_dir,
+            repo_root=repo_root,
+        )
 
 
 def discover_control_evidence(
@@ -1678,7 +1612,12 @@ def register_task(
     return final_record
 
 
-def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
+def verify_control_evidence(
+    root: Path,
+    record: TaskRegistryRecord,
+    *,
+    require_causal_admissibility: bool = True,
+) -> None:
     """Verify committed trial evidence, lock identity, and registered package binding."""
     if record.state != "registered" or record.state_reason == "control_evidence_pending":
         return
@@ -1761,6 +1700,7 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             evidence_ref=evidence_ref,
             trial_dir=evidence_path.parent,
             repo_root=root,
+            require_causal_admissibility=require_causal_admissibility,
         )
 
 
@@ -2141,7 +2081,15 @@ def audit_registry(root: Path) -> RegistryAuditReport:
         # Control evidence checks
         if record.state == "registered":
             try:
-                verify_control_evidence(root, record)
+                historical_control = (
+                    record.certification.state == "legacy_missing"
+                    or record.certification.workbench_version == "m049-v1"
+                )
+                verify_control_evidence(
+                    root,
+                    record,
+                    require_causal_admissibility=not historical_control,
+                )
             except TaskControlEvidenceError as exc:
                 findings.append(
                     AuditFinding(

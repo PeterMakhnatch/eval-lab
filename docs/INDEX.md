@@ -35,7 +35,7 @@ inputs:
   - path: docs/attach-surface.md
     digest: sha256:24568c07fd8448f019f046f95811b1edd0913638f70bb35b6299f6f8c3d926b1
   - path: docs/authoring.md
-    digest: sha256:37669e0ed2770fc1c3b5c9c9baadc2ca4b3d2af4e3844c8da298c08d6ab9b5d9
+    digest: sha256:8f00e736868b836cc48d78855000a87ddf8f15ce3305922c690339c47002042d
   - path: docs/automated-trajectory-interpretation-architecture-v1.md
     digest: sha256:a2bdcb991c1e9ffe9be76f262643b15e0acc59f3e5848a26ac584fa905f5e869
   - path: docs/behavior-analysis.md
@@ -65,7 +65,7 @@ inputs:
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
-    digest: sha256:f8ff1992bebff72877c2b9068159406fcd0dad15c2f933fbee6f939741dc1dee
+    digest: sha256:002c22f07e6ec24ecb02567abfb1cbba2e34975c1898730e91e11131f8794519
   - path: docs/eval-cards.md
     digest: sha256:562c8c0fd75ff5265c7082cefc1699eff3670e875a1df02488e434272c3ef074
   - path: docs/execution-tiers.md
@@ -99,13 +99,13 @@ inputs:
   - path: docs/path-forward-2026-08.md
     digest: sha256:7d962f12c5de2135a0ebef6e656dac17938ed75e76f73a4f8d1fd9ea286e8b0e
   - path: docs/platform-architecture.md
-    digest: sha256:ae3fd732bfcc9dd3ed5e15ca358344a34afd0473dd43de820a6f70c8ebe5a6a5
+    digest: sha256:dfb3268d90be4a256a1483d0b199cd26f3bd549b2ac861675fb94b3ef51532a7
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:c70733e6841a456edc7f2f340e982469c37f5e1d91a79b4b1568f204453609f2
+    digest: sha256:725ba995fbc9c895ffbbe196dffcddadaf6fe8008aab19772d10f62125e54459
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

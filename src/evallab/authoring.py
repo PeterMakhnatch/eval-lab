@@ -655,29 +655,19 @@ def extract_ledger_coordinates(
     return coords
 
 
-def local_test_designer(topic_seed: str, style_constraint: str) -> dict[str, Any]:
-    """Deterministic designer reserved for tests and offline controls."""
-    clean_topic = topic_seed.strip().replace(" ", "-").lower()
-    clean_style = style_constraint.strip().replace(" ", "-").lower()
-    cat_name = f"novel-{clean_topic}"
-    scen_name = f"novel-{clean_style}"
-    return {
-        "schema_version": "spec/1",
-        "name": f"novel-{clean_topic}-{clean_style}",
-        "category": cat_name,
-        "scenario": scen_name,
-        "difficulty": "intermediate",
-        "summary": f"Novel designed task for topic '{topic_seed}' under style '{style_constraint}'",
-        "seed_class": "scenario",
-        "provenance": "novel-spec",
-        "axes": {
-            "category": cat_name,
-            "scenario": scen_name,
-            "difficulty": "intermediate",
-            "topic_seed": topic_seed,
-            "style_constraint": style_constraint,
-        },
-    }
+NovelDesigner = Callable[[str, str], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class NovelSpecPlan:
+    """A requested novel-spec count paired with the designer that can fulfill it."""
+
+    count: int
+    designer: NovelDesigner
+
+    def __post_init__(self) -> None:
+        if self.count < 1:
+            raise AuthoringError("novel spec count must be positive")
 
 
 def build_novel_spec_prompt(topic_seed: str, style_constraint: str) -> str:
@@ -748,17 +738,6 @@ class ModelBackedDesigner:
         return self.design(topic_seed, style_constraint).spec
 
 
-def design_novel_spec(
-    topic_seed: str,
-    style_constraint: str,
-    *,
-    designer: Callable[[str, str], dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    """Design a spec with an injected designer; local fallback is test-only."""
-    fn = designer or local_test_designer
-    return fn(topic_seed, style_constraint)
-
-
 def sample_spec_batch(
     repo_root: Path,
     count: int = 20,
@@ -766,8 +745,7 @@ def sample_spec_batch(
     derived_root: Path | None = None,
     seed: int = 42,
     template_dir: Path | None = None,
-    novel_designer: Callable[[str, str], dict[str, Any]] | None = None,
-    novel_count: int = 0,
+    novel: NovelSpecPlan | None = None,
 ) -> list[dict[str, Any]]:
     """Dimension-decoupled spec sampling for authoring pipeline, coverage-first (SG-2).
 
@@ -794,7 +772,7 @@ def sample_spec_batch(
     except AuthoringError:
         gaps = []
 
-    gap_limit = max(0, count - novel_count) if novel_count > 0 else count
+    gap_limit = max(0, count - novel.count) if novel is not None else count
     for idx, gap in enumerate(gaps):
         if len(emitted) >= gap_limit:
             break
@@ -837,19 +815,19 @@ def sample_spec_batch(
             emitted.append(spec_dict)
 
     # 2. Novel spec mode (if requested)
-    if novel_count > 0 and len(emitted) < count:
+    if novel is not None and len(emitted) < count:
         topic_seeds: list[str] = []
         for c in categories:
             topic_seeds.extend(c.get("topic_seeds", []))
         if not topic_seeds:
             topic_seeds = [c["slug"] for c in categories]
 
-        for i in range(novel_count):
+        for i in range(novel.count):
             if len(emitted) >= count:
                 break
             t_seed = topic_seeds[i % len(topic_seeds)]
             s_style = scenarios[i % len(scenarios)]["slug"]
-            novel_spec = design_novel_spec(t_seed, s_style, designer=novel_designer)
+            novel_spec = novel.designer(t_seed, s_style)
             coord = spec_coordinate_key(novel_spec)
             if coord not in seen_coords:
                 seen_coords.add(coord)
@@ -2414,8 +2392,7 @@ class AuthoringPipeline:
         count: int = 20,
         *,
         seed: int = 42,
-        novel_designer: Callable[[str, str], dict[str, Any]] | None = None,
-        novel_count: int = 0,
+        novel: NovelSpecPlan | None = None,
     ) -> list[dict[str, Any]]:
         """Sample specifications coverage-first via sample_spec_batch (SG-2)."""
         return sample_spec_batch(
@@ -2423,8 +2400,7 @@ class AuthoringPipeline:
             count=count,
             derived_root=self.derived_root,
             seed=seed,
-            novel_designer=novel_designer,
-            novel_count=novel_count,
+            novel=novel,
         )
 
     def propose_model(
@@ -3323,6 +3299,20 @@ timeout_sec = 60.0
     (solution / "solve.sh").write_text("#!/bin/bash\necho proposed\n")
 
 
+def _positive_int(raw: str) -> int:
+    value = int(raw)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return value
+
+
+def _nonnegative_int(raw: str) -> int:
+    value = int(raw)
+    if value < 0:
+        raise argparse.ArgumentTypeError("must be a non-negative integer")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m evallab.authoring",
@@ -3394,9 +3384,19 @@ def build_parser() -> argparse.ArgumentParser:
         "sample",
         help="sample task specs coverage-first (model novel mode spends subscription quota)",
     )
-    sample.add_argument("--count", type=int, default=20, help="number of specs to sample")
+    sample.add_argument(
+        "--count",
+        type=_positive_int,
+        default=20,
+        help="number of specs to sample",
+    )
     sample.add_argument("--seed", type=int, default=42, help="random seed for axis product")
-    sample.add_argument("--novel", type=int, default=0, help="number of novel specs to design")
+    sample.add_argument(
+        "--novel",
+        type=_nonnegative_int,
+        default=0,
+        help="number of novel specs to design",
+    )
     sample.add_argument("--model", default=None, help="explicit pinned model for --novel")
     sample.add_argument(
         "--transport",
@@ -3404,9 +3404,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=MODEL_TRANSPORTS,
         help="explicit transport for --novel; model calls spend subscription quota",
     )
-    sample.add_argument("--timeout", type=float, default=120.0)
     batch = subparsers.add_parser("batch", help="propose → battery → review; halt at the gate")
-    batch.add_argument("--count", type=int, default=5)
+    batch.add_argument("--count", type=_positive_int, default=5)
     return parser
 
 
@@ -3450,12 +3449,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         pipeline = _pipeline_from_args(args)
         if args.command == "sample":
-            designer = ModelBackedDesigner(pipeline.adapter) if pipeline.adapter else None
+            novel = (
+                NovelSpecPlan(
+                    count=args.novel,
+                    designer=ModelBackedDesigner(pipeline.adapter),
+                )
+                if args.novel > 0 and pipeline.adapter is not None
+                else None
+            )
             specs = pipeline.sample_specs(
                 count=args.count,
                 seed=args.seed,
-                novel_designer=designer,
-                novel_count=args.novel,
+                novel=novel,
             )
             gap_count = sum(1 for s in specs if s.get("provenance") == "craft-gap")
             rand_count = sum(1 for s in specs if s.get("provenance") == "random-product")

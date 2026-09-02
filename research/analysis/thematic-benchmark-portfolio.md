@@ -61,7 +61,7 @@ The exposure denominator is load-bearing. Recovery rate is undefined when no fau
 
 | Role | Benchmark | Contribution | Lane |
 |---|---|---|---|
-| **Initial anchor** | LoCoMo / RSI `locomo_longterm_memory` | Multi-session memory with the lowest current adapter cost | Native Harbor |
+| **Initial anchor** | LoCoMo / RSI `locomo_longterm_memory` | Multi-session memory with the lowest current adapter cost | Native Harbor; CC BY-NC 4.0 — non-commercial use and derivation only, derived data inherits NC (see source matrix) |
 | Support | [MemoryAgentBench](https://arxiv.org/abs/2507.05257) | Incremental interactions, retrieval and conflict resolution | Import/native task audit |
 | Controlled-growth candidate | [LOCA-bench](https://arxiv.org/abs/2602.07962) | Context growth as a manipulated variable | Watchlist pending method-level audit |
 | Internal controlled corpus | Eval Lab Action Memory and context-operation families | Write/read/use edges, compaction and session dependency | Native synthetic |
@@ -80,7 +80,7 @@ Retrieval and use must stay distinct. Repeating a remembered value is weaker evi
 | CORE-Bench | **Keep, limited support** | Activates dormant reproducibility and repair features |
 | ToolSandbox | **Keep, Theme 2 anchor as method precedent only** | Intermediate-state ground truth is more valuable than another endpoint score; Apple custom, all rights reserved licence — method/milestone precedent usable, code/data adoption blocked pending licence decision |
 | Existing MCP recovery / FuncDAG / tool composition | **Active cheap corpus** | Controlled opportunities already exist in Eval Lab |
-| LoCoMo | **Active next pilot** | Lowest-friction memory benchmark and direct Theme 3 coverage |
+| LoCoMo | **Active next pilot under CC BY-NC 4.0** | Lowest-friction memory benchmark and direct Theme 3 coverage; non-commercial use only, derived data inherits NC, and Harbor's existing `adapters/locomo` is already bound by those terms |
 | MemoryAgentBench | **Keep, support** | Adds update/conflict behavior absent from simple QA |
 | PaperBench | **Precedent first** | Rubric design is useful; full replication suite is expensive and overlaps Theme 1 |
 | AgentBoard | **Metric precedent** | Borrow subgoal-progress design instead of adding nine environments immediately |

@@ -80,6 +80,19 @@ class TrajectoryFact:
     completion_tokens: int | None
     cached_tokens: int | None
     cost_usd: float | None
+    capture_source: str | None = None
+    retained_request_count: int | None = None
+    inferred_total_call_lower_bound: int | None = None
+    assistant_turn_lower_bound: int | None = None
+    ring_buffer_truncated: bool | None = None
+    unknown_prefix: bool | None = None
+    per_call_metadata_complete: bool | None = None
+    unavailable_call_metadata: tuple[str, ...] | None = None
+    retained_request_paths: tuple[str, ...] | None = None
+    retained_request_sha256: tuple[str, ...] | None = None
+    tools_offered: tuple[str, ...] | None = None
+    tools_offered_sha256: str | None = None
+    harness_fault_signature: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +115,11 @@ class StepFact:
     tool_call_count: int
     observation_count: int
 
+    llm_source_path: str | None = None
+    llm_source_sha256: str | None = None
+    llm_metadata_available: bool = False
+    usage_status: str | None = None
+
 
 @dataclass(frozen=True)
 class ToolCallFact:
@@ -114,6 +132,9 @@ class ToolCallFact:
     tool_call_id: str
     function_name: str
     arguments_sha256: str
+
+    call_index: int | None = None
+    result_error_flag: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -131,6 +152,7 @@ class ObservationFact:
     subagent_ref_count: int
     subagent_refs_sha256: str | None
     command_exit_code: int | None
+    error_classification: str | None = None
 
 
 @dataclass(frozen=True)
@@ -658,6 +680,57 @@ def _project_payload(
     )
 
 
+def _atif_mechanical_capture_is_complete(
+    projections: list[TrialTrajectoryProjection],
+    llm_request_projection: TrialTrajectoryProjection,
+) -> bool:
+    """Return whether valid ATIF facts cover the request ring's known mechanics."""
+    valid_documents = {
+        trajectory.document_id
+        for projection in projections
+        for trajectory in projection.trajectories
+        if trajectory.validation_status == "valid"
+    }
+    if not valid_documents:
+        return False
+    projected_llm_calls = sum(
+        step.llm_call_count
+        for projection in projections
+        for step in projection.steps
+        if step.document_id in valid_documents
+    )
+    required_llm_calls = max(
+        (
+            trajectory.inferred_total_call_lower_bound or trajectory.llm_call_count
+            for trajectory in llm_request_projection.trajectories
+        ),
+        default=0,
+    )
+    projected_tool_calls = {
+        call.tool_call_id
+        for projection in projections
+        for call in projection.tool_calls
+        if call.document_id in valid_documents
+    }
+    required_tool_calls = {call.tool_call_id for call in llm_request_projection.tool_calls}
+    projected_results = {
+        observation.source_call_id
+        for projection in projections
+        for observation in projection.observations
+        if observation.document_id in valid_documents and observation.source_call_id is not None
+    }
+    required_results = {
+        observation.source_call_id
+        for observation in llm_request_projection.observations
+        if observation.source_call_id is not None
+    }
+    return (
+        projected_llm_calls >= required_llm_calls
+        and required_tool_calls <= projected_tool_calls
+        and required_results <= projected_results
+    )
+
+
 def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjection:
     queue = deque(_initial_candidates(trial))
     visited: set[Path] = set()
@@ -697,6 +770,13 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
             resolved = _resolve_reference(source_file, trial.path, reference)
             if resolved is not None and resolved.is_file():
                 queue.append(resolved)
+    from evallab.evidence.llm_request import project_llm_requests
+
+    llm_request_projection = project_llm_requests(job, trial)
+    if llm_request_projection is not None and not _atif_mechanical_capture_is_complete(
+        projections, llm_request_projection
+    ):
+        projections.append(llm_request_projection)
 
     return TrialTrajectoryProjection(
         trajectories=tuple(fact for projection in projections for fact in projection.trajectories),
@@ -738,6 +818,19 @@ PARQUET_SCHEMAS = {
             pa.field("completion_tokens", pa.int64()),
             pa.field("cached_tokens", pa.int64()),
             pa.field("cost_usd", pa.float64()),
+            pa.field("capture_source", pa.string()),
+            pa.field("retained_request_count", pa.int64()),
+            pa.field("inferred_total_call_lower_bound", pa.int64()),
+            pa.field("assistant_turn_lower_bound", pa.int64()),
+            pa.field("ring_buffer_truncated", pa.bool_()),
+            pa.field("unknown_prefix", pa.bool_()),
+            pa.field("per_call_metadata_complete", pa.bool_()),
+            pa.field("unavailable_call_metadata", pa.list_(pa.string())),
+            pa.field("retained_request_paths", pa.list_(pa.string())),
+            pa.field("retained_request_sha256", pa.list_(pa.string())),
+            pa.field("tools_offered", pa.list_(pa.string())),
+            pa.field("tools_offered_sha256", pa.string()),
+            pa.field("harness_fault_signature", pa.string()),
         ]
     ),
     "steps": pa.schema(
@@ -759,6 +852,10 @@ PARQUET_SCHEMAS = {
             pa.field("cost_usd", pa.float64()),
             pa.field("tool_call_count", pa.int64(), nullable=False),
             pa.field("observation_count", pa.int64(), nullable=False),
+            pa.field("llm_source_path", pa.string()),
+            pa.field("llm_source_sha256", pa.string()),
+            pa.field("llm_metadata_available", pa.bool_(), nullable=False),
+            pa.field("usage_status", pa.string()),
         ]
     ),
     "tool_calls": pa.schema(
@@ -772,6 +869,8 @@ PARQUET_SCHEMAS = {
             pa.field("tool_call_id", pa.string(), nullable=False),
             pa.field("function_name", pa.string(), nullable=False),
             pa.field("arguments_sha256", pa.string(), nullable=False),
+            pa.field("call_index", pa.int64()),
+            pa.field("result_error_flag", pa.bool_()),
         ]
     ),
     "observations": pa.schema(
@@ -789,6 +888,7 @@ PARQUET_SCHEMAS = {
             pa.field("subagent_ref_count", pa.int64(), nullable=False),
             pa.field("subagent_refs_sha256", pa.string()),
             pa.field("command_exit_code", pa.int64()),
+            pa.field("error_classification", pa.string()),
         ]
     ),
 }

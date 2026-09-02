@@ -29,6 +29,7 @@ from evallab.storage.parquet_compaction import (
     PROJECTED_TABLE_NAMES,
     TABLE_SCHEMAS,
     CompactionValidationError,
+    _read_table_or_empty,
     compact,
     count_table_rows,
     deduplicate_and_sort,
@@ -94,6 +95,7 @@ def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1)
             "cost_usd": 0.002,
             "tool_call_count": 1,
             "observation_count": 1,
+            "llm_metadata_available": False,
         }
     if table_name == "tool_calls":
         return {
@@ -293,6 +295,7 @@ def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1)
             "cost_usd": 0.002,
             "projection_status": "projected",
             "source_path": f"/path/to/doc-{index}.json",
+            "metadata_available": False,
         }
     if table_name == "trajectory_phases":
         return {
@@ -509,11 +512,13 @@ def test_resolve_job_date_from_runs_dir(tmp_path: Path) -> None:
     job_run_dir = runs_dir / "canary-job-2"
     job_run_dir.mkdir()
     (job_run_dir / "result.json").write_text(
-        json.dumps({
-            "id": "job-2",
-            "started_at": "2026-08-11T10:00:00Z",
-            "finished_at": "2026-08-11T10:05:00Z",
-        })
+        json.dumps(
+            {
+                "id": "job-2",
+                "started_at": "2026-08-11T10:00:00Z",
+                "finished_at": "2026-08-11T10:05:00Z",
+            }
+        )
     )
 
     resolved = resolve_job_date(job_dir, runs_dir=runs_dir)
@@ -563,6 +568,64 @@ def test_write_compact_table_schema_error(tmp_path: Path) -> None:
         write_compact_table(bad_table, target, "jobs")
 
     assert not target.exists()
+
+
+@pytest.mark.parametrize(
+    ("table_name", "removed", "expected"),
+    [
+        (
+            "trajectories",
+            {
+                "capture_source",
+                "retained_request_count",
+                "inferred_total_call_lower_bound",
+                "assistant_turn_lower_bound",
+                "ring_buffer_truncated",
+                "unknown_prefix",
+                "per_call_metadata_complete",
+                "unavailable_call_metadata",
+                "retained_request_paths",
+                "retained_request_sha256",
+                "tools_offered",
+                "tools_offered_sha256",
+                "harness_fault_signature",
+            },
+            {"capture_source": None, "tools_offered": None},
+        ),
+        (
+            "steps",
+            {
+                "llm_source_path",
+                "llm_source_sha256",
+                "llm_metadata_available",
+                "usage_status",
+            },
+            {"llm_metadata_available": False, "usage_status": None},
+        ),
+        (
+            "llm_calls",
+            {"source_sha256", "metadata_available", "usage_status"},
+            {"metadata_available": False, "usage_status": None},
+        ),
+    ],
+)
+def test_historical_request_metadata_columns_are_defaulted_before_compaction(
+    tmp_path: Path,
+    table_name: str,
+    removed: set[str],
+    expected: dict[str, object],
+) -> None:
+    current_schema = TABLE_SCHEMAS[table_name]
+    legacy_schema = pa.schema([field for field in current_schema if field.name not in removed])
+    row = _make_table_row(table_name, "legacy-job", "legacy-trial")
+    legacy_path = tmp_path / f"{table_name}.parquet"
+    pq.write_table(pa.Table.from_pylist([row], schema=legacy_schema), legacy_path)
+
+    migrated = _read_table_or_empty(legacy_path, table_name)
+
+    assert migrated.schema.equals(current_schema)
+    migrated_row = migrated.to_pylist()[0]
+    assert {name: migrated_row[name] for name in expected} == expected
 
 
 # --------------------------------------------------------------------------- #
@@ -814,12 +877,14 @@ def test_cli_compact_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[s
         timestamp="2026-08-12T10:00:00Z",
     )
 
-    exit_code = main([
-        "compact",
-        "--derived-dir",
-        str(derived_root),
-        "--json",
-    ])
+    exit_code = main(
+        [
+            "compact",
+            "--derived-dir",
+            str(derived_root),
+            "--json",
+        ]
+    )
     assert exit_code == 0
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
@@ -837,11 +902,13 @@ def test_cli_compact_human_output(tmp_path: Path, capsys: pytest.CaptureFixture[
         timestamp="2026-08-12T10:00:00Z",
     )
 
-    exit_code = main([
-        "compact",
-        "--derived-dir",
-        str(derived_root),
-    ])
+    exit_code = main(
+        [
+            "compact",
+            "--derived-dir",
+            str(derived_root),
+        ]
+    )
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "parquet compaction" in captured.out
@@ -943,6 +1010,7 @@ def test_behavior_episodes_not_compacted() -> None:
         PROJECTED_TABLE_NAMES,
         TRIAL_TABLE_NAMES,
     )
+
     assert "behavior_episodes" not in PROJECTED_TABLE_NAMES
     assert "behavior_episodes" not in TRIAL_TABLE_NAMES
     assert "behavior_episodes" not in PRIMARY_KEYS

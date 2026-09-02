@@ -16,11 +16,7 @@ from evallab.recovery.bundle import (
     compute_bytes_sha256,
 )
 from evallab.recovery.certify import certify_state_restoration
-from evallab.recovery.wrapper import (
-    RecoveryTrialConfig,
-    build_recovery_initial_prompt,
-    evaluate_paired_recovery_trial,
-)
+from evallab.recovery.wrapper import build_recovery_initial_prompt
 
 AUDIT_ROOT = Path("/tmp/recovery-replay-audit")
 
@@ -159,27 +155,3 @@ def test_real_gcode_to_text_audit_bundle_and_certification():
     )
     assert "resuming an in-progress attempt on this task at step 17" in prompt
     assert "Convert G-code to text representation." in prompt
-
-    # 8. Verify paired outcome execution
-    config = RecoveryTrialConfig(
-        task_id="gcode-to-text",
-        bundle=bundle,
-        certificate=cert,
-        message_mode="summary",
-        agent_name="codex-luna",
-        agent_model="gpt-5.6-luna",
-    )
-    outcome = evaluate_paired_recovery_trial(
-        config=config,
-        base_instruction="Convert G-code to text representation.",
-        initial_trial_metrics={
-            "reward": 0.0,
-            "cost_usd": 0.30,
-            "input_tokens": 35000,
-            "output_tokens": 1200,
-            "steps": 17,
-        },
-    )
-    assert outcome.initial_trial_id == "ee524a8f-gcode-to-text__Rb675EN"
-    assert outcome.initial_steps == 17
-    assert outcome.total_cost_usd == 0.35

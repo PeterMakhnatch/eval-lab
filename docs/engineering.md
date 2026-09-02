@@ -22,26 +22,34 @@ opinion.
 
 These are descriptions of what the code already does, not new rules.
 
-**Pydantic contracts at the boundary.** Everything that crosses a process or
-file boundary is a `ContractModel` subclass in `src/evallab/schemas.py`
-(`ExperimentSpec`, `QueueEvent`, `JobRecord`, …). Parsing is
-`Model.model_validate_json(path.read_text())`; serialization is
-`model_dump_json()`. Consequence: a malformed queue file fails at read time
-with a located error, not three frames later. Follow this for any new file
-format — do not hand-roll `json.loads` into a dict.
+**Parse at boundaries; operate on domain values.** Everything that crosses a
+process or file boundary is parsed once into a `ContractModel` or another
+domain type. Use `Model.model_validate_json(path.read_text())` for Pydantic
+contracts and return the parsed value. Do not pass raw dictionaries inward,
+repeat validation in downstream policy code, or use `model_construct()` to
+manufacture states that the parser rejects.
 
-**Seam-based dependency injection.** Collaborators that touch the outside
-world are constructor parameters defaulting to the real implementation:
+**Make invalid states unrepresentable.** Required domain facts remain required
+after parsing. Distinct outcomes use distinct types rather than one record with
+a boolean discriminator and fields that are meaningful only on one branch.
+For example, preflight queue parsing returns either `QueuedSpecView` or
+`UnreadableQueuedSpec`, and power assessment returns either
+`PowerNotEvaluated` or `PowerEvaluation`.
 
-```python
-Executor(..., runner=None, ingester=None, spent_today=None,
-         consecutive_harness_failures=None)
-# self._runner = runner or self._run_harbor
-```
+**Inject real boundaries, not test conveniences.** A runtime collaborator may
+be injected when the application has multiple real implementations or must
+isolate an actual external boundary such as Docker or PostgreSQL. Do not add a
+callable, fake implementation, compatibility fallback, re-export facade, or
+constructor option solely so a unit test can reach private behavior. Prefer
+testing a public boundary with temporary filesystem state or passing a parsed
+domain value into pure logic.
 
-This is why the test suite runs without Docker or PostgreSQL, and it is the
-mechanism the profiling harness below uses to separate our code cost from
-database latency. New I/O gets a seam.
+**Tests must justify their maintenance cost.** Keep a test when it protects an
+observable contract, safety boundary, invariant, transition, precedence rule,
+or real failure mode. Delete tests that parse production source, pin function
+signatures or registry counts, prove a re-export points at the same object, or
+assert a fake fallback returns its own fixture. Exact counts and snapshots are
+appropriate only when the exact artifact is itself the declared contract.
 
 **Immutability.** Models are updated with `model_copy(update={...})`, never
 mutated in place (`queue.py` `submit`/`transition`). Completed run

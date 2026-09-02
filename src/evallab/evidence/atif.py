@@ -243,7 +243,6 @@ class ProjectionInvariant:
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
 
 
-
 class _HarborTrajectory(Protocol):
     @classmethod
     def model_validate(cls, payload: JsonObject) -> object: ...
@@ -937,10 +936,6 @@ def _recorded_projection_exceptions_map(events_path: Path) -> dict[str, str]:
         elif len(parts) == 2 and parts[1]:
             exceptions[parts[1]] = "unspecified"
     return exceptions
-
-
-def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
-    return frozenset(_recorded_projection_exceptions_map(events_path).keys())
 
 
 def check_projection_invariant(

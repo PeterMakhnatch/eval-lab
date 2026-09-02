@@ -10,9 +10,9 @@ runs. Three questions, each answered from evidence already on disk:
    ``availability`` is checked before ``remaining_percent`` is read, and an
    unavailable reading prints UNKNOWN with the warning attached rather than a
    blank that reads as room to spare.
-2. **The queue, grouped by purpose.** `ExperimentSpec.purpose` is WS-E item 1
-   and may not exist in this build. Absence is reported as absence: the specs
-   are still listed, and no bucket is invented for them.
+2. **The queue, grouped by purpose.** Every parsed `ExperimentSpec` carries its
+   required research purpose; legacy files that do not parse are reported as
+   unreadable rather than coerced into a fabricated bucket.
 3. **Power warnings.** Only for comparisons that are actually queued, computed
    with `cohort.py`'s existing estimator. When nothing comparative is queued
    this section says so instead of manufacturing a warning.
@@ -21,8 +21,8 @@ Boundaries this module keeps, all load-bearing:
 
 - **No network, no subprocess, no credential store, no database, no paid call.**
   Everything comes from Harbor job directories and `queue/<state>/*.json`.
-  `tests/test_preflight.py` asserts the property by making `subprocess` and
-  `socket` raise for the whole render path, per `agents/CHECKS.md`.
+  The render path is deterministic over filesystem evidence and the supplied
+  instant.
 - **No clock read outside :func:`preflight_at_tick_start`.** `now` is injected
   into :func:`build_preflight_report`, which is what makes staleness testable.
 - **Nothing here authorises anything.** The refusal sentence is supplied by the
@@ -51,7 +51,7 @@ from evallab.quota import (
     label,
     load_quota_report,
 )
-from evallab.schemas import ExperimentSpec, QueueState
+from evallab.schemas import ExperimentPurpose, ExperimentSpec, QueueState
 
 #: A sentence explaining why dispatch would refuse, or ``None`` for "nothing in
 #: this reading refuses". `queue.provider_reported_exhaustion` has exactly this
@@ -69,23 +69,8 @@ ACTIVE_QUEUE_STATES: tuple[QueueState, ...] = (
     "running",
 )
 
-#: The bucket for a spec that declares no purpose. It is deliberately not one of
-#: the seven purposes: "we do not know" must never be filed under "baseline".
-PURPOSE_UNAVAILABLE = "unavailable"
+COMPARISON_PURPOSE: ExperimentPurpose = "comparison"
 
-#: `ExperimentSpec.purpose` (WS-E item 1, `docs/build-plan.md`). Read from the
-#: model rather than assumed, so this surface degrades honestly in a build that
-#: predates the field instead of crashing or inventing a value.
-PURPOSE_FIELD = "purpose"
-
-COMPARISON_PURPOSE = "comparison"
-
-PURPOSE_FIELD_ABSENT_NOTE = (
-    "ExperimentSpec has no `purpose` field in this build, so no queued spec can "
-    "declare one. WS-E item 1 adds it (docs/build-plan.md). Everything below is "
-    "grouped by queue state only; the absence of the field is not the same fact "
-    "as a queue of purposeless specs."
-)
 
 #: The trap that produced the original defect, restated where an operator reads
 #: a number. Kept in step with `queue.QUOTA_UNKNOWN_WARNING`, which says the same
@@ -123,24 +108,6 @@ def _instant(moment: datetime | None) -> str:
     return moment.isoformat() if moment is not None else label("unavailable")
 
 
-def purpose_field_available() -> bool:
-    """Whether this build's `ExperimentSpec` carries a `purpose` field."""
-    return PURPOSE_FIELD in ExperimentSpec.model_fields
-
-
-def spec_purpose(spec: ExperimentSpec) -> str | None:
-    """The spec's declared purpose as a plain string, or ``None``.
-
-    Tolerates an enum-valued field as well as the `Literal[...]` string the
-    build plan specifies, so this surface cannot start printing
-    `Purpose.baseline` if the declaration changes shape.
-    """
-    value = getattr(spec, PURPOSE_FIELD, None)
-    if value is None:
-        return None
-    return str(getattr(value, "value", value))
-
-
 @dataclass(frozen=True)
 class ProviderQuota:
     """One paid provider's remaining allowance, with its own provenance."""
@@ -160,30 +127,37 @@ class ProviderQuota:
 
 @dataclass(frozen=True)
 class QueuedSpecView:
-    """The handful of spec fields this surface reports, plus where it came from."""
+    """A parsed queued spec; required fields remain required after parsing."""
 
     state: QueueState
     path: Path
-    spec_id: str | None = None
-    name: str | None = None
-    agent: str | None = None
-    task: str | None = None
-    attempts: int | None = None
-    billable: bool | None = None
-    expected_reward: float | None = None
-    purpose: str | None = None
-    error: str | None = None
+    spec_id: str | None
+    name: str
+    agent: str
+    task: str
+    attempts: int
+    billable: bool
+    expected_reward: float | None
+    purpose: ExperimentPurpose
+
+
+@dataclass(frozen=True)
+class UnreadableQueuedSpec:
+    """A queue entry that could not be parsed as an `ExperimentSpec`."""
+
+    state: QueueState
+    path: Path
+    error: str
 
 
 @dataclass(frozen=True)
 class QueueSurvey:
-    """Active queue contents, grouped by declared purpose when there is one."""
+    """Active queue contents grouped by their required research purpose."""
 
     queue_root: Path
     present: bool
-    purpose_available: bool
-    groups: dict[str, tuple[QueuedSpecView, ...]] = field(default_factory=dict)
-    unreadable: tuple[QueuedSpecView, ...] = ()
+    groups: dict[ExperimentPurpose, tuple[QueuedSpecView, ...]] = field(default_factory=dict)
+    unreadable: tuple[UnreadableQueuedSpec, ...] = ()
 
     @property
     def total(self) -> int:
@@ -194,17 +168,29 @@ class QueueSurvey:
 
 
 @dataclass(frozen=True)
-class PowerAssessment:
-    """Whether a queued comparison can reach a useful interval as declared."""
+class PowerNotEvaluated:
+    """A power assessment that has no comparison cohort to evaluate."""
 
-    evaluated: bool
     reason: str
-    n_tasks: int | None = None
-    k: int | None = None
-    baseline: float | None = None
-    minimum_detectable_effect: float | None = None
-    useful_effect: float | None = None
+    evaluated: bool = field(default=False, init=False)
+    warnings: tuple[str, ...] = field(default=(), init=False)
+
+
+@dataclass(frozen=True)
+class PowerEvaluation:
+    """A power assessment for a parsed comparison cohort."""
+
+    reason: str
+    n_tasks: int
+    k: int
+    baseline: float | None
+    minimum_detectable_effect: float | None
+    useful_effect: float | None
     warnings: tuple[str, ...] = ()
+    evaluated: bool = field(default=True, init=False)
+
+
+PowerAssessment = PowerNotEvaluated | PowerEvaluation
 
 
 @dataclass(frozen=True)
@@ -272,15 +258,18 @@ def _provider_quota(
     )
 
 
-def _spec_view(path: Path, state: QueueState) -> QueuedSpecView:
+def _parse_spec_view(
+    path: Path,
+    state: QueueState,
+) -> QueuedSpecView | UnreadableQueuedSpec:
     try:
         spec = ExperimentSpec.model_validate_json(path.read_text())
     except (OSError, ValidationError) as exc:
-        # A spec file this build cannot parse is a fact about the queue worth
-        # printing. It is emphatically not an empty queue, and it must not stop
-        # the surface: WS-E item 1 makes `purpose` required, at which point
-        # every spec queued before it landed lands here.
-        return QueuedSpecView(state=state, path=path, error=f"{type(exc).__name__}: {exc}")
+        return UnreadableQueuedSpec(
+            state=state,
+            path=path,
+            error=f"{type(exc).__name__}: {exc}",
+        )
     return QueuedSpecView(
         state=state,
         path=path,
@@ -291,7 +280,7 @@ def _spec_view(path: Path, state: QueueState) -> QueuedSpecView:
         attempts=spec.attempts,
         billable=spec.billable,
         expected_reward=spec.expected_reward,
-        purpose=spec_purpose(spec),
+        purpose=spec.purpose,
     )
 
 
@@ -306,26 +295,24 @@ def survey_queue(
     which creates them on construction. A read-only surface must not bring a
     queue into existence as a side effect of reporting that there isn't one.
     """
-    available = purpose_field_available()
     if not queue_root.is_dir():
-        return QueueSurvey(queue_root=queue_root, present=False, purpose_available=available)
+        return QueueSurvey(queue_root=queue_root, present=False)
 
-    buckets: dict[str, list[QueuedSpecView]] = {}
-    unreadable: list[QueuedSpecView] = []
+    buckets: dict[ExperimentPurpose, list[QueuedSpecView]] = {}
+    unreadable: list[UnreadableQueuedSpec] = []
     for state in states:
         state_dir = queue_root / state
         if not state_dir.is_dir():
             continue
         for path in sorted(state_dir.glob("*.json")):
-            view = _spec_view(path, state)
-            if view.error is not None:
+            view = _parse_spec_view(path, state)
+            if isinstance(view, UnreadableQueuedSpec):
                 unreadable.append(view)
                 continue
-            buckets.setdefault(view.purpose or PURPOSE_UNAVAILABLE, []).append(view)
+            buckets.setdefault(view.purpose, []).append(view)
     return QueueSurvey(
         queue_root=queue_root,
         present=True,
-        purpose_available=available,
         groups={key: tuple(value) for key, value in sorted(buckets.items())},
         unreadable=tuple(unreadable),
     )
@@ -340,31 +327,19 @@ def assess_power(survey: QueueSurvey, *, useful_effect: float | None = None) -> 
     stays unset unless an operator supplies one, exactly as
     `REFUSE_BILLABLE_AT_USED_PERCENT` stays unset in `queue.py`.
     """
-    if not survey.purpose_available:
-        return PowerAssessment(
-            evaluated=False,
-            reason=(
-                "no comparison can be identified because `ExperimentSpec.purpose` "
-                "does not exist in this build, so no power warning is asserted"
-            ),
-        )
     comparisons = survey.comparisons()
     if not comparisons:
-        return PowerAssessment(
-            evaluated=False,
+        return PowerNotEvaluated(
             reason="no comparison is queued, so no power warning applies",
         )
 
     warnings: list[str] = []
-    tasks = {view.task for view in comparisons if view.task}
+    tasks = {view.task for view in comparisons}
     n_tasks = len(tasks)
-    attempts = [view.attempts for view in comparisons if view.attempts is not None]
     # The weakest arm binds: a comparison cannot be paired at more attempts than
     # its least-attempted spec declares.
-    k = min(attempts) if attempts else None
+    k = min(view.attempts for view in comparisons)
 
-    if k is None:
-        warnings.append("no queued comparison spec declares an attempt count")
     if n_tasks < 2:
         warnings.append(
             f"{n_tasks} distinct task(s) across {len(comparisons)} queued comparison spec(s): "
@@ -386,7 +361,7 @@ def assess_power(survey: QueueSurvey, *, useful_effect: float | None = None) -> 
         )
 
     effect: float | None = None
-    if baseline is not None and k is not None and n_tasks >= 2:
+    if baseline is not None and n_tasks >= 2:
         try:
             effect = minimum_detectable_effect(n_tasks=n_tasks, k=k, baseline=baseline)
         except ValueError as exc:
@@ -405,11 +380,8 @@ def assess_power(survey: QueueSurvey, *, useful_effect: float | None = None) -> 
                     f"{effect:.4f} would be invisible to this comparison"
                 )
 
-    return PowerAssessment(
-        evaluated=True,
-        reason=(
-            f"{len(comparisons)} queued comparison spec(s) across {n_tasks} distinct task(s)"
-        ),
+    return PowerEvaluation(
+        reason=(f"{len(comparisons)} queued comparison spec(s) across {n_tasks} distinct task(s)"),
         n_tasks=n_tasks,
         k=k,
         baseline=baseline,
@@ -517,19 +489,12 @@ def _queue_lines(survey: QueueSurvey) -> list[str]:
     if not survey.present:
         lines.append(f"  no queue directory at {survey.queue_root} {label('unavailable')}")
         return lines
-    if not survey.purpose_available:
-        lines.append(f"  purpose {label('unavailable')}: {PURPOSE_FIELD_ABSENT_NOTE}")
     if not survey.groups and not survey.unreadable:
         lines.append("  nothing queued")
         return lines
     for purpose, views in survey.groups.items():
         billable = sum(1 for view in views if view.billable)
-        header = (
-            f"purpose not declared {label('unavailable')}"
-            if purpose == PURPOSE_UNAVAILABLE
-            else f"purpose {purpose}"
-        )
-        lines.append(f"  {header}: {len(views)} spec(s), {billable} billable")
+        lines.append(f"  purpose {purpose}: {len(views)} spec(s), {billable} billable")
         for view in views:
             lines.append(
                 f"    [{view.state}] {view.name} — task {view.task}, agent {view.agent}, "
@@ -544,7 +509,7 @@ def _queue_lines(survey: QueueSurvey) -> list[str]:
 
 def _power_lines(power: PowerAssessment) -> list[str]:
     lines = ["POWER WARNINGS (queued comparisons only)"]
-    if not power.evaluated:
+    if isinstance(power, PowerNotEvaluated):
         lines.append(f"  none: {power.reason}")
         return lines
     lines.append(f"  {power.reason}")
@@ -552,7 +517,7 @@ def _power_lines(power: PowerAssessment) -> list[str]:
         f"  n_tasks {power.n_tasks}, k {power.k}, baseline "
         f"{'unavailable' if power.baseline is None else f'{power.baseline:.3f}'}"
     )
-    if power.minimum_detectable_effect is not None and power.k is not None:
+    if power.minimum_detectable_effect is not None:
         baseline = power.baseline or 0.0
         implied = pass_at_k_probability(
             min(1.0, baseline + power.minimum_detectable_effect), power.k
@@ -655,9 +620,7 @@ def digest_section(report: PreflightReport) -> list[str]:
     """
     refusals = report.refusals()
     hard_stops = report.hard_stopped()
-    unavailable = [
-        provider.agent for provider in report.providers if not provider.observed
-    ]
+    unavailable = [provider.agent for provider in report.providers if not provider.observed]
     lines = [
         "## Preflight",
         "",
@@ -672,12 +635,7 @@ def digest_section(report: PreflightReport) -> list[str]:
         f"({label('unavailable')} is not 'plenty left')",
         f"- Providers whose exhaustion is a lockout, not a charge: "
         f"{', '.join(hard_stops) if hard_stops else 'none'}",
-        f"- Unfinished specs: {report.queue.total}"
-        + (
-            f", purpose {label('unavailable')} in this build"
-            if not report.queue.purpose_available
-            else ""
-        ),
+        f"- Unfinished specs: {report.queue.total}",
         f"- Power warnings: {len(report.power.warnings) if report.power.evaluated else 0}"
         + ("" if report.power.evaluated else f" ({report.power.reason})"),
         "",

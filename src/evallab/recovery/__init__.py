@@ -24,35 +24,18 @@ from evallab.recovery.certify import (
     evaluate_package_equivalence,
     evaluate_process_and_service_state,
 )
-from evallab.recovery.pilot import (
-    BoundedRecoveryPilotReport,
-    PilotEvaluationResult,
-    PilotTaskDefinition,
-    generate_mock_pilot_task_bundle,
-    run_bounded_recovery_pilot,
-)
-from evallab.recovery.wrapper import (
-    PairedTrajectoryOutcome,
-    RecoveryTrialConfig,
-    build_recovery_initial_prompt,
-    evaluate_paired_recovery_trial,
-)
+from evallab.recovery.wrapper import build_recovery_initial_prompt
 
 __all__ = [
-    "BoundedRecoveryPilotReport",
     "CertificationCriterion",
     "CommandOutcome",
     "EnvConfig",
     "FileEntry",
     "FilesystemManifest",
     "PackageInventory",
-    "PairedTrajectoryOutcome",
-    "PilotEvaluationResult",
-    "PilotTaskDefinition",
     "ProcessEntry",
     "ProcessInventory",
     "RecoveryStateBundle",
-    "RecoveryTrialConfig",
     "StateCertificate",
     "build_recovery_bundle",
     "build_recovery_initial_prompt",
@@ -63,9 +46,6 @@ __all__ = [
     "evaluate_archive_hash",
     "evaluate_manifest_equivalence",
     "evaluate_package_equivalence",
-    "evaluate_paired_recovery_trial",
     "evaluate_process_and_service_state",
-    "generate_mock_pilot_task_bundle",
-    "run_bounded_recovery_pilot",
     "sanitize_and_redact_env",
 ]

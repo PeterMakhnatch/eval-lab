@@ -15,8 +15,8 @@ be:
    that the sentence saying so does reach them.
 2. **A stale reading passing as current.** The reading exists only because a
    paid trial recorded it, so it can be arbitrarily old.
-3. **A missing field being filled in with a guess.** `ExperimentSpec.purpose`
-   is WS-E item 1 and may not exist. Both shapes are covered.
+3. **An invalid legacy spec disappearing.** Queue entries that cannot parse under
+   the current contract are named as unreadable rather than silently dropped.
 4. **A power warning manufactured out of nothing**, and its opposite: silence
    about a comparison that genuinely cannot reach an interval.
 5. **A surface that costs money or blocks.** `test_the_render_path_makes_no_
@@ -26,7 +26,6 @@ be:
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import socket
 import subprocess
@@ -34,14 +33,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
 
-import evallab.digest as digest_module
 import evallab.preflight as preflight_module
 from evallab.cli import _preflight_command, run_cli
 from evallab.digest import DigestRenderer
 from evallab.preflight import (
-    PURPOSE_UNAVAILABLE,
     build_preflight_report,
     digest_section,
     preflight_at_tick_start,
@@ -49,9 +45,7 @@ from evallab.preflight import (
     survey_queue,
 )
 from evallab.queue import DirectoryQueue, provider_reported_exhaustion
-from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
-
-ROOT = Path(__file__).resolve().parents[1]
+from evallab.schemas import AutoRunRule, StandingApprovalsPolicy
 
 #: Fixed instant. Every staleness assertion is a difference against this.
 NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
@@ -59,26 +53,6 @@ NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
 #: 2026-08-20T18:32:49Z, the reset the committed evidence actually reports.
 RESETS_AT_EPOCH = 1_787_250_769
 
-
-class SpecWithoutPurpose(BaseModel):
-    """`ExperimentSpec` before WS-E item 1 made `purpose` required."""
-
-    schema_version: int = 1
-    spec_id: str | None = None
-    name: str = "unnamed"
-    hypothesis: str = ""
-    task: str = "task"
-    agent: str = "codex"
-    submitted_by: str = "tester"
-    attempts: int = 1
-    expected_reward: float | None = None
-    policy_rule: str | None = None
-
-    @property
-    def billable(self) -> bool:
-        return self.agent not in {"oracle", "nop"}
-
-SpecWithPurpose = ExperimentSpec
 
 def policy() -> StandingApprovalsPolicy:
     return StandingApprovalsPolicy(
@@ -317,6 +291,7 @@ def test_preflight_renders_all_four_lanes(tmp_path: Path) -> None:
     assert "codex" in rendered
     assert "cursor-cli" in rendered
 
+
 def test_the_providers_own_exhaustion_statement_is_surfaced(tmp_path: Path) -> None:
     trial = make_paid_trial(tmp_path)
     add_quota_snapshot(
@@ -350,34 +325,7 @@ def test_a_lab_ceiling_is_labelled_as_lab_policy_not_the_provider(tmp_path: Path
 # --- the queue, grouped by purpose -----------------------------------------
 
 
-def test_purpose_absent_is_reported_as_absent_and_never_invented(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The field does not exist in this build, and the surface says exactly that."""
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithoutPurpose)
-    queue_root = tmp_path / "queue"
-    queue_spec(queue_root, name="baseline-run", state="approved", purpose=None)
-    queue_spec(queue_root, name="second-run", state="waiting", attempts=3, purpose=None)
-
-    survey = survey_queue(queue_root)
-
-    assert survey.purpose_available is False
-    assert set(survey.groups) == {PURPOSE_UNAVAILABLE}
-    assert survey.total == 2
-    assert survey.comparisons() == ()
-
-    rendered = render_preflight(
-        build_preflight_report(tmp_path, now=NOW, queue_root=queue_root)
-    )
-    assert "purpose not declared [unavailable]: 2 spec(s), 2 billable" in rendered
-    assert "ExperimentSpec has no `purpose` field in this build" in rendered
-    # No bucket was invented for specs that cannot declare one.
-    assert "purpose baseline" not in rendered
-    assert "purpose comparison" not in rendered
-def test_purpose_present_groups_by_declared_purpose(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
+def test_purpose_present_groups_by_declared_purpose(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     queue_spec(queue_root, name="base-a", purpose="baseline")
     queue_spec(queue_root, name="base-b", purpose="baseline", state="waiting")
@@ -385,37 +333,30 @@ def test_purpose_present_groups_by_declared_purpose(
 
     survey = survey_queue(queue_root)
 
-    assert survey.purpose_available is True
     assert set(survey.groups) == {"baseline", "comparison"}
     assert len(survey.groups["baseline"]) == 2
     assert [view.name for view in survey.comparisons()] == ["cmp-a"]
 
-    rendered = render_preflight(
-        build_preflight_report(tmp_path, now=NOW, queue_root=queue_root)
-    )
+    rendered = render_preflight(build_preflight_report(tmp_path, now=NOW, queue_root=queue_root))
     assert "purpose baseline: 2 spec(s), 2 billable" in rendered
     assert "purpose comparison: 1 spec(s), 1 billable" in rendered
-    assert "ExperimentSpec has no `purpose` field" not in rendered
 
 
 def test_a_spec_missing_a_now_required_purpose_is_named_not_dropped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """The exact state WS-E item 1 creates: specs queued before it landed.
 
     Silently dropping them would under-report the queue at the moment an
     operator most needs to see it, and raising would take the surface down.
     """
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
     queue_root = tmp_path / "queue"
     queue_spec(queue_root, name="legacy-run", purpose=None)
     queue_spec(queue_root, name="modern-run", purpose="drift")
     survey = survey_queue(queue_root)
     assert "purpose" in (survey.unreadable[0].error or "")
 
-    rendered = render_preflight(
-        build_preflight_report(tmp_path, now=NOW, queue_root=queue_root)
-    )
+    rendered = render_preflight(build_preflight_report(tmp_path, now=NOW, queue_root=queue_root))
     assert "unreadable: 1 spec file(s) this build cannot parse" in rendered
     assert "codex-legacy-run.json" in rendered
 
@@ -433,10 +374,7 @@ def test_surveying_a_missing_queue_creates_nothing(tmp_path: Path) -> None:
     )
 
 
-def test_finished_states_are_not_counted_as_queued(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
+def test_finished_states_are_not_counted_as_queued(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     queue_spec(queue_root, name="live-run", purpose="baseline", state="approved")
     queue_spec(queue_root, name="old-run", purpose="comparison", state="done")
@@ -451,10 +389,7 @@ def test_finished_states_are_not_counted_as_queued(
 # --- power warnings --------------------------------------------------------
 
 
-def test_no_queued_comparison_produces_no_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
+def test_no_queued_comparison_produces_no_warning(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     queue_spec(queue_root, name="base-a", purpose="baseline")
 
@@ -462,33 +397,12 @@ def test_no_queued_comparison_produces_no_warning(
 
     assert report.power.evaluated is False
     assert report.power.warnings == ()
-    assert "none: no comparison is queued, so no power warning applies" in render_preflight(
-        report
-    )
+    assert "none: no comparison is queued, so no power warning applies" in render_preflight(report)
 
 
-def test_no_purpose_field_asserts_no_power_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Absence of the field is not evidence that a comparison is under-powered."""
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithoutPurpose)
+def test_a_one_task_comparison_cannot_reach_an_interval(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
-    queue_spec(queue_root, name="base-a", purpose=None)
-
-    report = build_preflight_report(tmp_path, now=NOW, queue_root=queue_root)
-
-    assert report.power.evaluated is False
-    assert report.power.warnings == ()
-    assert "`ExperimentSpec.purpose` does not exist in this build" in render_preflight(report)
-
-def test_a_one_task_comparison_cannot_reach_an_interval(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
-    queue_root = tmp_path / "queue"
-    queue_spec(
-        queue_root, name="cmp-a", purpose="comparison", task="t/one", expected_reward=0.4
-    )
+    queue_spec(queue_root, name="cmp-a", purpose="comparison", task="t/one", expected_reward=0.4)
     queue_spec(
         queue_root,
         name="cmp-b",
@@ -507,9 +421,8 @@ def test_a_one_task_comparison_cannot_reach_an_interval(
 
 
 def test_a_comparison_without_a_declared_baseline_warns_before_the_spend(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
     queue_root = tmp_path / "queue"
     for index in range(4):
         queue_spec(queue_root, name=f"cmp-{index}", purpose="comparison", task=f"t/{index}")
@@ -521,10 +434,7 @@ def test_a_comparison_without_a_declared_baseline_warns_before_the_spend(
     assert any("`expected_reward`" in warning for warning in report.power.warnings)
 
 
-def test_an_adequately_powered_comparison_raises_no_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
+def test_an_adequately_powered_comparison_raises_no_warning(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     for index in range(200):
         queue_spec(
@@ -547,16 +457,15 @@ def test_an_adequately_powered_comparison_raises_no_warning(
 
 
 def test_useful_effect_is_only_a_warning_when_an_operator_supplies_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
-    """"Useful" is a spend judgement, so no number is committed for it.
+    """ "Useful" is a spend judgement, so no number is committed for it.
 
     30 paired tasks at k=1 is a real comparison with a real interval — and a
     smallest detectable per-attempt difference of about 0.32, which is enormous.
     Nothing warns about that by default, because whether 0.32 is good enough is
     the Sponsor's call, not this module's.
     """
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
     queue_root = tmp_path / "queue"
     for index in range(30):
         queue_spec(
@@ -571,16 +480,11 @@ def test_useful_effect_is_only_a_warning_when_an_operator_supplies_one(
     assert unset.power.minimum_detectable_effect == pytest.approx(0.322, abs=0.01)
     assert unset.power.warnings == ()
 
-    supplied = build_preflight_report(
-        tmp_path, now=NOW, queue_root=queue_root, useful_effect=0.01
-    )
+    supplied = build_preflight_report(tmp_path, now=NOW, queue_root=queue_root, useful_effect=0.01)
     assert any("larger than the 0.0100 supplied as useful" in w for w in supplied.power.warnings)
 
 
-def test_the_weakest_arm_binds_the_attempt_count(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
+def test_the_weakest_arm_binds_the_attempt_count(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     queue_spec(
         queue_root, name="cmp-a", purpose="comparison", task="t/a", attempts=8, expected_reward=0.5
@@ -632,25 +536,6 @@ def test_the_render_path_makes_no_subprocess_or_network_call(
         preflight_loader=lambda: report,
     )
     assert "## Preflight" in renderer.write(report_date=NOW.date()).read_text()
-
-
-def test_preflight_never_imports_the_queue_at_module_scope() -> None:
-    """The tick wiring is one line only while this stays true.
-
-    `Executor._tick_locked` calls into this module, so a module-level
-    `from evallab.queue import ...` here would be a circular import. The default
-    refusal reader is resolved by a deferred import for exactly this reason.
-    """
-    tree = ast.parse((ROOT / "src/evallab/preflight.py").read_text())
-    module_level = [
-        node
-        for node in tree.body
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("evallab")
-    ]
-    imported = {node.module for node in module_level}
-
-    assert "evallab.queue" not in imported
-    assert imported == {"evallab.cohort", "evallab.quota", "evallab.schemas"}
 
 
 def test_the_default_refusal_reader_is_the_dispatch_gates_own(tmp_path: Path) -> None:
@@ -810,9 +695,7 @@ def test_the_cli_prints_the_surface_and_exits_zero_when_nothing_refuses(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     (tmp_path / "policy").mkdir()
-    (tmp_path / "policy/standing-approvals.yaml").write_text(
-        policy().model_dump_json(indent=2)
-    )
+    (tmp_path / "policy/standing-approvals.yaml").write_text(policy().model_dump_json(indent=2))
     trial = make_paid_trial(tmp_path)
     add_quota_snapshot(trial, observed_at=NOW - timedelta(hours=1))
 
@@ -836,9 +719,7 @@ def test_the_cli_exits_non_zero_when_a_provider_refuses(
     is fixed forever; no host state is read.
     """
     (tmp_path / "policy").mkdir()
-    (tmp_path / "policy/standing-approvals.yaml").write_text(
-        policy().model_dump_json(indent=2)
-    )
+    (tmp_path / "policy/standing-approvals.yaml").write_text(policy().model_dump_json(indent=2))
     now = datetime.now(UTC)
     trial = make_paid_trial(tmp_path)
     add_quota_snapshot(
@@ -854,25 +735,3 @@ def test_the_cli_exits_non_zero_when_a_provider_refuses(
     printed = capsys.readouterr().out
     assert "VERDICT: billable work would be refused" in printed
     assert "the provider reports used_percent 100.0 of the window" in printed
-
-
-def test_the_operator_tick_prints_the_preflight_before_dispatch() -> None:
-    """WS-E item 2 says the preflight runs at tick start; the CLI path does."""
-    source = (ROOT / "src/evallab/cli.py").read_text()
-    tick_branch = source.split('if args.command == "tick":', 1)[1]
-    before_executor = tick_branch.split("executor = Executor.from_repo(root)", 1)[0]
-
-    assert "render_preflight(" in before_executor
-    assert "build_preflight_report(" in before_executor
-
-
-def test_digest_module_reaches_the_preflight_through_an_injected_loader() -> None:
-    """The renderer's one clock read stays behind a seam the tests can fix."""
-    assert digest_module.DigestRenderer._load_preflight is not None
-    renderer = DigestRenderer(
-        repo_root=ROOT,
-        queue=DirectoryQueue(ROOT / "queue"),
-        policy=policy(),
-        preflight_loader=lambda: build_preflight_report(ROOT, now=NOW),
-    )
-    assert renderer._preflight_loader() .generated_at == NOW

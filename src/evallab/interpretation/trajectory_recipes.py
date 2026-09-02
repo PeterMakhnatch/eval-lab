@@ -1587,19 +1587,6 @@ def _intervention_provenance(events: list[dict[str, Any]]) -> str:
     return "autonomous" if events else "unknown"
 
 
-def _response_pattern(post_events: list[dict[str, Any]]) -> str:
-    actions = [event for event in post_events if _is_call_event(event)]
-    if not actions:
-        return "abandoned"
-    digests = [action_digest(event) for event in actions]
-    counts: dict[str, int] = {}
-    for digest in digests:
-        counts[digest] = counts.get(digest, 0) + 1
-    if any(count >= 2 for count in counts.values()):
-        return "identical_retry"
-    return "changed_strategy"
-
-
 def _fault_episodes(ctx: _RecipeContext) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
     events = ctx.window_events
     return [
@@ -1830,18 +1817,6 @@ def _ngram_recurrence(digests: list[str]) -> dict[str, int]:
             counts[gram] = counts.get(gram, 0) + 1
         result[str(size)] = sum(1 for count in counts.values() if count >= 2)
     return result
-
-
-def _baseline_tokens(ctx: _RecipeContext) -> tuple[int | None, int | None]:
-    baseline: dict[str, Any] = {}
-    if ctx.ir and isinstance(ctx.ir.get("baseline_metrics"), dict):
-        baseline = ctx.ir["baseline_metrics"]
-    outline = ctx.pack.get("global_outline") or {}
-    prompt = baseline.get("prompt_tokens", outline.get("prompt_tokens"))
-    cached = baseline.get("cached_tokens", outline.get("cached_tokens"))
-    prompt_i = int(prompt) if isinstance(prompt, (int, float)) else None
-    cached_i = int(cached) if isinstance(cached, (int, float)) else None
-    return prompt_i, cached_i
 
 
 def _run_r7(ctx: _RecipeContext) -> RecipeFinding:

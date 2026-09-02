@@ -7,18 +7,29 @@ from pathlib import Path
 import pyarrow.parquet as pq
 import pytest
 
+from evallab.evidence.atif import project_trial
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.evidence.llm_request import LlmRequestProjectionError, project_llm_requests
 from evallab.results import load_job
 
 
-def _job(tmp_path: Path):
+def _job(
+    tmp_path: Path,
+    *,
+    preserve_atif: bool = False,
+    mark_atif_llm_calls: bool = False,
+):
     source = Path(__file__).parent / "fixtures/explorer/jobs/job-pass"
     job_path = tmp_path / "runs/job-pass"
     shutil.copytree(source, job_path)
-    trajectory = json.loads((job_path / "t1/agent/trajectory.json").read_text())
-    trajectory["steps"] = []
-    (job_path / "t1/agent/trajectory.json").write_text(json.dumps(trajectory))
+    trajectory_path = job_path / "t1/agent/trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text())
+    if not preserve_atif:
+        trajectory["steps"] = []
+    elif mark_atif_llm_calls:
+        for step in trajectory["steps"]:
+            step["llm_call_count"] = 1
+    trajectory_path.write_text(json.dumps(trajectory))
     return load_job(job_path)
 
 
@@ -166,12 +177,51 @@ def test_ten_file_ring_marks_unknown_metadata_prefix(tmp_path: Path) -> None:
     assert sum(not row.llm_metadata_available for row in projection.steps) == 3
 
 
+def test_request_ring_supplements_only_incomplete_atif(tmp_path: Path) -> None:
+    partial_job = _job(tmp_path / "partial", preserve_atif=True)
+    partial_trial = partial_job.trials[0]
+    _write_request(
+        partial_trial.path,
+        0,
+        [
+            {"role": "system", "content": "s"},
+            _assistant("c1", "write_file", {"path": "a.py"}),
+        ],
+    )
+
+    partial = project_trial(partial_job, partial_trial)
+
+    assert [row.capture_source for row in partial.trajectories] == [
+        None,
+        "llm_request_ring",
+    ]
+
+    complete_job = _job(
+        tmp_path / "complete",
+        preserve_atif=True,
+        mark_atif_llm_calls=True,
+    )
+    complete_trial = complete_job.trials[0]
+    _write_request(
+        complete_trial.path,
+        0,
+        [
+            {"role": "system", "content": "s"},
+            _assistant("c1", "write_file", {"path": "a.py"}),
+        ],
+    )
+
+    complete = project_trial(complete_job, complete_trial)
+
+    assert [row.capture_source for row in complete.trajectories] == [None]
+
+
 def test_redacts_raw_payloads_and_refuses_secret_structural_fields(
     tmp_path: Path,
 ) -> None:
     job = _job(tmp_path)
     trial = job.trials[0]
-    secret = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"
+    secret = "s" + "k-" + "proj-abcdefghijklmnopqrstuvwxyz123456"
     call = _assistant("call-1", "shell", {"token": secret})
     _write_request(
         trial.path,

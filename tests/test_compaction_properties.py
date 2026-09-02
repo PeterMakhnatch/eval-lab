@@ -85,6 +85,7 @@ def _make_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> di
             "cost_usd": 0.002,
             "tool_call_count": 1,
             "observation_count": 1,
+            "llm_metadata_available": False,
         }
     if table_name == "tool_calls":
         return {
@@ -284,6 +285,7 @@ def _make_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> di
             "cost_usd": 0.002,
             "projection_status": "projected",
             "source_path": f"/path/to/doc-{index}.json",
+            "metadata_available": False,
         }
     if table_name == "trajectory_phases":
         return {
@@ -699,6 +701,4 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
 
 
 TestCompactionProperties = CompactionRetentionStateMachine.TestCase
-TestCompactionProperties.settings = settings(
-    max_examples=50, stateful_step_count=20, deadline=None
-)
+TestCompactionProperties.settings = settings(max_examples=50, stateful_step_count=20, deadline=None)

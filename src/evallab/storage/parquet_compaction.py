@@ -51,6 +51,14 @@ TABLE_SCHEMAS: dict[str, pa.Schema] = {
     **INSPECT_SCHEMAS,
 }
 
+# Historical partitions predate request-ring metadata. Missing nullable columns
+# remain null ("unknown"); missing non-null availability flags mean metadata was
+# not captured and therefore default to false during compaction migration.
+LEGACY_COLUMN_DEFAULTS: dict[str, dict[str, object]] = {
+    "steps": {"llm_metadata_available": False},
+    "llm_calls": {"metadata_available": False},
+}
+
 PROJECTED_TABLE_NAMES: tuple[str, ...] = (
     "jobs",
     "trajectories",
@@ -484,16 +492,33 @@ def plan_compaction(
 # --------------------------------------------------------------------------- #
 
 
+def _coerce_table_to_schema(raw: pa.Table, table_name: str) -> pa.Table:
+    schema = TABLE_SCHEMAS[table_name]
+    defaults = LEGACY_COLUMN_DEFAULTS.get(table_name, {})
+    columns: list[pa.Array | pa.ChunkedArray] = []
+    for schema_field in schema:
+        if schema_field.name in raw.column_names:
+            columns.append(raw.column(schema_field.name).cast(schema_field.type))
+            continue
+        if schema_field.name in defaults:
+            columns.append(
+                pa.array([defaults[schema_field.name]] * raw.num_rows, type=schema_field.type)
+            )
+            continue
+        if schema_field.nullable:
+            columns.append(pa.nulls(raw.num_rows, type=schema_field.type))
+            continue
+        raise CompactionValidationError(
+            f"Historical {table_name} partition is missing required column {schema_field.name!r}"
+        )
+    return pa.Table.from_arrays(columns, schema=schema)
+
+
 def _read_table_or_empty(path: Path, table_name: str) -> pa.Table:
     schema = TABLE_SCHEMAS[table_name]
     if not path.is_file():
         return pa.Table.from_batches([], schema=schema)
-    try:
-        return pq.read_table(path, schema=schema)
-    except Exception:
-        # Fallback reading and casting
-        raw = pq.read_table(path)
-        return raw.cast(schema)
+    return _coerce_table_to_schema(pq.read_table(path), table_name)
 
 
 def _collect_table_batches(

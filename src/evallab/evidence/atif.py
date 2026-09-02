@@ -120,6 +120,7 @@ class StepFact:
     llm_metadata_available: bool = False
     usage_status: str | None = None
 
+
 @dataclass(frozen=True)
 class ToolCallFact:
     job_id: str
@@ -134,6 +135,7 @@ class ToolCallFact:
 
     call_index: int | None = None
     result_error_flag: bool | None = None
+
 
 @dataclass(frozen=True)
 class ObservationFact:
@@ -261,7 +263,6 @@ class ProjectionInvariant:
             )
             base += breakdown
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
-
 
 
 class _HarborTrajectory(Protocol):
@@ -679,6 +680,57 @@ def _project_payload(
     )
 
 
+def _atif_mechanical_capture_is_complete(
+    projections: list[TrialTrajectoryProjection],
+    llm_request_projection: TrialTrajectoryProjection,
+) -> bool:
+    """Return whether valid ATIF facts cover the request ring's known mechanics."""
+    valid_documents = {
+        trajectory.document_id
+        for projection in projections
+        for trajectory in projection.trajectories
+        if trajectory.validation_status == "valid"
+    }
+    if not valid_documents:
+        return False
+    projected_llm_calls = sum(
+        step.llm_call_count
+        for projection in projections
+        for step in projection.steps
+        if step.document_id in valid_documents
+    )
+    required_llm_calls = max(
+        (
+            trajectory.inferred_total_call_lower_bound or trajectory.llm_call_count
+            for trajectory in llm_request_projection.trajectories
+        ),
+        default=0,
+    )
+    projected_tool_calls = {
+        call.tool_call_id
+        for projection in projections
+        for call in projection.tool_calls
+        if call.document_id in valid_documents
+    }
+    required_tool_calls = {call.tool_call_id for call in llm_request_projection.tool_calls}
+    projected_results = {
+        observation.source_call_id
+        for projection in projections
+        for observation in projection.observations
+        if observation.document_id in valid_documents and observation.source_call_id is not None
+    }
+    required_results = {
+        observation.source_call_id
+        for observation in llm_request_projection.observations
+        if observation.source_call_id is not None
+    }
+    return (
+        projected_llm_calls >= required_llm_calls
+        and required_tool_calls <= projected_tool_calls
+        and required_results <= projected_results
+    )
+
+
 def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjection:
     queue = deque(_initial_candidates(trial))
     visited: set[Path] = set()
@@ -718,15 +770,13 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
             resolved = _resolve_reference(source_file, trial.path, reference)
             if resolved is not None and resolved.is_file():
                 queue.append(resolved)
-    if not any(
-        projection.tool_calls or any(step.llm_call_count for step in projection.steps)
-        for projection in projections
-    ):
-        from evallab.evidence.llm_request import project_llm_requests
+    from evallab.evidence.llm_request import project_llm_requests
 
-        llm_request_projection = project_llm_requests(job, trial)
-        if llm_request_projection is not None:
-            projections.append(llm_request_projection)
+    llm_request_projection = project_llm_requests(job, trial)
+    if llm_request_projection is not None and not _atif_mechanical_capture_is_complete(
+        projections, llm_request_projection
+    ):
+        projections.append(llm_request_projection)
 
     return TrialTrajectoryProjection(
         trajectories=tuple(fact for projection in projections for fact in projection.trajectories),

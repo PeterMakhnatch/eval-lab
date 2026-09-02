@@ -35,6 +35,8 @@ def _default(field: pa.Field) -> object:
         return 0.0
     if pa.types.is_boolean(field.type):
         return False
+    if pa.types.is_list(field.type) or pa.types.is_large_list(field.type):
+        return []
     raise AssertionError(f"fixture needs a default for {field.type}")
 
 

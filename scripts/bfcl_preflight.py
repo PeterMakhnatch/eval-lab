@@ -13,8 +13,16 @@ DEFAULT_LOCK = Path("library/benchmarks/bfcl-parity/source-lock.json")
 
 
 def task_digest(task: Path) -> str:
+    entries = sorted(task.rglob("*"))
+    for path in entries:
+        if path.is_symlink():
+            relative = path.relative_to(task).as_posix()
+            raise RuntimeError(f"blocked:bfcl_task_symlink:{relative}")
+
     records: list[bytes] = []
-    for path in sorted(item for item in task.rglob("*") if item.is_file()):
+    for path in entries:
+        if not path.is_file():
+            continue
         relative = path.relative_to(task).as_posix()
         file_digest = hashlib.sha256(path.read_bytes()).hexdigest()
         records.append(f"{relative}\0{file_digest}\n".encode())
@@ -24,7 +32,9 @@ def task_digest(task: Path) -> str:
 
 
 def validate_task(task: Path, lock: dict[str, Any]) -> dict[str, Any]:
-    task = task.expanduser().resolve()
+    task = task.expanduser().absolute()
+    if task.is_symlink():
+        raise RuntimeError("blocked:bfcl_task_symlink:.")
     expected = lock["canary_task"]
     if not task.is_dir() or not (task / "task.toml").is_file():
         raise RuntimeError(f"blocked:incomplete_bfcl_task:{task}")

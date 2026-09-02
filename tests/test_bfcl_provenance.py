@@ -67,3 +67,38 @@ def test_bfcl_preflight_accepts_only_digest_bound_task(tmp_path: Path) -> None:
     (task / "instruction.md").write_text("mutated\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="blocked:bfcl_task_digest_mismatch"):
         preflight.validate_task(task, fixture_lock)
+
+
+@pytest.mark.parametrize("symlink_kind", ["file", "directory", "task-root"])
+def test_bfcl_preflight_rejects_symlinks(
+    tmp_path: Path,
+    symlink_kind: str,
+) -> None:
+    preflight = _load_preflight()
+    lock = json.loads(LOCK.read_text(encoding="utf-8"))
+    fixture_lock = json.loads(json.dumps(lock))
+    fixture_lock["canary_task"]["material_digest"] = FIXTURE_DIGEST
+
+    task = tmp_path / "source" / lock["canary_task"]["name"]
+    task.mkdir(parents=True)
+    for relative, content in FIXTURE_FILES.items():
+        (task / relative).write_text(content, encoding="utf-8")
+
+    candidate = task
+    if symlink_kind == "file":
+        external = tmp_path / "external-instruction.md"
+        external.write_text(FIXTURE_FILES["instruction.md"], encoding="utf-8")
+        (task / "instruction.md").unlink()
+        (task / "instruction.md").symlink_to(external)
+    elif symlink_kind == "directory":
+        external = tmp_path / "external-directory"
+        external.mkdir()
+        (task / "environment").symlink_to(external, target_is_directory=True)
+    else:
+        alias_parent = tmp_path / "alias"
+        alias_parent.mkdir()
+        candidate = alias_parent / task.name
+        candidate.symlink_to(task, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="blocked:bfcl_task_symlink"):
+        preflight.validate_task(candidate, fixture_lock)

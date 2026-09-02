@@ -265,6 +265,7 @@ rather than a collection.
 - **Inspect Evals coverage was not enumerated.** I did not list its registry, so the
   Native Inspect lane in §5 names no specific members and should be filled before
   any parity work is scheduled.
+- **ToolSandbox anchor and adoption claims in §2–§6 are superseded on licence grounds.** See §9; earlier prose is retained as historical context.
 
 ## 8. Correction — 2026-08-31, after main fast-forward
 
@@ -359,3 +360,21 @@ features produces trajectories we cannot compare. Revised order:
   itself stays deferred.
 
 No change to the keep/defer decisions in §3.
+
+## 9. Correction — 2026-09-02, ToolSandbox and LoCoMo licence status
+
+`research/analysis/memory-tool-evals-source-matrix-2026-08-31.md` supersedes this
+reply wherever §2–§6 treat ToolSandbox as an adoption target. The earlier prose is
+preserved above as historical context; the corrections are recorded here rather
+than rewritten into it.
+
+| Earlier claim | Correction per the source matrix |
+|---|---|
+| §2: ToolSandbox anchors T2 because milestones give per-step ground truth | The method observation stands; the adoption posture does not. `apple/ToolSandbox` is **not open-source-licensed**: GitHub reports `NOASSERTION` and the `LICENSE` file is an Apple custom, all-rights-reserved notice. The milestone/method design remains usable as precedent read from the paper, but **code/data adoption is blocked pending a licence decision**. It must not be treated as permissively licensed. |
+| §3: ToolSandbox "Keep — anchor" | **Keep as method/milestone precedent only.** Nothing else in the candidate list offers per-step milestone ground truth, which is why the precedent is retained; the anchor role is now licence-conditional, not an adoption instruction. |
+| §5/§6: ToolSandbox adapter work "comes second" in T2 sequencing | **Blocked, not merely deferred.** No ToolSandbox adapter or vendoring work may start until the licence question is resolved by the owner; the matrix records this as a human decision, not more research. |
+
+LoCoMo, recommended here as the cheapest T3 entry, is **CC BY-NC 4.0** per the
+matrix: use and derivation are permitted non-commercially with attribution, and
+derived data inherits the NC terms. Harbor's existing `adapters/locomo` is already
+bound by them. The T3 entry point stands with that licence condition attached.

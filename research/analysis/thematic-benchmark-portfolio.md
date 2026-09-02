@@ -8,6 +8,7 @@ sources:
   - research/inbox/benchmark-themes-librarian-reply.md
   - research/inbox/feature-analysis-meta-analyst-reply.md
   - research/analysis/agentic-benchmark-feature-inventory-2026-08-31.json
+  - research/analysis/memory-tool-evals-source-matrix-2026-08-31.md
 ---
 
 # Thematic benchmark portfolio
@@ -44,7 +45,7 @@ These themes match Eval Lab's actual strengths: full trajectory capture, determi
 
 | Role | Benchmark | Contribution | Lane |
 |---|---|---|---|
-| **Anchor** | [ToolSandbox](https://arxiv.org/abs/2408.04682) | Stateful tool interactions, intermediate milestones and negative constraints | Inspect/native task work required |
+| **Anchor — method/milestone precedent** | [ToolSandbox](https://arxiv.org/abs/2408.04682) | Stateful tool interactions, intermediate milestones and negative constraints | Milestone design usable as precedent read from the paper; code/data adoption blocked pending licence decision (Apple custom, all rights reserved — see source matrix) |
 | Cheap controlled corpus | Eval Lab `mcp-recovery-v1`, tool-composition and FuncDAG families | Deterministic injected faults, handle order, dependency ground truth | Native Harbor/synthetic |
 | Support | [τ²-bench](https://arxiv.org/abs/2506.07982) | Stateful dual-control interaction and policy assertions | Native Inspect where supported |
 | Metric precedent | [AgentBoard](https://arxiv.org/abs/2401.13178) | Subgoal progress rather than endpoint-only success | Borrow progress metric; defer full suite |
@@ -60,7 +61,7 @@ The exposure denominator is load-bearing. Recovery rate is undefined when no fau
 
 | Role | Benchmark | Contribution | Lane |
 |---|---|---|---|
-| **Initial anchor** | LoCoMo / RSI `locomo_longterm_memory` | Multi-session memory with the lowest current adapter cost | Native Harbor |
+| **Initial anchor** | LoCoMo / RSI `locomo_longterm_memory` | Multi-session memory with the lowest current adapter cost | Native Harbor; CC BY-NC 4.0 — non-commercial use and derivation only, derived data inherits NC (see source matrix) |
 | Support | [MemoryAgentBench](https://arxiv.org/abs/2507.05257) | Incremental interactions, retrieval and conflict resolution | Import/native task audit |
 | Controlled-growth candidate | [LOCA-bench](https://arxiv.org/abs/2602.07962) | Context growth as a manipulated variable | Watchlist pending method-level audit |
 | Internal controlled corpus | Eval Lab Action Memory and context-operation families | Write/read/use edges, compaction and session dependency | Native synthetic |
@@ -77,9 +78,9 @@ Retrieval and use must stay distinct. Repeating a remembered value is weaker evi
 | RE-Bench | **Keep, support** | Strong time-budget contrast inside Theme 1 |
 | MLE-bench | **Keep, support; import first** | Activates selection and contamination constructs but has high environment cost |
 | CORE-Bench | **Keep, limited support** | Activates dormant reproducibility and repair features |
-| ToolSandbox | **Keep, Theme 2 anchor** | Intermediate-state ground truth is more valuable than another endpoint score |
+| ToolSandbox | **Keep, Theme 2 anchor as method precedent only** | Intermediate-state ground truth is more valuable than another endpoint score; Apple custom, all rights reserved licence — method/milestone precedent usable, code/data adoption blocked pending licence decision |
 | Existing MCP recovery / FuncDAG / tool composition | **Active cheap corpus** | Controlled opportunities already exist in Eval Lab |
-| LoCoMo | **Active next pilot** | Lowest-friction memory benchmark and direct Theme 3 coverage |
+| LoCoMo | **Active next pilot under CC BY-NC 4.0** | Lowest-friction memory benchmark and direct Theme 3 coverage; non-commercial use only, derived data inherits NC, and Harbor's existing `adapters/locomo` is already bound by those terms |
 | MemoryAgentBench | **Keep, support** | Adds update/conflict behavior absent from simple QA |
 | PaperBench | **Precedent first** | Rubric design is useful; full replication suite is expensive and overlaps Theme 1 |
 | AgentBoard | **Metric precedent** | Borrow subgoal-progress design instead of adding nine environments immediately |

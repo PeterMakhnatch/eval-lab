@@ -80,6 +80,19 @@ class TrajectoryFact:
     completion_tokens: int | None
     cached_tokens: int | None
     cost_usd: float | None
+    capture_source: str | None = None
+    retained_request_count: int | None = None
+    inferred_total_call_lower_bound: int | None = None
+    assistant_turn_lower_bound: int | None = None
+    ring_buffer_truncated: bool | None = None
+    unknown_prefix: bool | None = None
+    per_call_metadata_complete: bool | None = None
+    unavailable_call_metadata: tuple[str, ...] | None = None
+    retained_request_paths: tuple[str, ...] | None = None
+    retained_request_sha256: tuple[str, ...] | None = None
+    tools_offered: tuple[str, ...] | None = None
+    tools_offered_sha256: str | None = None
+    harness_fault_signature: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +115,10 @@ class StepFact:
     tool_call_count: int
     observation_count: int
 
+    llm_source_path: str | None = None
+    llm_source_sha256: str | None = None
+    llm_metadata_available: bool = False
+    usage_status: str | None = None
 
 @dataclass(frozen=True)
 class ToolCallFact:
@@ -115,6 +132,8 @@ class ToolCallFact:
     function_name: str
     arguments_sha256: str
 
+    call_index: int | None = None
+    result_error_flag: bool | None = None
 
 @dataclass(frozen=True)
 class ObservationFact:
@@ -131,6 +150,7 @@ class ObservationFact:
     subagent_ref_count: int
     subagent_refs_sha256: str | None
     command_exit_code: int | None
+    error_classification: str | None = None
 
 
 @dataclass(frozen=True)
@@ -697,6 +717,15 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
             resolved = _resolve_reference(source_file, trial.path, reference)
             if resolved is not None and resolved.is_file():
                 queue.append(resolved)
+    if not any(
+        projection.tool_calls or any(step.llm_call_count for step in projection.steps)
+        for projection in projections
+    ):
+        from evallab.evidence.llm_request import project_llm_requests
+
+        llm_request_projection = project_llm_requests(job, trial)
+        if llm_request_projection is not None:
+            projections.append(llm_request_projection)
 
     return TrialTrajectoryProjection(
         trajectories=tuple(fact for projection in projections for fact in projection.trajectories),
@@ -738,6 +767,19 @@ PARQUET_SCHEMAS = {
             pa.field("completion_tokens", pa.int64()),
             pa.field("cached_tokens", pa.int64()),
             pa.field("cost_usd", pa.float64()),
+            pa.field("capture_source", pa.string()),
+            pa.field("retained_request_count", pa.int64()),
+            pa.field("inferred_total_call_lower_bound", pa.int64()),
+            pa.field("assistant_turn_lower_bound", pa.int64()),
+            pa.field("ring_buffer_truncated", pa.bool_()),
+            pa.field("unknown_prefix", pa.bool_()),
+            pa.field("per_call_metadata_complete", pa.bool_()),
+            pa.field("unavailable_call_metadata", pa.list_(pa.string())),
+            pa.field("retained_request_paths", pa.list_(pa.string())),
+            pa.field("retained_request_sha256", pa.list_(pa.string())),
+            pa.field("tools_offered", pa.list_(pa.string())),
+            pa.field("tools_offered_sha256", pa.string()),
+            pa.field("harness_fault_signature", pa.string()),
         ]
     ),
     "steps": pa.schema(
@@ -759,6 +801,10 @@ PARQUET_SCHEMAS = {
             pa.field("cost_usd", pa.float64()),
             pa.field("tool_call_count", pa.int64(), nullable=False),
             pa.field("observation_count", pa.int64(), nullable=False),
+            pa.field("llm_source_path", pa.string()),
+            pa.field("llm_source_sha256", pa.string()),
+            pa.field("llm_metadata_available", pa.bool_(), nullable=False),
+            pa.field("usage_status", pa.string()),
         ]
     ),
     "tool_calls": pa.schema(
@@ -772,6 +818,8 @@ PARQUET_SCHEMAS = {
             pa.field("tool_call_id", pa.string(), nullable=False),
             pa.field("function_name", pa.string(), nullable=False),
             pa.field("arguments_sha256", pa.string(), nullable=False),
+            pa.field("call_index", pa.int64()),
+            pa.field("result_error_flag", pa.bool_()),
         ]
     ),
     "observations": pa.schema(
@@ -789,6 +837,7 @@ PARQUET_SCHEMAS = {
             pa.field("subagent_ref_count", pa.int64(), nullable=False),
             pa.field("subagent_refs_sha256", pa.string()),
             pa.field("command_exit_code", pa.int64()),
+            pa.field("error_classification", pa.string()),
         ]
     ),
 }

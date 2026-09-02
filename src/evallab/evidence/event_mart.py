@@ -128,6 +128,9 @@ EVENT_MART_SCHEMAS: dict[str, pa.Schema] = {
         pa.field("cost_usd", pa.float64()),
         pa.field("projection_status", pa.string(), nullable=False),
         pa.field("source_path", pa.string(), nullable=False),
+        pa.field("source_sha256", pa.string()),
+        pa.field("metadata_available", pa.bool_(), nullable=False),
+        pa.field("usage_status", pa.string()),
     ]),
     "trajectory_phases": pa.schema([
         pa.field("job_id", pa.string(), nullable=False),
@@ -219,7 +222,10 @@ def project_event_mart(
                 "projection_status": (
                     "one_call_step" if step.llm_call_count == 1 else "aggregated_step"
                 ),
-                "source_path": step.source_path,
+                "source_path": step.llm_source_path or step.source_path,
+                "source_sha256": step.llm_source_sha256,
+                "metadata_available": step.llm_metadata_available,
+                "usage_status": step.usage_status,
             })
 
         for tool in tool_calls_by_step.get((step.document_id, step.step_id), ()):

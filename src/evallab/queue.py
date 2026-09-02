@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,8 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_AGENT,
     DispatchCapacity,
     PaidRunAuthorization,
+    ProviderFailoverFailure,
+    ProviderRoutesExhaustedFailure,
     is_lease_generation,
     load_policy,
     new_ulid,
@@ -113,6 +116,7 @@ from evallab.schemas import (
     NetworkIsolationDispatchIdentityV1,
     NetworkIsolationEvidenceV1,
     PolicyDecision,
+    ProviderRoute,
     QueueEvent,
     QueueReason,
     QueueState,
@@ -1973,20 +1977,60 @@ class Executor:
             return False
         if self.queue.stop_path.exists():
             return False
-        missing = missing_credential_for(spec.agent, credentials)
-        if missing is not None:
-            self.queue.append_event(
-                QueueEvent(
-                    event_id=new_ulid(),
-                    spec_id=str(spec.spec_id),
-                    occurred_at=datetime.now(UTC),
-                    event="dispatch_deferred",
-                    actor="executor",
-                    reason_code=f"missing_credential:{missing}",
-                    job_name=spec.name,
+        eligible_provider_routes: tuple[ProviderRoute, ...] | None = None
+        if spec.provider_routes:
+            circuit_broken = self._circuit_broken_provider_routes(spec)
+            viable: list[ProviderRoute] = []
+            for priority_index, route in enumerate(spec.provider_routes):
+                missing = (
+                    route.credential_requirement
+                    if route.credential_requirement not in credentials
+                    else None
                 )
-            )
-            return False
+                skip_reason = (
+                    "provider_failover:circuit_open"
+                    if route.route_id in circuit_broken
+                    else (f"missing_credential:{missing}" if missing is not None else None)
+                )
+                if skip_reason is None:
+                    viable.append(route)
+                    continue
+                self._append_provider_event(
+                    spec,
+                    event="provider_route_preflight_skipped",
+                    route=route,
+                    priority_index=priority_index,
+                    reason_code=skip_reason,
+                )
+            if not viable:
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=str(spec.spec_id),
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_deferred",
+                        actor="executor",
+                        reason_code="provider_failover:no_viable_route",
+                        job_name=spec.name,
+                    )
+                )
+                return False
+            eligible_provider_routes = tuple(viable)
+        else:
+            missing = missing_credential_for(spec.agent, credentials)
+            if missing is not None:
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=str(spec.spec_id),
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_deferred",
+                        actor="executor",
+                        reason_code=f"missing_credential:{missing}",
+                        job_name=spec.name,
+                    )
+                )
+                return False
         authorization = authorizations.get(str(spec.spec_id))
         if authorization is not None and (
             authorization.approved_spec_digest != approved_spec_digest(spec)
@@ -2055,6 +2099,28 @@ class Executor:
                 settled_run = self.execute_spec(
                     spec,
                     lease_generation=lease_generation,
+                    provider_routes=eligible_provider_routes,
+                )
+            except ProviderRoutesExhaustedFailure as execution_error:
+                failure = PolicyDecision(
+                    admitted=False,
+                    reason_code=execution_error.reason_code,
+                    message=str(execution_error),
+                )
+                destination_state = (
+                    "waiting" if execution_error.exhaustion_behavior == "wait" else "failed"
+                )
+                terminal = self.queue.transition(
+                    running,
+                    destination_state,
+                    actor="executor",
+                    event="dispatch_provider_routes_exhausted",
+                    reason_code=execution_error.terminal_cause,
+                )
+                self.queue.write_reason(self.queue.load(terminal), failure)
+                self._report_progress(
+                    f"{destination_state} {spec.name} ({execution_error.terminal_cause}); "
+                    f"state: {destination_state}"
                 )
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
@@ -2223,6 +2289,7 @@ class Executor:
         spec: ExperimentSpec,
         *,
         lease_generation: str | None = None,
+        provider_routes: Sequence[ProviderRoute] | None = None,
     ) -> SettledRun:
         self._validate_campaign_dispatch_spec(
             spec,
@@ -2450,7 +2517,11 @@ class Executor:
                 campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
-        settled_run = self._run_with_transient_retries(spec, request)
+        settled_run = self._run_with_provider_failover(
+            spec,
+            request,
+            provider_routes=provider_routes,
+        )
         with materialize_evidence(settled_run.cas_locator) as restored_job:
             self._assert_persistent_artifacts_safe(spec, restored_job)
         if self._is_control_bootstrap_spec(spec):
@@ -2533,13 +2604,157 @@ class Executor:
                                 os.chmod(os.path.join(root_dir, f), 0o600)
                 shutil.rmtree(staging_dir, ignore_errors=True)
 
+    def _run_with_provider_failover(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+        *,
+        provider_routes: Sequence[ProviderRoute] | None,
+    ) -> SettledRun:
+        routes = tuple(provider_routes if provider_routes is not None else spec.provider_routes)
+        if not routes:
+            return self._run_with_transient_retries(spec, request)
+        for route_position, route in enumerate(routes):
+            priority_index = next(
+                index
+                for index, declared in enumerate(spec.provider_routes)
+                if declared.route_id == route.route_id
+            )
+            route_attempt_id = new_ulid()
+            provenance = (
+                request.provenance.model_copy(
+                    update={
+                        "provider": route.provider,
+                        "provider_route_id": route.route_id,
+                        "provider_route_attempt_id": route_attempt_id,
+                        "logical_model_revision": route.logical_model_revision,
+                        "tool_contract_digest": route.tool_contract_digest,
+                        "provider_failover_max_cost_usd": spec.provider_failover_max_cost_usd,
+                    }
+                )
+                if request.provenance is not None
+                else None
+            )
+            route_request = replace(
+                request,
+                model=route.model,
+                cost_limit_usd=route.max_cost_usd,
+                provider=route.provider,
+                provider_route_id=route.route_id,
+                provider_route_attempt_id=route_attempt_id,
+                provenance=provenance,
+            )
+            self._append_provider_event(
+                spec,
+                event="provider_route_attempt_started",
+                route=route,
+                priority_index=priority_index,
+                route_attempt_id=route_attempt_id,
+                reason_code="provider_failover:attempt_started",
+            )
+            try:
+                settled = self._run_with_transient_retries(
+                    spec,
+                    route_request,
+                    estimated_cost_usd=route.max_cost_usd,
+                )
+            except ProviderFailoverFailure as exc:
+                self._archive_provider_attempt(spec, route_request, route_attempt_id)
+                self._append_provider_event(
+                    spec,
+                    event="provider_route_attempt_failed",
+                    route=route,
+                    priority_index=priority_index,
+                    route_attempt_id=route_attempt_id,
+                    reason_code=exc.reason_code,
+                )
+                if route_position + 1 < len(routes):
+                    continue
+                self._append_provider_event(
+                    spec,
+                    event="provider_routes_exhausted",
+                    route=route,
+                    priority_index=priority_index,
+                    route_attempt_id=route_attempt_id,
+                    reason_code=exc.reason_code,
+                )
+                raise ProviderRoutesExhaustedFailure(
+                    exc.reason_code,
+                    exhaustion_behavior=spec.provider_exhaustion_behavior,
+                ) from exc
+            except Exception as exc:
+                reason_code = (
+                    exc.reason_code if isinstance(exc, ExecutionFailure) else "execution_failed"
+                )
+                self._append_provider_event(
+                    spec,
+                    event="provider_route_attempt_terminal",
+                    route=route,
+                    priority_index=priority_index,
+                    route_attempt_id=route_attempt_id,
+                    reason_code=reason_code,
+                )
+                raise
+            self._append_provider_event(
+                spec,
+                event="provider_route_attempt_succeeded",
+                route=route,
+                priority_index=priority_index,
+                route_attempt_id=route_attempt_id,
+                reason_code="provider_failover:attempt_succeeded",
+            )
+            return settled
+        raise AssertionError("provider route loop exhausted without a terminal outcome")
+
+    def _append_provider_event(
+        self,
+        spec: ExperimentSpec,
+        *,
+        event: str,
+        route: ProviderRoute,
+        priority_index: int,
+        reason_code: str,
+        route_attempt_id: str | None = None,
+    ) -> None:
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event=event,
+                actor="executor",
+                reason_code=reason_code,
+                job_name=spec.name,
+                provider=route.provider,
+                provider_route_id=route.route_id,
+                provider_route_attempt_id=route_attempt_id,
+                provider_priority_index=priority_index,
+            )
+        )
+
+    def _circuit_broken_provider_routes(self, spec: ExperimentSpec) -> frozenset[str]:
+        return frozenset(
+            event.provider_route_id
+            for event in load_events(self.queue.events_path)
+            if event.spec_id == str(spec.spec_id)
+            and event.event == "provider_route_attempt_failed"
+            and event.provider_route_id is not None
+            and (event.reason_code or "").startswith("provider_failover:")
+        )
+
     def _run_with_transient_retries(
         self,
         spec: ExperimentSpec,
         request: RunRequest,
+        *,
+        estimated_cost_usd: float | None = None,
     ) -> SettledRun:
         for retry_number in range(self._max_transient_retries + 1):
-            self._reserve_attempt(spec, retry_number + 1)
+            self._reserve_attempt(
+                spec,
+                retry_number + 1,
+                estimated_cost_usd=estimated_cost_usd,
+            )
             try:
                 return self._runner(request)
             except TransientHarnessFailure as exc:
@@ -2610,7 +2825,13 @@ class Executor:
         )
         return False
 
-    def _reserve_attempt(self, spec: ExperimentSpec, attempt_number: int) -> None:
+    def _reserve_attempt(
+        self,
+        spec: ExperimentSpec,
+        attempt_number: int,
+        *,
+        estimated_cost_usd: float | None = None,
+    ) -> None:
         if not spec.billable:
             return
         self.queue.append_event(
@@ -2623,7 +2844,9 @@ class Executor:
                 reason_code="billable_attempt_estimate",
                 job_name=spec.name,
                 attempt_number=attempt_number,
-                estimated_cost_usd=spec.est_cost_usd,
+                estimated_cost_usd=(
+                    spec.est_cost_usd if estimated_cost_usd is None else estimated_cost_usd
+                ),
             )
         )
 
@@ -2666,6 +2889,23 @@ class Executor:
         archive.parent.mkdir(parents=True, exist_ok=True)
         if archive.exists():
             raise FileExistsError(f"transient attempt archive already exists: {archive}")
+        job_dir.replace(archive)
+        return archive
+
+    def _archive_provider_attempt(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+        route_attempt_id: str,
+    ) -> Path | None:
+        job_dir = request.jobs_dir / request.name
+        if not job_dir.exists():
+            return None
+        self._assert_persistent_artifacts_safe(spec, job_dir)
+        archive = request.jobs_dir / ".provider-attempts" / request.name / route_attempt_id
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        if archive.exists():
+            raise FileExistsError(f"provider attempt archive already exists: {archive}")
         job_dir.replace(archive)
         return archive
 

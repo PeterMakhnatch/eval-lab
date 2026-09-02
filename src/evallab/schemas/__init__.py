@@ -712,6 +712,22 @@ class PowerSpec(ContractModel):
     )
 
 
+class ProviderRoute(ContractModel):
+    """One pre-authorized provider route for the same logical treatment."""
+
+    route_id: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]+$",
+    )
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    credential_requirement: str = Field(min_length=1)
+    logical_model_revision: str = Field(min_length=1)
+    tool_contract_digest: Digest
+    max_cost_usd: float = Field(gt=0)
+
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
@@ -752,6 +768,19 @@ class ExperimentSpec(ContractModel):
     )
     agent: str = Field(min_length=1)
     model: str | None = None
+    provider_routes: list[ProviderRoute] = Field(
+        default_factory=list,
+        description=(
+            "ordered, pre-authorized provider routes for one unchanged logical "
+            "model revision and tool contract"
+        ),
+    )
+    provider_failover_max_cost_usd: float | None = Field(
+        default=None,
+        gt=0,
+        description="maximum cumulative cost authorized across all provider routes",
+    )
+    provider_exhaustion_behavior: Literal["fail", "wait"] = "fail"
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
@@ -854,6 +883,40 @@ class ExperimentSpec(ContractModel):
     def controls_and_campaigns_are_bounded(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
+        if self.provider_routes:
+            if not self.billable:
+                raise ValueError("control specs cannot declare provider routes")
+            if self.model is None:
+                raise ValueError("provider routes require an exact model")
+            if self.provider_failover_max_cost_usd is None:
+                raise ValueError("provider routes require provider_failover_max_cost_usd")
+            route_ids = [route.route_id for route in self.provider_routes]
+            providers = [route.provider for route in self.provider_routes]
+            if len(route_ids) != len(set(route_ids)):
+                raise ValueError("provider route ids must be unique")
+            if len(providers) != len(set(providers)):
+                raise ValueError("provider routes must name distinct providers")
+            first = self.provider_routes[0]
+            if first.model != self.model:
+                raise ValueError("the first provider route must match the spec model selector")
+            logical_revisions = {route.logical_model_revision for route in self.provider_routes}
+            tool_contracts = {route.tool_contract_digest for route in self.provider_routes}
+            if len(logical_revisions) != 1 or len(tool_contracts) != 1:
+                raise ValueError(
+                    "all provider routes must preserve the exact logical model revision "
+                    "and tool contract"
+                )
+            route_maximum = sum(route.max_cost_usd for route in self.provider_routes)
+            if not math.isclose(route_maximum, self.provider_failover_max_cost_usd):
+                raise ValueError(
+                    "provider route costs must equal provider_failover_max_cost_usd"
+                )
+            if self.est_cost_usd < self.provider_failover_max_cost_usd:
+                raise ValueError(
+                    "est_cost_usd must cover the full authorized provider failover maximum"
+                )
+        elif self.provider_failover_max_cost_usd is not None:
+            raise ValueError("provider_failover_max_cost_usd requires provider_routes")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
         campaign_fields = (
@@ -1059,6 +1122,10 @@ class QueueEvent(ContractModel):
     report_date: str | None = None
     attempt_number: int | None = Field(default=None, ge=1)
     estimated_cost_usd: float | None = Field(default=None, ge=0)
+    provider: str | None = None
+    provider_route_id: str | None = None
+    provider_route_attempt_id: str | None = None
+    provider_priority_index: int | None = Field(default=None, ge=0)
     approved_spec_digest: str | None = Field(
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
@@ -1209,6 +1276,12 @@ class RunProvenance(ContractModel):
     network_isolation_status: NetworkIsolationStatus | None = None
     network_isolation_reason: str | None = None
     analysis_eligibility: AnalysisEligibility | None = None
+    provider: str | None = None
+    provider_route_id: str | None = None
+    provider_route_attempt_id: str | None = None
+    logical_model_revision: str | None = None
+    tool_contract_digest: Digest | None = None
+    provider_failover_max_cost_usd: float | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def runtime_authority_is_bound(self) -> RunProvenance:

@@ -74,6 +74,7 @@ from evallab.execution_contracts import (
     ZAI_SECRET_FILE_ENV,
     ExecutionFailure,
     HarborProcessResult,
+    ProviderFailoverFailure,
     ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
@@ -85,6 +86,8 @@ from evallab.execution_contracts import (
     materialize_deepseek_secret_file,
     materialize_zai_secret_file,
     persist_private_bytes,
+    provider_failover_exception,
+    provider_failover_reason,
     proxy_runtime_identity,
     read_owner_secret_file,
     redact_environment,
@@ -121,6 +124,7 @@ __all__ = [
     "HarborProcessResult",
     "HarborRuntimeIdentity",
     "SettledRun",
+    "ProviderFailoverFailure",
     "RunRequest",
     "build_command",
     "cleanup_new_harbor_containers",
@@ -141,6 +145,8 @@ __all__ = [
     "run_harbor_process",
     "subscription_command",
     "subscription_environment",
+    "provider_failover_exception",
+    "provider_failover_reason",
     "transient_provider_exception",
     "transient_provider_reason",
 ]
@@ -1198,6 +1204,9 @@ def _write_executor_state(
         "trial_timeout_seconds": request.timeout_seconds,
         "job_timeout_seconds": request.job_timeout_seconds,
         "log_path": str(log_path.relative_to(request.jobs_dir)),
+        "provider": request.provider,
+        "provider_route_id": request.provider_route_id,
+        "provider_route_attempt_id": request.provider_route_attempt_id,
     }
     if process is not None:
         payload.update(
@@ -1224,7 +1233,7 @@ def _harbor_project_prefixes(job_dir: Path) -> frozenset[str]:
     )
 
 
-def _transient_reason_from_job(job_dir: Path) -> str | None:
+def _provider_reasons_from_job(job_dir: Path) -> tuple[str | None, str | None]:
     if job_dir.is_dir():
         for path in sorted(job_dir.rglob("result.json")):
             try:
@@ -1232,10 +1241,11 @@ def _transient_reason_from_job(job_dir: Path) -> str | None:
             except (OSError, json.JSONDecodeError):
                 continue
             if isinstance(payload, dict):
-                reason = transient_provider_exception(payload)
-                if reason is not None:
-                    return reason
-    return None
+                failover_reason = provider_failover_exception(payload)
+                transient_reason = transient_provider_exception(payload)
+                if failover_reason is not None or transient_reason is not None:
+                    return failover_reason, transient_reason
+    return None, None
 
 
 def _cleanup_failure(
@@ -1658,10 +1668,15 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
             job_dir,
             tuple(value.encode() for value in secret_values),
         )
-        transient_reason = _transient_reason_from_job(job_dir)
+        provider_failover_cause, transient_reason = _provider_reasons_from_job(job_dir)
         if process.returncode != 0:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            if provider_failover_cause is not None:
+                raise ProviderFailoverFailure(
+                    provider_failover_cause,
+                    message=provider_failover_cause + cleanup_detail,
+                )
             if transient_reason is not None:
                 raise TransientHarnessFailure(
                     transient_reason,
@@ -1687,6 +1702,21 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
                     f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
+        if provider_failover_cause is not None:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            _write_executor_state(
+                request,
+                started_at=started,
+                status="failed",
+                log_path=executor_log,
+                finished_at=finished,
+                process=process,
+            )
+            raise ProviderFailoverFailure(
+                provider_failover_cause,
+                message=provider_failover_cause + cleanup_detail,
+            )
         if transient_reason is not None:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""

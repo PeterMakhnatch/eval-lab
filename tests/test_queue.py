@@ -26,6 +26,7 @@ from evallab.queue import (
 )
 from evallab.runner import (
     ExecutionFailure,
+    ProviderFailoverFailure,
     RunRequest,
     SettledRun,
     TransientHarnessFailure,
@@ -34,6 +35,7 @@ from evallab.runner import (
 from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
+    ProviderRoute,
     QueueEvent,
     StandingApprovalsPolicy,
     canonical_grid_point_id,
@@ -82,6 +84,50 @@ def spec(
         policy_rule=policy_rule,
         attempts=attempts,
         concurrency=concurrency,
+    )
+
+
+def provider_routes_spec(
+    name: str,
+    *,
+    exhaustion_behavior: str = "fail",
+    primary_credential: str = CODEX_AUTH,
+    fallback_credential: str = CODEX_AUTH,
+) -> ExperimentSpec:
+    digest = "sha256:" + "a" * 64
+    primary_model = "gateway-a/vendor-model-revision"
+    fallback_model = "gateway-b/vendor-model-revision"
+    return spec(
+        name,
+        agent="codex",
+        task="canary/event-summary",
+        model=primary_model,
+        est_cost_usd=2,
+    ).model_copy(
+        update={
+            "provider_routes": [
+                ProviderRoute(
+                    route_id="primary",
+                    provider="provider-a",
+                    model=primary_model,
+                    credential_requirement=primary_credential,
+                    logical_model_revision="model-revision-2026-08-31",
+                    tool_contract_digest=digest,
+                    max_cost_usd=1,
+                ),
+                ProviderRoute(
+                    route_id="fallback",
+                    provider="provider-b",
+                    model=fallback_model,
+                    credential_requirement=fallback_credential,
+                    logical_model_revision="model-revision-2026-08-31",
+                    tool_contract_digest=digest,
+                    max_cost_usd=1,
+                ),
+            ],
+            "provider_failover_max_cost_usd": 2,
+            "provider_exhaustion_behavior": exhaustion_behavior,
+        }
     )
 
 
@@ -590,6 +636,204 @@ def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
         "transient_harness:provider_http_429",
     ]
     assert service.queue.list_specs("done")
+
+
+def test_provider_balance_failover_preserves_trial_identity_and_records_attempts(
+    tmp_path: Path,
+) -> None:
+    requests: list[RunRequest] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        requests.append(request)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        (destination / "provider.txt").write_text(str(request.provider))
+        if request.provider == "provider-a":
+            raise ProviderFailoverFailure("provider_failover:balance_exhausted")
+        return settled(destination)
+
+    service = executor(tmp_path, runner=run)
+    submit_authorized(service, provider_routes_spec("balance-failover"))
+
+    assert service.tick() == 1
+    assert [request.provider for request in requests] == ["provider-a", "provider-b"]
+    assert len({request.provider_route_attempt_id for request in requests}) == 2
+    assert len({request.name for request in requests}) == 1
+    assert len({request.task for request in requests}) == 1
+    assert [request.model for request in requests] == [
+        "gateway-a/vendor-model-revision",
+        "gateway-b/vendor-model-revision",
+    ]
+    assert {request.agent for request in requests} == {"codex"}
+    assert {
+        request.provenance.logical_model_revision
+        for request in requests
+        if request.provenance
+    } == {"model-revision-2026-08-31"}
+    assert len({request.provenance.spec_id for request in requests if request.provenance}) == 1
+    assert (
+        tmp_path
+        / "runs/.provider-attempts/balance-failover"
+        / str(requests[0].provider_route_attempt_id)
+        / "provider.txt"
+    ).read_text() == "provider-a"
+
+    route_events = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event.startswith("provider_route_attempt_")
+    ]
+    assert [(event.event, event.provider, event.reason_code) for event in route_events] == [
+        (
+            "provider_route_attempt_started",
+            "provider-a",
+            "provider_failover:attempt_started",
+        ),
+        (
+            "provider_route_attempt_failed",
+            "provider-a",
+            "provider_failover:balance_exhausted",
+        ),
+        (
+            "provider_route_attempt_started",
+            "provider-b",
+            "provider_failover:attempt_started",
+        ),
+        (
+            "provider_route_attempt_succeeded",
+            "provider-b",
+            "provider_failover:attempt_succeeded",
+        ),
+    ]
+    assert service.queue.list_specs("done")
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason_code"),
+    [
+        (
+            TransientHarnessFailure("transient_harness:provider_http_429"),
+            "transient_harness:provider_http_429",
+        ),
+        (TrialTimeoutFailure("timed out"), "trial_wall_clock_timeout"),
+        (ExecutionFailure("model_error", "wrong model"), "model_error"),
+    ],
+)
+def test_non_capacity_failures_never_switch_provider(
+    tmp_path: Path,
+    failure: Exception,
+    reason_code: str,
+) -> None:
+    providers: list[str | None] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        providers.append(request.provider)
+        raise failure
+
+    service = executor(tmp_path, runner=run, max_transient_retries=0)
+    submit_authorized(service, provider_routes_spec("no-false-failover"))
+
+    assert service.tick() == 1
+    assert providers == ["provider-a"]
+    terminal = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "provider_route_attempt_terminal"
+    ]
+    assert [event.reason_code for event in terminal] == [reason_code]
+    assert not [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.provider == "provider-b"
+    ]
+
+
+def test_provider_preflight_selects_first_credential_viable_route(tmp_path: Path) -> None:
+    providers: list[str | None] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        providers.append(request.provider)
+        return settled(request.jobs_dir / request.name)
+
+    service = executor(tmp_path, runner=run, credentials=frozenset({CODEX_AUTH}))
+    submit_authorized(
+        service,
+        provider_routes_spec(
+            "preflight-route",
+            primary_credential=CLAUDE_OAUTH,
+            fallback_credential=CODEX_AUTH,
+        ),
+    )
+
+    assert service.tick() == 1
+    assert providers == ["provider-b"]
+    skipped = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "provider_route_preflight_skipped"
+    ]
+    assert [(event.provider, event.reason_code) for event in skipped] == [
+        ("provider-a", f"missing_credential:{CLAUDE_OAUTH}")
+    ]
+
+
+def test_provider_route_exhaustion_waits_with_exact_terminal_cause(tmp_path: Path) -> None:
+    providers: list[str | None] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        providers.append(request.provider)
+        raise ProviderFailoverFailure("provider_failover:credits_exhausted")
+
+    service = executor(tmp_path, runner=run)
+    submit_authorized(
+        service,
+        provider_routes_spec("provider-exhausted", exhaustion_behavior="wait"),
+    )
+
+    assert service.tick() == 1
+    assert providers == ["provider-a", "provider-b"]
+    assert service.queue.list_specs("waiting")
+    exhausted = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event in {"provider_routes_exhausted", "dispatch_provider_routes_exhausted"}
+    ]
+    assert [event.reason_code for event in exhausted] == [
+        "provider_failover:credits_exhausted",
+        "provider_failover:credits_exhausted",
+    ]
+    attempt_ids = {
+        event.provider_route_attempt_id
+        for event in load_events(service.queue.events_path)
+        if event.event == "provider_route_attempt_started"
+    }
+    assert None not in attempt_ids
+    assert len(attempt_ids) == 2
+
+
+def test_provider_route_contract_rejects_treatment_or_spend_widening() -> None:
+    item = provider_routes_spec("invalid-route-contract")
+    second = item.provider_routes[1]
+
+    with pytest.raises(ValueError, match="logical model revision"):
+        ExperimentSpec.model_validate(
+            item.model_dump()
+            | {
+                "provider_routes": [
+                    item.provider_routes[0].model_dump(),
+                    second.model_copy(
+                        update={"logical_model_revision": "different-treatment"}
+                    ).model_dump(),
+                ]
+            }
+        )
+    with pytest.raises(ValueError, match="must equal"):
+        ExperimentSpec.model_validate(
+            item.model_dump()
+            | {
+                "provider_failover_max_cost_usd": 1,
+            }
+        )
 
 
 def test_transient_retry_cap_and_timeout_have_distinct_failure_reasons(

@@ -54,6 +54,29 @@ _PROVIDER_5XX = re.compile(
     r"\b5\d\d\b.{0,80}(?:provider|upstream|api|server|gateway|service unavailable))",
     re.IGNORECASE | re.DOTALL,
 )
+_PROVIDER_FAILOVER_CODES: dict[str, str] = {
+    "account_balance_exhausted": "provider_failover:balance_exhausted",
+    "auth_quota_exhausted": "provider_failover:auth_quota_exhausted",
+    "authentication_quota_exhausted": "provider_failover:auth_quota_exhausted",
+    "billing_hard_limit": "provider_failover:account_quota_exhausted",
+    "billing_hard_limit_reached": "provider_failover:account_quota_exhausted",
+    "credit_balance_exhausted": "provider_failover:credits_exhausted",
+    "insufficient_quota": "provider_failover:account_quota_exhausted",
+    "subscription_quota_exhausted": "provider_failover:account_quota_exhausted",
+}
+_PROVIDER_FAILOVER_EXCEPTION_TYPES: frozenset[str] = frozenset(
+    {
+        "AgentRunError",
+        "ApiAuthenticationError",
+        "ApiPermissionDeniedError",
+        "ApiRateLimitError",
+        "ApiStatusError",
+        "AuthenticationError",
+        "NonZeroAgentExitCodeError",
+        "PermissionDeniedError",
+        "UnknownApiError",
+    }
+)
 _KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS: dict[str, str] = {
     "ApiRateLimitError": "transient_harness:provider_http_429",
     "ApiInternalServerError": "transient_harness:provider_http_5xx",
@@ -246,6 +269,33 @@ class TransientHarnessFailure(ExecutionFailure):
         super().__init__(message or reason_code)
 
 
+class ProviderFailoverFailure(ExecutionFailure):
+    """Explicit provider account-capacity failure eligible for another route."""
+
+    def __init__(self, reason_code: str, *, message: str | None = None) -> None:
+        self.reason_code = reason_code
+        super().__init__(message or reason_code)
+
+
+class ProviderRoutesExhaustedFailure(ExecutionFailure):
+    """All pre-authorized, preflight-viable provider routes were exhausted."""
+
+    reason_code = "provider_failover:routes_exhausted"
+
+    def __init__(
+        self,
+        terminal_cause: str,
+        *,
+        exhaustion_behavior: str,
+    ) -> None:
+        self.terminal_cause = terminal_cause
+        self.exhaustion_behavior = exhaustion_behavior
+        super().__init__(
+            self.reason_code,
+            f"provider routes exhausted; terminal cause: {terminal_cause}",
+        )
+
+
 @dataclass(frozen=True)
 class RunRequest:
     """Immutable specification for one trial execution invocation."""
@@ -269,6 +319,9 @@ class RunRequest:
     max_output_tokens: int | None = None
     max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
+    provider: str | None = None
+    provider_route_id: str | None = None
+    provider_route_attempt_id: str | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -874,6 +927,37 @@ def transient_provider_reason(text: str) -> str | None:
         return "transient_harness:provider_http_429"
     if _PROVIDER_5XX.search(text):
         return "transient_harness:provider_http_5xx"
+    return None
+
+
+def provider_failover_reason(code: str) -> str | None:
+    """Map an exact structured provider-capacity code to a failover reason."""
+    normalized = re.sub(r"[\s-]+", "_", code.strip().lower())
+    return _PROVIDER_FAILOVER_CODES.get(normalized)
+
+
+def provider_failover_exception(result: Mapping[str, Any]) -> str | None:
+    """Classify only explicit structured provider account-capacity evidence."""
+    exception = result.get("exception_info")
+    if not isinstance(exception, Mapping):
+        return None
+    exception_type = str(exception.get("exception_type") or "")
+    if exception_type not in _PROVIDER_FAILOVER_EXCEPTION_TYPES:
+        return None
+    evidence: list[Mapping[str, Any]] = [exception]
+    nested_exception = exception.get("error")
+    if isinstance(nested_exception, Mapping):
+        evidence.append(nested_exception)
+    provider_error = result.get("provider_error")
+    if isinstance(provider_error, Mapping):
+        evidence.append(provider_error)
+    for source in evidence:
+        for key in ("code", "error_code", "reason_code", "type"):
+            value = source.get(key)
+            if isinstance(value, str):
+                reason = provider_failover_reason(value)
+                if reason is not None:
+                    return reason
     return None
 
 

@@ -32,6 +32,8 @@ from evallab.runner import (
     build_command,
     cleanup_new_harbor_containers,
     load_matrix,
+    provider_failover_exception,
+    provider_failover_reason,
     resolve_harbor_agent,
     resolve_harbor_model,
     run_experiment,
@@ -578,6 +580,73 @@ def test_local_env_loader_ignores_model_api_keys(
 )
 def test_provider_status_classification(message: str, reason: str | None) -> None:
     assert transient_provider_reason(message) == reason
+
+
+@pytest.mark.parametrize(
+    ("code", "reason"),
+    [
+        ("account_balance_exhausted", "provider_failover:balance_exhausted"),
+        ("credit_balance_exhausted", "provider_failover:credits_exhausted"),
+        ("insufficient_quota", "provider_failover:account_quota_exhausted"),
+        ("subscription_quota_exhausted", "provider_failover:account_quota_exhausted"),
+        ("auth_quota_exhausted", "provider_failover:auth_quota_exhausted"),
+        ("rate_limit_exceeded", None),
+        ("HTTP 401 Unauthorized", None),
+        ("account balance is too low; please top up", None),
+    ],
+)
+def test_provider_failover_requires_exact_structured_capacity_code(
+    code: str,
+    reason: str | None,
+) -> None:
+    assert provider_failover_reason(code) == reason
+
+
+def test_429_rate_limit_retries_same_provider_but_insufficient_quota_can_fail_over() -> None:
+    rate_limit = {
+        "exception_info": {
+            "exception_type": "ApiRateLimitError",
+            "code": "rate_limit_exceeded",
+            "message": "provider returned status code 429",
+        }
+    }
+    insufficient_quota = {
+        "exception_info": {
+            "exception_type": "ApiRateLimitError",
+            "code": "insufficient_quota",
+            "message": "provider returned status code 429",
+        }
+    }
+    message_only = {
+        "exception_info": {
+            "exception_type": "ApiRateLimitError",
+            "message": "429 insufficient_quota",
+        }
+    }
+
+    assert provider_failover_exception(rate_limit) is None
+    assert transient_provider_exception(rate_limit) == "transient_harness:provider_http_429"
+    assert provider_failover_exception(insufficient_quota) == (
+        "provider_failover:account_quota_exhausted"
+    )
+    assert transient_provider_exception(insufficient_quota) == (
+        "transient_harness:provider_http_429"
+    )
+    assert provider_failover_exception(message_only) is None
+    assert transient_provider_exception(message_only) == "transient_harness:provider_http_429"
+
+
+def test_provider_failover_rejects_task_structured_capacity_code() -> None:
+    task_failure = {
+        "exception_info": {
+            "exception_type": "TaskValidationError",
+            "code": "insufficient_quota",
+        }
+    }
+
+    assert provider_failover_exception(task_failure) is None
+
+
 
 
 def test_provider_retry_requires_structured_agent_exception() -> None:

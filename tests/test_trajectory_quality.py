@@ -107,6 +107,23 @@ def test_clean_atif_pass(sample_trial_dir: Path) -> None:
     assert report.raw_result_digest is not None
 
 
+def test_current_atif_observation_pairs_tool_call(sample_trial_dir: Path) -> None:
+    """Current singular ATIF observations satisfy tool-call pairing."""
+    trajectory_path = sample_trial_dir / "agent" / "trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    first_step = trajectory["steps"][0]
+    first_step.pop("observations")
+    first_step["observation"] = {
+        "results": [{"source_call_id": "call-1", "content": "total 0"}]
+    }
+    trajectory_path.write_text(json.dumps(trajectory), encoding="utf-8")
+
+    report, findings = evaluate_trial_quality(sample_trial_dir)
+
+    assert report.status == QualityStatus.PASS
+    assert not any(finding.code == "ATIF_UNPAIRED_TOOL_CALL" for finding in findings)
+
+
 def test_warning_atif_remains_ingestable_and_analysis_ready(sample_trial_dir: Path) -> None:
     """Non-fatal anomalies produce warnings but remain analysis ready."""
     traj_path = sample_trial_dir / "agent" / "trajectory.json"

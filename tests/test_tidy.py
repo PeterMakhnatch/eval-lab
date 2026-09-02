@@ -1100,13 +1100,17 @@ def test_parse_worktree_porcelain_synthetic_entries() -> None:
     }
     main = regs["/repo/main"]
     assert main.branch == "main"
+    # Git porcelain emits an uppercase `HEAD <sha>` token; it must be preserved.
+    assert main.head == "0123456789abcdef0123456789abcdef01234567"
     assert main.prunable_reason is None and main.locked_reason is None
     gone = regs["/elsewhere/gone-wt"]
     assert gone.branch == "role/gone"
+    assert gone.head == "aaaaffffaaaaffffaaaaffffaaaaffffaaaaffff"
     assert gone.prunable_reason == "gitdir file points to non-existent location"
     assert gone.locked_reason is None
     locked = regs["/elsewhere/locked-wt"]
     assert locked.detached is True and locked.branch is None
+    assert locked.head == "bbbbffffbbbbffffbbbbffffbbbbffffbbbbffff"
     assert locked.locked_reason == "experimental checkout"
     quietly = regs["/elsewhere/quietly-locked-wt"]
     assert quietly.locked_reason == "" and quietly.prunable_reason == "gitdir file does not exist"

@@ -383,7 +383,7 @@ def parse_worktree_porcelain(output: str, *, root: Path) -> list[WorktreeRegistr
             branch = branch_raw.removeprefix("refs/heads/").strip() or None
         return WorktreeRegistration(
             path=path,
-            head=block.get("head") or None,
+            head=block.get("HEAD") or None,
             branch=branch,
             bare="bare" in block,
             detached="detached" in block,

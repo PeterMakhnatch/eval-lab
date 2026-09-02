@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -12,18 +13,21 @@ from pathlib import Path
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
+import evallab.tidy as tidy_module
 from evallab.cli import run_cli
 from evallab.tidy import (
+    apply_deletions,
     check_branch_merged_status,
     classify_junk,
     collect_tidy_report,
     format_tidy_report,
     is_never_touch,
+    parse_worktree_porcelain,
     run_tidy,
     sweep_branches,
     sweep_untracked_strays,
     sweep_worktrees,
+    TidyReport,
 )
 
 
@@ -871,7 +875,7 @@ def test_git_failure_classifies_unproven_rather_than_merged(tmp_path: Path) -> N
 
 
 def test_broken_worktree_classifies_unproven(tmp_path: Path) -> None:
-    """Corrupted/broken worktree classifies as unproven and NEVER actionable."""
+    """Corrupted/broken registered worktree classifies as unproven and NEVER actionable."""
     root = tmp_path / "repo"
     root.mkdir()
     init_git_repo(root)
@@ -879,8 +883,15 @@ def test_broken_worktree_classifies_unproven(tmp_path: Path) -> None:
     worktrees_dir = root / ".worktrees"
     worktrees_dir.mkdir()
     broken_wt = worktrees_dir / "broken-wt"
-    broken_wt.mkdir()
-    # Write a broken .git file
+    # Registered via git, then its .git pointer corrupted: the directory still
+    # exists (so Git does not report the registration prunable) but git status
+    # inside it fails.
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/broken", str(broken_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
     (broken_wt / ".git").write_text("gitdir: /nonexistent/path/to/gitdir\n", encoding="utf-8")
 
     report = collect_tidy_report(root)
@@ -1044,3 +1055,363 @@ def test_property_actionable_implies_provably_merged_and_clean(
             assert finding.status == "unproven"
         elif branch_type in ("unmerged_extra_commit", "unmerged_divergent"):
             assert finding.status == "active_clean"
+
+
+def test_parse_worktree_porcelain_synthetic_entries() -> None:
+    """Synthetic porcelain: prunable/locked reasons parsed; headerless blocks skipped."""
+    output = (
+        "worktree /repo/main\n"
+        "HEAD 0123456789abcdef0123456789abcdef01234567\n"
+        "branch refs/heads/main\n"
+        "\n"
+        "worktree /elsewhere/gone-wt\n"
+        "HEAD aaaaffffaaaaffffaaaaffffaaaaffffaaaaffff\n"
+        "branch refs/heads/role/gone\n"
+        "prunable gitdir file points to non-existent location\n"
+        "\n"
+        "worktree /elsewhere/locked-wt\n"
+        "HEAD bbbbffffbbbbffffbbbbffffbbbbffffbbbbffff\n"
+        "detached\n"
+        "locked experimental checkout\n"
+        "\n"
+        "worktree /elsewhere/quietly-locked-wt\n"
+        "HEAD ccccffffccccffffccccffffccccffffccccffff\n"
+        "branch refs/heads/role/quiet\n"
+        "locked\n"
+        "prunable gitdir file does not exist\n"
+        "\n"
+        "worktree /repo/bare-main\n"
+        "bare\n"
+        "\n"
+        # Malformed: no explicit worktree header -> skipped, path never inferred.
+        "HEAD ddddeeeeddddeeeeddddeeeeddddeeeeddddeeee\n"
+        "branch refs/heads/ghost\n"
+        "\n"
+    )
+    regs = {str(r.path): r for r in parse_worktree_porcelain(output, root=Path("/repo"))}
+
+    assert set(regs) == {
+        "/repo/main",
+        "/elsewhere/gone-wt",
+        "/elsewhere/locked-wt",
+        "/elsewhere/quietly-locked-wt",
+        "/repo/bare-main",
+    }
+    main = regs["/repo/main"]
+    assert main.branch == "main"
+    assert main.prunable_reason is None and main.locked_reason is None
+    gone = regs["/elsewhere/gone-wt"]
+    assert gone.branch == "role/gone"
+    assert gone.prunable_reason == "gitdir file points to non-existent location"
+    assert gone.locked_reason is None
+    locked = regs["/elsewhere/locked-wt"]
+    assert locked.detached is True and locked.branch is None
+    assert locked.locked_reason == "experimental checkout"
+    quietly = regs["/elsewhere/quietly-locked-wt"]
+    assert quietly.locked_reason == "" and quietly.prunable_reason == "gitdir file does not exist"
+    assert regs["/repo/bare-main"].bare is True
+
+
+def test_external_linked_worktree_is_inventoried(tmp_path: Path) -> None:
+    """A registered linked worktree outside the repo root is inventoried and classified."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    external_wt = tmp_path / "external-wt"  # outside the repo, not under .worktrees/
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/external-feat", str(external_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (external_wt / "ext.txt").write_text("external work\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=external_wt, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "external feature"],
+        cwd=external_wt,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "merge", "--squash", "role/external-feat"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "squash external feature"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+    findings = sweep_worktrees(root)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.path.resolve() == external_wt.resolve()
+    assert finding.status == "clean_merged"
+    assert finding.actionable is True
+    assert finding.size_bytes > 0  # actionable existing worktree is measured
+
+
+def test_dirty_external_worktree_is_preserved(tmp_path: Path) -> None:
+    """A dirty registered worktree outside the repo root is preserved and never removed."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    external_wt = tmp_path / "external-dirty-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/external-dirty", str(external_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (external_wt / "wip.txt").write_text("uncommitted\n", encoding="utf-8")
+
+    report = collect_tidy_report(root)
+    assert len(report.worktrees) == 1
+    finding = report.worktrees[0]
+    assert finding.status == "dirty"
+    assert finding.actionable is False
+    assert finding.size_bytes == 0  # active entries are not walked
+
+    exit_code = run_tidy(root, apply=True, gh_checker=lambda b, r: (True, None, None))
+    assert exit_code == 0
+    assert (external_wt / "wip.txt").is_file()
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert str(external_wt) in listing  # registration intact
+
+
+def test_git_reported_prunable_registration_is_actionable_and_pruned(tmp_path: Path) -> None:
+    """Git-reported prunable registration is actionable; apply prunes via Git only."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    external_wt = tmp_path / "vanished-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/vanish-wt", str(external_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    shutil.rmtree(external_wt)  # deleted outside git: registration becomes prunable
+
+    findings = sweep_worktrees(root)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.path.resolve() == external_wt.resolve()
+    assert finding.status == "prunable"
+    assert finding.actionable is True
+    assert finding.size_bytes == 0  # nothing left on disk to reclaim
+    assert "prunable" in finding.reason
+
+    report = TidyReport(worktrees=findings, apply=True)
+    report = apply_deletions(report, root)
+    assert report.deleted_worktrees == [str(external_wt)]
+
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert str(external_wt) not in listing  # registration pruned
+    # Prune never deletes branches.
+    still_there = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "refs/heads/role/vanish-wt"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert still_there.returncode == 0
+
+
+def test_synthetic_prunable_apply_uses_git_prune_and_never_touches_live_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apply for prunable entries calls git worktree prune; no live dir is targeted."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    live_wt = root / ".worktrees" / "live-wt"
+    live_wt.parent.mkdir()
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/live", str(live_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (live_wt / "keep.txt").write_text("live\n", encoding="utf-8")  # dirty: preserved
+
+    synthetic = (
+        f"worktree {root}\n"
+        "HEAD 0123456789abcdef0123456789abcdef01234567\n"
+        "branch refs/heads/main\n"
+        "\n"
+        f"worktree {live_wt}\n"
+        "HEAD bbbbffffbbbbffffbbbbffffbbbbffffbbbbffff\n"
+        "branch refs/heads/role/live\n"
+        "\n"
+        "worktree /nonexistent/vanished-wt\n"
+        "HEAD ccccffffccccffffccccffffccccffffccccffff\n"
+        "branch refs/heads/role/vanished\n"
+        "prunable gitdir file points to non-existent location\n"
+        "\n"
+    )
+    findings = sweep_worktrees(root, porcelain_output=synthetic)
+    by_name = {w.path.name: w for w in findings}
+    assert set(by_name) == {"live-wt", "vanished-wt"}
+    assert by_name["live-wt"].status == "dirty"
+    assert by_name["live-wt"].actionable is False
+    assert by_name["vanished-wt"].status == "prunable"
+    assert by_name["vanished-wt"].actionable is True
+
+    recorded: list[list[str]] = []
+    real_run = subprocess.run
+
+    def spy(cmd, **kwargs):
+        recorded.append(list(cmd))
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    report = apply_deletions(TidyReport(worktrees=findings, apply=True), root)
+
+    # Registration-only removal: prune ran, and no `worktree remove` was issued.
+    assert ["git", "-C", str(root), "worktree", "prune"] in recorded
+    assert not any("remove" in argv for argv in recorded)
+    assert "/nonexistent/vanished-wt" in report.deleted_worktrees
+
+    # The live directory and its registration are untouched.
+    assert (live_wt / "keep.txt").is_file()
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert str(live_wt) in listing
+    assert "/nonexistent/vanished-wt" not in listing
+
+
+def test_current_worktree_excluded_before_expensive_work(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The invoking worktree is excluded before sizing; sizing runs for actionable only."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    current_wt = worktrees_dir / "invoking-wt"
+    merged_wt = worktrees_dir / "merged-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/invoking", str(current_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/merged-task", str(merged_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (current_wt / "wip.txt").write_text("in progress\n", encoding="utf-8")  # dirty current
+
+    size_calls: list[Path] = []
+    real_sizer = tidy_module.dir_size_bytes
+
+    def spy_size(path: Path) -> int:
+        size_calls.append(Path(path))
+        return real_sizer(path)
+
+    monkeypatch.setattr(tidy_module, "dir_size_bytes", spy_size)
+    findings = sweep_worktrees(root, current_worktree=current_wt)
+    # Current worktree excluded entirely: absent from findings, never sized.
+    assert [f.path.name for f in findings] == ["merged-wt"]
+    assert findings[0].status == "clean_merged"  # branch tip == main tip
+    assert findings[0].actionable is True
+    # Only the actionable worktree is measured; never the current one.
+    assert len(size_calls) == 1
+    assert size_calls[0].resolve() == merged_wt.resolve()
+
+def test_active_worktrees_not_recursively_sized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Active entries are not walked for sizes; the report says so instead of claiming bytes."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    dirty_wt = worktrees_dir / "dirty-wt"
+    unmerged_wt = worktrees_dir / "unmerged-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/dirty-task", str(dirty_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/unmerged-task", str(unmerged_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (dirty_wt / "wip.txt").write_text("wip\n", encoding="utf-8")
+    (unmerged_wt / "feature.txt").write_text("feature\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=unmerged_wt, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "unmerged feature"],
+        cwd=unmerged_wt,
+        check=True,
+        capture_output=True,
+    )
+
+    size_calls: list[Path] = []
+    real_sizer = tidy_module.dir_size_bytes
+
+    def spy_size(path: Path) -> int:
+        size_calls.append(Path(path))
+        return real_sizer(path)
+
+    monkeypatch.setattr(tidy_module, "dir_size_bytes", spy_size)
+    report = collect_tidy_report(root)
+
+    assert size_calls == []  # nothing actionable -> no recursive sizing at all
+    assert all(w.size_bytes == 0 for w in report.worktrees)
+    assert {w.status for w in report.worktrees} == {"dirty", "active_clean"}
+
+    text = format_tidy_report(report, root)
+    assert "## Active worktrees (not swept) (2 items, sizes not walked)" in text
+    active_block = text.split("## Active worktrees (not swept)")[1].split("\n\n")[0]
+    assert "0 B)" not in active_block  # no byte totals claimed for unsized entries
+
+
+def test_unregistered_directory_is_never_inventoried(tmp_path: Path) -> None:
+    """Porcelain is authoritative: unregistered directories under .worktrees/ are ignored."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    ghost = root / ".worktrees" / "ghost-wt"
+    ghost.mkdir(parents=True)
+    (ghost / ".git").write_text("gitdir: /nonexistent/path/to/gitdir\n", encoding="utf-8")
+    (ghost / "stray.txt").write_text("not a worktree\n", encoding="utf-8")
+
+    findings = sweep_worktrees(root)
+    assert findings == []  # never inferred from directory names

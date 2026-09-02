@@ -3,7 +3,10 @@
 Authority: docs/platform-architecture.md (T7, §2.6, §8).
 
 Sweeps:
-1. Stale worktrees: .worktrees/* whose branch is merged or deleted (skips dirty).
+1. Stale worktrees: registered linked worktrees (authoritative inventory from
+   `git worktree list --porcelain`; paths may live anywhere on disk) whose branch is
+   merged, whose branch no longer exists, or whose registration Git reports prunable
+   (skips dirty).
 2. Merged local branches: role/* fully contained in origin/main without open PR.
 3. Unindexed docs: docs/ absent from docs/INDEX.md or with missing/invalid front-matter.
 4. Untracked strays: untracked files not gitignored, distinguishing recognized junk from drafts.
@@ -147,6 +150,8 @@ class WorktreeFinding:
         "merged",
         "unmerged",
         "unproven",
+        "prunable",
+        "locked",
     ]
     file_count: int
     size_bytes: int
@@ -342,45 +347,175 @@ def check_branch_merged_status(
         return ("unproven", f"git merge-tree failed: {err}")
 
 
+@dataclass(frozen=True)
+class WorktreeRegistration:
+    """One registered worktree parsed from `git worktree list --porcelain`."""
+
+    path: Path
+    head: str | None
+    branch: str | None
+    bare: bool
+    detached: bool
+    locked_reason: str | None
+    prunable_reason: str | None
+
+
+def parse_worktree_porcelain(output: str, *, root: Path) -> list[WorktreeRegistration]:
+    """Parse `git worktree list --porcelain` output into registrations.
+
+    Fail-closed: a block without an explicit `worktree <path>` header is skipped
+    entirely and paths are never inferred from names. `root` resolves relative
+    paths only as a defensive fallback (Git emits absolute paths).
+    """
+    registrations: list[WorktreeRegistration] = []
+    fields: dict[str, str] = {}
+
+    def build(block: dict[str, str]) -> WorktreeRegistration | None:
+        header = block.get("worktree")
+        if not header:
+            return None
+        path = Path(header)
+        if not path.is_absolute():
+            path = (root / path).resolve()
+        branch_raw = block.get("branch")
+        branch = None
+        if branch_raw and branch_raw.startswith("refs/heads/"):
+            branch = branch_raw.removeprefix("refs/heads/").strip() or None
+        return WorktreeRegistration(
+            path=path,
+            head=block.get("head") or None,
+            branch=branch,
+            bare="bare" in block,
+            detached="detached" in block,
+            locked_reason=block.get("locked"),
+            prunable_reason=block.get("prunable"),
+        )
+
+    def flush() -> None:
+        entry = build(fields)
+        if entry is not None:
+            registrations.append(entry)
+
+    for raw_line in output.splitlines():
+        if not raw_line.strip():
+            flush()
+            fields = {}
+            continue
+        key, _, value = raw_line.partition(" ")
+        if key == "worktree":
+            # A new header without a separating blank line: flush the previous block.
+            flush()
+            fields = {"worktree": value.strip()}
+        else:
+            fields[key] = value.strip()
+    flush()
+    return registrations
+
+
 def sweep_worktrees(
     root: Path,
     *,
     current_worktree: Path | None = None,
+    porcelain_output: str | None = None,
 ) -> list[WorktreeFinding]:
-    """Sweep .worktrees/* for stale or dirty worktrees.
+    """Sweep registered linked worktrees for stale or dirty entries.
+
+    The inventory authority is Git: `git worktree list --porcelain`. Registered
+    linked worktrees may live anywhere on disk (not only under .worktrees/), and
+    worktree paths are never inferred from directory names. On Git failure the
+    sweep fails closed with no candidates and no actions.
 
     Three-state classification:
     - merged: provably in target_main (via ancestry or git merge-tree) -> actionable if clean
     - unmerged: provably carrying content target_main lacks -> active, not actionable
     - unproven: cannot be established (detached HEAD, missing branch, git failure) -> not actionable
 
-    Only clean_merged is actionable. Dirty, unmerged, and unproven worktrees are NEVER actionable.
+    Registration states (from the porcelain listing itself):
+    - prunable: Git reports the registration stale -> actionable; apply removes it
+      through `git worktree prune` and never touches directory contents.
+    - locked: Git reports the registration locked -> never actionable.
+    - bare and the primary checkout are not candidates; the current invoking worktree
+      is excluded before any expensive work.
+
+    Only clean_merged and Git-reported prunable registrations are actionable. Dirty,
+    unmerged, detached, broken, locked, current, and unproven worktrees are NEVER
+    actionable. Byte sizes are measured only for actionable entries whose path still
+    exists; active entries are intentionally not walked.
     """
     primary = shared_checkout_root(root)
-    worktrees_dir = primary / ".worktrees"
-    if not worktrees_dir.is_dir():
-        # Also check relative to root if root is a fixture directory
-        worktrees_dir = root / ".worktrees"
-        if not worktrees_dir.is_dir():
+    if porcelain_output is None:
+        listing = subprocess.run(
+            ["git", "-C", str(primary), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if listing.returncode != 0:
+            # Fail closed: no authoritative inventory, no candidates, no actions.
             return []
+        porcelain_output = listing.stdout
+    registrations = parse_worktree_porcelain(porcelain_output, root=primary)
 
     target_main = get_target_main_ref(primary) or "origin/main"
     active_wt = (current_worktree or root).resolve()
+    primary_resolved = primary.resolve()
+
+    def measured_size(path: Path) -> int:
+        # The expensive recursive walk runs only for actionable entries that exist.
+        if not path.is_dir():
+            return 0
+        return dir_size_bytes(path)
 
     findings: list[WorktreeFinding] = []
-    candidates = sorted(worktrees_dir.iterdir(), key=lambda p: p.name)
 
-    for wt_path in candidates:
-        if not wt_path.is_dir():
+    for reg in registrations:
+        wt_path = reg.path
+        if reg.bare:
             continue
-
-        size = dir_size_bytes(wt_path)
-
-        # 1. Is this the current invoking worktree?
+        if wt_path.resolve() == primary_resolved:
+            # The primary checkout is never a stale-worktree candidate.
+            continue
         if wt_path.resolve() == active_wt:
+            # The current invoking worktree is excluded before any expensive work.
             continue
 
-        # 2. Check git status in the worktree
+        if reg.locked_reason is not None:
+            findings.append(
+                WorktreeFinding(
+                    path=wt_path,
+                    branch=reg.branch or "unknown",
+                    status="locked",
+                    file_count=0,
+                    size_bytes=0,
+                    reason=(
+                        f"locked — Git registration locked "
+                        f"({reg.locked_reason or 'no reason given'}); never actionable"
+                    ),
+                    actionable=False,
+                )
+            )
+            continue
+
+        if reg.prunable_reason is not None:
+            findings.append(
+                WorktreeFinding(
+                    path=wt_path,
+                    branch=reg.branch or "unknown",
+                    status="prunable",
+                    file_count=0,
+                    size_bytes=measured_size(wt_path),
+                    reason=(
+                        f"prunable — Git reports stale registration "
+                        f"({reg.prunable_reason or 'unspecified'}); apply removes the "
+                        f"registration via git worktree prune (directory contents "
+                        f"never touched)"
+                    ),
+                    actionable=True,
+                )
+            )
+            continue
+
+        # Check git status in the worktree
         status_res = subprocess.run(
             ["git", "-C", str(wt_path), "status", "--porcelain"],
             capture_output=True,
@@ -396,7 +531,7 @@ def sweep_worktrees(
                     branch="unknown",
                     status="unproven",
                     file_count=0,
-                    size_bytes=size,
+                    size_bytes=0,
                     reason=f"unproven — broken worktree (git status error: {err})",
                     actionable=False,
                 )
@@ -407,7 +542,7 @@ def sweep_worktrees(
         is_dirty = len(dirty_lines) > 0
         dirty_count = len(dirty_lines)
 
-        # 3. Determine branch
+        # Determine branch
         branch_res = subprocess.run(
             ["git", "-C", str(wt_path), "symbolic-ref", "--short", "HEAD"],
             capture_output=True,
@@ -429,7 +564,7 @@ def sweep_worktrees(
                 else "unknown"
             )
 
-        # 4. If dirty, skip immediately (never actionable, preserved)
+        # If dirty, skip immediately (never actionable, preserved)
         if is_dirty:
             findings.append(
                 WorktreeFinding(
@@ -437,7 +572,7 @@ def sweep_worktrees(
                     branch=branch,
                     status="dirty",
                     file_count=dirty_count,
-                    size_bytes=size,
+                    size_bytes=0,
                     reason=(
                         f"dirty — skipped ({dirty_count} uncommitted "
                         f"file{'s' if dirty_count != 1 else ''})"
@@ -447,7 +582,7 @@ def sweep_worktrees(
             )
             continue
 
-        # 5. For clean worktree: determine three-state merged / unmerged / unproven
+        # For clean worktree: determine three-state merged / unmerged / unproven
         if not branch or branch == "unknown":
             findings.append(
                 WorktreeFinding(
@@ -455,7 +590,7 @@ def sweep_worktrees(
                     branch="unknown",
                     status="unproven",
                     file_count=0,
-                    size_bytes=size,
+                    size_bytes=0,
                     reason="unproven — unknown branch / broken worktree",
                     actionable=False,
                 )
@@ -467,7 +602,7 @@ def sweep_worktrees(
                     branch=branch,
                     status="unproven",
                     file_count=0,
-                    size_bytes=size,
+                    size_bytes=0,
                     reason=f"unproven — {branch} (cannot verify branch merge status)",
                     actionable=False,
                 )
@@ -482,7 +617,7 @@ def sweep_worktrees(
                         branch=branch,
                         status="clean_merged",
                         file_count=0,
-                        size_bytes=size,
+                        size_bytes=measured_size(wt_path),
                         reason=reason,
                         actionable=True,
                     )
@@ -494,7 +629,7 @@ def sweep_worktrees(
                         branch=branch,
                         status="active_clean",
                         file_count=0,
-                        size_bytes=size,
+                        size_bytes=0,
                         reason=reason,
                         actionable=False,
                     )
@@ -506,7 +641,7 @@ def sweep_worktrees(
                         branch=branch,
                         status="unproven",
                         file_count=0,
-                        size_bytes=size,
+                        size_bytes=0,
                         reason=f"unproven — {reason}",
                         actionable=False,
                     )
@@ -935,27 +1070,45 @@ def collect_tidy_report(
 def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
     """Execute deletions for actionable items in report.
 
-    Deletes only clean stale worktrees, merged local branches without open PR,
-    and untracked strays with recognized junk signatures.
+    Deletes only clean stale worktrees, Git-reported prunable registrations,
+    merged local branches without open PR, and untracked strays with recognized
+    junk signatures. Prunable registrations are removed exclusively through
+    `git worktree prune`; their directory contents are never touched.
     """
     primary = shared_checkout_root(root)
 
     # 1. Actionable worktrees
+    prunable_paths: list[str] = []
     for wt in report.worktrees:
-        if wt.actionable:
-            rel = _rel_path_str(wt.path, primary)
-            # Remove worktree safely
-            res = subprocess.run(
-                ["git", "-C", str(primary), "worktree", "remove", "--force", str(wt.path)],
+        if not wt.actionable:
+            continue
+        if wt.status == "prunable":
+            # Registration-only removal through Git's own prune operation. Never
+            # rm/rmtree: a prunable marker must never escalate to deleting a
+            # live directory.
+            prunable_paths.append(_rel_path_str(wt.path, primary))
+            continue
+        rel = _rel_path_str(wt.path, primary)
+        # Remove worktree safely
+        res = subprocess.run(
+            ["git", "-C", str(primary), "worktree", "remove", "--force", str(wt.path)],
+            capture_output=True, text=True, check=False,
+        )
+        if res.returncode != 0 and wt.path.exists():
+            shutil.rmtree(wt.path, ignore_errors=True)
+            subprocess.run(
+                ["git", "-C", str(primary), "worktree", "prune"],
                 capture_output=True, text=True, check=False,
             )
-            if res.returncode != 0 and wt.path.exists():
-                shutil.rmtree(wt.path, ignore_errors=True)
-                subprocess.run(
-                    ["git", "-C", str(primary), "worktree", "prune"],
-                    capture_output=True, text=True, check=False,
-                )
-            report.deleted_worktrees.append(rel)
+        report.deleted_worktrees.append(rel)
+
+    if prunable_paths:
+        prune_res = subprocess.run(
+            ["git", "-C", str(primary), "worktree", "prune"],
+            capture_output=True, text=True, check=False,
+        )
+        if prune_res.returncode == 0:
+            report.deleted_worktrees.extend(prunable_paths)
 
     # 2. Actionable branches
     for branch in report.branches:
@@ -1005,18 +1158,15 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
             )
     lines.append("")
 
-    # Active worktrees (not swept)
+    # Active worktrees (not swept) — sizes intentionally not walked
     if active_worktrees:
-        active_bytes = sum(w.size_bytes for w in active_worktrees)
         lines.append(
             f"## Active worktrees (not swept) "
-            f"({len(active_worktrees)} items, {format_bytes(active_bytes)})"
+            f"({len(active_worktrees)} items, sizes not walked)"
         )
         for wt in active_worktrees:
             rel = _rel_path_str(wt.path, primary)
-            lines.append(
-                f"- `{rel}` ({wt.branch}, {format_bytes(wt.size_bytes)}) — {wt.reason}"
-            )
+            lines.append(f"- `{rel}` ({wt.branch}) — {wt.reason}")
         lines.append("")
 
     # 2. Merged local branches (excluding branches checked out in active worktrees)

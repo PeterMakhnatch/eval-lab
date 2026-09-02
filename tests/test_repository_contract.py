@@ -5,6 +5,8 @@ import re
 import tomllib
 from pathlib import Path
 
+from evallab.execution_contracts import load_policy
+
 ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "library/tasks/event-summary"
 IGNORED_PARTS = {
@@ -111,6 +113,17 @@ def test_curated_evidence_files_remain_reviewable() -> None:
         if path.is_file() and path.stat().st_size > 2 * 1024 * 1024
     ]
     assert oversized == []
+
+
+def test_standing_policy_keeps_conservative_defaults() -> None:
+    policy = load_policy(ROOT / "policy/standing-approvals.yaml")
+
+    assert policy.daily_cost_ceiling_usd == 20
+    assert policy.per_job_cost_ceiling_usd == 3
+    assert policy.quiet_failure_rule == 3
+    assert [rule.agents for rule in policy.auto_run if rule.name == "local-controls"] == [
+        ["oracle", "nop"]
+    ]
 
 
 def test_subscription_helpers_never_alias_oauth_to_model_api_key() -> None:

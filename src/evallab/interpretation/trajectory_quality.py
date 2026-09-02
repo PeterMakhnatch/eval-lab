@@ -401,10 +401,22 @@ def evaluate_trial_quality(
                             status = QualityStatus.WARN
                     last_step_id = step_id
 
-                    # Check tool call / observation pairing
+                    # Current ATIF stores tool results under singular
+                    # ``observation.results``. Keep accepting the legacy
+                    # plural list while older evidence remains in the ledger.
+                    observation = step.get("observation")
+                    if isinstance(observation, dict):
+                        results = observation.get("results", [])
+                        observation_count = len(results) if isinstance(results, list) else 0
+                    else:
+                        legacy_observations = step.get("observations", [])
+                        observation_count = (
+                            len(legacy_observations)
+                            if isinstance(legacy_observations, list)
+                            else 0
+                        )
                     tool_calls = step.get("tool_calls", [])
-                    observations = step.get("observations", [])
-                    if len(tool_calls) > 0 and len(observations) == 0:
+                    if len(tool_calls) > 0 and observation_count == 0:
                         findings.append(
                             TrajectoryQualityFinding(
                                 finding_id=make_finding_id(

@@ -2762,6 +2762,209 @@ register_trajectory_feature(
 
 
 
+def _register_memory_continuity_feature(
+    column_name: str,
+    *,
+    data_type: FeatureDataType,
+    category: FeatureCategory,
+    formula_or_rule: str,
+    null_condition: str,
+    description: str,
+    declared_inputs: tuple[str, ...],
+    coupling_basis: str,
+    denominator_sibling: str | None = None,
+) -> None:
+    register_trajectory_feature(
+        column_name,
+        data_type=data_type,
+        category=category,
+        is_screening=False,
+        source_table="context_operation_facts",
+        formula_or_rule=formula_or_rule,
+        null_condition=null_condition,
+        description=description,
+        denominator_sibling=denominator_sibling,
+        null_on_zero_denominator=denominator_sibling is not None,
+        denominator_policy="required" if denominator_sibling else "not_applicable",
+        declared_inputs=declared_inputs,
+        available_before_verdict=True,
+        verdict_coupling="correlates",
+        coupling_basis=coupling_basis,
+        producer_module="evallab.interpretation.producers.memory_continuity",
+        construct="Memory, Context & Continuity",
+        causal_grade="C0",
+        metric_order=2 if denominator_sibling else 1,
+        family="memory-continuity-v1",
+    )
+
+
+_register_memory_continuity_feature(
+    "memory_write_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Count of explicit memory_write operations",
+    null_condition="0 when no explicit memory write is observed",
+    description="Explicit memory writes; ordinary assistant text is never inferred as a write.",
+    declared_inputs=(),
+    coupling_basis="Write frequency may correlate with memory-task outcome without defining reward",
+)
+_register_memory_continuity_feature(
+    "memory_read_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Count of explicit memory_read operations",
+    null_condition="0 when no explicit memory read is observed",
+    description="Explicit memory reads with preserved content identity.",
+    declared_inputs=(),
+    coupling_basis="Read frequency may correlate with memory-task outcome without defining reward",
+)
+_register_memory_continuity_feature(
+    "memory_use_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Count of explicit memory_use operations",
+    null_condition="0 when no explicit memory use is observed",
+    description="Explicit uses of remembered content; a read, log, or substring overlap never implies use.",
+    declared_inputs=(),
+    coupling_basis="Explicit memory use may correlate with outcome without defining verifier reward",
+)
+_register_memory_continuity_feature(
+    "write_read_link_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Reads with a strictly earlier write carrying the same content digest",
+    null_condition="NULL when step order or content identity is unavailable",
+    description="Observed write-to-read edges over stable content identities.",
+    declared_inputs=("memory_write_count", "memory_read_count"),
+    coupling_basis="Write-read linkage measures continuity behavior without defining reward",
+)
+_register_memory_continuity_feature(
+    "write_read_use_link_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Uses with a strictly earlier linked read and write carrying the same first-class content digest; never substring or log overlap",
+    null_condition="NULL when step order or content identity is unavailable",
+    description="Observed complete write-read-use chains over explicit bound identity. Not validated by action-memory-v1.",
+    declared_inputs=("write_read_link_count", "memory_use_count"),
+    coupling_basis="Complete memory chains may correlate with outcome without defining verifier reward",
+)
+_register_memory_continuity_feature(
+    "mean_write_to_read_latency_steps",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    formula_or_rule="Mean read_step - prior_matching_write_step over linked reads",
+    null_condition="NULL when write_read_link_count == 0 or linking is unavailable",
+    description="Mean trajectory-step latency from explicit memory write to later read.",
+    declared_inputs=("write_read_link_count",),
+    coupling_basis="Retrieval latency may correlate with task difficulty without defining reward",
+    denominator_sibling="write_read_link_count",
+)
+_register_memory_continuity_feature(
+    "mean_read_to_use_latency_steps",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    formula_or_rule="Mean use_step - prior_matching_read_step over linked uses",
+    null_condition="NULL when write_read_use_link_count == 0 or linking is unavailable",
+    description="Mean trajectory-step latency from linked read to explicit use.",
+    declared_inputs=("write_read_use_link_count",),
+    coupling_basis="Use latency may correlate with task outcome without defining reward",
+    denominator_sibling="write_read_use_link_count",
+)
+_register_memory_continuity_feature(
+    "context_boundary_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Count of compaction, clear, eviction, and session-boundary operations",
+    null_condition="0 when no explicit context boundary is observed",
+    description="Explicit context or session boundaries crossed in the trajectory.",
+    declared_inputs=(),
+    coupling_basis="Boundary exposure may correlate with task difficulty without defining reward",
+)
+_register_memory_continuity_feature(
+    "boundary_carryover_opportunity_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Unique written content digests preceding each explicit boundary",
+    null_condition="NULL when step order or content identity is unavailable",
+    description="Memory items eligible to be carried across an observed boundary.",
+    declared_inputs=("memory_write_count", "context_boundary_count"),
+    coupling_basis="Carryover opportunity is exposure structure rather than verifier reward",
+)
+_register_memory_continuity_feature(
+    "boundary_carryover_success_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Boundary opportunities with an explicit later read and use of the same content digest",
+    null_condition="NULL when step order or content identity is unavailable",
+    description="Explicitly read-and-used memories carried across boundaries.",
+    declared_inputs=("boundary_carryover_opportunity_count", "write_read_use_link_count"),
+    coupling_basis="Carryover success may correlate with outcome without defining benchmark reward",
+)
+_register_memory_continuity_feature(
+    "boundary_carryover_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    formula_or_rule="boundary_carryover_success_count / boundary_carryover_opportunity_count",
+    null_condition="NULL when boundary_carryover_opportunity_count == 0 or linking is unavailable",
+    description="Exposure-conditioned explicit memory carryover across context boundaries.",
+    declared_inputs=("boundary_carryover_success_count", "boundary_carryover_opportunity_count"),
+    coupling_basis="Carryover rate measures process continuity without defining final reward",
+    denominator_sibling="boundary_carryover_opportunity_count",
+)
+_register_memory_continuity_feature(
+    "memory_read_context_position_observation_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    formula_or_rule="Memory reads carrying an observed context-position token offset",
+    null_condition="0 when read position is unavailable",
+    description="Denominator for context-position coverage and observed-position summaries.",
+    declared_inputs=("memory_read_count",),
+    coupling_basis="Position capture reflects trajectory instrumentation and agent behavior",
+)
+_register_memory_continuity_feature(
+    "memory_read_context_position_coverage",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    formula_or_rule="memory_read_context_position_observation_count / memory_read_count",
+    null_condition="NULL when memory_read_count == 0",
+    description="Share of memory reads with exact context-position evidence.",
+    declared_inputs=("memory_read_context_position_observation_count", "memory_read_count"),
+    coupling_basis="Instrumentation coverage may correlate with source and harness without defining reward",
+    denominator_sibling="memory_read_count",
+)
+_register_memory_continuity_feature(
+    "mean_memory_read_context_position_tokens",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    formula_or_rule="Mean observed context-position token offset over positioned memory reads",
+    null_condition="NULL when memory_read_context_position_observation_count == 0",
+    description="Mean context position at which explicit memory reads occurred.",
+    declared_inputs=("memory_read_context_position_observation_count",),
+    coupling_basis="Read position may correlate with context difficulty without defining reward",
+    denominator_sibling="memory_read_context_position_observation_count",
+)
+_register_memory_continuity_feature(
+    "max_memory_read_context_position_tokens",
+    data_type="BIGINT",
+    category="benchmark_l2_metric",
+    formula_or_rule="Maximum observed context-position token offset over memory reads",
+    null_condition="NULL when memory_read_context_position_observation_count == 0",
+    description="Furthest observed context position reached by an explicit memory read.",
+    declared_inputs=("memory_read_context_position_observation_count",),
+    coupling_basis="Maximum read position may correlate with context difficulty without defining reward",
+)
+_register_memory_continuity_feature(
+    "memory_continuity_status",
+    data_type="VARCHAR",
+    category="benchmark_l1_fact",
+    formula_or_rule="One of observed, missing_step_order, missing_content_identity, missing_operation_identity, or unavailable",
+    null_condition="Never NULL",
+    description="Reason-coded availability state for write-read-use and boundary linkage.",
+    declared_inputs=(),
+    coupling_basis="Availability status reflects source instrumentation without defining reward",
+)
+
+
 def compute_benchmark_feature_yield(
     records: list[dict[str, Any]],
     family: str | None = None,

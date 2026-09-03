@@ -702,6 +702,16 @@ class DirectoryQueue:
     ) -> tuple[Path, PolicyDecision]:
         now = datetime.now(UTC)
         spec_id = spec.spec_id or new_ulid()
+        duplicates = [
+            path
+            for state in QUEUE_STATES
+            for path in self.state_dir(state).glob(f"*-{spec_id}.json")
+        ]
+        if duplicates:
+            raise ValueError(
+                f"spec id {spec_id} already has a queue record at {duplicates[0]}; "
+                "resubmission requires a fresh spec id"
+            )
         normalized = spec.model_copy(update={"spec_id": spec_id, "submitted_at": now})
         filename = f"{_safe_component(spec.agent)}-{spec_id}.json"
         pending = self.state_dir("pending") / filename
@@ -2323,6 +2333,18 @@ class Executor:
                         message=(
                             "executor stopped between transient attempts; preserved "
                             "attempt evidence requires operator resubmission"
+                        ),
+                    )
+                elif self.queue.is_lease_stale(spec):
+                    self._fail_reconciled_running(
+                        path,
+                        spec,
+                        reason_code="running_reconcile_orphaned",
+                        message=(
+                            "running spec has no job evidence and no live executor "
+                            "lease; the dispatching child died before creating "
+                            "evidence, so the record is failed to keep every "
+                            "running entry reconciled to exactly one terminal record"
                         ),
                     )
                 continue

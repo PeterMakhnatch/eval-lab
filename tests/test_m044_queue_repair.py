@@ -4,6 +4,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -200,3 +202,90 @@ def test_provider_messages_name_their_own_billing_state() -> None:
     assert "ChatGPT" not in antigravity
     assert "Cursor subscription/API-key policy state" in cursor
     assert "ChatGPT" not in cursor
+
+
+def test_reconcile_fails_orphaned_running_spec_without_evidence_or_lease(
+    tmp_path: Path,
+) -> None:
+    """A dead child must leave exactly one terminal record, never a running ghost."""
+    service = Executor(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue"),
+        policy=policy(),
+        runner=lambda request: request.jobs_dir / request.name,
+        ingester=lambda _path: None,
+        credential_probe=lambda: frozenset(),
+        spent_today=lambda: 0.0,
+        consecutive_harness_failures=lambda: 0,
+        sleeper=lambda _seconds: None,
+    )
+    approved, _ = service.submit(control("orphaned-child"))
+    queued = service.queue.load(approved)
+    service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+
+    service.reconcile_running()
+
+    failed = service.queue.locate(str(queued.spec_id), ("failed",))
+    assert failed.is_file()
+    assert not service.queue.list_specs("running")
+    assert any(
+        '"code": "running_reconcile_orphaned"' in path.read_text()
+        for path in service.queue.reasons_dir.glob(f"{queued.spec_id}-*.json")
+    )
+
+
+def test_live_lease_defers_orphan_reconciliation(tmp_path: Path) -> None:
+    """A live child with a fresh lease and no job evidence yet is not an orphan."""
+    service = Executor(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue"),
+        policy=policy(),
+        runner=lambda request: request.jobs_dir / request.name,
+        ingester=lambda _path: None,
+        credential_probe=lambda: frozenset(),
+        spent_today=lambda: 0.0,
+        consecutive_harness_failures=lambda: 0,
+        sleeper=lambda _seconds: None,
+    )
+    approved, _ = service.submit(control("starting-child"))
+    queued = service.queue.load(approved)
+    running = service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    assert service.queue.acquire_lease(
+        queued, lease_generation="c" * 32
+    ) is not None
+
+    service.reconcile_running()
+
+    assert running.is_file()
+    assert service.queue.list_specs("running")
+
+
+def test_submit_refuses_duplicate_spec_id(tmp_path: Path) -> None:
+    """Resubmission must mint a fresh id; duplicates break locate()'s exactly-one."""
+    service = Executor(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue"),
+        policy=policy(),
+        runner=lambda request: request.jobs_dir / request.name,
+        ingester=lambda _path: None,
+        credential_probe=lambda: frozenset(),
+        spent_today=lambda: 0.0,
+        consecutive_harness_failures=lambda: 0,
+        sleeper=lambda _seconds: None,
+    )
+    approved, _ = service.submit(control("first-record"))
+    first_id = str(service.queue.load(approved).spec_id)
+    replay = control("second-record").model_copy(update={"spec_id": first_id})
+
+    with pytest.raises(ValueError, match="already has a queue record"):
+        service.submit(replay)

@@ -1380,6 +1380,11 @@ def test_targeted_campaign_tick_preserves_global_running_barrier(tmp_path: Path)
         actor="other-executor",
         event="claimed",
     )
+    # A live foreign executor holds a fresh lease; without one this running
+    # record is an orphan and reconcile_running() fails it closed.
+    assert executor.queue.acquire_lease(
+        foreign, lease_generation="b" * 32
+    ) is not None
 
     status = _orchestrator(root, manifest, executor).run()
 

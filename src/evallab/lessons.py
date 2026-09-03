@@ -31,6 +31,16 @@ from evallab.evidence.facts import TRIAL_FACT_SCHEMA
 from evallab.interpretation.trajectory_quality import QUALITY_REPORT_TABLE
 from evallab.lineage import compute_file_digest, resolve_lineage
 
+
+class LessonsEvidenceUnavailable(RuntimeError):
+    """Raised when a committed evidence snapshot exists but cannot be read.
+
+    The lessons artifact must refuse (visible failure) instead of silently
+    aggregating over zero rows: a filter that excludes everything looks
+    identical to an empty corpus, which is exactly the dashboard-vs-ledger
+    contradiction this guard exists to prevent.
+    """
+
 GENERATED_HEADER = "generated-by: lessons v1"
 DEFAULT_POWER_THRESHOLD = 5
 SQL_LESSONS_PATH = Path("sql/lessons.sql")
@@ -488,8 +498,11 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
                 ).fetchall()
                 cols = [desc[0] for desc in con.description]
                 return [dict(zip(cols, r, strict=False)) for r in rows]
-        except Exception:
-            return []
+        except Exception as exc:
+            raise LessonsEvidenceUnavailable(
+                "committed trial_facts snapshot exists but is unreadable; "
+                "refusing to render lessons over zero rows"
+            ) from exc
     return []
 
 
@@ -532,8 +545,11 @@ def load_quality_ledger_bound(
     relative = _relative_path(reports_path, root)
     try:
         rows = tuple(pq.read_table(pa.BufferReader(payload)).to_pylist())
-    except Exception:
-        return QualityLedgerRead(rows=(), digest=digest, path=relative)
+    except Exception as exc:
+        raise LessonsEvidenceUnavailable(
+            f"Evidence Quality Ledger snapshot unreadable at {relative}; "
+            "refusing to render lessons over zero rows"
+        ) from exc
     return QualityLedgerRead(rows=rows, digest=digest, path=relative)
 
 
@@ -940,6 +956,53 @@ def rank_lesson_rows(
     return rankings
 
 
+def _reconcile_ledger_eligibility(
+    quality_reports: Sequence[dict[str, Any]],
+) -> dict[str, int]:
+    """Reconcile ledger eligibility: eligible + itemized exclusions == N.
+
+    Refuses a ledger that mixes eligibility-aware and eligibility-unaware
+    rows: a partial flag set makes every eligibility aggregate a guess.
+    Ledger rows that never carry ``is_analysis_ready`` (3-column join
+    fixtures) yield no eligibility keys rather than a fake zero.
+    """
+    if not quality_reports:
+        return {}
+    flag_count = sum(
+        1 for report in quality_reports if "is_analysis_ready" in report
+    )
+    if flag_count not in (0, len(quality_reports)):
+        raise LessonsEvidenceUnavailable(
+            "quality ledger mixes eligibility-aware and eligibility-unaware rows "
+            f"({flag_count}/{len(quality_reports)} carry is_analysis_ready); "
+            "refusing to render eligibility aggregates"
+        )
+    if flag_count == 0:
+        return {}
+    eligible = sum(
+        1 for report in quality_reports if report.get("is_analysis_ready") is True
+    )
+    summary: dict[str, int] = {
+        "quality_ledger_eligible": eligible,
+        "quality_ledger_excluded": len(quality_reports) - eligible,
+    }
+    exclusions = Counter(
+        (
+            str(report.get("quarantine_reason") or "")
+            or f"not_analysis_ready:{report.get('status') or 'unknown'}"
+        )
+        for report in quality_reports
+        if report.get("is_analysis_ready") is not True
+    )
+    summary.update(
+        {
+            f"quality_exclusion:{reason}": count
+            for reason, count in sorted(exclusions.items())
+        }
+    )
+    return summary
+
+
 def build_lessons(
     root: Path,
     *,
@@ -975,6 +1038,7 @@ def build_lessons(
     quality_status_counts = Counter(
         str(report.get("status") or "") for report in quality_reports
     )
+
     records_summary = {
         "craft_records": len(craft_records),
         "trial_facts": len(facts),
@@ -986,6 +1050,7 @@ def build_lessons(
         "quality_ledger_fail": quality_status_counts.get("fail", 0),
         "quality_ledger_quarantine": quality_status_counts.get("quarantine", 0),
     }
+    records_summary.update(_reconcile_ledger_eligibility(quality_reports))
 
     rankings_by_view = {
         view_name: rank_lesson_rows(rows)
@@ -1004,7 +1069,6 @@ def build_lessons(
         inputs=tuple(inputs),
         rankings_by_view=rankings_by_view,
     )
-
 
 # --------------------------------------------------------------------------- #
 # Markdown Report Generation
@@ -1036,6 +1100,39 @@ def _quality_cells(counts: tuple[int, int, int, int]) -> str:
 def render_lessons_markdown(result: LessonsResult) -> str:
     """Render structured markdown report matching research/lessons.md specification."""
     rec_sum = result.records_summary
+    ledger_line = ""
+    if "quality_ledger_evaluated" in rec_sum:
+        ledger_line = (
+            "- **Evidence Quality Ledger:** "
+            f"{rec_sum.get('quality_ledger_evaluated', 0)} evaluated trials "
+            f"(pass {rec_sum.get('quality_ledger_pass', 0)}, "
+            f"warn {rec_sum.get('quality_ledger_warn', 0)}, "
+            f"fail {rec_sum.get('quality_ledger_fail', 0)}, "
+            f"quarantine {rec_sum.get('quality_ledger_quarantine', 0)}"
+        )
+        if "quality_ledger_eligible" in rec_sum:
+            ledger_line += (
+                f", eligible {rec_sum['quality_ledger_eligible']}, "
+                f"excluded {rec_sum['quality_ledger_excluded']}"
+            )
+        ledger_line += ")"
+    exclusion_lines = [
+        f"  - exclusion `{key.removeprefix('quality_exclusion:')}`: {count}"
+        for key, count in sorted(rec_sum.items())
+        if key.startswith("quality_exclusion:")
+    ]
+    visibility_warning = ""
+    if (
+        rec_sum.get("quality_ledger_evaluated", 0) > 0
+        and rec_sum.get("trial_facts", 0) == 0
+    ):
+        visibility_warning = (
+            "- ⚠️ **Evidence visibility:** lesson views hold zero trial rows while "
+            "the quality ledger reports evaluated trials — the trial_facts join "
+            "input is missing (no committed compact snapshot), so trials are NOT "
+            "ineligible, they are unjoinable. Refresh the compaction snapshot and "
+            "regenerate this artifact."
+        )
     lines: list[str] = [
         "---",
         "status: living",
@@ -1068,20 +1165,9 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"{rec_sum.get('observation_records', 0)} observation records, "
                 f"{rec_sum.get('analysis_sidecars', 0)} analysis sidecars"
             ),
-            *(
-                [
-                    (
-                        "- **Evidence Quality Ledger:** "
-                        f"{rec_sum.get('quality_ledger_evaluated', 0)} evaluated trials "
-                        f"(pass {rec_sum.get('quality_ledger_pass', 0)}, "
-                        f"warn {rec_sum.get('quality_ledger_warn', 0)}, "
-                        f"fail {rec_sum.get('quality_ledger_fail', 0)}, "
-                        f"quarantine {rec_sum.get('quality_ledger_quarantine', 0)})"
-                    )
-                ]
-                if "quality_ledger_evaluated" in rec_sum
-                else []
-            ),
+            *([ledger_line] if ledger_line else []),
+            *(exclusion_lines),
+            *([visibility_warning] if visibility_warning else []),
             (
                 f"- **Findings Gate:** {result.powered_lessons} statistically powered finding(s), "
                 f"{result.underpowered_lessons} observation row(s) gated with `insufficient n`"

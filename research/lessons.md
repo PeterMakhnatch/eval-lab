@@ -69,10 +69,13 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-09-03 16:51:07Z
+- **Generated at:** 2026-09-03 17:37:31Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
 - **Corpus Summary:** 551 craft tasks, 263 trials, 25 observation records, 0 analysis sidecars
-- **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)
+- **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9, eligible 179, excluded 59)
+  - exclusion `infrastructure_exception:Traceback (most recent call last):`: 9
+  - exclusion `missing_trajectory_file`: 24
+  - exclusion `not_analysis_ready:pass`: 26
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 
 ---

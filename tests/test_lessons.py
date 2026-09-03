@@ -21,8 +21,10 @@ from evallab.lessons import (
     GENERATED_HEADER,
     LessonRanking,
     LessonRow,
+    LessonsEvidenceUnavailable,
     LessonsResult,
     _canonical_quality_rows,
+    _reconcile_ledger_eligibility,
     apply_statistical_gating,
     build_lessons,
     check_lessons_freshness,
@@ -1479,3 +1481,81 @@ def test_collect_lessons_inputs_binds_quality_ledger(tmp_path: Path) -> None:
     root = _sample_lessons_fixture_tree(tmp_path)
     paths = {item["path"] for item in collect_lessons_inputs(root)}
     assert "derived/parquet/trajectory_quality_reports.parquet" in paths
+
+
+def test_unreadable_trial_facts_snapshot_refuses_instead_of_zero(
+    tmp_path: Path,
+) -> None:
+    """A corrupt snapshot must refuse loudly, never render as zero rows."""
+    snapshot = tmp_path / "derived/parquet/compact/dt=2026-09-01"
+    snapshot.mkdir(parents=True)
+    (snapshot / "trial_facts.parquet").write_bytes(b"not parquet")
+
+    with pytest.raises(LessonsEvidenceUnavailable, match="trial_facts"):
+        load_trial_facts(tmp_path)
+
+
+def test_unreadable_quality_ledger_refuses_instead_of_zero(tmp_path: Path) -> None:
+    """A corrupt ledger snapshot must refuse loudly, never render as zero rows."""
+    (tmp_path / "derived/parquet").mkdir(parents=True)
+    (tmp_path / "derived/parquet/trajectory_quality_reports.parquet").write_bytes(
+        b"garbage"
+    )
+
+    with pytest.raises(LessonsEvidenceUnavailable, match="Quality Ledger"):
+        load_quality_ledger_bound(tmp_path)
+
+
+def test_ledger_eligibility_reconciles_with_itemized_exclusions(
+    tmp_path: Path,
+) -> None:
+    """Contract: eligible + itemized exclusions == evaluated, both rendered."""
+    _write_quality_ledger(tmp_path)
+
+    result = build_lessons(tmp_path, generated_at=datetime(2026, 9, 3, tzinfo=UTC))
+
+    summary = result.records_summary
+    evaluated = summary["quality_ledger_evaluated"]
+    # Positive twin: analysis-ready rows are eligible; nothing else is.
+    assert summary["quality_ledger_eligible"] == 8
+    assert summary["quality_ledger_excluded"] == 2
+    assert summary["quality_ledger_eligible"] + summary["quality_ledger_excluded"] == evaluated
+    # Exclusions are itemized by typed reason, never collapsed into zero.
+    assert summary["quality_exclusion:missing_trajectory_file"] == 1
+    assert summary["quality_exclusion:not_analysis_ready:quality_not_evaluated"] == 1
+    markdown = render_lessons_markdown(result)
+    assert "eligible 8, excluded 2" in markdown
+    assert "- exclusion `missing_trajectory_file`: 1" in markdown
+    assert "- exclusion `not_analysis_ready:quality_not_evaluated`: 1" in markdown
+
+
+def test_visibility_warning_fires_when_join_input_is_missing(tmp_path: Path) -> None:
+    """Ledger rows with no trial_facts join input is unjoinable, not ineligible."""
+    _write_quality_ledger(tmp_path)
+
+    result = build_lessons(tmp_path, generated_at=datetime(2026, 9, 3, tzinfo=UTC))
+
+    assert result.records_summary["trial_facts"] == 0
+    assert result.records_summary["quality_ledger_evaluated"] == 10
+    markdown = render_lessons_markdown(result)
+    assert "**Evidence visibility:**" in markdown
+    assert "unjoinable" in markdown
+
+
+def test_mixed_eligibility_ledger_refuses() -> None:
+    """A partial is_analysis_ready flag set makes aggregates a guess: refuse."""
+    rows = _ledger_dicts()[:3]
+    del rows[0]["is_analysis_ready"]
+
+    with pytest.raises(LessonsEvidenceUnavailable, match="eligibility-aware"):
+        _reconcile_ledger_eligibility(rows)
+
+
+def test_flagless_ledger_rows_yield_no_eligibility_keys() -> None:
+    """3-column join fixtures must not gain fake zero eligibility counts."""
+    rows = [
+        {"job_id": "job-1", "trial_id": "t1", "status": "pass"},
+        {"job_id": "job-1", "trial_id": "t2", "status": "fail"},
+    ]
+
+    assert _reconcile_ledger_eligibility(rows) == {}

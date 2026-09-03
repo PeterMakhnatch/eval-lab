@@ -150,6 +150,31 @@ def test_infrastructure_exception_quarantined_not_reward_zero(
     assert any(f.code == "INFRA_EXCEPTION" for f in findings)
 
 
+def test_null_agent_result_payload_is_quarantined_not_crash(
+    sample_trial_dir: Path,
+) -> None:
+    """Failed Harbor trials record explicit null payloads ("agent_result": null).
+
+    The quality audit must quarantine them via the exception.txt reason,
+    not raise AttributeError while staging the nightly corpus.
+    """
+    result_path = sample_trial_dir / "result.json"
+    result_data = json.loads(result_path.read_text(encoding="utf-8"))
+    result_data["agent_result"] = None
+    result_data["verifier_result"] = None
+    result_data["exception_info"] = {"exception_type": "NonZeroAgentExitCodeError"}
+    result_path.write_text(json.dumps(result_data), encoding="utf-8")
+    (sample_trial_dir / "exception.txt").write_text(
+        "harbor.trial.trial.NonZeroAgentExitCodeError: agent setup failed",
+        encoding="utf-8",
+    )
+
+    report, findings = evaluate_trial_quality(sample_trial_dir)
+    assert report.status == QualityStatus.QUARANTINE
+    assert report.is_analysis_ready is False
+    assert "infrastructure_exception" in str(report.quarantine_reason)
+    assert any(f.code == "INFRA_EXCEPTION" for f in findings)
+
 def test_control_run_without_atif_is_valid_but_not_analysis_ready(
     tmp_path: Path,
 ) -> None:

@@ -193,9 +193,12 @@ def evaluate_trial_quality(
     result_data: dict[str, Any] = {}
     if result_json_path.is_file():
         try:
-            result_data = json.loads(result_json_path.read_text(encoding="utf-8"))
+            loaded = json.loads(result_json_path.read_text(encoding="utf-8"))
         except Exception:
-            result_data = {}
+            loaded = {}
+        # Failed/harness-exception trials record explicit null payloads
+        # (e.g. "agent_result": null); treat any non-dict payload as absent.
+        result_data = loaded if isinstance(loaded, dict) else {}
 
     trial_id = trial_id_override or result_data.get("id") or trial_dir.name
     job_id = job_id_override
@@ -244,7 +247,12 @@ def evaluate_trial_quality(
         is_analysis_ready = False
 
     # Check result.json error/exception status
-    res_exc = result_data.get("agent_result", {}).get("exception") or result_data.get("exception")
+    agent_result = result_data.get("agent_result")
+    res_exc = (
+        (agent_result or {}).get("exception")
+        if isinstance(agent_result, dict)
+        else None
+    ) or result_data.get("exception")
     if res_exc and status != QualityStatus.QUARANTINE:
         quarantine_reason = f"runner_exception:{str(res_exc)[:80]}"
         findings.append(
@@ -265,9 +273,12 @@ def evaluate_trial_quality(
     # 3. Check ATIF Trajectory Integrity
     if not traj_json_path.is_file():
         # Check if it's an oracle or nop control run
+        agent_info = result_data.get("agent_info")
         agent_name = (
-            result_data.get("agent_info", {}).get("name") or result_data.get("agent_name") or ""
-        )
+            (agent_info or {}).get("name")
+            if isinstance(agent_info, dict)
+            else None
+        ) or result_data.get("agent_name") or ""
         is_control = any(c in agent_name.lower() for c in ("oracle", "nop", "control"))
         if is_control:
             findings.append(

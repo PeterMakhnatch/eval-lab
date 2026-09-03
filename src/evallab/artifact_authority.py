@@ -1,9 +1,12 @@
 """Shared artifact authority boundary and verification primitives.
 
-Grounding: Track F second-wave specification rev2 (research/inbox/artifact-authority-boundary-20260903.md)
+Grounding: Track F second-wave specification (research/inbox/artifact-authority-boundary-20260903.md)
 Provides a fail-closed boundary distinguishing structural self-consistency from repo-jailed, bytes-verified authority.
-Integrates natively with evallab.evidence_store primitives (load_blob, read_archive, reopen_evidence_archive)
-and TrialAdmissibilityV1 authority records.
+
+Three distinct, non-fallback bytes-verification paths:
+1. Raw CAS Blob (`cas://sha256/<hex>`): load_blob via evidence_store with strict content hash verification.
+2. Archived Inner Artifact (ArchiveAnchor): reopen_evidence_archive with EvidenceLocator + exact inner_path extraction.
+3. Repo-Jailed Regular File: _read_repo_regular_file with strict O_NOFOLLOW descriptor traversal.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+import tarfile
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -18,19 +22,20 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from evallab.benchmark_program_contracts import canonical_json, compute_prefixed_sha256
 from evallab.evidence_store import (
-    EvidenceLocator,
     _absolute,
     load_blob,
-    read_archive,
-    read_record,
+    open_archive,
     reopen_evidence_archive,
 )
 from evallab.schemas import ContractModel, Digest, TrialAdmissibilityV1
 
 AuthorityLevel = Literal["structural-self-consistent", "bytes-verified"]
+ArtifactKind = Literal[
+    "contract", "trajectory", "final_state", "verifier", "outcome", "interpretation"
+]
 
 MODULE_NAME: str = "evallab.artifact_authority"
-MODULE_VERSION: str = "1.0.0"
+MODULE_VERSION: str = "2.0.0"
 VERIFY_FUNCTION_NAME: str = "verify_artifact"
 
 
@@ -52,7 +57,7 @@ VERIFIER_IMPLEMENTATION_DIGEST: Digest = compute_verifier_implementation_digest(
 
 
 class ArtifactRef(ContractModel):
-    """A typed reference to an artifact by canonical path, CAS URI, or archive anchor."""
+    """A typed reference to an artifact by canonical path or CAS URI and its declared digest."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -97,14 +102,34 @@ class ArtifactRef(ContractModel):
 
 
 class ArchiveAnchor(ContractModel):
-    """Authenticated coordinate in the immutable evidence store."""
+    """Authenticated coordinate binding an artifact inside an immutable evidence archive."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    archive_uri: str
-    record_kind: str
-    record_id: str
-    expected_record_digest: Digest | None = None
+    record_kind: str = Field(min_length=1)
+    record_id: str = Field(min_length=1)
+    expected_record_digest: Digest
+    expected_content_digest: Digest
+    inner_path: str = Field(min_length=1)
+
+    @field_validator("record_kind", "record_id")
+    @classmethod
+    def validate_component_names(cls, value: str) -> str:
+        if not value or value in {".", ".."} or "/" in value or "\\" in value or "\x00" in value:
+            raise ValueError(f"invalid record component: {value!r}")
+        return value
+
+    @field_validator("inner_path")
+    @classmethod
+    def validate_inner_path_canonical(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if (
+            path.is_absolute()
+            or path.as_posix() != value
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
+            raise ValueError(f"inner_path must be a canonical relative POSIX path: {value!r}")
+        return value
 
 
 def compute_authority_digest(
@@ -145,27 +170,42 @@ class ArtifactAuthority(ContractModel):
             )
         return self
 
-    def reanchor(self, store_root: Path) -> bytes | None:
-        """Re-verify bytes on demand through the authenticated evidence archive."""
+    def reanchor(
+        self,
+        store_root: Path,
+        repo_root: Path | None = None,
+    ) -> bytes | None:
+        """Re-verify and read exact bytes on demand through the authenticated authority path."""
         if self.level != "bytes-verified":
             return None
+
+        # Path 1: Archive Anchor (extract inner path from authenticated archive)
         if self.anchor is not None:
-            if self.anchor.expected_record_digest:
-                locator = EvidenceLocator(
-                    store_root=store_root,
-                    kind=self.anchor.record_kind,
-                    record_id=self.anchor.record_id,
-                    expected_record_digest=self.anchor.expected_record_digest,
-                    expected_content_digest=self.artifact.digest,
-                )
-                _, record_bytes = reopen_evidence_archive(locator)
-                return record_bytes
-            return read_record(
-                store_root, kind=self.anchor.record_kind, record_id=self.anchor.record_id
+            archive, _ = reopen_evidence_archive(
+                store_root,
+                kind=self.anchor.record_kind,
+                record_id=self.anchor.record_id,
+                expected_record_digest=self.anchor.expected_record_digest,
+                expected_content_digest=self.anchor.expected_content_digest,
             )
+            with (
+                open_archive(store_root, archive.uri) as source,
+                tarfile.open(fileobj=source, mode="r:gz") as tar,
+            ):
+                member = tar.getmember(self.anchor.inner_path)
+                extracted = tar.extractfile(member)
+                if extracted is None:
+                    raise FileNotFoundError(f"member {self.anchor.inner_path!r} unreadable")
+                return extracted.read()
+
+        # Path 2: Raw CAS Blob
         if self.artifact.ref.startswith("cas://sha256/"):
             return load_blob(store_root, self.artifact.ref)
-        return None
+
+        # Path 3: Repo-Jailed File
+        effective_repo = repo_root or store_root
+        raw_bytes, _ = _read_repo_regular_file(effective_repo, self.artifact.ref)
+        return raw_bytes
 
 
 class AuthorityRefusal(ContractModel):
@@ -240,54 +280,55 @@ def _read_repo_regular_file(repo_root: Path, relative_path: str) -> tuple[bytes 
         os.close(directory)
 
 
-def _read_cas_payload(
-    store_root: Path, uri: str, anchor: ArchiveAnchor | None = None
+def _read_anchored_archive_member(
+    store_root: Path, anchor: ArchiveAnchor
 ) -> tuple[bytes | None, str | None]:
-    """Load CAS payload using evidence_store primitives with no-follow descriptors."""
+    """Open an authenticated archive and extract the exact inner artifact bytes."""
     try:
         canonical_store = _absolute(store_root)
     except ValueError as exc:
-        return None, f"source_unreadable: invalid CAS root: {exc}"
+        return None, f"source_unreadable: invalid evidence store root: {exc}"
 
-    # 1. Direct blob lookup
     try:
-        return load_blob(canonical_store, uri), None
-    except FileNotFoundError:
-        pass
-    except ValueError:
-        pass
+        archive, _record_bytes = reopen_evidence_archive(
+            canonical_store,
+            kind=anchor.record_kind,
+            record_id=anchor.record_id,
+            expected_record_digest=anchor.expected_record_digest,
+            expected_content_digest=anchor.expected_content_digest,
+        )
     except Exception as exc:
-        return None, f"source_unreadable: failed reading CAS payload for {uri}: {exc}"
+        return (
+            None,
+            f"source_unreadable: failed reopening evidence archive {anchor.record_id}: {exc}",
+        )
 
-    # 2. Archive lookup via reopen_evidence_archive if anchor is provided
-    if anchor is not None:
-        try:
-            if anchor.expected_record_digest:
-                locator = EvidenceLocator(
-                    store_root=canonical_store,
-                    kind=anchor.record_kind,
-                    record_id=anchor.record_id,
-                    expected_record_digest=anchor.expected_record_digest,
-                    expected_content_digest=Digest(f"sha256:{uri.removeprefix('cas://sha256/')}"),
-                )
-                archive, record_bytes = reopen_evidence_archive(locator)
-                if archive.content_digest == f"sha256:{uri.removeprefix('cas://sha256/')}":
-                    return canonical_json(archive).encode("utf-8"), None
-            else:
-                record_bytes = read_record(
-                    canonical_store, kind=anchor.record_kind, record_id=anchor.record_id
-                )
-                return record_bytes, None
-        except Exception:
-            pass
-
-    # 3. Direct archive read
     try:
-        return read_archive(canonical_store, uri), None
-    except FileNotFoundError:
-        return None, f"source_unreadable: CAS artifact missing at {uri}"
+        with (
+            open_archive(canonical_store, archive.uri) as source,
+            tarfile.open(fileobj=source, mode="r:gz") as tar,
+        ):
+            try:
+                member = tar.getmember(anchor.inner_path)
+            except KeyError:
+                return (
+                    None,
+                    f"source_unreadable: inner artifact {anchor.inner_path!r} not in archive",
+                )
+            if not member.isfile():
+                return (
+                    None,
+                    f"source_unreadable: inner artifact {anchor.inner_path!r} is not a regular file",
+                )
+            extracted = tar.extractfile(member)
+            if extracted is None:
+                return None, f"source_unreadable: failed extracting {anchor.inner_path!r}"
+            return extracted.read(), None
     except Exception as exc:
-        return None, f"source_unreadable: cannot open CAS archive {uri}: {exc}"
+        return (
+            None,
+            f"source_unreadable: failed reading archive member {anchor.inner_path!r}: {exc}",
+        )
 
 
 def verify_artifact(
@@ -297,8 +338,9 @@ def verify_artifact(
     verifier_implementation_digest: Digest,
     anchor: ArchiveAnchor | None = None,
     admissibility: TrialAdmissibilityV1 | None = None,
+    artifact_kind: ArtifactKind | None = None,
     repo_root: Path | str | None = None,
-    cas_root: Path | str | None = None,
+    store_root: Path | str | None = None,
 ) -> AuthorityResult:
     """Verify an artifact reference at the requested authority level.
 
@@ -327,17 +369,29 @@ def verify_artifact(
 
     if minimum_level == "bytes-verified":
         effective_repo_root = Path(repo_root or Path.cwd())
-        effective_cas_root = Path(cas_root or effective_repo_root / "derived" / "evidence-cas")
+        effective_store_root = Path(store_root or effective_repo_root / "derived" / "evidence-cas")
 
-        if artifact.ref.startswith("cas://sha256/"):
-            raw_bytes, error_detail = _read_cas_payload(
-                effective_cas_root, artifact.ref, anchor=anchor
-            )
+        # Path 1: Archived Inner Artifact via ArchiveAnchor
+        if anchor is not None:
+            raw_bytes, error_detail = _read_anchored_archive_member(effective_store_root, anchor)
             if raw_bytes is None:
                 return AuthorityRefusal(
                     reason="source_unreadable",
-                    detail=error_detail or f"cannot read CAS ref {artifact.ref!r}",
+                    detail=error_detail or f"cannot read anchored artifact {anchor.inner_path!r}",
                 )
+
+        # Path 2: Raw CAS Blob
+        elif artifact.ref.startswith("cas://sha256/"):
+            try:
+                canonical_store = _absolute(effective_store_root)
+                raw_bytes = load_blob(canonical_store, artifact.ref)
+            except Exception as exc:
+                return AuthorityRefusal(
+                    reason="source_unreadable",
+                    detail=f"cannot read CAS blob {artifact.ref!r}: {exc}",
+                )
+
+        # Path 3: Repo-Jailed Regular File
         else:
             raw_bytes, error_detail = _read_repo_regular_file(effective_repo_root, artifact.ref)
             if raw_bytes is None:
@@ -354,6 +408,7 @@ def verify_artifact(
         computed_sha = hashlib.sha256(raw_bytes).hexdigest()
         actual_digest = Digest(f"sha256:{computed_sha}")
 
+        # Strict ref/digest parity for EVERY path (never skipped)
         if artifact.digest != actual_digest and not artifact.ref.startswith("cas://sha256/"):
             return AuthorityRefusal(
                 reason="ref_digest_parity_failed",
@@ -363,6 +418,7 @@ def verify_artifact(
                 ),
             )
 
+        # Admissibility verification for trial evidence
         if admissibility is not None:
             if not admissibility.causal_eligible:
                 return AuthorityRefusal(
@@ -375,15 +431,26 @@ def verify_artifact(
                 )
 
             digests_dict = admissibility.source_digests.model_dump(mode="json")
-            bound_digests = [v for v in digests_dict.values() if v is not None]
-            if artifact.digest not in bound_digests and actual_digest not in bound_digests:
-                return AuthorityRefusal(
-                    reason="receipt_digest_mismatch",
-                    detail=(
-                        f"artifact digest {artifact.digest!r} for {artifact.ref!r} is not "
-                        f"present in trial {admissibility.trial_id!r} source digests: {bound_digests}"
-                    ),
-                )
+            if artifact_kind is not None:
+                expected_kind_digest = digests_dict.get(artifact_kind)
+                if expected_kind_digest != actual_digest:
+                    return AuthorityRefusal(
+                        reason="receipt_digest_mismatch",
+                        detail=(
+                            f"artifact digest {actual_digest!r} for kind {artifact_kind!r} "
+                            f"does not match admissibility record digest: {expected_kind_digest!r}"
+                        ),
+                    )
+            else:
+                bound_digests = [v for v in digests_dict.values() if v is not None]
+                if actual_digest not in bound_digests:
+                    return AuthorityRefusal(
+                        reason="receipt_digest_mismatch",
+                        detail=(
+                            f"artifact digest {actual_digest!r} for {artifact.ref!r} is not "
+                            f"present in trial {admissibility.trial_id!r} source digests: {bound_digests}"
+                        ),
+                    )
 
         authority_digest = compute_authority_digest(
             artifact, "bytes-verified", verifier_implementation_digest, anchor

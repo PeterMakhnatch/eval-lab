@@ -1,6 +1,6 @@
 """Shared artifact authority boundary and verification primitives.
 
-Grounding: Track F second-wave specification (research/inbox/artifact-authority-boundary-20260903.md)
+Grounding: Track F second-wave specification rev4 (research/inbox/artifact-authority-boundary-20260903.md)
 Provides a fail-closed boundary distinguishing structural self-consistency from repo-jailed, bytes-verified authority.
 
 Three distinct, non-fallback bytes-verification paths:
@@ -132,14 +132,30 @@ class ArchiveAnchor(ContractModel):
         return value
 
 
+class AdmissibilityReceiptBinding(ContractModel):
+    """Immutable binding of verified trial admissibility decision and artifact kind."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    trial_id: str = Field(min_length=1)
+    admissibility_digest: Digest
+    artifact_kind: ArtifactKind
+
+
 def compute_authority_digest(
     artifact: ArtifactRef,
     level: AuthorityLevel,
     verifier_implementation_digest: Digest,
     anchor: ArchiveAnchor | None = None,
+    admissibility_binding: AdmissibilityReceiptBinding | None = None,
 ) -> Digest:
     """Derive deterministic content-addressed semantic digest of the authority statement."""
     payload = {
+        "admissibility_binding": (
+            admissibility_binding.model_dump(mode="json")
+            if admissibility_binding is not None
+            else None
+        ),
         "anchor": anchor.model_dump(mode="json") if anchor is not None else None,
         "artifact": artifact.model_dump(mode="json"),
         "level": level,
@@ -155,6 +171,7 @@ class ArtifactAuthority(ContractModel):
 
     artifact: ArtifactRef
     anchor: ArchiveAnchor | None = None
+    admissibility_binding: AdmissibilityReceiptBinding | None = None
     level: AuthorityLevel
     verifier_implementation_digest: Digest
     authority_digest: Digest
@@ -162,50 +179,17 @@ class ArtifactAuthority(ContractModel):
     @model_validator(mode="after")
     def authority_digest_matches(self) -> ArtifactAuthority:
         expected = compute_authority_digest(
-            self.artifact, self.level, self.verifier_implementation_digest, self.anchor
+            self.artifact,
+            self.level,
+            self.verifier_implementation_digest,
+            self.anchor,
+            self.admissibility_binding,
         )
         if self.authority_digest != expected:
             raise ValueError(
                 f"authority_digest mismatch: expected {expected!r}, got {self.authority_digest!r}"
             )
         return self
-
-    def reanchor(
-        self,
-        store_root: Path,
-        repo_root: Path | None = None,
-    ) -> bytes | None:
-        """Re-verify and read exact bytes on demand through the authenticated authority path."""
-        if self.level != "bytes-verified":
-            return None
-
-        # Path 1: Archive Anchor (extract inner path from authenticated archive)
-        if self.anchor is not None:
-            archive, _ = reopen_evidence_archive(
-                store_root,
-                kind=self.anchor.record_kind,
-                record_id=self.anchor.record_id,
-                expected_record_digest=self.anchor.expected_record_digest,
-                expected_content_digest=self.anchor.expected_content_digest,
-            )
-            with (
-                open_archive(store_root, archive.uri) as source,
-                tarfile.open(fileobj=source, mode="r:gz") as tar,
-            ):
-                member = tar.getmember(self.anchor.inner_path)
-                extracted = tar.extractfile(member)
-                if extracted is None:
-                    raise FileNotFoundError(f"member {self.anchor.inner_path!r} unreadable")
-                return extracted.read()
-
-        # Path 2: Raw CAS Blob
-        if self.artifact.ref.startswith("cas://sha256/"):
-            return load_blob(store_root, self.artifact.ref)
-
-        # Path 3: Repo-Jailed File
-        effective_repo = repo_root or store_root
-        raw_bytes, _ = _read_repo_regular_file(effective_repo, self.artifact.ref)
-        return raw_bytes
 
 
 class AuthorityRefusal(ContractModel):
@@ -217,6 +201,8 @@ class AuthorityRefusal(ContractModel):
         "authority_level_insufficient",
         "ref_digest_parity_failed",
         "ref_not_canonical",
+        "anchor_ref_mismatch",
+        "admissibility_parameter_mismatch",
         "source_unreadable",
         "verifier_implementation_mismatch",
         "receipt_digest_mismatch",
@@ -355,13 +341,67 @@ def verify_artifact(
             ),
         )
 
+    # Invariant: anchor.inner_path must equal artifact.ref (prevents ref spoofing)
+    if anchor is not None and artifact.ref != anchor.inner_path:
+        return AuthorityRefusal(
+            reason="anchor_ref_mismatch",
+            detail=(
+                f"artifact.ref {artifact.ref!r} does not match anchor.inner_path {anchor.inner_path!r}"
+            ),
+        )
+
+    # Invariant: admissibility and artifact_kind must be provided together (iff rule)
+    if (admissibility is None) != (artifact_kind is None):
+        return AuthorityRefusal(
+            reason="admissibility_parameter_mismatch",
+            detail=(
+                "admissibility and artifact_kind must be provided together: "
+                f"admissibility={'present' if admissibility else 'absent'}, "
+                f"artifact_kind={artifact_kind!r}"
+            ),
+        )
+
+    admissibility_binding: AdmissibilityReceiptBinding | None = None
+    if admissibility is not None and artifact_kind is not None:
+        if not admissibility.causal_eligible:
+            return AuthorityRefusal(
+                reason="authority_level_insufficient",
+                detail=(
+                    f"trial admissibility for trial {admissibility.trial_id!r} "
+                    f"is not causal-eligible (decision={admissibility.decision!r}, "
+                    f"allowed_use={admissibility.allowed_use!r})"
+                ),
+            )
+
+        digests_dict = admissibility.source_digests.model_dump(mode="json")
+        expected_kind_digest = digests_dict.get(artifact_kind)
+        if expected_kind_digest != artifact.digest:
+            return AuthorityRefusal(
+                reason="receipt_digest_mismatch",
+                detail=(
+                    f"artifact digest {artifact.digest!r} for kind {artifact_kind!r} "
+                    f"does not match admissibility record digest: {expected_kind_digest!r}"
+                ),
+            )
+
+        admissibility_binding = AdmissibilityReceiptBinding(
+            trial_id=admissibility.trial_id,
+            admissibility_digest=admissibility.admissibility_digest,
+            artifact_kind=artifact_kind,
+        )
+
     if minimum_level == "structural-self-consistent":
         authority_digest = compute_authority_digest(
-            artifact, "structural-self-consistent", verifier_implementation_digest, anchor
+            artifact,
+            "structural-self-consistent",
+            verifier_implementation_digest,
+            anchor,
+            admissibility_binding,
         )
         return ArtifactAuthority(
             artifact=artifact,
             anchor=anchor,
+            admissibility_binding=admissibility_binding,
             level="structural-self-consistent",
             verifier_implementation_digest=verifier_implementation_digest,
             authority_digest=authority_digest,
@@ -409,7 +449,7 @@ def verify_artifact(
         actual_digest = Digest(f"sha256:{computed_sha}")
 
         # Strict ref/digest parity for EVERY path (never skipped)
-        if artifact.digest != actual_digest and not artifact.ref.startswith("cas://sha256/"):
+        if artifact.digest != actual_digest:
             return AuthorityRefusal(
                 reason="ref_digest_parity_failed",
                 detail=(
@@ -418,46 +458,17 @@ def verify_artifact(
                 ),
             )
 
-        # Admissibility verification for trial evidence
-        if admissibility is not None:
-            if not admissibility.causal_eligible:
-                return AuthorityRefusal(
-                    reason="authority_level_insufficient",
-                    detail=(
-                        f"trial admissibility for trial {admissibility.trial_id!r} "
-                        f"is not causal-eligible (decision={admissibility.decision!r}, "
-                        f"allowed_use={admissibility.allowed_use!r})"
-                    ),
-                )
-
-            digests_dict = admissibility.source_digests.model_dump(mode="json")
-            if artifact_kind is not None:
-                expected_kind_digest = digests_dict.get(artifact_kind)
-                if expected_kind_digest != actual_digest:
-                    return AuthorityRefusal(
-                        reason="receipt_digest_mismatch",
-                        detail=(
-                            f"artifact digest {actual_digest!r} for kind {artifact_kind!r} "
-                            f"does not match admissibility record digest: {expected_kind_digest!r}"
-                        ),
-                    )
-            else:
-                bound_digests = [v for v in digests_dict.values() if v is not None]
-                if actual_digest not in bound_digests:
-                    return AuthorityRefusal(
-                        reason="receipt_digest_mismatch",
-                        detail=(
-                            f"artifact digest {actual_digest!r} for {artifact.ref!r} is not "
-                            f"present in trial {admissibility.trial_id!r} source digests: {bound_digests}"
-                        ),
-                    )
-
         authority_digest = compute_authority_digest(
-            artifact, "bytes-verified", verifier_implementation_digest, anchor
+            artifact,
+            "bytes-verified",
+            verifier_implementation_digest,
+            anchor,
+            admissibility_binding,
         )
         return ArtifactAuthority(
             artifact=artifact,
             anchor=anchor,
+            admissibility_binding=admissibility_binding,
             level="bytes-verified",
             verifier_implementation_digest=verifier_implementation_digest,
             authority_digest=authority_digest,
@@ -467,3 +478,85 @@ def verify_artifact(
         reason="authority_level_insufficient",
         detail=f"unrecognized authority level: {minimum_level!r}",
     )
+
+
+def reverify_authority(
+    authority: ArtifactAuthority,
+    *,
+    expected_verifier_digest: Digest,
+    repo_root: Path | str | None = None,
+    store_root: Path | str | None = None,
+) -> tuple[bytes, ArtifactAuthority] | AuthorityRefusal:
+    """Consumers call this to re-read exact bytes and prove authority statement authenticity.
+
+    Guarantees:
+    1. Re-verifies verifier_implementation_digest against expected_verifier_digest.
+    2. Re-derives authority_digest against model fields.
+    3. Re-reads exact bytes through the authenticated path and re-checks sha256(bytes) == artifact.digest.
+    4. Returns exact verified bytes plus authentic authority statement, or AuthorityRefusal.
+    """
+    if authority.level != "bytes-verified":
+        return AuthorityRefusal(
+            reason="authority_level_insufficient",
+            detail=f"cannot re-verify bytes for structural authority level: {authority.level!r}",
+        )
+
+    if authority.verifier_implementation_digest != expected_verifier_digest:
+        return AuthorityRefusal(
+            reason="verifier_implementation_mismatch",
+            detail=(
+                f"verifier digest mismatch: expected {expected_verifier_digest!r}, "
+                f"got {authority.verifier_implementation_digest!r}"
+            ),
+        )
+
+    expected_authority_digest = compute_authority_digest(
+        authority.artifact,
+        authority.level,
+        authority.verifier_implementation_digest,
+        authority.anchor,
+        authority.admissibility_binding,
+    )
+    if authority.authority_digest != expected_authority_digest:
+        return AuthorityRefusal(
+            reason="receipt_digest_mismatch",
+            detail="authority_digest does not match recomputed semantic digest",
+        )
+
+    effective_repo_root = Path(repo_root or Path.cwd())
+    effective_store_root = Path(store_root or effective_repo_root / "derived" / "evidence-cas")
+
+    if authority.anchor is not None:
+        raw_bytes, error_detail = _read_anchored_archive_member(
+            effective_store_root, authority.anchor
+        )
+    elif authority.artifact.ref.startswith("cas://sha256/"):
+        try:
+            canonical_store = _absolute(effective_store_root)
+            raw_bytes = load_blob(canonical_store, authority.artifact.ref)
+            error_detail = None
+        except Exception as exc:
+            raw_bytes, error_detail = None, str(exc)
+    else:
+        raw_bytes, error_detail = _read_repo_regular_file(
+            effective_repo_root, authority.artifact.ref
+        )
+
+    if raw_bytes is None:
+        return AuthorityRefusal(
+            reason="source_unreadable",
+            detail=error_detail or f"cannot re-read bytes for {authority.artifact.ref!r}",
+        )
+
+    computed_sha = hashlib.sha256(raw_bytes).hexdigest()
+    actual_digest = Digest(f"sha256:{computed_sha}")
+    if authority.artifact.digest != actual_digest:
+        return AuthorityRefusal(
+            reason="ref_digest_parity_failed",
+            detail=(
+                f"re-verification parity failed for {authority.artifact.ref!r}: "
+                f"expected {authority.artifact.digest!r}, got bytes digest {actual_digest!r}"
+            ),
+        )
+
+    return raw_bytes, authority

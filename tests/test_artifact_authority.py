@@ -1,4 +1,4 @@
-"""Comprehensive test suite for shared artifact authority boundary (rev3).
+"""Comprehensive test suite for shared artifact authority boundary (rev4).
 
 Covers all Section 4 and audit-required controls:
 - (a) Raw CAS Blob verification (load_blob) with strict hash check
@@ -6,11 +6,12 @@ Covers all Section 4 and audit-required controls:
 - (c) Repo-jailed regular file verification (_read_repo_regular_file with O_NOFOLLOW)
 - (d) Jailed path traversal refusal & symlink root refusal
 - (e) CAS URI vs digest contradiction refusal
-- (f) On-demand re-anchoring across all 3 paths
-- (g) Admissibility gating with explicit artifact_kind binding and causal_eligible check
-- (h) Verifier implementation digest mismatch refusal
-- (i) Model immutability, frozen contracts, extra-field rejection
-- (j) Rehydration parity and authority_digest determinism
+- (f) Typed reverify_authority with byte re-read and verifier digest pinning
+- (g) anchor_ref_mismatch refusal when artifact.ref != anchor.inner_path
+- (h) admissibility_parameter_mismatch (admissibility and artifact_kind must be provided together)
+- (i) AdmissibilityReceiptBinding preserved in semantic authority digest
+- (j) Model immutability, frozen contracts, extra-field rejection
+- (k) Rehydration parity and authority_digest determinism
 """
 
 import hashlib
@@ -27,6 +28,7 @@ from evallab.artifact_authority import (
     ArtifactRef,
     AuthorityRefusal,
     compute_authority_digest,
+    reverify_authority,
     verify_artifact,
 )
 from evallab.evidence_store import archive_evidence, store_blob
@@ -240,7 +242,15 @@ def test_bytes_verified_repo_file(tmp_path: Path) -> None:
     assert isinstance(result, ArtifactAuthority)
     assert result.level == "bytes-verified"
     assert result.artifact.digest == expected_sha
-    assert result.reanchor(repo_root) == content
+
+    # Test reverify_authority
+    reverified_bytes, auth = reverify_authority(
+        result,
+        expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        repo_root=repo_root,
+    )
+    assert reverified_bytes == content
+    assert auth == result
 
 
 def test_bytes_verified_digest_mismatch(tmp_path: Path) -> None:
@@ -295,7 +305,14 @@ def test_bytes_verified_cas_raw_blob(tmp_path: Path) -> None:
     assert isinstance(result, ArtifactAuthority)
     assert result.level == "bytes-verified"
     assert result.artifact.digest == declared_digest
-    assert result.reanchor(cas_root) == content
+
+    reverified_bytes, auth = reverify_authority(
+        result,
+        expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        store_root=cas_root,
+    )
+    assert reverified_bytes == content
+    assert auth == result
 
 
 def test_bytes_verified_archived_inner_artifact(tmp_path: Path) -> None:
@@ -330,7 +347,71 @@ def test_bytes_verified_archived_inner_artifact(tmp_path: Path) -> None:
     assert result.anchor == anchor
     assert result.level == "bytes-verified"
     assert result.artifact.digest == inner_sha
-    assert result.reanchor(store_root) == inner_content
+
+    reverified_bytes, auth = reverify_authority(
+        result,
+        expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        store_root=store_root,
+    )
+    assert reverified_bytes == inner_content
+    assert auth == result
+
+
+def test_anchor_ref_mismatch_refusal(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    anchor = ArchiveAnchor(
+        record_kind="job",
+        record_id="trial-001",
+        expected_record_digest=Digest("sha256:" + "1" * 64),
+        expected_content_digest=Digest("sha256:" + "2" * 64),
+        inner_path="result.json",
+    )
+    ref = ArtifactRef(
+        ref="spoofed_name.json",
+        digest=Digest("sha256:" + "3" * 64),
+    )
+    result = verify_artifact(
+        ref,
+        minimum_level="bytes-verified",
+        verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        anchor=anchor,
+        store_root=store_root,
+    )
+    assert isinstance(result, AuthorityRefusal)
+    assert result.reason == "anchor_ref_mismatch"
+
+
+def test_admissibility_parameter_mismatch(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    ref = ArtifactRef(
+        ref="trajectory.json",
+        digest=Digest("sha256:" + "1" * 64),
+    )
+    admissibility = _make_admissibility()
+
+    # Admissibility provided without artifact_kind
+    result1 = verify_artifact(
+        ref,
+        minimum_level="bytes-verified",
+        verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        admissibility=admissibility,
+        artifact_kind=None,
+        repo_root=repo_root,
+    )
+    assert isinstance(result1, AuthorityRefusal)
+    assert result1.reason == "admissibility_parameter_mismatch"
+
+    # artifact_kind provided without admissibility
+    result2 = verify_artifact(
+        ref,
+        minimum_level="bytes-verified",
+        verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        admissibility=None,
+        artifact_kind="trajectory",
+        repo_root=repo_root,
+    )
+    assert isinstance(result2, AuthorityRefusal)
+    assert result2.reason == "admissibility_parameter_mismatch"
 
 
 def test_bytes_verified_with_admissibility_and_kind_binding(tmp_path: Path) -> None:
@@ -353,6 +434,9 @@ def test_bytes_verified_with_admissibility_and_kind_binding(tmp_path: Path) -> N
     )
     assert isinstance(result, ArtifactAuthority)
     assert result.level == "bytes-verified"
+    assert result.admissibility_binding is not None
+    assert result.admissibility_binding.trial_id == admissibility.trial_id
+    assert result.admissibility_binding.artifact_kind == "trajectory"
 
     # Mismatched kind binding
     mismatched_kind_result = verify_artifact(
@@ -382,6 +466,7 @@ def test_bytes_verified_with_non_admissible_refusal(tmp_path: Path) -> None:
         minimum_level="bytes-verified",
         verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
         admissibility=admissibility,
+        artifact_kind="trajectory",
         repo_root=repo_root,
     )
     assert isinstance(result, AuthorityRefusal)

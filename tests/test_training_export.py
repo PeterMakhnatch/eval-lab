@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
+import evallab.training_export as training_export
+from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
 from evallab.registry import task_runtime_identity
 from evallab.schemas import (
     NETWORK_ESCAPE_CLASSES,
@@ -24,10 +27,14 @@ from evallab.schemas import (
 from evallab.training_export import (
     NormalizedTrainingEvidence,
     TrainingDatasetManifestV1,
+    TrainingFunctionCall,
     TrainingFunctionDefinition,
     TrainingMessage,
+    TrainingReceiptSourceV1,
+    TrainingSourceReceiptV1,
     TrainingSplitRefV1,
     TrainingTool,
+    TrainingToolCall,
     export_training_dataset,
 )
 
@@ -147,6 +154,7 @@ def _messages(response: str = "Use the stable public interface.") -> tuple[Train
 
 
 def _source(
+    provenance_root: Path,
     index: int = 1,
     *,
     split: str = "train",
@@ -157,7 +165,77 @@ def _source(
 ) -> NormalizedTrainingEvidence:
     registry_record = _registry_record()
     trial_id = f"trial-{index}"
-    source_digest = _sha(f"trajectory-{index}")
+    normalized_messages = messages or _messages()
+    source_bytes = (
+        json.dumps(
+            {
+                "messages": [message.model_dump(mode="json") for message in normalized_messages],
+                "trial_id": trial_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
+    source_digest = _sha_bytes(source_bytes)
+    admissibility = _admissibility(
+        trial_id=trial_id,
+        source_digest=source_digest,
+        registry_record=registry_record,
+    )
+    authority_bytes = (
+        json.dumps(
+            admissibility.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
+    lineage_bytes = (
+        json.dumps(
+            {"source_digest": source_digest, "trial_id": trial_id},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
+    identity = hashlib.sha256(source_bytes).hexdigest()[:12]
+    source_root = provenance_root / f"receipt-input-{index}-{identity}"
+    (source_root / "agent").mkdir(parents=True)
+    (source_root / "analysis").mkdir()
+    (source_root / "agent/trajectory.json").write_bytes(source_bytes)
+    (source_root / "analysis/lineage.json").write_bytes(lineage_bytes)
+    (source_root / "trial-admissibility.json").write_bytes(authority_bytes)
+    store_root = provenance_root / "cas"
+    archive = archive_evidence(
+        source_root,
+        store_root,
+        record_id=f"receipt-{index}-{identity}",
+        kind="source-receipt",
+    )
+    locator = evidence_locator(store_root.resolve(), archive)
+    receipt = TrainingSourceReceiptV1(
+        cas_record_id=archive.record_id,
+        cas_record_digest=archive.record_digest,
+        cas_content_digest=archive.content_digest,
+        evidence_locator=locator,
+        admissibility_record_path="trial-admissibility.json",
+        admissibility_record_digest=_sha_bytes(authority_bytes),
+        source_digests=(
+            TrainingReceiptSourceV1(
+                source_kind="lineage",
+                path="analysis/lineage.json",
+                digest=_sha_bytes(lineage_bytes),
+            ),
+            TrainingReceiptSourceV1(
+                source_kind="trajectory",
+                path="agent/trajectory.json",
+                digest=source_digest,
+            ),
+        ),
+        consumer_digest=_sha_bytes((REPO_ROOT / "src/evallab/training_export.py").read_bytes()),
+        created_at=NOW,
+    )
     return NormalizedTrainingEvidence(
         job_id=f"job-{index}",
         trial_id=trial_id,
@@ -171,13 +249,12 @@ def _source(
         history_revision=history_revision,
         source_path="agent/trajectory.json",
         source_artifact_digest=source_digest,
-        source_cas_uri=f"cas://sha256/{source_digest.removeprefix('sha256:')}",
-        lineage_digest=_sha(f"lineage-{index}"),
-        lineage_status="immutable",
+        source_cas_uri=archive.uri,
+        lineage_path="analysis/lineage.json",
+        lineage_digest=_sha_bytes(lineage_bytes),
+        source_receipt=receipt,
         registry_record=registry_record,
-        admissibility=_admissibility(
-            trial_id=trial_id, source_digest=source_digest, registry_record=registry_record
-        ),
+        admissibility=admissibility,
         capture_status="complete",
         environment_integrity="passed",
         evaluator_status="present",
@@ -198,7 +275,7 @@ def _source(
                 )
             ),
         ),
-        messages=messages or _messages(),
+        messages=normalized_messages,
     )
 
 
@@ -211,7 +288,7 @@ def _reason_set(result) -> set[str]:
 
 
 def test_fixture_export_is_byte_identical_and_authority_bound(tmp_path: Path) -> None:
-    source = _source()
+    source = _source(tmp_path)
     first = export_training_dataset([source], tmp_path / "first")
     second = export_training_dataset([source], tmp_path / "second")
 
@@ -248,10 +325,36 @@ def test_fixture_export_is_byte_identical_and_authority_bound(tmp_path: Path) ->
 
 
 def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_path: Path) -> None:
-    base = _source()
+    base = _source(tmp_path)
     measurement_only_payload = base.registry_record.model_dump(mode="json")
     measurement_only_payload["allowed_uses"] = ["measurement"]
     measurement_only = TaskRegistryRecord.model_validate(measurement_only_payload)
+    assert base.source_receipt is not None
+    forged_digest = _sha("forged-trajectory")
+    forged_content_digest = _sha("forged-cas-content")
+    source_locator = base.source_receipt.evidence_locator
+    forged_locator = EvidenceLocator(
+        store_root=source_locator.store_root,
+        kind=source_locator.kind,
+        record_id=source_locator.record_id,
+        expected_record_digest=source_locator.expected_record_digest,
+        expected_content_digest=forged_content_digest,
+    )
+    forged_receipt = base.source_receipt.model_copy(
+        update={
+            "cas_content_digest": forged_content_digest,
+            "evidence_locator": forged_locator,
+            "source_digests": tuple(
+                item.model_copy(update={"digest": forged_digest})
+                if item.source_kind == "trajectory"
+                else item
+                for item in base.source_receipt.source_digests
+            ),
+        }
+    )
+    missing_authority_receipt = base.source_receipt.model_copy(
+        update={"admissibility_record_path": "missing-admissibility.json"}
+    )
     cases = [
         base.model_copy(
             update={"trial_id": "missing-admiss", "history_key": "h1", "admissibility": None}
@@ -276,7 +379,6 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
             update={
                 "trial_id": "lineage",
                 "history_key": "h6",
-                "lineage_status": "missing",
                 "lineage_digest": None,
             }
         ),
@@ -380,6 +482,43 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
                 ),
             }
         ),
+        base.model_copy(
+            update={
+                "trial_id": "missing-receipt",
+                "history_key": "h21",
+                "source_receipt": None,
+            }
+        ),
+        base.model_copy(
+            update={
+                "trial_id": "none-digest",
+                "history_key": "h22",
+                "source_artifact_digest": None,
+            }
+        ),
+        base.model_copy(
+            update={
+                "trial_id": "malformed-digest",
+                "history_key": "h23",
+                "source_artifact_digest": "not-a-digest",
+            }
+        ),
+        base.model_copy(
+            update={
+                "trial_id": "forged-receipt",
+                "history_key": "h24",
+                "source_artifact_digest": forged_digest,
+                "source_cas_uri": ("cas://sha256/" + forged_content_digest.removeprefix("sha256:")),
+                "source_receipt": forged_receipt,
+            }
+        ),
+        base.model_copy(
+            update={
+                "trial_id": "missing-authority-record",
+                "history_key": "h25",
+                "source_receipt": missing_authority_receipt,
+            }
+        ),
     ]
 
     result = export_training_dataset(cases, tmp_path / "excluded")
@@ -391,8 +530,8 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
         "environment_integrity_failed",
         "evaluator_missing",
         "reward_only_without_semantic_evidence",
-        "lineage_not_immutable",
         "invalid_lineage_digest",
+        "invalid_source_digest",
         "unredacted_prompt",
         "truncated_terminal_span",
         "prohibited_corpus",
@@ -406,6 +545,9 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
         "secret_detected",
         "source_digest_mismatch",
         "trainer_only_material",
+        "missing_trusted_provenance",
+        "receipt_admissibility_unavailable",
+        "receipt_digest_mismatch",
     }
     serialized = result.exclusions_path.read_text(encoding="utf-8")
     assert "reference_answer" not in serialized
@@ -416,18 +558,28 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
 
 def test_latest_history_content_dedup_and_cluster_split_are_fail_closed(tmp_path: Path) -> None:
     old = _source(
-        1, history_key="history-latest", history_revision=1, messages=_messages("old response")
+        tmp_path,
+        1,
+        history_key="history-latest",
+        history_revision=1,
+        messages=_messages("old response"),
     )
     latest = _source(
-        2, history_key="history-latest", history_revision=2, messages=_messages("latest response")
+        tmp_path,
+        2,
+        history_key="history-latest",
+        history_revision=2,
+        messages=_messages("latest response"),
     )
     duplicate = _source(
+        tmp_path,
         3,
         history_key="history-duplicate",
         cluster_key="different-cluster",
         messages=_messages("latest response"),
     )
     conflict_train = _source(
+        tmp_path,
         4,
         history_key="history-conflict-train",
         cluster_key="shared-assignment",
@@ -435,6 +587,7 @@ def test_latest_history_content_dedup_and_cluster_split_are_fail_closed(tmp_path
         messages=_messages("train conflict"),
     )
     conflict_test = _source(
+        tmp_path,
         5,
         history_key="history-conflict-test",
         cluster_key="shared-assignment",
@@ -442,10 +595,18 @@ def test_latest_history_content_dedup_and_cluster_split_are_fail_closed(tmp_path
         messages=_messages("test conflict"),
     )
     ambiguous_a = _source(
-        6, history_key="history-ambiguous", history_revision=3, messages=_messages("candidate a")
+        tmp_path,
+        6,
+        history_key="history-ambiguous",
+        history_revision=3,
+        messages=_messages("candidate a"),
     )
     ambiguous_b = _source(
-        7, history_key="history-ambiguous", history_revision=3, messages=_messages("candidate b")
+        tmp_path,
+        7,
+        history_key="history-ambiguous",
+        history_revision=3,
+        messages=_messages("candidate b"),
     )
 
     result = export_training_dataset(
@@ -465,8 +626,120 @@ def test_latest_history_content_dedup_and_cluster_split_are_fail_closed(tmp_path
     assert result.manifest.test_split.record_count == 0
 
 
+def test_contiguous_sequences_and_exact_tool_linkage_are_required(
+    tmp_path: Path,
+) -> None:
+    call = TrainingToolCall(
+        id="call-1",
+        function=TrainingFunctionCall(name="read_public_fixture", arguments='{"name":"fixture"}'),
+    )
+    valid_messages = (
+        TrainingMessage(sequence=0, role="user", content="Read the fixture."),
+        TrainingMessage(sequence=1, role="assistant", content="", tool_calls=(call,)),
+        TrainingMessage(
+            sequence=2,
+            role="tool",
+            content="fixture body",
+            name="read_public_fixture",
+            tool_call_id="call-1",
+        ),
+        TrainingMessage(sequence=3, role="assistant", content="Fixture read."),
+    )
+    valid = _source(tmp_path, 30, messages=valid_messages)
+    accepted = export_training_dataset([valid], tmp_path / "valid-tools")
+    assert len(accepted.records) == 3
+
+    duplicate_call = call.model_copy(update={"id": "duplicate"})
+    negatives = (
+        valid.model_copy(
+            update={
+                "history_key": "gap",
+                "messages": tuple(
+                    message.model_copy(update={"sequence": 4}) if message.sequence == 3 else message
+                    for message in valid_messages
+                ),
+            }
+        ),
+        valid.model_copy(
+            update={
+                "history_key": "dangling",
+                "messages": valid_messages[:2],
+            }
+        ),
+        valid.model_copy(
+            update={
+                "history_key": "duplicate-call",
+                "messages": (
+                    TrainingMessage(sequence=0, role="user", content="Read."),
+                    TrainingMessage(
+                        sequence=1,
+                        role="assistant",
+                        content="",
+                        tool_calls=(duplicate_call, duplicate_call),
+                    ),
+                ),
+            }
+        ),
+        valid.model_copy(
+            update={
+                "history_key": "orphan",
+                "messages": (
+                    TrainingMessage(sequence=0, role="user", content="Read."),
+                    TrainingMessage(
+                        sequence=1,
+                        role="tool",
+                        content="orphan",
+                        tool_call_id="ghost",
+                    ),
+                    TrainingMessage(sequence=2, role="assistant", content="Done."),
+                ),
+            }
+        ),
+    )
+    excluded = export_training_dataset(negatives, tmp_path / "invalid-tools")
+    assert excluded.records == ()
+    assert {"invalid_message_sequence", "invalid_tool_linkage"} <= _reason_set(excluded)
+
+
+def test_publication_is_immutable_and_whole_directory_atomic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, 31)
+    existing_file = tmp_path / "existing-file"
+    existing_file.write_bytes(b"keep")
+    with pytest.raises(FileExistsError, match="destination already exists"):
+        export_training_dataset([source], existing_file)
+    assert existing_file.read_bytes() == b"keep"
+
+    existing_directory = tmp_path / "existing-directory"
+    existing_directory.mkdir()
+    with pytest.raises(FileExistsError, match="destination already exists"):
+        export_training_dataset([source], existing_directory)
+    assert list(existing_directory.iterdir()) == []
+
+    original_write = training_export._write_staged_file
+    calls = 0
+
+    def fail_second_write(path: Path, payload: bytes) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected staged write failure")
+        original_write(path, payload)
+
+    monkeypatch.setattr(training_export, "_write_staged_file", fail_second_write)
+    destination = tmp_path / "partial"
+    with pytest.raises(OSError, match="injected staged write failure"):
+        export_training_dataset([source], destination)
+    assert not os.path.lexists(destination)
+    staged = list(tmp_path.glob(".partial.staging-*"))
+    assert len(staged) == 1
+    assert list(staged[0].iterdir())
+
+
 def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> None:
-    result = export_training_dataset([_source()], tmp_path / "output")
+    source = _source(tmp_path)
+    result = export_training_dataset([source], tmp_path / "output")
 
     payload = result.manifest.model_dump(mode="json")
     payload["exclusion_count"] += 1
@@ -492,6 +765,21 @@ def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> No
     with pytest.raises(ValidationError, match="CAS URI must bind manifest_digest"):
         TrainingDatasetManifestV1.model_validate(cas_payload)
 
+    reordered_payload = result.manifest.model_dump(mode="json")
+    reordered_payload["representation_counts"] = {
+        "episode_steps": 1,
+        "prompt_response_sft": 1,
+    }
+    reordered_payload["manifest_digest"] = _manifest_digest(reordered_payload)
+    with pytest.raises(ValidationError, match="canonical_set_mismatch"):
+        TrainingDatasetManifestV1.model_validate(reordered_payload)
+
+    alias_payload = result.manifest.model_dump(mode="json")
+    alias_payload["exclusions_path"] = "./exclusions.jsonl"
+    alias_payload["manifest_digest"] = _manifest_digest(alias_payload)
+    with pytest.raises(ValidationError, match="exact canonical path"):
+        TrainingDatasetManifestV1.model_validate(alias_payload)
+
     with pytest.raises(ValidationError, match="canonical and relative"):
         TrainingSplitRefV1(
             path="../train.jsonl", digest=DIGEST, cluster_key_digest=DIGEST, record_count=1
@@ -501,14 +789,14 @@ def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> No
     symlink_target.mkdir()
     symlink_destination = tmp_path / "symlink-output"
     symlink_destination.symlink_to(symlink_target, target_is_directory=True)
-    with pytest.raises(ValueError, match="symlink destination"):
-        export_training_dataset([_source()], symlink_destination)
+    with pytest.raises(FileExistsError, match="destination already exists"):
+        export_training_dataset([source], symlink_destination)
 
     file_target = tmp_path / "outside.jsonl"
     file_target.write_text("outside", encoding="utf-8")
     split_link = result.root / "train.jsonl"
     split_link.unlink()
     split_link.symlink_to(file_target)
-    with pytest.raises(ValueError, match="symlink output path"):
-        export_training_dataset([_source()], result.root)
+    with pytest.raises(FileExistsError, match="destination already exists"):
+        export_training_dataset([source], result.root)
     assert file_target.read_text(encoding="utf-8") == "outside"

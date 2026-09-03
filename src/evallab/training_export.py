@@ -12,13 +12,16 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, JsonValue, model_validator
 
+from evallab.evidence_store import EvidenceLocator, materialize_evidence
 from evallab.explorer import redact_text
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.registry import task_registry_record_digest
@@ -82,27 +85,37 @@ TrainingExclusionReason = Literal[
     "inadmissible",
     "invalid_lineage_digest",
     "invalid_message_sequence",
+    "invalid_source_digest",
     "invalid_source_cas_uri",
     "source_cas_digest_mismatch",
-    "lineage_not_immutable",
+    "invalid_tool_linkage",
+    "lineage_digest_mismatch",
     "missing_admissibility",
+    "missing_trusted_provenance",
     "missing_assistant_response",
     "missing_registry_record",
     "prohibited_corpus",
     "quarantined_feature",
     "redacted_content_unavailable",
+    "canonical_set_mismatch",
     "registry_identity_mismatch",
     "reward_only_without_semantic_evidence",
+    "receipt_admissibility_unavailable",
+    "receipt_contradiction",
+    "receipt_digest_mismatch",
     "secret_detected",
     "source_digest_mismatch",
     "source_path_mismatch",
     "truncated_terminal_span",
+    "source_bytes_mismatch",
     "trainer_only_material",
     "superseded_history",
     "training_use_not_allowed",
     "unredacted_prompt",
     "unregistered_feature",
     "unsafe_source_path",
+    "unsafe_lineage_path",
+    "untrusted_provenance",
 ]
 
 
@@ -162,8 +175,65 @@ class TrainingMessage(_FrozenContract):
         return self
 
 
+class TrainingReceiptSourceV1(_FrozenContract):
+    source_kind: Literal["lineage", "trajectory"]
+    path: str
+    digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def path_is_canonical(self) -> TrainingReceiptSourceV1:
+        if not _safe_evidence_path(self.path):
+            raise ValueError("receipt source path must be canonical evidence")
+        return self
+
+
+class TrainingSourceReceiptV1(_FrozenContract):
+    """Independent CAS anchors for source bytes and the G7 authority record."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    schema_version: Literal["training-source-receipt/v1"] = "training-source-receipt/v1"
+    cas_record_kind: Literal["source-receipt"] = "source-receipt"
+    cas_record_id: str = Field(min_length=1)
+    cas_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    cas_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    evidence_locator: EvidenceLocator
+    admissibility_record_path: str
+    admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_digests: tuple[TrainingReceiptSourceV1, ...]
+    consumer_name: Literal["evallab.training_export"] = TRAINING_EXPORTER_NAME
+    consumer_version: Literal["1"] = TRAINING_EXPORTER_VERSION
+    consumer_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    created_at: datetime
+
+    @model_validator(mode="after")
+    def anchors_are_canonical(self) -> TrainingSourceReceiptV1:
+        locator = self.evidence_locator
+        if (
+            locator.kind != self.cas_record_kind
+            or locator.record_id != self.cas_record_id
+            or locator.expected_record_digest != self.cas_record_digest
+            or locator.expected_content_digest != self.cas_content_digest
+        ):
+            raise ValueError("receipt CAS anchors do not match evidence locator")
+        if not _safe_evidence_path(self.admissibility_record_path):
+            raise ValueError("admissibility record path must be canonical evidence")
+        kinds = tuple(source.source_kind for source in self.source_digests)
+        if kinds != ("lineage", "trajectory"):
+            raise ValueError("receipt source_digests must be sorted and complete")
+        if self.consumer_digest != _digest_bytes(Path(__file__).read_bytes()):
+            raise ValueError("receipt consumer digest does not match exporter")
+        if self.created_at.tzinfo is None or self.created_at.utcoffset() != UTC.utcoffset(
+            self.created_at
+        ):
+            raise ValueError("receipt created_at must be UTC")
+        return self
+
+
 class NormalizedTrainingEvidence(_FrozenContract):
-    """One candidate source with explicit admission and immutable-lineage bindings."""
+    """One candidate source with independently anchored CAS provenance."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
 
     job_id: str = Field(min_length=1)
     trial_id: str = Field(min_length=1)
@@ -178,8 +248,9 @@ class NormalizedTrainingEvidence(_FrozenContract):
     source_path: str = Field(min_length=1)
     source_artifact_digest: str | None
     source_cas_uri: str | None
+    lineage_path: str = Field(min_length=1)
     lineage_digest: str | None
-    lineage_status: Literal["immutable", "mutable", "missing"]
+    source_receipt: TrainingSourceReceiptV1 | None
     registry_record: TaskRegistryRecord | None
     admissibility: TrialAdmissibilityV1 | None
     capture_status: Literal["complete", "gapped", "missing"]
@@ -191,6 +262,15 @@ class NormalizedTrainingEvidence(_FrozenContract):
     feature_names: tuple[str, ...] = ()
     tools: tuple[TrainingTool, ...] = ()
     messages: tuple[TrainingMessage, ...]
+
+    @model_validator(mode="after")
+    def logical_sets_are_canonical(self) -> NormalizedTrainingEvidence:
+        if self.feature_names != tuple(sorted(set(self.feature_names))):
+            raise ValueError("feature_names must be sorted and unique")
+        tool_names = tuple(tool.function.name for tool in self.tools)
+        if tool_names != tuple(sorted(set(tool_names))):
+            raise ValueError("tools must be sorted by unique function name")
+        return self
 
 
 class TrainingSourceBinding(_FrozenContract):
@@ -207,7 +287,13 @@ class TrainingSourceBinding(_FrozenContract):
     source_path: str
     source_artifact_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     source_cas_uri: str = Field(pattern=r"^cas://sha256/[0-9a-f]{64}$")
+    lineage_path: str
     lineage_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    evidence_kind: str
+    evidence_record_id: str
+    evidence_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    evidence_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    trial_admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     registry_allowed_use: Literal["training"] = "training"
     task_registry_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trial_admissibility_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -227,10 +313,12 @@ class TrainingSourceBinding(_FrozenContract):
             raise ValueError("training source binding requires accepted causal authority")
         if self.source_cas_uri.removeprefix(
             "cas://sha256/"
-        ) != self.source_artifact_digest.removeprefix("sha256:"):
-            raise ValueError("training source CAS URI must bind source_artifact_digest")
+        ) != self.evidence_content_digest.removeprefix("sha256:"):
+            raise ValueError("training source CAS URI must bind evidence_content_digest")
         if not _safe_source_path(self.source_path):
             raise ValueError("training source path must be safe normalized agent evidence")
+        if not _safe_evidence_path(self.lineage_path):
+            raise ValueError("training lineage path must be safe normalized evidence")
         return self
 
 
@@ -252,8 +340,16 @@ class TrainingExampleRecord(_FrozenContract):
             raise ValueError("training payload does not match its representation")
         if _contains_trainer_only_key(self.payload):
             raise ValueError("canonical training records cannot contain trainer-only material")
-        expected = _digest_json({"representation": self.representation, "payload": self.payload})
-        if self.content_digest != expected or self.example_id != expected:
+        expected_content = _digest_json(
+            {"representation": self.representation, "payload": self.payload}
+        )
+        expected_example = _digest_json(
+            {
+                "content_digest": expected_content,
+                "source": self.source.model_dump(mode="json"),
+            }
+        )
+        if self.content_digest != expected_content or self.example_id != expected_example:
             raise ValueError("training example content identity mismatch")
         return self
 
@@ -282,11 +378,28 @@ class TrainingExclusionRecord(_FrozenContract):
     extractor_name: Literal["evallab.training_export"] = TRAINING_EXPORTER_NAME
     extractor_version: Literal["1"] = TRAINING_EXPORTER_VERSION
 
+    @model_validator(mode="after")
+    def logical_sets_are_canonical(self) -> TrainingExclusionRecord:
+        if self.reasons != tuple(sorted(set(self.reasons))) or self.details != tuple(
+            sorted(set(self.details))
+        ):
+            raise ValueError("canonical_set_mismatch: exclusion sets")
+        return self
+
 
 class TrainingSourceRefV1(_FrozenContract):
     job_id: str
     trial_id: str
+    source_path: str
     source_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_cas_uri: str = Field(pattern=r"^cas://sha256/[0-9a-f]{64}$")
+    lineage_path: str
+    lineage_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    evidence_kind: str
+    evidence_record_id: str
+    evidence_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    evidence_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    trial_admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     registry_allowed_use: Literal["training"] = "training"
     task_registry_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trial_admissibility_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -302,6 +415,12 @@ class TrainingSourceRefV1(_FrozenContract):
             or self.trial_admissibility_allowed_use != "causal"
         ):
             raise ValueError("training source ref requires accepted causal authority")
+        if self.source_cas_uri.removeprefix(
+            "cas://sha256/"
+        ) != self.evidence_content_digest.removeprefix("sha256:"):
+            raise ValueError("training source ref CAS URI must bind evidence_content_digest")
+        if not _safe_source_path(self.source_path) or not _safe_evidence_path(self.lineage_path):
+            raise ValueError("training source ref paths must be canonical evidence paths")
         return self
 
 
@@ -352,8 +471,8 @@ class TrainingDatasetManifestV1(_FrozenContract):
     def identity_and_digest_match(self) -> TrainingDatasetManifestV1:
         if (self.manifest_path is None) == (self.cas_uri is None):
             raise ValueError("exactly one of manifest_path or cas_uri is required")
-        if self.manifest_path is not None and not _safe_relative_path(self.manifest_path):
-            raise ValueError("manifest_path must be canonical and relative")
+        if self.manifest_path is not None and self.manifest_path != MANIFEST_FILENAME:
+            raise ValueError("manifest_path must use the exact canonical path")
         if self.cas_uri is not None:
             if not _CAS_URI.fullmatch(self.cas_uri):
                 raise ValueError("cas_uri must be a canonical sha256 CAS URI")
@@ -361,8 +480,44 @@ class TrainingDatasetManifestV1(_FrozenContract):
                 "sha256:"
             ):
                 raise ValueError("manifest CAS URI must bind manifest_digest")
-        if not _safe_relative_path(self.exclusions_path):
-            raise ValueError("exclusions_path must be canonical and relative")
+        if self.exclusions_path != EXCLUSIONS_FILENAME:
+            raise ValueError("exclusions_path must use the exact canonical path")
+        if (
+            self.train_split.path,
+            self.validation_split.path,
+            self.test_split.path,
+        ) != (
+            _SPLIT_FILENAMES["train"],
+            _SPLIT_FILENAMES["validation"],
+            _SPLIT_FILENAMES["test"],
+        ):
+            raise ValueError("split paths must use the exact canonical paths")
+        if self.benchmark_families != tuple(sorted(set(self.benchmark_families))):
+            raise ValueError("canonical_set_mismatch: benchmark_families")
+        if self.task_families != tuple(sorted(set(self.task_families))):
+            raise ValueError("canonical_set_mismatch: task_families")
+        expected_source_refs = tuple(
+            sorted(
+                self.source_refs,
+                key=lambda source: (
+                    source.job_id,
+                    source.trial_id,
+                    source.source_digest,
+                ),
+            )
+        )
+        if self.source_refs != expected_source_refs:
+            raise ValueError("canonical_set_mismatch: source_refs")
+        source_identities = {
+            (source.job_id, source.trial_id, source.source_digest) for source in self.source_refs
+        }
+        if len(source_identities) != len(self.source_refs):
+            raise ValueError("canonical_set_mismatch: duplicate source_refs")
+        if tuple(self.representation_counts) != (
+            "prompt_response_sft",
+            "episode_steps",
+        ) or any(count < 0 for count in self.representation_counts.values()):
+            raise ValueError("canonical_set_mismatch: representation_counts")
         expected_dataset_digest = _digest_json(
             {
                 "train_split": self.train_split.model_dump(mode="json"),
@@ -373,11 +528,6 @@ class TrainingDatasetManifestV1(_FrozenContract):
         )
         if self.dataset_digest != expected_dataset_digest:
             raise ValueError("training dataset digest mismatch")
-        if set(self.representation_counts) != {
-            "prompt_response_sft",
-            "episode_steps",
-        } or any(count < 0 for count in self.representation_counts.values()):
-            raise ValueError("representation_counts must be complete and non-negative")
         record_count = (
             self.train_split.record_count
             + self.validation_split.record_count
@@ -385,11 +535,8 @@ class TrainingDatasetManifestV1(_FrozenContract):
         )
         if sum(self.representation_counts.values()) != record_count:
             raise ValueError("representation counts do not match split record counts")
-        source_identities = {
-            (source.job_id, source.trial_id, source.source_digest) for source in self.source_refs
-        }
-        if len(source_identities) != len(self.source_refs):
-            raise ValueError("manifest source_refs must be unique")
+        if self.exporter.digest != _digest_bytes(Path(__file__).read_bytes()):
+            raise ValueError("manifest exporter digest does not match implementation")
         body = self.model_dump(mode="json", exclude={"manifest_digest", "cas_uri"})
         if self.manifest_digest != _digest_json(body):
             raise ValueError("training manifest digest mismatch")
@@ -450,6 +597,12 @@ def _safe_source_path(value: str) -> bool:
     )
 
 
+def _safe_evidence_path(value: str) -> bool:
+    if not _safe_relative_path(value):
+        return False
+    return not any(part in {"tests", "solution"} for part in PurePosixPath(value).parts)
+
+
 def _prohibited(source: NormalizedTrainingEvidence) -> bool:
     return any(
         value in _PROHIBITED_CORPORA
@@ -476,6 +629,126 @@ def _safe_metadata(value: str) -> str:
     if not _sensitive_text(value):
         return value
     return f"redacted-metadata-{hashlib.sha256(value.encode()).hexdigest()}"
+
+
+def _provenance_reasons(
+    source: NormalizedTrainingEvidence,
+) -> list[TrainingExclusionReason]:
+    receipt = source.source_receipt
+    if receipt is None:
+        return ["missing_trusted_provenance"]
+    if (
+        not _safe_source_path(source.source_path)
+        or not _safe_evidence_path(source.lineage_path)
+        or source.source_artifact_digest is None
+        or not _DIGEST.fullmatch(source.source_artifact_digest)
+        or source.lineage_digest is None
+        or not _DIGEST.fullmatch(source.lineage_digest)
+        or source.source_cas_uri is None
+        or not _CAS_URI.fullmatch(source.source_cas_uri)
+    ):
+        return []
+    reasons: list[TrainingExclusionReason] = []
+    locator = receipt.evidence_locator
+    kinds = tuple(item.source_kind for item in receipt.source_digests)
+    if kinds != ("lineage", "trajectory"):
+        reasons.append("canonical_set_mismatch")
+        return reasons
+    if (
+        receipt.cas_record_kind != "source-receipt"
+        or locator.kind != receipt.cas_record_kind
+        or locator.record_id != receipt.cas_record_id
+        or locator.expected_record_digest != receipt.cas_record_digest
+        or locator.expected_content_digest != receipt.cas_content_digest
+        or receipt.consumer_name != TRAINING_EXPORTER_NAME
+        or receipt.consumer_version != TRAINING_EXPORTER_VERSION
+        or receipt.consumer_digest != _digest_bytes(Path(__file__).read_bytes())
+        or not _safe_evidence_path(receipt.admissibility_record_path)
+    ):
+        reasons.append("receipt_contradiction")
+    expected_uri = f"cas://sha256/{receipt.cas_content_digest.removeprefix('sha256:')}"
+    if source.source_cas_uri != expected_uri:
+        reasons.append("source_cas_digest_mismatch")
+    receipt_sources = {item.source_kind: item for item in receipt.source_digests}
+    trajectory = receipt_sources["trajectory"]
+    lineage = receipt_sources["lineage"]
+    if (
+        source.source_path != trajectory.path
+        or source.lineage_path != lineage.path
+        or source.source_artifact_digest != trajectory.digest
+        or source.lineage_digest != lineage.digest
+    ):
+        reasons.append("receipt_contradiction")
+    try:
+        with materialize_evidence(receipt.evidence_locator) as root:
+            actual_sources: dict[str, str] = {}
+            for item in receipt.source_digests:
+                path = root.joinpath(*PurePosixPath(item.path).parts)
+                if not path.is_file():
+                    raise FileNotFoundError(item.path)
+                actual_sources[item.source_kind] = _digest_bytes(path.read_bytes())
+            if any(
+                actual_sources[item.source_kind] != item.digest for item in receipt.source_digests
+            ):
+                reasons.append("receipt_digest_mismatch")
+            authority_path = root.joinpath(*PurePosixPath(receipt.admissibility_record_path).parts)
+            if not authority_path.is_file():
+                reasons.append("receipt_admissibility_unavailable")
+            else:
+                authority_bytes = authority_path.read_bytes()
+                if _digest_bytes(authority_bytes) != receipt.admissibility_record_digest:
+                    reasons.append("receipt_digest_mismatch")
+                try:
+                    authority = TrialAdmissibilityV1.model_validate_json(authority_bytes)
+                except ValueError:
+                    reasons.append("receipt_admissibility_unavailable")
+                else:
+                    canonical_authority = _canonical_json(authority.model_dump(mode="json")) + b"\n"
+                    if authority_bytes != canonical_authority:
+                        reasons.append("receipt_digest_mismatch")
+                    if source.admissibility is None or authority != source.admissibility:
+                        reasons.append("receipt_contradiction")
+                    if authority.source_digests.trajectory != actual_sources.get("trajectory"):
+                        reasons.append("receipt_contradiction")
+    except OSError:
+        reasons.append("untrusted_provenance")
+    except ValueError:
+        reasons.append("receipt_digest_mismatch")
+    return reasons
+
+
+def _valid_tool_linkage(source: NormalizedTrainingEvidence) -> bool:
+    declared_tools = {tool.function.name for tool in source.tools}
+    pending: list[tuple[str, str]] = []
+    seen_ids: set[str] = set()
+    for message in source.messages:
+        if pending and message.role != "tool":
+            return False
+        if message.role == "assistant":
+            call_ids = tuple(call.id for call in message.tool_calls)
+            if call_ids != tuple(sorted(set(call_ids))):
+                return False
+            for call in message.tool_calls:
+                if call.id in seen_ids or call.function.name not in declared_tools:
+                    return False
+                try:
+                    arguments = json.loads(call.function.arguments)
+                except json.JSONDecodeError:
+                    return False
+                if (
+                    not isinstance(arguments, dict)
+                    or _canonical_json(arguments).decode("utf-8") != call.function.arguments
+                ):
+                    return False
+                seen_ids.add(call.id)
+                pending.append((call.id, call.function.name))
+        elif message.role == "tool":
+            if not pending or message.tool_call_id != pending[0][0]:
+                return False
+            _, function_name = pending.pop(0)
+            if message.name is not None and message.name != function_name:
+                return False
+    return not pending
 
 
 def _source_details(source: NormalizedTrainingEvidence) -> dict[str, Any]:
@@ -544,6 +817,7 @@ def _gate_source(
         source.cluster_key,
         source.history_key,
         source.source_path,
+        source.lineage_path,
     ):
         if _HIDDEN_VERIFIER_TEXT.search(value):
             reasons.append("hidden_verifier_leakage")
@@ -596,21 +870,13 @@ def _gate_source(
         reasons.append("invalid_source_digest")
     if source.source_cas_uri is None or not _CAS_URI.fullmatch(source.source_cas_uri):
         reasons.append("invalid_source_cas_uri")
-    if (
-        source.source_artifact_digest is not None
-        and _DIGEST.fullmatch(source.source_artifact_digest)
-        and source.source_cas_uri is not None
-        and _CAS_URI.fullmatch(source.source_cas_uri)
-        and source.source_cas_uri.removeprefix("cas://sha256/")
-        != source.source_artifact_digest.removeprefix("sha256:")
-    ):
-        reasons.append("source_cas_digest_mismatch")
     if source.lineage_digest is None or not _DIGEST.fullmatch(source.lineage_digest):
         reasons.append("invalid_lineage_digest")
-    if source.lineage_status != "immutable":
-        reasons.append("lineage_not_immutable")
     if not _safe_source_path(source.source_path):
         reasons.append("unsafe_source_path")
+    if not _safe_evidence_path(source.lineage_path):
+        reasons.append("unsafe_lineage_path")
+    reasons.extend(_provenance_reasons(source))
     if source.capture_status != "complete":
         reasons.append("capture_incomplete")
     if source.environment_integrity != "passed":
@@ -628,8 +894,10 @@ def _gate_source(
     if not source.messages:
         reasons.append("empty_conversation")
     sequences = [message.sequence for message in source.messages]
-    if len(sequences) != len(set(sequences)):
+    if sequences != list(range(len(source.messages))):
         reasons.append("invalid_message_sequence")
+    if not _valid_tool_linkage(source):
+        reasons.append("invalid_tool_linkage")
     if not any(message.role == "assistant" for message in source.messages):
         reasons.append("missing_assistant_response")
     for message in source.messages:
@@ -674,6 +942,8 @@ def _source_content_digest(source: NormalizedTrainingEvidence) -> str:
             "task_family": source.task_family,
             "split": source.split,
             "cluster_key": source.cluster_key,
+            "source_artifact_digest": source.source_artifact_digest,
+            "lineage_digest": source.lineage_digest,
             "messages": [message.model_dump(mode="json") for message in source.messages],
             "tools": [tool.model_dump(mode="json") for tool in source.tools],
         }
@@ -707,8 +977,10 @@ def _source_binding(source: NormalizedTrainingEvidence) -> TrainingSourceBinding
     assert source.source_artifact_digest is not None
     assert source.source_cas_uri is not None
     assert source.lineage_digest is not None
+    assert source.source_receipt is not None
     assert source.registry_record is not None
     assert source.admissibility is not None
+    receipt = source.source_receipt
     return TrainingSourceBinding(
         job_id=source.job_id,
         trial_id=source.trial_id,
@@ -723,7 +995,13 @@ def _source_binding(source: NormalizedTrainingEvidence) -> TrainingSourceBinding
         source_path=source.source_path,
         source_artifact_digest=source.source_artifact_digest,
         source_cas_uri=source.source_cas_uri,
+        lineage_path=source.lineage_path,
         lineage_digest=source.lineage_digest,
+        evidence_kind=receipt.cas_record_kind,
+        evidence_record_id=receipt.cas_record_id,
+        evidence_record_digest=receipt.cas_record_digest,
+        evidence_content_digest=receipt.cas_content_digest,
+        trial_admissibility_record_digest=receipt.admissibility_record_digest,
         registry_allowed_use="training",
         task_registry_record_digest=task_registry_record_digest(source.registry_record),
         trial_admissibility_digest=source.admissibility.admissibility_digest,
@@ -789,9 +1067,15 @@ def _candidate_records(
                     "payload": payload,
                 }
             )
+            example_id = _digest_json(
+                {
+                    "content_digest": content_digest,
+                    "source": binding.model_dump(mode="json"),
+                }
+            )
             candidates.append(
                 TrainingExampleRecord(
-                    example_id=content_digest,
+                    example_id=example_id,
                     content_digest=content_digest,
                     representation=representation,
                     source=binding,
@@ -801,25 +1085,48 @@ def _candidate_records(
     return candidates
 
 
-def _atomic_write(path: Path, payload: bytes) -> None:
-    if path.is_symlink():
-        raise ValueError(f"refusing symlink output path: {path}")
-    temporary = path.with_name(f".{path.name}.tmp")
-    if temporary.exists() or temporary.is_symlink():
-        raise ValueError(f"refusing existing temporary output path: {temporary}")
+def _write_staged_file(path: Path, payload: bytes) -> None:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(temporary, flags, 0o600)
+    descriptor = os.open(path, flags, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        if path.is_symlink():
-            raise ValueError(f"refusing symlink output path: {path}")
-        os.replace(temporary, path)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _publish_directory(destination: Path, payloads: dict[str, bytes]) -> Path:
+    absolute = Path(os.path.abspath(destination))
+    if os.path.lexists(absolute):
+        raise FileExistsError(f"training export destination already exists: {destination}")
+    parent = absolute.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    if parent.resolve(strict=True) != parent:
+        raise ValueError(f"refusing symlink destination chain: {destination}")
+    staged = Path(tempfile.mkdtemp(prefix=f".{absolute.name}.staging-", dir=parent))
+    expected = tuple(sorted(payloads))
+    for name in expected:
+        if not _safe_relative_path(name) or PurePosixPath(name).parent != PurePosixPath("."):
+            raise ValueError(f"invalid staged output name: {name}")
+        _write_staged_file(staged / name, payloads[name])
+    _fsync_directory(staged)
+    if os.path.lexists(absolute):
+        raise FileExistsError(f"training export destination already exists: {destination}")
+    os.rename(staged, absolute)
+    _fsync_directory(parent)
+    published = tuple(sorted(path.name for path in absolute.iterdir()))
+    if published != expected or any(
+        path.is_symlink() or not path.is_file() for path in absolute.iterdir()
+    ):
+        raise RuntimeError("published training export inventory mismatch")
+    return absolute
 
 
 def _split_ref(
@@ -846,10 +1153,15 @@ def export_training_dataset(
     ),
 ) -> TrainingExportResult:
     """Export stable split JSONL, exclusions, and a canonical immutable manifest."""
-    if destination.is_symlink():
-        raise ValueError(f"refusing symlink destination: {destination}")
-    if not representations or len(representations) != len(set(representations)):
-        raise ValueError("representations must be unique and non-empty")
+    if os.path.lexists(Path(os.path.abspath(destination))):
+        raise FileExistsError(f"training export destination already exists: {destination}")
+    canonical_representations = tuple(
+        representation
+        for representation in ("prompt_response_sft", "episode_steps")
+        if representation in representations
+    )
+    if not representations or representations != canonical_representations:
+        raise ValueError("canonical_set_mismatch: representations")
 
     initially_valid: list[NormalizedTrainingEvidence] = []
     exclusions: list[TrainingExclusionRecord] = []
@@ -963,7 +1275,16 @@ def export_training_dataset(
         TrainingSourceRefV1(
             job_id=source.job_id,
             trial_id=source.trial_id,
+            source_path=source.source_path,
             source_digest=source.source_artifact_digest,
+            source_cas_uri=source.source_cas_uri,
+            lineage_path=source.lineage_path,
+            lineage_digest=source.lineage_digest,
+            evidence_kind=source.evidence_kind,
+            evidence_record_id=source.evidence_record_id,
+            evidence_record_digest=source.evidence_record_digest,
+            evidence_content_digest=source.evidence_content_digest,
+            trial_admissibility_record_digest=source.trial_admissibility_record_digest,
             registry_allowed_use=source.registry_allowed_use,
             task_registry_record_digest=source.task_registry_record_digest,
             trial_admissibility_digest=source.trial_admissibility_digest,
@@ -1017,24 +1338,20 @@ def export_training_dataset(
         }
     )
 
-    destination.mkdir(parents=True, exist_ok=True)
-    absolute_destination = Path(os.path.abspath(destination))
-    if absolute_destination.resolve() != absolute_destination:
-        raise ValueError(f"refusing symlink destination chain: {destination}")
-    split_paths: dict[TrainingSplit, Path] = {}
-    for split, filename in _SPLIT_FILENAMES.items():
-        path = destination / filename
-        _atomic_write(path, split_payloads[split])
-        split_paths[split] = path
-    exclusions_path = destination / EXCLUSIONS_FILENAME
-    manifest_path = destination / MANIFEST_FILENAME
-    _atomic_write(exclusions_path, exclusions_bytes)
-    _atomic_write(
-        manifest_path,
-        _canonical_json(manifest.model_dump(mode="json")) + b"\n",
-    )
+    manifest_bytes = _canonical_json(manifest.model_dump(mode="json")) + b"\n"
+    payloads = {
+        **{_SPLIT_FILENAMES[split]: split_payloads[split] for split in _SPLITS},
+        EXCLUSIONS_FILENAME: exclusions_bytes,
+        MANIFEST_FILENAME: manifest_bytes,
+    }
+    published = _publish_directory(destination, payloads)
+    split_paths: dict[TrainingSplit, Path] = {
+        split: published / _SPLIT_FILENAMES[split] for split in _SPLITS
+    }
+    exclusions_path = published / EXCLUSIONS_FILENAME
+    manifest_path = published / MANIFEST_FILENAME
     return TrainingExportResult(
-        root=destination,
+        root=published,
         manifest_path=manifest_path,
         exclusions_path=exclusions_path,
         split_paths=split_paths,
@@ -1054,6 +1371,9 @@ __all__ = [
     "TrainingFunctionCall",
     "TrainingFunctionDefinition",
     "TrainingMessage",
+    "TrainingReceiptSourceV1",
+    "TrainingSourceBinding",
+    "TrainingSourceReceiptV1",
     "TrainingSourceRefV1",
     "TrainingSplitRefV1",
     "TrainingTool",

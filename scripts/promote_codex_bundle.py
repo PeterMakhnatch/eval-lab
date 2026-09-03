@@ -112,6 +112,19 @@ R4 -- redacted quota sidecar (``<trial>/agent/quota/<rollout>.rate-limits.json``
     decomposed into the lab's share, it is a point-in-time snapshot rather than
     a series, and it is only as fresh as the trial that recorded it.
 
+C1 -- registry-bound benchmark contract emission (Gate Zero).
+    Every trial in a promoted bundle must bind to an explicitly registered
+    task. ``evallab.contract_emission`` resolves the trial's ``result.json``
+    ``task_name`` against ``library/registry``, proves the on-disk task
+    package still matches the registered digests, and emits
+    ``<trial>/benchmark_contract.json`` carrying the registry's task identity,
+    family, version and verifier truth digest. Nothing is inferred from path
+    shapes, platform, config/lock files or auxiliary JSON; every digest is
+    canonical ``sha256:<64 hex>``; a trial that already carries contract
+    authority is never overwritten (additive-only). Any missing,
+    contradictory, or unknown state refuses the whole promotion BEFORE a byte
+    is written, so a refused promotion cannot leave a partial bundle.
+
 Every promoted file records the SHA-256 of its unredacted parent in
 ``PROMOTION.json`` next to the SHA-256 of the promoted bytes.
 
@@ -140,6 +153,7 @@ VERIFIER_JSON_STRING_LIMIT = 1024
 VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
+CONTRACT_NAME = "benchmark_contract.json"
 EVIDENCE_RUNS = Path(__file__).resolve().parents[1] / "research" / "evidence" / "runs"
 
 #: R4. Longest whitelisted quota string this repository has ever observed is
@@ -481,9 +495,35 @@ def omission_record(
     return record
 
 
+def _plan_contracts(job_dir: Path) -> list[Any]:
+    """Plan C1 contract emission for every trial, refusing before any write.
+
+    Additive-only: the R1-R4 walk below is untouched. Planning runs before
+    the destination is touched so a binding refusal cannot leave a partial
+    bundle behind.
+    """
+    try:
+        from evallab.contract_emission import (
+            ContractEmissionRefusal,
+            plan_contract_emission,
+        )
+    except ImportError as exc:  # pragma: no cover - broken runtime
+        raise SystemExit(
+            f"contract emission requires the evallab runtime ({exc}); promotion "
+            "refuses to emit unbound bundles"
+        ) from exc
+    try:
+        return plan_contract_emission(job_dir, Path(__file__).resolve().parents[1])
+    except ContractEmissionRefusal as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
     if not job_dir.is_dir():
         raise SystemExit(f"source job directory not found: {job_dir}")
+    # C1 first: bind every trial to the task registry before the destination
+    # is touched, so a refusal never leaves a partial bundle.
+    contracts = _plan_contracts(job_dir)
     if destination.exists():
         if not force:
             raise SystemExit(
@@ -594,6 +634,36 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             }
         )
 
+    # C1: write the pre-planned, registry-bound contracts. Planning ran before
+    # the destination was touched, so these writes are unrefusable by
+    # construction and never replace source-carried contract authority
+    # (that refused up front).
+    from evallab.contract_emission import atomic_write_bytes
+
+    for plan in contracts:
+        target = Path(plan.trial_name) / CONTRACT_NAME
+        out = destination / target
+        atomic_write_bytes(out, plan.body)
+        promoted_bytes += len(plan.body)
+        entries.append(
+            {
+                "source_path": plan.identity_source,
+                "promoted_path": str(target),
+                "action": "emitted",
+                "rule": "C1",
+                "derived_from": plan.identity_source,
+                "source_bytes": plan.identity_source_bytes,
+                "source_sha256": plan.identity_source_sha256,
+                "promoted_bytes": len(plan.body),
+                "promoted_sha256": sha256_bytes(plan.body),
+                "registry_task_id": plan.task_id,
+                "registry_record_digest": plan.registry_record_digest,
+                "certified_runtime_package_digest": plan.certified_runtime_package_digest,
+                "certified_environment_digest": plan.certified_environment_digest,
+                "trial_run_id": plan.trial_run_id,
+            }
+        )
+
     # A sidecar is derived from a source file already counted, so counting it as
     # a source file would inflate `source_files` and double-count its bytes.
     sources = [e for e in entries if "derived_from" not in e]
@@ -627,7 +697,8 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             "source_files": len(sources),
             "promoted_files": sum(1 for e in sources if e["promoted_path"]),
             "omitted_files": sum(1 for e in sources if not e["promoted_path"]),
-            "quota_sidecars": len(entries) - len(sources),
+            "quota_sidecars": sum(1 for e in entries if e.get("rule") == "R4"),
+            "emitted_contracts": sum(1 for e in entries if e.get("rule") == "C1"),
             "promoted_bytes": promoted_bytes,
             "source_bytes": sum(e["source_bytes"] for e in sources),
         },

@@ -3,7 +3,7 @@ services:
     depends_on:
       tau3-runtime:
         condition: service_healthy
-  
+
   tau3-runtime:
     build:
       context: ./runtime-server

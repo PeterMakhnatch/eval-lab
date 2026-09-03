@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections import Counter
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from evallab.analysis_capability import (
     DenominatorPolicy,
     create_campaign_analysis_spec,
 )
+from evallab.benchmark_program_contracts import canonical_json, compute_sha256
 from evallab.execution_contracts import load_policy
 from evallab.paired_intervention import (
     CaptureExpectation,
@@ -31,8 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _canonical_digest(value: object) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+    return f"sha256:{compute_sha256(canonical_json(value))}"
 
 
 def _redigest(payload: dict[str, object]) -> dict[str, object]:

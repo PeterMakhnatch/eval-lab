@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import stat
 from collections import defaultdict, deque
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -19,11 +18,11 @@ from evallab.analysis_capability import (
     CampaignAnalysisSpecV1,
     DenominatorPolicy,
 )
+from evallab.benchmark_program_contracts import canonical_json, compute_sha256
 from evallab.campaigns import experiment_spec_digest
 from evallab.queue import PolicyGate
-from evallab.schemas import ContractModel, ExperimentSpec, PolicyDecision
+from evallab.schemas import ContractModel, Digest, ExperimentSpec, PolicyDecision
 
-Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 Arm = Literal["control", "treatment"]
 _ZERO_DIGEST = "sha256:" + "0" * 64
 _ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -220,8 +219,7 @@ class PairedInterventionPlan(_FrozenContract):
 
 
 def _canonical_digest(value: object) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+    return f"sha256:{compute_sha256(canonical_json(value))}"
 
 
 def _stable_order_key(seed: int, *components: str) -> str:

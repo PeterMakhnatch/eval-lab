@@ -82,6 +82,7 @@ from evallab.execution_contracts import (
 from evallab.harbor_network import (
     NetworkAdaptation,
     adapt_task_toml_for_host,
+    host_harbor_network_policy,
     with_agent_network_allowlist,
 )
 from evallab.results import load_job
@@ -1137,6 +1138,7 @@ def _stage_task_for_host(
     *,
     agent_allowed_hosts: tuple[str, ...] = (),
     expected_package_digest: str | None = None,
+    unenforced_hosts: tuple[str, ...] = (),
 ) -> tuple[Path, NetworkAdaptation | None]:
     """Create and verify a private immutable-input snapshot before adaptation."""
     from evallab.registry import compute_task_digests
@@ -1170,8 +1172,8 @@ def _stage_task_for_host(
     (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
     manifest: dict[str, Any] = {
         "schema_version": "1.0",
-        "source_package_digest": source_digest_before,
         "agent_allowed_hosts": list(agent_allowed_hosts),
+        "required_but_unenforced_hosts": list(unenforced_hosts),
     }
     if adaptation is not None:
         manifest["network_adaptation"] = asdict(adaptation)
@@ -1250,16 +1252,23 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     executor_log = _executor_log_path(request)
     started = datetime.now(UTC)
     try:
+        proxy_hosts = (
+            (DEEPSEEK_PROXY_HOST,)
+            if request.agent == "mini-swe-agent"
+            else (ZAI_PROXY_HOST,)
+            if request.agent == "zai-opencode"
+            else ()
+        )
+        # Harbor's Docker provider rejects allowlist mode on hosts that cannot
+        # enforce it (Darwin). There the proxy host stays reachable via the
+        # public adaptation, and the requirement is recorded unenforced in the
+        # run manifest rather than injected into task.toml.
+        enforce_egress = host_harbor_network_policy().network_isolation_enforced
         staged_task, adaptation = _stage_task_for_host(
             request.task,
             staging_dir,
-            agent_allowed_hosts=(
-                (DEEPSEEK_PROXY_HOST,)
-                if request.agent == "mini-swe-agent"
-                else (ZAI_PROXY_HOST,)
-                if request.agent == "zai-opencode"
-                else ()
-            ),
+            agent_allowed_hosts=proxy_hosts if enforce_egress else (),
+            unenforced_hosts=() if enforce_egress else proxy_hosts,
             expected_package_digest=(
                 request.provenance.package_digest
                 if request.provenance is not None

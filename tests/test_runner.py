@@ -227,9 +227,58 @@ def test_subscription_command_refuses_when_zai_proxy_is_missing(
         jobs_dir=tmp_path / "runs",
         allow_billable=True,
     )
-
     with pytest.raises(RuntimeError, match="secret proxy is missing"):
         subscription_command(zai, ["harbor", "run"], repo_root=repo)
+
+
+def test_staging_records_unenforced_proxy_hosts_without_allowlist(
+    tmp_path: Path,
+) -> None:
+    """On hosts without isolation enforcement (Darwin), proxy hosts must not
+    flip task.toml to allowlist mode (Harbor's Docker provider rejects it);
+    the requirement is recorded unenforced in run_manifest.json instead."""
+    import json
+
+    from evallab.runner import _stage_task_for_host
+
+    destination = tmp_path / "staged"
+    staged, _ = _stage_task_for_host(
+        task(tmp_path),
+        destination,
+        agent_allowed_hosts=(),
+        unenforced_hosts=("zai-secret-proxy",),
+    )
+
+    assert "allowlist" not in (staged / "task.toml").read_text(encoding="utf-8")
+    manifest = json.loads((destination / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["agent_allowed_hosts"] == []
+    assert manifest["required_but_unenforced_hosts"] == ["zai-secret-proxy"]
+
+
+def test_staging_injects_allowlist_when_hosts_enforced(tmp_path: Path) -> None:
+    """On enforcement-capable hosts the proxy host is injected as an
+    agent-phase allowlist, mirrored in the manifest."""
+    import json
+
+    from evallab.runner import _stage_task_for_host
+
+    task_dir = tmp_path / "allowlist-task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text('schema_version = "1.4"\n\n[agent]\n')
+    destination = tmp_path / "staged"
+    staged, _ = _stage_task_for_host(
+        task_dir,
+        destination,
+        agent_allowed_hosts=("zai-secret-proxy",),
+    )
+
+    assert 'network_mode = "allowlist"' in (staged / "task.toml").read_text(
+        encoding="utf-8"
+    )
+    manifest = json.loads((destination / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["agent_allowed_hosts"] == ["zai-secret-proxy"]
+    assert manifest["required_but_unenforced_hosts"] == []
+
 
 def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
     tmp_path: Path,

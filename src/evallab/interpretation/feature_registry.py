@@ -81,6 +81,9 @@ class FeatureRefusalCode(StrEnum):
     MISSING_DENOMINATOR_DECLARATION = "MISSING_DENOMINATOR_DECLARATION"
     MISSING_NULL_ON_ZERO_DECLARATION = "MISSING_NULL_ON_ZERO_DECLARATION"
     INVALID_DENOMINATOR_DECLARATION = "INVALID_DENOMINATOR_DECLARATION"
+    MISSING_LINEAGE_DECLARATION = "MISSING_LINEAGE_DECLARATION"
+    INVALID_LINEAGE_DECLARATION = "INVALID_LINEAGE_DECLARATION"
+    MISSING_DENOMINATOR_DEFINITION = "MISSING_DENOMINATOR_DEFINITION"
     ELIGIBLE = "ELIGIBLE"
 
 
@@ -113,6 +116,9 @@ class FeatureDefinition:
     eligibility_precondition: str | None = None
     family: str | None = None
     quarantine_reason: QuarantineReason | None = None
+    lineage_source: str | None = None
+    lineage_unknown: bool = False
+    denominator_definition: str | None = None
 
     def is_quarantined(self) -> bool:
         """Return whether this feature is excluded from comparisons and rankings."""
@@ -180,6 +186,18 @@ class FeatureDefinition:
         ):
             errors.append(
                 f"Feature {self.column_name!r} has invalid quarantine_reason={self.quarantine_reason!r}"
+            )
+        if self.lineage_unknown and self.lineage_source is not None:
+            errors.append(
+                f"Feature {self.column_name!r} declares lineage_unknown=True together with a lineage_source"
+            )
+        if self.lineage_source is not None and not self.lineage_source.strip():
+            errors.append(
+                f"Feature {self.column_name!r} has an empty lineage_source declaration"
+            )
+        if self.denominator_definition is not None and not self.denominator_definition.strip():
+            errors.append(
+                f"Feature {self.column_name!r} has an empty denominator_definition declaration"
             )
         return errors
 
@@ -293,6 +311,43 @@ def audit_registry_denominator_policies() -> dict[str, FeatureRefusalCode]:
         feature.column_name: verdict
         for feature in TRAJECTORY_FEATURE_REGISTRY.all_features().values()
         if (verdict := audit_denominator_policy(feature)) is not None
+    }
+
+
+def audit_lineage_declaration(feature: FeatureDefinition) -> FeatureRefusalCode | None:
+    """Return the registry verdict for honest lineage and denominator-definition declaration.
+
+    A measured column clears lineage paperwork when it either names its producing
+    source or carries the explicit unknown marker (lineage_unknown=True). Declaring
+    a source together with the unknown marker is a contradiction, and a required
+    denominator without a definition leaves the ratio unauditable.
+    """
+    if feature.lineage_unknown:
+        if feature.lineage_source is not None:
+            return FeatureRefusalCode.INVALID_LINEAGE_DECLARATION
+        return None
+    if not (feature.lineage_source and feature.lineage_source.strip()):
+        return FeatureRefusalCode.MISSING_LINEAGE_DECLARATION
+    if feature.denominator_policy == "required" and not (
+        feature.denominator_definition and feature.denominator_definition.strip()
+    ):
+        return FeatureRefusalCode.MISSING_DENOMINATOR_DEFINITION
+    return None
+
+
+def audit_registry_lineage_declarations(
+    *, family: str | None = None
+) -> dict[str, FeatureRefusalCode]:
+    """Report lineage-declaration debt without tightening import-time validation."""
+    target = (
+        TRAJECTORY_FEATURE_REGISTRY.by_family(family)
+        if family
+        else TRAJECTORY_FEATURE_REGISTRY.all_features()
+    )
+    return {
+        feature.column_name: verdict
+        for feature in target.values()
+        if (verdict := audit_lineage_declaration(feature)) is not None
     }
 
 
@@ -648,6 +703,9 @@ def register_trajectory_feature(
     eligibility_precondition: str | None = None,
     family: str | None = None,
     quarantine_reason: QuarantineReason | None = None,
+    lineage_source: str | None = None,
+    lineage_unknown: bool = False,
+    denominator_definition: str | None = None,
 ) -> FeatureDefinition:
     """Helper to register a trajectory feature in the global registry."""
     actual_coupling_basis = coupling_basis if coupling_basis is not None else verdict_coupling_basis
@@ -677,10 +735,20 @@ def register_trajectory_feature(
         eligibility_precondition=eligibility_precondition,
         family=family,
         quarantine_reason=quarantine_reason,
+        lineage_source=lineage_source,
+        lineage_unknown=lineage_unknown,
+        denominator_definition=denominator_definition,
     )
     return TRAJECTORY_FEATURE_REGISTRY.register(feat)
 
 
+# Declared producer chain for baseline measured columns: raw ATIF trajectory plus
+# runner metadata -> TrajectoryOutline (evallab.traj.outline_trajectory) ->
+# extract_features (evallab.traj) -> TrajectoryFeatures -> traj_features.parquet.
+_BASELINE_LINEAGE_PRODUCER = "evallab.traj.extract_features <- TrajectoryOutline"
+# compute_trace_baseline-only screenings are absent from the TrajectoryFeatures
+# parquet write schema, so the T1.1 corpus shows them data-absent.
+_BASELINE_VIEW_PRODUCER = "evallab.interpretation.traj_baseline.compute_trace_baseline"
 # Register all standard trace baseline and mechanical trajectory features
 # 1. Identity
 register_trajectory_feature(
@@ -695,6 +763,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.trial_id (sha256 of job_id and trial_name)",
 )
 register_trajectory_feature(
     "job_id",
@@ -708,6 +777,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.job_id",
 )
 register_trajectory_feature(
     "trial_name",
@@ -721,6 +791,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.trial_name",
 )
 register_trajectory_feature(
     "job_name",
@@ -734,6 +805,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.job_name",
 )
 register_trajectory_feature(
     "task_name",
@@ -747,6 +819,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.task_name (from result.json or config.json)",
 )
 register_trajectory_feature(
     "agent_name",
@@ -760,6 +833,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.agent_name",
 )
 register_trajectory_feature(
     "agent_version",
@@ -773,6 +847,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.agent_version",
 )
 register_trajectory_feature(
     "model_name",
@@ -786,6 +861,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.model_name",
 )
 register_trajectory_feature(
     "status",
@@ -799,6 +875,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.status",
 )
 register_trajectory_feature(
     "unavailable_reason",
@@ -826,6 +903,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.source_path",
 )
 register_trajectory_feature(
     "source_sha256",
@@ -839,6 +917,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.source_sha256",
 )
 register_trajectory_feature(
     "primary_reward",
@@ -853,6 +932,7 @@ register_trajectory_feature(
     available_before_verdict=False,
     verdict_coupling="defines",
     coupling_basis="Primary deterministic reward from verifier (1.0 = pass, 0.0 = fail)",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.primary_reward (verifier result reward; NULL when verifier emitted none)",
 )
 register_trajectory_feature(
     "exception_class",
@@ -867,6 +947,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Class of unhandled exception indicates runtime failure mode without defining verdict",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.exception_class (runner exception_info)",
 )
 register_trajectory_feature(
     "duration_seconds",
@@ -881,6 +962,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Wall-clock duration reflects execution latency and timeout risk",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.duration_seconds (runner finished-started timestamps)",
 )
 
 # 2. Step metrics
@@ -897,6 +979,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Total step count reflects trajectory length and search complexity",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.total_steps",
 )
 register_trajectory_feature(
     "agent_step_count",
@@ -911,6 +994,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Agent step count reflects model deliberation volume",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.agent_steps",
 )
 register_trajectory_feature(
     "system_step_count",
@@ -925,6 +1009,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="System step count reflects environment event volume",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.system_steps",
 )
 register_trajectory_feature(
     "user_step_count",
@@ -939,6 +1024,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="User step count reflects external steering volume",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.user_steps",
 )
 
 # 3. Tool & Command metrics
@@ -955,6 +1041,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Tool call volume reflects operational activity and search depth",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.total_tool_calls (steps with non-null tool_name)",
 )
 register_trajectory_feature(
     "unique_tools_count",
@@ -969,6 +1056,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Count of distinct tools reflects breadth of tool usage",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.tool_mix (count of distinct tool names)",
 )
 register_trajectory_feature(
     "repeated_command_count",
@@ -983,6 +1071,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Repeated command count indicates looping or retry behavior",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.loop_suspicion.repeated_command_count",
 )
 
 # 4. Error & Recovery metrics
@@ -1136,6 +1225,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Intervention classification reflects autonomy level",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.intervention_category (runner-emitted; defaults to 'autonomous')",
 )
 register_trajectory_feature(
     "autonomous_step_count",
@@ -1150,6 +1240,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Count of autonomous steps reflects self-directed progress",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.autonomous_step_count",
 )
 register_trajectory_feature(
     "assisted_step_count",
@@ -1164,6 +1255,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Count of assisted steps reflects operator guidance volume",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.assisted_step_count",
 )
 register_trajectory_feature(
     "intervention_count",
@@ -1178,6 +1270,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Intervention count after error onset reflects assistance dependency",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.intervention_count (runner-emitted; defaults to 0)",
 )
 
 # 6. State & Edit metrics (State-Journal-grounded)
@@ -1344,6 +1437,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Edit tool call count reflects file editing effort",
+    lineage_unknown=True,
 )
 register_trajectory_feature(
     "edit_efficiency_screening",
@@ -1392,6 +1486,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Path reference count reflects file targeting opportunity volume",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.path_reference_count (file/path arguments parsed from step tool calls)",
 )
 register_trajectory_feature(
     "valid_path_reference_count",
@@ -1406,6 +1501,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Valid path reference count reflects correct filesystem targeting",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.valid_path_reference_count",
 )
 register_trajectory_feature(
     "invalid_path_reference_count",
@@ -1452,6 +1548,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Citation reference count reflects evidence citation opportunities",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.citation_reference_count (citations parsed from trajectory/evidence pack)",
 )
 register_trajectory_feature(
     "valid_citation_reference_count",
@@ -1466,6 +1563,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Valid citation count reflects grounded evidence citations",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.valid_citation_reference_count",
 )
 register_trajectory_feature(
     "invalid_citation_reference_count",
@@ -1515,6 +1613,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of unique tools to total tool calls measures tool diversity and exploration breadth",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- unique_tools_count / tool_call_count (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="tool_call_count: total tool calls across ordered steps; NULL when tool_call_count == 0",
     description="Linear innocence screening metric (unique tools / tool calls).",
 )
 register_trajectory_feature(
@@ -1531,6 +1631,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of tool errors to total tool calls measures tool execution reliability",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- error_count / tool_call_count (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="tool_call_count: total tool calls across ordered steps; NULL when tool_call_count == 0",
     description="Tool error rate screening metric (errors / tool calls).",
 )
 register_trajectory_feature(
@@ -1547,6 +1649,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of successful recoveries to total errors measures resilience under failure",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- recovery_count / error_count (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="error_count: steps with classified errors excluding expected probe misses; NULL when error_count == 0",
     description="Ratio of successful recoveries to total errors.",
 )
 register_trajectory_feature(
@@ -1563,6 +1667,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of autonomous steps to total steps measures degree of unassisted execution",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- autonomous_step_count / step_count (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="step_count: total ordered trajectory steps; NULL when step_count == 0",
     description="Ratio of autonomous steps to total steps.",
 )
 register_trajectory_feature(
@@ -1579,6 +1685,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of assisted steps to total steps measures human/user intervention dependence",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- assisted_step_count / step_count (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="step_count: total ordered trajectory steps; NULL when step_count == 0",
     description="Ratio of human-assisted steps to total steps.",
 )
 register_trajectory_feature(
@@ -1595,6 +1703,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of cached prompt tokens to total prompt tokens measures prompt caching efficiency",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- cached_tokens / prompt_tokens (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="prompt_tokens: total prompt tokens (ATIF cached_tokens is a subset of prompt_tokens); NULL when prompt_tokens is NULL or == 0",
     description="Prompt token cache hit rate screening.",
 )
 register_trajectory_feature(
@@ -1611,6 +1721,8 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Ratio of subagent delegation steps to total steps measures delegation overhead",
+    lineage_source=f"{_BASELINE_VIEW_PRODUCER} <- count(steps with source=='subagent') / total_steps via _compute_subagent_overhead (absent from evallab.traj TrajectoryFeatures parquet write schema)",
+    denominator_definition="step_count: total ordered trajectory steps; NULL when step_count == 0",
     description="Ratio of subagent steps to total steps.",
 )
 register_trajectory_feature(
@@ -1625,6 +1737,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Regression slope of prompt tokens across steps measures context accumulation rate",
+    lineage_source="evallab.traj._compute_cbv_slope <- TrajectoryOutline.steps (regr_slope of per-step prompt_tokens over step_id)",
     description="Context burn velocity screening slope.",
 )
 register_trajectory_feature(
@@ -1657,6 +1770,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Prompt token volume reflects context consumption and input complexity",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.total_prompt_tokens (per-step usage accumulation)",
 )
 register_trajectory_feature(
     "completion_tokens",
@@ -1671,6 +1785,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Completion token volume reflects model generation length",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.total_completion_tokens (per-step usage accumulation)",
 )
 register_trajectory_feature(
     "cached_tokens",
@@ -1685,6 +1800,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Cached token volume reflects prompt reuse",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.total_cached_tokens (per-step usage accumulation)",
 )
 register_trajectory_feature(
     "total_tokens",
@@ -1713,6 +1829,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Financial cost in USD reflects computational resource expenditure",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.total_cost_usd (per-step cost accumulation)",
 )
 
 # 10. Loop Suspicion metrics
@@ -1729,6 +1846,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Loop suspicion score reflects repetitive non-progressing behavior",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.loop_suspicion.score",
 )
 register_trajectory_feature(
     "loop_suspicion_detected",
@@ -1743,6 +1861,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="Loop detection threshold reflects identified execution thrashing",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.loop_suspicion.detected",
 )
 register_trajectory_feature(
     "loop_reasons_json",
@@ -1757,6 +1876,7 @@ register_trajectory_feature(
     available_before_verdict=True,
     verdict_coupling="correlates",
     coupling_basis="JSON array of loop triggers provides structured diagnosis of execution thrashing",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.loop_suspicion.reasons (json list)",
 )
 register_trajectory_feature(
     "created_at",
@@ -1770,6 +1890,7 @@ register_trajectory_feature(
     declared_inputs=(),
     available_before_verdict=True,
     verdict_coupling="not_applicable",
+    lineage_source=f"{_BASELINE_LINEAGE_PRODUCER}.steps[0].timestamp (first step; empty string when no steps)",
 )
 
 

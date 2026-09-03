@@ -22,9 +22,8 @@ from evallab.artifact_authority import (
 )
 from evallab.benchmark_program_contracts import compute_prefixed_sha256, validate_safe_relative_path
 from evallab.results import sha256_file
-from evallab.schemas import ContractModel
+from evallab.schemas import ContractModel, Digest
 
-Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 Backend = Literal["trl", "spade"]
 ExternalBackendName = Literal["generic-trl", "spade-external-consumer"]
 _EXTERNAL_BACKEND_NAME: dict[Backend, ExternalBackendName] = {
@@ -86,7 +85,7 @@ class TrainerSourceBindingV1(_FrozenContract):
     job_id: str = Field(min_length=1)
     trial_id: str = Field(min_length=1)
     source_digest: Digest
-    registry_allowed_use: Literal["training"] = "training"
+    registry_allowed_use: str = Field(min_length=1)
     task_registry_record_digest: Digest
     trial_admissibility_digest: Digest
     trial_admissibility_decision: Literal["admissible", "rejected", "unavailable"]
@@ -770,6 +769,15 @@ def validate_trainer_bundle(
     if not math.isfinite(bundle.hyperparameters.learning_rate):
         _refuse("nonfinite_hyperparameter")
     dataset = bundle.dataset
+    for source in dataset.source_refs:
+        if source.registry_allowed_use != "training":
+            _refuse("source_registry_not_training_authorized")
+        if (
+            source.trial_admissibility_decision != "admissible"
+            or source.trial_analysis_eligibility != "causal-eligible"
+            or source.trial_admissibility_allowed_use != "causal"
+        ):
+            _refuse("source_authority_not_training_admissible")
     paths, heldout = _validate_dataset(bundle_root, dataset, bundle.rendering, bundle.heldout_split)
     if bundle.selected_split != "train":
         _refuse("hidden_or_nontraining_split")
@@ -777,13 +785,6 @@ def validate_trainer_bundle(
         family.casefold() for family in dataset.task_families
     ):
         _refuse("prohibited_corpus:syn-funcdag-easy")
-    for source in dataset.source_refs:
-        if (
-            source.trial_admissibility_decision != "admissible"
-            or source.trial_analysis_eligibility != "causal-eligible"
-            or source.trial_admissibility_allowed_use != "causal"
-        ):
-            _refuse("source_authority_not_training_admissible")
     identities = {
         (
             ref.job_id,
@@ -958,6 +959,28 @@ def expected_trainer_result_has_parity(
         adapter_contract=plan.adapter_contract,
     )
 
+def rehydrate_rendered_trainer_plan(
+    value: Mapping[str, Any] | RenderedTrainerPlanV1,
+    *,
+    bundle: TrainerBundleV1,
+    backend_identity: TrainerBackendIdentityV1,
+) -> RenderedTrainerPlanV1:
+    """Load a rendered plan only when its strict result projection has parity."""
+
+    try:
+        plan = (
+            value
+            if isinstance(value, RenderedTrainerPlanV1)
+            else RenderedTrainerPlanV1.model_validate(value)
+        )
+    except ValueError as exc:
+        raise TrainerBundleRefusal("blocked:trainer_plan:invalid") from exc
+    if not expected_trainer_result_has_parity(bundle, plan, backend_identity):
+        raise TrainerBundleRefusal(
+            "blocked:trainer_plan:expected_result_parity_mismatch"
+        )
+    return plan
+
 
 def _render_context(
     bundle: TrainerBundleV1,
@@ -1121,6 +1144,7 @@ __all__ = [
     "TrainerTaskIdentityV1",
     "TrainerSplitBindingV1",
     "ValidatedTrainerBundleV1",
+    "rehydrate_rendered_trainer_plan",
     "backend_incompatibilities",
     "expected_trainer_result_has_parity",
     "project_expected_trainer_result",

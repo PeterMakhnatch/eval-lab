@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from evallab.artifact_authority import (
     VERIFIER_IMPLEMENTATION_DIGEST,
+    AdmissibilityReceiptBinding,
     ArchiveAnchor,
     ArtifactAuthority,
     ArtifactRef,
@@ -491,3 +492,13 @@ def test_model_immutability_and_extra_forbidden() -> None:
 
     with pytest.raises(ValidationError):
         ArtifactRef.model_validate({"ref": "docs/INDEX.md", "digest": ref.digest, "extra": 123})
+
+
+def test_trainer_bundle_is_a_registered_authority_artifact_kind() -> None:
+    binding = AdmissibilityReceiptBinding(
+        trial_id="trainer-fixture",
+        admissibility_digest=Digest("sha256:" + "1" * 64),
+        artifact_kind="trainer_bundle",
+    )
+
+    assert binding.artifact_kind == "trainer_bundle"

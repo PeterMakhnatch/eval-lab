@@ -221,6 +221,12 @@ class TrainingSourceReceiptV1(_FrozenContract):
         kinds = tuple(source.source_kind for source in self.source_digests)
         if kinds != ("lineage", "trajectory"):
             raise ValueError("receipt source_digests must be sorted and complete")
+        paths = (
+            self.admissibility_record_path,
+            *(source.path for source in self.source_digests),
+        )
+        if len(paths) != len(set(paths)):
+            raise ValueError("receipt evidence paths must be distinct")
         if self.consumer_digest != _digest_bytes(Path(__file__).read_bytes()):
             raise ValueError("receipt consumer digest does not match exporter")
         if self.created_at.tzinfo is None or self.created_at.utcoffset() != UTC.utcoffset(
@@ -289,8 +295,8 @@ class TrainingSourceBinding(_FrozenContract):
     source_cas_uri: str = Field(pattern=r"^cas://sha256/[0-9a-f]{64}$")
     lineage_path: str
     lineage_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    evidence_kind: str
-    evidence_record_id: str
+    evidence_kind: Literal["source-receipt"]
+    evidence_record_id: str = Field(min_length=1, pattern=r"^[^/\x00]+$")
     evidence_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     evidence_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trial_admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -311,6 +317,8 @@ class TrainingSourceBinding(_FrozenContract):
             or self.trial_admissibility_allowed_use != "causal"
         ):
             raise ValueError("training source binding requires accepted causal authority")
+        if self.evidence_record_id in {".", ".."}:
+            raise ValueError("training source evidence_record_id is not canonical")
         if self.source_cas_uri.removeprefix(
             "cas://sha256/"
         ) != self.evidence_content_digest.removeprefix("sha256:"):
@@ -395,8 +403,8 @@ class TrainingSourceRefV1(_FrozenContract):
     source_cas_uri: str = Field(pattern=r"^cas://sha256/[0-9a-f]{64}$")
     lineage_path: str
     lineage_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    evidence_kind: str
-    evidence_record_id: str
+    evidence_kind: Literal["source-receipt"]
+    evidence_record_id: str = Field(min_length=1, pattern=r"^[^/\x00]+$")
     evidence_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     evidence_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trial_admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -415,6 +423,8 @@ class TrainingSourceRefV1(_FrozenContract):
             or self.trial_admissibility_allowed_use != "causal"
         ):
             raise ValueError("training source ref requires accepted causal authority")
+        if self.evidence_record_id in {".", ".."}:
+            raise ValueError("training source ref evidence_record_id is not canonical")
         if self.source_cas_uri.removeprefix(
             "cas://sha256/"
         ) != self.evidence_content_digest.removeprefix("sha256:"):
@@ -654,6 +664,10 @@ def _provenance_reasons(
     if kinds != ("lineage", "trajectory"):
         reasons.append("canonical_set_mismatch")
         return reasons
+    receipt_paths = (
+        receipt.admissibility_record_path,
+        *(item.path for item in receipt.source_digests),
+    )
     if (
         receipt.cas_record_kind != "source-receipt"
         or locator.kind != receipt.cas_record_kind
@@ -664,6 +678,8 @@ def _provenance_reasons(
         or receipt.consumer_version != TRAINING_EXPORTER_VERSION
         or receipt.consumer_digest != _digest_bytes(Path(__file__).read_bytes())
         or not _safe_evidence_path(receipt.admissibility_record_path)
+        or len(receipt_paths) != len(set(receipt_paths))
+        or any(not _safe_evidence_path(path) for path in receipt_paths)
     ):
         reasons.append("receipt_contradiction")
     expected_uri = f"cas://sha256/{receipt.cas_content_digest.removeprefix('sha256:')}"
@@ -829,6 +845,15 @@ def _gate_source(
     if registry_record is None:
         reasons.append("missing_registry_record")
     else:
+        try:
+            validated_registry = TaskRegistryRecord.model_validate(
+                registry_record.model_dump(mode="json")
+            )
+        except ValueError:
+            reasons.append("registry_identity_mismatch")
+        else:
+            if validated_registry != registry_record:
+                reasons.append("registry_identity_mismatch")
         registry_digest = task_registry_record_digest(registry_record)
         if (
             registry_record.task_id != source.task_id

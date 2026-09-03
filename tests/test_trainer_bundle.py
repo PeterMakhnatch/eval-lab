@@ -474,14 +474,39 @@ def test_plan_digest_and_projection_parity_reject_substitution(tmp_path: Path) -
     )
     internally_consistent = type(plan).model_validate(authority_substitution)
     with pytest.raises(
-        TrainerBundleRefusal, match="expected_result_parity_mismatch"
+        TrainerBundleRefusal, match="full_plan_parity_mismatch"
     ):
         rehydrate_rendered_trainer_plan(
             internally_consistent,
             bundle=bundle,
+            root=root,
             backend_identity=backend,
         )
+
+    mutation_cases = (
+        ("payload", "learning_rate", 0.5),
+        (None, "seed", plan.seed + 1),
+        (None, "objective", "verifier_reward_episode"),
+    )
+    for parent, field, value in mutation_cases:
+        mutated = plan.model_dump(mode="json")
+        target = mutated if parent is None else mutated[parent]
+        target[field] = value
+        mutated["expected_result"]["trainer_plan_digest"] = trainer_plan_digest(
+            mutated
+        )
+        self_consistent = type(plan).model_validate(mutated)
+        with pytest.raises(
+            TrainerBundleRefusal, match="full_plan_parity_mismatch"
+        ):
+            rehydrate_rendered_trainer_plan(
+                self_consistent,
+                bundle=bundle,
+                root=root,
+                backend_identity=backend,
+            )
     assert not expected_trainer_result_has_parity(bundle, internally_consistent, backend)
+
 
 def test_render_rehydrate_is_byte_identical(tmp_path: Path) -> None:
     root = tmp_path / "bundle"
@@ -493,6 +518,7 @@ def test_render_rehydrate_is_byte_identical(tmp_path: Path) -> None:
     rehydrated = rehydrate_rendered_trainer_plan(
         json.loads(rendered_bytes),
         bundle=bundle,
+        root=root,
         backend_identity=backend,
     )
 

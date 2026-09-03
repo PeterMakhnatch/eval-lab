@@ -963,9 +963,11 @@ def rehydrate_rendered_trainer_plan(
     value: Mapping[str, Any] | RenderedTrainerPlanV1,
     *,
     bundle: TrainerBundleV1,
+    root: Path,
     backend_identity: TrainerBackendIdentityV1,
+    store_root: Path | None = None,
 ) -> RenderedTrainerPlanV1:
-    """Load a rendered plan only when its strict result projection has parity."""
+    """Re-render and load a plan only when every deterministic field has parity."""
 
     try:
         plan = (
@@ -975,10 +977,22 @@ def rehydrate_rendered_trainer_plan(
         )
     except ValueError as exc:
         raise TrainerBundleRefusal("blocked:trainer_plan:invalid") from exc
-    if not expected_trainer_result_has_parity(bundle, plan, backend_identity):
-        raise TrainerBundleRefusal(
-            "blocked:trainer_plan:expected_result_parity_mismatch"
+    if plan.backend == "trl":
+        expected = render_trl_plan(
+            bundle,
+            root,
+            backend_identity,
+            store_root=store_root,
         )
+    else:
+        expected = render_spade_plan(
+            bundle,
+            root,
+            backend_identity,
+            store_root=store_root,
+        )
+    if plan != expected:
+        raise TrainerBundleRefusal("blocked:trainer_plan:full_plan_parity_mismatch")
     return plan
 
 

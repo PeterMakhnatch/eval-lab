@@ -3812,6 +3812,80 @@ def _improvement_plan_command(
     return 0 if bundle.ready_for_external_sft else 2
 
 
+def _sft_signal_command(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    harbor: HarborBackend | None = None,
+) -> int:
+    del harbor
+    from pydantic import ValidationError
+
+    from evallab.sft_signal import (
+        SftSignalDecisionV1,
+        SftSignalInputV1,
+        SftSignalRefusal,
+        analyze_sft_signal,
+        assess_sft_readiness,
+        publish_sft_artifact,
+    )
+
+    def _refused_json(reason_code: str, detail: str) -> None:
+        print(
+            json.dumps(
+                {"status": "refused", "reason_code": reason_code, "detail": detail},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
+
+    try:
+        payload = SftSignalInputV1.model_validate_json(args.input.read_bytes())
+    except (OSError, ValidationError) as exc:
+        _refused_json("invalid_input", str(exc))
+        return 2
+    overrides = {
+        key: value
+        for key, value in (
+            ("baseline_authority_repo_root", args.baseline_root),
+            ("candidate_authority_repo_root", args.candidate_root),
+            ("observation_authority_repo_root", args.observation_root),
+        )
+        if value is not None
+    }
+    if overrides:
+        payload = payload.model_copy(update=overrides)
+    try:
+        if args.sft_signal_command == "readiness":
+            artifact = assess_sft_readiness(payload)
+        else:
+            artifact = analyze_sft_signal(payload)
+    except SftSignalRefusal as exc:
+        _refused_json(exc.reason_code, exc.detail)
+        return 2
+    published: Path | None = None
+    if args.output_dir is not None:
+        try:
+            published = publish_sft_artifact(args.output_dir, artifact)
+        except (OSError, ValueError) as exc:
+            _refused_json("output_publication_refused", str(exc))
+            return 2
+    summary = {
+        "schema_version": artifact.schema_version,
+        "freeze_id": artifact.freeze_id,
+        "freeze_digest": artifact.freeze_digest,
+        "status": artifact.status.value,
+        "reason_codes": [code.value for code in artifact.reason_codes],
+        "artifact": published.as_posix() if published is not None else None,
+    }
+    print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
+    if isinstance(artifact, SftSignalDecisionV1):
+        print(artifact.gate_table(), file=sys.stderr)
+    refused = artifact.status.value == "refused"
+    return 2 if refused else 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="evallab",
@@ -3830,6 +3904,41 @@ def parser() -> argparse.ArgumentParser:
         help="Strict improvement-plan input manifest JSON",
     )
     improvement_plan.set_defaults(func=_improvement_plan_command)
+    sft_signal = commands.add_parser(
+        "sft-signal",
+        help="Assess or decide the frozen offline SFT signal gate",
+    )
+    sft_signal_commands = sft_signal.add_subparsers(
+        dest="sft_signal_command", required=True
+    )
+    sft_signal_readiness = sft_signal_commands.add_parser(
+        "readiness",
+        help="Check the frozen checkpoint/result chain without outcomes",
+    )
+    sft_signal_decide = sft_signal_commands.add_parser(
+        "decide",
+        help="Decide the predeclared paired held-out signal",
+    )
+    for leaf in (sft_signal_readiness, sft_signal_decide):
+        leaf.add_argument(
+            "--input", required=True, type=Path, help="Strict SFT signal input JSON"
+        )
+        leaf.add_argument(
+            "--output-dir",
+            type=Path,
+            help="Publish an immutable artifact.json directory (no-replace)",
+        )
+        leaf.add_argument(
+            "--baseline-root", type=Path, help="Repo root for baseline result bytes"
+        )
+        leaf.add_argument(
+            "--candidate-root", type=Path, help="Repo root for candidate result bytes"
+        )
+        leaf.add_argument(
+            "--observation-root", type=Path, help="Repo root for outcome bytes"
+        )
+    sft_signal_readiness.set_defaults(func=_sft_signal_command)
+    sft_signal_decide.set_defaults(func=_sft_signal_command)
     claims = commands.add_parser("claims", help="Compile durable, provenance-backed claims context")
     claims_commands = claims.add_subparsers(dest="claims_command", required=True)
     claims_pack = claims_commands.add_parser(

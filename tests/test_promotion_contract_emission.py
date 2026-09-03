@@ -64,7 +64,6 @@ from evallab.registry import TaskRegistry, compute_task_digests  # noqa: E402
 from evallab.schemas import TaskDigests  # noqa: E402
 from evallab.trial_admissibility import verify_trial_admissibility  # noqa: E402
 
-
 # ---- fixtures ---------------------------------------------------------------
 
 

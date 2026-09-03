@@ -82,24 +82,52 @@ def _evaluation_tasks() -> list[dict[str, str]]:
     ]
 
 
-def _evaluation_set() -> dict[str, Any]:
-    tasks = tuple(TrainerTaskIdentityV1.model_validate(task) for task in _evaluation_tasks())
+def _multi_family_tasks(family: str) -> list[dict[str, str]]:
+    tasks = [
+        *_evaluation_tasks(),
+        {
+            "task_id": f"{family}/conflict-heldout-03",
+            "task_digest": _digest("a"),
+            "cluster_key_digest": HELDOUT_KEY_DIGEST,
+            "verifier_digest": _digest("5"),
+            "environment_digest": _digest("6"),
+        },
+        {
+            "task_id": f"{family}/permutation-heldout-04",
+            "task_digest": _digest("b"),
+            "cluster_key_digest": HELDOUT_KEY_DIGEST,
+            "verifier_digest": _digest("7"),
+            "environment_digest": _digest("8"),
+        },
+    ]
+    return sorted(tasks, key=lambda task: (task["task_id"], task["task_digest"]))
+
+
+def _evaluation_set(
+    task_data: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    task_data = task_data or _evaluation_tasks()
+    tasks = tuple(TrainerTaskIdentityV1.model_validate(task) for task in task_data)
     task_set_digest = trainer_task_set_digest(tasks)
     suite_name = "funcdag-heldout-core"
     return {
         "suite_name": suite_name,
         "suite_digest": trainer_evaluation_suite_digest(suite_name, task_set_digest),
         "task_set_digest": task_set_digest,
-        "tasks": _evaluation_tasks(),
+        "tasks": task_data,
     }
 
 
-def _evaluation_set_model() -> TrainerEvaluationSetV1:
-    return TrainerEvaluationSetV1.model_validate(_evaluation_set())
+def _evaluation_set_model(
+    task_data: list[dict[str, str]] | None = None,
+) -> TrainerEvaluationSetV1:
+    return TrainerEvaluationSetV1.model_validate(_evaluation_set(task_data))
 
 
-def _held_out_plan() -> FrozenHeldOutEvaluationPlan:
-    evaluation_set = _evaluation_set_model()
+def _held_out_plan(
+    task_data: list[dict[str, str]] | None = None,
+) -> FrozenHeldOutEvaluationPlan:
+    evaluation_set = _evaluation_set_model(task_data)
     seeded = FrozenHeldOutEvaluationPlan(
         source_result_manifest_digest=_digest("d"),
         trainer_bundle_digest=_digest("a"),
@@ -280,6 +308,7 @@ def _bytes_authority(tmp_path: Path, ref: str, content: bytes) -> Any:
     assert not isinstance(authority, AuthorityRefusal)
     return authority
 
+
 def _arm_result(
     tmp_path: Path,
     subdir: str,
@@ -299,7 +328,6 @@ def _observation(
     *,
     pair_id: str,
     arm: str,
-    family: str = "funcdag",
     task_id: str | None = None,
     trial_suffix: str | None = None,
     baseline_value: float = 0.2,
@@ -307,20 +335,34 @@ def _observation(
     capture_status: str = "complete",
     metric_name: str = "task_reward",
     freeze_digest: str | None = None,
+    task_digest: str | None = None,
+    cluster_key_digest: str | None = None,
+    verifier_digest: str | None = None,
+    environment_digest: str | None = None,
 ) -> Any:
     value = baseline_value if arm == "baseline" else candidate_value
     trial_id = f"trial-{pair_id}-{trial_suffix or arm}"
     content = json.dumps({"reward": value, "trial": trial_id}).encode()
-    authority = _bytes_authority(
-        tmp_path, f"observations/{pair_id}-{arm}.json", content
-    )
+    authority = _bytes_authority(tmp_path, f"observations/{pair_id}-{arm}.json", content)
+    tasks = freeze.held_out_plan.evaluation_set.tasks
+    if task_id is None:
+        task_index = int(pair_id.removeprefix("p")) - 1
+        planned_task = tasks[task_index]
+        task_id = planned_task.task_id
+    else:
+        planned_task = next(
+            (task for task in tasks if task.task_id == task_id),
+            tasks[0],
+        )
     return SftSignalObservationV1(
         freeze_digest=freeze_digest or freeze.freeze_digest,
         arm=arm,  # type: ignore[arg-type]
         pair_id=pair_id,
-        task_family=family,
-        task_id=task_id or f"funcdag/conflict-heldout-{pair_id}",
-        task_version="v1",
+        task_id=task_id,
+        task_digest=task_digest or planned_task.task_digest,
+        cluster_key_digest=cluster_key_digest or planned_task.cluster_key_digest,
+        verifier_digest=verifier_digest or planned_task.verifier_digest,
+        environment_digest=environment_digest or planned_task.environment_digest,
         trial_id=trial_id,
         outcome_artifact_digest=f"sha256:{hashlib.sha256(content).hexdigest()}",
         metric_name=metric_name,
@@ -362,7 +404,9 @@ def _input(
         freeze=freeze,
         baseline_result=_arm_result(tmp_path, "baseline", baseline_data),
         candidate_result=_arm_result(tmp_path, "candidate", candidate_data),
-        observations=observations if observations is not None else _default_observations(tmp_path, freeze),
+        observations=observations
+        if observations is not None
+        else _default_observations(tmp_path, freeze),
         baseline_authority_repo_root=tmp_path,
         candidate_authority_repo_root=tmp_path,
         observation_authority_repo_root=tmp_path,
@@ -370,7 +414,7 @@ def _input(
 
 
 def _default_observations(tmp_path: Path, freeze: Any) -> tuple[Any, ...]:
-    """Two improving pairs in one family plus two improving pairs in a second."""
+    """Two improving pairs spanning the exact frozen evaluation task set."""
 
     return (
         _observation(tmp_path, freeze, pair_id="p01", arm="baseline"),
@@ -393,6 +437,9 @@ def test_freeze_binds_content_and_refuses_identical_checkpoints() -> None:
     pair_mismatch["pairing_cluster_digest"] = _digest("1")
     with pytest.raises(ValidationError, match="pairing cluster"):
         create_sft_signal_freeze(**pair_mismatch)
+
+    with pytest.raises(ValidationError, match="protected families must be present"):
+        _freeze(protected_families=("otherlab",))
 
 
 def test_readiness_ready_and_refused(tmp_path: Path) -> None:
@@ -424,6 +471,51 @@ def test_readiness_ready_and_refused(tmp_path: Path) -> None:
     assert SftSignalRefusalCode.CHECKPOINT_CHAIN_MISMATCH in refused.reason_codes
 
 
+@pytest.mark.parametrize(
+    ("freeze_field", "reason"),
+    [
+        (
+            "environment_identity_digest",
+            SftSignalRefusalCode.ENVIRONMENT_IDENTITY_MISMATCH,
+        ),
+        (
+            "runtime_identity_digest",
+            SftSignalRefusalCode.RUNTIME_IDENTITY_MISMATCH,
+        ),
+    ],
+)
+def test_freeze_runtime_receipt_identity_is_enforced(
+    tmp_path: Path,
+    freeze_field: str,
+    reason: SftSignalRefusalCode,
+) -> None:
+    freeze = _freeze(**{freeze_field: _digest("d")})
+    decision = analyze_sft_signal(_input(tmp_path, freeze))
+    assert decision.status is SignalStatus.REFUSED
+    assert reason in decision.reason_codes
+
+
+@pytest.mark.parametrize("arm", ["baseline", "candidate"])
+def test_both_arm_runtime_receipts_must_match_freeze(
+    tmp_path: Path,
+    arm: str,
+) -> None:
+    changes = {
+        "provenance": {
+            "runtime_receipts": {
+                "platform_receipt_digest": _digest("d"),
+                "isolation_receipt_digest": _digest("8"),
+                "allowlist_receipt_digest": _digest("9"),
+                "hardware_receipt_digest": _digest("a"),
+            }
+        }
+    }
+    kwargs = {f"{arm}_changes": changes}
+    decision = analyze_sft_signal(_input(tmp_path, **kwargs))
+    assert decision.status is SignalStatus.REFUSED
+    assert SftSignalRefusalCode.ENVIRONMENT_IDENTITY_MISMATCH in decision.reason_codes
+
+
 def test_supported_happy_path_reports_per_family_and_no_authority(tmp_path: Path) -> None:
     decision = analyze_sft_signal(_input(tmp_path))
     assert decision.status is SignalStatus.SUPPORTED
@@ -442,34 +534,44 @@ def test_identical_checkpoints_refuse_at_input() -> None:
 
 
 def test_family_regression_blocks_signal(tmp_path: Path) -> None:
-    freeze = _freeze()
+    freeze = _freeze(
+        held_out_plan=_held_out_plan(_multi_family_tasks("otherfamily")),
+    )
     observations = (
-        _observation(tmp_path, freeze, pair_id="p01", arm="baseline", family="funcdag"),
+        _observation(tmp_path, freeze, pair_id="p01", arm="baseline"),
         _observation(
-            tmp_path, freeze, pair_id="p01", arm="candidate", family="funcdag",
+            tmp_path,
+            freeze,
+            pair_id="p01",
+            arm="candidate",
             candidate_value=0.7,
         ),
-        _observation(tmp_path, freeze, pair_id="p02", arm="baseline", family="funcdag"),
+        _observation(tmp_path, freeze, pair_id="p02", arm="baseline"),
         _observation(
-            tmp_path, freeze, pair_id="p02", arm="candidate", family="funcdag",
+            tmp_path,
+            freeze,
+            pair_id="p02",
+            arm="candidate",
             candidate_value=0.7,
         ),
+        _observation(tmp_path, freeze, pair_id="p03", arm="baseline"),
         _observation(
-            tmp_path, freeze, pair_id="p03", arm="baseline", family="otherfamily",
-        ),
-        _observation(
-            tmp_path, freeze, pair_id="p03", arm="candidate", family="otherfamily",
+            tmp_path,
+            freeze,
+            pair_id="p03",
+            arm="candidate",
             candidate_value=0.05,
         ),
+        _observation(tmp_path, freeze, pair_id="p04", arm="baseline"),
         _observation(
-            tmp_path, freeze, pair_id="p04", arm="baseline", family="otherfamily",
-        ),
-        _observation(
-            tmp_path, freeze, pair_id="p04", arm="candidate", family="otherfamily",
+            tmp_path,
+            freeze,
+            pair_id="p04",
+            arm="candidate",
             candidate_value=0.05,
         ),
     )
-    decision = analyze_sft_signal(_input(tmp_path, observations=observations))
+    decision = analyze_sft_signal(_input(tmp_path, freeze, observations=observations))
     assert decision.status is SignalStatus.NOT_ESTABLISHED
     assert SftSignalRefusalCode.FAMILY_REGRESSION in decision.reason_codes
     by_family = {family.family: family for family in decision.families}
@@ -477,41 +579,42 @@ def test_family_regression_blocks_signal(tmp_path: Path) -> None:
 
 
 def test_protected_family_must_be_supported(tmp_path: Path) -> None:
-    freeze = _freeze(protected_families=("reviewpair",))
+    freeze = _freeze(
+        held_out_plan=_held_out_plan(_multi_family_tasks("reviewpair")),
+        protected_families=("reviewpair",),
+    )
     observations = _default_observations(tmp_path, freeze) + (
-        _observation(tmp_path, freeze, pair_id="p04", arm="baseline", family="reviewpair"),
+        _observation(tmp_path, freeze, pair_id="p03", arm="baseline"),
         _observation(
-            tmp_path, freeze, pair_id="p04", arm="candidate", family="reviewpair",
+            tmp_path,
+            freeze,
+            pair_id="p03",
+            arm="candidate",
             candidate_value=0.25,
         ),
-        _observation(tmp_path, freeze, pair_id="p05", arm="baseline", family="reviewpair"),
+        _observation(tmp_path, freeze, pair_id="p04", arm="baseline"),
         _observation(
-            tmp_path, freeze, pair_id="p05", arm="candidate", family="reviewpair",
+            tmp_path,
+            freeze,
+            pair_id="p04",
+            arm="candidate",
             candidate_value=0.3,
         ),
     )
     decision = analyze_sft_signal(_input(tmp_path, freeze, observations=observations))
     assert decision.status is SignalStatus.NOT_ESTABLISHED
-    assert (
-        SftSignalRefusalCode.PROTECTED_FAMILY_NOT_SUPPORTED in decision.reason_codes
-    )
+    assert SftSignalRefusalCode.PROTECTED_FAMILY_NOT_SUPPORTED in decision.reason_codes
 
 
 def test_underpowered_family_is_not_established(tmp_path: Path) -> None:
-    protected_decision = analyze_sft_signal(
-        _input(tmp_path, observations=_default_observations(tmp_path, _freeze())[:2])
-    )
+    freeze = _freeze(minimum_eligible_pairs=3)
+    protected_decision = analyze_sft_signal(_input(tmp_path, freeze))
     assert protected_decision.status is SignalStatus.NOT_ESTABLISHED
-    assert (
-        SftSignalRefusalCode.PROTECTED_FAMILY_UNINFORMATIVE
-        in protected_decision.reason_codes
-    )
+    assert SftSignalRefusalCode.PROTECTED_FAMILY_UNINFORMATIVE in protected_decision.reason_codes
     assert protected_decision.families[0].status is FamilyStatus.UNDERPOWERED
 
-    freeze = _freeze(protected_families=())
-    unprotected = analyze_sft_signal(
-        _input(tmp_path, freeze=freeze, observations=_default_observations(tmp_path, freeze)[:2])
-    )
+    freeze = _freeze(protected_families=(), minimum_eligible_pairs=3)
+    unprotected = analyze_sft_signal(_input(tmp_path, freeze=freeze))
     assert unprotected.status is SignalStatus.NOT_ESTABLISHED
     assert SftSignalRefusalCode.FAMILY_UNINFORMATIVE in unprotected.reason_codes
 
@@ -564,28 +667,109 @@ def test_task_identity_mismatch_refuses(tmp_path: Path) -> None:
     assert SftSignalRefusalCode.TASK_IDENTITY_MISMATCH in decision.reason_codes
 
 
+def test_observations_must_match_exact_frozen_evaluation_tasks(
+    tmp_path: Path,
+) -> None:
+    freeze = _freeze()
+    observations = list(_default_observations(tmp_path, freeze))
+    for index in (0, 1):
+        observations[index] = observations[index].model_copy(
+            update={"task_id": f"train/unrelated-leaky-{index + 1}"}
+        )
+    decision = analyze_sft_signal(_input(tmp_path, freeze, observations=tuple(observations)))
+    assert decision.status is SignalStatus.REFUSED
+    assert SftSignalRefusalCode.EVALUATION_TASK_NOT_FROZEN in decision.reason_codes
+    assert SftSignalRefusalCode.EVALUATION_SET_INCOMPLETE in decision.reason_codes
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        (
+            "task_digest",
+            SftSignalRefusalCode.EVALUATION_TASK_IDENTITY_MISMATCH,
+        ),
+        (
+            "verifier_digest",
+            SftSignalRefusalCode.EVALUATION_TASK_IDENTITY_MISMATCH,
+        ),
+        (
+            "environment_digest",
+            SftSignalRefusalCode.EVALUATION_TASK_IDENTITY_MISMATCH,
+        ),
+        (
+            "cluster_key_digest",
+            SftSignalRefusalCode.EVALUATION_CLUSTER_MISMATCH,
+        ),
+    ],
+)
+def test_observation_task_coordinates_must_match_frozen_plan(
+    tmp_path: Path,
+    field: str,
+    reason: SftSignalRefusalCode,
+) -> None:
+    freeze = _freeze()
+    observations = list(_default_observations(tmp_path, freeze))
+    observations[0] = observations[0].model_copy(update={field: _digest("d")})
+    decision = analyze_sft_signal(_input(tmp_path, freeze, observations=tuple(observations)))
+    assert decision.status is SignalStatus.REFUSED
+    assert reason in decision.reason_codes
+
+
+def test_family_is_derived_and_cannot_be_relabelled(tmp_path: Path) -> None:
+    freeze = _freeze()
+    observation = _observation(tmp_path, freeze, pair_id="p01", arm="baseline")
+    payload = observation.model_dump(mode="json")
+    payload["task_family"] = "otherlab"
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        SftSignalObservationV1.model_validate(payload)
+
+    decision = analyze_sft_signal(_input(tmp_path, freeze))
+    assert decision.status is SignalStatus.SUPPORTED
+    assert tuple(family.family for family in decision.families) == ("funcdag",)
+
+
+def test_each_frozen_task_can_contribute_only_one_pair(tmp_path: Path) -> None:
+    freeze = _freeze()
+    observations = list(_default_observations(tmp_path, freeze))
+    first_task = observations[0]
+    for index in (2, 3):
+        observations[index] = observations[index].model_copy(
+            update={
+                "task_id": first_task.task_id,
+                "task_digest": first_task.task_digest,
+                "cluster_key_digest": first_task.cluster_key_digest,
+                "verifier_digest": first_task.verifier_digest,
+                "environment_digest": first_task.environment_digest,
+            }
+        )
+    decision = analyze_sft_signal(_input(tmp_path, freeze, observations=tuple(observations)))
+    assert decision.status is SignalStatus.REFUSED
+    assert SftSignalRefusalCode.DUPLICATE_EVALUATION_TASK in decision.reason_codes
+
+
 def test_stale_outcome_bytes_refuse(tmp_path: Path) -> None:
     freeze = _freeze()
     observation = _observation(tmp_path, freeze, pair_id="p01", arm="baseline")
     stale_path = tmp_path / observation.authority.artifact.ref
     stale_path.write_bytes(b'{"reward": 9.9}')
     decision = analyze_sft_signal(
-        _input(tmp_path, observations=(observation, observation.model_copy(
-            update={"arm": "candidate", "trial_id": "trial-p01-c2"}
-        )))
+        _input(
+            tmp_path,
+            observations=(
+                observation,
+                observation.model_copy(update={"arm": "candidate", "trial_id": "trial-p01-c2"}),
+            ),
+        )
     )
     assert decision.status is SignalStatus.REFUSED
-    assert (
-        SftSignalRefusalCode.OBSERVATION_AUTHORITY_UNVERIFIED in decision.reason_codes
-    )
+    assert SftSignalRefusalCode.OBSERVATION_AUTHORITY_UNVERIFIED in decision.reason_codes
 
 
 def test_observation_digest_mismatch_refuses(tmp_path: Path) -> None:
     freeze = _freeze()
     observation = _observation(tmp_path, freeze, pair_id="p01", arm="baseline")
-    mismatched = observation.model_copy(
-        update={"outcome_artifact_digest": _digest("d")}
-    )
+    mismatched = observation.model_copy(update={"outcome_artifact_digest": _digest("d")})
     decision = analyze_sft_signal(_input(tmp_path, observations=(mismatched,)))
     assert SftSignalRefusalCode.OBSERVATION_DIGEST_MISMATCH in decision.reason_codes
 
@@ -603,9 +787,7 @@ def test_metric_and_freeze_mismatch_refuse(tmp_path: Path) -> None:
         tmp_path, freeze, pair_id="p01", arm="baseline", freeze_digest=other_freeze.freeze_digest
     )
     decision = analyze_sft_signal(_input(tmp_path, observations=(wrong_freeze,)))
-    assert (
-        SftSignalRefusalCode.OBSERVATION_FREEZE_MISMATCH in decision.reason_codes
-    )
+    assert SftSignalRefusalCode.OBSERVATION_FREEZE_MISMATCH in decision.reason_codes
 
 
 def test_no_observations_is_unavailable(tmp_path: Path) -> None:
@@ -633,9 +815,7 @@ def test_capture_incomplete_excludes_pair(tmp_path: Path) -> None:
     assert decision.excluded_pair_count == 1
     assert decision.denominator_eligible_pairs == 1
     assert decision.exclusions[0].pair_id == "p01"
-    assert decision.exclusions[0].reasons == (
-        SftExclusionCode.CANDIDATE_CAPTURE_INCOMPLETE,
-    )
+    assert decision.exclusions[0].reasons == (SftExclusionCode.CANDIDATE_CAPTURE_INCOMPLETE,)
 
 
 def test_checkpoint_chain_mismatch_refuses(tmp_path: Path) -> None:
@@ -643,12 +823,8 @@ def test_checkpoint_chain_mismatch_refuses(tmp_path: Path) -> None:
     decision = analyze_sft_signal(swapped)
     assert decision.status is SignalStatus.SUPPORTED
 
-    tampered_freeze = _freeze(
-        baseline_checkpoint=_checkpoint("baseline", _digest("d"))
-    )
-    decision = analyze_sft_signal(
-        _input(tmp_path, freeze=tampered_freeze)
-    )
+    tampered_freeze = _freeze(baseline_checkpoint=_checkpoint("baseline", _digest("d")))
+    decision = analyze_sft_signal(_input(tmp_path, freeze=tampered_freeze))
     assert decision.status is SignalStatus.REFUSED
     assert SftSignalRefusalCode.CHECKPOINT_CHAIN_MISMATCH in decision.reason_codes
 
@@ -677,15 +853,11 @@ def test_established_decision_cannot_unlock_rl(tmp_path: Path) -> None:
     assert decision.status is SignalStatus.SUPPORTED
     assert decision.ready_for_rl is False
     assert decision.authorization_scope == "none"
-    assert typing.get_args(
-        SftSignalDecisionV1.model_fields["ready_for_rl"].annotation
-    ) == (False,)
-    assert typing.get_args(
-        SftSignalDecisionV1.model_fields["authorization_scope"].annotation
-    ) == ("none",)
-    assert IncompatibilityCode.SFT_SIGNAL_NOT_ESTABLISHED.value == (
-        "sft_signal_not_established"
+    assert typing.get_args(SftSignalDecisionV1.model_fields["ready_for_rl"].annotation) == (False,)
+    assert typing.get_args(SftSignalDecisionV1.model_fields["authorization_scope"].annotation) == (
+        "none",
     )
+    assert IncompatibilityCode.SFT_SIGNAL_NOT_ESTABLISHED.value == ("sft_signal_not_established")
 
 
 def test_publish_is_no_replace(tmp_path: Path) -> None:
@@ -730,9 +902,7 @@ def test_cli_readiness_and_decide(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert first_line["status"] == "ready"
     assert (out_dir / "artifact.json").is_file()
 
-    args = cli.parser().parse_args(
-        ["sft-signal", "decide", "--input", str(manifest_path)]
-    )
+    args = cli.parser().parse_args(["sft-signal", "decide", "--input", str(manifest_path)])
     exit_code = args.func(args, tmp_path)
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[0])

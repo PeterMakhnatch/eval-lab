@@ -9,13 +9,16 @@ Trust boundary (mirrors Tracks D/F/G/H, per the architecture review ruling):
 
 - The prereg freeze is a self-digested frozen contract binding BOTH checkpoint
   identities, the Track D ``FrozenHeldOutEvaluationPlan``, the pairing cluster,
-  environment/runtime identity digests, and the predeclared decision rule. It
-  is published (staged, no-replace) before any outcome is admitted; outcomes
+  the platform/isolation receipt identities, and the predeclared decision rule.
+  It is published (staged, no-replace) before any outcome is admitted; outcomes
   cite the freeze digest, never the reverse.
 - Every cited byte reopens through ``artifact_authority`` at
   ``bytes-verified``: baseline and candidate trainer-result manifests re-verify
   against their own authorities (dataset vs result authority roots stay split
   as in Track H), and every observation outcome re-verifies its authority.
+- Every observation must exactly match one task in the frozen evaluation set:
+  task, cluster, verifier, and environment digests are all checked, and family
+  is derived from the frozen task id rather than accepted from outcome data.
 - The paired delta is checkpoint-specific: the one variable between arms is the
   checkpoint pair; task identity must be identical within a pair. This is a
   dedicated contract, NOT a subclass of Track G's prompt-intervention outcome
@@ -24,10 +27,12 @@ Trust boundary (mirrors Tracks D/F/G/H, per the architecture review ruling):
 - Decisions report exact denominators, typed exclusions, and per-family
   effects with percentile-cluster intervals. There is no pooled headline: any
   family regression refuses an ``established`` signal.
-- Advisory-only is structural: the decision artifact exposes
-  ``ready_for_rl=False`` and ``authorization_scope="none"`` as literals, and
-  nothing here changes ``trainer_bundle`` refusals. A future RL cutover is a
-  separate reviewed schema change.
+- Outcome authority authenticates the cited bytes, but v1 has no canonical
+  outcome schema from which to re-derive ``metric_value`` or ``capture_status``.
+  Decisions are self-digested structural artifacts, not signed attestations;
+  consumers must recompute them from authoritative input. Advisory-only is
+  structural: ``ready_for_rl=False`` and ``authorization_scope="none"`` are
+  literals, and nothing here changes ``trainer_bundle`` refusals.
 
 No trainer, model call, Harbor run, queue submission, or network access
 happens anywhere in this module.
@@ -85,14 +90,21 @@ class SftSignalRefusalCode(StrEnum):
     HELDOUT_PLAN_MISMATCH = "heldout_plan_mismatch"
     MODEL_IDENTITY_MISMATCH = "model_identity_mismatch"
     MANIFEST_IDENTITY_REUSE = "manifest_identity_reuse"
+    ENVIRONMENT_IDENTITY_MISMATCH = "environment_identity_mismatch"
+    RUNTIME_IDENTITY_MISMATCH = "runtime_identity_mismatch"
     OBSERVATION_FREEZE_MISMATCH = "observation_freeze_mismatch"
     OBSERVATION_AUTHORITY_UNVERIFIED = "observation_authority_unverified"
     OBSERVATION_DIGEST_MISMATCH = "observation_digest_mismatch"
+    EVALUATION_TASK_NOT_FROZEN = "evaluation_task_not_frozen"
+    EVALUATION_TASK_IDENTITY_MISMATCH = "evaluation_task_identity_mismatch"
+    EVALUATION_CLUSTER_MISMATCH = "evaluation_cluster_mismatch"
+    EVALUATION_SET_INCOMPLETE = "evaluation_set_incomplete"
     METRIC_MISMATCH = "metric_mismatch"
     MISSING_PAIR_ARM = "missing_pair_arm"
     DUPLICATE_PAIR_ARM = "duplicate_pair_arm"
     DUPLICATE_TRIAL = "duplicate_trial"
     DUPLICATE_OUTCOME = "duplicate_outcome"
+    DUPLICATE_EVALUATION_TASK = "duplicate_evaluation_task"
     TASK_IDENTITY_MISMATCH = "task_identity_mismatch"
     NO_ELIGIBLE_PAIRS = "no_eligible_pairs"
     FAMILY_UNINFORMATIVE = "family_uninformative"
@@ -156,6 +168,15 @@ def _finite(value: float) -> float:
     return value
 
 
+def _task_family_from_id(task_id: str) -> str:
+    """Return the family namespace carried by a frozen evaluation task id."""
+
+    family, separator, task_name = task_id.partition("/")
+    if separator != "/" or not task_name or re.fullmatch(_FAMILY_PATTERN, family) is None:
+        raise ValueError("evaluation task ids must be namespaced as canonical-family/task")
+    return family
+
+
 def _seed_int(*parts: object) -> int:
     payload = "\0".join(str(part) for part in parts).encode("utf-8")
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
@@ -180,9 +201,7 @@ class SftCheckpointIdentityV1(_FrozenContract):
 
     @model_validator(mode="after")
     def digests_are_non_zero(self) -> SftCheckpointIdentityV1:
-        if self.model_digest == _ZERO_DIGEST or (
-            self.checkpoint_artifact_digest == _ZERO_DIGEST
-        ):
+        if self.model_digest == _ZERO_DIGEST or (self.checkpoint_artifact_digest == _ZERO_DIGEST):
             raise ValueError("checkpoint identity digests cannot be all-zero")
         return self
 
@@ -191,9 +210,9 @@ class SftSignalFreezeV1(_FrozenContract):
     """Predeclared experiment contract; published before any outcome exists.
 
     ``freeze_digest`` canonically binds the Track D frozen held-out plan, both
-    checkpoint identities, the pairing cluster, environment/runtime identity
-    digests, and the entire decision rule. Post-hoc edits change the digest and
-    therefore cannot match any observation.
+    checkpoint identities, the pairing cluster, the platform and isolation
+    receipt digests, and the entire decision rule. Post-hoc edits change the
+    digest and therefore cannot match any observation.
     """
 
     schema_version: Literal["sft-signal-freeze/v1"] = SFT_SIGNAL_FREEZE_SCHEMA
@@ -202,8 +221,12 @@ class SftSignalFreezeV1(_FrozenContract):
     baseline_checkpoint: SftCheckpointIdentityV1
     candidate_checkpoint: SftCheckpointIdentityV1
     pairing_cluster_digest: Digest
-    environment_identity_digest: Digest
-    runtime_identity_digest: Digest
+    environment_identity_digest: Digest = Field(
+        description="Expected platform_receipt_digest for both completed arms"
+    )
+    runtime_identity_digest: Digest = Field(
+        description="Expected isolation_receipt_digest for both completed arms"
+    )
     metric_name: str = Field(pattern=_METRIC_PATTERN)
     direction: Literal["higher", "lower"]
     minimum_effect: float = Field(gt=0.0)
@@ -241,26 +264,32 @@ class SftSignalFreezeV1(_FrozenContract):
             raise ValueError("identical_checkpoint_identities")
         if self.pairing_cluster_digest != self.held_out_plan.heldout_cluster_key_digest:
             raise ValueError("pairing cluster must equal the frozen held-out cluster")
+        evaluation_tasks = self.held_out_plan.evaluation_set.tasks
+        if any(task.cluster_key_digest != self.pairing_cluster_digest for task in evaluation_tasks):
+            raise ValueError("every frozen evaluation task must match the pairing cluster")
+        evaluation_families = {_task_family_from_id(task.task_id) for task in evaluation_tasks}
+        if not set(self.protected_families).issubset(evaluation_families):
+            raise ValueError("protected families must be present in the frozen evaluation set")
         if not self.held_out_plan.verify_plan_digest():
             raise ValueError("held_out_plan_digest_mismatch")
-        expected = _canonical_digest(
-            self.model_dump(mode="json", exclude={"freeze_digest"})
-        )
+        expected = _canonical_digest(self.model_dump(mode="json", exclude={"freeze_digest"}))
         if self.freeze_digest != expected:
             raise ValueError("freeze_digest does not match freeze content")
         return self
 
 
 class SftSignalObservationV1(_FrozenContract):
-    """One task-level outcome bound to the freeze, an arm, and byte authority."""
+    """One frozen-task outcome bound to one checkpoint arm and byte authority."""
 
     schema_version: Literal["sft-signal-observation/v1"] = "sft-signal-observation/v1"
     freeze_digest: Digest
     arm: Literal["baseline", "candidate"]
     pair_id: str = Field(pattern=_SAFE_ID_PATTERN)
-    task_family: str = Field(pattern=_FAMILY_PATTERN)
     task_id: str = Field(min_length=1)
-    task_version: str = Field(min_length=1)
+    task_digest: Digest
+    cluster_key_digest: Digest
+    verifier_digest: Digest
+    environment_digest: Digest
     trial_id: str = Field(pattern=_SAFE_ID_PATTERN)
     outcome_artifact_digest: Digest
     metric_name: str = Field(pattern=_METRIC_PATTERN)
@@ -353,7 +382,13 @@ class SftFamilySignalV1(_FrozenContract):
 
 
 class SftSignalDecisionV1(_FrozenContract):
-    """Typed advisory decision; structurally incapable of authorizing anything."""
+    """Typed advisory decision; structurally incapable of authorizing anything.
+
+    Model validation proves only canonical shape and self-integrity. It is not
+    an authenticity check: consumers that need a gate result must call
+    :func:`analyze_sft_signal` with the authoritative input rather than trust a
+    deserialized decision.
+    """
 
     schema_version: Literal["sft-signal-decision/v1"] = SFT_SIGNAL_DECISION_SCHEMA
     freeze_id: str
@@ -391,16 +426,13 @@ class SftSignalDecisionV1(_FrozenContract):
         if families != tuple(sorted(set(families))):
             raise ValueError("families must be unique and canonically sorted")
         if self.status == SignalStatus.REFUSED:
-            if not self.reason_codes or (
-                self.pair_total or self.exclusions or self.families
-            ):
+            if not self.reason_codes or (self.pair_total or self.exclusions or self.families):
                 raise ValueError("refused decision carries reasons and no statistics")
         else:
             if self.status == SignalStatus.UNAVAILABLE and self.denominator_eligible_pairs:
                 raise ValueError("unavailable decision cannot claim eligible pairs")
             if (
-                self.status
-                in (SignalStatus.UNAVAILABLE, SignalStatus.NOT_ESTABLISHED)
+                self.status in (SignalStatus.UNAVAILABLE, SignalStatus.NOT_ESTABLISHED)
                 and not self.reason_codes
             ):
                 raise ValueError(f"{self.status.value} decision requires reason codes")
@@ -410,9 +442,7 @@ class SftSignalDecisionV1(_FrozenContract):
                 or any(family.status is not FamilyStatus.SUPPORTED for family in self.families)
             ):
                 raise ValueError("supported decision requires every family supported")
-        expected = _canonical_digest(
-            self.model_dump(mode="json", exclude={"decision_digest"})
-        )
+        expected = _canonical_digest(self.model_dump(mode="json", exclude={"decision_digest"}))
         if self.decision_digest != expected:
             raise ValueError("decision_digest does not match decision content")
         return self
@@ -438,9 +468,7 @@ class SftSignalDecisionV1(_FrozenContract):
                 f"{family.ties}\t{family.losses}\t{mean}\t{interval}\t"
                 f"{family.status.value}"
             )
-        rows.append(
-            f"DECISION\t{self.denominator_eligible_pairs}\t\t\t\t\t\t{self.status.value}"
-        )
+        rows.append(f"DECISION\t{self.denominator_eligible_pairs}\t\t\t\t\t\t{self.status.value}")
         return "\n".join(rows)
 
 
@@ -473,9 +501,7 @@ class SftReadinessV1(_FrozenContract):
             raise ValueError("refused readiness requires reason codes")
         if self.status == ReadinessStatus.READY and self.reason_codes:
             raise ValueError("ready readiness cannot carry reason codes")
-        expected = _canonical_digest(
-            self.model_dump(mode="json", exclude={"readiness_digest"})
-        )
+        expected = _canonical_digest(self.model_dump(mode="json", exclude={"readiness_digest"}))
         if self.readiness_digest != expected:
             raise ValueError("readiness_digest does not match readiness content")
         return self
@@ -539,8 +565,7 @@ def _chain_reasons(
         reasons.append(SftSignalRefusalCode.CHECKPOINT_CHAIN_MISMATCH)
     for manifest in (baseline, candidate):
         if (
-            manifest.dataset.heldout_split_digest
-            != freeze.held_out_plan.heldout_split_digest
+            manifest.dataset.heldout_split_digest != freeze.held_out_plan.heldout_split_digest
             or manifest.dataset.heldout_cluster_key_digest
             != freeze.held_out_plan.heldout_cluster_key_digest
         ):
@@ -553,6 +578,20 @@ def _chain_reasons(
         or candidate.model.model_digest != freeze.candidate_checkpoint.model_digest
     ):
         reasons.append(SftSignalRefusalCode.MODEL_IDENTITY_MISMATCH)
+    runtime_receipts = (
+        baseline.provenance.runtime_receipts,
+        candidate.provenance.runtime_receipts,
+    )
+    if any(
+        receipts is None or receipts.platform_receipt_digest != freeze.environment_identity_digest
+        for receipts in runtime_receipts
+    ):
+        reasons.append(SftSignalRefusalCode.ENVIRONMENT_IDENTITY_MISMATCH)
+    if any(
+        receipts is None or receipts.isolation_receipt_digest != freeze.runtime_identity_digest
+        for receipts in runtime_receipts
+    ):
+        reasons.append(SftSignalRefusalCode.RUNTIME_IDENTITY_MISMATCH)
     return tuple(sorted(set(reasons), key=str))
 
 
@@ -587,20 +626,14 @@ def assess_sft_readiness(
         "schema_version": SFT_READINESS_SCHEMA,
         "freeze_id": freeze.freeze_id,
         "freeze_digest": freeze.freeze_digest,
-        "baseline_checkpoint_digest": (
-            freeze.baseline_checkpoint.checkpoint_artifact_digest
-        ),
-        "candidate_checkpoint_digest": (
-            freeze.candidate_checkpoint.checkpoint_artifact_digest
-        ),
+        "baseline_checkpoint_digest": (freeze.baseline_checkpoint.checkpoint_artifact_digest),
+        "candidate_checkpoint_digest": (freeze.candidate_checkpoint.checkpoint_artifact_digest),
         "status": ReadinessStatus.REFUSED if reasons else ReadinessStatus.READY,
         "reason_codes": tuple(reasons),
         "heldout_task_count": len(freeze.held_out_plan.evaluation_set.tasks),
         "ready_for_rl": False,
     }
-    return SftReadinessV1.model_validate(
-        {**body, "readiness_digest": _canonical_digest(body)}
-    )
+    return SftReadinessV1.model_validate({**body, "readiness_digest": _canonical_digest(body)})
 
 
 def _audit_observations(
@@ -609,9 +642,12 @@ def _audit_observations(
     *,
     repo_root: Path | str | None,
 ) -> tuple[SftSignalRefusalCode, ...]:
-    """Structural, freeze-bound, bytes-verified audit; any failure refuses."""
+    """Require exact frozen-task membership before admitting paired evidence."""
 
     reasons: set[SftSignalRefusalCode] = set()
+    planned_tasks = {task.task_id: task for task in freeze.held_out_plan.evaluation_set.tasks}
+    observed_task_ids: set[str] = set()
+    task_pair_ids: dict[str, str] = {}
     trial_ids: set[str] = set()
     outcome_digests: set[str] = set()
     arms_by_pair: dict[str, set[str]] = {}
@@ -622,6 +658,25 @@ def _audit_observations(
             continue
         if observation.metric_name != freeze.metric_name:
             reasons.add(SftSignalRefusalCode.METRIC_MISMATCH)
+        planned_task = planned_tasks.get(observation.task_id)
+        if planned_task is None:
+            reasons.add(SftSignalRefusalCode.EVALUATION_TASK_NOT_FROZEN)
+        else:
+            observed_task_ids.add(observation.task_id)
+            if (
+                observation.task_digest != planned_task.task_digest
+                or observation.verifier_digest != planned_task.verifier_digest
+                or observation.environment_digest != planned_task.environment_digest
+            ):
+                reasons.add(SftSignalRefusalCode.EVALUATION_TASK_IDENTITY_MISMATCH)
+            if (
+                observation.cluster_key_digest != planned_task.cluster_key_digest
+                or observation.cluster_key_digest != freeze.pairing_cluster_digest
+            ):
+                reasons.add(SftSignalRefusalCode.EVALUATION_CLUSTER_MISMATCH)
+            prior_pair_id = task_pair_ids.setdefault(observation.task_id, observation.pair_id)
+            if prior_pair_id != observation.pair_id:
+                reasons.add(SftSignalRefusalCode.DUPLICATE_EVALUATION_TASK)
         if observation.authority.artifact.digest != observation.outcome_artifact_digest:
             reasons.add(SftSignalRefusalCode.OBSERVATION_DIGEST_MISMATCH)
         verification = reverify_authority(
@@ -642,9 +697,11 @@ def _audit_observations(
             reasons.add(SftSignalRefusalCode.DUPLICATE_PAIR_ARM)
         arms.add(observation.arm)
         identity = (
-            observation.task_family,
             observation.task_id,
-            observation.task_version,
+            observation.task_digest,
+            observation.cluster_key_digest,
+            observation.verifier_digest,
+            observation.environment_digest,
         )
         prior = identity_by_pair.setdefault(observation.pair_id, identity)
         if prior != identity:
@@ -652,6 +709,8 @@ def _audit_observations(
     for arms in arms_by_pair.values():
         if arms != {"baseline", "candidate"}:
             reasons.add(SftSignalRefusalCode.MISSING_PAIR_ARM)
+    if observations and observed_task_ids != set(planned_tasks):
+        reasons.add(SftSignalRefusalCode.EVALUATION_SET_INCOMPLETE)
     return tuple(sorted(reasons, key=str))
 
 
@@ -707,12 +766,8 @@ def analyze_sft_signal(
             "schema_version": SFT_SIGNAL_DECISION_SCHEMA,
             "freeze_id": freeze.freeze_id,
             "freeze_digest": freeze.freeze_digest,
-            "baseline_checkpoint_digest": (
-                freeze.baseline_checkpoint.checkpoint_artifact_digest
-            ),
-            "candidate_checkpoint_digest": (
-                freeze.candidate_checkpoint.checkpoint_artifact_digest
-            ),
+            "baseline_checkpoint_digest": (freeze.baseline_checkpoint.checkpoint_artifact_digest),
+            "candidate_checkpoint_digest": (freeze.candidate_checkpoint.checkpoint_artifact_digest),
             "status": SignalStatus.REFUSED,
             "reason_codes": tuple(sorted(set(reasons), key=str)),
             "pair_total": 0,
@@ -754,11 +809,14 @@ def analyze_sft_signal(
 
     pair_total = len(by_pair)
     exclusions: list[SftPairExclusionV1] = []
+    family_pair_totals: dict[str, int] = {}
     family_deltas: dict[str, list[float]] = {}
     for pair_id in sorted(by_pair):
         arms = by_pair[pair_id]
         baseline_observation = arms["baseline"]
         candidate_observation = arms["candidate"]
+        family = _task_family_from_id(baseline_observation.task_id)
+        family_pair_totals[family] = family_pair_totals.get(family, 0) + 1
         exclusion_reasons: set[SftExclusionCode] = set()
         if baseline_observation.capture_status != "complete":
             exclusion_reasons.add(SftExclusionCode.BASELINE_CAPTURE_INCOMPLETE)
@@ -771,24 +829,19 @@ def analyze_sft_signal(
                 )
             )
             continue
-        family = baseline_observation.task_family
-        raw_delta = (
-            candidate_observation.metric_value - baseline_observation.metric_value
-        )
+        raw_delta = candidate_observation.metric_value - baseline_observation.metric_value
         adjusted = raw_delta if freeze.direction == "higher" else -raw_delta
         family_deltas.setdefault(family, []).append(adjusted)
 
     families: list[SftFamilySignalV1] = []
-    for family in sorted(family_deltas):
-        deltas = family_deltas[family]
-        mean = math.fsum(deltas) / len(deltas)
-        lower, upper = _family_intervals(
-            freeze=freeze, family=family, deltas=deltas
-        )
+    for family in sorted(family_pair_totals):
+        deltas = family_deltas.get(family, [])
+        mean = math.fsum(deltas) / len(deltas) if deltas else None
+        lower, upper = _family_intervals(freeze=freeze, family=family, deltas=deltas)
         families.append(
             SftFamilySignalV1(
                 family=family,
-                pair_total=len(deltas),
+                pair_total=family_pair_totals[family],
                 eligible_pairs=len(deltas),
                 wins=sum(delta > 0.0 for delta in deltas),
                 ties=sum(delta == 0.0 for delta in deltas),
@@ -821,10 +874,12 @@ def analyze_sft_signal(
             family.status in (FamilyStatus.UNDERPOWERED, FamilyStatus.UNAVAILABLE)
             for family in families
         )
-        protected_supported = all(
-            family.status is FamilyStatus.SUPPORTED
+        unsupported_protected = any(
+            family.family in protected and family.status is not FamilyStatus.SUPPORTED
             for family in families
-            if family.family in protected
+        )
+        all_supported = bool(families) and all(
+            family.status is FamilyStatus.SUPPORTED for family in families
         )
         if any_refuted:
             status = SignalStatus.NOT_ESTABLISHED
@@ -835,28 +890,27 @@ def analyze_sft_signal(
                 SftSignalRefusalCode.PROTECTED_FAMILY_UNINFORMATIVE
                 if any(
                     family.family in protected
-                    and family.status
-                    in (FamilyStatus.UNDERPOWERED, FamilyStatus.UNAVAILABLE)
+                    and family.status in (FamilyStatus.UNDERPOWERED, FamilyStatus.UNAVAILABLE)
                     for family in families
                 )
                 else SftSignalRefusalCode.FAMILY_UNINFORMATIVE
             )
-        elif protected_supported:
+        elif all_supported:
             status = SignalStatus.SUPPORTED
         else:
             status = SignalStatus.NOT_ESTABLISHED
-            reasons.append(SftSignalRefusalCode.PROTECTED_FAMILY_NOT_SUPPORTED)
+            reasons.append(
+                SftSignalRefusalCode.PROTECTED_FAMILY_NOT_SUPPORTED
+                if unsupported_protected
+                else SftSignalRefusalCode.FAMILY_UNINFORMATIVE
+            )
 
     body = {
         "schema_version": SFT_SIGNAL_DECISION_SCHEMA,
         "freeze_id": freeze.freeze_id,
         "freeze_digest": freeze.freeze_digest,
-        "baseline_checkpoint_digest": (
-            freeze.baseline_checkpoint.checkpoint_artifact_digest
-        ),
-        "candidate_checkpoint_digest": (
-            freeze.candidate_checkpoint.checkpoint_artifact_digest
-        ),
+        "baseline_checkpoint_digest": (freeze.baseline_checkpoint.checkpoint_artifact_digest),
+        "candidate_checkpoint_digest": (freeze.candidate_checkpoint.checkpoint_artifact_digest),
         "status": status,
         "reason_codes": tuple(sorted(set(reasons), key=str)),
         "pair_total": pair_total,
@@ -867,9 +921,7 @@ def analyze_sft_signal(
         "ready_for_rl": False,
         "authorization_scope": "none",
     }
-    return SftSignalDecisionV1.model_validate(
-        {**body, "decision_digest": _canonical_digest(body)}
-    )
+    return SftSignalDecisionV1.model_validate({**body, "decision_digest": _canonical_digest(body)})
 
 
 def _normalized_json_payload(value: Any) -> Any:

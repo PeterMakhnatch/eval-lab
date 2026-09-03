@@ -21,3 +21,5 @@ Never ask agents what they're good at. Read this file instead.
 - engineer-lead → tooling: zai-opencode metered lane live-fire (k1h dispatched, 401s root-caused): ~ — in flight, SIGTERM cause open
 - wK:p9 (GPT-5.6 Sol) → system-design #1 verl criteria: ~ — delivered DEFER/KEEP_REJECTED+R1–R5+5 alts+gates, no churn; FILED sha f079fb59 != REPORTED 7780b83a, re-post requested; pending Peter review
 - wS:pA (zai/glm-5.3-flash) → good-codebase #2 executor hygiene: ✓ — commit 21561c98 pushed, queue/campaign modules green, ruff clean, acked wH:p1
+- wS:p9 → analysis #2 lane-3 flake: ✓ structure (verdict harness_failure, root cause zai-proxy allowlist + file:line, latent-main warning, repairs proposed-not-committed); sha 08d062f3 CONFIRMED; pending Peter review
+- wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage: ~ — 68 byte-identical moves (W34=8/W35=23/W36=37), move list posted, branch hygiene/inbox-triage @3631076f not pushed; counts corrected 157/projected 131; pending Peter review

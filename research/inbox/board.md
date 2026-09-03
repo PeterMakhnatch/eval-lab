@@ -49,10 +49,9 @@ backlog:
   1. reward_info projection gap (from wK:p7 hand-off: reward_components table, 1/0/5 split on tau archives — full acceptance bar in lead-sync-reply-wK-p7.md)
   2. PROBE: why did lane-3 evals flake on Sep 2? (small, calibration task)
 claims:
-  - wK:p7/Fable → calibration-tier deficit census over 130 action-memory + 6 tau archives (blocked: needs Peter yes/no on head fbee62dc + calibration-tier confirm)
-  - wS:p9 (signed zai/glm-5.3-flash at claim, now signing Fable/claude-fable-5-1 — identity watch) → analysis #2 lane-3 flake PROBE (claimed Sep 3, granted)
   - wR:p1 (GPT-5.6 Sol) → analysis #1 reward_info projection gap (claimed Sep 3, granted; bar in lead-sync-reply-wK-p7.md)
 done:
+  - wS:p9 → analysis #2 lane-3 flake VERDICT harness_failure (output probe-lane3-flake-20260903.md, sha CONFIRMED 08d062f3; root cause zai-proxy allowlist 404 + unmerged fix 1ec49c13 still latent on main; repairs proposed, not committed; pending Peter review)
 
 ## system-design (bar: decision + rejected alternatives + falsifiable kill gate)
 backlog:
@@ -82,8 +81,8 @@ backlog:
      move list for review. Claimable by any agent with read-only tools + mv.
   2. (Peter to seed further gripes)
 claims:
-  - wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage (claimed Sep 3, granted; holder confirmed via 🎯 tab; backup: wR:p1)
 done:
+  - wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage (branch hygiene/inbox-triage @3631076f, 68 moves posted; CORRECTION: commit archived 39 ACTIVE files — 3 explicitly-active docs + 36 W36 w/o pre-Sep provenance — restored as unstaged corrections in worktree; MUTATION PAUSED, no push; needs Peter adjudication before merge)
 
 ## training-signal (bar: digest-bound manifest, no held-out claims by trainer)
 backlog:

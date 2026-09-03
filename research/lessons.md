@@ -10,6 +10,8 @@ inputs:
     digest: sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8
   - path: library/tasks/query-optimize/task.toml
     digest: sha256:6e88f2a86df699594bcb1bf81df4ed694505f79c9420f671335b02524bbe3868
+  - path: library/tasks/tau3-retail-1/task.toml
+    digest: sha256:08f2bab6cf13851d69b3669d2125a2dcac290369cd79feb73a568d27d7d08673
   - path: library/tasks/terminal-bench-html-js-filter/task.toml
     digest: sha256:282df8b13d9d4b9748a6ed82770a9f2fafc7b618ea7cb6928dfd4eb2c504448b
   - path: library/tasks/transaction-reconciliation/task.toml
@@ -77,9 +79,9 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-09-03 16:00:23Z
+- **Generated at:** 2026-09-03 16:31:25Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
-- **Corpus Summary:** 9 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
+- **Corpus Summary:** 10 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
 - **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 

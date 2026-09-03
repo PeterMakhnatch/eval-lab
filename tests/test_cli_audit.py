@@ -11,6 +11,7 @@ from evallab.evidence import atif
 
 TOP_LEVEL_COMMANDS = (
     "improvement-plan",
+    "sft-signal",
     "claims",
     "agents",
     "doctor",

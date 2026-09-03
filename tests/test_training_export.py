@@ -493,7 +493,7 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
             update={
                 "trial_id": "secret",
                 "history_key": "h17",
-                "messages": _messages("sk-proj-abcdefghijklmnopqrstuvwxyz012345"),
+                "messages": _messages("rk-proj-abcdefghijklmnopqrstuvwxyz012345"),
             }
         ),
         base.model_copy(
@@ -505,7 +505,7 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
         ),
         base.model_copy(
             update={
-                "job_id": "sk-proj-metadataabcdefghijklmnopqrstuvwxyz",
+                "job_id": "rk-proj-metadataabcdefghijklmnopqrstuvwxyz",
                 "trial_id": "metadata-secret",
                 "history_key": "h19",
             }
@@ -597,7 +597,7 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
     serialized = result.exclusions_path.read_text(encoding="utf-8")
     assert "reference_answer" not in serialized
     assert "abcdefghijklmnopqrstuvwxyz012345" not in serialized
-    assert "sk-proj-metadata" not in serialized
+    assert "rk-proj-metadata" not in serialized
     assert "../../solution/answer.txt" not in serialized
 
 def test_forged_messages_are_refused_against_reverified_trajectory(tmp_path: Path) -> None:

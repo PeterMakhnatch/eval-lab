@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:9f6a6489027054095a1df0936924820ad572ccda28f42b9ff427ec642961ae7e
+    digest: sha256:5fd0777f36c90e545e1c5a2898da466ae4dcee73204f423c169e901eeea95009
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -144,8 +144,6 @@ inputs:
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
     digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
-  - path: docs/workbench-guide.md
-    digest: sha256:85ce237e6c5eba5ed2b2e4181bbdd38878d7265c3729265526135df115e0e8c0
 ---
 
 <!-- generated-by: docindex v1 -->
@@ -351,7 +349,6 @@ an operator can see what is archived.
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
-| `docs/workbench-guide.md` | Workbench Guide: Multi-Agent Terminal Workflow | `living` | `operator` |
 
 ### historical
 

@@ -10,7 +10,7 @@ from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal, Never
 
-from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from evallab.artifact_authority import (
     VERIFIER_IMPLEMENTATION_DIGEST,
@@ -23,6 +23,11 @@ from evallab.artifact_authority import (
 from evallab.benchmark_program_contracts import compute_prefixed_sha256, validate_safe_relative_path
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel, Digest
+from evallab.training_export import (
+    TrainingDatasetManifestV1,
+    TrainingExampleRecord,
+    TrainingSplitRefV1,
+)
 
 Backend = Literal["trl", "spade"]
 ExternalBackendName = Literal["generic-trl", "spade-external-consumer"]
@@ -74,83 +79,6 @@ class _FrozenContract(ContractModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class TrainerSplitBindingV1(_FrozenContract):
-    path: str = Field(min_length=1)
-    digest: Digest
-    cluster_key_digest: Digest
-    record_count: int = Field(ge=0)
-
-
-class TrainerSourceBindingV1(_FrozenContract):
-    job_id: str = Field(min_length=1)
-    trial_id: str = Field(min_length=1)
-    source_digest: Digest
-    registry_allowed_use: str = Field(min_length=1)
-    task_registry_record_digest: Digest
-    trial_admissibility_digest: Digest
-    trial_admissibility_decision: Literal["admissible", "rejected", "unavailable"]
-    trial_analysis_eligibility: Literal["causal-eligible", "calibration-only"]
-    trial_admissibility_allowed_use: Literal["causal", "descriptive-only"]
-
-
-class TrainerExporterBindingV1(_FrozenContract):
-    name: Literal["evallab.training_export"] = "evallab.training_export"
-    version: Literal["1"] = "1"
-    digest: Digest
-
-
-class RepresentationCountV1(_FrozenContract):
-    representation: Representation
-    count: int = Field(ge=0)
-
-
-class TrainerDatasetBindingV1(_FrozenContract):
-    """Exact Track A manifest shape; authority records remain copied digest refs."""
-
-    schema_version: Literal["training-dataset-manifest/v1"] = "training-dataset-manifest/v1"
-    manifest_path: str | None = "manifest.json"
-    cas_uri: str | None = None
-    manifest_digest: Digest
-    dataset_digest: Digest
-    train_split: TrainerSplitBindingV1
-    validation_split: TrainerSplitBindingV1
-    test_split: TrainerSplitBindingV1
-    source_refs: tuple[TrainerSourceBindingV1, ...]
-    exporter: TrainerExporterBindingV1
-    benchmark_families: tuple[str, ...]
-    task_families: tuple[str, ...]
-    environment_integrity: Literal["passed"] = "passed"
-    capture_complete: Literal[True] = True
-    redaction_status: Literal["redacted"] = "redacted"
-    registry_allowed_use: Literal["training"] = "training"
-    exclusions_path: str = "exclusions.jsonl"
-    exclusions_digest: Digest
-    exclusion_count: int = Field(ge=0)
-    representation_counts: tuple[RepresentationCountV1, ...]
-
-    @field_validator("representation_counts", mode="before")
-    @classmethod
-    def freeze_representation_counts(cls, value: Any) -> Any:
-        if isinstance(value, dict):
-            return [
-                {"representation": name, "count": count} for name, count in sorted(value.items())
-            ]
-        return value
-
-    @field_serializer("representation_counts")
-    def serialize_representation_counts(
-        self, value: tuple[RepresentationCountV1, ...]
-    ) -> dict[str, int]:
-        return {item.representation: item.count for item in value}
-
-    @model_validator(mode="after")
-    def validate_shape(self) -> TrainerDatasetBindingV1:
-        if (self.manifest_path is None) == (self.cas_uri is None):
-            raise ValueError("exactly one of manifest_path or cas_uri is required")
-        representations = tuple(item.representation for item in self.representation_counts)
-        if representations != ("episode_steps", "prompt_response_sft"):
-            raise ValueError("representation counts must contain each representation once")
-        return self
 
 
 class TrainerArtifactRefV1(_FrozenContract):
@@ -319,7 +247,7 @@ class TrainerAuthorityGateV1(_FrozenContract):
 class TrainerBundleV1(_FrozenContract):
     schema_version: Literal["trainer-bundle/v1"] = "trainer-bundle/v1"
     model_identity: TrainerModelIdentityV1
-    dataset: TrainerDatasetBindingV1
+    dataset: TrainingDatasetManifestV1
     dataset_manifest_artifact_digest: Digest
     selected_split: str = Field(min_length=1)
     heldout_split: Literal["validation", "test"]
@@ -548,7 +476,7 @@ def _manifest_digest(data: Mapping[str, Any]) -> str:
     return compute_prefixed_sha256(body)
 
 
-def _dataset_digest(dataset: TrainerDatasetBindingV1) -> str:
+def _dataset_digest(dataset: TrainingDatasetManifestV1) -> str:
     return compute_prefixed_sha256(
         {
             "train_split": dataset.train_split.model_dump(mode="json"),
@@ -600,12 +528,21 @@ def _validate_training_rows(
                 if not line.strip():
                     continue
                 count += 1
-                row = json.loads(line)
-                if not isinstance(row, Mapping):
+                try:
+                    raw = json.loads(line)
+                except json.JSONDecodeError:
+                    _refuse("training_split_invalid_jsonl")
+                if not isinstance(raw, Mapping):
                     _refuse("training_row_not_object")
-                forbidden = _first_forbidden_field(row)
+                forbidden = _first_forbidden_field(raw)
                 if forbidden is not None:
                     _refuse(f"prohibited_training_field:{forbidden}")
+                try:
+                    record = TrainingExampleRecord.model_validate(raw)
+                except ValueError:
+                    _refuse("training_row_contract_invalid")
+                if record.representation != rendering.representation:
+                    _refuse("training_row_representation_mismatch")
                 required = tuple(
                     field
                     for field in (
@@ -616,9 +553,9 @@ def _validate_training_rows(
                     )
                     if field is not None
                 )
-                if any(field not in row for field in required):
+                if any(field not in record.payload for field in required):
                     _refuse("rendering_field_missing")
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError):
         _refuse("training_split_invalid_jsonl")
     if count != expected_count:
         _refuse("training_split_record_count_mismatch")
@@ -626,10 +563,10 @@ def _validate_training_rows(
 
 def _validate_dataset(
     root: Path,
-    dataset: TrainerDatasetBindingV1,
+    dataset: TrainingDatasetManifestV1,
     rendering: TrainerRenderingContractV1,
     heldout_name: Literal["validation", "test"],
-) -> tuple[list[str], TrainerSplitBindingV1]:
+) -> tuple[list[str], TrainingSplitRefV1]:
     if dataset.dataset_digest != _dataset_digest(dataset):
         _refuse("dataset_digest_mismatch")
     paths: list[str] = []
@@ -644,7 +581,7 @@ def _validate_dataset(
             _refuse("artifact_missing:dataset_manifest")
         try:
             raw = json.loads(current.read_bytes())
-            persisted = TrainerDatasetBindingV1.model_validate(raw)
+            persisted = TrainingDatasetManifestV1.model_validate(raw)
         except (OSError, ValueError, json.JSONDecodeError):
             _refuse("manifest_contract_invalid")
         if _manifest_digest(raw) != dataset.manifest_digest:
@@ -804,7 +741,7 @@ def validate_trainer_bundle(
         split.record_count
         for split in (dataset.train_split, dataset.validation_split, dataset.test_split)
     )
-    counts = {item.representation: item.count for item in dataset.representation_counts}
+    counts = dict(dataset.representation_counts)
     if set(counts) != {"prompt_response_sft", "episode_steps"}:
         _refuse("representation_counts_invalid")
     if sum(counts.values()) != total_records:
@@ -1145,18 +1082,13 @@ __all__ = [
     "TrainerBackendRequirementsV1",
     "TrainerBundleRefusal",
     "TrainerBundleV1",
-    "TrainerDatasetBindingV1",
     "TrainerEvaluationSetV1",
-    "TrainerExporterBindingV1",
     "TrainerHyperparametersV1",
     "TrainerModelIdentityV1",
     "TrainerObjectiveV1",
     "TrainerRenderingContractV1",
     "TrainerResultContractV1",
     "TrainerRevisionIdentityV1",
-    "TrainerSourceBindingV1",
-    "TrainerTaskIdentityV1",
-    "TrainerSplitBindingV1",
     "ValidatedTrainerBundleV1",
     "rehydrate_rendered_trainer_plan",
     "backend_incompatibilities",

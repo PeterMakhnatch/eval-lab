@@ -12,14 +12,13 @@ import hashlib
 import json
 import os
 import re
-import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from evallab.artifact_authority import (
     VERIFIER_IMPLEMENTATION_DIGEST,
@@ -32,6 +31,7 @@ from evallab.artifact_authority import (
 )
 from evallab.evidence_store import EvidenceLocator
 from evallab.explorer import redact_text
+from evallab.immutable_directory import publish_immutable_files
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.registry import task_registry_record_digest
 from evallab.schemas import ContractModel, TaskRegistryRecord, TrialAdmissibilityV1
@@ -610,6 +610,21 @@ class TrainingDatasetManifestV1(_FrozenContract):
     exclusions_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     exclusion_count: int = Field(ge=0)
     representation_counts: dict[TrainingRepresentation, int]
+
+    @field_validator("representation_counts", mode="before")
+    @classmethod
+    def canonicalize_representation_counts(
+        cls, value: object
+    ) -> dict[TrainingRepresentation, int]:
+        if not isinstance(value, dict) or set(value) != {
+            "prompt_response_sft",
+            "episode_steps",
+        }:
+            raise ValueError("canonical_set_mismatch: representation_counts")
+        return {
+            "prompt_response_sft": value["prompt_response_sft"],
+            "episode_steps": value["episode_steps"],
+        }
 
     @model_validator(mode="after")
     def identity_and_digest_match(self) -> TrainingDatasetManifestV1:
@@ -1322,57 +1337,8 @@ def _candidate_records(
     return candidates
 
 
-def _write_staged_file(path: Path, payload: bytes) -> None:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags, 0o600)
-    with os.fdopen(descriptor, "wb") as stream:
-        stream.write(payload)
-        stream.flush()
-        os.fsync(stream.fileno())
-
-
-def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _prepare_output_parent(parent: Path) -> None:
-    cursor = parent
-    while not os.path.lexists(cursor):
-        if cursor == cursor.parent:
-            break
-        cursor = cursor.parent
-    if cursor.is_symlink() or cursor.resolve(strict=True) != cursor:
-        raise ValueError(f"refusing symlink destination chain: {parent}")
-    parent.mkdir(parents=True, exist_ok=True)
-
-
 def _publish_directory(destination: Path, payloads: dict[str, bytes]) -> Path:
-    absolute = Path(os.path.abspath(destination))
-    if os.path.lexists(absolute):
-        raise FileExistsError(f"training export destination already exists: {destination}")
-    parent = absolute.parent
-    _prepare_output_parent(parent)
-    staged = Path(tempfile.mkdtemp(prefix=f".{absolute.name}.staging-", dir=parent))
-    expected = tuple(sorted(payloads))
-    for name in expected:
-        if not _safe_relative_path(name) or PurePosixPath(name).parent != PurePosixPath("."):
-            raise ValueError(f"invalid staged output name: {name}")
-        _write_staged_file(staged / name, payloads[name])
-    _fsync_directory(staged)
-    if os.path.lexists(absolute):
-        raise FileExistsError(f"training export destination already exists: {destination}")
-    os.rename(staged, absolute)
-    _fsync_directory(parent)
-    published = tuple(sorted(path.name for path in absolute.iterdir()))
-    if published != expected or any(
-        path.is_symlink() or not path.is_file() for path in absolute.iterdir()
-    ):
-        raise RuntimeError("published training export inventory mismatch")
-    return absolute
+    return publish_immutable_files(destination, payloads)
 
 
 def _split_ref(

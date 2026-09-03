@@ -3595,6 +3595,39 @@
       }
     ]
   },
+  "improvement-plan": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "input",
+        "flags": [
+          "--input"
+        ],
+        "help": "Strict improvement-plan input manifest JSON",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
   "ingest": {
     "options": [
       {

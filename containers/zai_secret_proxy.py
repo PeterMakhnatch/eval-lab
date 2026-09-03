@@ -39,6 +39,15 @@ from typing import Any
 DEFAULT_SECRET_PATH = Path("/run/secrets/evallab_zai_api_key")
 DEFAULT_UPSTREAM = "https://api.z.ai"
 ALLOWED_PATH = "/api/paas/v4/chat/completions"
+ALLOWED_CLIENT_CHAT_PATHS = frozenset(
+    {
+        ALLOWED_PATH,
+        # OpenAI-compatible clients (including OpenCode provider presets)
+        # append their own suffix to the configured baseURL.
+        "/chat/completions",
+        "/v1/chat/completions",
+    }
+)
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -387,7 +396,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = self.path.partition("?")[0]
-        if path != ALLOWED_PATH and self.path != ALLOWED_PATH:
+        if path not in ALLOWED_CLIENT_CHAT_PATHS:
             self._reject(404, b"endpoint not allowed\n")
             return
 

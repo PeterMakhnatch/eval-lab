@@ -412,6 +412,35 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
         upstream.shutdown()
 
 
+def test_proxy_forwards_openai_style_chat_paths_to_pinned_upstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OpenAI-compatible clients (OpenCode provider presets) append
+    /chat/completions to the configured baseURL. The proxy accepts those
+    client paths and still forwards to the pinned native upstream path."""
+    capability = "valid-cap"
+    proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch, capability=capability)
+    try:
+        for client_path in ("/chat/completions", "/v1/chat/completions"):
+            req = urllib.request.Request(
+                f"{base_url}{client_path}",
+                data=json.dumps({"model": "zai-coding-plan/glm-5.3-flash", "messages": [{"role": "user", "content": "hi"}]}).encode(),
+                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                body = resp.read()
+            assert resp.status == 200
+            assert b'"ok"' in body
+
+        assert len(_MockZaiUpstream.seen) == 2
+        for path, auth, _fwd_body in _MockZaiUpstream.seen:
+            assert path == "/api/paas/v4/chat/completions"
+            assert auth == f"Bearer {SECRET_SENTINEL}"
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
 def test_proxy_forwards_allowed_flash_and_full_models(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

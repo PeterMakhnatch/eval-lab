@@ -31,7 +31,13 @@ from evallab.schemas import ContractModel, Digest, TrialAdmissibilityV1
 
 AuthorityLevel = Literal["structural-self-consistent", "bytes-verified"]
 ArtifactKind = Literal[
-    "contract", "trajectory", "final_state", "verifier", "outcome", "interpretation"
+    "contract",
+    "trajectory",
+    "final_state",
+    "verifier",
+    "outcome",
+    "interpretation",
+    "trainer_bundle",
 ]
 
 MODULE_NAME: str = "evallab.artifact_authority"

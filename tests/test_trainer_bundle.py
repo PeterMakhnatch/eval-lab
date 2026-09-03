@@ -28,6 +28,7 @@ from evallab.trainer_bundle import (
     TRLPlanPayloadV1,
     backend_incompatibilities,
     expected_trainer_result_has_parity,
+    rehydrate_rendered_trainer_plan,
     render_spade_plan,
     render_trl_plan,
     trainer_evaluation_suite_digest,
@@ -410,6 +411,19 @@ def test_digest_authority_and_prohibited_corpus_refuse(tmp_path: Path) -> None:
     with pytest.raises(TrainerBundleRefusal, match="source_authority_not_training_admissible"):
         validate_trainer_bundle(nonadmissible, root)
 
+    unauthorized_source = bundle.dataset.source_refs[0].model_copy(
+        update={"registry_allowed_use": "measurement"}
+    )
+    unauthorized = _replace_dataset(
+        root,
+        bundle,
+        source_refs=[unauthorized_source.model_dump(mode="json")],
+    )
+    with pytest.raises(
+        TrainerBundleRefusal, match="source_registry_not_training_authorized"
+    ):
+        validate_trainer_bundle(unauthorized, root)
+
     prohibited = _replace_dataset(root, bundle, task_families=["syn-funcdag-easy"])
     with pytest.raises(TrainerBundleRefusal, match="prohibited_corpus:syn-funcdag-easy"):
         validate_trainer_bundle(prohibited, root)
@@ -459,7 +473,56 @@ def test_plan_digest_and_projection_parity_reject_substitution(tmp_path: Path) -
         authority_substitution
     )
     internally_consistent = type(plan).model_validate(authority_substitution)
+    with pytest.raises(
+        TrainerBundleRefusal, match="full_plan_parity_mismatch"
+    ):
+        rehydrate_rendered_trainer_plan(
+            internally_consistent,
+            bundle=bundle,
+            root=root,
+            backend_identity=backend,
+        )
+
+    mutation_cases = (
+        ("payload", "learning_rate", 0.5),
+        (None, "seed", plan.seed + 1),
+        (None, "objective", "verifier_reward_episode"),
+    )
+    for parent, field, value in mutation_cases:
+        mutated = plan.model_dump(mode="json")
+        target = mutated if parent is None else mutated[parent]
+        target[field] = value
+        mutated["expected_result"]["trainer_plan_digest"] = trainer_plan_digest(
+            mutated
+        )
+        self_consistent = type(plan).model_validate(mutated)
+        with pytest.raises(
+            TrainerBundleRefusal, match="full_plan_parity_mismatch"
+        ):
+            rehydrate_rendered_trainer_plan(
+                self_consistent,
+                bundle=bundle,
+                root=root,
+                backend_identity=backend,
+            )
     assert not expected_trainer_result_has_parity(bundle, internally_consistent, backend)
+
+
+def test_render_rehydrate_is_byte_identical(tmp_path: Path) -> None:
+    root = tmp_path / "bundle"
+    bundle = _make_bundle(root)
+    backend = _backend("trl")
+    rendered = render_trl_plan(bundle, root, backend)
+    rendered_bytes = rendered.model_dump_json().encode()
+
+    rehydrated = rehydrate_rendered_trainer_plan(
+        json.loads(rendered_bytes),
+        bundle=bundle,
+        root=root,
+        backend_identity=backend,
+    )
+
+    assert rehydrated.model_dump_json().encode() == rendered_bytes
 
 
 def test_arbitrary_sft_signal_digest_cannot_unlock_spade(tmp_path: Path) -> None:

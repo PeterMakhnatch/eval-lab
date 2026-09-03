@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -787,6 +788,123 @@ def test_publication_is_immutable_and_whole_directory_atomic(
     assert not os.path.lexists(destination)
     assert not list(tmp_path.glob(".partial.staging-*"))
 
+
+def test_unexpected_staged_inventory_refuses_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, 32)
+    original_write = immutable_directory._write_new_file
+    injected = False
+
+    def inject_extra_file(path: Path, payload: bytes) -> None:
+        nonlocal injected
+        original_write(path, payload)
+        if not injected:
+            injected = True
+            original_write(path.parent / "unexpected.bin", b"unexpected")
+
+    monkeypatch.setattr(immutable_directory, "_write_new_file", inject_extra_file)
+    destination = tmp_path / "unexpected-inventory"
+    with pytest.raises(ValueError, match="inventory mismatch"):
+        export_training_dataset([source], destination)
+    assert not os.path.lexists(destination)
+    assert not list(tmp_path.glob(".unexpected-inventory.staging-*"))
+
+
+def test_staged_root_swap_refuses_without_burning_destination(tmp_path: Path) -> None:
+    destination = tmp_path / "swapped"
+    attacker = tmp_path / "attacker"
+    attacker.mkdir()
+    (attacker / "attacker.txt").write_text("attacker", encoding="utf-8")
+
+    with (
+        pytest.raises(ValueError, match="identity changed"),
+        immutable_directory.staged_immutable_directory(destination) as staged,
+    ):
+        shutil.rmtree(staged)
+        staged.symlink_to(attacker, target_is_directory=True)
+
+    assert not os.path.lexists(destination)
+    assert (attacker / "attacker.txt").read_text(encoding="utf-8") == "attacker"
+    assert not list(tmp_path.glob(".swapped.staging-*"))
+
+
+def test_publish_root_swap_refuses_and_leaves_destination_reusable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "swapped-publish"
+    attacker = tmp_path / "publish-attacker"
+    attacker.mkdir()
+    (attacker / "planted.json").write_text("attacker", encoding="utf-8")
+    original_write = immutable_directory._write_new_file
+    calls = 0
+
+    def swap_after_second_write(path: Path, payload: bytes) -> None:
+        nonlocal calls
+        original_write(path, payload)
+        calls += 1
+        if calls == 2:
+            shutil.rmtree(path.parent)
+            path.parent.symlink_to(attacker, target_is_directory=True)
+
+    monkeypatch.setattr(immutable_directory, "_write_new_file", swap_after_second_write)
+    with pytest.raises(ValueError, match="inventory mismatch"):
+        immutable_directory.publish_immutable_files(
+            destination,
+            {"a.json": b"a", "b.json": b"b"},
+        )
+
+    assert not os.path.lexists(destination)
+    assert (attacker / "planted.json").read_text(encoding="utf-8") == "attacker"
+    assert not list(tmp_path.glob(".swapped-publish.staging-*"))
+    monkeypatch.setattr(immutable_directory, "_write_new_file", original_write)
+    immutable_directory.publish_immutable_files(destination, {"clean.json": b"clean"})
+    assert (destination / "clean.json").read_bytes() == b"clean"
+
+
+
+def test_staged_root_swap_after_precheck_is_quarantined(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "late-swap"
+    attacker = tmp_path / "late-attacker"
+    attacker.mkdir()
+    (attacker / "attacker.txt").write_text("attacker", encoding="utf-8")
+    original_rename = immutable_directory._atomic_no_replace_rename_at
+
+    def swap_before_native_rename(
+        source_dir_fd: int,
+        source_name: str,
+        destination_dir_fd: int,
+        destination_name: str,
+        *,
+        destination_display: Path,
+    ) -> None:
+        staged = destination_display.parent / source_name
+        shutil.rmtree(staged)
+        staged.symlink_to(attacker, target_is_directory=True)
+        original_rename(
+            source_dir_fd,
+            source_name,
+            destination_dir_fd,
+            destination_name,
+            destination_display=destination_display,
+        )
+
+    monkeypatch.setattr(
+        immutable_directory,
+        "_atomic_no_replace_rename_at",
+        swap_before_native_rename,
+    )
+    with (
+        pytest.raises(ValueError, match="nofollow directory"),
+        immutable_directory.staged_immutable_directory(destination) as staged,
+    ):
+        (staged / "planned.json").write_text("planned", encoding="utf-8")
+
+    assert not os.path.lexists(destination)
+    assert (attacker / "attacker.txt").read_text(encoding="utf-8") == "attacker"
+    assert not list(tmp_path.glob(".late-swap.staging-*"))
 
 def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> None:
     source = _source(tmp_path)

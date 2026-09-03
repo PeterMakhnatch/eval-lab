@@ -3796,8 +3796,13 @@ def _improvement_plan_command(
         "stages": [
             {
                 "stage": stage.stage.value,
-                "status": stage.disposition.value,
+                "status": stage.status.value,
                 "reason": stage.reason_code.value,
+                "authority_level": stage.authority_level,
+                "input_digest": stage.input_digest,
+                "output_digest": stage.output_digest,
+                "numerator": stage.numerator,
+                "denominator": stage.denominator,
             }
             for stage in bundle.stages
         ],

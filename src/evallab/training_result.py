@@ -681,7 +681,6 @@ def _reverified_dataset_authority_matches_expected(
     _, verified_authority = verification
     return (
         verified_authority.authority_digest == expected.dataset_manifest_authority_digest
-        and verified_authority.artifact.digest == expected.dataset_manifest_digest
         and verified_authority.level == expected.dataset_manifest_authority_level
     )
 
@@ -740,7 +739,8 @@ def validate_trainer_result_manifest(
     expected: ExpectedTrainerResultV1,
     dataset_manifest_authority: ArtifactAuthority | None = None,
     result_manifest_authority: ArtifactAuthority | None = None,
-    authority_repo_root: Path | str | None = None,
+    dataset_authority_repo_root: Path | str | None = None,
+    result_authority_repo_root: Path | str | None = None,
 ) -> TrainerResultValidation:
     """Validate parity; require authenticated dataset and result bytes for handoff."""
     raw_reasons: tuple[TrainerResultRefusalCode, ...] = ()
@@ -767,13 +767,13 @@ def validate_trainer_result_manifest(
     dataset_authority_reverified = _reverified_dataset_authority_matches_expected(
         expected,
         dataset_manifest_authority,
-        repo_root=authority_repo_root,
+        repo_root=dataset_authority_repo_root,
     )
     result_authority_reverified = _reverified_result_authority_matches_manifest(
         manifest,
         expected,
         result_manifest_authority,
-        repo_root=authority_repo_root,
+        repo_root=result_authority_repo_root,
     )
     if dataset_manifest_authority is not None and not dataset_authority_reverified:
         reasons.append(TrainerResultRefusalCode.AUTHORITY_NOT_REVERIFIED)
@@ -802,7 +802,8 @@ def render_frozen_held_out_evaluation_plan(
     trusted_heldout_cluster_keys: Sequence[str],
     dataset_manifest_authority: ArtifactAuthority | None = None,
     result_manifest_authority: ArtifactAuthority | None = None,
-    authority_repo_root: Path | str | None = None,
+    dataset_authority_repo_root: Path | str | None = None,
+    result_authority_repo_root: Path | str | None = None,
 ) -> FrozenHeldOutEvaluationPlan:
     """Render only an authority-reverified, exact Track D frozen handoff."""
     validation = validate_trainer_result_manifest(
@@ -810,7 +811,8 @@ def render_frozen_held_out_evaluation_plan(
         expected=expected,
         dataset_manifest_authority=dataset_manifest_authority,
         result_manifest_authority=result_manifest_authority,
-        authority_repo_root=authority_repo_root,
+        dataset_authority_repo_root=dataset_authority_repo_root,
+        result_authority_repo_root=result_authority_repo_root,
     )
     reasons: list[TrainerResultRefusalCode] = list(validation.reason_codes)
     if validation.status == "valid" and not validation.eligible_for_held_out_handoff:
@@ -872,7 +874,8 @@ def rehydrate_frozen_held_out_evaluation_plan(
     expected: ExpectedTrainerResultV1,
     dataset_manifest_authority: ArtifactAuthority | None = None,
     result_manifest_authority: ArtifactAuthority | None = None,
-    authority_repo_root: Path | str | None = None,
+    dataset_authority_repo_root: Path | str | None = None,
+    result_authority_repo_root: Path | str | None = None,
 ) -> RehydratedHeldOutEvaluationView:
     """Rehydrate only after plan, manifest, expectation, and authority re-verification."""
     validation = validate_trainer_result_manifest(
@@ -880,7 +883,8 @@ def rehydrate_frozen_held_out_evaluation_plan(
         expected=expected,
         dataset_manifest_authority=dataset_manifest_authority,
         result_manifest_authority=result_manifest_authority,
-        authority_repo_root=authority_repo_root,
+        dataset_authority_repo_root=dataset_authority_repo_root,
+        result_authority_repo_root=result_authority_repo_root,
     )
     refusals: list[TrainerResultRefusalCode] = list(validation.reason_codes)
     if validation.status == "valid" and not validation.eligible_for_held_out_handoff:

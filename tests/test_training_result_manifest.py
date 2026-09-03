@@ -234,14 +234,16 @@ def _validate(
     *,
     dataset_manifest_authority: ArtifactAuthority | None = None,
     result_manifest_authority: ArtifactAuthority | None = None,
-    authority_repo_root: Any = None,
+    dataset_authority_repo_root: Any = None,
+    result_authority_repo_root: Any = None,
 ) -> Any:
     return validate_trainer_result_manifest(
         payload,
         expected=expected or _expected(),
         dataset_manifest_authority=dataset_manifest_authority,
         result_manifest_authority=result_manifest_authority,
-        authority_repo_root=authority_repo_root,
+        dataset_authority_repo_root=dataset_authority_repo_root,
+        result_authority_repo_root=result_authority_repo_root,
     )
 
 
@@ -254,7 +256,7 @@ def _render(
     expected: ExpectedTrainerResultV1,
     authority: ArtifactAuthority | None,
     result_authority: ArtifactAuthority | None,
-    authority_repo_root: Any,
+    repo_root: Any,
 ) -> Any:
     return render_frozen_held_out_evaluation_plan(
         manifest,
@@ -263,7 +265,8 @@ def _render(
         trusted_heldout_cluster_keys=HELDOUT_CLUSTER_KEYS,
         dataset_manifest_authority=authority,
         result_manifest_authority=result_authority,
-        authority_repo_root=authority_repo_root,
+        dataset_authority_repo_root=repo_root,
+        result_authority_repo_root=repo_root,
     )
 
 
@@ -348,7 +351,8 @@ def test_real_result_requires_reverified_authority_before_handoff(tmp_path: Any)
         expected,
         dataset_manifest_authority=authority,
         result_manifest_authority=result_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert validation.status == "valid"
     assert validation.eligible_for_held_out_handoff is True
@@ -365,7 +369,8 @@ def test_real_result_requires_reverified_authority_before_handoff(tmp_path: Any)
         expected=expected,
         dataset_manifest_authority=authority,
         result_manifest_authority=result_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert view.verify_view_digest()
     assert view.produced_checkpoint_artifact_digest == _digest("0")
@@ -382,7 +387,8 @@ def test_result_manifest_authority_requires_exact_current_bytes(tmp_path: Any) -
         manifest.model_dump(mode="json"),
         expected,
         dataset_manifest_authority=dataset_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert structural.status == "valid"
     assert structural.eligible_for_held_out_handoff is False
@@ -394,7 +400,8 @@ def test_result_manifest_authority_requires_exact_current_bytes(tmp_path: Any) -
         expected,
         dataset_manifest_authority=dataset_authority,
         result_manifest_authority=stale_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert TrainerResultRefusalCode.AUTHORITY_NOT_REVERIFIED in stale.reason_codes
 
@@ -406,7 +413,8 @@ def test_result_manifest_authority_requires_exact_current_bytes(tmp_path: Any) -
         expected,
         dataset_manifest_authority=dataset_authority,
         result_manifest_authority=ref_mismatch_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert TrainerResultRefusalCode.AUTHORITY_NOT_REVERIFIED in ref_mismatch.reason_codes
 
@@ -419,7 +427,8 @@ def test_result_manifest_authority_requires_exact_current_bytes(tmp_path: Any) -
         expected,
         dataset_manifest_authority=dataset_authority,
         result_manifest_authority=different_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert TrainerResultRefusalCode.AUTHORITY_NOT_REVERIFIED in semantic_mismatch.reason_codes
 
@@ -448,7 +457,8 @@ def test_conditional_failed_run_records_pre_checkpoint_failure(tmp_path: Any) ->
         expected,
         dataset_manifest_authority=authority,
         result_manifest_authority=result_authority,
-        authority_repo_root=tmp_path,
+        dataset_authority_repo_root=tmp_path,
+        result_authority_repo_root=tmp_path,
     )
     assert validation.status == "valid"
     assert validation.eligible_for_held_out_handoff is False
@@ -613,7 +623,8 @@ def test_forged_plan_mutations_refuse_even_with_recomputed_digest(tmp_path: Any)
             expected=expected,
             dataset_manifest_authority=authority,
             result_manifest_authority=result_authority,
-            authority_repo_root=tmp_path,
+            dataset_authority_repo_root=tmp_path,
+            result_authority_repo_root=tmp_path,
         )
     assert TrainerResultRefusalCode.FROZEN_TASK_SET_MISMATCH in exc.value.reason_codes
     assert recomputed.verify_plan_digest()
@@ -635,7 +646,8 @@ def test_rehydrate_cross_checks_manifest_and_typed_expectation(tmp_path: Any) ->
             expected=expected,
             dataset_manifest_authority=authority,
             result_manifest_authority=result_authority,
-            authority_repo_root=tmp_path,
+            dataset_authority_repo_root=tmp_path,
+            result_authority_repo_root=tmp_path,
         )
     assert TrainerResultRefusalCode.TRAINER_BUNDLE_DIGEST_MISMATCH in bundle_exc.value.reason_codes
 
@@ -657,7 +669,8 @@ def test_rehydrate_cross_checks_manifest_and_typed_expectation(tmp_path: Any) ->
             expected=ExpectedTrainerResultV1.model_validate(mutated_expected_data),
             dataset_manifest_authority=authority,
             result_manifest_authority=result_authority,
-            authority_repo_root=tmp_path,
+            dataset_authority_repo_root=tmp_path,
+            result_authority_repo_root=tmp_path,
         )
     assert TrainerResultRefusalCode.FROZEN_TASK_SET_MISMATCH in set_exc.value.reason_codes
 
@@ -682,7 +695,8 @@ def test_renderer_gates_arbitrary_tasks_and_cluster_keys(tmp_path: Any) -> None:
             trusted_heldout_cluster_keys=HELDOUT_CLUSTER_KEYS,
             dataset_manifest_authority=authority,
             result_manifest_authority=result_authority,
-            authority_repo_root=tmp_path,
+            dataset_authority_repo_root=tmp_path,
+            result_authority_repo_root=tmp_path,
         )
     assert TrainerResultRefusalCode.FROZEN_TASK_SET_MISMATCH in outsider_exc.value.reason_codes
 
@@ -694,7 +708,8 @@ def test_renderer_gates_arbitrary_tasks_and_cluster_keys(tmp_path: Any) -> None:
             trusted_heldout_cluster_keys=["funcdag-heldout-key-wrong"],
             dataset_manifest_authority=authority,
             result_manifest_authority=result_authority,
-            authority_repo_root=tmp_path,
+            dataset_authority_repo_root=tmp_path,
+            result_authority_repo_root=tmp_path,
         )
     assert TrainerResultRefusalCode.FROZEN_TASK_CLUSTER_MISMATCH in trusted_exc.value.reason_codes
 

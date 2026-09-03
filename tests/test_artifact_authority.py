@@ -1,14 +1,15 @@
-"""Comprehensive test suite for shared artifact authority boundary.
+"""Comprehensive test suite for shared artifact authority boundary (rev2).
 
-Covers all Section 4 and audit-required controls:
+Covers:
 - (a) Ref/digest parity and CAS URI mismatch validation
 - (b) Admissibility gating (causal eligibility, source_digests receipt binding)
 - (c) Canonical ref validation (no absolute, no .., no uncanonical parts)
 - (d) Jailed path traversal refusal & symlink root refusal
-- (e) CAS loading via evidence_store primitives (blobs/sha256/xx/hash.bin)
-- (f) Verifier implementation digest mismatch refusal
-- (g) Model immutability, frozen contracts, extra-field rejection
-- (h) Rehydration parity and authority_digest determinism
+- (e) CAS loading via evidence_store primitives (load_blob/read_archive)
+- (f) ArchiveAnchor tracking and on-demand re-anchoring
+- (g) Verifier implementation digest mismatch refusal
+- (h) Model immutability, frozen contracts, extra-field rejection
+- (i) Rehydration parity and authority_digest determinism
 """
 
 import hashlib
@@ -20,13 +21,14 @@ from pydantic import ValidationError
 
 from evallab.artifact_authority import (
     VERIFIER_IMPLEMENTATION_DIGEST,
+    ArchiveAnchor,
     ArtifactAuthority,
     ArtifactRef,
     AuthorityRefusal,
     compute_authority_digest,
     verify_artifact,
 )
-from evallab.evidence_store import store_blob
+from evallab.evidence_store import archive_evidence, store_blob
 from evallab.schemas import (
     NETWORK_ESCAPE_CLASSES,
     Digest,
@@ -290,6 +292,38 @@ def test_bytes_verified_cas_object_via_evidence_store(tmp_path: Path) -> None:
     assert isinstance(result, ArtifactAuthority)
     assert result.level == "bytes-verified"
     assert result.artifact.digest == declared_digest
+    assert result.reanchor(cas_root) == content
+
+
+def test_bytes_verified_archive_anchor(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    source_dir = tmp_path / "source_evidence"
+    source_dir.mkdir()
+    (source_dir / "result.json").write_text('{"score": 1.0}')
+    archive = archive_evidence(source_dir, store_root, record_id="rec-001", kind="source-receipt")
+
+    anchor = ArchiveAnchor(
+        archive_uri=archive.uri,
+        record_kind="source-receipt",
+        record_id="rec-001",
+    )
+    ref = ArtifactRef(
+        ref=archive.uri,
+        digest=Digest(archive.content_digest),
+    )
+    result = verify_artifact(
+        ref,
+        minimum_level="bytes-verified",
+        verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        anchor=anchor,
+        cas_root=store_root,
+    )
+    assert isinstance(result, ArtifactAuthority)
+    assert result.anchor == anchor
+    assert result.level == "bytes-verified"
+    # Re-anchor can reopen the archive record bytes
+    reopened_bytes = result.reanchor(store_root)
+    assert reopened_bytes is not None
 
 
 def test_bytes_verified_with_admissibility_success(tmp_path: Path) -> None:

@@ -50,8 +50,9 @@ backlog:
   1. reward_info projection gap (from wK:p7 hand-off: reward_components table, 1/0/5 split on tau archives — full acceptance bar in lead-sync-reply-wK-p7.md)
   2. PROBE: why did lane-3 evals flake on Sep 2? (small, calibration task)
 claims:
-  - wR:p1 (GPT-5.6 Sol) → analysis #1 reward_info projection gap (claimed Sep 3, granted; bar in lead-sync-reply-wK-p7.md)
+  - wK:p7/Fable → calibration-tier deficit census over 130 action-memory + 6 tau archives (blocked: needs Peter yes/no on head fbee62dc + calibration-tier confirm)
 done:
+  - wR:p1 (GPT-5.6 Sol) → analysis #1 reward gap DONE (branch analysis/reward-info-projection @2a9d771f VERIFIED, not pushed; typed reward_components keyed (job,trial,component), scalar path unchanged; acceptance JSON sha CONFIRMED 0de6569b, byte-identical reprojection; tau split exactly 1/0/5, DB 4/2, HSNX/eRUiH5K exact, negative→opaque; focused tests + ruff clean; 4 unrelated baseline failures honestly reported; pending Peter review)
   - wS:p9 → analysis #2 lane-3 flake VERDICT harness_failure (output probe-lane3-flake-20260903.md, sha CONFIRMED 08d062f3; root cause zai-proxy allowlist 404 + unmerged fix 1ec49c13 still latent on main; repairs proposed, not committed; pending Peter review)
 
 ## system-design (bar: decision + rejected alternatives + falsifiable kill gate)

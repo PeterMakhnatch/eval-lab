@@ -48,6 +48,7 @@ from evallab.execution_contracts import (
     load_policy,
     new_ulid,
 )
+from evallab.immutable_directory import atomic_no_replace_rename
 from evallab.interpretation.trajectory_compliance import (
     ComplianceDisposition,
     PlatformSettlement,
@@ -1369,10 +1370,7 @@ def _atomic_no_replace_publish(
     *,
     expected_content_digest: str | None = None,
 ) -> None:
-    """Atomically publish a directory without replacing any existing target.
-
-    Performs final locator digest verification immediately before the raw native syscall.
-    """
+    """Verify staged evidence and publish it without replacing an existing target."""
     if expected_content_digest is not None:
         from evallab.evidence_store import evidence_tree_digest
 
@@ -1382,109 +1380,18 @@ def _atomic_no_replace_publish(
                 "staged_evidence_tampered",
                 f"staged evidence content digest {actual_digest} differs from locator {expected_content_digest}",
             )
-    import ctypes
-    import ctypes.util
-    import errno
-    import platform
-
-    system = platform.system()
-    if system == "Darwin":
-        try:
-            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-            if hasattr(libc, "renameatx_np"):
-                libc.renameatx_np.argtypes = [
-                    ctypes.c_int,
-                    ctypes.c_char_p,
-                    ctypes.c_int,
-                    ctypes.c_char_p,
-                    ctypes.c_uint,
-                ]
-                libc.renameatx_np.restype = ctypes.c_int
-                RENAME_EXCL = 0x00000004
-                AT_FDCWD = -2
-                res = libc.renameatx_np(
-                    AT_FDCWD,
-                    os.fspath(source).encode("utf-8"),
-                    AT_FDCWD,
-                    os.fspath(destination).encode("utf-8"),
-                    ctypes.c_uint(RENAME_EXCL),
-                )
-                if res != 0:
-                    err = ctypes.get_errno()
-                    if err in (errno.EEXIST, errno.ENOTEMPTY):
-                        raise ExecutionFailure(
-                            "control_bootstrap_job_conflict",
-                            f"durable control-bootstrap job destination already exists: {destination}",
-                        )
-                    raise OSError(err, os.strerror(err), str(destination))
-                return
-        except AttributeError:
-            pass
-    elif system == "Linux":
-        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-        RENAME_NOREPLACE = 1
-        AT_FDCWD = -100
-        if hasattr(libc, "renameat2"):
-            libc.renameat2.argtypes = [
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_uint,
-            ]
-            libc.renameat2.restype = ctypes.c_int
-            res = libc.renameat2(
-                AT_FDCWD,
-                os.fspath(source).encode("utf-8"),
-                AT_FDCWD,
-                os.fspath(destination).encode("utf-8"),
-                ctypes.c_uint(RENAME_NOREPLACE),
-            )
-            if res != 0:
-                err = ctypes.get_errno()
-                if err in (errno.EEXIST, errno.ENOTEMPTY):
-                    raise ExecutionFailure(
-                        "control_bootstrap_job_conflict",
-                        f"durable control-bootstrap job destination already exists: {destination}",
-                    )
-                raise OSError(err, os.strerror(err), str(destination))
-            return
-        else:
-            machine = platform.machine().lower()
-            syscall_nr = (
-                276 if (machine.startswith("aarch") or machine.startswith("arm64")) else 316
-            )
-            libc.syscall.argtypes = [
-                ctypes.c_long,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_uint,
-            ]
-            libc.syscall.restype = ctypes.c_long
-            res = libc.syscall(
-                ctypes.c_long(syscall_nr),
-                AT_FDCWD,
-                os.fspath(source).encode("utf-8"),
-                AT_FDCWD,
-                os.fspath(destination).encode("utf-8"),
-                ctypes.c_uint(RENAME_NOREPLACE),
-            )
-            if res != 0:
-                err = ctypes.get_errno()
-                if err in (errno.EEXIST, errno.ENOTEMPTY):
-                    raise ExecutionFailure(
-                        "control_bootstrap_job_conflict",
-                        f"durable control-bootstrap job destination already exists: {destination}",
-                    )
-                raise OSError(err, os.strerror(err), str(destination))
-            return
-
-    raise ExecutionFailure(
-        "platform_unsupported",
-        "atomic no-replace directory publication is unavailable on this platform",
-    )
+    try:
+        atomic_no_replace_rename(source, destination)
+    except FileExistsError as exc:
+        raise ExecutionFailure(
+            "control_bootstrap_job_conflict",
+            f"durable control-bootstrap job destination already exists: {destination}",
+        ) from exc
+    except NotImplementedError as exc:
+        raise ExecutionFailure(
+            "platform_unsupported",
+            "atomic no-replace directory publication is unavailable on this platform",
+        ) from exc
 
 
 def select_terminal_job_locator(

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-import evallab.training_export as training_export
+import evallab.immutable_directory as immutable_directory
 from evallab.artifact_authority import (
     VERIFIER_IMPLEMENTATION_DIGEST,
     AuthorityRefusal,
@@ -310,6 +310,10 @@ def test_fixture_export_is_byte_identical_and_authority_bound(tmp_path: Path) ->
     second = export_training_dataset([source], tmp_path / "second")
 
     assert _tree_bytes(first.root) == _tree_bytes(second.root)
+    assert (
+        TrainingDatasetManifestV1.model_validate_json(first.manifest_path.read_bytes())
+        == first.manifest
+    )
     assert len(first.records) == 2
     assert first.manifest.train_split.record_count == 2
     assert first.manifest.validation_split.record_count == 0
@@ -766,7 +770,7 @@ def test_publication_is_immutable_and_whole_directory_atomic(
         export_training_dataset([source], symlink_parent / "output")
     assert not (real_parent / "output").exists()
 
-    original_write = training_export._write_staged_file
+    original_write = immutable_directory._write_new_file
     calls = 0
 
     def fail_second_write(path: Path, payload: bytes) -> None:
@@ -776,14 +780,12 @@ def test_publication_is_immutable_and_whole_directory_atomic(
             raise OSError("injected staged write failure")
         original_write(path, payload)
 
-    monkeypatch.setattr(training_export, "_write_staged_file", fail_second_write)
+    monkeypatch.setattr(immutable_directory, "_write_new_file", fail_second_write)
     destination = tmp_path / "partial"
     with pytest.raises(OSError, match="injected staged write failure"):
         export_training_dataset([source], destination)
     assert not os.path.lexists(destination)
-    staged = list(tmp_path.glob(".partial.staging-*"))
-    assert len(staged) == 1
-    assert list(staged[0].iterdir())
+    assert not list(tmp_path.glob(".partial.staging-*"))
 
 
 def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> None:
@@ -820,8 +822,10 @@ def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> No
         "prompt_response_sft": 1,
     }
     reordered_payload["manifest_digest"] = _manifest_digest(reordered_payload)
-    with pytest.raises(ValidationError, match="canonical_set_mismatch"):
-        TrainingDatasetManifestV1.model_validate(reordered_payload)
+    assert (
+        TrainingDatasetManifestV1.model_validate(reordered_payload).representation_counts
+        == result.manifest.representation_counts
+    )
 
     alias_payload = result.manifest.model_dump(mode="json")
 

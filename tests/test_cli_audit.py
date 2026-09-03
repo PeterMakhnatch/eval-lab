@@ -10,6 +10,7 @@ from evallab import cli
 from evallab.evidence import atif
 
 TOP_LEVEL_COMMANDS = (
+    "improvement-plan",
     "claims",
     "agents",
     "doctor",
@@ -20,6 +21,7 @@ TOP_LEVEL_COMMANDS = (
     "submit",
     "tick",
     "approve",
+    "approve-all-waiting",
     "reject",
     "stop",
     "resume",

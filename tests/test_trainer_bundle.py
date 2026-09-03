@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+from test_training_export import _messages, _source
 
 from evallab.benchmark_program_contracts import compute_prefixed_sha256
 from evallab.trainer_bundle import (
@@ -16,7 +17,6 @@ from evallab.trainer_bundle import (
     TrainerBackendRequirementsV1,
     TrainerBundleRefusal,
     TrainerBundleV1,
-    TrainerDatasetBindingV1,
     TrainerEvaluationSetV1,
     TrainerHyperparametersV1,
     TrainerModelIdentityV1,
@@ -36,6 +36,7 @@ from evallab.trainer_bundle import (
     trainer_task_set_digest,
     validate_trainer_bundle,
 )
+from evallab.training_export import TrainingDatasetManifestV1, export_training_dataset
 
 
 def _digest(value: object) -> str:
@@ -64,11 +65,11 @@ def _manifest_digest(payload: dict[str, object]) -> str:
     return _digest(body)
 
 
-def _persist_dataset(root: Path, payload: dict[str, object]) -> TrainerDatasetBindingV1:
+def _persist_dataset(root: Path, payload: dict[str, object]) -> TrainingDatasetManifestV1:
     payload = dict(payload)
     payload["dataset_digest"] = _dataset_digest(payload)
     payload["manifest_digest"] = _manifest_digest(payload)
-    dataset = TrainerDatasetBindingV1.model_validate(payload)
+    dataset = TrainingDatasetManifestV1.model_validate(payload)
     if dataset.manifest_path is not None:
         (root / dataset.manifest_path).write_text(
             json.dumps(dataset.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
@@ -117,83 +118,39 @@ def _evaluation_set() -> TrainerEvaluationSetV1:
 
 
 def _make_bundle(root: Path, *, objective: str = "sft") -> TrainerBundleV1:
-    root.mkdir()
-    train = root / "data/train.jsonl"
-    validation = root / "data/validation.jsonl"
-    test = root / "data/test.jsonl"
-    train.parent.mkdir()
+    provenance_root = root.parent / f"{root.name}-provenance"
+    sources = tuple(
+        _source(
+            provenance_root,
+            index,
+            split=split,
+            messages=_messages(response=f"Stable response {index}."),
+        )
+        for index, split in enumerate(("train", "validation", "test"), start=1)
+    )
     if objective == "sft":
-        train.write_text('{"prompt":"Question","completion":"Answer"}\n', encoding="utf-8")
-        counts = {"prompt_response_sft": 3, "episode_steps": 0}
         rendering = TrainerRenderingContractV1(
             representation="prompt_response_sft",
             sft_format="prompt_completion",
             prompt_field="prompt",
-            completion_field="completion",
+            completion_field="response",
         )
         trainer_objective = TrainerObjectiveV1(kind="sft")
+        representations = ("prompt_response_sft",)
     else:
-        train.write_text('{"episode":[{"role":"assistant","content":"ok"}]}\n', encoding="utf-8")
-        counts = {"prompt_response_sft": 0, "episode_steps": 3}
         rendering = TrainerRenderingContractV1(
-            representation="episode_steps", episode_field="episode"
+            representation="episode_steps", episode_field="steps"
         )
         trainer_objective = TrainerObjectiveV1(
             kind="verifier_reward_episode",
             verifier_contract_digest=_digest("verifier-contract"),
         )
-    validation.write_text('{"heldout":"validation"}\n', encoding="utf-8")
-    test.write_text('{"heldout":"test"}\n', encoding="utf-8")
-    exclusions = root / "exclusions.jsonl"
-    exclusions.write_text("", encoding="utf-8")
-
-    def split(path: Path) -> dict[str, object]:
-        return {
-            "path": path.relative_to(root).as_posix(),
-            "digest": _file_digest(path),
-            "cluster_key_digest": _digest(f"clusters:{path.name}"),
-            "record_count": 1,
-        }
-
-    payload: dict[str, object] = {
-        "schema_version": "training-dataset-manifest/v1",
-        "manifest_path": "manifest.json",
-        "cas_uri": None,
-        "manifest_digest": _digest("pending"),
-        "dataset_digest": _digest("pending"),
-        "train_split": split(train),
-        "validation_split": split(validation),
-        "test_split": split(test),
-        "source_refs": [
-            {
-                "job_id": "job-1",
-                "trial_id": "trial-1",
-                "source_digest": _digest("source"),
-                "registry_allowed_use": "training",
-                "task_registry_record_digest": _digest("registry"),
-                "trial_admissibility_digest": _digest("admissibility"),
-                "trial_admissibility_decision": "admissible",
-                "trial_analysis_eligibility": "causal-eligible",
-                "trial_admissibility_allowed_use": "causal",
-            }
-        ],
-        "exporter": {
-            "name": "evallab.training_export",
-            "version": "1",
-            "digest": _digest("exporter"),
-        },
-        "benchmark_families": ["mcp-funcdag"],
-        "task_families": ["mcp-funcdag-v2"],
-        "environment_integrity": "passed",
-        "capture_complete": True,
-        "redaction_status": "redacted",
-        "registry_allowed_use": "training",
-        "exclusions_path": "exclusions.jsonl",
-        "exclusions_digest": _file_digest(exclusions),
-        "exclusion_count": 0,
-        "representation_counts": counts,
-    }
-    dataset = _persist_dataset(root, payload)
+        representations = ("episode_steps",)
+    dataset = export_training_dataset(
+        sources,
+        root,
+        representations=representations,
+    ).manifest
     checkpoint = root / "model/checkpoint.safetensors"
     checkpoint.parent.mkdir()
     checkpoint.write_bytes(b"fixture-checkpoint")
@@ -349,9 +306,9 @@ def test_unsupported_backend_requirements_are_typed(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("path", "reason"),
     [
-        ("data/train.jsonl", "digest_mismatch:training_split"),
-        ("data/validation.jsonl", "digest_mismatch:validation_split"),
-        ("data/test.jsonl", "digest_mismatch:test_split"),
+        ("train.jsonl", "digest_mismatch:training_split"),
+        ("validation.jsonl", "digest_mismatch:validation_split"),
+        ("test.jsonl", "digest_mismatch:test_split"),
         ("model/checkpoint.safetensors", "digest_mismatch:checkpoint"),
     ],
 )
@@ -387,10 +344,9 @@ def test_precomputed_training_fields_refuse(tmp_path: Path, field: str) -> None:
     root = tmp_path / "bundle"
     bundle = _make_bundle(root)
     train = root / bundle.dataset.train_split.path
-    train.write_text(
-        json.dumps({"prompt": "Question", "completion": "Answer", field: [1]}) + "\n",
-        encoding="utf-8",
-    )
+    row = json.loads(train.read_text(encoding="utf-8").splitlines()[0])
+    row["payload"][field] = [1]
+    train.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
     split = bundle.dataset.train_split.model_copy(update={"digest": _file_digest(train)})
     rebound = _replace_dataset(root, bundle, train_split=split.model_dump(mode="json"))
     with pytest.raises(TrainerBundleRefusal, match=f"prohibited_training_field:{field}"):
@@ -407,22 +363,18 @@ def test_digest_authority_and_prohibited_corpus_refuse(tmp_path: Path) -> None:
     source = bundle.dataset.source_refs[0].model_copy(
         update={"trial_admissibility_decision": "rejected"}
     )
-    nonadmissible = _replace_dataset(root, bundle, source_refs=[source.model_dump(mode="json")])
+    nonadmissible = bundle.dataset.model_copy(update={"source_refs": (source,)})
     with pytest.raises(TrainerBundleRefusal, match="source_authority_not_training_admissible"):
-        validate_trainer_bundle(nonadmissible, root)
+        validate_trainer_bundle(bundle.model_copy(update={"dataset": nonadmissible}), root)
 
     unauthorized_source = bundle.dataset.source_refs[0].model_copy(
         update={"registry_allowed_use": "measurement"}
     )
-    unauthorized = _replace_dataset(
-        root,
-        bundle,
-        source_refs=[unauthorized_source.model_dump(mode="json")],
-    )
+    unauthorized = bundle.dataset.model_copy(update={"source_refs": (unauthorized_source,)})
     with pytest.raises(
         TrainerBundleRefusal, match="source_registry_not_training_authorized"
     ):
-        validate_trainer_bundle(unauthorized, root)
+        validate_trainer_bundle(bundle.model_copy(update={"dataset": unauthorized}), root)
 
     prohibited = _replace_dataset(root, bundle, task_families=["syn-funcdag-easy"])
     with pytest.raises(TrainerBundleRefusal, match="prohibited_corpus:syn-funcdag-easy"):
@@ -557,13 +509,12 @@ def test_arbitrary_sft_signal_digest_cannot_unlock_spade(tmp_path: Path) -> None
 def test_train_heldout_overlap_and_exclusion_leak_refuse(tmp_path: Path) -> None:
     root = tmp_path / "bundle"
     bundle = _make_bundle(root)
-    overlapping = _replace_dataset(
-        root,
-        bundle,
-        validation_split=bundle.dataset.train_split.model_dump(mode="json"),
-    )
-    with pytest.raises(TrainerBundleRefusal, match="split_overlap"):
-        validate_trainer_bundle(overlapping, root)
+    with pytest.raises(ValidationError, match="split paths must use the exact canonical paths"):
+        _replace_dataset(
+            root,
+            bundle,
+            validation_split=bundle.dataset.train_split.model_dump(mode="json"),
+        )
 
     leaky_root = tmp_path / "leaky"
     bundle = _make_bundle(leaky_root)

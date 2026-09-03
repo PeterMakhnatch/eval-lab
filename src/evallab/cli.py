@@ -3739,6 +3739,74 @@ def _claims_pack_command(
     return 0
 
 
+def _improvement_plan_command(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    harbor: HarborBackend | None = None,
+) -> int:
+    del harbor
+    from pydantic import ValidationError
+
+    from evallab.improvement_plan import (
+        ImprovementPlanInputManifestV1,
+        ImprovementPlanRefusal,
+        gate_table,
+        run_improvement_plan,
+    )
+
+    try:
+        manifest = ImprovementPlanInputManifestV1.model_validate_json(args.input.read_bytes())
+        bundle = run_improvement_plan(manifest, workspace_root=root)
+    except (OSError, ValidationError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "refused",
+                    "reason_code": "invalid_input_manifest",
+                    "detail": str(exc),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except ImprovementPlanRefusal as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "refused",
+                    "reason_code": exc.reason_code.value,
+                    "detail": exc.detail,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    summary = {
+        "schema_version": bundle.schema_version,
+        "bundle_digest": bundle.bundle_digest,
+        "input_manifest_digest": bundle.input_manifest_digest,
+        "output_path": manifest.output_path,
+        "ready_for_external_sft": bundle.ready_for_external_sft,
+        "ready_for_rl": bundle.ready_for_rl,
+        "stages": [
+            {
+                "stage": stage.stage.value,
+                "status": stage.disposition.value,
+                "reason": stage.reason_code.value,
+            }
+            for stage in bundle.stages
+        ],
+    }
+    print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
+    print(gate_table(bundle), file=sys.stderr)
+    return 0 if bundle.ready_for_external_sft else 2
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="evallab",
@@ -3746,6 +3814,17 @@ def parser() -> argparse.ArgumentParser:
     )
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
+    improvement_plan = commands.add_parser(
+        "improvement-plan",
+        help="Render an immutable offline improvement-plan bundle",
+    )
+    improvement_plan.add_argument(
+        "--input",
+        required=True,
+        type=Path,
+        help="Strict improvement-plan input manifest JSON",
+    )
+    improvement_plan.set_defaults(func=_improvement_plan_command)
     claims = commands.add_parser("claims", help="Compile durable, provenance-backed claims context")
     claims_commands = claims.add_subparsers(dest="claims_command", required=True)
     claims_pack = claims_commands.add_parser(

@@ -4,6 +4,8 @@
 > Open: <lane #n>, <lane #n> (top items first).
 > Reply with the ONE item you'd take + one line on why you're the right
 > shape for it — or pass (with a reason; passes are data).
-> If your item chains off prior output, the linked artifacts are required
-> reading first. One claim at a time. Check tab labels: 🎯 = do not page.
 > First come, first served on conflicts; loser picks again or passes.
+>
+> Need someone? Don't page them. Backlog it — or check ledger.md for who
+> actually completes this kind of work, then wait for a round. Tab labels
+> are roles, not availability: 🎯 means do not page.

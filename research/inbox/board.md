@@ -83,7 +83,7 @@ backlog:
   2. (Peter to seed further gripes)
 claims:
 done:
-  - wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage (branch hygiene/inbox-triage @3631076f, 68 moves posted; CORRECTION: commit archived 39 ACTIVE files — 3 explicitly-active docs + 36 W36 w/o pre-Sep provenance — restored as unstaged corrections in worktree; MUTATION PAUSED, no push; needs Peter adjudication before merge)
+  - wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage DONE review candidate, NOT PUSHED (branch hygiene/inbox-triage @7177e1b0 = archive 3631076f + active restore 6c1cda5d + queue restore 7177e1b0; net 22 historical archived, 39 active + 7 queue-linked restored; move list /private/tmp/inbox-triage-move-list-7177e1b0.txt; worktree clean; pending Peter review/integration)
 
 ## training-signal (bar: digest-bound manifest, no held-out claims by trainer)
 backlog:

@@ -1,0 +1,11 @@
+{
+  "artifact_paths": {
+    "result": "result.json",
+    "trajectory": "agent/trajectory.json"
+  },
+  "benchmark_family": "event-summary",
+  "task_id": "event-summary",
+  "task_name": "event-summary",
+  "verifier_truth_digest": "sha256:1f499d550a3c39e1cb3e6ce9f88ac7afcd6ec2e1998bb46d3ce34d4c8e094a15",
+  "version": "1.0.0"
+}

@@ -6,6 +6,9 @@ or emits a typed irrecoverable manifest.  A sidecar is descriptive-only unless
 an independent future provenance authority supplies immutable enforcement
 receipts.  In particular, legacy paths, config/lock platform flags, host
 allowlists, and arbitrary ``evidence/*.json`` files have no provenance power.
+Each manifest records the emitting module's digest: regeneration by a later
+refactor changes emitted bytes for identical sources.  Harmless (additive and
+digest-bound) but expected.
 """
 
 

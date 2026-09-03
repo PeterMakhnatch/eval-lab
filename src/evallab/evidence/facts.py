@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import os
+import stat
 import subprocess
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +22,16 @@ from pydantic import ValidationError
 
 from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
 from evallab.evidence.parquet_io import write_table_atomic
+from evallab.evidence_store import EvidenceLocator
+from evallab.outcome_authority import (
+    OutcomeRecord,
+    VerifierOutcomeStatus,
+    bind_outcome_admissibility,
+    outcome_record_from_regrade,
+    outcome_record_from_trial,
+    resolve_outcome_authority,
+    synthetic_fallback_record,
+)
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
@@ -37,6 +50,12 @@ from evallab.state_events import (
     invalid_state_event_fact,
     load_state_diff,
     load_state_event_facts,
+)
+from evallab.trial_admissibility import (
+    VerifiedTrialAdmissibility,
+    finalize_trial_admissibility,
+    job_run_provenance,
+    verify_trial_admissibility,
 )
 
 JsonObject = dict[str, Any]
@@ -226,6 +245,18 @@ class TrialFact:
     generator_seed_json: str | None
     task_block_inputs_json: str | None
     task_block_id: str | None
+    task_runtime_version: str | None
+    task_registry_record_digest: str | None
+    task_runtime_package_digest: str | None
+    task_registry_admission_state: str | None
+    network_isolation_evidence_digest: str | None
+    network_isolation_status: str
+    network_isolation_reason: str | None
+    analysis_eligibility: str
+    trial_admissibility_digest: str | None
+    trial_admissibility_decision: str
+    trial_admissibility_reason: str
+    trial_allowed_use: str
     agent_config_digest: str
     agent_name: str | None
     agent_version: str | None
@@ -335,8 +366,6 @@ class RebuildResult:
         )
 
 
-
-
 def _invalid_state_journal(status: str, reason: str) -> StateJournalRecord:
     return StateJournalRecord("invalid" if status == "available" else status, reason, ())
 
@@ -352,9 +381,10 @@ def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
         return StateJournalRecord("invalid", f"status_unreadable:{type(exc).__name__}", ())
     if not isinstance(status_payload, dict):
         return StateJournalRecord("invalid", "status_invalid", ())
-    if type(status_payload.get("schema_version")) is not int or status_payload.get(
-        "schema_version"
-    ) != 1:
+    if (
+        type(status_payload.get("schema_version")) is not int
+        or status_payload.get("schema_version") != 1
+    ):
         return StateJournalRecord("invalid", "status_schema_invalid", ())
     status_value = status_payload.get("status")
     status = status_value if isinstance(status_value, str) and status_value else "invalid"
@@ -409,10 +439,26 @@ def _state_change_fact(
     )
 
 
+def _verified_trial_authority(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    repo_root: Path | None,
+) -> VerifiedTrialAdmissibility:
+    return verify_trial_admissibility(
+        trial_dir=trial.path,
+        trial_id=trial.id,
+        provenance=job_run_provenance(job),
+        repo_root=repo_root,
+    )
+
+
 def extract_trial_fact(
     job: JobRecord,
     trial: TrialRecord,
     state_journal: StateJournalRecord | None = None,
+    *,
+    repo_root: Path | None = None,
 ) -> TrialFact:
     projection = project_trial(job, trial)
     journal = state_journal or load_state_journal(trial)
@@ -483,6 +529,29 @@ def extract_trial_fact(
         verifier_digest=verifier_digest,
         environment_digest=environment_digest,
     )
+    runtime_identity = provenance.get("task_runtime_identity")
+    runtime_identity = runtime_identity if isinstance(runtime_identity, dict) else {}
+    authority = _verified_trial_authority(job, trial, repo_root=repo_root)
+    admissibility = authority.record
+    isolation_status = admissibility.network_isolation_status
+    isolation_reason = admissibility.network_isolation_reason
+    analysis_eligibility = admissibility.analysis_eligibility
+    admissibility_digest = (
+        admissibility.admissibility_digest if authority.artifact_present else None
+    )
+    if admissibility.causal_eligible and not authority.causal_eligible:
+        admissibility_decision = "unavailable"
+        admissibility_reason = "trial_admissibility_unavailable:unverified-registry-binding"
+        allowed_use = "descriptive-only"
+    else:
+        admissibility_decision = admissibility.decision
+        admissibility_reason = (
+            admissibility.reason
+            if authority.artifact_present
+            else "trial_admissibility_unavailable:missing-evidence-artifact"
+        )
+        allowed_use = admissibility.allowed_use
+    resolved_reward, _ = resolve_trial_primary_reward(job, trial)
     return TrialFact(
         experiment_id=experiment_id(job),
         job_id=job.id,
@@ -519,10 +588,26 @@ def extract_trial_fact(
         generator_seed_json=generator_seed_json,
         task_block_inputs_json=task_block_inputs_json,
         task_block_id=task_block_id,
+        task_runtime_version=_string(runtime_identity.get("task_version")),
+        task_registry_record_digest=_string(runtime_identity.get("registry_record_digest")),
+        task_runtime_package_digest=_string(
+            runtime_identity.get("certified_runtime_package_digest")
+        ),
+        task_registry_admission_state=_string(runtime_identity.get("registry_admission_state")),
+        network_isolation_evidence_digest=_string(
+            provenance.get("network_isolation_evidence_digest")
+        ),
+        network_isolation_status=isolation_status,
+        network_isolation_reason=isolation_reason,
+        analysis_eligibility=analysis_eligibility,
+        trial_admissibility_digest=admissibility_digest,
+        trial_admissibility_decision=admissibility_decision,
+        trial_admissibility_reason=admissibility_reason,
+        trial_allowed_use=allowed_use,
         agent_name=_string(agent_info.get("name")),
         agent_version=_string(agent_info.get("version")),
         model_name=_string(model_info.get("name") or model_info.get("model_name")),
-        primary_reward=trial.primary_reward,
+        primary_reward=resolved_reward,
         exception_class=exception_class,
         exception_phase=_exception_phase(exception_class),
         duration_seconds=duration_seconds(
@@ -556,7 +641,11 @@ def extract_trial_fact(
     )
 
 
-def extract_job_facts(job: JobRecord) -> JobFacts:
+def extract_job_facts(
+    job: JobRecord,
+    *,
+    repo_root: Path | None = None,
+) -> JobFacts:
     trial_facts: list[TrialFact] = []
     reward_facts: list[RewardFact] = []
     artifact_facts: list[ArtifactFact] = []
@@ -567,7 +656,7 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
     for trial in sorted(job.trials, key=lambda item: item.id):
         projection = project_trial(job, trial)
         state_journal = load_state_journal(trial)
-        trial_facts.append(extract_trial_fact(job, trial, state_journal))
+        trial_facts.append(extract_trial_fact(job, trial, state_journal, repo_root=repo_root))
         try:
             state_event_facts.extend(
                 load_state_event_facts(
@@ -671,6 +760,18 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("generator_seed_json", pa.string()),
         pa.field("task_block_inputs_json", pa.string()),
         pa.field("task_block_id", pa.string()),
+        pa.field("task_runtime_version", pa.string()),
+        pa.field("task_registry_record_digest", pa.string()),
+        pa.field("task_runtime_package_digest", pa.string()),
+        pa.field("task_registry_admission_state", pa.string()),
+        pa.field("network_isolation_evidence_digest", pa.string()),
+        pa.field("network_isolation_status", pa.string(), nullable=False),
+        pa.field("network_isolation_reason", pa.string()),
+        pa.field("analysis_eligibility", pa.string(), nullable=False),
+        pa.field("trial_admissibility_digest", pa.string()),
+        pa.field("trial_admissibility_decision", pa.string(), nullable=False),
+        pa.field("trial_admissibility_reason", pa.string(), nullable=False),
+        pa.field("trial_allowed_use", pa.string(), nullable=False),
         pa.field("agent_config_digest", pa.string(), nullable=False),
         pa.field("agent_name", pa.string()),
         pa.field("agent_version", pa.string()),
@@ -763,7 +864,7 @@ FACT_SCHEMAS = {
             pa.field("precedence", pa.int64(), nullable=False),
             pa.field("predecessor_sequence", pa.int64()),
             pa.field("event_at", pa.string()),
-            pa.field("operations", pa.list_(pa.string()), nullable=False),
+            pa.field("operations", pa.list_(pa.field("element", pa.string())), nullable=False),
             pa.field("path", pa.string()),
             pa.field("is_directory", pa.bool_()),
             pa.field("cookie", pa.int64()),
@@ -798,11 +899,16 @@ def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -
     )
 
 
-def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
+def export_facts(
+    jobs: list[JobRecord],
+    output_root: Path,
+    *,
+    repo_root: Path | None = None,
+) -> ExportResult:
     output_root = output_root.resolve()
     exported: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
-        facts = extract_job_facts(job)
+        facts = extract_job_facts(job, repo_root=repo_root)
         trial_by_id = {item.trial_id: item for item in facts.trials}
         for trial_id in sorted(trial_by_id):
             partition = output_root / f"job_id={job.id}" / f"trial_id={trial_id}"
@@ -831,12 +937,17 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
     return ExportResult(root=output_root, tables=tuple(exported))
 
 
-def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
+def rebuild_from_raw(
+    jobs: list[JobRecord],
+    output_root: Path,
+    *,
+    repo_root: Path | None = None,
+) -> RebuildResult:
     from evallab.evidence.event_mart import export_event_mart
 
     return RebuildResult(
         trajectory_export=export_trajectories(jobs, output_root),
-        fact_export=export_facts(jobs, output_root),
+        fact_export=export_facts(jobs, output_root, repo_root=repo_root),
         event_mart_export=export_event_mart(jobs, output_root),
     )
 
@@ -881,7 +992,7 @@ def ingest_catalog(
                     "UPDATE jobs SET experiment_id = %s WHERE id = %s",
                     (association, job.id),
                 )
-            facts = extract_job_facts(job)
+            facts = extract_job_facts(job, repo_root=root)
             for trial, trial_fact in zip(
                 sorted(job.trials, key=lambda item: item.id), facts.trials, strict=True
             ):
@@ -1022,6 +1133,34 @@ AnalyzerCallable = Callable[[str, dict[str, Any]], AnalyzerCallResult]
 
 
 @dataclass(frozen=True)
+class CanonicalPublicationBinding:
+    """Narrow typed binding between terminal event, locator, and canonical durable path."""
+
+    job_name: str
+    spec_id: str
+    locator: EvidenceLocator
+    publication_root: Path
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        repo_root: Path,
+        job_name: str,
+        spec_id: str,
+        locator: EvidenceLocator,
+    ) -> CanonicalPublicationBinding:
+        """Create a trusted CanonicalPublicationBinding strictly rooted at <repo>/research/evidence/runs."""
+        canonical_root = repo_root / "research/evidence/runs"
+        return cls(
+            job_name=job_name,
+            spec_id=spec_id,
+            locator=locator,
+            publication_root=canonical_root,
+        )
+
+
+@dataclass(frozen=True)
 class AnalysisPlan:
     experiment_id: str | None
     job_id: str
@@ -1151,6 +1290,130 @@ def _source_digests(trial: TrialRecord, cited_paths: set[str]) -> AnalysisSource
     )
 
 
+def _explicit_job_summary_reward(job: JobRecord, trial: TrialRecord) -> float | None:
+    """Return a job-summary reward only when Harbor binds it to this trial name."""
+    stats = job.result.get("stats")
+    evals = stats.get("evals") if isinstance(stats, dict) else None
+    if not isinstance(evals, dict):
+        return None
+    for eval_stats in evals.values():
+        if not isinstance(eval_stats, dict):
+            continue
+        reward_stats = eval_stats.get("reward_stats")
+        reward_distribution = reward_stats.get("reward") if isinstance(reward_stats, dict) else None
+        if not isinstance(reward_distribution, dict):
+            continue
+        for raw_value, trial_names in reward_distribution.items():
+            if not isinstance(trial_names, list) or trial.name not in trial_names:
+                continue
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                return None
+            return value if math.isfinite(value) else None
+    return None
+
+
+def _outcome_admissibility_fields(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    repo_root: Path | None = None,
+) -> dict[str, str | None]:
+    provenance = _experiment_provenance(job)
+    authority = _verified_trial_authority(job, trial, repo_root=repo_root)
+    admissibility = authority.record
+    decision = admissibility.decision
+    reason = admissibility.reason
+    allowed_use = admissibility.allowed_use
+    if admissibility.causal_eligible and not authority.causal_eligible:
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:unverified-registry-binding"
+        allowed_use = "descriptive-only"
+    elif not authority.artifact_present:
+        reason = "trial_admissibility_unavailable:missing-evidence-artifact"
+    return {
+        "network_isolation_evidence_digest": _string(
+            provenance.get("network_isolation_evidence_digest")
+        ),
+        "network_isolation_status": admissibility.network_isolation_status,
+        "network_isolation_reason": admissibility.network_isolation_reason,
+        "analysis_eligibility": admissibility.analysis_eligibility,
+        "trial_admissibility_digest": (
+            admissibility.admissibility_digest if authority.artifact_present else None
+        ),
+        "trial_admissibility_decision": decision,
+        "trial_admissibility_reason": reason,
+        "trial_allowed_use": allowed_use,
+    }
+
+
+def extract_outcome_records(
+    job: JobRecord,
+    trial: TrialRecord,
+    regrade_trials: Sequence[TrialRecord] = (),
+    *,
+    repo_root: Path | None = None,
+) -> list[OutcomeRecord]:
+    """Build immutable outcome facts for a source trial and explicit regrades."""
+    source_digest = _analysis_file_digest(trial.path / "result.json")
+    verifier_digest = _verifier_digest(job, trial)
+    original = outcome_record_from_trial(
+        trial,
+        source_digest=source_digest,
+        verifier_digest=verifier_digest,
+    )
+    records = [original]
+
+    fallback_reward = _explicit_job_summary_reward(job, trial)
+    if (
+        original.verifier_status == VerifierOutcomeStatus.timed_out_without_result
+        and original.reward_value is None
+        and fallback_reward is not None
+    ):
+        records.append(
+            synthetic_fallback_record(
+                original,
+                reward_value=fallback_reward,
+                evidence_path=str(job.path / "result.json"),
+            )
+        )
+
+    for regrade in regrade_trials:
+        records.append(
+            outcome_record_from_regrade(
+                regrade,
+                trial.id,
+                source_digest=source_digest,
+                source_artifact_digest=original.artifact_digest,
+                source_artifact_status=original.artifact_status,
+                source_agent_status=original.agent_status,
+                source_agent_exception=original.agent_exception,
+            )
+        )
+    authority = _outcome_admissibility_fields(job, trial, repo_root=repo_root)
+    return [bind_outcome_admissibility(record, **authority) for record in records]
+
+
+def resolve_trial_primary_reward(
+    job: JobRecord,
+    trial: TrialRecord,
+    regrade_trials: Sequence[TrialRecord] = (),
+) -> tuple[float | None, list[OutcomeRecord]]:
+    """Return the authoritative reward and the outcome records for a trial."""
+    outcomes = extract_outcome_records(job, trial, regrade_trials)
+    resolution = resolve_outcome_authority(
+        outcomes,
+        {
+            "trial_id": trial.id,
+            "source_digest": _analysis_file_digest(trial.path / "result.json"),
+            "verifier_digest": _verifier_digest(job, trial),
+            "artifact_digest": outcomes[0].artifact_digest,
+        },
+    )
+    return resolution.composite_vector.resolved_reward, outcomes
+
+
 def _load_trajectory_steps(path: Path) -> list[JsonObject] | None:
     try:
         payload = json.loads(path.read_text())
@@ -1264,8 +1527,146 @@ def run_trial_analysis(
     agent_version: str,
     model: str,
     created_at: datetime | None = None,
+    canonical_binding: CanonicalPublicationBinding | None = None,
 ) -> tuple[Path, TrialAnalysisSidecar]:
     before = _trial_tree_digests(trial.path)
+
+    # Validate canonical source binding strictly BEFORE any model call
+    if canonical_binding is not None:
+        from evallab.trial_admissibility import TrialAdmissibilityError
+
+        expected_durable_runs = repo_root / "research/evidence/runs"
+        durable_runs = canonical_binding.publication_root
+        if durable_runs != expected_durable_runs:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:invalid-canonical-publication-root"
+            )
+
+        if not durable_runs.is_dir() or os.path.islink(durable_runs):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:invalid-canonical-publication-root"
+            )
+
+        if canonical_binding.locator.kind != "job":
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:locator-job-binding-mismatch"
+            )
+
+        job_target = durable_runs / canonical_binding.job_name
+        trial_target = job_target / trial.name
+
+        if os.path.islink(job_target) or os.path.islink(trial_target):
+            raise TrialAdmissibilityError("trial_admissibility_invalid:symlinked-canonical-source")
+
+        if not job_target.is_dir() or not trial_target.is_dir():
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:missing-canonical-trial-path"
+            )
+
+        # Check for symlinks in EVERY ancestor component between repo_root and trial_target
+        current_ancestor = repo_root
+        for part in trial_target.relative_to(repo_root).parts:
+            current_ancestor = current_ancestor / part
+            st = os.lstat(current_ancestor)
+            if stat.S_ISLNK(st.st_mode):
+                raise TrialAdmissibilityError(
+                    "trial_admissibility_invalid:symlinked-canonical-source"
+                )
+
+        # Check for symlinks in EVERY component and nested file of job_target using os.lstat
+        def _check_no_symlinks(path: Path) -> None:
+            st = os.lstat(path)
+            if stat.S_ISLNK(st.st_mode):
+                raise TrialAdmissibilityError(
+                    "trial_admissibility_invalid:symlinked-canonical-source"
+                )
+            if stat.S_ISDIR(st.st_mode):
+                for entry in os.scandir(path):
+                    st_entry = entry.stat(follow_symlinks=False)
+                    if stat.S_ISLNK(st_entry.st_mode):
+                        raise TrialAdmissibilityError(
+                            "trial_admissibility_invalid:symlinked-canonical-source"
+                        )
+                    if stat.S_ISDIR(st_entry.st_mode):
+                        _check_no_symlinks(Path(entry.path))
+
+        _check_no_symlinks(job_target)
+
+        # Authenticate canonical durable job-level result.json
+        canonical_job_res_file = job_target / "result.json"
+        if not canonical_job_res_file.is_file() or os.path.islink(canonical_job_res_file):
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:missing-canonical-job-result"
+            )
+        try:
+            canonical_job_res = json.loads(canonical_job_res_file.read_text())
+        except (OSError, ValueError) as exc:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:corrupted-canonical-job-result"
+            ) from exc
+
+        # Require canonical durable job UUID to equal the independently CAS-materialized job UUID
+        durable_job_id = canonical_job_res.get("id")
+        if not durable_job_id or str(durable_job_id) != str(job.id):
+            raise TrialAdmissibilityError("trial_admissibility_invalid:job-identity-mismatch")
+
+        # Require canonical job-level embedded provenance / spec identity
+        canonical_lab_meta_file = job_target / "lab-metadata.json"
+        canonical_lab_metadata = None
+        if canonical_lab_meta_file.is_file() and not os.path.islink(canonical_lab_meta_file):
+            import contextlib
+
+            with contextlib.suppress(OSError, ValueError):
+                canonical_lab_metadata = json.loads(canonical_lab_meta_file.read_text())
+
+        canonical_provenance = (
+            canonical_lab_metadata.get("experiment")
+            if isinstance(canonical_lab_metadata, dict) and canonical_lab_metadata.get("experiment")
+            else (
+                canonical_job_res.get("metadata", {}).get("experiment")
+                if isinstance(canonical_job_res.get("metadata"), dict)
+                else canonical_job_res.get("experiment")
+            )
+        )
+        if (
+            not isinstance(canonical_provenance, dict)
+            or canonical_provenance.get("spec_id") != canonical_binding.spec_id
+        ):
+            raise TrialAdmissibilityError("trial_admissibility_invalid:provenance-spec-id-mismatch")
+
+        # Snapshot device, inode, and path identities before model call
+        def _snapshot_path_identities(path: Path) -> dict[str, tuple[int, int]]:
+            identities: dict[str, tuple[int, int]] = {}
+            for root_dir, _dirs, files in os.walk(path, followlinks=False):
+                r_path = Path(root_dir)
+                st = os.lstat(r_path)
+                rel = str(r_path.relative_to(path))
+                identities[f"dir:{rel}"] = (st.st_dev, st.st_ino)
+                for f in files:
+                    f_path = r_path / f
+                    st_f = os.lstat(f_path)
+                    rel_f = str(f_path.relative_to(path))
+                    identities[f"file:{rel_f}"] = (st_f.st_dev, st_f.st_ino)
+            return identities
+
+        initial_identities = _snapshot_path_identities(trial_target)
+        initial_job_identities = _snapshot_path_identities(job_target)
+
+        canonical_trial = trial_target
+        if _trial_tree_digests(canonical_trial) != before:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-content-mismatch"
+            )
+
+        source_path = canonical_trial.relative_to(repo_root).as_posix()
+        target_trial_dir = canonical_trial
+    else:
+        try:
+            source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            source_path = trial.path.resolve().as_posix()
+        target_trial_dir = trial.path.resolve()
+
     prompt_template = prompt_path.read_text()
     rubric = json.loads(rubric_path.read_text())
     schema = TrialAnalysisOutput.model_json_schema()
@@ -1282,10 +1683,15 @@ def run_trial_analysis(
     )
     validation_errors = validate_analysis_evidence(trial, output)
     analysis_id = uuid4()
-    try:
-        source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        source_path = trial.path.resolve().as_posix()
+
+    # Recheck immutability after model call
+    if _trial_tree_digests(trial.path) != before:
+        raise TrialAdmissibilityError("trial_admissibility_invalid:source-digest-drift")
+    if canonical_binding is not None and _trial_tree_digests(target_trial_dir) != before:
+        raise TrialAdmissibilityError(
+            "trial_admissibility_invalid:canonical-source-content-mismatch"
+        )
+
     sidecar = TrialAnalysisSidecar(
         analysis_id=analysis_id,
         experiment_id=experiment_id(job),
@@ -1313,12 +1719,44 @@ def run_trial_analysis(
         validation_errors=validation_errors,
         raw_response_digest=_digest_bytes(call_result.raw_output.encode()),
     )
-    if _trial_tree_digests(trial.path) != before:
-        raise RuntimeError("analysis modified the immutable source trial")
+
     sidecar_dir = destination_root.resolve() / str(analysis_id)
     sidecar_dir.mkdir(parents=True, exist_ok=False)
     sidecar_path = sidecar_dir / ANALYSIS_SIDECAR_FILENAME
     sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
+
+    # Validate path-identity continuity and content integrity across the analyzer call
+    if canonical_binding is not None:
+        from evallab.trial_admissibility import TrialAdmissibilityError
+
+        _check_no_symlinks(job_target)
+
+        current_job_identities = _snapshot_path_identities(job_target)
+        if current_job_identities != initial_job_identities:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-identity-drift"
+            )
+
+        current_identities = _snapshot_path_identities(trial_target)
+        if current_identities != initial_identities:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-identity-drift"
+            )
+
+        if _trial_tree_digests(canonical_trial) != before:
+            raise TrialAdmissibilityError(
+                "trial_admissibility_invalid:canonical-source-content-mismatch"
+            )
+
+    # Mint trial admissibility authority ONLY for valid interpretations (B6)
+    if sidecar.validation_status == "valid" and not sidecar.validation_errors:
+        finalize_trial_admissibility(
+            job=job,
+            trial=trial,
+            repo_root=repo_root,
+            interpretation_path=sidecar_path,
+            trial_dir=target_trial_dir,
+        )
     return sidecar_path, sidecar
 
 
@@ -1382,18 +1820,21 @@ class CodexExecAnalyzer:
         self,
         *,
         repo_root: Path,
-        trial: TrialRecord,
         model: str,
         authorization_path: Path,
         scratch_dir: Path,
+        source_trial_id: str | None = None,
+        trial: TrialRecord | None = None,
     ) -> None:
+        trial_id = source_trial_id or (trial.id if trial is not None else "")
         validate_queue_authorization(
             authorization_path,
             repo_root=repo_root,
-            source_trial_id=trial.id,
+            source_trial_id=trial_id,
         )
         self.repo_root = repo_root
         self.trial = trial
+        self.source_trial_id = trial_id
         self.model = model
         self.authorization_path = authorization_path
         self.scratch_dir = scratch_dir.resolve()
@@ -1404,7 +1845,7 @@ class CodexExecAnalyzer:
         validate_queue_authorization(
             self.authorization_path,
             repo_root=self.repo_root,
-            source_trial_id=self.trial.id,
+            source_trial_id=self.source_trial_id,
         )
         if self._calls >= 2:
             raise RuntimeError("queue authorization caps analysis at two model calls")
@@ -1427,7 +1868,7 @@ class CodexExecAnalyzer:
                 "--output-last-message",
                 str(output_path),
                 "--cd",
-                str(self.trial.path),
+                str(self.trial.path if self.trial is not None else self.repo_root),
                 prompt,
             ],
             check=False,

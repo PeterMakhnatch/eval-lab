@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import posixpath
 import re
 from datetime import date, datetime
-from typing import Any, Literal, cast, get_args
+from pathlib import Path, PurePosixPath
+from typing import Annotated, Any, Literal, cast, get_args
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -149,6 +151,498 @@ ExperimentPurpose = Literal[
 #: and the two can never drift. ``queue.purposeless_spec_message`` prints these.
 EXPERIMENT_PURPOSES: tuple[ExperimentPurpose, ...] = get_args(ExperimentPurpose)
 
+#: The only research purposes allowed to feed causal comparisons, capability
+#: claims, baselines, drift detection, or promotion.
+CAUSAL_EXPERIMENT_PURPOSES: frozenset[ExperimentPurpose] = frozenset(
+    {"baseline", "comparison", "elicitation", "drift"}
+)
+
+Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
+NetworkIsolationStatus = Literal["enforced", "unavailable", "unknown"]
+AnalysisEligibility = Literal["causal-eligible", "calibration-only"]
+NetworkEscapeClass = Literal[
+    "hostname",
+    "direct-ip",
+    "alternate-port",
+    "redirect",
+    "dns-rebinding",
+]
+NETWORK_ESCAPE_CLASSES: tuple[NetworkEscapeClass, ...] = (
+    "hostname",
+    "direct-ip",
+    "alternate-port",
+    "redirect",
+    "dns-rebinding",
+)
+DARWIN_ISOLATION_UNAVAILABLE_REASON = (
+    "network_isolation_unavailable:darwin-docker-public-egress-allows-"
+    "hostname-direct-ip-alternate-port-redirect-dns-rebinding"
+)
+MISSING_ISOLATION_EVIDENCE_REASON = "network_isolation_unknown:missing-evidence"
+
+
+def _contract_sha256(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode()
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+class NetworkPolicyEvidenceV1(ContractModel):
+    mode: Literal["public", "no-network", "allowlist"]
+    allowed_hosts: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def allowed_hosts_match_mode(self) -> NetworkPolicyEvidenceV1:
+        if self.mode == "allowlist" and not self.allowed_hosts:
+            raise ValueError("allowlist policy requires at least one allowed host")
+        if self.mode != "allowlist" and self.allowed_hosts:
+            raise ValueError("allowed hosts require allowlist policy")
+        if len(self.allowed_hosts) != len(set(self.allowed_hosts)):
+            raise ValueError("network policy allowed hosts must be unique")
+        return self
+
+
+class NetworkIsolationRuntimeIdentityV1(ContractModel):
+    platform_system: str = Field(min_length=1)
+    platform_release: str = Field(min_length=1)
+    platform_machine: str = Field(min_length=1)
+    container_runtime: str = Field(min_length=1)
+    container_runtime_version: str = Field(min_length=1)
+    container_image_digest: Digest
+    adapter: str = Field(min_length=1)
+    adapter_version: str = Field(min_length=1)
+    adapter_digest: Digest
+
+
+class NetworkIsolationProbeIdentityV1(ContractModel):
+    implementation: str = Field(min_length=1)
+    implementation_version: str = Field(min_length=1)
+    implementation_digest: Digest
+    config_digest: Digest
+
+
+class NetworkIsolationDispatchIdentityV1(ContractModel):
+    runtime_identity: NetworkIsolationRuntimeIdentityV1
+    probe_identity: NetworkIsolationProbeIdentityV1
+
+
+class NetworkEscapeProbeResultV1(ContractModel):
+    escape_class: NetworkEscapeClass
+    target: str = Field(min_length=1)
+    outcome: Literal["blocked", "escaped", "error"]
+    detail: str = Field(min_length=1)
+
+
+class NetworkIsolationProjectionV1(ContractModel):
+    status: NetworkIsolationStatus
+    reason: str | None = None
+    analysis_eligibility: AnalysisEligibility
+
+
+def _derive_network_isolation_projection(
+    *,
+    requested_agent_policy: NetworkPolicyEvidenceV1 | None,
+    effective_agent_policy: NetworkPolicyEvidenceV1 | None,
+    requested_verifier_policy: NetworkPolicyEvidenceV1 | None,
+    effective_verifier_policy: NetworkPolicyEvidenceV1 | None,
+    requested_verifier_phase_policy: NetworkPolicyEvidenceV1 | None,
+    effective_verifier_phase_policy: NetworkPolicyEvidenceV1 | None,
+    runtime_identity: NetworkIsolationRuntimeIdentityV1 | None,
+    probe_identity: NetworkIsolationProbeIdentityV1 | None,
+    probe_results: tuple[NetworkEscapeProbeResultV1, ...],
+    observed_at: datetime | None,
+    valid_until: datetime | None,
+    as_of: datetime,
+) -> NetworkIsolationProjectionV1:
+    if as_of.tzinfo is None:
+        raise ValueError("network-isolation evaluation time must be timezone-aware")
+    if requested_verifier_phase_policy is None or effective_verifier_phase_policy is None:
+        return NetworkIsolationProjectionV1(
+            status="unavailable",
+            reason="network_isolation_unavailable:missing-verifier-phase-policy-evidence",
+            analysis_eligibility="calibration-only",
+        )
+    required = (
+        requested_agent_policy,
+        effective_agent_policy,
+        requested_verifier_policy,
+        effective_verifier_policy,
+        requested_verifier_phase_policy,
+        effective_verifier_phase_policy,
+        runtime_identity,
+        probe_identity,
+        observed_at,
+        valid_until,
+    )
+    if any(value is None for value in required):
+        return NetworkIsolationProjectionV1(
+            status="unknown",
+            reason=MISSING_ISOLATION_EVIDENCE_REASON,
+            analysis_eligibility="calibration-only",
+        )
+    assert runtime_identity is not None
+    assert observed_at is not None
+    assert valid_until is not None
+    assert requested_agent_policy is not None
+    assert effective_agent_policy is not None
+    assert requested_verifier_policy is not None
+    assert effective_verifier_policy is not None
+    assert requested_verifier_phase_policy is not None
+    assert effective_verifier_phase_policy is not None
+    if observed_at.tzinfo is None or valid_until.tzinfo is None:
+        return NetworkIsolationProjectionV1(
+            status="unknown",
+            reason="network_isolation_unknown:naive-evidence-time",
+            analysis_eligibility="calibration-only",
+        )
+    if observed_at > valid_until or as_of < observed_at or as_of > valid_until:
+        return NetworkIsolationProjectionV1(
+            status="unknown",
+            reason="network_isolation_unknown:stale-evidence",
+            analysis_eligibility="calibration-only",
+        )
+    classes = [result.escape_class for result in probe_results]
+    if len(classes) != len(set(classes)) or set(classes) != set(NETWORK_ESCAPE_CLASSES):
+        return NetworkIsolationProjectionV1(
+            status="unknown",
+            reason="network_isolation_unknown:partial-probe-evidence",
+            analysis_eligibility="calibration-only",
+        )
+    policies_match = (
+        requested_agent_policy == effective_agent_policy
+        and requested_verifier_policy == effective_verifier_policy
+        and requested_verifier_phase_policy == effective_verifier_phase_policy
+    )
+    policies = (
+        requested_agent_policy,
+        effective_agent_policy,
+        requested_verifier_policy,
+        effective_verifier_policy,
+        requested_verifier_phase_policy,
+        effective_verifier_phase_policy,
+    )
+    isolation_capable = all(policy.mode in {"no-network", "allowlist"} for policy in policies)
+    escaped = tuple(result.escape_class for result in probe_results if result.outcome == "escaped")
+    errors = tuple(result.escape_class for result in probe_results if result.outcome == "error")
+    if not policies_match or not isolation_capable or escaped:
+        if runtime_identity.platform_system == "Darwin" and escaped:
+            reason = DARWIN_ISOLATION_UNAVAILABLE_REASON
+        elif not policies_match:
+            reason = "network_isolation_unavailable:requested-effective-policy-mismatch"
+        elif not isolation_capable:
+            reason = "network_isolation_unavailable:non-isolating-policy-mode"
+        else:
+            reason = "network_isolation_unavailable:escape-observed-" + "-".join(escaped)
+        return NetworkIsolationProjectionV1(
+            status="unavailable",
+            reason=reason,
+            analysis_eligibility="calibration-only",
+        )
+    if errors:
+        return NetworkIsolationProjectionV1(
+            status="unknown",
+            reason="network_isolation_unknown:probe-error-" + "-".join(errors),
+            analysis_eligibility="calibration-only",
+        )
+    return NetworkIsolationProjectionV1(
+        status="enforced",
+        reason=None,
+        analysis_eligibility="causal-eligible",
+    )
+
+
+class NetworkIsolationEvidenceV1(ContractModel):
+    schema_version: Literal["network-isolation-evidence/v1"] = "network-isolation-evidence/v1"
+    requested_agent_policy: NetworkPolicyEvidenceV1 | None = None
+    effective_agent_policy: NetworkPolicyEvidenceV1 | None = None
+    requested_verifier_policy: NetworkPolicyEvidenceV1 | None = None
+    effective_verifier_policy: NetworkPolicyEvidenceV1 | None = None
+    requested_verifier_phase_policy: NetworkPolicyEvidenceV1 | None = None
+    effective_verifier_phase_policy: NetworkPolicyEvidenceV1 | None = None
+    runtime_identity: NetworkIsolationRuntimeIdentityV1 | None = None
+    probe_identity: NetworkIsolationProbeIdentityV1 | None = None
+    probe_results: tuple[NetworkEscapeProbeResultV1, ...] = ()
+    observed_at: datetime | None = None
+    valid_until: datetime | None = None
+    evaluated_at: datetime
+    status: NetworkIsolationStatus
+    reason: str | None = None
+    analysis_eligibility: AnalysisEligibility
+    evidence_digest: Digest
+
+    @model_validator(mode="after")
+    def evidence_digest_and_projection_match(self) -> NetworkIsolationEvidenceV1:
+        expected = _derive_network_isolation_projection(
+            requested_agent_policy=self.requested_agent_policy,
+            effective_agent_policy=self.effective_agent_policy,
+            requested_verifier_policy=self.requested_verifier_policy,
+            effective_verifier_policy=self.effective_verifier_policy,
+            requested_verifier_phase_policy=self.requested_verifier_phase_policy,
+            effective_verifier_phase_policy=self.effective_verifier_phase_policy,
+            runtime_identity=self.runtime_identity,
+            probe_identity=self.probe_identity,
+            probe_results=self.probe_results,
+            observed_at=self.observed_at,
+            valid_until=self.valid_until,
+            as_of=self.evaluated_at,
+        )
+        if (
+            self.status,
+            self.reason,
+            self.analysis_eligibility,
+        ) != (expected.status, expected.reason, expected.analysis_eligibility):
+            raise ValueError("network-isolation status/reason/eligibility parity mismatch")
+        body = self.model_dump(mode="json", exclude={"evidence_digest"})
+        if self.evidence_digest != _contract_sha256(body):
+            raise ValueError("network-isolation evidence digest mismatch")
+        return self
+
+    def project(self, *, as_of: datetime) -> NetworkIsolationProjectionV1:
+        return _derive_network_isolation_projection(
+            requested_agent_policy=self.requested_agent_policy,
+            effective_agent_policy=self.effective_agent_policy,
+            requested_verifier_policy=self.requested_verifier_policy,
+            effective_verifier_policy=self.effective_verifier_policy,
+            requested_verifier_phase_policy=self.requested_verifier_phase_policy,
+            effective_verifier_phase_policy=self.effective_verifier_phase_policy,
+            runtime_identity=self.runtime_identity,
+            probe_identity=self.probe_identity,
+            probe_results=self.probe_results,
+            observed_at=self.observed_at,
+            valid_until=self.valid_until,
+            as_of=as_of,
+        )
+
+
+def build_network_isolation_evidence(
+    *,
+    requested_agent_policy: NetworkPolicyEvidenceV1 | None,
+    effective_agent_policy: NetworkPolicyEvidenceV1 | None,
+    requested_verifier_policy: NetworkPolicyEvidenceV1 | None,
+    effective_verifier_policy: NetworkPolicyEvidenceV1 | None,
+    requested_verifier_phase_policy: NetworkPolicyEvidenceV1 | None,
+    effective_verifier_phase_policy: NetworkPolicyEvidenceV1 | None,
+    runtime_identity: NetworkIsolationRuntimeIdentityV1 | None,
+    probe_identity: NetworkIsolationProbeIdentityV1 | None,
+    probe_results: tuple[NetworkEscapeProbeResultV1, ...],
+    observed_at: datetime | None,
+    valid_until: datetime | None,
+    evaluated_at: datetime,
+) -> NetworkIsolationEvidenceV1:
+    projection = _derive_network_isolation_projection(
+        requested_agent_policy=requested_agent_policy,
+        effective_agent_policy=effective_agent_policy,
+        requested_verifier_policy=requested_verifier_policy,
+        effective_verifier_policy=effective_verifier_policy,
+        requested_verifier_phase_policy=requested_verifier_phase_policy,
+        effective_verifier_phase_policy=effective_verifier_phase_policy,
+        runtime_identity=runtime_identity,
+        probe_identity=probe_identity,
+        probe_results=probe_results,
+        observed_at=observed_at,
+        valid_until=valid_until,
+        as_of=evaluated_at,
+    )
+    draft = NetworkIsolationEvidenceV1.model_construct(
+        requested_agent_policy=requested_agent_policy,
+        effective_agent_policy=effective_agent_policy,
+        requested_verifier_policy=requested_verifier_policy,
+        effective_verifier_policy=effective_verifier_policy,
+        requested_verifier_phase_policy=requested_verifier_phase_policy,
+        effective_verifier_phase_policy=effective_verifier_phase_policy,
+        runtime_identity=runtime_identity,
+        probe_identity=probe_identity,
+        probe_results=probe_results,
+        observed_at=observed_at,
+        valid_until=valid_until,
+        evaluated_at=evaluated_at,
+        status=projection.status,
+        reason=projection.reason,
+        analysis_eligibility=projection.analysis_eligibility,
+        evidence_digest="sha256:" + "0" * 64,
+    )
+    body = draft.model_dump(mode="json", exclude={"evidence_digest"})
+    return NetworkIsolationEvidenceV1.model_validate(
+        {**body, "evidence_digest": _contract_sha256(body)}
+    )
+
+
+class TaskRuntimeIdentityV1(ContractModel):
+    schema_version: Literal["task-runtime-identity/v1"] = "task-runtime-identity/v1"
+    task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    task_version: str = Field(min_length=1)
+    registry_record_digest: Digest
+    certified_runtime_package_digest: Digest
+    registry_admission_state: Literal["candidate", "registered", "retired"]
+
+
+class TrialSourceDigestsV1(ContractModel):
+    contract: Digest | None = None
+    trajectory: Digest | None = None
+    final_state: Digest | None = None
+    verifier: Digest | None = None
+    outcome: Digest | None = None
+    interpretation: Digest | None = None
+
+
+class TrialSourcePathsV1(ContractModel):
+    contract: tuple[str, ...] = ()
+    trajectory: tuple[str, ...] = ()
+    final_state: tuple[str, ...] = ()
+    verifier: tuple[str, ...] = ()
+    outcome: tuple[str, ...] = ()
+    interpretation: tuple[str, ...] = ()
+
+
+class TrialAdmissibilityV1(ContractModel):
+    schema_version: Literal["trial-admissibility/v1"] = "trial-admissibility/v1"
+    trial_id: str = Field(min_length=1)
+    task_runtime_identity: TaskRuntimeIdentityV1 | None = None
+    source_digests: TrialSourceDigestsV1
+    source_paths: TrialSourcePathsV1 | None = None
+    network_isolation_evidence: NetworkIsolationEvidenceV1 | None = None
+    network_isolation_evidence_digest: Digest | None = None
+    network_isolation_status: NetworkIsolationStatus
+    network_isolation_reason: str | None = None
+    analysis_eligibility: AnalysisEligibility
+    decision: Literal["admissible", "rejected", "unavailable"]
+    reason: str = Field(min_length=1)
+    allowed_use: Literal["causal", "descriptive-only"]
+    evaluated_at: datetime
+    admissibility_digest: Digest
+
+    @model_validator(mode="after")
+    def decision_and_digest_match(self) -> TrialAdmissibilityV1:
+        expected = derive_trial_admissibility(
+            trial_id=self.trial_id,
+            task_runtime_identity=self.task_runtime_identity,
+            source_digests=self.source_digests,
+            source_paths=self.source_paths,
+            network_isolation_evidence=self.network_isolation_evidence,
+            evaluated_at=self.evaluated_at,
+        )
+        parity = (
+            self.network_isolation_evidence_digest,
+            self.network_isolation_status,
+            self.network_isolation_reason,
+            self.analysis_eligibility,
+            self.decision,
+            self.reason,
+            self.allowed_use,
+        )
+        expected_parity = (
+            expected["network_isolation_evidence_digest"],
+            expected["network_isolation_status"],
+            expected["network_isolation_reason"],
+            expected["analysis_eligibility"],
+            expected["decision"],
+            expected["reason"],
+            expected["allowed_use"],
+        )
+        if parity != expected_parity:
+            raise ValueError("trial admissibility decision parity mismatch")
+        body = self.model_dump(mode="json", exclude={"admissibility_digest"})
+        if self.admissibility_digest != _contract_sha256(body):
+            raise ValueError("trial admissibility digest mismatch")
+        return self
+
+    @property
+    def causal_eligible(self) -> bool:
+        return self.decision == "admissible" and self.allowed_use == "causal"
+
+
+def derive_trial_admissibility(
+    *,
+    trial_id: str,
+    task_runtime_identity: TaskRuntimeIdentityV1 | None,
+    source_digests: TrialSourceDigestsV1,
+    source_paths: TrialSourcePathsV1 | None,
+    network_isolation_evidence: NetworkIsolationEvidenceV1 | None,
+    evaluated_at: datetime,
+) -> dict[str, Any]:
+    if network_isolation_evidence is None:
+        projection = NetworkIsolationProjectionV1(
+            status="unknown",
+            reason=MISSING_ISOLATION_EVIDENCE_REASON,
+            analysis_eligibility="calibration-only",
+        )
+        evidence_digest = None
+    else:
+        projection = network_isolation_evidence.project(as_of=evaluated_at)
+        evidence_digest = network_isolation_evidence.evidence_digest
+    if task_runtime_identity is None:
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:missing-task-runtime-identity"
+    elif task_runtime_identity.registry_admission_state != "registered":
+        decision = "rejected"
+        reason = (
+            "trial_admissibility_rejected:registry-state-"
+            + task_runtime_identity.registry_admission_state
+        )
+    elif source_paths is None or any(not value for value in source_paths.model_dump().values()):
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:incomplete-source-path-chain"
+    elif any(value is None for value in source_digests.model_dump().values()):
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:incomplete-source-digest-chain"
+    elif projection.status != "enforced":
+        decision = "unavailable"
+        reason = "trial_admissibility_unavailable:" + (
+            projection.reason or "network-isolation-not-enforced"
+        )
+    elif projection.analysis_eligibility != "causal-eligible":
+        decision = "rejected"
+        reason = "trial_admissibility_rejected:isolation-not-causal-eligible"
+    else:
+        decision = "admissible"
+        reason = "trial_admissibility_admissible:exact-runtime-and-evidence-binding"
+    return {
+        "trial_id": trial_id,
+        "network_isolation_evidence_digest": evidence_digest,
+        "network_isolation_status": projection.status,
+        "network_isolation_reason": projection.reason,
+        "analysis_eligibility": projection.analysis_eligibility,
+        "decision": decision,
+        "reason": reason,
+        "allowed_use": "causal" if decision == "admissible" else "descriptive-only",
+    }
+
+
+def build_trial_admissibility(
+    *,
+    trial_id: str,
+    task_runtime_identity: TaskRuntimeIdentityV1 | None,
+    source_digests: TrialSourceDigestsV1,
+    source_paths: TrialSourcePathsV1 | None,
+    network_isolation_evidence: NetworkIsolationEvidenceV1 | None,
+    evaluated_at: datetime,
+) -> TrialAdmissibilityV1:
+    projection = derive_trial_admissibility(
+        trial_id=trial_id,
+        task_runtime_identity=task_runtime_identity,
+        source_digests=source_digests,
+        source_paths=source_paths,
+        network_isolation_evidence=network_isolation_evidence,
+        evaluated_at=evaluated_at,
+    )
+    draft = TrialAdmissibilityV1.model_construct(
+        task_runtime_identity=task_runtime_identity,
+        source_digests=source_digests,
+        source_paths=source_paths,
+        network_isolation_evidence=network_isolation_evidence,
+        evaluated_at=evaluated_at,
+        admissibility_digest="sha256:" + "0" * 64,
+        **projection,
+    )
+    body = draft.model_dump(mode="json", exclude={"admissibility_digest"})
+    return TrialAdmissibilityV1.model_validate(
+        {**body, "admissibility_digest": _contract_sha256(body)}
+    )
+
 
 class ElicitationSpec(ContractModel):
     """§2.1 / §4 Elicitation tuple describing agent prompt and environment conditions.
@@ -218,6 +712,22 @@ class PowerSpec(ContractModel):
     )
 
 
+class ProviderRoute(ContractModel):
+    """One pre-authorized provider route for the same logical treatment."""
+
+    route_id: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]+$",
+    )
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    credential_requirement: str = Field(min_length=1)
+    logical_model_revision: str = Field(min_length=1)
+    tool_contract_digest: Digest
+    max_cost_usd: float = Field(gt=0)
+
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
@@ -258,6 +768,19 @@ class ExperimentSpec(ContractModel):
     )
     agent: str = Field(min_length=1)
     model: str | None = None
+    provider_routes: list[ProviderRoute] = Field(
+        default_factory=list,
+        description=(
+            "ordered, pre-authorized provider routes for one unchanged logical "
+            "model revision and tool contract"
+        ),
+    )
+    provider_failover_max_cost_usd: float | None = Field(
+        default=None,
+        gt=0,
+        description="maximum cumulative cost authorized across all provider routes",
+    )
+    provider_exhaustion_behavior: Literal["fail", "wait"] = "fail"
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
@@ -329,6 +852,12 @@ class ExperimentSpec(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
     campaign_evidence_store: str | None = None
+    task_runtime_identity: TaskRuntimeIdentityV1 | None = None
+    network_isolation_evidence: NetworkIsolationEvidenceV1 | None = None
+    network_isolation_evidence_digest: Digest | None = None
+    network_isolation_status: NetworkIsolationStatus | None = None
+    network_isolation_reason: str | None = None
+    analysis_eligibility: AnalysisEligibility | None = None
 
     @field_validator(
         "task",
@@ -354,6 +883,40 @@ class ExperimentSpec(ContractModel):
     def controls_and_campaigns_are_bounded(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
+        if self.provider_routes:
+            if not self.billable:
+                raise ValueError("control specs cannot declare provider routes")
+            if self.model is None:
+                raise ValueError("provider routes require an exact model")
+            if self.provider_failover_max_cost_usd is None:
+                raise ValueError("provider routes require provider_failover_max_cost_usd")
+            route_ids = [route.route_id for route in self.provider_routes]
+            providers = [route.provider for route in self.provider_routes]
+            if len(route_ids) != len(set(route_ids)):
+                raise ValueError("provider route ids must be unique")
+            if len(providers) != len(set(providers)):
+                raise ValueError("provider routes must name distinct providers")
+            first = self.provider_routes[0]
+            if first.model != self.model:
+                raise ValueError("the first provider route must match the spec model selector")
+            logical_revisions = {route.logical_model_revision for route in self.provider_routes}
+            tool_contracts = {route.tool_contract_digest for route in self.provider_routes}
+            if len(logical_revisions) != 1 or len(tool_contracts) != 1:
+                raise ValueError(
+                    "all provider routes must preserve the exact logical model revision "
+                    "and tool contract"
+                )
+            route_maximum = sum(route.max_cost_usd for route in self.provider_routes)
+            if not math.isclose(route_maximum, self.provider_failover_max_cost_usd):
+                raise ValueError(
+                    "provider route costs must equal provider_failover_max_cost_usd"
+                )
+            if self.est_cost_usd < self.provider_failover_max_cost_usd:
+                raise ValueError(
+                    "est_cost_usd must cover the full authorized provider failover maximum"
+                )
+        elif self.provider_failover_max_cost_usd is not None:
+            raise ValueError("provider_failover_max_cost_usd requires provider_routes")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
         campaign_fields = (
@@ -383,6 +946,47 @@ class ExperimentSpec(ContractModel):
                 raise ValueError(
                     "billable campaign specs require request, cost, and token ceilings"
                 )
+            if self.task_runtime_identity is None:
+                raise ValueError("campaign specs require a frozen task runtime identity")
+            isolation_fields = (
+                self.network_isolation_evidence,
+                self.network_isolation_evidence_digest,
+                self.network_isolation_status,
+                self.analysis_eligibility,
+            )
+            if self.billable and any(value is None for value in isolation_fields):
+                raise ValueError("billable campaign specs require bound network-isolation evidence")
+        if self.network_isolation_evidence is not None:
+            projection = self.network_isolation_evidence.project(
+                as_of=self.network_isolation_evidence.evaluated_at
+            )
+            if (
+                self.network_isolation_evidence_digest,
+                self.network_isolation_status,
+                self.network_isolation_reason,
+                self.analysis_eligibility,
+            ) != (
+                self.network_isolation_evidence.evidence_digest,
+                projection.status,
+                projection.reason,
+                projection.analysis_eligibility,
+            ):
+                raise ValueError("ExperimentSpec network-isolation evidence parity mismatch")
+            if (
+                self.purpose in CAUSAL_EXPERIMENT_PURPOSES
+                and self.analysis_eligibility != "causal-eligible"
+            ):
+                raise ValueError(f"{self.purpose} requires causal-eligible network isolation")
+        elif any(
+            value is not None
+            for value in (
+                self.network_isolation_evidence_digest,
+                self.network_isolation_status,
+                self.network_isolation_reason,
+                self.analysis_eligibility,
+            )
+        ):
+            raise ValueError("network-isolation claims require bound evidence")
         return self
 
     @property
@@ -518,6 +1122,10 @@ class QueueEvent(ContractModel):
     report_date: str | None = None
     attempt_number: int | None = Field(default=None, ge=1)
     estimated_cost_usd: float | None = Field(default=None, ge=0)
+    provider: str | None = None
+    provider_route_id: str | None = None
+    provider_route_attempt_id: str | None = None
+    provider_priority_index: int | None = Field(default=None, ge=0)
     approved_spec_digest: str | None = Field(
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
@@ -530,6 +1138,32 @@ class QueueEvent(ContractModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    cas_store_root: str | None = None
+    cas_record_kind: str | None = None
+    cas_record_id: str | None = None
+    cas_record_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    cas_content_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def cas_locator_is_complete(self) -> QueueEvent:
+        locator = (
+            self.cas_store_root,
+            self.cas_record_kind,
+            self.cas_record_id,
+            self.cas_record_digest,
+            self.cas_content_digest,
+        )
+        if any(value is not None for value in locator) and any(value is None for value in locator):
+            raise ValueError("queue CAS locator fields must be all present or all absent")
+        if self.cas_store_root is not None and not Path(self.cas_store_root).is_absolute():
+            raise ValueError("queue CAS store root must be absolute")
+        return self
 
 
 class QueueReason(ContractModel):
@@ -636,6 +1270,49 @@ class RunProvenance(ContractModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    task_runtime_identity: TaskRuntimeIdentityV1 | None = None
+    network_isolation_evidence: NetworkIsolationEvidenceV1 | None = None
+    network_isolation_evidence_digest: Digest | None = None
+    network_isolation_status: NetworkIsolationStatus | None = None
+    network_isolation_reason: str | None = None
+    analysis_eligibility: AnalysisEligibility | None = None
+    provider: str | None = None
+    provider_route_id: str | None = None
+    provider_route_attempt_id: str | None = None
+    logical_model_revision: str | None = None
+    tool_contract_digest: Digest | None = None
+    provider_failover_max_cost_usd: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def runtime_authority_is_bound(self) -> RunProvenance:
+        if self.network_isolation_evidence is None:
+            if any(
+                value is not None
+                for value in (
+                    self.network_isolation_evidence_digest,
+                    self.network_isolation_status,
+                    self.network_isolation_reason,
+                    self.analysis_eligibility,
+                )
+            ):
+                raise ValueError("run isolation claims require bound evidence")
+            return self
+        projection = self.network_isolation_evidence.project(
+            as_of=self.network_isolation_evidence.evaluated_at
+        )
+        if (
+            self.network_isolation_evidence_digest,
+            self.network_isolation_status,
+            self.network_isolation_reason,
+            self.analysis_eligibility,
+        ) != (
+            self.network_isolation_evidence.evidence_digest,
+            projection.status,
+            projection.reason,
+            projection.analysis_eligibility,
+        ):
+            raise ValueError("run network-isolation evidence parity mismatch")
+        return self
 
 
 class CohortSelector(ContractModel):
@@ -1339,6 +2016,217 @@ class CertificationCheckVector(ContractModel):
     isolation: bool
 
 
+DURABLE_EXTERNAL_IMPORT_PREFIX = "research/registration/imports/"
+
+
+def _canonical_utc_timestamp(value: str, label: str) -> str:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ValueError(
+            f"{label} must be a canonical UTC ISO-8601 timestamp ending in 'Z': {value!r}"
+        )
+    pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{6})?Z$"
+    if not re.match(pattern, value):
+        raise ValueError(
+            f"{label} must be a canonical UTC ISO-8601 timestamp ending in 'Z': {value!r}"
+        )
+    try:
+        dt = datetime.fromisoformat(value[:-1] + "+00:00")
+        if dt.tzinfo is None:
+            raise ValueError(f"{label} must be timezone-aware UTC: {value!r}")
+    except ValueError as exc:
+        raise ValueError(f"{label} is not a valid ISO-8601 datetime: {value!r}") from exc
+
+    if dt.microsecond == 0:
+        canonical = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    else:
+        canonical = dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    if value != canonical:
+        raise ValueError(
+            f"{label} must be byte-equal to canonical UTC ISO-8601 serialization (expected {canonical!r}, got {value!r})"
+        )
+    return canonical
+
+
+def _external_import_path(value: str, label: str) -> str:
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"{label} must stay repository-relative")
+    if not value.startswith(DURABLE_EXTERNAL_IMPORT_PREFIX):
+        raise ValueError(f"{label} must be under {DURABLE_EXTERNAL_IMPORT_PREFIX!r}")
+    normalized = path.as_posix()
+    if (
+        value != normalized
+        or "//" in value
+        or "/./" in value
+        or value.endswith("/.")
+        or "\\" in value
+    ):
+        raise ValueError(
+            f"{label} must be a canonical normalized POSIX path without aliases: {value!r}"
+        )
+    return normalized
+
+
+class ExternalImportLineageV1(ContractModel):
+    schema_version: Literal[1] = 1
+    source_task_id: str = Field(min_length=1)
+    source_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_checkpoint_ref: str = Field(min_length=1)
+    transformation_record_path: str = Field(min_length=1)
+    transformation_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("transformation_record_path")
+    @classmethod
+    def transformation_record_is_durable(cls, value: str) -> str:
+        value = _external_import_path(value, "transformation_record_path")
+        if not value.endswith(".json"):
+            raise ValueError("transformation_record_path must name a JSON record")
+        return value
+
+
+class ExternalImportSourceV1(ContractModel):
+    source_uri: str = Field(min_length=1)
+    source_ref: str = Field(min_length=1)
+    source_task_id: str = Field(min_length=1)
+    source_checkpoint_ref: str = Field(min_length=1)
+    source_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class ExternalImportTransformerV1(ContractModel):
+    name: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    code_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    configuration_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class ExternalImportTransformationFactV1(ContractModel):
+    sequence: int = Field(ge=1)
+    operation: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    affected_paths: list[str] = Field(default_factory=list)
+
+    @field_validator("affected_paths")
+    @classmethod
+    def affected_paths_are_relative(cls, values: list[str]) -> list[str]:
+        for value in values:
+            path = PurePosixPath(value)
+            if not value or path.is_absolute() or ".." in path.parts:
+                raise ValueError("transformation affected_paths must be safe relative paths")
+        return values
+
+
+class ExternalImportOutputV1(ContractModel):
+    task_id: str = Field(min_length=1)
+    task_version: str = Field(min_length=1)
+    registry_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class ExternalImportBuildAttestationV1(ContractModel):
+    schema_version: Literal[1] = 1
+    build_id: str = Field(min_length=1)
+    built_at: str = Field(min_length=1)
+    environment_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    toolchain_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    output_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("built_at")
+    @classmethod
+    def built_at_is_canonical_utc(cls, value: str) -> str:
+        return _canonical_utc_timestamp(value, "built_at")
+
+
+class ExternalImportBuildEvidenceV1(ContractModel):
+    build_id: str = Field(min_length=1)
+    evidence_path: str = Field(min_length=1)
+    evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    built_at: str = Field(min_length=1)
+    environment_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    toolchain_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    output_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("evidence_path")
+    @classmethod
+    def evidence_path_is_durable(cls, value: str) -> str:
+        return _external_import_path(value, "build evidence_path")
+
+    @field_validator("built_at")
+    @classmethod
+    def built_at_is_canonical_utc(cls, value: str) -> str:
+        return _canonical_utc_timestamp(value, "built_at")
+
+
+class ExternalImportReproducibilityV1(ContractModel):
+    builds: tuple[ExternalImportBuildEvidenceV1, ExternalImportBuildEvidenceV1]
+
+    @field_validator("builds")
+    @classmethod
+    def validate_two_distinct_builds(
+        cls, values: tuple[ExternalImportBuildEvidenceV1, ExternalImportBuildEvidenceV1]
+    ) -> tuple[ExternalImportBuildEvidenceV1, ExternalImportBuildEvidenceV1]:
+        if len(values) != 2:
+            raise ValueError("reproducibility requires exactly two clean build evidence records")
+        b1, b2 = values
+        if b1.build_id == b2.build_id:
+            raise ValueError("two clean builds must have distinct build_id values")
+        if b1.evidence_path == b2.evidence_path:
+            raise ValueError("two clean builds must have distinct evidence_path references")
+        if b1.evidence_digest == b2.evidence_digest:
+            raise ValueError("two clean builds must have distinct evidence_digest values")
+        return values
+
+
+class ExternalImportSemanticEquivalenceV1(ContractModel):
+    status: Literal["equivalent"]
+    evidence_path: str = Field(min_length=1)
+    evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("evidence_path")
+    @classmethod
+    def evidence_path_is_durable(cls, value: str) -> str:
+        return _external_import_path(value, "semantic equivalence evidence_path")
+
+
+class ExternalImportTransformationRecordV1(ContractModel):
+    schema_version: Literal[1] = 1
+    created_at: str = Field(min_length=1)
+    import_mode: Literal["no-op", "transformed"]
+    source: ExternalImportSourceV1
+    transformer: ExternalImportTransformerV1
+    transformations: list[ExternalImportTransformationFactV1] = Field(min_length=1)
+    output: ExternalImportOutputV1
+    reproducibility: ExternalImportReproducibilityV1
+    semantic_equivalence: ExternalImportSemanticEquivalenceV1
+
+    @field_validator("created_at")
+    @classmethod
+    def created_at_is_canonical_utc(cls, value: str) -> str:
+        return _canonical_utc_timestamp(value, "created_at")
+
+    @model_validator(mode="after")
+    def validate_transformation_invariants(self) -> ExternalImportTransformationRecordV1:
+        sequences = [item.sequence for item in self.transformations]
+        if sequences != list(range(1, len(sequences) + 1)):
+            raise ValueError("transformation facts must have contiguous ordered sequence values")
+        source_digest = self.source.source_package_digest
+        output_digest = self.output.registry_package_digest
+        if self.import_mode == "no-op" and source_digest != output_digest:
+            raise ValueError("no-op import requires equal source and output package digests")
+        if self.import_mode == "transformed" and source_digest == output_digest:
+            raise ValueError(
+                "transformed import requires unequal source and output package digests"
+            )
+        for b in self.reproducibility.builds:
+            if b.output_package_digest != output_digest:
+                raise ValueError("both clean builds must reproduce the output package digest")
+        build_paths = {b.evidence_path for b in self.reproducibility.builds}
+        if self.semantic_equivalence.evidence_path in build_paths:
+            raise ValueError(
+                "semantic equivalence evidence path cannot alias a build evidence path"
+            )
+        return self
+
+
 class CertificationControlSummary(ContractModel):
     oracle_runs: int = Field(ge=0)
     nop_runs: int = Field(ge=0)
@@ -1493,6 +2381,7 @@ class TaskRegistryRecord(ContractModel):
     digests: TaskDigests
     source_uri: str = Field(min_length=1)
     source_ref: str | None = None
+    external_import_lineage: ExternalImportLineageV1 | None = None
     license: str | None = None
     provenance_zone: Literal[
         "01-external",
@@ -1540,37 +2429,62 @@ class TaskRegistryRecord(ContractModel):
     @model_validator(mode="after")
     def validate_state_invariants(self) -> TaskRegistryRecord:
         if self.state == "registered":
-            if self.state_reason is not None:
-                raise ValueError("registered task records cannot carry state_reason")
-            if self.control_evidence is None:
-                raise ValueError("registered task records require control_evidence")
+            pending_controls = self.state_reason == "control_evidence_pending"
+            if pending_controls:
+                if self.control_evidence is not None:
+                    raise ValueError(
+                        "control-pending registry records cannot carry control_evidence"
+                    )
+                if self.allowed_uses != ["canary"]:
+                    raise ValueError("control-pending registry records permit only canary use")
+                if self.certification.state != "bound":
+                    raise ValueError("control-pending registry records require bound certification")
+            else:
+                if self.state_reason is not None:
+                    raise ValueError("registered task records cannot carry state_reason")
+                if self.control_evidence is None:
+                    raise ValueError("registered task records require control_evidence")
             if not self.approved_by or not self.approved_by.strip():
                 raise ValueError("registered task records require approved_by")
             if self.approved_at is None:
                 raise ValueError("registered task records require approved_at")
-            if self.control_evidence.oracle.reward != 1.0:
+            if not pending_controls:
+                assert self.control_evidence is not None
+                if self.control_evidence.oracle.reward != 1.0:
+                    raise ValueError(
+                        "registered task requires oracle reward 1.0 "
+                        f"(got {self.control_evidence.oracle.reward})"
+                    )
+                if self.control_evidence.nop.reward != 0.0:
+                    raise ValueError(
+                        "registered task requires nop reward 0.0 "
+                        f"(got {self.control_evidence.nop.reward})"
+                    )
+                for label, ref in (
+                    ("oracle", self.control_evidence.oracle),
+                    ("nop", self.control_evidence.nop),
+                ):
+                    if ref.task_id != self.task_id or ref.task_version != self.version:
+                        raise ValueError(
+                            f"registered task {label} evidence identity does not match "
+                            "the registry record"
+                        )
+                    if ref.task_digests != self.digests:
+                        raise ValueError(
+                            f"registered task {label} evidence digests do not match the registry record"
+                        )
+            if self.provenance_zone != "01-external" and self.external_import_lineage is not None:
                 raise ValueError(
-                    "registered task requires oracle reward 1.0 "
-                    f"(got {self.control_evidence.oracle.reward})"
+                    "external_import_lineage is only allowed on 01-external registry records"
                 )
-            if self.control_evidence.nop.reward != 0.0:
-                raise ValueError(
-                    "registered task requires nop reward 0.0 "
-                    f"(got {self.control_evidence.nop.reward})"
-                )
-            for label, ref in (
-                ("oracle", self.control_evidence.oracle),
-                ("nop", self.control_evidence.nop),
+            if (
+                self.provenance_zone == "01-external"
+                and self.certification.workbench_version == "m049-v2"
+                and self.external_import_lineage is None
             ):
-                if ref.task_id != self.task_id or ref.task_version != self.version:
-                    raise ValueError(
-                        f"registered task {label} evidence identity does not match "
-                        "the registry record"
-                    )
-                if ref.task_digests != self.digests:
-                    raise ValueError(
-                        f"registered task {label} evidence digests do not match the registry record"
-                    )
+                raise ValueError(
+                    "m049-v2 external registry records require external_import_lineage"
+                )
             if self.provenance_zone == "01-external":
                 if not self.license or not self.license.strip():
                     raise ValueError("external registered task requires license")
@@ -2334,3 +3248,164 @@ class StateJournalEvent(ContractModel):
     cookie: int | None = Field(default=None, ge=0)
     is_directory: bool
     state: StateEventMetadata | None = None
+
+
+GateStatus = Literal["pass", "fail", "blocked", "untested"]
+ReadinessGate = Literal[
+    "declared",
+    "installed",
+    "host_credential",
+    "harbor_transport",
+    "environment_network",
+    "structured_trajectory",
+    "smoke",
+    "canary",
+]
+ReadinessState = Literal[
+    "declared",
+    "installed",
+    "credential-ready",
+    "smoke-passed",
+    "canary-qualified",
+]
+
+
+class AgentGateEvaluations(ContractModel):
+    declared: GateStatus = "untested"
+    installed: GateStatus = "untested"
+    host_credential: GateStatus = "untested"
+    harbor_transport: GateStatus = "untested"
+    environment_network: GateStatus = "untested"
+    structured_trajectory: GateStatus = "untested"
+    smoke: GateStatus = "untested"
+    canary: GateStatus = "untested"
+
+
+class AgentBlocker(ContractModel):
+    gate: ReadinessGate
+    reason: str = Field(min_length=1)
+    remediation: str | None = None
+
+
+class AgentSmokeRecord(ContractModel):
+    """One fresh-container transport and structured-capture proof.
+
+    Task reward is recorded when available but never participates in runtime
+    qualification.
+    """
+
+    schema_version: Literal[2] = 2
+    profile_id: str = Field(min_length=1)
+    profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    task: str = Field(min_length=1)
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    job_name: str = Field(min_length=1)
+    trial_name: str = Field(min_length=1)
+    reward: float | None = None
+    agent_exception_type: str | None = None
+    runtime_seconds: float = Field(ge=0.0)
+    step_count: int = Field(ge=1)
+    tool_call_count: int = Field(ge=0)
+    atif_path: str = Field(min_length=1)
+    atif_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    native_evidence_path: str | None = None
+    native_evidence_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    fresh_container: Literal[True] = True
+    transport_status: Literal["complete"] = "complete"
+    capture_status: Literal["complete"] = "complete"
+    secret_safety_status: Literal["pass"] = "pass"
+    executed_at: datetime
+
+    @model_validator(mode="after")
+    def _validate_runtime_evidence(self) -> AgentSmokeRecord:
+        if self.reward is not None and not math.isfinite(self.reward):
+            raise ValueError("runtime smoke reward must be finite when present")
+        if (self.native_evidence_path is None) != (self.native_evidence_digest is None):
+            raise ValueError("native evidence path and digest must be present together")
+        return self
+
+
+class AgentQualificationDigest(ContractModel):
+    schema_version: Literal[2] = 2
+    profile_id: str = Field(min_length=1)
+    profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    qualification_basis: Literal["transport-capture"] = "transport-capture"
+    repeats: int = Field(ge=3)
+    success_count: int = Field(ge=3)
+    smoke_records: list[AgentSmokeRecord] = Field(min_length=3)
+    qualification_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    qualified_at: datetime
+
+    @model_validator(mode="after")
+    def _validate_complete_repeats(self) -> AgentQualificationDigest:
+        if self.success_count != self.repeats or len(self.smoke_records) != self.repeats:
+            raise ValueError("qualification requires one complete runtime smoke per repeat")
+        if any(
+            record.profile_id != self.profile_id or record.profile_digest != self.profile_digest
+            for record in self.smoke_records
+        ):
+            raise ValueError("qualification smoke records must match the qualified profile")
+        if len({record.job_name for record in self.smoke_records}) != self.repeats:
+            raise ValueError("qualification requires a fresh Harbor job per repeat")
+        canonical = json.dumps(
+            [record.model_dump(mode="json") for record in self.smoke_records],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        expected_digest = f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
+        if self.qualification_digest != expected_digest:
+            raise ValueError("transport/capture qualification digest mismatch")
+        return self
+
+
+class AgentReadinessRecord(ContractModel):
+    schema_version: Literal[1] = 1
+    profile_id: str = Field(min_length=1)
+    adapter: str = Field(min_length=1)
+    model: str | None = None
+    profile_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    state: ReadinessState
+    gates: AgentGateEvaluations
+    blocker: AgentBlocker | None = None
+    last_smoke: AgentSmokeRecord | None = None
+    qualification: AgentQualificationDigest | None = None
+    updated_at: datetime
+    network_isolation_evidence: NetworkIsolationEvidenceV1 | None = None
+    network_isolation_evidence_digest: Digest | None = None
+    network_isolation_status: NetworkIsolationStatus = "unknown"
+    network_isolation_reason: str | None = MISSING_ISOLATION_EVIDENCE_REASON
+    analysis_eligibility: AnalysisEligibility = "calibration-only"
+
+    @model_validator(mode="after")
+    def isolation_projection_matches_evidence(self) -> AgentReadinessRecord:
+        if self.network_isolation_evidence is None:
+            expected = (
+                None,
+                "unknown",
+                MISSING_ISOLATION_EVIDENCE_REASON,
+                "calibration-only",
+            )
+        else:
+            projection = self.network_isolation_evidence.project(as_of=self.updated_at)
+            if (
+                self.network_isolation_evidence.runtime_identity is not None
+                and self.network_isolation_evidence.runtime_identity.adapter != self.adapter
+            ):
+                raise ValueError("readiness isolation adapter identity mismatch")
+            expected = (
+                self.network_isolation_evidence.evidence_digest,
+                projection.status,
+                projection.reason,
+                projection.analysis_eligibility,
+            )
+        if (
+            self.network_isolation_evidence_digest,
+            self.network_isolation_status,
+            self.network_isolation_reason,
+            self.analysis_eligibility,
+        ) != expected:
+            raise ValueError("readiness network-isolation evidence parity mismatch")
+        return self

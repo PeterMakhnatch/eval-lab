@@ -9,6 +9,7 @@ Key invariants:
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -52,6 +53,29 @@ _PROVIDER_5XX = re.compile(
     r"(?:http(?:/\d(?:\.\d)?)?\s*5\d\d|status(?:\s+code)?\s*[:=]?\s*5\d\d|"
     r"\b5\d\d\b.{0,80}(?:provider|upstream|api|server|gateway|service unavailable))",
     re.IGNORECASE | re.DOTALL,
+)
+_PROVIDER_FAILOVER_CODES: dict[str, str] = {
+    "account_balance_exhausted": "provider_failover:balance_exhausted",
+    "auth_quota_exhausted": "provider_failover:auth_quota_exhausted",
+    "authentication_quota_exhausted": "provider_failover:auth_quota_exhausted",
+    "billing_hard_limit": "provider_failover:account_quota_exhausted",
+    "billing_hard_limit_reached": "provider_failover:account_quota_exhausted",
+    "credit_balance_exhausted": "provider_failover:credits_exhausted",
+    "insufficient_quota": "provider_failover:account_quota_exhausted",
+    "subscription_quota_exhausted": "provider_failover:account_quota_exhausted",
+}
+_PROVIDER_FAILOVER_EXCEPTION_TYPES: frozenset[str] = frozenset(
+    {
+        "AgentRunError",
+        "ApiAuthenticationError",
+        "ApiPermissionDeniedError",
+        "ApiRateLimitError",
+        "ApiStatusError",
+        "AuthenticationError",
+        "NonZeroAgentExitCodeError",
+        "PermissionDeniedError",
+        "UnknownApiError",
+    }
 )
 _KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS: dict[str, str] = {
     "ApiRateLimitError": "transient_harness:provider_http_429",
@@ -114,6 +138,57 @@ DEEPSEEK_PROXY_ATTEMPT_ID_ENV = "EVALLAB_DEEPSEEK_ATTEMPT_ID"
 DEEPSEEK_PROXY_USAGE_FILE_ENV = "EVALLAB_DEEPSEEK_USAGE_FILE"
 DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
 DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
+
+ZAI_OPENCODE_AGENT = "zai-opencode"
+ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
+    {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
+)
+ZAI_AUTH_PROVIDER = "zai-coding-plan"
+OPENCODE_AUTH_RELATIVE_PATH = Path(".local/share/opencode/auth.json")
+ZAI_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
+    {
+        "ZAI_CODING_PLAN_API_KEY",
+        "ZAI_API_KEY",
+        "ZAI_CODING_PLAN_KEY",
+        "ZAI_KEY",
+    }
+)
+ZAI_PROXY_HOST = "zai-secret-proxy"
+ZAI_PROXY_URL = "http://zai-secret-proxy:8080/api/paas/v4"
+ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
+ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
+ZAI_PROXY_SCRIPT = Path("containers/zai_secret_proxy.py")
+ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
+ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
+ZAI_PROXY_SCRIPT_ENV = "EVALLAB_ZAI_PROXY_SCRIPT"
+ZAI_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
+ZAI_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
+ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
+ZAI_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_ZAI_CAPABILITY_EXPIRES_AT"
+ZAI_UPSTREAM_ENV = "EVALLAB_ZAI_UPSTREAM"
+ZAI_PROXY_USAGE_DIR_ENV = "EVALLAB_ZAI_USAGE_DIR"
+ZAI_PROXY_ATTEMPT_ID_ENV = "EVALLAB_ZAI_ATTEMPT_ID"
+ZAI_PROXY_USAGE_FILE_ENV = "EVALLAB_ZAI_USAGE_FILE"
+ZAI_INPUT_COST_MICROS_PER_MILLION = 1_400_000
+ZAI_OUTPUT_COST_MICROS_PER_MILLION = 4_400_000
+ZAI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
+    {
+        ZAI_PROXY_CAPABILITY_ENV,
+        ZAI_PROXY_ATTEMPT_ID_ENV,
+        ZAI_PROXY_USAGE_DIR_ENV,
+        ZAI_PROXY_USAGE_FILE_ENV,
+        "EVALLAB_ZAI_MAX_REQUESTS",
+        "EVALLAB_ZAI_MAX_INPUT_TOKENS",
+        "EVALLAB_ZAI_MAX_OUTPUT_TOKENS",
+        "EVALLAB_ZAI_MAX_TOTAL_TOKENS",
+        "EVALLAB_ZAI_MAX_COST_MICROS",
+        "EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION",
+        "EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION",
+        ZAI_CAPABILITY_EXPIRES_AT_ENV,
+        ZAI_PROXY_UID_ENV,
+        ZAI_PROXY_GID_ENV,
+    }
+)
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         DEEPSEEK_PROXY_CAPABILITY_ENV,
@@ -217,6 +292,33 @@ class TransientHarnessFailure(ExecutionFailure):
         super().__init__(message or reason_code)
 
 
+class ProviderFailoverFailure(ExecutionFailure):
+    """Explicit provider account-capacity failure eligible for another route."""
+
+    def __init__(self, reason_code: str, *, message: str | None = None) -> None:
+        self.reason_code = reason_code
+        super().__init__(message or reason_code)
+
+
+class ProviderRoutesExhaustedFailure(ExecutionFailure):
+    """All pre-authorized, preflight-viable provider routes were exhausted."""
+
+    reason_code = "provider_failover:routes_exhausted"
+
+    def __init__(
+        self,
+        terminal_cause: str,
+        *,
+        exhaustion_behavior: str,
+    ) -> None:
+        self.terminal_cause = terminal_cause
+        self.exhaustion_behavior = exhaustion_behavior
+        super().__init__(
+            self.reason_code,
+            f"provider routes exhausted; terminal cause: {terminal_cause}",
+        )
+
+
 @dataclass(frozen=True)
 class RunRequest:
     """Immutable specification for one trial execution invocation."""
@@ -240,6 +342,9 @@ class RunRequest:
     max_output_tokens: int | None = None
     max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
+    provider: str | None = None
+    provider_route_id: str | None = None
+    provider_route_attempt_id: str | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -257,6 +362,7 @@ class HarborProcessResult:
     timed_out_trial: str | None = None
     proxy_usage: dict[str, Any] | None = None
 
+
 @dataclass(frozen=True)
 class ProxyTrialLimits:
     """Explicit ceilings bound to one provider capability."""
@@ -268,17 +374,19 @@ class ProxyTrialLimits:
     max_cost_micros: int
 
     def __post_init__(self) -> None:
-        if min(
-            self.max_requests,
-            self.max_input_tokens,
-            self.max_output_tokens,
-            self.max_total_tokens,
-            self.max_cost_micros,
-        ) < 1:
+        if (
+            min(
+                self.max_requests,
+                self.max_input_tokens,
+                self.max_output_tokens,
+                self.max_total_tokens,
+                self.max_cost_micros,
+            )
+            < 1
+        ):
             raise ValueError("proxy trial ceilings must be positive")
         if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
             raise ValueError("proxy total-token ceiling exceeds component ceilings")
-
 
 
 @dataclass(frozen=True)
@@ -366,6 +474,35 @@ def read_owner_secret_file(path: Path) -> str:
     finally:
         os.close(fd)
     return b"".join(chunks).decode("utf-8").rstrip("\r\n")
+
+
+def opencode_auth_path(
+    *,
+    home: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Return OpenCode's host auth store without reading credential material."""
+    source = os.environ if environment is None else environment
+    if xdg_data_home := source.get("XDG_DATA_HOME"):
+        return Path(xdg_data_home).expanduser() / "opencode/auth.json"
+    return (home or Path.home()) / OPENCODE_AUTH_RELATIVE_PATH
+
+
+def read_zai_opencode_key(path: Path) -> str:
+    """Read the Z.ai key from an owner-only OpenCode auth store without exposing it."""
+    try:
+        payload = json.loads(read_owner_secret_file(path))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("OpenCode Z.ai credential is unavailable") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("OpenCode Z.ai credential is unavailable")
+    entry = payload.get(ZAI_AUTH_PROVIDER)
+    if not isinstance(entry, dict):
+        raise RuntimeError("OpenCode Z.ai credential is unavailable")
+    value = entry.get("key")
+    if not isinstance(value, str) or not value:
+        raise RuntimeError("OpenCode Z.ai credential is unavailable")
+    return value
 
 
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
@@ -589,7 +726,12 @@ def subscription_environment(
         sanitized["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL
     if include_zai_credentials:
-        for key in ZAI_PROXY_FORWARD_KEYS:
+        for key in (
+            ZAI_SECRET_FILE_ENV,
+            ZAI_PROXY_SCRIPT_ENV,
+            ZAI_UPSTREAM_ENV,
+            *ZAI_PROXY_BUDGET_KEYS,
+        ):
             if source.get(key):
                 sanitized[key] = source[key]
         capability = source.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
@@ -609,13 +751,13 @@ def subscription_environment(
 def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
     """Return a log-safe copy with every admitted proxy-lane value replaced."""
     secrets = collected_secret_values(environment)
+    credential_keys = DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
     redacted: dict[str, str] = {}
     for key, value in environment.items():
-        sensitive = value and (
-            key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
-            or value in secrets
-        )
-        redacted[key] = REDACTED_SECRET_VALUE if sensitive else value
+        if (key in credential_keys and value) or value in secrets:
+            redacted[key] = REDACTED_SECRET_VALUE
+        else:
+            redacted[key] = value
     return redacted
 
 
@@ -642,11 +784,12 @@ def validate_request(request: RunRequest) -> None:
         request.max_total_tokens,
         request.cost_limit_usd,
     )
+    metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT}
     if any(value is not None for value in proxy_limits):
-        if request.agent != "mini-swe-agent":
+        if request.agent not in metered_agents:
             raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
         if any(value is None for value in proxy_limits):
-            raise ValueError("mini-swe-agent requires every provider ceiling")
+            raise ValueError(f"{request.agent} requires every provider ceiling")
         if (
             request.max_requests is None
             or request.max_input_tokens is None
@@ -655,22 +798,25 @@ def validate_request(request: RunRequest) -> None:
             or request.cost_limit_usd is None
         ):
             raise AssertionError("validated provider ceilings unexpectedly absent")
-        if min(
-            request.max_requests,
-            request.max_input_tokens,
-            request.max_output_tokens,
-            request.max_total_tokens,
-        ) < 1:
+        if (
+            min(
+                request.max_requests,
+                request.max_input_tokens,
+                request.max_output_tokens,
+                request.max_total_tokens,
+            )
+            < 1
+        ):
             raise ValueError("provider request and token ceilings must be positive")
         if request.cost_limit_usd <= 0:
             raise ValueError("cost_limit_usd must be positive")
         if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
             raise ValueError("total-token ceiling exceeds input plus output ceilings")
-    if request.agent == "mini-swe-agent":
+    if request.agent in metered_agents:
         if any(value is None for value in proxy_limits):
-            raise ValueError("mini-swe-agent requires explicit provider ceilings")
+            raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
-            raise ValueError("mini-swe-agent capabilities bind exactly one trial")
+            raise ValueError(f"{request.agent} capabilities bind exactly one trial")
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
@@ -679,7 +825,6 @@ def validate_request(request: RunRequest) -> None:
     if request.model and request.agent in CONTROL_AGENTS:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
-
         raise ValueError("A model requires --allow-billable")
 
 
@@ -740,6 +885,22 @@ def build_command(request: RunRequest) -> list[str]:
                 f"max_tokens={max_tokens}",
             ]
         )
+    if request.agent == ZAI_OPENCODE_AGENT:
+        if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                "zai-opencode requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
+        command.extend(
+            [
+                "--n-concurrent-agents",
+                "1",
+                "--n-tasks",
+                "1",
+                "--max-retries",
+                "0",
+            ]
+        )
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command
@@ -788,6 +949,37 @@ def transient_provider_reason(text: str) -> str | None:
         return "transient_harness:provider_http_429"
     if _PROVIDER_5XX.search(text):
         return "transient_harness:provider_http_5xx"
+    return None
+
+
+def provider_failover_reason(code: str) -> str | None:
+    """Map an exact structured provider-capacity code to a failover reason."""
+    normalized = re.sub(r"[\s-]+", "_", code.strip().lower())
+    return _PROVIDER_FAILOVER_CODES.get(normalized)
+
+
+def provider_failover_exception(result: Mapping[str, Any]) -> str | None:
+    """Classify only explicit structured provider account-capacity evidence."""
+    exception = result.get("exception_info")
+    if not isinstance(exception, Mapping):
+        return None
+    exception_type = str(exception.get("exception_type") or "")
+    if exception_type not in _PROVIDER_FAILOVER_EXCEPTION_TYPES:
+        return None
+    evidence: list[Mapping[str, Any]] = [exception]
+    nested_exception = exception.get("error")
+    if isinstance(nested_exception, Mapping):
+        evidence.append(nested_exception)
+    provider_error = result.get("provider_error")
+    if isinstance(provider_error, Mapping):
+        evidence.append(provider_error)
+    for source in evidence:
+        for key in ("code", "error_code", "reason_code", "type"):
+            value = source.get(key)
+            if isinstance(value, str):
+                reason = provider_failover_reason(value)
+                if reason is not None:
+                    return reason
     return None
 
 

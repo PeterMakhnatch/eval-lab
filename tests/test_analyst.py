@@ -24,7 +24,7 @@ from evallab.analyst import (
     run_trajectory_judge,
 )
 from evallab.cli import run_cli
-from evallab.evidence_store import archive_evidence
+from evallab.evidence_store import archive_evidence, evidence_locator
 from evallab.lance import build_trajectory_windows
 from evallab.lineage import resolve_lineage
 from evallab.schemas import AnalysisRecord, ConfidenceClaim, EvidenceCitation
@@ -437,7 +437,59 @@ def test_analysis_binds_tool_citation_to_cited_step(tmp_path: Path) -> None:
         )
 
 
-def test_cas_hydration_rejects_tampered_blob(tmp_path: Path) -> None:
+def _archive_blob_path(store: Path, content_digest: str) -> Path:
+    digest = content_digest.removeprefix("sha256:")
+    return store / "blobs" / "sha256" / digest[:2] / f"{digest}.tar.gz"
+
+
+def test_forged_record_cannot_redirect_automatic_hydration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forged_trial = _create_synthetic_trial(tmp_path / "forged")
+    (forged_trial / "result.json").write_text('{"tampered": true}', encoding="utf-8")
+    store = tmp_path / "evidence-store"
+    archive_evidence(
+        forged_trial,
+        store,
+        record_id="trial_01",
+        kind="trial",
+    )
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(store))
+
+    with pytest.raises(ValueError, match="independently authenticated EvidenceLocator"):
+        resolve_trial(
+            "trial_01",
+            tmp_path,
+            explicit_derived=tmp_path / "derived",
+            runs_root=tmp_path / "absent-runs",
+        )
+
+
+def test_matching_record_without_authenticated_locator_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_trial = _create_synthetic_trial(tmp_path / "source")
+    store = tmp_path / "evidence-store"
+    archive_evidence(
+        source_trial,
+        store,
+        record_id="trial_01",
+        kind="trial",
+    )
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(store))
+
+    with pytest.raises(ValueError, match="mutable record discovery is forbidden"):
+        resolve_trial(
+            "trial_01",
+            tmp_path,
+            explicit_derived=tmp_path / "derived",
+            runs_root=tmp_path / "absent-runs",
+        )
+
+
+def test_exact_locator_hydrates_authenticated_captured_bytes(tmp_path: Path) -> None:
     source_trial = _create_synthetic_trial(tmp_path / "source")
     store = tmp_path / "evidence-store"
     archive = archive_evidence(
@@ -446,32 +498,103 @@ def test_cas_hydration_rejects_tampered_blob(tmp_path: Path) -> None:
         record_id="trial_01",
         kind="trial",
     )
+    locator = evidence_locator(store, archive)
 
-    tampered_trial = _create_synthetic_trial(tmp_path / "tampered")
-    (tampered_trial / "result.json").write_text('{"tampered": true}')
-    tampered_archive = archive_evidence(
-        tampered_trial,
+    trial = resolve_trial(
+        "trial_01",
+        tmp_path,
+        explicit_derived=tmp_path / "derived",
+        runs_root=tmp_path / "absent-runs",
+        evidence_locator=locator,
+    )
+
+    assert trial.source_authority == "caller-selected-locator"
+    assert trial.evidence_locator == locator
+    assert trial.cas_uri == archive.uri
+    assert trial.result_payload["exception_class"] == "AssertionError"
+    assert trial.trajectory_steps[0]["step_id"] == 0
+    assert {item["member"] for item in trial.inputs} == {
+        "agent/trajectory.json",
+        "result.json",
+    }
+    assert {item["record_digest"] for item in trial.inputs} == {archive.record_digest}
+    assert {item["content_digest"] for item in trial.inputs} == {archive.content_digest}
+
+
+def test_run_analysis_persists_caller_selected_locator_authority(tmp_path: Path) -> None:
+    source_trial = _create_synthetic_trial(tmp_path / "source")
+    store = tmp_path / "evidence-store"
+    archive = archive_evidence(
+        source_trial,
         store,
-        record_id="tampered",
+        record_id="trial_01",
         kind="trial",
     )
-    archive.blob_path.write_bytes(tampered_archive.blob_path.read_bytes())
+    locator = evidence_locator(store, archive)
 
-    with pytest.raises(ValueError, match="CAS evidence digest mismatch"):
+    _record, trajectory, conclusion_path, _trajectory_path = run_analysis(
+        "trial_01",
+        analyzer=StubAnalyzer(),
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+        runs_root=tmp_path / "absent-runs",
+        evidence_locator=locator,
+    )
+
+    conclusion = json.loads(conclusion_path.read_text(encoding="utf-8"))
+    assert {item["authority"] for item in conclusion["inputs"]} == {"caller-selected-locator"}
+    assert {item["record_digest"] for item in conclusion["inputs"]} == {archive.record_digest}
+    assert trajectory["steps"][1]["message"].endswith("via caller-selected-locator")
+
+
+@pytest.mark.parametrize("target", ["record", "blob"])
+def test_locator_hydration_refuses_record_or_blob_replacement(
+    tmp_path: Path,
+    target: str,
+) -> None:
+    source_trial = _create_synthetic_trial(tmp_path / "source")
+    store = tmp_path / "evidence-store"
+    archive = archive_evidence(
+        source_trial,
+        store,
+        record_id="trial_01",
+        kind="trial",
+    )
+    locator = evidence_locator(store, archive)
+    forged_trial = _create_synthetic_trial(tmp_path / "forged")
+    (forged_trial / "result.json").write_text('{"tampered": true}', encoding="utf-8")
+    if target == "record":
+        archive_evidence(
+            forged_trial,
+            store,
+            record_id="trial_01",
+            kind="trial",
+        )
+    else:
+        forged_archive = archive_evidence(
+            forged_trial,
+            store,
+            record_id="forged",
+            kind="trial",
+        )
+        _archive_blob_path(store, archive.content_digest).write_bytes(
+            _archive_blob_path(store, forged_archive.content_digest).read_bytes()
+        )
+
+    with pytest.raises(ValueError, match="record digest mismatch|archive digest mismatch"):
         resolve_trial(
             "trial_01",
             tmp_path,
             explicit_derived=tmp_path / "derived",
             runs_root=tmp_path / "absent-runs",
-            evidence_store_root=store,
-            cas_uri=archive.uri,
+            evidence_locator=locator,
         )
 
 
-def test_result_only_cas_records_only_hydrated_member(tmp_path: Path) -> None:
+def test_result_only_locator_records_exact_hydrated_member(tmp_path: Path) -> None:
     source = tmp_path / "result-only"
     source.mkdir()
-    (source / "result.json").write_text("{}")
+    (source / "result.json").write_text("{}", encoding="utf-8")
     store = tmp_path / "evidence-store"
     archive = archive_evidence(
         source,
@@ -479,20 +602,39 @@ def test_result_only_cas_records_only_hydrated_member(tmp_path: Path) -> None:
         record_id="result-only",
         kind="trial",
     )
+    locator = evidence_locator(store, archive)
 
     trial = resolve_trial(
         "result-only",
         tmp_path,
         explicit_derived=tmp_path / "derived",
         runs_root=tmp_path / "absent-runs",
-        evidence_store_root=store,
-        cas_uri=archive.uri,
+        evidence_locator=locator,
     )
+
     assert trial.trajectory_steps == []
     assert trial.result_payload == {}
     assert [item["member"] for item in trial.inputs] == ["result.json"]
     assert trial.inputs[0]["digest"].startswith("sha256:")
     assert trial.inputs[0]["content_digest"] == archive.content_digest
+    assert trial.inputs[0]["record_digest"] == archive.record_digest
+
+
+def test_filesystem_trial_analysis_authority_is_unchanged(tmp_path: Path) -> None:
+    trial_dir = _create_synthetic_trial(tmp_path)
+
+    trial = resolve_trial(
+        "trial_01",
+        tmp_path,
+        explicit_derived=tmp_path / "derived",
+    )
+
+    assert trial.source_authority == "filesystem"
+    assert trial.evidence_locator is None
+    assert trial.cas_uri is None
+    assert trial.trajectory_path == trial_dir / "agent" / "trajectory.json"
+    assert trial.result_path == trial_dir / "result.json"
+    assert trial.trajectory_steps[0]["step_id"] == 0
 
 
 def test_context_keeps_complete_errors_and_counts_only_ordinary_steps() -> None:

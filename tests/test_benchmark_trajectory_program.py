@@ -881,7 +881,10 @@ def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     """MCP Recovery producer computes autonomous recovery metrics."""
     bundle = load_trial_bundle(mcp_recovery_trial_dir)
     features = extract_mcp_recovery_features(
-        bundle, step_tokens=[100, 100], cached_step_tokens=[20, 80]
+        bundle,
+        step_tokens=[100, 100],
+        cached_step_tokens=[20, 80],
+        tool_call_step_indices=[1, 2],
     )
 
     assert features.task_success is True
@@ -899,6 +902,10 @@ def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     assert features.controlled_replay_available is False
     assert features.max_blind_retry_streak == 0
     assert features.recovery_succeeded_at_persistence is True
+    assert features.tool_call_prompt_tokens_total == 200
+    assert features.failed_prefix_prompt_tokens == 100
+    assert features.failed_prefix_cost == 0.5
+    assert features.failed_prefix_cost_status == "observed"
     curve = build_recovery_persistence_curve([features])
     assert len(curve) == 1
     assert curve[0].persistence_level == 1
@@ -942,6 +949,9 @@ def test_null_preservation_on_zero_denominators(tmp_path: Path):
     assert features.autonomous_recovery_rate is None
     assert features.blind_retry_rate is None
     assert features.fault_recovery_latency is None
+    assert features.failed_prefix_prompt_tokens is None
+    assert features.failed_prefix_cost is None
+    assert features.failed_prefix_cost_status == "not_exposed"
 
 
 # ---------------------------------------------------------------------------

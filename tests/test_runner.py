@@ -8,10 +8,17 @@ from pathlib import Path
 
 import pytest
 
+import evallab.evidence_store as evidence_store_module
 import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
-from evallab.execution_contracts import ProxyTrialLimits
+from evallab.execution_contracts import (
+    ZAI_PROXY_CAPABILITY_ENV,
+    ZAI_SECRET_FILE_ENV,
+    ProxyTrialLimits,
+    materialize_zai_secret_file,
+    read_owner_secret_file,
+)
 from evallab.harbor_network import HarborNetworkPolicy
 from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
@@ -25,6 +32,8 @@ from evallab.runner import (
     build_command,
     cleanup_new_harbor_containers,
     load_matrix,
+    provider_failover_exception,
+    provider_failover_reason,
     resolve_harbor_agent,
     resolve_harbor_model,
     run_experiment,
@@ -58,6 +67,34 @@ def no_network_task(tmp_path: Path) -> Path:
         'network_mode = "no-network"\n'
     )
     return task_dir
+
+
+@pytest.fixture(autouse=True)
+def _configured_settlement_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep process mocks on the real mandatory CAS and typed identity contract."""
+
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
+    executable = tmp_path / "harbor"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o700)
+    device, inode, size, mtime_ns, digest = runner_module._executable_snapshot(executable)
+    monkeypatch.setattr(
+        runner_module,
+        "resolve_harbor_runtime_identity",
+        lambda _repo_root: runner_module.HarborRuntimeIdentity(
+            declared_version="0.22.0",
+            actual_version="0.22.0",
+            executable_path=executable,
+            executable_digest=digest,
+            executable_device=device,
+            executable_inode=inode,
+            executable_size=size,
+            executable_mtime_ns=mtime_ns,
+        ),
+    )
 
 
 def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
@@ -368,6 +405,7 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
     assert control.returncode == 0
     assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
 
+
 def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -477,6 +515,8 @@ def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
     assert result.timed_out is False
     assert result.returncode != 0
     assert time.monotonic() - started < 2
+
+
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
     tmp_path: Path,
 ) -> None:
@@ -669,6 +709,73 @@ def test_provider_status_classification(message: str, reason: str | None) -> Non
     assert transient_provider_reason(message) == reason
 
 
+@pytest.mark.parametrize(
+    ("code", "reason"),
+    [
+        ("account_balance_exhausted", "provider_failover:balance_exhausted"),
+        ("credit_balance_exhausted", "provider_failover:credits_exhausted"),
+        ("insufficient_quota", "provider_failover:account_quota_exhausted"),
+        ("subscription_quota_exhausted", "provider_failover:account_quota_exhausted"),
+        ("auth_quota_exhausted", "provider_failover:auth_quota_exhausted"),
+        ("rate_limit_exceeded", None),
+        ("HTTP 401 Unauthorized", None),
+        ("account balance is too low; please top up", None),
+    ],
+)
+def test_provider_failover_requires_exact_structured_capacity_code(
+    code: str,
+    reason: str | None,
+) -> None:
+    assert provider_failover_reason(code) == reason
+
+
+def test_429_rate_limit_retries_same_provider_but_insufficient_quota_can_fail_over() -> None:
+    rate_limit = {
+        "exception_info": {
+            "exception_type": "ApiRateLimitError",
+            "code": "rate_limit_exceeded",
+            "message": "provider returned status code 429",
+        }
+    }
+    insufficient_quota = {
+        "exception_info": {
+            "exception_type": "ApiRateLimitError",
+            "code": "insufficient_quota",
+            "message": "provider returned status code 429",
+        }
+    }
+    message_only = {
+        "exception_info": {
+            "exception_type": "ApiRateLimitError",
+            "message": "429 insufficient_quota",
+        }
+    }
+
+    assert provider_failover_exception(rate_limit) is None
+    assert transient_provider_exception(rate_limit) == "transient_harness:provider_http_429"
+    assert provider_failover_exception(insufficient_quota) == (
+        "provider_failover:account_quota_exhausted"
+    )
+    assert transient_provider_exception(insufficient_quota) == (
+        "transient_harness:provider_http_429"
+    )
+    assert provider_failover_exception(message_only) is None
+    assert transient_provider_exception(message_only) == "transient_harness:provider_http_429"
+
+
+def test_provider_failover_rejects_task_structured_capacity_code() -> None:
+    task_failure = {
+        "exception_info": {
+            "exception_type": "TaskValidationError",
+            "code": "insufficient_quota",
+        }
+    }
+
+    assert provider_failover_exception(task_failure) is None
+
+
+
+
 def test_provider_retry_requires_structured_agent_exception() -> None:
     provider_failure = {
         "exception_info": {
@@ -837,11 +944,9 @@ def test_successful_harbor_process_with_transient_trial_is_retried(
     assert state["status"] == "failed"
 
 
-@pytest.mark.parametrize("note_write_fails", [False, True])
-def test_completed_run_survives_evidence_archive_failure(
+def test_completed_run_refuses_unsettled_evidence_archive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    note_write_fails: bool,
 ) -> None:
     request = RunRequest(
         task=task(tmp_path),
@@ -861,15 +966,6 @@ def test_completed_run_survives_evidence_archive_failure(
     def archive_fails(*_args, **_kwargs) -> None:
         raise OSError("evidence store unavailable")
 
-    original_write_text = Path.write_text
-
-    def write_text(path: Path, data: str, *args, **kwargs) -> int:
-        if note_write_fails and path.name == "evidence-archive-error.txt":
-            raise OSError("job directory became read-only")
-        return original_write_text(path, data, *args, **kwargs)
-
-    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence"))
-    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
     monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
     monkeypatch.setattr(runner_module, "run_harbor_process", completed)
     monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
@@ -878,19 +974,245 @@ def test_completed_run_survives_evidence_archive_failure(
         "load_job",
         lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
     )
-    monkeypatch.setattr("evallab.evidence_store.archive_evidence", archive_fails)
-    monkeypatch.setattr(Path, "write_text", write_text)
+    monkeypatch.setattr(runner_module, "archive_evidence", archive_fails)
 
-    job_dir = run_experiment(request, repo_root=tmp_path)
+    with pytest.raises(ExecutionFailure, match="could not be archived and reopened"):
+        run_experiment(request, repo_root=tmp_path)
 
-    assert job_dir == request.jobs_dir / request.name
     state = json.loads(runner_module.executor_state_path(request).read_text())
-    assert state["status"] == "completed"
-    note = job_dir / "evidence-archive-error.txt"
-    if note_write_fails:
-        assert not note.exists()
-    else:
-        assert note.read_text() == "OSError: evidence store unavailable\n"
+    assert state["status"] == "failed"
+    assert not (request.jobs_dir / request.name / "evidence-archive-error.txt").exists()
+
+
+def test_missing_cas_configuration_refuses_before_harbor_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="missing-cas-config",
+        jobs_dir=tmp_path / "runs",
+    )
+    launched = False
+
+    def must_not_launch(*_args, **_kwargs) -> HarborProcessResult:
+        nonlocal launched
+        launched = True
+        raise AssertionError("Harbor must not launch without configured CAS")
+
+    monkeypatch.delenv("EVALLAB_EVIDENCE_STORE_ROOT")
+    monkeypatch.setattr(runner_module, "run_harbor_process", must_not_launch)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "evidence_cas_unconfigured"
+    assert launched is False
+    assert not (request.jobs_dir / request.name).exists()
+
+
+def test_harbor_version_mismatch_refuses_before_harbor_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="harbor-version-mismatch",
+        jobs_dir=tmp_path / "runs",
+    )
+    launched = False
+
+    def mismatch(_repo_root: Path) -> runner_module.HarborRuntimeIdentity:
+        raise ExecutionFailure("harbor_version_mismatch", "0.21.0 does not match 0.22.0")
+
+    def must_not_launch(*_args, **_kwargs) -> HarborProcessResult:
+        nonlocal launched
+        launched = True
+        raise AssertionError("Harbor must not launch when identity drifts")
+
+    monkeypatch.setattr(runner_module, "resolve_harbor_runtime_identity", mismatch)
+    monkeypatch.setattr(runner_module, "run_harbor_process", must_not_launch)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "harbor_version_mismatch"
+    assert launched is False
+    assert not (request.jobs_dir / request.name).exists()
+
+
+@pytest.mark.parametrize(
+    ("reported_version", "reason_code"),
+    [
+        ("0.21.0", "harbor_version_mismatch"),
+        ("harbor 0.22.0", "harbor_identity_unavailable"),
+        ("not harbor 0.22.0 python 3.12.0", "harbor_identity_unavailable"),
+        ("0.22.0 3.12.0", "harbor_identity_unavailable"),
+        ("harbor unknown", "harbor_identity_unavailable"),
+    ],
+)
+def test_runtime_identity_refuses_version_drift_and_unparseable_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reported_version: str,
+    reason_code: str,
+) -> None:
+    (tmp_path / "uv.lock").write_text(
+        'version = 1\n\n[[package]]\nname = "harbor"\nversion = "0.22.0"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.undo()
+    executable = tmp_path / "harbor"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o700)
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: str(executable))
+    monkeypatch.setattr(
+        runner_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=["harbor", "--version"],
+            returncode=0,
+            stdout=reported_version,
+            stderr="",
+        ),
+    )
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        runner_module.resolve_harbor_runtime_identity(tmp_path)
+
+    assert exc_info.value.reason_code == reason_code
+
+
+def test_settlement_freezes_source_and_returns_only_cas_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store_root = tmp_path / "evidence-cas"
+
+    locator, settled = runner_module._settle_completed_job(
+        job_dir,
+        store_root=store_root,
+        record_id="job-123",
+    )
+    record_bytes = evidence_store_module.read_record(
+        store_root,
+        kind=locator.kind,
+        record_id=locator.record_id,
+    )
+    record = json.loads(record_bytes)
+    assert not job_dir.exists()
+    assert record["schema_version"] == 2
+    assert set(record).isdisjoint({"source_path", "blob_path"})
+    assert record["record_id"] == "job-123"
+    assert record["kind"] == "job"
+    assert record["content_digest"] == settled.content_digest
+    assert record["archive_digest"] == settled.archive_digest
+    assert record["uri"] == settled.uri
+    assert locator.expected_record_digest == settled.record_digest
+    assert locator.expected_content_digest == settled.content_digest
+    assert not hasattr(settled, "manifest_path")
+    assert not hasattr(settled, "blob_path")
+
+    original_restore = evidence_store_module.restore_evidence
+
+    def restore_wrong_content(*args, **kwargs) -> Path:
+        restored = original_restore(*args, **kwargs)
+        (restored / "result.json").write_text('{"finished": false}\n', encoding="utf-8")
+        return restored
+
+    second_job = tmp_path / "second-job"
+    second_job.mkdir()
+    (second_job / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", restore_wrong_content)
+    with pytest.raises(ExecutionFailure) as exc_info:
+        runner_module._settle_completed_job(
+            second_job,
+            store_root=store_root,
+            record_id="job-456",
+        )
+
+    assert exc_info.value.reason_code == "evidence_cas_unsettled"
+
+
+def _completed_run_request(tmp_path: Path, name: str) -> RunRequest:
+    return RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name=name,
+        jobs_dir=tmp_path / "runs",
+    )
+
+
+def _install_completed_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def completed(*_args, **kwargs) -> HarborProcessResult:
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+
+
+@pytest.mark.parametrize("record_bytes", [b"[]", b"\xff"])
+def test_unreadable_reopened_record_fails_terminally(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record_bytes: bytes,
+) -> None:
+    request = _completed_run_request(tmp_path, "malformed-reopened-record")
+    _install_completed_run(monkeypatch)
+    original_archive = runner_module.archive_evidence
+
+    def archive_with_bad_record(*args, **kwargs):
+        archive = original_archive(*args, **kwargs)
+        store_root = Path(args[1])
+        record_path = store_root / "records" / archive.kind / f"{archive.record_id}.json"
+        record_path.write_bytes(record_bytes)
+        return archive
+
+    monkeypatch.setattr(runner_module, "archive_evidence", archive_with_bad_record)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "evidence_cas_unsettled"
+    state = json.loads(runner_module.executor_state_path(request).read_text())
+    assert state["status"] == "failed"
+
+
+def test_unexpected_settlement_exception_fails_terminally(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _completed_run_request(tmp_path, "unexpected-settlement-error")
+    _install_completed_run(monkeypatch)
+
+    def unexpected(*_args, **_kwargs):
+        raise RuntimeError("injected settlement programmer error")
+
+    monkeypatch.setattr(runner_module, "_settle_completed_job", unexpected)
+
+    with pytest.raises(RuntimeError, match="injected settlement programmer error"):
+        run_experiment(request, repo_root=tmp_path)
+
+    state = json.loads(runner_module.executor_state_path(request).read_text())
+    assert state["status"] == "failed"
 
 
 def test_secret_scan_precedes_generic_evidence_archive(
@@ -937,6 +1259,344 @@ def test_secret_scan_precedes_generic_evidence_archive(
 
     assert archived == []
     assert not (request.jobs_dir / request.name / "leak.txt").exists()
+
+
+def _cas_record_path(store: Path, archive) -> Path:
+    return store / "records" / archive.kind / f"{archive.record_id}.json"
+
+
+def _cas_blob_path(store: Path, archive) -> Path:
+    digest = archive.content_digest.removeprefix("sha256:")
+    return store / "blobs" / "sha256" / digest[:2] / f"{digest}.tar.gz"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_version", 1),
+        ("schema_version", True),
+        ("blob_path", "blobs/sha256/00/not-canonical.tar.gz"),
+        ("file_count", 999),
+        ("uncompressed_bytes", 999),
+        ("source_path", "relative/job"),
+    ],
+)
+def test_canonical_reopen_refuses_complete_record_tampering(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    archive = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+    record_path = _cas_record_path(store, archive)
+    payload = json.loads(record_path.read_text(encoding="utf-8"))
+    payload[field] = value
+    reopened, reopened_bytes = evidence_store_module.reopen_evidence_archive(
+        store,
+        kind="job",
+        record_id="job-123",
+        expected_record_digest=archive.record_digest,
+        expected_content_digest=archive.content_digest,
+    )
+    assert reopened == archive
+    assert reopened_bytes == record_path.read_bytes()
+    assert not hasattr(reopened, "manifest_path")
+    assert not hasattr(reopened, "blob_path")
+    record_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=archive.record_digest,
+            expected_content_digest=archive.content_digest,
+        )
+
+
+@pytest.mark.parametrize("tampered_bytes", [b" ", b'{"kind":"job"}\n'])
+def test_canonical_reopen_refuses_noncanonical_record_bytes(
+    tmp_path: Path,
+    tampered_bytes: bytes,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    archive = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+    record_path = _cas_record_path(store, archive)
+    record_path.write_bytes(tampered_bytes + record_path.read_bytes())
+
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=archive.record_digest,
+            expected_content_digest=archive.content_digest,
+        )
+
+
+def test_reopen_requires_independent_content_identity(tmp_path: Path) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    archive = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+
+    with pytest.raises(ValueError, match="content digest mismatch"):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=archive.record_digest,
+            expected_content_digest="sha256:" + "0" * 64,
+        )
+
+
+@pytest.mark.parametrize("target", ["record", "archive"])
+def test_reopen_returns_captured_identity_when_paths_change_during_restore(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    produced = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+    record_path = _cas_record_path(store, produced)
+    blob_path = _cas_blob_path(store, produced)
+    original_restore = evidence_store_module.restore_evidence
+
+    def replace_during_restore(*args: object, **kwargs: object) -> Path:
+        if target == "record":
+            record_path.write_bytes(b"[]")
+        else:
+            replacement = bytearray(blob_path.read_bytes())
+            replacement[4] ^= 1
+            blob_path.write_bytes(replacement)
+        return original_restore(*args, **kwargs)
+
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", replace_during_restore)
+    reopened, _record_bytes = evidence_store_module.reopen_evidence_archive(
+        store,
+        kind="job",
+        record_id="job-123",
+        expected_record_digest=produced.record_digest,
+        expected_content_digest=produced.content_digest,
+    )
+    assert reopened == produced
+    monkeypatch.setattr(evidence_store_module, "restore_evidence", original_restore)
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=produced.record_digest,
+            expected_content_digest=produced.content_digest,
+        )
+
+
+@pytest.mark.parametrize("target", ["record", "archive"])
+def test_reopen_returns_captured_identity_after_last_byte_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+) -> None:
+    source = tmp_path / "job"
+    source.mkdir()
+    (source / "result.json").write_text('{"finished": true}\n', encoding="utf-8")
+    store = tmp_path / "cas"
+    produced = evidence_store_module.archive_evidence(
+        source,
+        store,
+        record_id="job-123",
+        kind="job",
+    )
+    record_path = _cas_record_path(store, produced)
+    blob_path = _cas_blob_path(store, produced)
+    if target == "record":
+        original_read = evidence_store_module.read_record
+
+        def snapshot_then_replace(*args, **kwargs) -> bytes:
+            captured = original_read(*args, **kwargs)
+            record_path.write_bytes(b"[]")
+            return captured
+
+        monkeypatch.setattr(evidence_store_module, "read_record", snapshot_then_replace)
+    else:
+        original_read = evidence_store_module.read_archive
+
+        def snapshot_then_replace(*args, **kwargs) -> bytes:
+            captured = original_read(*args, **kwargs)
+            replacement = bytearray(blob_path.read_bytes())
+            replacement[4] ^= 1
+            blob_path.write_bytes(replacement)
+            return captured
+
+        monkeypatch.setattr(evidence_store_module, "read_archive", snapshot_then_replace)
+
+    reopened, _record_bytes = evidence_store_module.reopen_evidence_archive(
+        store,
+        kind="job",
+        record_id="job-123",
+        expected_record_digest=produced.record_digest,
+        expected_content_digest=produced.content_digest,
+    )
+    assert reopened == produced
+    if target == "record":
+        monkeypatch.setattr(evidence_store_module, "read_record", original_read)
+    else:
+        monkeypatch.setattr(evidence_store_module, "read_archive", original_read)
+    with pytest.raises(ValueError):
+        evidence_store_module.reopen_evidence_archive(
+            store,
+            kind="job",
+            record_id="job-123",
+            expected_record_digest=produced.record_digest,
+            expected_content_digest=produced.content_digest,
+        )
+
+
+def test_former_producer_path_mutation_is_irrelevant_after_freeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer_path = tmp_path / "runs" / "job"
+    producer_path.mkdir(parents=True)
+    (producer_path / "result.json").write_text(
+        '{"finished": true}\n',
+        encoding="utf-8",
+    )
+    store = tmp_path / "cas"
+    original_archive = runner_module.archive_evidence
+
+    def mutate_old_namespace(frozen_source: Path, *args, **kwargs):
+        assert frozen_source != producer_path
+        assert not producer_path.exists()
+        producer_path.mkdir()
+        (producer_path / "result.json").write_text(
+            '{"finished":false}\n',
+            encoding="utf-8",
+        )
+        return original_archive(frozen_source, *args, **kwargs)
+
+    monkeypatch.setattr(runner_module, "archive_evidence", mutate_old_namespace)
+    locator, archive = runner_module._settle_completed_job(
+        producer_path,
+        store_root=store,
+        record_id="job-123",
+    )
+
+    assert archive.content_digest == locator.expected_content_digest
+    with evidence_store_module.materialize_evidence(locator) as restored:
+        assert json.loads((restored / "result.json").read_text())["finished"] is True
+    assert json.loads((producer_path / "result.json").read_text())["finished"] is False
+
+
+def test_executable_identity_drift_refuses_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.undo()
+    executable = tmp_path / "harbor"
+    executable.write_text("0.22.0\n", encoding="utf-8")
+    snapshot = runner_module._executable_snapshot(executable)
+    identity = runner_module.HarborRuntimeIdentity(
+        declared_version="0.22.0",
+        actual_version="0.22.0",
+        executable_path=executable,
+        executable_digest=snapshot[4],
+        executable_device=snapshot[0],
+        executable_inode=snapshot[1],
+        executable_size=snapshot[2],
+        executable_mtime_ns=snapshot[3],
+    )
+    replacement = tmp_path / "replacement"
+    replacement.write_text("0.21.0 replacement bytes\n", encoding="utf-8")
+    replacement.replace(executable)
+    with pytest.raises(ExecutionFailure, match="changed before launch") as exc_info:
+        runner_module._verify_harbor_runtime_identity(identity)
+    assert exc_info.value.reason_code == "harbor_identity_drift"
+
+
+def test_launch_refuses_executable_replacement_after_final_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.undo()
+    executable = tmp_path / "harbor"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o700)
+    device, inode, size, mtime_ns, digest = runner_module._executable_snapshot(executable)
+    identity = runner_module.HarborRuntimeIdentity(
+        declared_version="0.22.0",
+        actual_version="0.22.0",
+        executable_path=executable,
+        executable_digest=digest,
+        executable_device=device,
+        executable_inode=inode,
+        executable_size=size,
+        executable_mtime_ns=mtime_ns,
+    )
+    request = RunRequest(
+        task=task(tmp_path), agent="oracle", name="launch-race", jobs_dir=tmp_path / "runs"
+    )
+    launched: list[list[str]] = []
+    original_stage = runner_module._stage_verified_harbor_executable
+
+    def replace_after_verification(
+        staged_identity: runner_module.HarborRuntimeIdentity,
+        staging_dir: Path,
+    ) -> Path:
+        replacement = tmp_path / "replacement"
+        replacement.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+        replacement.chmod(0o700)
+        replacement.replace(executable)
+        return original_stage(staged_identity, staging_dir)
+
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "cas"))
+    monkeypatch.setattr(runner_module, "resolve_harbor_runtime_identity", lambda _root: identity)
+    monkeypatch.setattr(
+        runner_module, "_stage_verified_harbor_executable", replace_after_verification
+    )
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(
+        runner_module, "run_harbor_process", lambda command, **_kwargs: launched.append(command)
+    )
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert exc_info.value.reason_code == "harbor_identity_drift"
+    assert launched == []
+    assert json.loads(runner_module.executor_state_path(request).read_text())["status"] == "failed"
 
 
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
@@ -1278,17 +1938,26 @@ def test_staging_cleaned_up_after_success(
         lambda _root: {"commit": None, "dirty": None},
     )
 
-    job_dir = run_experiment(request, repo_root=tmp_path)
+    settled_run = run_experiment(request, repo_root=tmp_path)
 
     staging_dir = request.jobs_dir / ".exec-stage" / request.name
     assert not staging_dir.exists()
+    assert not (request.jobs_dir / request.name).exists()
     network_adaptation_path = runner_module._network_adaptation_path(request)
     assert network_adaptation_path.is_file()
     manifest = json.loads(network_adaptation_path.read_text())
     assert manifest["schema_version"] == "1.0"
     assert manifest["network_adaptation"]["effective_verifier_network"] == "public"
-    metadata = json.loads((job_dir / "lab-metadata.json").read_text())
-    assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
+    with evidence_store_module.materialize_evidence(settled_run.cas_locator) as job_dir:
+        metadata = json.loads((job_dir / "lab-metadata.json").read_text())
+        assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
+        assert metadata["harbor_runtime"] == {
+            "declared_version": "0.22.0",
+            "actual_version": "0.22.0",
+            "executable_path": str(tmp_path / "harbor"),
+            "executable_digest": runner_module._executable_snapshot(tmp_path / "harbor")[4],
+        }
+    assert settled_run.cas_locator.expected_record_digest == (settled_run.cas_record.record_digest)
 
 
 def test_staging_cleaned_up_after_harbor_failure(
@@ -1456,3 +2125,118 @@ def test_staging_cleaned_up_after_network_adaptation_write_failure(
     source_toml = (request.task / "task.toml").read_text()
     assert 'network_mode = "no-network"' in source_toml
     assert 'network_mode = "public"' not in source_toml
+
+
+def test_zai_opencode_host_process_receives_only_proxy_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "zai-secret-never-enters-agent-environment"
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(json.dumps({"zai-coding-plan": {"type": "api", "key": secret}}))
+    auth.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    script = (
+        "import os; "
+        "cap=os.environ['ZAI_API_KEY']; "
+        "print('capability=' + str(bool(cap) and cap != " + repr(secret) + ")); "
+        "print('secret-file=' + str(bool(os.environ.get('" + ZAI_SECRET_FILE_ENV + "')))); "
+        "print('proxy-capability=' + str(cap == os.environ['" + ZAI_PROXY_CAPABILITY_ENV + "']))"
+    )
+    log_path = tmp_path / "zai-host.log"
+
+    result = run_harbor_process(
+        [
+            sys.executable,
+            "-c",
+            script,
+            resolve_harbor_agent("zai-opencode"),
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=log_path,
+        proxy_attempt_id="test-attempt",
+        proxy_limits=ProxyTrialLimits(
+            max_requests=16,
+            max_input_tokens=200_000,
+            max_output_tokens=64_000,
+            max_total_tokens=264_000,
+            max_cost_micros=1_000_000,
+        ),
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text().splitlines() == [
+        "capability=True",
+        "secret-file=True",
+        "proxy-capability=True",
+    ]
+    assert secret not in log_path.read_text()
+    assert not list(tmp_path.glob("evallab-zai-secret.*"))
+    assert not list(tmp_path.glob("evallab-zai-usage.*"))
+
+
+def test_zai_opencode_routes_through_proxy_isolated_pinned_adapter(
+    tmp_path: Path,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3",
+        name="zai-opencode-pinned-test",
+        jobs_dir=tmp_path / "runs",
+        max_requests=16,
+        max_input_tokens=200_000,
+        max_output_tokens=64_000,
+        max_total_tokens=264_000,
+        cost_limit_usd=1.0,
+        allow_billable=True,
+    )
+
+    command = build_command(request)
+
+    assert resolve_harbor_agent("zai-opencode") == (
+        "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent"
+    )
+    assert command[command.index("--agent") + 1] == resolve_harbor_agent("zai-opencode")
+    assert command[command.index("--model") + 1] == "zai-coding-plan/glm-5.3"
+    assert command[command.index("--n-concurrent-agents") + 1] == "1"
+    assert command[command.index("--n-tasks") + 1] == "1"
+    assert command[command.index("--max-retries") + 1] == "0"
+
+    wrapped = subscription_command(
+        request,
+        command,
+        repo_root=Path(__file__).resolve().parents[1],
+    )
+    assert "--extra-docker-compose" in wrapped
+    assert wrapped[-1].endswith("containers/zai-secret.compose.yaml")
+
+
+def test_zai_secret_materializes_only_opencode_provider_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    zai_secret = "zai-provider-secret"
+    foreign_secret = "foreign-provider-secret"
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(
+        json.dumps(
+            {
+                "xai": {"type": "api", "key": foreign_secret},
+                "zai-coding-plan": {"type": "api", "key": zai_secret},
+            }
+        )
+    )
+    auth.chmod(0o600)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+    destination = tmp_path / "staged/key"
+    materialize_zai_secret_file(destination, home=tmp_path)
+
+    assert read_owner_secret_file(destination) == zai_secret
+    assert foreign_secret not in destination.read_text()

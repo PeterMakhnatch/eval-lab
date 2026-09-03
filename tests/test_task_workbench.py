@@ -25,7 +25,11 @@ from evallab.registry import (
 )
 from evallab.registry import _canonical_bytes as registry_canonical_bytes
 from evallab.registry import _digest_bytes as registry_digest_bytes
-from evallab.schemas import TaskRegistryRecord
+from evallab.schemas import (
+    ExternalImportLineageV1,
+    ExternalImportTransformationRecordV1,
+    TaskRegistryRecord,
+)
 from evallab.task_workbench import (
     _MODELLED_CONSTRUCT_VALUES,
     _SUPPORTED_ENVIRONMENT_KEYS,
@@ -153,6 +157,145 @@ def _source() -> CandidateSource:
         license="MIT",
         provenance_zone="02-local-evidence",
     )
+
+
+def _external_source(
+    repo: Path,
+    task: Path,
+) -> tuple[CandidateSource, ExternalImportLineageV1, Path]:
+    imports = repo / "research/registration/imports/external-fixture"
+    imports.mkdir(parents=True, exist_ok=True)
+    evidence_path = imports / "semantic-equivalence.json"
+    evidence_bytes = _canonical(
+        {
+            "schema_version": 1,
+            "status": "equivalent",
+            "checks": ["task-visible behavior", "scoring objective"],
+        }
+    )
+    evidence_path.write_bytes(evidence_bytes)
+
+    env_digest = "sha256:" + "a" * 64
+    toolchain_digest = "sha256:" + "b" * 64
+    output_digest = _registry_package_digest(task)
+
+    build1_path = imports / "build-1.json"
+    build1_payload = {
+        "schema_version": 1,
+        "build_id": "build-1",
+        "built_at": "2026-08-31T17:50:00Z",
+        "environment_digest": env_digest,
+        "toolchain_digest": toolchain_digest,
+        "output_package_digest": output_digest,
+    }
+    build1_bytes = _canonical(build1_payload)
+    build1_path.write_bytes(build1_bytes)
+
+    build2_path = imports / "build-2.json"
+    build2_payload = {
+        "schema_version": 1,
+        "build_id": "build-2",
+        "built_at": "2026-08-31T17:55:00Z",
+        "environment_digest": env_digest,
+        "toolchain_digest": toolchain_digest,
+        "output_package_digest": output_digest,
+    }
+    build2_bytes = _canonical(build2_payload)
+    build2_path.write_bytes(build2_bytes)
+    output_digest = _registry_package_digest(task)
+    source_digest = "sha256:" + "1" * 64
+    record = ExternalImportTransformationRecordV1.model_validate(
+        {
+            "schema_version": 1,
+            "created_at": "2026-08-31T18:00:00Z",
+            "import_mode": "transformed",
+            "source": {
+                "source_uri": "https://example.invalid/upstream",
+                "source_ref": "0123456789abcdef0123456789abcdef01234567",
+                "source_task_id": "upstream/uppercase-fixture",
+                "source_checkpoint_ref": "checkpoint-2026-08-31",
+                "source_package_digest": source_digest,
+            },
+            "transformer": {
+                "name": "eval-lab-fixture-transformer",
+                "version": "1.0.0",
+                "code_digest": "sha256:" + "2" * 64,
+                "configuration_digest": "sha256:" + "3" * 64,
+            },
+            "transformations": [
+                {
+                    "sequence": 1,
+                    "operation": "harden",
+                    "description": "Add deterministic runtime isolation",
+                    "affected_paths": ["task.toml"],
+                }
+            ],
+            "output": {
+                "task_id": "uppercase-fixture",
+                "task_version": "1.0.0",
+                "registry_package_digest": output_digest,
+            },
+            "reproducibility": {
+                "builds": [
+                    {
+                        "build_id": "build-1",
+                        "evidence_path": build1_path.relative_to(repo).as_posix(),
+                        "evidence_digest": _digest(build1_bytes),
+                        "built_at": "2026-08-31T17:50:00Z",
+                        "environment_digest": env_digest,
+                        "toolchain_digest": toolchain_digest,
+                        "output_package_digest": output_digest,
+                    },
+                    {
+                        "build_id": "build-2",
+                        "evidence_path": build2_path.relative_to(repo).as_posix(),
+                        "evidence_digest": _digest(build2_bytes),
+                        "built_at": "2026-08-31T17:55:00Z",
+                        "environment_digest": env_digest,
+                        "toolchain_digest": toolchain_digest,
+                        "output_package_digest": output_digest,
+                    },
+                ],
+            },
+            "semantic_equivalence": {
+                "status": "equivalent",
+                "evidence_path": evidence_path.relative_to(repo).as_posix(),
+                "evidence_digest": _digest(evidence_bytes),
+            },
+        }
+    )
+    record_path = imports / "transformation.json"
+    record_bytes = _canonical(record.model_dump(mode="json"))
+    record_path.write_bytes(record_bytes)
+    lineage = ExternalImportLineageV1(
+        source_task_id=record.source.source_task_id,
+        source_package_digest=record.source.source_package_digest,
+        source_checkpoint_ref=record.source.source_checkpoint_ref,
+        transformation_record_path=record_path.relative_to(repo).as_posix(),
+        transformation_record_digest=_digest(record_bytes),
+    )
+    source = CandidateSource(
+        source_uri=record.source.source_uri,
+        source_ref=record.source.source_ref,
+        license="MIT",
+        provenance_zone="01-external",
+        external_import_lineage=lineage,
+    )
+    return source, lineage, record_path
+
+
+def _rewrite_external_record(
+    source: CandidateSource,
+    record_path: Path,
+    payload: dict[str, object],
+) -> CandidateSource:
+    record_bytes = _canonical(payload)
+    record_path.write_bytes(record_bytes)
+    assert source.external_import_lineage is not None
+    lineage = source.external_import_lineage.model_copy(
+        update={"transformation_record_digest": _digest(record_bytes)}
+    )
+    return replace(source, external_import_lineage=lineage)
 
 
 def _copy_candidate(tmp_path: Path, case: str | None = None) -> tuple[Path, Path]:
@@ -293,9 +436,7 @@ class FixtureBackend:
             verifier = trial / "verifier"
             verifier.mkdir()
             (verifier / "reward.txt").write_text(f"{reward}\n")
-            (verifier / "test-stdout.txt").write_text(
-                str(override.get("verifier_stdout", ""))
-            )
+            (verifier / "test-stdout.txt").write_text(str(override.get("verifier_stdout", "")))
             verifier_output_digest = _verifier_output_digest(trial)
             evidence_digest = _tree_digest(job)
             job_path = job.relative_to(repo_root).as_posix()
@@ -345,9 +486,7 @@ def _bundle(
     )
 
 
-def _bound_registry_record(
-    repo: Path, task: Path, certification_path: Path
-) -> TaskRegistryRecord:
+def _bound_registry_record(repo: Path, task: Path, certification_path: Path) -> TaskRegistryRecord:
     digests = compute_task_digests(task)
     relative_task = task.relative_to(repo).as_posix()
     certification = certification_envelope_from_packet(
@@ -401,6 +540,7 @@ def _tree_digest(path: Path) -> str:
     ]
     return _digest(_canonical(payload))
 
+
 def test_workbench_registry_canonical_and_package_digests_are_identical(
     tmp_path: Path,
 ) -> None:
@@ -413,7 +553,6 @@ def test_workbench_registry_canonical_and_package_digests_are_identical(
     assert _inspect(repo, task).candidate["digests"]["registry_package"] == (
         compute_task_digests(task).package
     )
-
 
 
 def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
@@ -559,7 +698,8 @@ def test_remote_add_and_build_time_network_fetch_are_rejected(tmp_path: Path) ->
     remote_repo, remote_task = _copy_candidate(tmp_path / "remote")
     (remote_task / "environment/Dockerfile").write_text(
         "FROM ubuntu@sha256:" + "a" * 64 + "\n"
-        "ADD --checksum=sha256:" + "b" * 64
+        "ADD --checksum=sha256:"
+        + "b" * 64
         + " https://example.invalid/archive.tar /app/archive.tar\n"
     )
     remote = _inspect(remote_repo, remote_task)
@@ -606,9 +746,7 @@ def test_unscannable_build_context_file_fails_closed(tmp_path: Path) -> None:
 
 def test_networked_verifier_environment_is_rejected(tmp_path: Path) -> None:
     """An absent [verifier.environment] inherits [environment], overlay and all."""
-    inherited_repo, inherited_task = _copy_candidate(
-        tmp_path / "inherited", "networked-verifier"
-    )
+    inherited_repo, inherited_task = _copy_candidate(tmp_path / "inherited", "networked-verifier")
     inherited = _inspect(inherited_repo, inherited_task)
     assert not inherited.static_passed
     finding = next(
@@ -617,9 +755,7 @@ def test_networked_verifier_environment_is_rejected(tmp_path: Path) -> None:
     assert finding.severity == "error"
     assert "'public'" in finding.message
     assert "[environment] (inherited)" in finding.message
-    assert (
-        inherited.candidate["network_policy"]["verifier_effective_baseline"] == "public"
-    )
+    assert inherited.candidate["network_policy"]["verifier_effective_baseline"] == "public"
 
 
 def test_verifier_environment_table_does_not_inherit_a_no_network_default(
@@ -628,7 +764,7 @@ def test_verifier_environment_table_does_not_inherit_a_no_network_default(
     """Harbor defaults EnvironmentConfig.network_mode to public; an empty table is public."""
     repo, task = _copy_candidate(tmp_path / "empty-table")
     config = (task / "task.toml").read_text()
-    (task / "task.toml").write_text(config + '\n[verifier.environment]\ncpus = 1\n')
+    (task / "task.toml").write_text(config + "\n[verifier.environment]\ncpus = 1\n")
     inspection = _inspect(repo, task)
 
     assert not inspection.static_passed
@@ -641,9 +777,13 @@ def test_verifier_environment_table_does_not_inherit_a_no_network_default(
 
 def test_verifier_phase_override_cannot_reopen_the_network(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path / "phase")
-    config = (task / "task.toml").read_text().replace(
-        '[verifier]\ntimeout_sec = 30.0',
-        '[verifier]\nnetwork_mode = "public"\ntimeout_sec = 30.0',
+    config = (
+        (task / "task.toml")
+        .read_text()
+        .replace(
+            "[verifier]\ntimeout_sec = 30.0",
+            '[verifier]\nnetwork_mode = "public"\ntimeout_sec = 30.0',
+        )
     )
     (task / "task.toml").write_text(config)
     inspection = _inspect(repo, task)
@@ -670,9 +810,7 @@ def test_step_level_verifier_network_is_refused_as_unsupported(tmp_path: Path) -
 
     assert not inspection.static_passed
     finding = next(
-        item
-        for item in inspection.diagnostics
-        if item.code == "unsupported_task_configuration"
+        item for item in inspection.diagnostics if item.code == "unsupported_task_configuration"
     )
     assert finding.severity == "error"
     # A construct the workbench cannot model is a limitation of the workbench,
@@ -759,9 +897,7 @@ def test_task_authored_compose_under_tests_escapes_nothing(tmp_path: Path) -> No
 
     assert not inspection.static_passed
     finding = next(
-        item
-        for item in inspection.diagnostics
-        if item.code == "custom_compose_unsupported"
+        item for item in inspection.diagnostics if item.code == "custom_compose_unsupported"
     )
     assert finding.path == "tests/docker-compose.yaml"
     assert finding.severity == "error"
@@ -949,18 +1085,26 @@ def test_offline_build_commands_are_not_refused(tmp_path: Path, command: str) ->
 @pytest.mark.parametrize(
     ("addition", "location"),
     [
-        ('[environment.mcp_servers.docs]\nurl = "https://example.invalid"\n',
-         "environment.mcp_servers"),
-        ('[verifier.environment]\nnetwork_mode = "no-network"\ndocker_image = "x@sha256:'
-         + "a" * 64 + '"\n', "verifier.environment.docker_image"),
+        (
+            '[environment.mcp_servers.docs]\nurl = "https://example.invalid"\n',
+            "environment.mcp_servers",
+        ),
+        (
+            '[verifier.environment]\nnetwork_mode = "no-network"\ndocker_image = "x@sha256:'
+            + "a" * 64
+            + '"\n',
+            "verifier.environment.docker_image",
+        ),
         ('[verifier.collect]\ncommand = "true"\n', "verifier.collect"),
-        ('[[task.authors]]\nname = "Other"\naffiliation = "Somewhere"\n',
-         "task.authors[1].affiliation"),
+        (
+            '[[task.authors]]\nname = "Other"\naffiliation = "Somewhere"\n',
+            "task.authors[1].affiliation",
+        ),
         ('multi_step_reward_strategy = "final"\n', "multi_step_reward_strategy"),
         ('[environment.healthcheck]\ntest = "true"\n', "environment.healthcheck"),
         # `[solution]` itself is now modelled, so the refusal that proves the
         # table is closed is an unknown key inside it, not the table's presence.
-        ('[solution]\nseed = 1\n', "solution.seed"),
+        ("[solution]\nseed = 1\n", "solution.seed"),
     ],
 )
 def test_unsupported_task_configuration_names_the_exact_offending_path(
@@ -1235,9 +1379,7 @@ def test_deprecated_allow_internet_alias_is_still_refused(tmp_path: Path) -> Non
 
     assert not inspection.static_passed
     refusal = next(
-        item
-        for item in inspection.diagnostics
-        if item.code == "unsupported_task_configuration"
+        item for item in inspection.diagnostics if item.code == "unsupported_task_configuration"
     )
     assert refusal.message.startswith("environment.allow_internet is outside")
     assert "Declare network_mode explicitly instead" in refusal.message
@@ -1335,9 +1477,13 @@ def test_prebuilt_docker_image_bypassing_the_reviewed_build_is_rejected(
     tmp_path: Path,
 ) -> None:
     repo, task = _copy_candidate(tmp_path / "prebuilt")
-    config = (task / "task.toml").read_text().replace(
-        '[environment]\n',
-        '[environment]\ndocker_image = "ubuntu@sha256:' + "a" * 64 + '"\n',
+    config = (
+        (task / "task.toml")
+        .read_text()
+        .replace(
+            "[environment]\n",
+            '[environment]\ndocker_image = "ubuntu@sha256:' + "a" * 64 + '"\n',
+        )
     )
     (task / "task.toml").write_text(config)
     inspection = _inspect(repo, task)
@@ -1361,9 +1507,7 @@ def test_network_overlay_denies_the_build_network_not_only_the_runtime(
     assert candidate["network_policy"]["agent_build_network"] == (
         "denied by overlay build.network=none"
     )
-    assert candidate["network_policy"]["control_overlay_digest"] == _digest(
-        NETWORK_OVERLAY_CONTENT
-    )
+    assert candidate["network_policy"]["control_overlay_digest"] == _digest(NETWORK_OVERLAY_CONTENT)
 
 
 def test_forged_registration_is_rejected_but_real_record_is_only_observed(
@@ -1482,9 +1626,7 @@ def test_fair_alternative_must_be_byte_distinct_and_please_hack_replay_exists(
     tmp_path: Path,
 ) -> None:
     repo, task = _copy_candidate(tmp_path)
-    (task / "workbench/fair-alternative.sh").write_bytes(
-        (task / "solution/solve.sh").read_bytes()
-    )
+    (task / "workbench/fair-alternative.sh").write_bytes((task / "solution/solve.sh").read_bytes())
     assert "fair_alternative_not_distinct" in _codes(_inspect(repo, task))
 
     repo2, task2 = _copy_candidate(tmp_path / "missing-hack")
@@ -1497,9 +1639,7 @@ def test_second_nop_flake_and_successful_please_hack_are_failures(tmp_path: Path
     inspection = _inspect(repo, task)
     valid = _bundle(inspection, repo=repo, task=task)
     observations = list(valid.observations)
-    nop_index = next(
-        index for index, item in enumerate(observations) if item.control_id == "nop-2"
-    )
+    nop_index = next(index for index, item in enumerate(observations) if item.control_id == "nop-2")
     observations[nop_index] = replace(
         observations[nop_index], reward=1.0, reward_vector={"reward": 1.0}
     )
@@ -1529,9 +1669,7 @@ def test_second_nop_flake_and_successful_please_hack_are_failures(tmp_path: Path
     certificate = json.loads(packet.read_text())
     assert report.disposition == "needs_changes"
     assert certificate["check_vector"]["hack_detected"] is True
-    assert any(
-        item["control_id"] == "please-hack" for item in certificate["retained_replays"]
-    )
+    assert any(item["control_id"] == "please-hack" for item in certificate["retained_replays"])
 
 
 def test_valid_controls_certify_and_rescan_is_idempotent(tmp_path: Path) -> None:
@@ -1805,8 +1943,6 @@ def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -
     assert len(first_evidence) == 10
     assert {
         path.relative_to(repo).as_posix(): path.read_bytes()
-
-
         for path in sorted(first_paths[0].parent.joinpath("evidence").glob("*.json"))
     } == first_evidence
     candidate = json.loads(first_paths[0].read_text())
@@ -1815,9 +1951,7 @@ def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -
     assert certification["admission_granted"] is False
     assert certification["certified"] is True
     assert len(certification["retained_evidence"]) == 10
-    assert all(
-        (repo / item["path"]).is_file() for item in certification["retained_evidence"]
-    )
+    assert all((repo / item["path"]).is_file() for item in certification["retained_evidence"])
     assert len(certification["retained_replays"]) == 2
     assert certification["axes"]["realism_review"]["status"] == "not_assessed"
     assert certification["axes"]["difficulty_calibration"]["status"] == "not_applicable"
@@ -1850,6 +1984,399 @@ def test_packet_can_write_isolated_root_under_candidate_boundary(tmp_path: Path)
     assert candidate_path == packet_dir / "candidate.json"
     assert certification_path == packet_dir / "certification.json"
     assert json.loads(certification_path.read_text())["certified"] is True
+
+
+def test_external_import_lineage_round_trips_packet_and_registry(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    source, lineage, _ = _external_source(repo, task)
+    inspection = inspect_candidate(repo_root=repo, task_path=task, source=source)
+    assert inspection.candidate["workbench_version"] == "m049-v2"
+    assert inspection.candidate["source"]["external_import_lineage"] == lineage.model_dump(
+        mode="json"
+    )
+    assert inspection.candidate["digests"]["source_metadata"] == _digest(
+        _canonical(source.to_dict())
+    )
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    digests = compute_task_digests(task)
+    certification = certification_envelope_from_packet(
+        repo,
+        certification_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        package_digest=digests.package,
+        external_import_lineage=lineage,
+    )
+    record = TaskRegistryRecord(
+        task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
+        version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        digests=digests,
+        source_uri=source.source_uri,
+        source_ref=source.source_ref,
+        external_import_lineage=lineage,
+        license="MIT",
+        provenance_zone="01-external",
+        is_synthetic=False,
+        certification=certification,
+        state="candidate",
+        state_reason="certificate_bound_pending_human_admission",
+        allowed_uses=["measurement"],
+    )
+    registry_dir = repo / "library/registry"
+    registry_dir.mkdir(parents=True)
+    (registry_dir / "uppercase-fixture.json").write_text(record.model_dump_json(indent=2) + "\n")
+
+    reloaded = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+
+    assert reloaded == record
+    verify_certification_packet(repo, record)
+
+
+def test_successor_external_packet_refuses_missing_lineage_without_partial_write(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    source = CandidateSource(
+        source_uri="https://example.invalid/upstream",
+        source_ref="0123456789abcdef0123456789abcdef01234567",
+        license="MIT",
+        provenance_zone="01-external",
+    )
+    inspection = inspect_candidate(repo_root=repo, task_path=task, source=source)
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+
+    with pytest.raises(
+        WorkbenchError,
+        match="m049-v2 external packets require external import lineage",
+    ):
+        write_packet(repo_root=repo, report=report)
+
+    assert not (repo / "research/registration/candidates").exists()
+
+
+def test_external_import_refuses_tampered_transformation_record(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    record_path.write_text("{}\n")
+
+    with pytest.raises(WorkbenchError, match="transformation record digest mismatch"):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)
+
+
+def test_external_import_record_refuses_mode_and_schema_ambiguity(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    _, _, record_path = _external_source(repo, task)
+    payload = json.loads(record_path.read_text())
+
+    no_op = dict(payload)
+    no_op["import_mode"] = "no-op"
+    with pytest.raises(ValueError, match="no-op import requires equal"):
+        ExternalImportTransformationRecordV1.model_validate(no_op)
+
+    transformed = json.loads(json.dumps(payload))
+    transformed["source"]["source_package_digest"] = transformed["output"][
+        "registry_package_digest"
+    ]
+    with pytest.raises(ValueError, match="transformed import requires unequal"):
+        ExternalImportTransformationRecordV1.model_validate(transformed)
+
+    unsupported = dict(payload)
+    unsupported["schema_version"] = 2
+    with pytest.raises(ValueError, match="Input should be 1"):
+        ExternalImportTransformationRecordV1.model_validate(unsupported)
+
+
+def test_packet_refuses_candidate_promotion_lineage_mismatch(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    source, lineage, _ = _external_source(repo, task)
+    inspection = inspect_candidate(repo_root=repo, task_path=task, source=source)
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    digests = compute_task_digests(task)
+    mismatched = lineage.model_copy(update={"source_checkpoint_ref": "other-checkpoint"})
+
+    with pytest.raises(
+        TaskCertificationError,
+        match="promotion lineage does not match candidate source metadata",
+    ):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id="uppercase-fixture",
+            task_version="1.0.0",
+            task_path=task.relative_to(repo).as_posix(),
+            package_digest=digests.package,
+            external_import_lineage=mismatched,
+        )
+
+
+def test_external_import_refuses_missing_transformation_record(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    record_path.unlink()
+
+    with pytest.raises(WorkbenchError, match="transformation record is missing"):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        ("input", "input source lineage mismatch"),
+        ("output", "output runtime package mismatch"),
+    ],
+)
+def test_external_import_refuses_transformation_binding_mismatch(
+    tmp_path: Path,
+    mutation: str,
+    reason: str,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    payload = json.loads(record_path.read_text())
+    if mutation == "input":
+        payload["source"]["source_package_digest"] = "sha256:" + "4" * 64
+    else:
+        wrong_digest = "sha256:" + "5" * 64
+        payload["output"]["registry_package_digest"] = wrong_digest
+        payload["reproducibility"]["builds"][0]["output_package_digest"] = wrong_digest
+        payload["reproducibility"]["builds"][1]["output_package_digest"] = wrong_digest
+    source = _rewrite_external_record(source, record_path, payload)
+
+    with pytest.raises(WorkbenchError, match=reason):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)
+
+
+def test_external_import_lineage_refuses_ambiguous_record_path() -> None:
+    with pytest.raises(ValueError, match="repository-relative"):
+        ExternalImportLineageV1(
+            source_task_id="upstream/task",
+            source_package_digest="sha256:" + "1" * 64,
+            source_checkpoint_ref="checkpoint",
+            transformation_record_path=(
+                "research/registration/imports/task/../../../candidate.json"
+            ),
+            transformation_record_digest="sha256:" + "2" * 64,
+        )
+
+
+def test_external_import_refuses_identical_build_evidence_digests(tmp_path: Path) -> None:
+    """Two builds with identical evidence files/digests under different paths must be rejected."""
+    from evallab.schemas import ExternalImportReproducibilityV1
+
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    payload = json.loads(record_path.read_text())
+
+    # Point build 2 to build 1's digest and contents
+    b1_path = repo / payload["reproducibility"]["builds"][0]["evidence_path"]
+    b2_path = repo / payload["reproducibility"]["builds"][1]["evidence_path"]
+    b2_path.write_bytes(b1_path.read_bytes())
+    payload["reproducibility"]["builds"][1]["evidence_digest"] = payload["reproducibility"][
+        "builds"
+    ][0]["evidence_digest"]
+
+    # Schema validator rejects duplicate evidence digests
+    with pytest.raises(
+        ValueError, match="two clean builds must have distinct evidence_digest values"
+    ):
+        ExternalImportReproducibilityV1.model_validate(payload["reproducibility"])
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value", "error_match"),
+    [
+        (
+            "build_id",
+            "wrong-build-id",
+            "attestation build_id 'wrong-build-id' does not match record 'build-1'",
+        ),
+        (
+            "built_at",
+            "2026-08-31T12:00:00Z",
+            "attestation built_at '2026-08-31T12:00:00Z' does not match record '2026-08-31T17:50:00Z'",
+        ),
+        (
+            "environment_digest",
+            "sha256:" + "9" * 64,
+            "attestation environment_digest does not match record",
+        ),
+        (
+            "toolchain_digest",
+            "sha256:" + "8" * 64,
+            "attestation toolchain_digest does not match record",
+        ),
+        (
+            "output_package_digest",
+            "sha256:" + "7" * 64,
+            "attestation output_package_digest does not match record",
+        ),
+    ],
+)
+def test_external_import_refuses_build_attestation_mismatches(
+    tmp_path: Path,
+    field: str,
+    bad_value: str,
+    error_match: str,
+) -> None:
+    """Mismatch between build attestation artifact content and transformation record must fail."""
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    payload = json.loads(record_path.read_text())
+
+    b1_path = repo / payload["reproducibility"]["builds"][0]["evidence_path"]
+    attestation = json.loads(b1_path.read_text())
+    attestation[field] = bad_value
+    b1_path.write_bytes(_canonical(attestation))
+    payload["reproducibility"]["builds"][0]["evidence_digest"] = _digest(b1_path.read_bytes())
+
+    source = _rewrite_external_record(source, record_path, payload)
+    with pytest.raises(WorkbenchError, match=error_match):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)
+
+
+def test_canonical_utc_timestamp_validation() -> None:
+    """Canonical UTC timestamp validator must accept strict ...Z format and reject fractional aliases."""
+    from evallab.schemas import _canonical_utc_timestamp
+
+    assert _canonical_utc_timestamp("2026-08-31T18:00:00Z", "test") == "2026-08-31T18:00:00Z"
+    assert (
+        _canonical_utc_timestamp("2026-08-31T18:00:00.123456Z", "test")
+        == "2026-08-31T18:00:00.123456Z"
+    )
+    assert (
+        _canonical_utc_timestamp("2026-08-31T18:00:00.100000Z", "test")
+        == "2026-08-31T18:00:00.100000Z"
+    )
+
+    # Date-only, offset, and naive rejected
+    with pytest.raises(ValueError):
+        _canonical_utc_timestamp("2026-08-31", "test")
+
+    with pytest.raises(ValueError):
+        _canonical_utc_timestamp("2026-08-31T18:00:00+00:00", "test")
+
+    with pytest.raises(ValueError):
+        _canonical_utc_timestamp("2026-08-31T18:00:00", "test")
+
+    # Zero-fraction and fractional alias rejections
+    for alias in (
+        "2026-08-31T18:00:00.0Z",
+        "2026-08-31T18:00:00.00Z",
+        "2026-08-31T18:00:00.000000Z",
+        "2026-08-31T18:00:00.1Z",
+        "2026-08-31T18:00:00.12Z",
+        "2026-08-31T18:00:00.12345Z",
+        "2026-08-31T18:00:00.1234560Z",
+        "2026-08-31T18:00:00.1234567Z",
+    ):
+        with pytest.raises(ValueError):
+            _canonical_utc_timestamp(alias, "test")
+
+
+def test_legacy_m049_v1_packet_remains_readable(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+    candidate_path, certification_path = write_packet(repo_root=repo, report=report)
+    candidate = json.loads(candidate_path.read_text())
+    candidate["workbench_version"] = "m049-v1"
+    candidate.pop("candidate_record_digest")
+    candidate["candidate_record_digest"] = _digest(_canonical(candidate))
+    candidate_path.write_bytes(_canonical(candidate))
+    certificate = json.loads(certification_path.read_text())
+    certificate["workbench_version"] = "m049-v1"
+    certificate["candidate_record_digest"] = candidate["candidate_record_digest"]
+    certificate.pop("certification_id")
+    certificate["certification_id"] = (
+        "cert-" + hashlib.sha256(_canonical(certificate)).hexdigest()[:24]
+    )
+    certification_path.write_bytes(_canonical(certificate))
+    digests = compute_task_digests(task)
+
+    envelope = certification_envelope_from_packet(
+        repo,
+        certification_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        package_digest=digests.package,
+        allow_legacy_v1=True,
+    )
+
+    assert envelope.workbench_version == "m049-v1"
+
+
+def test_canonical_envelope_refuses_zero_adversarial_controls(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    record = _bound_registry_record(repo, task, certification_path)
+    body = json.loads(certification_path.read_bytes())
+    invalid_ids = {
+        item["control_id"] for item in body["control_plan"] if item["kind"] == "adversarial"
+    }
+    body["control_plan"] = [
+        item for item in body["control_plan"] if item["control_id"] not in invalid_ids
+    ]
+    observations = [
+        item
+        for item in body["control_bundle"]["observations"]
+        if item["control_id"] not in invalid_ids
+    ]
+    body["control_bundle"]["observations"] = observations
+    body["control_summary"]["invalid_probe_runs"] = 0
+    body["control_summary"]["result_digests"] = [_digest(_canonical(item)) for item in observations]
+    body["check_vector"]["invalid_outputs_rejected"] = False
+    body.pop("certification_id")
+    body["certification_id"] = "cert-" + hashlib.sha256(_canonical(body)).hexdigest()[:24]
+    certification_path.write_bytes(_canonical(body))
+
+    with pytest.raises(
+        TaskCertificationError,
+        match="required check vector is not fully satisfied",
+    ):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
 
 
 def test_certificate_binds_registry_reload_and_rejects_tamper_replay_and_circularity(
@@ -1913,9 +2440,7 @@ def test_certificate_binds_registry_reload_and_rejects_tamper_replay_and_circula
 
     missing_replay = json.loads(original)
     missing_replay["retained_replays"] = [
-        item
-        for item in missing_replay["retained_replays"]
-        if item["control_id"] != "please-hack"
+        item for item in missing_replay["retained_replays"] if item["control_id"] != "please-hack"
     ]
     rewrite(missing_replay)
     with pytest.raises(TaskCertificationError, match="please-hack"):
@@ -2094,9 +2619,7 @@ def test_cli_plan_check_packet_without_shared_cli_wiring(
     plan_payload = json.loads(capsys.readouterr().out)
     inspection = _inspect(repo, task)
     controls_path = tmp_path / "controls.json"
-    controls_path.write_bytes(
-        _canonical(_bundle(inspection, repo=repo, task=task).to_dict())
-    )
+    controls_path.write_bytes(_canonical(_bundle(inspection, repo=repo, task=task).to_dict()))
 
     assert run_cli(["check", *common, "--controls", str(controls_path)]) == 0
     check_payload = json.loads(capsys.readouterr().out)
@@ -2147,10 +2670,13 @@ def test_cli_run_controls_composes_fixed_harbor_subprocess_commands(
         "02-local-evidence",
     ]
 
-    assert run_cli(
-        ["check", *common, "--run-controls"],
-        control_backend=backend,
-    ) == 1
+    assert (
+        run_cli(
+            ["check", *common, "--run-controls"],
+            control_backend=backend,
+        )
+        == 1
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload["disposition"] == "harness_blocked"
     assert len(captured) == 10
@@ -2188,17 +2714,14 @@ def test_load_bundle_fixture_file_and_unknown_json_fail_closed(tmp_path: Path) -
     with pytest.raises(WorkbenchError, match="invalid control bundle"):
         load_control_bundle(path)
 
+
 # --- V2: Local MCP, Compose, Collect Hooks, Credentials, Offline Build Proofs ---
 
 
 def test_v2_mcp_servers_accepted_and_rejected(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path / "mcp-base")
     (task / "environment/docker-compose.yaml").write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  mcp-server:\n"
-        "    build: .\n"
+        "services:\n  main:\n    build: .\n  mcp-server:\n    build: .\n"
     )
 
     stdio_task = task / "task.toml"
@@ -2318,99 +2841,47 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
     compose_path = task / "environment/docker-compose.yaml"
 
     # 1. Negative control: top-level custom networks (missing internal: true)
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "networks:\n"
-        "  custom:\n"
-    )
+    compose_path.write_text("services:\n  main:\n    build: .\nnetworks:\n  custom:\n")
     assert "compose_networks_unsupported" in _codes(_inspect(repo, task))
 
     # 2. Negative control: service network_mode
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "    network_mode: host\n"
-    )
+    compose_path.write_text("services:\n  main:\n    build: .\n    network_mode: host\n")
     assert "custom_compose_unsupported" in _codes(_inspect(repo, task))
 
     # 3. Negative control: service custom networks
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "    networks:\n"
-        "      - default\n"
-    )
+    compose_path.write_text("services:\n  main:\n    build: .\n    networks:\n      - default\n")
     assert "compose_networks_unsupported" in _codes(_inspect(repo, task))
 
     # 4. Negative control: published host ports
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "    ports:\n"
-        '      - "8080:8080"\n'
-    )
+    compose_path.write_text('services:\n  main:\n    build: .\n    ports:\n      - "8080:8080"\n')
     assert "compose_host_ports_unsupported" in _codes(_inspect(repo, task))
 
     # 5. Negative control: privileged: true
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "    privileged: true\n"
-    )
+    compose_path.write_text("services:\n  main:\n    build: .\n    privileged: true\n")
     assert "compose_privileged_unsupported" in _codes(_inspect(repo, task))
 
     # 6. Negative control: missing main service
-    compose_path.write_text(
-        "services:\n"
-        "  worker:\n"
-        "    build: .\n"
-    )
+    compose_path.write_text("services:\n  worker:\n    build: .\n")
     assert "compose_main_service_missing" in _codes(_inspect(repo, task))
 
     # 7. Negative control: 3 services
     compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  sidecar1:\n"
-        "    build: .\n"
-        "  sidecar2:\n"
-        "    build: .\n"
+        "services:\n  main:\n    build: .\n  sidecar1:\n    build: .\n  sidecar2:\n    build: .\n"
     )
     assert "compose_topology_invalid" in _codes(_inspect(repo, task))
 
     # 8. Negative control: build context escaping environment
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: ../solution\n"
-    )
+    compose_path.write_text("services:\n  main:\n    build: ../solution\n")
     assert "compose_build_path_escape" in _codes(_inspect(repo, task))
 
     # 9. Negative control: unpinned image ref
     compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  sidecar:\n"
-        '    image: "mcp-service:latest"\n'
+        'services:\n  main:\n    build: .\n  sidecar:\n    image: "mcp-service:latest"\n'
     )
     assert "compose_image_unpinned" in _codes(_inspect(repo, task))
 
     # 10. Accepted path: main (build: .) + sidecar (build: .)
-    compose_path.write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  mcp-server:\n"
-        "    build: .\n"
-    )
+    compose_path.write_text("services:\n  main:\n    build: .\n  mcp-server:\n    build: .\n")
     insp = _inspect(repo, task)
     assert insp.static_passed, _codes(insp)
     assert "compose_topology" in insp.candidate
@@ -2755,55 +3226,34 @@ def test_v2_rejects_non_string_network_key(tmp_path: Path, net_key: str) -> None
     inspection = _inspect(repo, task)
     assert not inspection.static_passed
     assert "compose_networks_unsupported" in _codes(inspection)
-    assert any(
-        "is not a safe task-local name" in item.message
-        for item in inspection.diagnostics
-    )
+    assert any("is not a safe task-local name" in item.message for item in inspection.diagnostics)
 
 
 def test_v2_rejects_non_string_volume_key(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path / "non-string-vol-key")
     (task / "environment/docker-compose.yaml").write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  mcp-server:\n"
-        "    build: .\n"
-        "volumes:\n"
-        "  123:\n"
+        "services:\n  main:\n    build: .\n  mcp-server:\n    build: .\nvolumes:\n  123:\n"
     )
     inspection = _inspect(repo, task)
     assert not inspection.static_passed
     assert "compose_volume_invalid" in _codes(inspection)
-    assert any(
-        "is not a safe task-local name" in item.message
-        for item in inspection.diagnostics
-    )
+    assert any("is not a safe task-local name" in item.message for item in inspection.diagnostics)
 
 
 @pytest.mark.parametrize(
     "networks_fragment",
     [
-        "    networks:\n"
-        "      mcp-net:\n",
-        "    networks:\n"
-        "      mcp-net:\n"
-        "        aliases:\n"
-        "          - alias1\n",
-        "    networks:\n"
-        "      mcp-net: {}\n",
+        "    networks:\n      mcp-net:\n",
+        "    networks:\n      mcp-net:\n        aliases:\n          - alias1\n",
+        "    networks:\n      mcp-net: {}\n",
     ],
 )
-def test_v2_rejects_service_networks_mapping_form(
-    tmp_path: Path, networks_fragment: str
-) -> None:
+def test_v2_rejects_service_networks_mapping_form(tmp_path: Path, networks_fragment: str) -> None:
     repo, task = _copy_candidate(tmp_path / "mapping-form")
     (task / "environment/docker-compose.yaml").write_text(
         "services:\n"
         "  main:\n"
-        "    build: .\n"
-        + networks_fragment
-        + "  mcp-server:\n"
+        "    build: .\n" + networks_fragment + "  mcp-server:\n"
         "    build: .\n"
         "    networks:\n"
         "      - mcp-net\n"
@@ -2903,9 +3353,7 @@ def test_v2_compose_rejects_unmodelled_service_execution_surfaces(
         "  main:\n"
         "    build: .\n"
         "  mcp-server:\n"
-        "    build: .\n"
-        + fragment
-        + "volumes:\n"
+        "    build: .\n" + fragment + "volumes:\n"
         "  tau3-logs:\n"
     )
     assert expected_code in _codes(_inspect(repo, task))
@@ -2917,11 +3365,7 @@ def test_v2_compose_scans_nested_sidecar_dockerfile(tmp_path: Path) -> None:
     sidecar.mkdir()
     (sidecar / "Dockerfile").write_text("FROM alpine:latest\n")
     (task / "environment/docker-compose.yaml").write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  mcp-server:\n"
-        "    build: ./sidecar\n"
+        "services:\n  main:\n    build: .\n  mcp-server:\n    build: ./sidecar\n"
     )
     assert "compose_image_unpinned" in _codes(_inspect(repo, task))
 
@@ -2933,33 +3377,38 @@ def test_v2_verifier_collect_accepted_and_rejected(tmp_path: Path) -> None:
 
     # 1. Negative control: service is not main
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "mcp-server"\ncommand = "cp /logs/out.txt /app/output/result.txt"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "mcp-server"\ncommand = "cp /logs/out.txt /app/output/result.txt"\n'
     )
     insp = _inspect(repo, task)
     assert "collect_service_invalid" in _codes(insp)
 
     # 2. Negative control: arbitrary shell command (pg_dump)
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "pg_dump > /tmp/state.sql"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\ncommand = "pg_dump > /tmp/state.sql"\n'
     )
     insp = _inspect(repo, task)
     assert "verifier_collect_unsupported" in _codes(insp)
 
     # 3. Negative control: pipeline
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cat /logs/a | tee /app/output/result.txt"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cat /logs/a | tee /app/output/result.txt"\n'
     )
     assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
 
     # 4. Negative control: path traversal in source
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/../etc/passwd /app/output/result.txt"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/../etc/passwd /app/output/result.txt"\n'
     )
     assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
 
     # 5. Negative control: globs in source
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/*.txt /app/output/result.txt"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/*.txt /app/output/result.txt"\n'
     )
     assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
 
@@ -2981,20 +3430,23 @@ def test_v2_verifier_collect_accepted_and_rejected(tmp_path: Path) -> None:
 
     # 6. Negative control: destination not in artifacts
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/out.txt /app/undeclared.txt"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/out.txt /app/undeclared.txt"\n'
     )
     assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
 
     # 7. Negative control: source exposes forbidden solution/tests
     task_toml.write_text(
-        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /solution/solve.sh /app/output/result.txt"\n'
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /solution/solve.sh /app/output/result.txt"\n'
     )
     assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
 
     # 8. Accepted path: guard form
     task_toml.write_text(
-        base_toml + (
-            '\n[[verifier.collect]]\n'
+        base_toml
+        + (
+            "\n[[verifier.collect]]\n"
             'service = "main"\n'
             'command = "if [ ! -f /app/output/result.txt ] && [ -f /logs/agent/result.txt ]; then cp /logs/agent/result.txt /app/output/result.txt; fi"\n'
         )
@@ -3023,7 +3475,9 @@ def test_v2_verifier_env_credentials_accepted_and_rejected(tmp_path: Path) -> No
     assert "verifier_env_literal_secret" in _codes(insp)
 
     # 2. Negative control: default expression containing secret
-    task_toml.write_text(base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${OPENAI_API_KEY:-fallback_secret}"\n')
+    task_toml.write_text(
+        base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${OPENAI_API_KEY:-fallback_secret}"\n'
+    )
     insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
     assert "verifier_env_literal_secret" in _codes(insp)
 
@@ -3033,22 +3487,21 @@ def test_v2_verifier_env_credentials_accepted_and_rejected(tmp_path: Path) -> No
     assert "verifier_credential_unauthorized" in _codes(insp)
 
     # 3b. Negative control: authorized container name aliases an unauthorized host variable
-    task_toml.write_text(
-        base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${UNAUTHORIZED}"\n'
-    )
+    task_toml.write_text(base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${UNAUTHORIZED}"\n')
     insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
     assert "verifier_credential_unauthorized" in _codes(insp)
 
     # 3c. Negative control: credential aliases are refused even when both names are authorized
-    task_toml.write_text(
-        base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${SIMULATED_USER}"\n'
-    )
+    task_toml.write_text(base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${SIMULATED_USER}"\n')
     insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
     assert "verifier_credential_alias_unsupported" in _codes(insp)
 
     # 4. Negative control: credential in environment.env (leak to agent)
     task_toml.write_text(
-        base_toml.replace('network_mode = "no-network"', 'network_mode = "no-network"\nenv = { API_KEY = "${OPENAI_API_KEY}" }')
+        base_toml.replace(
+            'network_mode = "no-network"',
+            'network_mode = "no-network"\nenv = { API_KEY = "${OPENAI_API_KEY}" }',
+        )
     )
     insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
     assert not insp.static_passed
@@ -3082,15 +3535,17 @@ def test_v2_offline_build_proof_accepted_and_rejected(tmp_path: Path) -> None:
 
     # 3. Negative control: missing lockfile
     (task / "tests/build-proof.json").write_text(
-        json.dumps({
-            "schema_version": "1.0",
-            "kind": "offline_build_proof",
-            "ecosystem": "python",
-            "lockfile": "nonexistent.lock",
-            "lockfile_digest": "sha256:" + "0" * 64,
-            "pinned_dependencies": {"pkg": "1.0.0"},
-            "reviewed_by": "eval-lab",
-        })
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "nonexistent.lock",
+                "lockfile_digest": "sha256:" + "0" * 64,
+                "pinned_dependencies": {"pkg": "1.0.0"},
+                "reviewed_by": "eval-lab",
+            }
+        )
     )
     insp = _inspect(repo, task)
     assert "build_proof_lockfile_missing" in _codes(insp)
@@ -3098,15 +3553,17 @@ def test_v2_offline_build_proof_accepted_and_rejected(tmp_path: Path) -> None:
     # 4. Negative control: lockfile digest mismatch
     (task / "tests/uv.lock").write_text("lock-data-v1\n", encoding="utf-8")
     (task / "tests/build-proof.json").write_text(
-        json.dumps({
-            "schema_version": "1.0",
-            "kind": "offline_build_proof",
-            "ecosystem": "python",
-            "lockfile": "uv.lock",
-            "lockfile_digest": "sha256:" + "f" * 64,
-            "pinned_dependencies": {"pkg": "1.0.0"},
-            "reviewed_by": "eval-lab",
-        })
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "uv.lock",
+                "lockfile_digest": "sha256:" + "f" * 64,
+                "pinned_dependencies": {"pkg": "1.0.0"},
+                "reviewed_by": "eval-lab",
+            }
+        )
     )
     insp = _inspect(repo, task)
     assert "build_proof_lockfile_mismatch" in _codes(insp)
@@ -3114,15 +3571,17 @@ def test_v2_offline_build_proof_accepted_and_rejected(tmp_path: Path) -> None:
     # 5. Negative control: unpinned dependency in proof
     lock_digest = f"sha256:{hashlib.sha256(b'lock-data-v1\n').hexdigest()}"
     (task / "tests/build-proof.json").write_text(
-        json.dumps({
-            "schema_version": "1.0",
-            "kind": "offline_build_proof",
-            "ecosystem": "python",
-            "lockfile": "uv.lock",
-            "lockfile_digest": lock_digest,
-            "pinned_dependencies": {"pkg": "latest"},
-            "reviewed_by": "eval-lab",
-        })
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "uv.lock",
+                "lockfile_digest": lock_digest,
+                "pinned_dependencies": {"pkg": "latest"},
+                "reviewed_by": "eval-lab",
+            }
+        )
     )
     insp = _inspect(repo, task)
     assert "build_proof_unpinned_dependency" in _codes(insp)
@@ -3130,29 +3589,33 @@ def test_v2_offline_build_proof_accepted_and_rejected(tmp_path: Path) -> None:
     # 5b. Negative controls: version ranges and wildcards are not immutable pins
     for version in ("*", ">=1.0.0", "^2.0", "~=1.4"):
         (task / "tests/build-proof.json").write_text(
-            json.dumps({
-                "schema_version": "1.0",
-                "kind": "offline_build_proof",
-                "ecosystem": "python",
-                "lockfile": "uv.lock",
-                "lockfile_digest": lock_digest,
-                "pinned_dependencies": {"pkg": version},
-                "reviewed_by": "eval-lab",
-            })
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "kind": "offline_build_proof",
+                    "ecosystem": "python",
+                    "lockfile": "uv.lock",
+                    "lockfile_digest": lock_digest,
+                    "pinned_dependencies": {"pkg": version},
+                    "reviewed_by": "eval-lab",
+                }
+            )
         )
         assert "build_proof_unpinned_dependency" in _codes(_inspect(repo, task))
 
     # 6. Accepted path: valid proof matching lockfile allows uv sync
     (task / "tests/build-proof.json").write_text(
-        json.dumps({
-            "schema_version": "1.0",
-            "kind": "offline_build_proof",
-            "ecosystem": "python",
-            "lockfile": "uv.lock",
-            "lockfile_digest": lock_digest,
-            "pinned_dependencies": {"pkg": "1.0.0@sha256:" + "a" * 64},
-            "reviewed_by": "eval-lab-reviewer",
-        })
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "uv.lock",
+                "lockfile_digest": lock_digest,
+                "pinned_dependencies": {"pkg": "1.0.0@sha256:" + "a" * 64},
+                "reviewed_by": "eval-lab-reviewer",
+            }
+        )
     )
     insp = _inspect(repo, task)
     assert insp.static_passed, _codes(insp)
@@ -3162,8 +3625,7 @@ def test_v2_offline_build_proof_accepted_and_rejected(tmp_path: Path) -> None:
     tests_dockerfile.write_text(base_docker + "\nRUN curl https://example.invalid/payload\n")
     assert "build_network_use" in _codes(_inspect(repo, task))
     tests_dockerfile.write_text(
-        base_docker
-        + "\nRUN pip install --no-index --require-hashes "
+        base_docker + "\nRUN pip install --no-index --require-hashes "
         "-r https://example.invalid/requirements.txt\n"
     )
     assert "build_network_use" in _codes(_inspect(repo, task))
@@ -3178,35 +3640,35 @@ def test_v2_complete_safe_fixture_proving_accepted_path(tmp_path: Path) -> None:
     (task / "task.toml").write_text(
         'schema_version = "1.4"\n'
         'artifacts = ["/app/output/result.txt"]\n\n'
-        '[task]\n'
+        "[task]\n"
         'name = "local-lab/v2-agentic-fixture"\n'
         'version = "1.0.0"\n'
         'description = "Complete v2 agentic task candidate"\n'
         'keywords = ["mcp", "compose", "collect", "credentials"]\n\n'
-        '[[task.authors]]\n'
+        "[[task.authors]]\n"
         'name = "Eval Lab"\n'
         'email = "eval-lab@example.invalid"\n\n'
-        '[metadata]\n'
+        "[metadata]\n"
         'difficulty = "easy"\n'
         'category = "agentic"\n'
         'tags = ["v2", "mcp", "offline-proof"]\n\n'
-        '[agent]\n'
-        'timeout_sec = 30.0\n\n'
-        '[verifier]\n'
-        'timeout_sec = 30.0\n'
+        "[agent]\n"
+        "timeout_sec = 30.0\n\n"
+        "[verifier]\n"
+        "timeout_sec = 30.0\n"
         'environment_mode = "separate"\n\n'
-        '[[verifier.collect]]\n'
+        "[[verifier.collect]]\n"
         'service = "main"\n'
         'command = "if [ ! -f /app/output/result.txt ] && [ -f /logs/agent/result.txt ]; then cp /logs/agent/result.txt /app/output/result.txt; fi"\n\n'
-        '[verifier.env]\n'
+        "[verifier.env]\n"
         'SIMULATED_USER = "${SIMULATED_USER}"\n\n'
-        '[environment]\n'
+        "[environment]\n"
         'network_mode = "no-network"\n'
-        'build_timeout_sec = 120.0\n'
-        'cpus = 1\n'
-        'memory_mb = 256\n'
-        'storage_mb = 512\n\n'
-        '[[environment.mcp_servers]]\n'
+        "build_timeout_sec = 120.0\n"
+        "cpus = 1\n"
+        "memory_mb = 256\n"
+        "storage_mb = 512\n\n"
+        "[[environment.mcp_servers]]\n"
         'name = "local-tools"\n'
         'transport = "streamable-http"\n'
         'url = "http://mcp-server:8000/mcp"\n'
@@ -3214,11 +3676,7 @@ def test_v2_complete_safe_fixture_proving_accepted_path(tmp_path: Path) -> None:
 
     # 2. Compose file with main and mcp-server
     (task / "environment/docker-compose.yaml").write_text(
-        "services:\n"
-        "  main:\n"
-        "    build: .\n"
-        "  mcp-server:\n"
-        "    build: .\n"
+        "services:\n  main:\n    build: .\n  mcp-server:\n    build: .\n"
     )
 
     # 3. Verifier Dockerfile with uv sync and offline build proof
@@ -3231,17 +3689,19 @@ def test_v2_complete_safe_fixture_proving_accepted_path(tmp_path: Path) -> None:
     (task / "tests/uv.lock").write_bytes(lock_data)
     lock_digest = f"sha256:{hashlib.sha256(lock_data).hexdigest()}"
     (task / "tests/build-proof.json").write_text(
-        json.dumps({
-            "schema_version": "1.0",
-            "kind": "offline_build_proof",
-            "ecosystem": "python",
-            "lockfile": "uv.lock",
-            "lockfile_digest": lock_digest,
-            "pinned_dependencies": {
-                "tau2-bench": "1.0.0@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-            },
-            "reviewed_by": "eval-lab-reviewer",
-        })
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "uv.lock",
+                "lockfile_digest": lock_digest,
+                "pinned_dependencies": {
+                    "tau2-bench": "1.0.0@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                },
+                "reviewed_by": "eval-lab-reviewer",
+            }
+        )
     )
 
     source = CandidateSource(
@@ -3278,30 +3738,30 @@ def test_v2_internal_bridge_network_complete_fixture(tmp_path: Path) -> None:
     (task / "task.toml").write_text(
         'schema_version = "1.4"\n'
         'artifacts = ["/app/output/result.txt"]\n\n'
-        '[task]\n'
+        "[task]\n"
         'name = "local-lab/v2-internal-network-fixture"\n'
         'version = "1.0.0"\n'
         'description = "Complete v2 internal bridge network fixture"\n'
         'keywords = ["mcp", "compose", "network", "internal-bridge"]\n\n'
-        '[[task.authors]]\n'
+        "[[task.authors]]\n"
         'name = "Eval Lab"\n'
         'email = "eval-lab@example.invalid"\n\n'
-        '[metadata]\n'
+        "[metadata]\n"
         'difficulty = "easy"\n'
         'category = "agentic"\n'
         'tags = ["v2", "mcp", "offline-proof", "internal-network"]\n\n'
-        '[agent]\n'
-        'timeout_sec = 30.0\n\n'
-        '[verifier]\n'
-        'timeout_sec = 30.0\n'
+        "[agent]\n"
+        "timeout_sec = 30.0\n\n"
+        "[verifier]\n"
+        "timeout_sec = 30.0\n"
         'environment_mode = "separate"\n\n'
-        '[environment]\n'
+        "[environment]\n"
         'network_mode = "no-network"\n'
-        'build_timeout_sec = 120.0\n'
-        'cpus = 1\n'
-        'memory_mb = 256\n'
-        'storage_mb = 512\n\n'
-        '[[environment.mcp_servers]]\n'
+        "build_timeout_sec = 120.0\n"
+        "cpus = 1\n"
+        "memory_mb = 256\n"
+        "storage_mb = 512\n\n"
+        "[[environment.mcp_servers]]\n"
         'name = "local-tools"\n'
         'transport = "streamable-http"\n'
         'url = "http://mcp-server:8000/mcp"\n'
@@ -3331,17 +3791,19 @@ def test_v2_internal_bridge_network_complete_fixture(tmp_path: Path) -> None:
     (task / "tests/uv.lock").write_bytes(lock_data)
     lock_digest = f"sha256:{hashlib.sha256(lock_data).hexdigest()}"
     (task / "tests/build-proof.json").write_text(
-        json.dumps({
-            "schema_version": "1.0",
-            "kind": "offline_build_proof",
-            "ecosystem": "python",
-            "lockfile": "uv.lock",
-            "lockfile_digest": lock_digest,
-            "pinned_dependencies": {
-                "tau2-bench": "1.0.0@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-            },
-            "reviewed_by": "eval-lab-reviewer",
-        })
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "uv.lock",
+                "lockfile_digest": lock_digest,
+                "pinned_dependencies": {
+                    "tau2-bench": "1.0.0@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                },
+                "reviewed_by": "eval-lab-reviewer",
+            }
+        )
     )
 
     source = CandidateSource(
@@ -3470,3 +3932,63 @@ def test_run_controls_fails_closed_on_invalid_package_name(tmp_path: Path) -> No
             backend=backend,
         )
     assert backend.calls == []
+
+
+def test_workbench_and_registry_package_digest_parity_with_nested_ignores(
+    tmp_path: Path,
+) -> None:
+    """Workbench candidate package digest and registry task_directory_digest must agree on nested ignored files."""
+    repo, task = _copy_candidate(tmp_path)
+    from evallab.registry import task_directory_digest
+
+    digest_clean_wb = _registry_package_digest(task)
+    digest_clean_reg = task_directory_digest(task)
+    assert digest_clean_wb == digest_clean_reg
+
+    # Inject nested ignored paths
+    nested_pycache = task / "tests/__pycache__"
+    nested_pycache.mkdir(parents=True, exist_ok=True)
+    (nested_pycache / "ignored.py").write_text("# ignored\n")
+    (nested_pycache / "ignored.cpython-312.pyc").write_bytes(b"\x00" * 32)
+    (task / ".DS_Store").write_bytes(b"\x00" * 16)
+
+    digest_dirty_wb = _registry_package_digest(task)
+    digest_dirty_reg = task_directory_digest(task)
+    assert digest_dirty_wb == digest_clean_wb, "workbench digest must ignore nested __pycache__"
+    assert digest_dirty_reg == digest_clean_reg, "registry digest must ignore nested __pycache__"
+    assert digest_dirty_wb == digest_dirty_reg, "workbench and registry digests must be identical"
+
+
+@pytest.mark.parametrize(
+    "bad_path",
+    [
+        "research/registration/imports//x/record.json",
+        "research/registration/imports/./x/record.json",
+        "research/registration/imports/x/../record.json",
+        "research/registration/imports\\x\\record.json",
+    ],
+)
+def test_external_import_schema_refuses_non_canonical_paths(bad_path: str) -> None:
+    """Non-canonical path spellings with duplicate slashes or dot aliases must be rejected."""
+    with pytest.raises(
+        ValueError,
+        match="must stay repository-relative|must be under|canonical normalized POSIX path",
+    ):
+        ExternalImportLineageV1(
+            source_task_id="upstream/task",
+            source_package_digest="sha256:" + "1" * 64,
+            source_checkpoint_ref="checkpoint-1",
+            transformation_record_path=bad_path,
+            transformation_record_digest="sha256:" + "2" * 64,
+        )
+
+
+def test_external_import_refuses_reproducibility_evidence_tamper(tmp_path: Path) -> None:
+    """Tampering with build evidence file must fail verification."""
+    repo, task = _copy_candidate(tmp_path)
+    source, _, record_path = _external_source(repo, task)
+    build_evidence = repo / "research/registration/imports/external-fixture/build-1.json"
+    build_evidence.write_bytes(b'{"build": 1, "tampered": true}')
+
+    with pytest.raises(WorkbenchError, match="reproducibility build 1 evidence digest mismatch"):
+        inspect_candidate(repo_root=repo, task_path=task, source=source)

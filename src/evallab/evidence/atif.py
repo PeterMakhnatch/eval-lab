@@ -14,7 +14,30 @@ from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
 from evallab.evidence.parquet_io import write_table_atomic
-from evallab.results import JobRecord, TrialRecord, sha256_file
+from evallab.evidence_store import EvidenceLocator, materialize_evidence
+from evallab.results import (
+    JobRecord,
+    TrialRecord,
+    discover_regrade_trials,
+    load_job,
+    load_regrade_trial,
+    sha256_file,
+)
+from evallab.storage.settlement import (
+    ProjectionContract,
+    ProjectionSettlementManifest,
+    ProjectionState,
+    ProjectionTableContract,
+    ProjectionTableSettlement,
+    SettlementError,
+    SettlementSource,
+    begin_or_resume_settlement,
+    persist_and_write_settlement,
+    producer_code_digest,
+    table_contract,
+    transition_settlement,
+    verify_projected_table,
+)
 
 JsonObject = dict[str, Any]
 ValidationStatus = Literal["valid", "invalid", "unsupported"]
@@ -202,6 +225,7 @@ class IngestProjectionResult:
     cataloged_jobs: int
     tables: tuple[ExportedTable, ...]
     failures: tuple[ProjectionFailure, ...]
+    settlements: tuple[ProjectionSettlementManifest, ...] = ()
 
     @property
     def row_counts(self) -> dict[str, int]:
@@ -241,7 +265,6 @@ class ProjectionInvariant:
             )
             base += breakdown
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
-
 
 
 class _HarborTrajectory(Protocol):
@@ -825,46 +848,415 @@ def export_trajectories(jobs: list[JobRecord], output_root: Path) -> ExportResul
     return ExportResult(root=output_root, tables=tuple(exported))
 
 
+SettlementRecorder = Callable[
+    [str, Path, ProjectionSettlementManifest],
+    Path | None,
+]
+
+
+def _job_projection_contract(job: JobRecord) -> ProjectionContract:
+    from evallab import __version__
+    from evallab.evidence import event_mart, facts, parquet_io
+    from evallab.interpretation import trajectory_quality
+
+    schemas = {
+        **PARQUET_SCHEMAS,
+        **facts.FACT_SCHEMAS,
+        **event_mart.EVENT_MART_SCHEMAS,
+        "trajectory_quality_reports": trajectory_quality.REPORT_SCHEMA,
+        "trajectory_quality_findings": trajectory_quality.FINDING_SCHEMA,
+    }
+    tables = [
+        table_contract(
+            table_name="jobs",
+            partition_identity=f"job_id={job.id}",
+            required=True,
+            schema=PARQUET_SCHEMAS["jobs"],
+            relative_path=f"job_id={job.id}/{JOB_PROJECTION_FILE}",
+        )
+    ]
+    ordered_trials = sorted(job.trials, key=lambda item: item.id)
+    table_groups = (
+        ("trajectories", "steps", "tool_calls", "observations"),
+        (
+            "trial_facts",
+            "reward_facts",
+            "artifact_facts",
+            "tool_usage",
+            "state_changes",
+            "state_events",
+        ),
+        (
+            "trajectory_events",
+            "agent_actions",
+            "llm_calls",
+            "trajectory_phases",
+            "action_effects",
+        ),
+        (
+            "trajectory_quality_reports",
+            "trajectory_quality_findings",
+        ),
+    )
+    for table_group in table_groups:
+        for trial in ordered_trials:
+            partition = f"job_id={job.id}/trial_id={trial.id}"
+            for table_name in table_group:
+                tables.append(
+                    table_contract(
+                        table_name=table_name,
+                        partition_identity=partition,
+                        required=True,
+                        schema=schemas[table_name],
+                        relative_path=f"{partition}/{table_name}.parquet",
+                    )
+                )
+    return ProjectionContract(
+        producer_name="evallab.evidence.atif.project_jobs",
+        producer_version=__version__,
+        producer_code_digest=producer_code_digest(
+            [
+                Path(__file__),
+                Path(facts.__file__ or ""),
+                Path(event_mart.__file__ or ""),
+                Path(parquet_io.__file__ or ""),
+                Path(trajectory_quality.__file__ or ""),
+            ]
+        ),
+        tables=tuple(tables),
+    )
+
+
+def _table_state(
+    contract: ProjectionTableContract,
+    *,
+    state: ProjectionState,
+    source_digest: str | None = None,
+    file_digest: str | None = None,
+    row_count: int | None = None,
+    failure_reason: str | None = None,
+) -> ProjectionTableSettlement:
+    return ProjectionTableSettlement(
+        **contract.model_dump(mode="python"),
+        state=state,
+        source_digest=source_digest,
+        file_digest=file_digest,
+        row_count=row_count,
+        failure_reason=failure_reason,
+    )
+
+
+def _record_settlement(
+    recorder: SettlementRecorder,
+    database_url: str,
+    derived_root: Path,
+    manifest: ProjectionSettlementManifest,
+) -> ProjectionSettlementManifest:
+    recorder(database_url, derived_root, manifest)
+    return manifest
+
+
+def _settle_projection_result(
+    *,
+    manifest: ProjectionSettlementManifest,
+    exported: tuple[ExportedTable, ...],
+    failure: ProjectionFailure | None,
+    derived_root: Path,
+) -> tuple[ProjectionSettlementManifest, ProjectionFailure | None]:
+    expected = list(manifest.contract.tables)
+    produced_by_key: dict[tuple[str, str], ExportedTable] = {}
+    produced_order: list[tuple[str, str]] = []
+    for table in exported:
+        relative = table.path.resolve().relative_to(derived_root).as_posix()
+        partition = Path(relative).parent.as_posix()
+        key = (table.table, partition)
+        if key in produced_by_key:
+            raise SettlementError("duplicate_projection_output", f"{key}")
+        produced_by_key[key] = table
+        produced_order.append(key)
+
+    expected_order = [table.key for table in expected]
+    if failure is None and produced_order != expected_order:
+        raise SettlementError(
+            "projection_required_set_mismatch",
+            f"expected={expected_order} actual={produced_order}",
+        )
+
+    settled: list[ProjectionTableSettlement] = []
+    settlement_error: SettlementError | None = None
+    for contract in expected:
+        exported_table = produced_by_key.get(contract.key)
+        if exported_table is None:
+            reason = failure.message if failure is not None else "required output is missing"
+            settled.append(_table_state(contract, state="failed", failure_reason=reason))
+            continue
+        try:
+            settled.append(
+                verify_projected_table(
+                    derived_root,
+                    contract,
+                    source_digest=manifest.source.cas_content_digest or "",
+                    expected_file_digest=exported_table.sha256,
+                    expected_row_count=exported_table.rows,
+                )
+            )
+        except SettlementError as exc:
+            settlement_error = exc
+            settled.append(
+                _table_state(
+                    contract,
+                    state="failed",
+                    failure_reason=f"{exc.reason_code}: {exc}",
+                )
+            )
+
+    if failure is not None or settlement_error is not None:
+        reason = (
+            failure.error_type
+            if failure is not None
+            else settlement_error.reason_code
+            if settlement_error is not None
+            else "projection_failed"
+        )
+        failed_manifest = transition_settlement(
+            manifest,
+            "projection_failed",
+            tables=settled,
+            reason_code=reason,
+        )
+        if failure is None and settlement_error is not None:
+            failure = ProjectionFailure(
+                job_id=manifest.source.source_id,
+                job_name=manifest.source.source_id,
+                error_type=type(settlement_error).__name__,
+                message=str(settlement_error),
+            )
+        return failed_manifest, failure
+
+    ready_manifest = transition_settlement(
+        manifest,
+        "ready",
+        tables=settled,
+    )
+    return ready_manifest, None
+
+
 def ingest_and_project(
     database_url: str,
     jobs: list[JobRecord],
     *,
     root: Path,
     output_root: Path,
+    source_locators: Mapping[str, EvidenceLocator] | None = None,
+    settlement_recorder: SettlementRecorder = persist_and_write_settlement,
 ) -> IngestProjectionResult:
-    """Land completed jobs in the catalog, then rebuild their derived Parquet.
-
-    Catalog transactions finish before any Parquet write begins. A filesystem or
-    Arrow failure is therefore returned to the caller for event attribution and
-    never rolls back the searchable job/trial catalog.
-    """
+    """Catalog independently authenticated CAS sources, then settle projections."""
     from evallab import database
     from evallab.evidence.facts import ingest_catalog
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
-    database.initialize(database_url)
-    cataloged_jobs = database.ingest(database_url, ordered_jobs, root=root)
-    # Index document-level and deterministic facts before touching Parquet. The
-    # paths describe the deterministic target even when a later write is recorded
-    # as a projection exception.
-    ingest_catalog(
-        database_url,
-        ordered_jobs,
-        root=root,
-        derived_root=derived_root,
-    )
+    locators = dict(source_locators or {})
+    unexpected = sorted(set(locators) - {job.id for job in ordered_jobs})
+    if unexpected:
+        raise SettlementError("unexpected_cas_source_locators", ", ".join(unexpected))
 
-    tables, failures = project_jobs(ordered_jobs, derived_root)
+    database.initialize(database_url)
+    manifests_by_job: dict[str, ProjectionSettlementManifest] = {}
+    verified_jobs: list[JobRecord] = []
+    failures: list[ProjectionFailure] = []
+
+    for job in ordered_jobs:
+        effective_job = job
+        source_failure: str | None = None
+        locator = locators.get(job.id)
+        if locator is None:
+            source = SettlementSource.quarantined(job.id, "job", "missing_cas_locator")
+        else:
+            try:
+                source = SettlementSource.from_cas_locator(locator)
+            except SettlementError as exc:
+                source = SettlementSource.quarantined(job.id, "job", exc.reason_code)
+            else:
+                if source.source_id != job.id or source.source_kind != "job":
+                    source = SettlementSource.quarantined(
+                        job.id,
+                        "job",
+                        "cas_record_identity_mismatch",
+                    )
+                else:
+                    try:
+                        with materialize_evidence(locator) as materialized:
+                            effective_job = load_job(materialized)
+                    except Exception:
+                        source_failure = "invalid_materialized_job"
+                    else:
+                        if effective_job.id != job.id:
+                            source_failure = "materialized_job_identity_mismatch"
+        contract = _job_projection_contract(effective_job)
+        manifest = begin_or_resume_settlement(derived_root, source, contract)
+        _record_settlement(
+            settlement_recorder,
+            database_url,
+            derived_root,
+            manifest,
+        )
+        failure_reason = source.authority_error or source_failure
+        if failure_reason is not None:
+            quarantined_tables = [
+                _table_state(
+                    table,
+                    state="quarantined",
+                    failure_reason=failure_reason,
+                )
+                for table in contract.tables
+            ]
+            if manifest.state == "discovered":
+                manifest = transition_settlement(
+                    manifest,
+                    "quarantined",
+                    tables=quarantined_tables,
+                    reason_code=failure_reason,
+                )
+                _record_settlement(
+                    settlement_recorder,
+                    database_url,
+                    derived_root,
+                    manifest,
+                )
+            manifests_by_job[job.id] = manifest
+            error_type = (
+                "MissingCASAuthority"
+                if source.authority_status != "verified"
+                else "InvalidMaterializedJob"
+            )
+            failures.append(
+                ProjectionFailure(
+                    job_id=job.id,
+                    job_name=job.name,
+                    error_type=error_type,
+                    message=f"{error_type}: {failure_reason}",
+                )
+            )
+            continue
+
+        if manifest.state == "discovered":
+            manifest = transition_settlement(manifest, "source_validated")
+            _record_settlement(settlement_recorder, database_url, derived_root, manifest)
+        if manifest.state == "source_validated":
+            manifest = transition_settlement(manifest, "cas_committed")
+            _record_settlement(settlement_recorder, database_url, derived_root, manifest)
+        manifests_by_job[job.id] = manifest
+        verified_jobs.append(effective_job)
+
+    cataloged_jobs = 0
+    if verified_jobs:
+        cataloged_jobs = database.ingest(database_url, verified_jobs, root=root)
+        ingest_catalog(
+            database_url,
+            verified_jobs,
+            root=root,
+            derived_root=derived_root,
+        )
+    regrade_roots = {
+        root / "runs",
+        root / "research/evidence/runs",
+        root / "evidence/runs",
+    }
+    regrade_roots.update(
+        job.path.parent for job in ordered_jobs if isinstance(getattr(job, "path", None), Path)
+    )
+    regrades = [load_regrade_trial(path) for path in discover_regrade_trials(sorted(regrade_roots))]
+    if regrades:
+        database.ingest_regrades(database_url, regrades, root=root)
+
+    settled_tables: list[ExportedTable] = []
+    for job in verified_jobs:
+        manifest = manifests_by_job[job.id]
+        if manifest.state == "ready":
+            for table in manifest.tables:
+                if table.state != "ready" or table.file_digest is None or table.row_count is None:
+                    continue
+                settled_tables.append(
+                    ExportedTable(
+                        table=table.table_name,
+                        path=derived_root / table.relative_path,
+                        rows=table.row_count,
+                        sha256=table.file_digest,
+                    )
+                )
+            continue
+        if manifest.state == "cas_committed":
+            manifest = transition_settlement(manifest, "cataloged")
+            _record_settlement(settlement_recorder, database_url, derived_root, manifest)
+        if manifest.state == "cataloged":
+            manifest = transition_settlement(
+                manifest,
+                "projecting",
+                tables=[
+                    _table_state(
+                        table,
+                        state="projecting",
+                        source_digest=manifest.source.cas_content_digest,
+                    )
+                    for table in manifest.contract.tables
+                ],
+            )
+            _record_settlement(settlement_recorder, database_url, derived_root, manifest)
+        locator = locators.get(job.id)
+        if locator is not None:
+            with materialize_evidence(locator) as materialized_root:
+                live_job = load_job(materialized_root)
+                exported, projection_failures = project_jobs([live_job], derived_root)
+        else:
+            exported, projection_failures = project_jobs([job], derived_root)
+        projection_failure = projection_failures[0] if projection_failures else None
+        try:
+            manifest, projection_failure = _settle_projection_result(
+                manifest=manifest,
+                exported=exported,
+                failure=projection_failure,
+                derived_root=derived_root,
+            )
+        except SettlementError as exc:
+            manifest = transition_settlement(
+                manifest,
+                "projection_failed",
+                tables=[
+                    _table_state(
+                        table,
+                        state="failed",
+                        failure_reason=f"{exc.reason_code}: {exc}",
+                    )
+                    for table in manifest.contract.tables
+                ],
+                reason_code=exc.reason_code,
+            )
+            projection_failure = ProjectionFailure(
+                job_id=job.id,
+                job_name=job.name,
+                error_type=type(exc).__name__,
+                message=str(exc),
+            )
+        _record_settlement(settlement_recorder, database_url, derived_root, manifest)
+        manifests_by_job[job.id] = manifest
+        settled_tables.extend(exported)
+        if projection_failure is not None:
+            failures.append(projection_failure)
+
     return IngestProjectionResult(
         cataloged_jobs=cataloged_jobs,
-        tables=tables,
-        failures=failures,
+        tables=tuple(settled_tables),
+        failures=tuple(failures),
+        settlements=tuple(manifests_by_job[job_id] for job_id in sorted(manifests_by_job)),
     )
 
 
 def project_jobs(
-    jobs: list[JobRecord], output_root: Path
+    jobs: list[JobRecord],
+    output_root: Path,
+    *,
+    repo_root: Path | None = None,
 ) -> tuple[tuple[ExportedTable, ...], tuple[ProjectionFailure, ...]]:
     """Project raw jobs without requiring the PostgreSQL catalog.
 
@@ -873,7 +1265,7 @@ def project_jobs(
     then delegates here. Keeping one projection implementation lets CI exercise
     real Parquet writes while a local smoke also proves PostgreSQL agreement.
     """
-    from evallab.evidence.facts import rebuild_from_raw
+    from evallab.evidence import facts as facts_module
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
@@ -887,7 +1279,15 @@ def project_jobs(
                 [{"job_id": job.id, "job_name": job.name, "trial_count": len(job.trials)}],
             )
             tables.append(job_table)
-            rebuilt = rebuild_from_raw([job], derived_root)
+            if repo_root is not None:
+                rebuilt = facts_module.rebuild_from_raw([job], derived_root, repo_root=repo_root)
+            else:
+                rebuilt = facts_module.rebuild_from_raw([job], derived_root)
+            tables.extend(rebuilt.tables)
+            from evallab.interpretation.trajectory_quality import _export_quality_tables
+
+            quality_result = _export_quality_tables([job], derived_root)
+            tables.extend(quality_result.tables)
         except Exception as exc:  # Projection failure is data, not an agent result.
             failures.append(
                 ProjectionFailure(
@@ -898,7 +1298,6 @@ def project_jobs(
                 )
             )
             continue
-        tables.extend(rebuilt.tables)
     return tuple(tables), tuple(failures)
 
 

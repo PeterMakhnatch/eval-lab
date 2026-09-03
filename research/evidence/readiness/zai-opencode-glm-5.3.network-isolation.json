@@ -1,0 +1,83 @@
+{
+  "schema_version": "network-isolation-evidence/v1",
+  "requested_agent_policy": {
+    "mode": "no-network",
+    "allowed_hosts": []
+  },
+  "effective_agent_policy": {
+    "mode": "public",
+    "allowed_hosts": []
+  },
+  "requested_verifier_policy": {
+    "mode": "no-network",
+    "allowed_hosts": []
+  },
+  "effective_verifier_policy": {
+    "mode": "public",
+    "allowed_hosts": []
+  },
+  "requested_verifier_phase_policy": {
+    "mode": "no-network",
+    "allowed_hosts": []
+  },
+  "effective_verifier_phase_policy": {
+    "mode": "public",
+    "allowed_hosts": []
+  },
+  "runtime_identity": {
+    "platform_system": "Darwin",
+    "platform_release": "25.5.0",
+    "platform_machine": "arm64",
+    "container_runtime": "docker",
+    "container_runtime_version": "29.4.1",
+    "container_image_digest": "sha256:d09d15e60962ca365d1cd544a48773bac9d33f2fb1b00f2aa0deec78ade7dc31",
+    "adapter": "zai-opencode",
+    "adapter_version": "1.1.0",
+    "adapter_digest": "sha256:60aaf01d8141447ef2925295927c5bc42c62543c625c624758c3e5d8ee22eeab"
+  },
+  "probe_identity": {
+    "implementation": "evallab.network_isolation.run_docker_network_isolation_probe",
+    "implementation_version": "1.0.0",
+    "implementation_digest": "sha256:5e62412506dc8c7c040c6b8146c3ec17eb22e2fcadab70567e19a4c674f21286",
+    "config_digest": "sha256:3ac7d92caa07ca7ce514d995492c079620bd244128e61ab6d110784b7d294e67"
+  },
+  "probe_results": [
+    {
+      "escape_class": "hostname",
+      "target": "http://host.docker.internal:54083/hostname",
+      "outcome": "escaped",
+      "detail": "http-response:probe-ok"
+    },
+    {
+      "escape_class": "direct-ip",
+      "target": "http://192.168.65.254:54083/direct-ip",
+      "outcome": "escaped",
+      "detail": "http-response:probe-ok"
+    },
+    {
+      "escape_class": "alternate-port",
+      "target": "http://host.docker.internal:54084/alternate-port",
+      "outcome": "escaped",
+      "detail": "http-response:probe-ok"
+    },
+    {
+      "escape_class": "redirect",
+      "target": "http://host.docker.internal:54083/redirect",
+      "outcome": "escaped",
+      "detail": "http-response:probe-ok"
+    },
+    {
+      "escape_class": "dns-rebinding",
+      "target": "http://isolation-rebind.test:54083/dns-rebinding",
+      "outcome": "escaped",
+      "detail": "http-response:probe-ok"
+    }
+  ],
+  "observed_at": "2026-09-01T00:34:10.465868Z",
+  "valid_until": "2026-09-08T00:34:10.465868Z",
+  "evaluated_at": "2026-09-01T00:34:10.465868Z",
+  "status": "unavailable",
+  "reason": "network_isolation_unavailable:darwin-docker-public-egress-allows-hostname-direct-ip-alternate-port-redirect-dns-rebinding",
+  "analysis_eligibility": "calibration-only",
+  "evidence_digest": "sha256:0dea81047ac365ea89e1e3d4be5f10aacfac114b36c6550e0e721dc61a93f792"
+}

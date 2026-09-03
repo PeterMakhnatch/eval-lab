@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import shutil
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -12,17 +14,23 @@ from pydantic import ValidationError
 from evallab.canary import load_canary_suite
 from evallab.queue import DirectoryQueue, Executor, PaidRunAuthorization, PolicyGate
 from evallab.registry import (
+    ControlEvidenceRef,
     TaskCertificationError,
     TaskComponentMissingError,
+    TaskControlEvidence,
     TaskControlEvidenceError,
     TaskDigestMismatchError,
     TaskInventoryPolicyError,
+    TaskLimits,
     TaskNotRegisteredError,
     TaskPathRedirectionError,
     TaskRegistry,
+    TaskRegistryRecord,
     TaskStateInvalidError,
     TaskUsageNotAllowedError,
     TaskVersionMismatchError,
+    _canonical_bytes,
+    _digest_bytes,
     audit_registry,
     compute_task_digests,
     discover_control_evidence,
@@ -30,15 +38,25 @@ from evallab.registry import (
     inventory_tasks,
     promote_task,
     register_task,
+    task_runtime_identity,
+    verify_certification_packet,
 )
 from evallab.researchers import ResearcherLoop
+from evallab.results import load_job
 from evallab.schemas import (
-    ControlEvidenceRef,
+    NETWORK_ESCAPE_CLASSES,
     ExperimentSpec,
+    NetworkEscapeProbeResultV1,
+    NetworkIsolationProbeIdentityV1,
+    NetworkIsolationRuntimeIdentityV1,
+    NetworkPolicyEvidenceV1,
+    RunProvenance,
     StandingApprovalsPolicy,
-    TaskControlEvidence,
-    TaskLimits,
-    TaskRegistryRecord,
+    build_network_isolation_evidence,
+)
+from evallab.synthetic_contracts import SyntheticCertificate
+from evallab.trial_admissibility import (
+    finalize_trial_admissibility,
 )
 
 
@@ -62,6 +80,7 @@ def _make_dummy_task(
     tests_dir.mkdir(parents=True, exist_ok=True)
     (tests_dir / "test_task.py").write_text(verifier)
     return task_dir
+
 
 def _make_canary_policy(root: Path, task_paths: list[str] | None = None) -> None:
     members = task_paths or []
@@ -138,9 +157,7 @@ def _make_control_evidence(
             trial_name=trial_name,
             reward=reward,
             evidence_path=result_file.relative_to(root).as_posix(),
-            evidence_digest=(
-                f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"
-            ),
+            evidence_digest=(f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"),
             lock_digest=f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}",
             observed_at=observed_at,
             task_id=task_id,
@@ -317,13 +334,14 @@ def test_candidate_record_cannot_back_registered_work(tmp_path: Path) -> None:
         reg.resolve_spec(spec, tmp_path)
 
 
-def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> None:
+def test_registered_fixture_without_causal_control_authority_is_refused(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/valid-task")
     record = _make_registry_record(task_dir, tmp_path, task_id="valid-task", state="registered")
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "valid-task.json").write_text(record.model_dump_json(indent=2))
-
     reg = TaskRegistry.from_repo(tmp_path)
     spec = ExperimentSpec(
         name="test-valid",
@@ -335,10 +353,11 @@ def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> 
         agent="codex",
         submitted_by="test",
     )
-    resolved = reg.resolve_spec(spec, tmp_path)
-    assert resolved is not None
-    assert resolved.task_id == "valid-task"
-    assert resolved.state == "registered"
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        reg.resolve_spec(spec, tmp_path)
 
 
 def test_changed_task_bytes_causes_refusal(tmp_path: Path) -> None:
@@ -394,9 +413,7 @@ def test_changed_verifier_bytes_causes_refusal(tmp_path: Path) -> None:
 def test_task_path_redirection_causes_refusal(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/original-task")
     _make_dummy_task(tmp_path, "library/tasks/other-task")
-    record = _make_registry_record(
-        task_dir, tmp_path, task_id="original-task", state="registered"
-    )
+    record = _make_registry_record(task_dir, tmp_path, task_id="original-task", state="registered")
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "original-task.json").write_text(record.model_dump_json(indent=2))
@@ -438,7 +455,9 @@ def test_task_version_mismatch_causes_refusal(tmp_path: Path) -> None:
         reg.resolve_spec(spec, tmp_path)
 
 
-def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
+def test_omitted_task_path_cannot_bypass_missing_control_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/omitted-path-task")
     record = _make_registry_record(
         task_dir, tmp_path, task_id="omitted-path-task", state="registered"
@@ -446,7 +465,6 @@ def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
     reg_dir = tmp_path / "library/registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     (reg_dir / "omitted-path-task.json").write_text(record.model_dump_json(indent=2))
-
     reg = TaskRegistry.from_repo(tmp_path)
     spec = ExperimentSpec(
         name="test-omitted-path",
@@ -457,9 +475,11 @@ def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
         agent="codex",
         submitted_by="test",
     )
-    resolved = reg.resolve_spec(spec, tmp_path)
-    assert resolved is not None
-    assert spec.task_path == "library/tasks/omitted-path-task"
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        reg.resolve_spec(spec, tmp_path)
 
 
 def test_control_evidence_missing_file_causes_refusal(tmp_path: Path) -> None:
@@ -581,9 +601,7 @@ def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
     gate = PolicyGate(policy, repo_root=tmp_path)
     spec = ExperimentSpec(
@@ -682,9 +700,7 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
 
     captured_requests = []
@@ -720,21 +736,10 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
         submitted_by="test",
     )
     waiting, decision = executor.submit(spec)
-    # Billable work never auto-runs: it is authorised one spec at a time.
-    assert decision.reason_code == "paid_run_unauthorized"
-    path = queue.approve(str(queue.load(waiting).spec_id), actor="peter")
-    assert path.parent.name == "approved"
-
-    # Run executor tick
-    dispatched = executor.tick()
-    assert dispatched == 1
-    assert len(captured_requests) == 1
-
-    req = captured_requests[0]
-    assert req.task == (tmp_path / "library/tasks/dispatched-task").resolve()
-    assert req.provenance.package_digest == record.digests.package
-    assert req.provenance.verifier_digest == record.digests.verifier
-    assert req.provenance.task_path == "library/tasks/dispatched-task"
+    assert waiting.parent.name == "waiting"
+    assert decision.reason_code == "invalid_control_evidence"
+    assert executor.tick() == 0
+    assert captured_requests == []
 
 
 def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path: Path) -> None:
@@ -750,9 +755,7 @@ def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path:
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
         quiet_failure_rule=3,
-        auto_run=[
-            {"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}
-        ],
+        auto_run=[{"name": "researcher-followups", "tasks": ["registered/*"], "agents": ["codex"]}],
     )
     loop = ResearcherLoop(
         repo_root=tmp_path,
@@ -877,6 +880,7 @@ def test_inventory_refuses_missing_or_malformed_canary_policy(tmp_path: Path) ->
     with pytest.raises(TaskInventoryPolicyError, match="members list"):
         inventory_tasks(tmp_path)
 
+
 def _make_control_job(
     root: Path,
     task_dir: Path,
@@ -925,6 +929,7 @@ def _make_control_job(
     (trial_dir / "lock.json").write_text(json.dumps(lock, indent=2))
     return job_dir
 
+
 def test_registered_control_evidence_rejects_ignored_run_path(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/path-bound-task")
     record = _make_registry_record(
@@ -961,11 +966,11 @@ def test_explicit_ephemeral_discovery_root_is_refused(tmp_path: Path) -> None:
             jobs_roots=[tmp_path / "runs"],
         )
 
-    evidence = discover_control_evidence(task_dir, tmp_path)
-    assert evidence.oracle.reward == 1.0
-    assert evidence.nop.reward == 0.0
-    assert evidence.oracle.evidence_path.startswith("research/evidence/runs/")
-    assert evidence.nop.evidence_path.startswith("research/evidence/runs/")
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        discover_control_evidence(task_dir, tmp_path)
 
 
 def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
@@ -978,7 +983,7 @@ def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
         task_id="downgraded-task",
     )
 
-    with pytest.raises(TaskControlEvidenceError, match="missing durable trial-level"):
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
         promote_task(
             "library/tasks/downgraded-task",
             tmp_path,
@@ -1017,8 +1022,8 @@ def test_candidate_idempotence_refreshes_newly_available_durable_evidence(
     refreshed = promote_task("library/tasks/refreshed-task", tmp_path)
 
     assert refreshed.state == "candidate"
-    assert refreshed.control_evidence is not None
-    assert refreshed.state_reason is None
+    assert refreshed.control_evidence is None
+    assert refreshed.state_reason == "durable_identity_bound_control_evidence_missing"
     persisted = TaskRegistry.from_repo(tmp_path).get("refreshed-task")
     assert persisted == refreshed
 
@@ -1089,7 +1094,8 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 
     report = audit_registry(repo_root)
 
-    assert report.passed, report.to_dict()
+    assert report.passed is False
+    assert any(finding.category == "invalid_control_evidence" for finding in report.findings)
 
     fixture_root = tmp_path / "repository-fixture"
     shutil.copytree(repo_root / "library", fixture_root / "library")
@@ -1124,38 +1130,54 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
 
     assert not drifted_report.passed
     assert any(
-        finding.category == "registration_inventory_drift"
-        for finding in drifted_report.findings
+        finding.category == "registration_inventory_drift" for finding in drifted_report.findings
     )
 
 
-def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path: Path) -> None:
+def test_promote_task_refuses_legacy_control_results_without_causal_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/event-summary")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    record = promote_task("library/tasks/event-summary", tmp_path)
-    assert record.task_id == "event-summary"
-    assert record.version == "1.0.0"
-    assert record.state == "candidate"
-    assert record.approved_by is None
-    assert record.approved_at is None
-    assert record.control_evidence.oracle.reward == 1.0
-    assert record.control_evidence.nop.reward == 0.0
-    assert record.digests.package.startswith("sha256:")
-    assert record.digests.verifier.startswith("sha256:")
-    assert record.digests.task_toml.startswith("sha256:")
-    assert record.digests.instruction.startswith("sha256:")
-    assert record.digests.environment.startswith("sha256:")
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/event-summary", tmp_path)
+    assert not (tmp_path / "library/registry/event-summary.json").exists()
 
-    record_file = tmp_path / "library/registry/event-summary.json"
-    assert record_file.is_file()
 
-    reg = TaskRegistry.from_repo(tmp_path)
-    loaded = reg.get("event-summary")
-    assert loaded is not None
-    assert loaded.state == "candidate"
-    assert loaded.digests.package == record.digests.package
+def test_synthetic_certificate_cannot_bypass_canonical_registration_packet(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/synthetic/zero-mutant-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    certificate = SyntheticCertificate(
+        spec_id="sha256:" + "1" * 64,
+        status="experimental",
+        static_reachability=True,
+        clean_reset_passed=True,
+        oracle_3x_passed=True,
+        nop_failed=True,
+        mutants_tested_count=0,
+        mutants_failed_count=0,
+        alignment_audit_passed=True,
+        regeneration_idempotent=True,
+        secret_isolation_passed=True,
+    )
+
+    assert certificate.is_passing is False
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
+        promote_task(
+            "library/synthetic/zero-mutant-task",
+            tmp_path,
+            state="registered",
+            actor="independent-reviewer",
+            allowed_uses=["measurement"],
+        )
 
 
 def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> None:
@@ -1167,6 +1189,7 @@ def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> No
 
     assert "missing durable trial-level oracle control evidence" in str(exc_info.value)
 
+
 def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/no-nop-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
@@ -1176,6 +1199,7 @@ def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
 
     assert "missing durable trial-level nop control evidence" in str(exc_info.value)
 
+
 def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/broken-oracle-task")
     _make_control_job(tmp_path, task_dir, "oracle", 0.0)  # Oracle failed!
@@ -1184,9 +1208,7 @@ def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> N
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-oracle-task", tmp_path)
 
-    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(
-        exc_info.value
-    )
+    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(exc_info.value)
 
 
 def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None:
@@ -1197,123 +1219,81 @@ def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-nop-task", tmp_path)
 
-    assert "nop control evidence for 'broken-nop-task' did not fail" in str(
-        exc_info.value
-    )
+    assert "nop control evidence for 'broken-nop-task' did not fail" in str(exc_info.value)
 
 
-def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> None:
+def test_register_task_refuses_legacy_controls_before_candidate_creation(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/promoted-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    cand = promote_task("library/tasks/promoted-task", tmp_path)
-    assert cand.state == "candidate"
-
-    # Candidate cannot resolve registered/*
-    reg = TaskRegistry.from_repo(tmp_path)
-    spec = ExperimentSpec(
-        name="test-exp",
-        task="registered/promoted-task",
-        agent="oracle",
-        hypothesis="test hypothesis",
-        purpose="baseline",
-        submitted_by="Peter Makhnatch",
-    )
-    with pytest.raises(TaskStateInvalidError):
-        reg.resolve_spec(spec, tmp_path)
-
-    with pytest.raises(TaskCertificationError, match="certification-packet"):
-        register_task("promoted-task", actor="Peter Makhnatch", repo_root=tmp_path)
-
-    persisted = TaskRegistry.from_repo(tmp_path).get("promoted-task")
-    assert persisted is not None
-    assert persisted.state == "candidate"
-    assert persisted.certification.state == "legacy_missing"
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/promoted-task", tmp_path)
+    assert TaskRegistry.from_repo(tmp_path).get("promoted-task") is None
 
 
-def test_register_task_without_actor_refuses(tmp_path: Path) -> None:
+def test_register_task_without_actor_refuses_before_control_discovery(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/unapproved-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    promote_task("library/tasks/unapproved-task", tmp_path)
+    with pytest.raises(ValueError, match="approved_by / --actor"):
+        promote_task(
+            "library/tasks/unapproved-task",
+            tmp_path,
+            state="registered",
+            actor="",
+        )
 
-    with pytest.raises(ValueError) as exc_info:
-        register_task("unapproved-task", actor="", repo_root=tmp_path)
-    assert "registered task records require approved_by / --actor" in str(exc_info.value)
 
-
-def test_promote_task_idempotence_unchanged_package(tmp_path: Path) -> None:
+def test_repeated_promotion_refuses_legacy_controls_without_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/idempotent-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    record1 = promote_task("library/tasks/idempotent-task", tmp_path)
-    record2 = promote_task("library/tasks/idempotent-task", tmp_path)
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/idempotent-task", tmp_path)
 
-    assert record1.digests.package == record2.digests.package
-    assert record1.version == record2.version
-    assert record1.state == record2.state
 
-
-def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Path) -> None:
+def test_package_mutation_cannot_bypass_missing_control_authority(
+    tmp_path: Path,
+) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/tampered-bump-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.0")
-
-    # Tamper with instruction on disk
-    (task_dir / "instruction.md").write_text("Modified instruction bytes on disk.\n")
-
-    with pytest.raises(TaskDigestMismatchError) as exc_info:
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
         promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.0")
-
-    err = str(exc_info.value)
-    assert "task package bytes on disk have changed" in err
-    assert "bump --version to register a new version" in err
-
-    _make_control_job(
-        tmp_path,
-        task_dir,
-        "oracle",
-        1.0,
-        job_name="gymv0-oracle-tampered-bump-task-v2",
-        task_version="1.0.1",
-    )
-    _make_control_job(
-        tmp_path,
-        task_dir,
-        "nop",
-        0.0,
-        job_name="gymv0-nop-tampered-bump-task-v2",
-        task_version="1.0.1",
-    )
-    # Bumping version succeeds
-    record_v2 = promote_task(
-        "library/tasks/tampered-bump-task", tmp_path, version="1.0.1"
-    )
-    assert record_v2.version == "1.0.1"
+    (task_dir / "instruction.md").write_text("Modified instruction bytes on disk.\n")
+    with pytest.raises(TaskControlEvidenceError):
+        promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.1")
 
 
-def test_cli_registry_promote_and_register_e2e(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_cli_registry_promote_refuses_legacy_control_results(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    import argparse
 
-    from evallab.cli import (
-        _registry_audit_command,
-        _registry_list_command,
-        _registry_promote_command,
-        _registry_register_command,
-    )
+    from evallab.cli import _registry_promote_command
 
     task_dir = _make_dummy_task(tmp_path, "library/tasks/cli-test-task")
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
-
-    # 1. Promote via CLI
     promote_args = argparse.Namespace(
         task_path="library/tasks/cli-test-task",
         task_id=None,
@@ -1335,50 +1315,15 @@ def test_cli_registry_promote_and_register_e2e(
         registry_dir=str(tmp_path / "library/registry"),
         json=False,
     )
-    exit_code = _registry_promote_command(promote_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "promoted: cli-test-task@1.0.0 (state: candidate)" in out
 
-    # 2. List shows candidate
-    list_args = argparse.Namespace(state=None, json=False)
-    # Point registry from_repo to tmp_path
-    exit_code = _registry_list_command(list_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "cli-test-task" in out
-    assert "candidate" in out
-
-    # 3. Register via CLI
-    reg_args = argparse.Namespace(
-        task_id="cli-test-task",
-        actor="Peter Makhnatch",
-        registry_dir=str(tmp_path / "library/registry"),
-        json=False,
-    )
-    exit_code = _registry_register_command(reg_args, tmp_path)
-    assert exit_code == 1
-    _, err = capsys.readouterr()
-    assert "certification-packet" in err
-    _make_canary_policy(tmp_path)
-
-    inventory_path = tmp_path / "research/registration/inventory.json"
-    inventory_path.parent.mkdir(parents=True, exist_ok=True)
-    inventory_path.write_text(
-        json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n"
-    )
-    # 4. Audit passes with an explicit legacy-certificate warning.
-    audit_args = argparse.Namespace(json=False)
-    exit_code = _registry_audit_command(audit_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "legacy_missing_certification" in out
+    assert _registry_promote_command(promote_args, tmp_path) == 1
+    _, error = capsys.readouterr()
+    assert "strict trial admissibility authority" in error
 
 
 def test_cli_registry_promote_refuses_missing_durable_evidence(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    import argparse
 
     from evallab.cli import _registry_promote_command
 
@@ -1408,3 +1353,1116 @@ def test_cli_registry_promote_refuses_missing_durable_evidence(
     assert exit_code == 1
     _, err = capsys.readouterr()
     assert "missing durable trial-level oracle control evidence" in err
+
+
+def _make_external_packet_fixture(tmp_path: Path) -> tuple[Path, Path, str]:
+    """Helper creating a valid external task package and m049-v2 candidate packet using workbench."""
+    import sys
+
+    test_dir = str(Path(__file__).resolve().parent)
+    if test_dir not in sys.path:
+        sys.path.insert(0, test_dir)
+    from test_task_workbench import FixtureBackend, _copy_candidate, _external_source
+
+    from evallab.task_workbench import (
+        check_candidate,
+        inspect_candidate,
+        run_controls,
+        write_packet,
+    )
+
+    repo, task_dir = _copy_candidate(tmp_path)
+    source, lineage, rec_path = _external_source(repo, task_dir)
+    inspection = inspect_candidate(repo_root=repo, task_path=task_dir, source=source)
+    bundle = run_controls(
+        inspection=inspection, repo_root=repo, task_path=task_dir, backend=FixtureBackend()
+    )
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    cand_path, cert_path = write_packet(repo_root=repo, report=report)
+    return (
+        repo.resolve(),
+        task_dir.resolve(),
+        cert_path.resolve().relative_to(repo.resolve()).as_posix(),
+    )
+
+
+def _run_causal_control_job(
+    repo: Path,
+    task_dir: Path,
+    staged: TaskRegistryRecord,
+    agent: str,
+    reward: float,
+    *,
+    job_name: str | None = None,
+    finished_at: str = "2026-08-15T12:01:00Z",
+) -> Path:
+    """Phase 2a: run control job bound to exact staged runtime identity and finalize trial admissibility."""
+    task_id = staged.task_id
+    runs_dir = repo / "research/evidence/runs"
+    job_name = job_name or f"{task_id}-{agent}-evidence"
+    job_dir = runs_dir / job_name
+    trial_name = f"{task_id}__{agent}"
+    trial_dir = job_dir / trial_name
+    trial_dir.mkdir(parents=True, exist_ok=True)
+    task_path = str(task_dir.resolve())
+    trial_id = (
+        f"00000000-0000-0000-0000-{abs(hash(f'{job_name}-{agent}-{task_id}')) % (10**12):012d}"
+    )
+    job_id = f"00000000-0000-0000-0000-{abs(hash(job_name + task_id)) % (10**12):012d}"
+    analysis_id = f"00000000-0000-0000-0000-{abs(hash(f'{job_name}-{agent}-{task_id}-analysis')) % (10**12):012d}"
+
+    payload = {
+        "id": trial_id,
+        "task_name": task_id,
+        "trial_name": trial_name,
+        "task_id": {"path": task_path},
+        "config": {
+            "task": {"path": task_path},
+            "agent": {"name": agent},
+        },
+        "agent_info": {"name": agent, "version": "1.0.0"},
+        "verifier_result": {"rewards": {"reward": reward}},
+        "started_at": "2026-08-15T12:00:00Z",
+        "finished_at": finished_at,
+    }
+    lock = {
+        "schema_version": 2,
+        "task": {
+            "name": task_id,
+            "version": staged.version,
+            "type": "local",
+            "digest": harbor_task_digest(task_dir),
+            "path": task_path,
+        },
+        "agent": {"name": agent},
+    }
+    (trial_dir / "result.json").write_text(json.dumps(payload, indent=2))
+    (trial_dir / "lock.json").write_text(json.dumps(lock, indent=2))
+    (trial_dir / "benchmark_contract.json").write_text(
+        json.dumps(
+            {
+                "family": staged.task_family,
+                "task_id": task_id,
+                "task_name": task_id,
+                "cell_factors": {"seed": 42},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps(
+            {
+                "initial_digest": "initial",
+                "final_digest": "final",
+                "step_count": 0,
+                "mutations": [],
+                "invariants_passed": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (trial_dir / "agent").mkdir(parents=True, exist_ok=True)
+    (trial_dir / "agent/trajectory.json").write_text(
+        json.dumps({"schema_version": "1.0.0", "session_id": trial_id, "steps": []}),
+        encoding="utf-8",
+    )
+    (trial_dir / "verifier").mkdir(parents=True, exist_ok=True)
+    (trial_dir / "verifier/result.json").write_text(
+        json.dumps({"rewards": {"reward": reward}}), encoding="utf-8"
+    )
+    (trial_dir / "verifier/reward.txt").write_text(f"{reward}\n", encoding="utf-8")
+
+    staged_identity = task_runtime_identity(staged)
+    now_dt = datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
+    policy = NetworkPolicyEvidenceV1(mode="no-network")
+    digest = "sha256:" + "a" * 64
+    iso_evidence = build_network_isolation_evidence(
+        requested_agent_policy=policy,
+        effective_agent_policy=policy,
+        requested_verifier_policy=policy,
+        effective_verifier_policy=policy,
+        requested_verifier_phase_policy=policy,
+        effective_verifier_phase_policy=policy,
+        runtime_identity=NetworkIsolationRuntimeIdentityV1(
+            platform_system="Linux",
+            platform_release="test",
+            platform_machine="arm64",
+            container_runtime="docker",
+            container_runtime_version="29.4.1",
+            container_image_digest=digest,
+            adapter=agent,
+            adapter_version="1",
+            adapter_digest="sha256:" + "b" * 64,
+        ),
+        probe_identity=NetworkIsolationProbeIdentityV1(
+            implementation="test-probe",
+            implementation_version="1",
+            implementation_digest="sha256:" + "c" * 64,
+            config_digest="sha256:" + "d" * 64,
+        ),
+        probe_results=tuple(
+            NetworkEscapeProbeResultV1(
+                escape_class=escape_class,
+                target=f"http://target.invalid/{escape_class}",
+                outcome="blocked",
+                detail="blocked",
+            )
+            for escape_class in NETWORK_ESCAPE_CLASSES
+        ),
+        observed_at=now_dt,
+        valid_until=now_dt + timedelta(days=7),
+        evaluated_at=now_dt,
+    )
+    proj = iso_evidence.project(as_of=iso_evidence.evaluated_at)
+    prov = RunProvenance(
+        spec_id=f"spec-{agent}-{task_id}",
+        task=f"registered/{task_id}",
+        task_path=staged.task_path,
+        task_runtime_identity=staged_identity,
+        network_isolation_evidence=iso_evidence,
+        network_isolation_evidence_digest=iso_evidence.evidence_digest,
+        network_isolation_status=proj.status,
+        network_isolation_reason=proj.reason,
+        analysis_eligibility=proj.analysis_eligibility,
+    )
+
+    (trial_dir / "analysis").mkdir(parents=True, exist_ok=True)
+    source_digests = {
+        "result": f"sha256:{hashlib.sha256((trial_dir / 'result.json').read_bytes()).hexdigest()}",
+        "task": harbor_task_digest(task_dir),
+        "trajectory": f"sha256:{hashlib.sha256((trial_dir / 'agent/trajectory.json').read_bytes()).hexdigest()}",
+        "files": {
+            relative: f"sha256:{hashlib.sha256((trial_dir / relative).read_bytes()).hexdigest()}"
+            for relative in ("lock.json", "result.json")
+        },
+    }
+    interp_data = {
+        "schema_version": 1,
+        "analysis_id": analysis_id,
+        "experiment_id": f"spec-{agent}-{task_id}",
+        "job_id": job_id,
+        "source_trial_id": trial_id,
+        "source_trial_path": trial_dir.relative_to(repo).as_posix(),
+        "source_digests": source_digests,
+        "analysis_provenance": {
+            "agent": "control-analyzer",
+            "agent_version": "1",
+            "model": "test-model",
+            "prompt_digest": digest,
+            "rubric_digest": digest,
+            "output_schema_digest": digest,
+            "created_at": "2026-08-15T12:01:00Z",
+        },
+        "output": {
+            "validity": "valid_agent_attempt",
+            "primary_category": "unknown",
+            "summary": "Complete control interpretation.",
+            "evidence": [{"path": "result.json", "supports": "Observed result."}],
+            "proposed_discriminator": "No further discriminator.",
+            "confidence": "high",
+        },
+        "validation_status": "valid",
+        "validation_errors": [],
+        "raw_response_digest": digest,
+    }
+    (trial_dir / "analysis/interpretation.json").write_text(
+        json.dumps(interp_data, indent=2), encoding="utf-8"
+    )
+
+    job_result = {
+        "id": job_id,
+        "n_total_trials": 1,
+        "stats": {"evals": {agent: {"rewards": {"reward": reward}}}},
+        "started_at": "2026-08-15T12:00:00Z",
+        "finished_at": finished_at,
+        "task_name": task_id,
+        "agent_name": agent,
+        "trials": [
+            {
+                "id": trial_id,
+                "trial_name": trial_name,
+                "path": str(trial_dir.resolve()),
+                "status": "completed",
+            }
+        ],
+    }
+    (job_dir / "result.json").write_text(json.dumps(job_result, indent=2))
+    (job_dir / "lab-metadata.json").write_text(
+        json.dumps({"experiment": prov.model_dump(mode="json")}, indent=2)
+    )
+
+    job = load_job(job_dir)
+    trial = job.trials[0]
+    finalize_trial_admissibility(
+        job=job,
+        trial=trial,
+        repo_root=repo,
+    )
+    return job_dir
+
+
+def _finalize_registered_revision(
+    repo: Path,
+    task_dir: Path,
+    staged: TaskRegistryRecord,
+) -> TaskRegistryRecord:
+    """Phase 2b: discover controls and finalize the staged registered record."""
+    admitted = promote_task(
+        task_dir,
+        repo,
+        task_id=staged.task_id,
+        task_family=staged.task_family,
+        state="registered",
+        actor=staged.approved_by,
+    )
+    assert task_runtime_identity(admitted) == task_runtime_identity(staged)
+    return admitted
+
+
+def _make_fully_admitted_registered_record(
+    tmp_path: Path,
+    task_id: str = "uppercase-fixture",
+    *,
+    task_family: str = "uppercase-fixture",
+    version: str = "1.0.0",
+) -> tuple[Path, Path, str, TaskRegistryRecord]:
+    """Helper completing the full 2-phase registered bootstrap in one shot."""
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    staged = promote_task(
+        task_dir,
+        repo,
+        task_id=task_id,
+        task_family=task_family,
+        version=version,
+        state="registered",
+        actor="Peter Makhnatch",
+        approved_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+        certification_path=cert_rel,
+        stage_controls=True,
+    )
+    _run_causal_control_job(repo, task_dir, staged, "oracle", 1.0)
+    _run_causal_control_job(repo, task_dir, staged, "nop", 0.0)
+    admitted = _finalize_registered_revision(repo, task_dir, staged)
+    return repo, task_dir, cert_rel, admitted
+
+
+def test_cli_registry_stage_controls_rejects_invalid_combinations_before_persistence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from evallab.cli import run_cli
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    command = [
+        "registry",
+        "promote",
+        task_dir.relative_to(repo).as_posix(),
+        "--task-family",
+        "uppercase-fixture",
+    ]
+    cases = [
+        (
+            [
+                "--stage-controls",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "--stage-controls requires --state registered",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--state",
+                "registered",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "requires --actor",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--state",
+                "registered",
+                "--actor",
+                "   ",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "requires --actor",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+            ],
+            "--stage-controls requires --certification-packet",
+        ),
+        (
+            [
+                "--stage-controls",
+                "--register",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+            ],
+            "--stage-controls cannot be combined with --register",
+        ),
+    ]
+
+    record_path = repo / "library/registry/uppercase-fixture.json"
+    for arguments, expected_error in cases:
+        assert run_cli([*command, *arguments], workspace=repo) == 1
+        _, error = capsys.readouterr()
+        assert expected_error in error
+        assert not record_path.exists()
+
+
+def test_cli_registry_stage_controls_persists_pending_registered_revision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from evallab.cli import run_cli
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    assert (
+        run_cli(
+            [
+                "registry",
+                "promote",
+                task_dir.relative_to(repo).as_posix(),
+                "--task-family",
+                "uppercase-fixture",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+                "--stage-controls",
+            ],
+            workspace=repo,
+        )
+        == 0
+    )
+    output, error = capsys.readouterr()
+    assert error == ""
+    assert "staged control-pending registered revision: uppercase-fixture@1.0.0" in output
+    assert "control evidence pending; measurement unavailable" in output
+
+    staged = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert staged is not None
+    assert staged.state == "registered"
+    assert staged.state_reason == "control_evidence_pending"
+    assert staged.allowed_uses == ["canary"]
+    assert staged.control_evidence is None
+    assert staged.approved_by == "admission-reviewer"
+    assert staged.certification.state == "bound"
+    assert staged.certification.workbench_version == "m049-v2"
+    assert staged.approved_at is not None
+    staged_identity = task_runtime_identity(staged)
+    assert staged_identity.registry_record_digest.startswith("sha256:")
+    assert staged_identity.certified_runtime_package_digest == staged.digests.package
+    assert staged_identity.registry_admission_state == "registered"
+
+    registry = TaskRegistry.from_repo(repo)
+    measurement = ExperimentSpec(
+        name="pending-measurement",
+        hypothesis="Pending controls cannot authorize measurement",
+        purpose="practice",
+        task="registered/uppercase-fixture",
+        agent="codex",
+        submitted_by="test",
+    )
+    with pytest.raises(TaskUsageNotAllowedError, match="only baseline oracle/nop controls"):
+        registry.resolve_spec(measurement, repo)
+
+    for agent in ("oracle", "nop"):
+        baseline = ExperimentSpec(
+            name=f"pending-{agent}",
+            hypothesis="Strict controls bootstrap the registered revision",
+            purpose="baseline",
+            task="registered/uppercase-fixture",
+            agent=agent,
+            submitted_by="test",
+        )
+        assert registry.resolve_spec(baseline, repo) == staged
+        assert baseline.task_path == staged.task_path
+
+
+def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> None:
+    repo, task_dir, cert_rel, admitted = _make_fully_admitted_registered_record(tmp_path)
+    reg = TaskRegistry.from_repo(repo)
+    spec = ExperimentSpec(
+        name="test-valid",
+        hypothesis="test",
+        purpose="practice",
+        task=f"registered/{admitted.task_id}",
+        task_path=admitted.task_path,
+        task_version=admitted.version,
+        agent="codex",
+        submitted_by="test",
+    )
+    resolved = reg.resolve_spec(spec, repo)
+    assert resolved.task_id == admitted.task_id
+    assert resolved.state == "registered"
+    assert resolved.version == "1.0.0"
+
+
+def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
+    repo, task_dir, cert_rel, admitted = _make_fully_admitted_registered_record(tmp_path)
+    reg = TaskRegistry.from_repo(repo)
+    spec = ExperimentSpec(
+        name="test-omitted-path",
+        hypothesis="test",
+        purpose="practice",
+        task=f"registered/{admitted.task_id}",
+        task_path=None,
+        agent="codex",
+        submitted_by="test",
+    )
+    resolved = reg.resolve_spec(spec, repo)
+    assert resolved.task_id == admitted.task_id
+    assert spec.task_path == admitted.task_path
+
+
+def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path: Path) -> None:
+    """The canonical test proves that un-staged candidate promotion with legacy controls is refused."""
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/event-summary")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/event-summary", tmp_path)
+
+
+def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/promoted-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/promoted-task", tmp_path)
+
+
+def test_register_task_without_actor_refuses(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/unapproved-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    with pytest.raises(
+        TaskControlEvidenceError,
+        match="strict trial admissibility authority",
+    ):
+        promote_task("library/tasks/unapproved-task", tmp_path)
+
+
+def test_promote_task_idempotence_unchanged_package(tmp_path: Path) -> None:
+    repo, task_dir, cert_rel, admitted = _make_fully_admitted_registered_record(tmp_path)
+    final2 = promote_task(
+        task_dir,
+        repo,
+        task_id=admitted.task_id,
+        task_family=admitted.task_family,
+        state="registered",
+        actor=admitted.approved_by,
+        certification_path=cert_rel,
+    )
+    assert final2.digests.package == admitted.digests.package
+    assert final2.version == admitted.version
+    assert final2.state == admitted.state
+    assert task_runtime_identity(final2) == task_runtime_identity(admitted)
+
+
+def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Path) -> None:
+    repo, task_dir, cert_rel, admitted = _make_fully_admitted_registered_record(tmp_path)
+    (task_dir / "instruction.md").write_text("Modified instruction bytes on disk.\n")
+    with pytest.raises(TaskDigestMismatchError) as exc_info:
+        promote_task(
+            task_dir.relative_to(repo).as_posix(),
+            repo,
+            task_family=admitted.task_family,
+            version="1.0.0",
+        )
+    err = str(exc_info.value)
+    assert "task package bytes on disk have changed" in err
+    assert "bump --version to register a new version" in err
+
+
+def test_cli_registry_promote_and_register_e2e(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+
+    from evallab.cli import (
+        _registry_audit_command,
+        _registry_list_command,
+        _registry_promote_command,
+        _registry_register_command,
+    )
+
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/cli-test-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    # 1. Promote via CLI fails closed for legacy un-admitted controls
+    promote_args = argparse.Namespace(
+        task_path="library/tasks/cli-test-task",
+        task_id=None,
+        version=None,
+        source_uri=None,
+        source_ref=None,
+        license=None,
+        provenance_zone=None,
+        synthetic=False,
+        timeout_seconds=None,
+        max_memory_mb=None,
+        max_cpus=None,
+        allowed_uses=None,
+        human_minutes=None,
+        state="candidate",
+        actor=None,
+        register=False,
+        jobs_dir=None,
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    assert _registry_promote_command(promote_args, tmp_path) == 1
+    _, err = capsys.readouterr()
+    assert "strict trial admissibility authority" in err
+
+    # Explicitly write a candidate fixture to test list, register refusal, and audit
+    _write_downgraded_candidate(task_dir, tmp_path, task_id="cli-test-task")
+
+    list_args = argparse.Namespace(state=None, json=False)
+    exit_code = _registry_list_command(list_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "cli-test-task" in out
+    assert "candidate" in out
+
+    reg_args = argparse.Namespace(
+        task_id="cli-test-task",
+        actor="Peter Makhnatch",
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_register_command(reg_args, tmp_path)
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "certification-packet" in err
+    _make_canary_policy(tmp_path)
+
+    inventory_path = tmp_path / "research/registration/inventory.json"
+    inventory_path.parent.mkdir(parents=True, exist_ok=True)
+    inventory_path.write_text(json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n")
+    audit_args = argparse.Namespace(json=False)
+    exit_code = _registry_audit_command(audit_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "legacy_missing_certification" in out
+
+
+def test_cli_registry_promote_external_task_with_lineage(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The public CLI stages and finalizes an external m049-v2 revision."""
+    from evallab.cli import run_cli
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    task_path = task_dir.relative_to(repo).as_posix()
+    assert (
+        run_cli(
+            [
+                "registry",
+                "promote",
+                task_path,
+                "--task-family",
+                "uppercase-fixture",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--certification-packet",
+                cert_rel,
+                "--stage-controls",
+                "--json",
+            ],
+            workspace=repo,
+        )
+        == 0
+    )
+    staged_output = json.loads(capsys.readouterr().out)
+    assert staged_output["state"] == "registered"
+    assert staged_output["state_reason"] == "control_evidence_pending"
+    assert staged_output["allowed_uses"] == ["canary"]
+    assert staged_output["control_evidence"] is None
+
+    staged = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert staged is not None
+    staged_identity = task_runtime_identity(staged)
+    _run_causal_control_job(repo, task_dir, staged, "oracle", 1.0)
+    _run_causal_control_job(repo, task_dir, staged, "nop", 0.0)
+
+    assert (
+        run_cli(
+            [
+                "registry",
+                "promote",
+                task_path,
+                "--task-family",
+                "uppercase-fixture",
+                "--state",
+                "registered",
+                "--actor",
+                "admission-reviewer",
+                "--json",
+            ],
+            workspace=repo,
+        )
+        == 0
+    )
+    out = json.loads(capsys.readouterr().out)
+    assert out["task_id"] == "uppercase-fixture"
+    assert out["state"] == "registered"
+    assert out["state_reason"] is None
+    assert out["control_evidence"] is not None
+    assert out["external_import_lineage"] is not None
+    assert out["external_import_lineage"]["source_task_id"] == "upstream/uppercase-fixture"
+    assert out["certification"]["workbench_version"] == "m049-v2"
+    assert out["source_uri"] == "https://example.invalid/upstream"
+    assert out["source_ref"] == "0123456789abcdef0123456789abcdef01234567"
+    assert out["license"] == "MIT"
+    assert out["provenance_zone"] == "01-external"
+
+    record = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert record is not None
+    assert task_runtime_identity(record) == staged_identity
+    verify_certification_packet(repo, record)
+
+
+def test_promotion_refuses_recomputed_v1_downgrade_even_when_relabeled_local_or_synthetic(
+    tmp_path: Path,
+) -> None:
+    """Adversarial v1 downgrade relabeled as local/synthetic must fail closed before persistence."""
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    cert_path = repo / cert_rel
+    cand_file = cert_path.parent / "candidate.json"
+    cert_file = cert_path
+
+    cand = json.loads(cand_file.read_text())
+    cert = json.loads(cert_file.read_text())
+
+    # Relabel candidate to local / synthetic and strip lineage
+    cand["workbench_version"] = "m049-v1"
+    cand["source"]["source_uri"] = "local/uppercase-fixture@1.0.0"
+    cand["source"]["source_ref"] = "local/uppercase-fixture@1.0.0"
+    cand["source"]["provenance_zone"] = "02-local-evidence"
+    cand["source"].pop("external_import_lineage", None)
+    cand_unsigned = dict(cand)
+    cand_unsigned.pop("candidate_record_digest", None)
+    cand_digest = _digest_bytes(_canonical_bytes(cand_unsigned))
+    cand["candidate_record_digest"] = cand_digest
+    cand_file.write_text(json.dumps(cand, indent=2))
+
+    cert["workbench_version"] = "m049-v1"
+    cert["candidate_record_digest"] = cand_digest
+    cert_unsigned = dict(cert)
+    cert_unsigned.pop("certification_id", None)
+    cert["certification_id"] = (
+        "cert-" + hashlib.sha256(_canonical_bytes(cert_unsigned)).hexdigest()[:24]
+    )
+    cert_file.write_text(json.dumps(cert, indent=2))
+
+    with pytest.raises(
+        TaskCertificationError, match="new task promotion requires m049-v2 certification"
+    ):
+        promote_task(
+            task_path=task_dir.relative_to(repo).as_posix(),
+            repo_root=repo,
+            task_family="uppercase-fixture",
+            certification_path=cert_rel,
+        )
+
+    registry = TaskRegistry.from_repo(repo)
+    assert registry.get("uppercase-fixture") is None
+
+
+@pytest.mark.parametrize(
+    ("cli_flag", "mismatched_value", "error_match"),
+    [
+        (
+            "--license",
+            "Proprietary-Override",
+            "promotion license 'Proprietary-Override' does not match candidate license 'MIT'",
+        ),
+        (
+            "--source-uri",
+            "https://tampered.invalid",
+            "promotion source_uri 'https://tampered.invalid' does not match",
+        ),
+        (
+            "--source-ref",
+            "tampered-ref-1234",
+            "promotion source_ref 'tampered-ref-1234' does not match",
+        ),
+        (
+            "--provenance-zone",
+            "02-local-evidence",
+            "promotion provenance_zone '02-local-evidence' does not match",
+        ),
+    ],
+)
+def test_promotion_refuses_caller_source_metadata_mismatches(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    cli_flag: str,
+    mismatched_value: str,
+    error_match: str,
+) -> None:
+    """Explicit caller arguments that disagree with candidate source metadata must fail closed."""
+    from evallab.cli import run_cli
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+
+    exit_code = run_cli(
+        [
+            "registry",
+            "promote",
+            task_dir.relative_to(repo).as_posix(),
+            "--task-family",
+            "uppercase-fixture",
+            "--certification-packet",
+            cert_rel,
+            cli_flag,
+            mismatched_value,
+        ],
+        workspace=repo,
+    )
+    assert exit_code != 0
+    _, err = capsys.readouterr()
+    assert error_match in err
+    registry = TaskRegistry.from_repo(repo)
+    assert registry.get("uppercase-fixture") is None
+
+
+@pytest.mark.parametrize(
+    ("mutate_cand", "expected_error"),
+    [
+        (
+            lambda c: c.update({"source": "non-object"}),
+            "candidate source metadata must be an object",
+        ),
+        (lambda c: c["source"].pop("source_uri"), "candidate source_uri is missing or invalid"),
+        (lambda c: c["source"].pop("source_ref"), "candidate source_ref is missing or invalid"),
+        (lambda c: c["source"].pop("license"), "candidate license is missing or invalid"),
+        (
+            lambda c: c["source"].update({"provenance_zone": "99-bogus"}),
+            "candidate provenance_zone '99-bogus' is invalid",
+        ),
+        (
+            lambda c: c["source"].update({"external_import_lineage": {"bad": 123}}),
+            "candidate external import lineage is invalid",
+        ),
+    ],
+)
+def test_promotion_refuses_missing_or_malformed_candidate_source(
+    tmp_path: Path,
+    mutate_cand: Any,
+    expected_error: str,
+) -> None:
+    """Packet-backed promotion requires strict authoritative candidate source fields."""
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    cert_path = repo / cert_rel
+    cand_file = cert_path.parent / "candidate.json"
+    cand = json.loads(cand_file.read_text())
+    mutate_cand(cand)
+    cand_file.write_text(json.dumps(cand, indent=2))
+
+    with pytest.raises(TaskCertificationError, match=expected_error):
+        promote_task(
+            task_path=task_dir.relative_to(repo).as_posix(),
+            repo_root=repo,
+            task_family="uppercase-fixture",
+            certification_path=cert_rel,
+        )
+
+
+def test_promotion_refuses_explicit_lineage_when_candidate_packet_has_none(tmp_path: Path) -> None:
+    """Explicit lineage passed to promote_task when candidate source has no lineage must fail."""
+    import sys
+
+    test_dir = str(Path(__file__).resolve().parent)
+    if test_dir not in sys.path:
+        sys.path.insert(0, test_dir)
+    from test_task_workbench import _external_source
+
+    repo, task_dir, cert_rel = _make_external_packet_fixture(tmp_path)
+    _, valid_lineage, _ = _external_source(repo, task_dir)
+    cert_path = repo / cert_rel
+    cand_file = cert_path.parent / "candidate.json"
+    cand = json.loads(cand_file.read_text())
+    cand["source"].pop("external_import_lineage", None)
+    cand_file.write_text(json.dumps(cand, indent=2))
+
+    with pytest.raises(
+        TaskCertificationError,
+        match="promotion lineage provided but candidate packet has no lineage",
+    ):
+        promote_task(
+            task_path=task_dir.relative_to(repo).as_posix(),
+            repo_root=repo,
+            task_family="uppercase-fixture",
+            certification_path=cert_rel,
+            external_import_lineage=valid_lineage,
+        )
+
+
+def test_register_task_refuses_stored_legacy_v1_candidate_with_controls(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Stored legacy m049-v1 candidate records must not transition to registered state."""
+    import sys
+
+    test_dir = str(Path(__file__).resolve().parent)
+    if test_dir not in sys.path:
+        sys.path.insert(0, test_dir)
+    from test_task_workbench import _bundle, _copy_candidate, _inspect
+
+    from evallab.cli import run_cli
+    from evallab.registry import (
+        certification_envelope_from_packet,
+    )
+    from evallab.task_workbench import check_candidate, write_packet
+
+    repo, task = _copy_candidate(tmp_path)
+    repo = repo.resolve()
+    task = task.resolve()
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task)
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    cand_path, cert_path = write_packet(repo_root=repo, report=report)
+
+    # Rewrite packet to legacy m049-v1 format
+    cand = json.loads(cand_path.read_text())
+    cand["workbench_version"] = "m049-v1"
+    cand.pop("candidate_record_digest", None)
+    cand_digest = _digest_bytes(_canonical_bytes(cand))
+    cand["candidate_record_digest"] = cand_digest
+    cand_path.write_bytes(_canonical_bytes(cand))
+
+    cert = json.loads(cert_path.read_text())
+    cert["workbench_version"] = "m049-v1"
+    cert["candidate_record_digest"] = cand_digest
+    cert.pop("certification_id", None)
+    cert["certification_id"] = "cert-" + hashlib.sha256(_canonical_bytes(cert)).hexdigest()[:24]
+    cert_path.write_bytes(_canonical_bytes(cert))
+
+    oracle_ref = ControlEvidenceRef(
+        job_name="uppercase-fixture-oracle",
+        trial_name="uppercase-fixture__oracle",
+        reward=1.0,
+        evidence_path="research/evidence/runs/uppercase-fixture-oracle/result.json",
+        evidence_digest="sha256:" + "0" * 64,
+        lock_digest="sha256:" + "0" * 64,
+        observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_digests=compute_task_digests(task),
+        harbor_task_digest=harbor_task_digest(task),
+    )
+    nop_ref = ControlEvidenceRef(
+        job_name="uppercase-fixture-nop",
+        trial_name="uppercase-fixture__nop",
+        reward=0.0,
+        evidence_path="research/evidence/runs/uppercase-fixture-nop/result.json",
+        evidence_digest="sha256:" + "0" * 64,
+        lock_digest="sha256:" + "0" * 64,
+        observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_digests=compute_task_digests(task),
+        harbor_task_digest=harbor_task_digest(task),
+    )
+    control_evidence = TaskControlEvidence(oracle=oracle_ref, nop=nop_ref)
+
+    reg_dir = repo / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    rec_file = reg_dir / "uppercase-fixture.json"
+    envelope = certification_envelope_from_packet(
+        repo,
+        cert_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        package_digest=compute_task_digests(task).package,
+        allow_legacy_v1=True,
+    )
+    record = TaskRegistryRecord(
+        schema_version=2,
+        task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
+        version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        digests=compute_task_digests(task),
+        source_uri="local/uppercase-fixture@1.0.0",
+        provenance_zone="02-local-evidence",
+        is_synthetic=False,
+        limits=TaskLimits(),
+        state="candidate",
+        allowed_uses=["measurement"],
+        certification=envelope,
+        control_evidence=control_evidence,
+    )
+    rec_file.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
+
+    with pytest.raises(TaskCertificationError, match="registration requires m049-v2 certification"):
+        register_task("uppercase-fixture", actor="Peter Makhnatch", repo_root=repo)
+
+    exit_code = run_cli(
+        ["registry", "register", "uppercase-fixture", "--actor", "Peter Makhnatch"],
+        workspace=repo,
+    )
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "registration requires m049-v2 certification" in err
+    persisted = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert persisted.state == "candidate"
+
+
+def test_registered_historical_m049_v1_record_is_strictly_readonly_and_refuses_mutations(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Already registered historical m049-v1 records are strictly read-only and refuse all mutations."""
+    import sys
+
+    test_dir = str(Path(__file__).resolve().parent)
+    if test_dir not in sys.path:
+        sys.path.insert(0, test_dir)
+    from test_task_workbench import _bundle, _copy_candidate, _inspect
+
+    from evallab.cli import run_cli
+    from evallab.registry import (
+        certification_envelope_from_packet,
+    )
+    from evallab.task_workbench import check_candidate, write_packet
+
+    repo, task = _copy_candidate(tmp_path)
+    repo = repo.resolve()
+    task = task.resolve()
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task)
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    cand_path, cert_path = write_packet(repo_root=repo, report=report)
+
+    # Rewrite packet to legacy m049-v1 format
+    cand = json.loads(cand_path.read_text())
+    cand["workbench_version"] = "m049-v1"
+    cand.pop("candidate_record_digest", None)
+    cand_digest = _digest_bytes(_canonical_bytes(cand))
+    cand["candidate_record_digest"] = cand_digest
+    cand_path.write_bytes(_canonical_bytes(cand))
+
+    cert = json.loads(cert_path.read_text())
+    cert["workbench_version"] = "m049-v1"
+    cert["candidate_record_digest"] = cand_digest
+    cert.pop("certification_id", None)
+    cert["certification_id"] = "cert-" + hashlib.sha256(_canonical_bytes(cert)).hexdigest()[:24]
+    cert_path.write_bytes(_canonical_bytes(cert))
+
+    envelope = certification_envelope_from_packet(
+        repo,
+        cert_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        package_digest=compute_task_digests(task).package,
+        allow_legacy_v1=True,
+    )
+
+    # 1. Stage the record in registered state with envelope to derive runtime identity
+    staged = TaskRegistryRecord(
+        schema_version=2,
+        task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
+        version="1.0.0",
+        task_path=task.relative_to(repo).as_posix(),
+        digests=compute_task_digests(task),
+        source_uri="local/uppercase-fixture@1.0.0",
+        provenance_zone="02-local-evidence",
+        is_synthetic=False,
+        limits=TaskLimits(),
+        state="registered",
+        allowed_uses=["canary"],
+        license="MIT",
+        source_ref="main",
+        approved_by="Peter Makhnatch",
+        approved_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+        state_reason="control_evidence_pending",
+        certification=envelope,
+    )
+    reg_dir = repo / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    rec_file = reg_dir / "uppercase-fixture.json"
+    rec_file.write_text(json.dumps(staged.model_dump(mode="json"), indent=2) + "\n")
+
+    # 2. Run causal controls bound to staged runtime identity
+    _run_causal_control_job(repo, task, staged, "oracle", 1.0)
+    _run_causal_control_job(repo, task, staged, "nop", 0.0)
+
+    # 3. Attach discovered controls to historical registered record
+    discovered = discover_control_evidence(task, repo)
+    record = TaskRegistryRecord.model_validate(
+        staged.model_copy(
+            update={
+                "control_evidence": discovered,
+                "state_reason": None,
+                "allowed_uses": ["measurement"],
+            }
+        ).model_dump()
+    )
+    rec_file.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
+    initial_bytes = rec_file.read_bytes()
+
+    # 4. Same actor re-approval succeeds without modifying the record
+    reloaded = register_task("uppercase-fixture", actor="Peter Makhnatch", repo_root=repo)
+    assert reloaded.task_id == "uppercase-fixture"
+    assert reloaded.certification.workbench_version == "m049-v1"
+    assert rec_file.read_bytes() == initial_bytes
+
+    # 5. Different actor cannot re-approve
+    with pytest.raises(TaskCertificationError, match="read-only and cannot be re-approved"):
+        register_task("uppercase-fixture", actor="Different Actor", repo_root=repo)
+
+    # 6. Re-registration cannot replace or upgrade the historical certification envelope
+    with pytest.raises(TaskCertificationError, match="cannot accept replacement certification"):
+        register_task(
+            "uppercase-fixture",
+            actor="Peter Makhnatch",
+            certification_path=cert_path,
+            repo_root=repo,
+        )
+
+    # 7. CLI re-registration fails closed
+    exit_code = run_cli(
+        ["registry", "register", "uppercase-fixture", "--actor", "Different Actor"],
+        workspace=repo,
+    )
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "read-only and cannot be re-approved" in err
+    assert rec_file.read_bytes() == initial_bytes

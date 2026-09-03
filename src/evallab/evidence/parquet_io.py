@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
@@ -30,17 +32,43 @@ def write_table_atomic(
     rows: Sequence[dict[str, Any]],
     schema: pa.Schema,
 ) -> None:
-    """Write a complete Parquet table, preserving the existing atomic cutover."""
+    """Verify a complete temporary table before atomically publishing it."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".parquet.tmp")
-    if rows:
-        pq.write_table(
-            pa.Table.from_pylist(rows, schema=schema),
-            temporary,
-            compression="zstd",
-            use_dictionary=False,
-            write_statistics=True,
-        )
-    else:
-        temporary.write_bytes(_empty_parquet_bytes(schema))
-    temporary.replace(path)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        if rows:
+            pq.write_table(
+                pa.Table.from_pylist(rows, schema=schema),
+                temporary,
+                compression="zstd",
+                use_dictionary=False,
+                write_statistics=True,
+            )
+        else:
+            temporary.write_bytes(_empty_parquet_bytes(schema))
+        actual_schema = pq.read_schema(temporary)
+        if not actual_schema.equals(schema, check_metadata=False):
+            raise ValueError(f"temporary Parquet schema mismatch: {path}")
+        actual_rows = pq.ParquetFile(temporary).metadata.num_rows
+        if actual_rows != len(rows):
+            raise ValueError(
+                f"temporary Parquet row count mismatch: expected={len(rows)} "
+                f"actual={actual_rows} path={path}"
+            )
+        with temporary.open("rb") as stream:
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise

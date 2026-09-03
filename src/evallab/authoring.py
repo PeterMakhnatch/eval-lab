@@ -49,6 +49,7 @@ from pydantic import Field
 from evallab.evidence.facts import AnalyzerCallable, AnalyzerCallResult
 from evallab.modeladapter import ModelAdapter, ModelAdapterError
 from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid
+from evallab.registry import task_directory_digest
 from evallab.schemas import (
     AuthoringSeedClass,
     ContractModel,
@@ -374,23 +375,6 @@ def craft_parquet_path(derived_root: Path) -> Path:
 
 def _ignore_copy(_directory: str, names: list[str]) -> set[str]:
     return {name for name in names if name in _IGNORE_COPY}
-
-
-def _sha256_tree(root: Path) -> str:
-    digest = __import__("hashlib").sha256()
-    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
-        relative = path.relative_to(root).as_posix()
-        if path.is_dir():
-            digest.update(b"dir\0")
-            digest.update(relative.encode())
-            continue
-        if path.is_symlink() or not path.is_file():
-            continue
-        digest.update(b"file\0")
-        digest.update(relative.encode())
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-    return f"sha256:{digest.hexdigest()}"
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
@@ -749,9 +733,7 @@ class ModelBackedDesigner:
             "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
             "model": str(
-                getattr(result, "model", None)
-                or getattr(self.adapter, "model", None)
-                or "injected"
+                getattr(result, "model", None) or getattr(self.adapter, "model", None) or "injected"
             ),
             "transport": str(
                 getattr(result, "transport", None)
@@ -2191,9 +2173,10 @@ def generate_stub_task(
 ) -> Path:
     _ = exemplar_dir
     destination.mkdir(parents=True, exist_ok=True)
-    task_name = re.sub(
-        r"[^a-z0-9-]+", "-", str(spec.get("name", "synthesized-task")).lower()
-    ).strip("-") or "synthesized-task"
+    task_name = (
+        re.sub(r"[^a-z0-9-]+", "-", str(spec.get("name", "synthesized-task")).lower()).strip("-")
+        or "synthesized-task"
+    )
     category = str(spec.get("category", "data-processing"))
     difficulty = str(spec.get("difficulty", "medium"))
     summary = str(spec.get("summary", "Process input data and generate summary report"))
@@ -2922,7 +2905,7 @@ class AuthoringPipeline:
         self, proposal_id: str, destination: Path, ref: str | None, created: str
     ) -> Proposal:
         source = resolve_registered_task(self.repo_root, ref)
-        source_digest = _sha256_tree(source)
+        source_digest = task_directory_digest(source)
         shutil.copytree(source, destination, dirs_exist_ok=True, ignore=_ignore_copy)
         task_toml = destination / "task.toml"
         if not task_toml.is_file():
@@ -2937,7 +2920,7 @@ class AuthoringPipeline:
                 + f"Versioned variant of `{_repo_relative(source, self.repo_root)}` "
                 + f"at {new_version}. Source digest `{source_digest}`.\n"
             )
-        after = _sha256_tree(source)
+        after = task_directory_digest(source)
         if after != source_digest:
             raise AuthoringError(f"mutation edited source in place: {source}")
         return Proposal(
@@ -3390,7 +3373,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     model_propose.add_argument("--timeout", type=float, default=120.0)
 
-
     harvest = subparsers.add_parser(
         "harvest",
         help="harvest a verified task from completed Harbor job into _proposed/",
@@ -3449,6 +3431,7 @@ def _pipeline_from_args(args: argparse.Namespace) -> AuthoringPipeline:
             timeout_seconds=float(getattr(args, "timeout", 120.0)),
         )
     return AuthoringPipeline(root, derived_root=derived, adapter=adapter)
+
 
 def _emit(payload: Any, *, as_json: bool, stream: Any = None) -> None:
     target = sys.stdout if stream is None else stream

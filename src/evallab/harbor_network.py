@@ -25,9 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from evallab.schemas import DARWIN_ISOLATION_UNAVAILABLE_REASON
+
 NetworkMode = Literal["public", "no-network", "allowlist"]
 
-ADAPTER_VERSION = "1.0.0"
+ADAPTER_VERSION = "1.1.0"
 
 
 def adapter_digest() -> str:
@@ -40,9 +42,9 @@ def adapter_digest() -> str:
 class HarborNetworkPolicy:
     """Network policy the current host can actually run.
 
-    ``network_isolation_enforced`` is ``True`` only when the host platform is
-    known to support Harbor's no-network Docker enforcement (Linux). On other
-    platforms the policy is ``public`` and no isolation is claimed.
+    ``network_isolation_enforced`` is a host capability hint used only to adapt
+    the executable task policy. Causal admission requires the independent,
+    digest-bound five-class probe evidence contract.
     """
 
     network_mode: NetworkMode
@@ -53,8 +55,9 @@ class HarborNetworkPolicy:
 def host_harbor_network_policy() -> HarborNetworkPolicy:
     """Return the network policy appropriate for the current host.
 
-    Linux: ``no-network`` with isolation enforced. macOS and other unsupported
-    platforms: ``public`` with isolation unenforced and a documented reason.
+    Linux requests ``no-network`` when supported. macOS and other unsupported
+    platforms adapt to ``public``. Neither platform name nor this capability
+    hint is isolation evidence.
     """
     system = platform.system()
     if system == "Linux":
@@ -67,7 +70,7 @@ def host_harbor_network_policy() -> HarborNetworkPolicy:
         return HarborNetworkPolicy(
             network_mode="public",
             network_isolation_enforced=False,
-            network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+            network_isolation_reason=DARWIN_ISOLATION_UNAVAILABLE_REASON,
         )
     return HarborNetworkPolicy(
         network_mode="public",
@@ -90,6 +93,8 @@ class NetworkAdaptation:
     network_isolation_reason: str | None
     adapter_version: str
     adapter_digest: str
+    requested_agent_allowed_hosts: tuple[str, ...] = ()
+    agent_allowlist_enforced: bool = False
 
 
 def _canonical_networks(
@@ -234,24 +239,25 @@ def adapt_task_toml_for_host(
     task_toml_text: str,
     *,
     host_policy: HarborNetworkPolicy | None = None,
+    agent_allowed_hosts: tuple[str, ...] = (),
 ) -> tuple[str, NetworkAdaptation | None]:
-    """Derive an effective ``task.toml`` for the current host or an explicit host policy.
+    """Derive an executable network policy for the current Docker host.
 
-    The returned text is identical to the input when the host can execute the
-    canonical policy. Otherwise the only ``task.toml`` changes are the
-    ``network_mode`` values in ``[environment]``, ``[verifier.environment]``,
-    and ``[verifier]`` (phase override) so the package does not ask Harbor for
-    an unsupported policy. A ``NetworkAdaptation`` record is returned for the
-    runner to persist in ``run_manifest.json``.
+    A requested agent allowlist is applied only where Harbor Docker can enforce
+    it. Unsupported hosts record an explicit allowlist-to-public adaptation
+    instead of passing an invalid policy to Harbor.
     """
     config = tomllib.loads(task_toml_text)
     host = host_policy if host_policy is not None else host_harbor_network_policy()
-    requested_agent, requested_verifier, requested_phase = _canonical_networks(config)
-    effective_agent = _effective_network(requested_agent, host)
+    requested_environment, requested_verifier, requested_phase = _canonical_networks(config)
+    effective_environment = _effective_network(requested_environment, host)
     effective_verifier = _effective_network(requested_verifier, host)
     effective_phase = (
         _effective_network(requested_phase, host) if requested_phase is not None else None
     )
+    requested_agent = "allowlist" if agent_allowed_hosts else requested_environment
+    allowlist_enforced = bool(agent_allowed_hosts and host.network_isolation_enforced)
+    effective_agent = "allowlist" if allowlist_enforced else effective_environment
 
     all_effective_no_network = (
         effective_agent == "no-network"
@@ -262,34 +268,39 @@ def adapt_task_toml_for_host(
     isolation_reason = None if isolation_enforced else host.network_isolation_reason
 
     if (
-        effective_agent == requested_agent
+        not agent_allowed_hosts
+        and effective_environment == requested_environment
         and effective_verifier == requested_verifier
         and effective_phase == requested_phase
     ):
         return task_toml_text, None
 
     new_text = task_toml_text
-
-    # [environment].network_mode
-    new_text = _replace_in_section(new_text, "environment", "network_mode", effective_agent)
-
-    # [verifier.environment].network_mode if present
+    new_text = _replace_in_section(
+        new_text,
+        "environment",
+        "network_mode",
+        effective_environment,
+    )
     if _section_range(new_text, "verifier.environment") is not None:
         new_text = _replace_in_section(
-            new_text, "verifier.environment", "network_mode", effective_verifier
+            new_text,
+            "verifier.environment",
+            "network_mode",
+            effective_verifier,
         )
-
-    # [verifier].network_mode phase override if present
     if requested_phase is not None and effective_phase is not None:
-        new_text = _replace_in_section(new_text, "verifier", "network_mode", effective_phase)
+        new_text = _replace_in_section(
+            new_text,
+            "verifier",
+            "network_mode",
+            effective_phase,
+        )
     new_config = tomllib.loads(new_text)
 
-    # Prove only network_mode values changed.
     if _set_network_sentinel(config, "<adapted>") != _set_network_sentinel(new_config, "<adapted>"):
         raise ValueError("adaptation changed non-network parsed fields")
-
-    # Prove the effective values landed where expected.
-    if new_config["environment"]["network_mode"] != effective_agent:
+    if new_config["environment"]["network_mode"] != effective_environment:
         raise ValueError("environment.network_mode not set to effective value")
     if (
         isinstance(new_config.get("verifier"), dict)
@@ -303,6 +314,9 @@ def adapt_task_toml_for_host(
     ):
         raise ValueError("verifier.network_mode not set to effective value")
 
+    if allowlist_enforced:
+        new_text = with_agent_network_allowlist(new_text, agent_allowed_hosts)
+
     adaptation = NetworkAdaptation(
         requested_agent_network=requested_agent,
         effective_agent_network=effective_agent,
@@ -314,5 +328,7 @@ def adapt_task_toml_for_host(
         network_isolation_reason=isolation_reason,
         adapter_version=ADAPTER_VERSION,
         adapter_digest=adapter_digest(),
+        requested_agent_allowed_hosts=agent_allowed_hosts,
+        agent_allowlist_enforced=allowlist_enforced,
     )
     return new_text, adaptation

@@ -53,6 +53,236 @@ CREATE TABLE IF NOT EXISTS analysis_invocations (
 CREATE TABLE IF NOT EXISTS observation_records (
     trial_id TEXT PRIMARY KEY
 );
+
+CREATE TABLE IF NOT EXISTS trial_outcomes (
+    outcome_id TEXT PRIMARY KEY,
+    trial_id TEXT NOT NULL,
+    source_trial_id TEXT,
+    outcome_kind TEXT NOT NULL,
+    outcome_namespace TEXT NOT NULL DEFAULT 'harbor_verifier',
+    outcome_name TEXT NOT NULL DEFAULT 'reward',
+    reward_value DOUBLE,
+    is_valid_reward BOOLEAN NOT NULL DEFAULT false,
+    valid_fraction DOUBLE,
+    agent_status TEXT NOT NULL,
+    agent_exception TEXT,
+    verifier_status TEXT NOT NULL,
+    artifact_status TEXT NOT NULL,
+    artifact_digest TEXT,
+    source_digest TEXT NOT NULL,
+    verifier_digest TEXT NOT NULL,
+    evidence_digest TEXT,
+    authority_state TEXT NOT NULL,
+    superseded_by_outcome_id TEXT,
+    supersession_reason TEXT,
+    is_summable BOOLEAN NOT NULL DEFAULT false,
+    cas_uri TEXT,
+    evidence_path TEXT,
+    recorded_at TEXT,
+    network_isolation_evidence_digest TEXT,
+    network_isolation_status TEXT,
+    network_isolation_reason TEXT,
+    analysis_eligibility TEXT,
+    trial_admissibility_digest TEXT,
+    trial_admissibility_decision TEXT,
+    trial_admissibility_reason TEXT,
+    trial_allowed_use TEXT
+);
+
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS network_isolation_evidence_digest TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS network_isolation_status TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS network_isolation_reason TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS analysis_eligibility TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_admissibility_digest TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_admissibility_decision TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_admissibility_reason TEXT;
+ALTER TABLE trial_outcomes
+    ADD COLUMN IF NOT EXISTS trial_allowed_use TEXT;
+
+CREATE OR REPLACE VIEW v_composite_outcome_validity AS
+WITH normalized AS (
+    SELECT
+        outcomes.*,
+        COALESCE(source_trial_id, trial_id) AS authority_trial_id
+    FROM trial_outcomes AS outcomes
+),
+anchors AS (
+    SELECT
+        authority_trial_id,
+        MAX(source_digest) FILTER (
+            WHERE outcome_kind IN ('original_verifier', 'synthetic_fallback', 'manual_audit')
+        ) AS source_digest,
+        MAX(verifier_digest) FILTER (
+            WHERE outcome_kind IN ('original_verifier', 'synthetic_fallback', 'manual_audit')
+        ) AS verifier_digest,
+        MAX(artifact_digest) FILTER (
+            WHERE outcome_kind IN ('original_verifier', 'synthetic_fallback', 'manual_audit')
+              AND artifact_status = 'preserved'
+        ) AS artifact_digest
+    FROM normalized
+    GROUP BY authority_trial_id
+),
+classified AS (
+    SELECT
+        outcomes.*,
+        (
+            outcomes.outcome_kind = 'verifier_regrade'
+            AND outcomes.source_trial_id = outcomes.authority_trial_id
+            AND outcomes.source_digest = anchors.source_digest
+            AND outcomes.verifier_digest = anchors.verifier_digest
+            AND outcomes.artifact_digest = anchors.artifact_digest
+            AND outcomes.artifact_status = 'preserved'
+            AND outcomes.verifier_status = 'regrade_valid'
+            AND outcomes.is_valid_reward
+            AND outcomes.reward_value IS NOT NULL
+        ) AS is_valid_regrade,
+        (
+            outcomes.outcome_kind = 'original_verifier'
+            AND outcomes.verifier_status = 'completed'
+            AND outcomes.artifact_status = 'preserved'
+            AND outcomes.is_valid_reward
+            AND outcomes.reward_value IS NOT NULL
+        ) AS is_valid_original
+    FROM normalized AS outcomes
+    JOIN anchors USING (authority_trial_id)
+),
+summary AS (
+    SELECT
+        authority_trial_id,
+        COUNT(*) FILTER (WHERE outcome_kind = 'verifier_regrade') AS regrade_count,
+        COUNT(*) FILTER (WHERE is_valid_regrade) AS valid_regrade_count,
+        COUNT(DISTINCT reward_value) FILTER (WHERE is_valid_regrade) AS regrade_reward_count,
+        COUNT(DISTINCT artifact_digest) FILTER (WHERE is_valid_regrade) AS regrade_artifact_count,
+        COUNT(*) FILTER (WHERE is_valid_original) AS valid_original_count,
+        COUNT(*) FILTER (WHERE outcome_kind = 'inspect_scorer') AS inspect_count
+    FROM classified
+    GROUP BY authority_trial_id
+),
+decision AS (
+    SELECT
+        authority_trial_id,
+        CASE
+            WHEN regrade_count > valid_regrade_count THEN 'disputed'
+            WHEN regrade_reward_count > 1 OR regrade_artifact_count > 1 THEN 'disputed'
+            WHEN valid_regrade_count > 0 THEN 'regrade_authoritative'
+            WHEN valid_original_count > 0 THEN 'original_verifier_authoritative'
+            WHEN inspect_count > 0 AND regrade_count = 0 THEN 'non_decision'
+            ELSE 'unresolved_verifier_timeout'
+        END AS authority_axis,
+        CASE
+            WHEN regrade_count > valid_regrade_count THEN 'invalid_regrade_lineage'
+            WHEN regrade_reward_count > 1 OR regrade_artifact_count > 1
+                THEN 'conflicting_regrades'
+            ELSE NULL
+        END AS refusal_reason
+    FROM summary
+),
+ranked AS (
+    SELECT
+        classified.*,
+        decision.authority_axis,
+        decision.refusal_reason,
+        ROW_NUMBER() OVER (
+            PARTITION BY classified.authority_trial_id
+            ORDER BY
+                CASE
+                    WHEN decision.authority_axis = 'regrade_authoritative'
+                         AND classified.is_valid_regrade THEN 0
+                    WHEN decision.authority_axis = 'original_verifier_authoritative'
+                         AND classified.is_valid_original THEN 0
+                    WHEN classified.outcome_kind = 'original_verifier' THEN 1
+                    WHEN classified.outcome_kind = 'synthetic_fallback' THEN 2
+                    WHEN classified.outcome_kind = 'verifier_regrade' THEN 3
+                    ELSE 4
+                END,
+                classified.outcome_id
+        ) AS ranking
+    FROM classified
+    JOIN decision USING (authority_trial_id)
+)
+SELECT
+    authority_trial_id AS trial_id,
+    agent_status AS agent_axis,
+    agent_exception,
+    verifier_status AS verifier_axis,
+    artifact_status AS artifact_axis,
+    authority_axis,
+    CASE
+        WHEN authority_axis IN ('regrade_authoritative', 'original_verifier_authoritative')
+            THEN reward_value
+        ELSE NULL
+    END AS resolved_reward,
+    (
+        authority_axis IN ('regrade_authoritative', 'original_verifier_authoritative')
+        AND is_summable
+        AND artifact_status = 'preserved'
+        AND is_valid_reward
+        AND COALESCE(network_isolation_status = 'enforced', false)
+        AND COALESCE(analysis_eligibility = 'causal-eligible', false)
+        AND COALESCE(trial_admissibility_decision = 'admissible', false)
+        AND COALESCE(trial_allowed_use = 'causal', false)
+    ) AS is_admissible_for_aggregation,
+    (
+        authority_axis IN ('regrade_authoritative', 'original_verifier_authoritative')
+        AND artifact_status = 'preserved'
+        AND is_valid_reward
+    ) AS is_valid_result,
+    CASE
+        WHEN authority_axis IN ('regrade_authoritative', 'original_verifier_authoritative')
+            THEN outcome_id
+        ELSE NULL
+    END AS authoritative_outcome_id,
+    refusal_reason,
+    network_isolation_evidence_digest,
+    network_isolation_status,
+    network_isolation_reason,
+    analysis_eligibility,
+    trial_admissibility_digest,
+    trial_admissibility_decision,
+    trial_admissibility_reason,
+    trial_allowed_use
+FROM ranked
+WHERE ranking = 1;
+
+CREATE OR REPLACE VIEW v_reward_authority AS
+SELECT
+    composite.trial_id,
+    composite.resolved_reward AS authoritative_reward,
+    composite.is_admissible_for_aggregation AS is_authoritative_summable,
+    COUNT(outcomes.outcome_id) FILTER (
+        WHERE (
+            composite.authoritative_outcome_id IS NOT NULL
+            AND outcomes.outcome_id <> composite.authoritative_outcome_id
+            AND outcomes.outcome_kind <> 'inspect_scorer'
+        ) OR (
+            composite.authoritative_outcome_id IS NULL
+            AND outcomes.outcome_kind = 'synthetic_fallback'
+        )
+    ) AS superseded_count,
+    COUNT(outcomes.outcome_id) FILTER (
+        WHERE outcomes.outcome_kind = 'synthetic_fallback'
+          AND outcomes.outcome_id IS DISTINCT FROM composite.authoritative_outcome_id
+    ) AS superseded_synthetic_count,
+    composite.authority_axis = 'disputed' AS is_disputed,
+    composite.refusal_reason
+FROM v_composite_outcome_validity AS composite
+LEFT JOIN trial_outcomes AS outcomes
+    ON COALESCE(outcomes.source_trial_id, outcomes.trial_id) = composite.trial_id
+GROUP BY
+    composite.trial_id,
+    composite.resolved_reward,
+    composite.is_admissible_for_aggregation,
+    composite.authoritative_outcome_id,
+    composite.authority_axis,
+    composite.refusal_reason;
+
 CREATE OR REPLACE VIEW v_spine AS
 SELECT
     e.id AS spec_id,

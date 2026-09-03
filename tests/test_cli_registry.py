@@ -177,11 +177,11 @@ def test_registry_contract_func_count_equals_leaf_command_count() -> None:
     leaves = find_leaf_parsers(root_parser)
     leaves_with_func = [(path, subp) for path, subp in leaves if callable(subp.get_default("func"))]
     assert len(leaves) == len(leaves_with_func)
-    assert len(leaves) == 93, f"Expected exactly 93 leaf commands, found {len(leaves)}"
+    assert len(leaves) == 98, f"Expected exactly 98 leaf commands, found {len(leaves)}"
 
 
 def test_registry_contract_ast_set_defaults_count_equals_leaf_count() -> None:
-    """AST check: set_defaults(func=...) registrations in cli.py match the leaf command count."""
+    """Every explicit parser handler has one matching AST registration."""
     source = CLI_SOURCE_PATH.read_text(encoding="utf-8")
     tree = ast.parse(source)
 
@@ -196,9 +196,13 @@ def test_registry_contract_ast_set_defaults_count_equals_leaf_count() -> None:
                 if kw.arg == "func":
                     ast_set_defaults_func_calls.append(node)
 
-    leaves = find_leaf_parsers(cli.parser())
-    assert len(ast_set_defaults_func_calls) == len(leaves)
-    assert len(ast_set_defaults_func_calls) == 93
+    explicit_handler_parsers = [
+        (path, subparser)
+        for path, subparser in find_all_subparsers(cli.parser())
+        if callable(subparser._defaults.get("func"))
+    ]
+    assert len(ast_set_defaults_func_calls) == len(explicit_handler_parsers)
+    assert len(ast_set_defaults_func_calls) == 99
 
 
 def test_registry_contract_handlers_accept_uniform_signature() -> None:

@@ -21,18 +21,38 @@ from evallab.interpretation.producers.mcp_recovery import (
     build_recovery_persistence_curve,
     extract_mcp_recovery_features,
 )
+from evallab.interpretation.producers.memgym import (
+    MemGymOutcome,
+    extract_context_operation_facts_from_memgym,
+    extract_memgym_outcome,
+)
+from evallab.interpretation.producers.memory_continuity import (
+    MemoryContinuityFeatures,
+    MemoryContinuityStatus,
+    extract_context_operation_facts_from_atif,
+    extract_memory_continuity_features,
+    extract_memory_continuity_features_from_atif,
+)
 
 __all__ = [
     "ActionMemoryFeatures",
     "McpFuncDagFeatures",
     "McpRecoveryFeatures",
+    "MemoryContinuityFeatures",
+    "MemoryContinuityStatus",
     "RecoveryPersistencePoint",
     "build_recovery_persistence_curve",
     "compute_prompt_cache_hit_rate",
     "extract_action_memory_features",
+    "extract_context_operation_facts_from_atif",
     "extract_mcp_funcdag_features",
+    "extract_memory_continuity_features",
+    "extract_memory_continuity_features_from_atif",
     "extract_mcp_recovery_features",
     "extract_benchmark_features",
+    "extract_context_operation_facts_from_memgym",
+    "extract_memgym_outcome",
+    "MemGymOutcome",
 ]
 
 
@@ -41,8 +61,12 @@ def extract_benchmark_features(
     step_tokens: Sequence[int] | None = None,
     dimensions: BenchmarkProjectionDimensions | None = None,
     cached_step_tokens: Sequence[int] | None = None,
+    *,
+    governed: bool = False,
 ) -> ActionMemoryFeatures | McpFuncDagFeatures | McpRecoveryFeatures:
     """Extract benchmark-specific features according to the trial bundle's family."""
+    if governed:
+        bundle.require_causal_admissibility()
     family = bundle.contract.family
     if family == "action-memory-v1":
         return extract_action_memory_features(

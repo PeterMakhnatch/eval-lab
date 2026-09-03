@@ -39,6 +39,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shutil
 from collections.abc import Callable, Iterable  # noqa: F401  (Iterable in signatures)
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -109,12 +110,76 @@ def _durable_replace(source: Path, destination: Path) -> None:
     _fsync_directory(destination.parent)
 
 
+def _quality_identity(
+    trial_dir: Path,
+    job_dir: Path | None = None,
+    *,
+    job_id: str,
+    trial_id: str,
+) -> tuple[str, str, str, str | None, str, str]:
+    from evallab.interpretation.trajectory_quality import evaluate_trial_quality
+
+    report, _findings = evaluate_trial_quality(
+        trial_dir,
+        job_dir,
+        job_id_override=job_id,
+        trial_id_override=trial_id,
+    )
+    report_body = {
+        "check_version": report.check_version,
+        "check_digest": report.check_digest,
+        "status": str(report.status),
+        "is_ingestable": report.is_ingestable,
+        "is_analysis_ready": report.is_analysis_ready,
+        "quarantine_reason": report.quarantine_reason or "",
+        "findings_count": report.findings_count,
+        "warnings_count": report.warnings_count,
+        "errors_count": report.errors_count,
+    }
+    report_digest = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(report_body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+
+    quality_files = (
+        "result.json",
+        "agent/trajectory.json",
+        "exception.txt",
+        "lock.json",
+    )
+    inputs_body: dict[str, str] = {}
+    for rel_path in quality_files:
+        f_path = trial_dir / rel_path
+        if f_path.is_file():
+            inputs_body[rel_path] = "sha256:" + hashlib.sha256(f_path.read_bytes()).hexdigest()
+        else:
+            inputs_body[rel_path] = "absent"
+
+    inputs_digest = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(inputs_body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+
+    return (
+        str(report.status),
+        report.check_version,
+        report.check_digest,
+        report.quarantine_reason,
+        report_digest,
+        inputs_digest,
+    )
+
+
 class AnalysisRequest(BaseModel):
     """Frozen identity of one trial's analysis. Never edited after creation."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     request_id: str = Field(pattern=r"^[0-9a-f]{16}$")
     created_at: datetime
     experiment_id: str | None
@@ -134,6 +199,13 @@ class AnalysisRequest(BaseModel):
     rubric_sha256: str
     prompt_sha256: str
     profile_digest: str
+    quality_status: str
+    quality_check_version: str
+    quality_check_digest: str
+    quality_quarantine_reason: str | None = None
+    quality_report_digest: str
+    quality_inputs_digest: str
+    source_snapshot_digest: str
 
     @property
     def identity_digest(self) -> str:
@@ -145,7 +217,7 @@ class AnalysisRequest(BaseModel):
 
 
 AnalyzerFactory = Callable[
-    [JobRecord, TrialRecord, AnalysisRequest],
+    [AnalysisRequest],
     AnalyzerCallable,
 ]
 
@@ -193,10 +265,42 @@ class RequestStore:
     def request_dir(self, request_id: str) -> Path:
         return self.root / "requests" / request_id
 
-    def freeze(self, request: AnalysisRequest) -> bool:
-        """Persist a new request; False when the identity already exists."""
+    def freeze(self, request: AnalysisRequest, *, trial_path: Path | None = None) -> bool:
+        """Persist a new request and capture its immutable source snapshot."""
+        import shutil
+
         directory = self.request_dir(request.request_id)
         _durable_mkdir(directory)
+        snapshot_dir = directory / "snapshot"
+        if not snapshot_dir.is_dir():
+            _durable_mkdir(snapshot_dir)
+            source_trial = trial_path
+            if source_trial is None:
+                candidates = [
+                    self.root.parent.parent.parent / request.trial_path,
+                    self.root.parent.parent / request.trial_path,
+                    Path(request.trial_path),
+                ]
+                for cand in candidates:
+                    if cand.is_dir():
+                        source_trial = cand
+                        break
+            if source_trial is not None and source_trial.is_dir():
+                for root_dir, _dirs, files in os.walk(source_trial, followlinks=False):
+                    r_path = Path(root_dir)
+                    rel = r_path.relative_to(source_trial)
+                    target_dir = snapshot_dir / rel
+                    _durable_mkdir(target_dir)
+                    for f in files:
+                        src_f = r_path / f
+                        dst_f = target_dir / f
+                        if not dst_f.exists():
+                            shutil.copy2(src_f, dst_f)
+                            with open(dst_f, "rb") as h:
+                                os.fsync(h.fileno())
+                    _fsync_directory(target_dir)
+                _fsync_directory(snapshot_dir)
+
         path = directory / "request.json"
         try:
             with open(path, "x") as handle:
@@ -483,6 +587,15 @@ def freeze_request(
         trial_rel = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         trial_rel = trial.path.resolve().as_posix()
+    from evallab.evidence_store import evidence_tree_digest
+
+    source_snapshot_digest = evidence_tree_digest(trial.path)
+    q_status, q_check_ver, q_check_dig, q_quar_reason, q_rep_dig, q_inp_dig = _quality_identity(
+        trial.path,
+        job.path,
+        job_id=str(job.id),
+        trial_id=str(trial.id),
+    )
     body = {
         "experiment_id": facts.experiment_id(job),
         "job_id": str(job.id),
@@ -501,6 +614,13 @@ def freeze_request(
         "rubric_sha256": rubric_sha,
         "prompt_sha256": prompt_sha,
         "profile_digest": profile.digest,
+        "quality_status": q_status,
+        "quality_check_version": q_check_ver,
+        "quality_check_digest": q_check_dig,
+        "quality_quarantine_reason": q_quar_reason,
+        "quality_report_digest": q_rep_dig,
+        "quality_inputs_digest": q_inp_dig,
+        "source_snapshot_digest": source_snapshot_digest,
     }
     # Identity keys on the TRIAL, not on content: one analysis record per
     # trial, frozen at first sight. Content digests are frozen inside the
@@ -587,30 +707,40 @@ def admit(
     if current_lock != request.lock_sha256:
         return Admission("quarantine", "evidence_tampered:lock.json")
 
-    # Quality Ledger Gate: Failed, quarantined, or unevaluated evidence cannot enter analysis.
-    # Missing historical reports defer as quality_not_evaluated, never assumed good.
-    from evallab.interpretation.trajectory_quality import (
-        QualityStatus,
-        load_quality_report_for_trial,
-    )
-    from evallab.storage.paths import derived_root_from_environment
-
-    derived_root = derived_root_from_environment(repo_root)
-    quality_report = load_quality_report_for_trial(request.trial_id, derived_root)
-    if quality_report is None:
-        quality_report = load_quality_report_for_trial(request.trial_name, derived_root)
-
-    if quality_report is None:
-        return Admission("defer", "quality_not_evaluated")
-    if quality_report.status == QualityStatus.QUARANTINE:
-        return Admission(
-            "quarantine",
-            f"quality_quarantined:{quality_report.quarantine_reason or 'infrastructure_fault'}",
+    # Quality Gate: Recompute quality identity from current exact source bytes.
+    # Any input tampering or status drift fails closed before any model call.
+    try:
+        cur_status, cur_check_ver, cur_check_dig, cur_quar_reason, cur_rep_dig, cur_inp_dig = (
+            _quality_identity(
+                trial_dir,
+                trial_dir.parent,
+                job_id=request.job_id,
+                trial_id=request.trial_id,
+            )
         )
-    if not quality_report.is_analysis_ready or quality_report.status == QualityStatus.FAIL:
+    except Exception:
+        return Admission("defer", "quality_not_evaluated")
+
+    if cur_inp_dig != request.quality_inputs_digest:
+        return Admission("quarantine", "evidence_tampered:quality_inputs")
+
+    if (
+        cur_rep_dig != request.quality_report_digest
+        or cur_status != request.quality_status
+        or cur_check_dig != request.quality_check_digest
+    ):
+        return Admission("quarantine", "evidence_tampered:quality_status_drift")
+
+    if request.quality_status == "quarantine":
         return Admission(
             "quarantine",
-            f"quality_failed:{quality_report.quarantine_reason or 'malformed_evidence'}",
+            f"quality_quarantined:{request.quality_quarantine_reason or 'infrastructure_fault'}",
+        )
+
+    if request.quality_status in ("fail", "quality_not_evaluated"):
+        return Admission(
+            "quarantine",
+            f"quality_failed:{request.quality_quarantine_reason or 'malformed_evidence'}",
         )
     if job is not None and trial is not None:
         # Harbor locks are the digest truth: prove the frozen task/verifier
@@ -708,32 +838,10 @@ class AnalysisWorker:
 
     def stage(self, job_roots: list[Path]) -> CycleReport:
         """Discover and freeze. Never calls a model, never admits."""
-        from evallab.interpretation.trajectory_quality import (
-            evaluate_trial_quality,
-            persist_quality_ledger,
-        )
-        from evallab.storage.paths import derived_root_from_environment
-
         jobs = load_jobs(job_roots)
         discovered = staged = 0
         deferred: dict[str, int] = {}
         quarantined: dict[str, int] = {}
-
-        derived_root = derived_root_from_environment(self.repo_root)
-        q_reports = []
-        q_findings = []
-        for job in jobs:
-            for trial in job.trials:
-                rep, fnds = evaluate_trial_quality(
-                    trial.path,
-                    job.path,
-                    job_id_override=str(job.id),
-                    trial_id_override=str(trial.id),
-                )
-                q_reports.append(rep)
-                q_findings.extend(fnds)
-        if q_reports:
-            persist_quality_ledger(q_reports, q_findings, derived_root)
 
         for job, trial, reason in eligible_trials(jobs):
             discovered += 1
@@ -778,8 +886,6 @@ class AnalysisWorker:
         if state == "deferred":
             last = self.store.transitions(request_id)[-1]
             if _is_permanent_deferral(last):
-                # run_one is the production entrypoint, so permanence is
-                # enforced here too — not only in the run_cycle loop.
                 return last
 
         # Crash-after-call adoption: sidecar exists -> never call again.
@@ -788,9 +894,6 @@ class AnalysisWorker:
             self._complete(request_id, sidecar_path, adopted=True)
             return self.store.transitions(request_id)[-1]
 
-        # A durable invocation-start marker with no sidecar crosses the only
-        # boundary we cannot infer across: the provider may have returned and
-        # charged before this process crashed. Never replay it automatically.
         if self.store.unresolved_invocation(request_id) is not None:
             reason = "ambiguous_invocation_requires_operator_resolution"
             previous = self.store.transitions(request_id)[-1]
@@ -803,6 +906,11 @@ class AnalysisWorker:
             self.store.append(request_id, "deferred", "lease_held_by_another_worker")
             return self.store.transitions(request_id)[-1]
         try:
+            import tempfile
+
+            from evallab.evidence_store import evidence_tree_digest
+            from evallab.results import load_trial
+
             job_dir = (self.repo_root / request.trial_path).parent
             jobs = load_jobs([job_dir.parent])
             match = next(
@@ -827,16 +935,16 @@ class AnalysisWorker:
                 self.store.append(request_id, "quarantined", "trial_vanished")
                 return self.store.transitions(request_id)[-1]
             if self.adapter is _no_adapter and self.adapter_factory is None:
-                # Provably local: no adapter can reach a provider, so this is
-                # a misconfiguration and not a possibly-paid attempt.
                 self.store.append(request_id, "deferred", "adapter_not_wired")
                 return self.store.transitions(request_id)[-1]
+
             self.store.append(request_id, "admitted", None)
-            job, trial = match
+
+            # 1. Construct adapter from frozen metadata only
             analyzer = self.adapter
             if self.adapter_factory is not None:
                 try:
-                    analyzer = self.adapter_factory(job, trial, request)
+                    analyzer = self.adapter_factory(request)
                 except Exception as exc:
                     self.store.append(
                         request_id,
@@ -844,41 +952,153 @@ class AnalysisWorker:
                         f"adapter_configuration_error:{type(exc).__name__}",
                     )
                     return self.store.transitions(request_id)[-1]
-            attempt_id = self.store.begin_invocation(
-                request_id,
-                owner_token=lease.owner_token,
-                at=self.clock(),
-            )
-            self.store.append(request_id, "running", f"attempt:{attempt_id}")
-            # The sidecar/ dirent is the name that proves a paid call produced
-            # a result. _durable_replace fsyncs sidecar/ itself, which does not
-            # persist sidecar/'s own entry in the request directory.
-            _durable_mkdir(sidecar_path.parent)
-            written_path, _sidecar = run_trial_analysis(
-                job,
-                trial,
-                analyzer=analyzer,
-                repo_root=self.repo_root,
-                destination_root=sidecar_path.parent,
-                prompt_path=self.prompt_path,
-                rubric_path=self.rubric_path,
-                agent=request.adapter,
-                agent_version=request.profile_id,
-                model=request.model,
-                created_at=self.clock(),
-            )
-            # Normalize to the stable per-request location and make the file
-            # durable before resolving the possibly-paid invocation marker.
-            _durable_replace(written_path, sidecar_path)
-            self.store.resolve_invocation(
-                request_id,
-                attempt_id,
-                resolution="sidecar_persisted",
-                actor="analysis-worker",
-                at=self.clock(),
-            )
-            self._complete(request_id, sidecar_path, adopted=False)
-            return self.store.transitions(request_id)[-1]
+
+            # 2. Quality Gate: Re-verify that the live original source has not drifted post-freeze.
+            live_trial_dir = self.repo_root / request.trial_path
+            try:
+                (
+                    live_status,
+                    live_check_ver,
+                    live_check_dig,
+                    live_quar_reason,
+                    live_rep_dig,
+                    live_inp_dig,
+                ) = _quality_identity(
+                    live_trial_dir,
+                    live_trial_dir.parent,
+                    job_id=request.job_id,
+                    trial_id=request.trial_id,
+                )
+            except Exception:
+                self.store.append(request_id, "quarantined", "quality_evaluation_failed")
+                return self.store.transitions(request_id)[-1]
+
+            if live_inp_dig != request.quality_inputs_digest:
+                self.store.append(request_id, "quarantined", "evidence_tampered:quality_inputs")
+                return self.store.transitions(request_id)[-1]
+
+            if (
+                live_rep_dig != request.quality_report_digest
+                or live_status != request.quality_status
+                or live_check_dig != request.quality_check_digest
+            ):
+                self.store.append(
+                    request_id, "quarantined", "evidence_tampered:quality_status_drift"
+                )
+                return self.store.transitions(request_id)[-1]
+
+            if live_status == "quarantine":
+                self.store.append(
+                    request_id,
+                    "quarantined",
+                    f"quality_quarantined:{live_quar_reason or 'infrastructure_fault'}",
+                )
+                return self.store.transitions(request_id)[-1]
+
+            # 3. Verify stored snapshot integrity and absence of symlinks
+            snapshot_trial_dir = self.store.request_dir(request_id) / "snapshot"
+            if not snapshot_trial_dir.is_dir():
+                source_trial = self.repo_root / request.trial_path
+                if source_trial.is_dir():
+                    self.store.freeze(request, trial_path=source_trial)
+
+            if not snapshot_trial_dir.is_dir():
+                self.store.append(request_id, "quarantined", "evidence_missing:source_snapshot")
+                return self.store.transitions(request_id)[-1]
+
+            if os.path.islink(snapshot_trial_dir):
+                self.store.append(
+                    request_id, "quarantined", "evidence_tampered:source_snapshot_symlink"
+                )
+                return self.store.transitions(request_id)[-1]
+
+            for root_dir, _dirs, files in os.walk(snapshot_trial_dir, followlinks=False):
+                r_p = Path(root_dir)
+                if os.path.islink(r_p):
+                    self.store.append(
+                        request_id, "quarantined", "evidence_tampered:source_snapshot_symlink"
+                    )
+                    return self.store.transitions(request_id)[-1]
+                for f in files:
+                    if os.path.islink(r_p / f):
+                        self.store.append(
+                            request_id, "quarantined", "evidence_tampered:source_snapshot_symlink"
+                        )
+                        return self.store.transitions(request_id)[-1]
+
+            cur_snap_dig = evidence_tree_digest(snapshot_trial_dir)
+            if cur_snap_dig != request.source_snapshot_digest:
+                self.store.append(request_id, "quarantined", "evidence_tampered:source_snapshot")
+                return self.store.transitions(request_id)[-1]
+
+            # 4. Materialize verified snapshot into private, read-only execution directory
+            with tempfile.TemporaryDirectory(prefix="evallab-exec-") as exec_tmp:
+                private_exec_dir = Path(exec_tmp) / "trial"
+                shutil.copytree(snapshot_trial_dir, private_exec_dir, symlinks=False)
+
+                for root_dir, _dirs, files in os.walk(private_exec_dir, followlinks=False):
+                    r_p = Path(root_dir)
+                    for f in files:
+                        os.chmod(r_p / f, 0o400)
+                    os.chmod(r_p, 0o500)
+
+                if evidence_tree_digest(private_exec_dir) != request.source_snapshot_digest:
+                    self.store.append(request_id, "quarantined", "evidence_tampered:execution_tree")
+                    return self.store.transitions(request_id)[-1]
+
+                trial = load_trial(private_exec_dir)
+                snapshot_job_dir = private_exec_dir.parent
+                job = JobRecord(
+                    path=snapshot_job_dir,
+                    result={"id": request.job_id},
+                    config={},
+                    lock=trial.lock,
+                    metadata={"name": request.job_name},
+                    trials=(trial,),
+                )
+
+                attempt_id = self.store.begin_invocation(
+                    request_id,
+                    owner_token=lease.owner_token,
+                    at=self.clock(),
+                )
+                self.store.append(request_id, "running", f"attempt:{attempt_id}")
+                _durable_mkdir(sidecar_path.parent)
+                written_path, _sidecar = run_trial_analysis(
+                    job,
+                    trial,
+                    analyzer=analyzer,
+                    repo_root=self.repo_root,
+                    destination_root=sidecar_path.parent,
+                    prompt_path=self.prompt_path,
+                    rubric_path=self.rubric_path,
+                    agent=request.adapter,
+                    agent_version=request.profile_id,
+                    model=request.model,
+                    created_at=self.clock(),
+                )
+
+                # Recheck immutability of private execution directory after analysis
+                if evidence_tree_digest(private_exec_dir) != request.source_snapshot_digest:
+                    self.store.append(request_id, "quarantined", "evidence_tampered:execution_tree")
+                    return self.store.transitions(request_id)[-1]
+
+                for root_dir, _dirs, files in os.walk(private_exec_dir, followlinks=False):
+                    r_p = Path(root_dir)
+                    for f in files:
+                        os.chmod(r_p / f, 0o600)
+                    os.chmod(r_p, 0o700)
+
+                _durable_replace(written_path, sidecar_path)
+                self.store.resolve_invocation(
+                    request_id,
+                    attempt_id,
+                    resolution="sidecar_persisted",
+                    actor="analysis-worker",
+                    at=self.clock(),
+                )
+                self._complete(request_id, sidecar_path, adopted=False)
+                return self.store.transitions(request_id)[-1]
         finally:
             self._release_lease(request_id, lease)
 

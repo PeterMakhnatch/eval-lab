@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import os
+import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +15,7 @@ import pytest
 import evallab.queue as queue_module
 from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
+from evallab.evidence_store import archive_evidence, evidence_locator
 from evallab.queue import (
     DirectoryQueue,
     DispatchCapacity,
@@ -24,13 +26,16 @@ from evallab.queue import (
 )
 from evallab.runner import (
     ExecutionFailure,
+    ProviderFailoverFailure,
     RunRequest,
+    SettledRun,
     TransientHarnessFailure,
     TrialTimeoutFailure,
 )
 from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
+    ProviderRoute,
     QueueEvent,
     StandingApprovalsPolicy,
     canonical_grid_point_id,
@@ -82,6 +87,50 @@ def spec(
     )
 
 
+def provider_routes_spec(
+    name: str,
+    *,
+    exhaustion_behavior: str = "fail",
+    primary_credential: str = CODEX_AUTH,
+    fallback_credential: str = CODEX_AUTH,
+) -> ExperimentSpec:
+    digest = "sha256:" + "a" * 64
+    primary_model = "gateway-a/vendor-model-revision"
+    fallback_model = "gateway-b/vendor-model-revision"
+    return spec(
+        name,
+        agent="codex",
+        task="canary/event-summary",
+        model=primary_model,
+        est_cost_usd=2,
+    ).model_copy(
+        update={
+            "provider_routes": [
+                ProviderRoute(
+                    route_id="primary",
+                    provider="provider-a",
+                    model=primary_model,
+                    credential_requirement=primary_credential,
+                    logical_model_revision="model-revision-2026-08-31",
+                    tool_contract_digest=digest,
+                    max_cost_usd=1,
+                ),
+                ProviderRoute(
+                    route_id="fallback",
+                    provider="provider-b",
+                    model=fallback_model,
+                    credential_requirement=fallback_credential,
+                    logical_model_revision="model-revision-2026-08-31",
+                    tool_contract_digest=digest,
+                    max_cost_usd=1,
+                ),
+            ],
+            "provider_failover_max_cost_usd": 2,
+            "provider_exhaustion_behavior": exhaustion_behavior,
+        }
+    )
+
+
 def submit_authorized(service: Executor, item: ExperimentSpec) -> Path:
     """Submit paid work and record the human authorisation it now requires.
 
@@ -103,6 +152,24 @@ def identified(item: ExperimentSpec) -> tuple[ExperimentSpec, PaidRunAuthorizati
     )
 
 
+def settled(job_dir: Path) -> SettledRun:
+    """Return a real CAS-only runner result for queue boundary tests."""
+
+    job_dir.mkdir(parents=True, exist_ok=True)
+    store_root = job_dir.parent / ".queue-test-cas"
+    archive = archive_evidence(
+        job_dir,
+        store_root,
+        record_id=f"test-{job_dir.name}",
+        kind="job",
+    )
+    shutil.rmtree(job_dir)
+    return SettledRun(
+        cas_locator=evidence_locator(store_root, archive),
+        cas_record=archive,
+    )
+
+
 def executor(
     root: Path,
     *,
@@ -119,7 +186,7 @@ def executor(
         repo_root=root,
         queue=DirectoryQueue(root / "queue"),
         policy=policy(),
-        runner=runner or (lambda request: request.jobs_dir / request.name),
+        runner=runner or (lambda request: settled(request.jobs_dir / request.name)),
         ingester=ingester or (lambda path: None),
         spent_today=lambda: spent,
         consecutive_harness_failures=lambda: 0,
@@ -282,11 +349,11 @@ def test_tick_uses_stub_runner_ingests_and_records_every_transition(tmp_path: Pa
     requests = []
     ingested = []
 
-    def run(request):
+    def run(request: RunRequest) -> SettledRun:
         requests.append(request)
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True)
-        return destination
+        return settled(destination)
 
     service = executor(tmp_path, runner=run, ingester=ingested.append)
     approved, _ = service.submit(spec("completed-oracle-control"))
@@ -294,7 +361,16 @@ def test_tick_uses_stub_runner_ingests_and_records_every_transition(tmp_path: Pa
 
     assert service.tick() == 1
     assert len(requests) == 1
-    assert ingested == [tmp_path / "runs/completed-oracle-control"]
+    assert len(ingested) == 1
+    assert ingested[0].record_id == "test-completed-oracle-control"
+    assert ingested[0].expected_record_digest.startswith("sha256:")
+    assert not (requests[0].jobs_dir / requests[0].name).exists()
+    completed_event = load_events(service.queue.events_path)[-1]
+    assert completed_event.cas_store_root == str(ingested[0].store_root)
+    assert completed_event.cas_record_kind == ingested[0].kind
+    assert completed_event.cas_record_id == ingested[0].record_id
+    assert completed_event.cas_record_digest == ingested[0].expected_record_digest
+    assert completed_event.cas_content_digest == ingested[0].expected_content_digest
     assert service.queue.locate(str(queued.spec_id), ("done",)).parent.name == "done"
     events = [event.event for event in load_events(service.queue.events_path)]
     assert events == [
@@ -533,14 +609,14 @@ def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
     calls: list[str] = []
     sleeps: list[float] = []
 
-    def run(request: RunRequest) -> Path:
+    def run(request: RunRequest) -> SettledRun:
         calls.append(request.name)
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True)
         (destination / "attempt.txt").write_text(str(len(calls)))
         if len(calls) < 3:
             raise TransientHarnessFailure("transient_harness:provider_http_429")
-        return destination
+        return settled(destination)
 
     service = executor(tmp_path, runner=run, sleeper=sleeps.append)
     service.submit(spec("provider-recovers"))
@@ -560,6 +636,204 @@ def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
         "transient_harness:provider_http_429",
     ]
     assert service.queue.list_specs("done")
+
+
+def test_provider_balance_failover_preserves_trial_identity_and_records_attempts(
+    tmp_path: Path,
+) -> None:
+    requests: list[RunRequest] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        requests.append(request)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        (destination / "provider.txt").write_text(str(request.provider))
+        if request.provider == "provider-a":
+            raise ProviderFailoverFailure("provider_failover:balance_exhausted")
+        return settled(destination)
+
+    service = executor(tmp_path, runner=run)
+    submit_authorized(service, provider_routes_spec("balance-failover"))
+
+    assert service.tick() == 1
+    assert [request.provider for request in requests] == ["provider-a", "provider-b"]
+    assert len({request.provider_route_attempt_id for request in requests}) == 2
+    assert len({request.name for request in requests}) == 1
+    assert len({request.task for request in requests}) == 1
+    assert [request.model for request in requests] == [
+        "gateway-a/vendor-model-revision",
+        "gateway-b/vendor-model-revision",
+    ]
+    assert {request.agent for request in requests} == {"codex"}
+    assert {
+        request.provenance.logical_model_revision
+        for request in requests
+        if request.provenance
+    } == {"model-revision-2026-08-31"}
+    assert len({request.provenance.spec_id for request in requests if request.provenance}) == 1
+    assert (
+        tmp_path
+        / "runs/.provider-attempts/balance-failover"
+        / str(requests[0].provider_route_attempt_id)
+        / "provider.txt"
+    ).read_text() == "provider-a"
+
+    route_events = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event.startswith("provider_route_attempt_")
+    ]
+    assert [(event.event, event.provider, event.reason_code) for event in route_events] == [
+        (
+            "provider_route_attempt_started",
+            "provider-a",
+            "provider_failover:attempt_started",
+        ),
+        (
+            "provider_route_attempt_failed",
+            "provider-a",
+            "provider_failover:balance_exhausted",
+        ),
+        (
+            "provider_route_attempt_started",
+            "provider-b",
+            "provider_failover:attempt_started",
+        ),
+        (
+            "provider_route_attempt_succeeded",
+            "provider-b",
+            "provider_failover:attempt_succeeded",
+        ),
+    ]
+    assert service.queue.list_specs("done")
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason_code"),
+    [
+        (
+            TransientHarnessFailure("transient_harness:provider_http_429"),
+            "transient_harness:provider_http_429",
+        ),
+        (TrialTimeoutFailure("timed out"), "trial_wall_clock_timeout"),
+        (ExecutionFailure("model_error", "wrong model"), "model_error"),
+    ],
+)
+def test_non_capacity_failures_never_switch_provider(
+    tmp_path: Path,
+    failure: Exception,
+    reason_code: str,
+) -> None:
+    providers: list[str | None] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        providers.append(request.provider)
+        raise failure
+
+    service = executor(tmp_path, runner=run, max_transient_retries=0)
+    submit_authorized(service, provider_routes_spec("no-false-failover"))
+
+    assert service.tick() == 1
+    assert providers == ["provider-a"]
+    terminal = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "provider_route_attempt_terminal"
+    ]
+    assert [event.reason_code for event in terminal] == [reason_code]
+    assert not [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.provider == "provider-b"
+    ]
+
+
+def test_provider_preflight_selects_first_credential_viable_route(tmp_path: Path) -> None:
+    providers: list[str | None] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        providers.append(request.provider)
+        return settled(request.jobs_dir / request.name)
+
+    service = executor(tmp_path, runner=run, credentials=frozenset({CODEX_AUTH}))
+    submit_authorized(
+        service,
+        provider_routes_spec(
+            "preflight-route",
+            primary_credential=CLAUDE_OAUTH,
+            fallback_credential=CODEX_AUTH,
+        ),
+    )
+
+    assert service.tick() == 1
+    assert providers == ["provider-b"]
+    skipped = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "provider_route_preflight_skipped"
+    ]
+    assert [(event.provider, event.reason_code) for event in skipped] == [
+        ("provider-a", f"missing_credential:{CLAUDE_OAUTH}")
+    ]
+
+
+def test_provider_route_exhaustion_waits_with_exact_terminal_cause(tmp_path: Path) -> None:
+    providers: list[str | None] = []
+
+    def run(request: RunRequest) -> SettledRun:
+        providers.append(request.provider)
+        raise ProviderFailoverFailure("provider_failover:credits_exhausted")
+
+    service = executor(tmp_path, runner=run)
+    submit_authorized(
+        service,
+        provider_routes_spec("provider-exhausted", exhaustion_behavior="wait"),
+    )
+
+    assert service.tick() == 1
+    assert providers == ["provider-a", "provider-b"]
+    assert service.queue.list_specs("waiting")
+    exhausted = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event in {"provider_routes_exhausted", "dispatch_provider_routes_exhausted"}
+    ]
+    assert [event.reason_code for event in exhausted] == [
+        "provider_failover:credits_exhausted",
+        "provider_failover:credits_exhausted",
+    ]
+    attempt_ids = {
+        event.provider_route_attempt_id
+        for event in load_events(service.queue.events_path)
+        if event.event == "provider_route_attempt_started"
+    }
+    assert None not in attempt_ids
+    assert len(attempt_ids) == 2
+
+
+def test_provider_route_contract_rejects_treatment_or_spend_widening() -> None:
+    item = provider_routes_spec("invalid-route-contract")
+    second = item.provider_routes[1]
+
+    with pytest.raises(ValueError, match="logical model revision"):
+        ExperimentSpec.model_validate(
+            item.model_dump()
+            | {
+                "provider_routes": [
+                    item.provider_routes[0].model_dump(),
+                    second.model_copy(
+                        update={"logical_model_revision": "different-treatment"}
+                    ).model_dump(),
+                ]
+            }
+        )
+    with pytest.raises(ValueError, match="must equal"):
+        ExperimentSpec.model_validate(
+            item.model_dump()
+            | {
+                "provider_failover_max_cost_usd": 1,
+            }
+        )
 
 
 def test_transient_retry_cap_and_timeout_have_distinct_failure_reasons(
@@ -673,7 +947,9 @@ def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) ->
 
 def test_running_reconciliation_settles_the_final_attempt_reservation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
     service = executor(tmp_path, spent=2)
     approved = submit_authorized(
         service,
@@ -695,7 +971,8 @@ def test_running_reconciliation_settles_the_final_attempt_reservation(
     job_dir = tmp_path / queued.jobs_dir / queued.name
     job_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-15T00:00:00Z"}\n'
+        '{"id": "job-reconciled", "n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
     )
     trial_dir = job_dir / "trial-0"
     trial_dir.mkdir()
@@ -741,7 +1018,9 @@ def test_reconciliation_never_settles_partial_harbor_job(tmp_path: Path) -> None
 
 def test_reconciliation_never_settles_completed_header_missing_trial(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
     ingested: list[Path] = []
     service = executor(tmp_path, ingester=ingested.append)
     approved, _ = service.submit(spec("missing-trial-running-control"))
@@ -796,7 +1075,9 @@ def test_unresolved_running_job_blocks_all_new_dispatch(tmp_path: Path) -> None:
 
 def test_reconciliation_fails_closed_on_terminal_transient_job(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence-cas"))
     service = executor(
         tmp_path,
         ingester=lambda path: (_ for _ in ()).throw(
@@ -1208,7 +1489,7 @@ def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) 
     max_concurrent = [0]
     lock = threading.Lock()
 
-    def parallel_run(request: RunRequest) -> Path:
+    def parallel_run(request: RunRequest) -> SettledRun:
         with lock:
             concurrently_running[0] += 1
             if concurrently_running[0] > max_concurrent[0]:
@@ -1218,7 +1499,7 @@ def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) 
             concurrently_running[0] -= 1
         dest = request.jobs_dir / request.name
         dest.mkdir(parents=True, exist_ok=True)
-        return dest
+        return settled(dest)
 
     service = executor(tmp_path, runner=parallel_run)
     service.submit(spec("p-spec-1"))
@@ -1235,11 +1516,11 @@ def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) 
 def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> None:
     order: list[str] = []
 
-    def tracking_run(request: RunRequest) -> Path:
+    def tracking_run(request: RunRequest) -> SettledRun:
         order.append(request.name)
         dest = request.jobs_dir / request.name
         dest.mkdir(parents=True, exist_ok=True)
-        return dest
+        return settled(dest)
 
     service = executor(tmp_path, runner=tracking_run)
     service.submit(spec("seq-spec-1"))
@@ -1255,7 +1536,10 @@ def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> Non
 
 def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> None:
     requests: list[RunRequest] = []
-    service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
+    service = executor(
+        tmp_path,
+        runner=lambda request: requests.append(request) or settled(tmp_path),
+    )
     item = spec("bound-factor", concurrency=2).model_copy(
         update={
             "timeout_seconds": 60,
@@ -1371,3 +1655,243 @@ def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ExecutionFailure, match="no longer matches"):
         executor(tmp_path).execute_spec(item)
+
+
+def test_control_bootstrap_atomic_publication_and_conflict_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2 adversary: control bootstrap publication is atomic, fail-clean, and refuses destination overwrite."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    (root / "research/evidence/runs").mkdir(parents=True)
+
+    # 1. Create a valid settled control job
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="bootstrap-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("bootstrap-spec", agent="oracle", task="registered/task-1")
+
+    # First promotion succeeds
+    dest = service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert dest.is_dir()
+    assert (dest / "result.json").is_file()
+    # Ensure no staging directory leaked in research/evidence/runs
+    assert not list((root / "research/evidence/runs").glob(".staging-*"))
+
+    # Conflict refusal: destination already exists -> must raise control_bootstrap_job_conflict without overwrite
+    with pytest.raises(
+        ExecutionFailure, match="durable control-bootstrap job destination already exists"
+    ):
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+
+    # Failure injection: if validation fails, staging directory must be cleaned up and no partial directory left
+    fail_spec = spec("fail-bootstrap-spec", agent="oracle", task="registered/task-1")
+    monkeypatch.setattr(
+        service,
+        "_assert_persistent_artifacts_safe",
+        lambda _spec, _dir: (_ for _ in ()).throw(ValueError("injected validation failure")),
+    )
+    with pytest.raises(ValueError, match="injected validation failure"):
+        service._promote_control_bootstrap_job(settled_run, fail_spec)
+    assert not (root / "research/evidence/runs/fail-bootstrap-spec").exists()
+    assert not list((root / "research/evidence/runs").glob(".staging-*"))
+
+
+def test_control_bootstrap_refuses_broken_in_root_destination_symlink(
+    tmp_path: Path,
+) -> None:
+    """B2a adversary: broken in-root destination symlink is refused as conflict without publishing under alias."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="symlink-dest-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    # Create broken symlink at destination
+    symlink_path = runs_dir / "symlink-dest-spec"
+    target_path = runs_dir / "nonexistent-alias-target"
+    symlink_path.symlink_to(target_path)
+
+    service = executor(root)
+    control_spec = spec("symlink-dest-spec", agent="oracle", task="registered/task-1")
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "control_bootstrap_job_conflict"
+
+    # Destination alias must NOT have been created!
+    assert not target_path.exists()
+    assert not list(runs_dir.glob(".staging-*"))
+
+
+def test_control_bootstrap_refuses_symlinked_durable_root(
+    tmp_path: Path,
+) -> None:
+    """B2a adversary: symlinked durable root is refused fail-closed."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    (root / "research/evidence").mkdir(parents=True)
+
+    real_runs = tmp_path / "real_runs"
+    real_runs.mkdir()
+    symlinked_runs = root / "research/evidence/runs"
+    symlinked_runs.symlink_to(real_runs)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="symlink-root-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("symlink-root-spec", agent="oracle", task="registered/task-1")
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "symlink_rejected"
+
+
+def test_control_bootstrap_refuses_post_validation_staging_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2b adversary: mutating staged bytes after validation fails reauthentication with no publication."""
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="post-val-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("post-val-spec", agent="oracle", task="registered/task-1")
+
+    def mutating_validation(_spec, staging_path: Path) -> None:
+        # Mutate a file in staging AFTER validation completes
+        (staging_path / "result.json").write_text("TAMPERED_AFTER_VALIDATION\n")
+
+    monkeypatch.setattr(service, "_assert_persistent_artifacts_safe", mutating_validation)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "staged_evidence_tampered"
+
+    assert not (runs_dir / "post-val-spec").exists()
+    assert not list(runs_dir.glob(".staging-*"))
+
+
+def test_control_bootstrap_refuses_mutation_inside_atomic_publish_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2 adversary: mutation injected right at the native publication boundary is caught with no publication."""
+    from evallab import queue as queue_module
+
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    (root / "queue").mkdir()
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text("version: 1\n")
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True)
+
+    source_job = tmp_path / "raw-control-job"
+    trial_dir = source_job / "trial-1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "task", "trial_name": "trial-1"}), encoding="utf-8"
+    )
+    (source_job / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": "2026-08-25T12:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    store = root / "cas"
+    archive = archive_evidence(source_job, store, kind="job", record_id="native-boundary-spec")
+    locator = evidence_locator(store, archive)
+    settled_run = SettledRun(cas_locator=locator, cas_record=archive)
+
+    service = executor(root)
+    control_spec = spec("native-boundary-spec", agent="oracle", task="registered/task-1")
+
+    real_publish = queue_module._atomic_no_replace_publish
+
+    def mutating_publish(
+        source: Path, destination: Path, *, expected_content_digest: str | None = None
+    ):
+        # Mutate the staged file right at the publication boundary
+        os.chmod(source / "result.json", 0o600)
+        (source / "result.json").write_text("TAMPERED_AT_PUBLISH_BOUNDARY\n")
+        return real_publish(source, destination, expected_content_digest=expected_content_digest)
+
+    monkeypatch.setattr(queue_module, "_atomic_no_replace_publish", mutating_publish)
+
+    with pytest.raises(ExecutionFailure) as exc_info:
+        service._promote_control_bootstrap_job(settled_run, control_spec)
+    assert exc_info.value.reason_code == "staged_evidence_tampered"
+
+    assert not (runs_dir / "native-boundary-spec").exists()
+    assert not list(runs_dir.glob(".staging-*"))

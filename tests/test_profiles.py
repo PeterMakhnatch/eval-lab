@@ -232,6 +232,63 @@ def test_probe_results_never_carry_secret_material(tmp_path: Path):
     assert FAKE_SECRET not in codex_profile().canonical_json()
 
 
+def test_zai_opencode_profile_uses_real_auth_store_and_secret_safe_probe(
+    tmp_path: Path,
+) -> None:
+    profile = builtin_profiles()["zai-opencode-glm-5.3"]
+    assert profile.adapter == "zai-opencode"
+    assert profile.model == "zai-coding-plan/glm-5.3"
+    assert profile.adapter_version == "1.0.0+opencode-1.18.25"
+    assert profile.secret_source == "file:.local/share/opencode/auth.json"
+    assert "credential-transport:proxy-isolated" in profile.capabilities
+    assert "structured-trajectory:ATIF-v1.7" in profile.capabilities
+
+    secret = "zai-test-secret-never-report"
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(
+        json.dumps(
+            {
+                "xai": {"type": "api", "key": "foreign-provider-secret"},
+                "zai-coding-plan": {"type": "api", "key": secret},
+            }
+        )
+    )
+    auth.chmod(0o600)
+    probe = default_probe_for(
+        profile,
+        home=tmp_path,
+        security_runner=lambda _args: 1,
+        keychain_account="unused",
+    )
+    assert probe is not None
+    result = probe(profile)
+    assert result.ok
+    assert secret not in repr(result)
+    assert secret not in profile.canonical_json()
+
+
+def test_zai_opencode_probe_refuses_missing_provider_without_leaking_values(
+    tmp_path: Path,
+) -> None:
+    profile = builtin_profiles()["zai-opencode-glm-5.3"]
+    auth = tmp_path / ".local/share/opencode/auth.json"
+    auth.parent.mkdir(parents=True)
+    auth.write_text(json.dumps({"xai": {"type": "api", "key": FAKE_SECRET}}))
+    auth.chmod(0o600)
+    probe = default_probe_for(
+        profile,
+        home=tmp_path,
+        security_runner=lambda _args: 1,
+        keychain_account="unused",
+    )
+    assert probe is not None
+    result = probe(profile)
+    assert not result.ok
+    assert result.reason == "OpenCode auth has no credential for provider 'zai-coding-plan'"
+    assert FAKE_SECRET not in repr(result)
+
+
 # ---- preflight: fail closed, never reward zero ------------------------------
 
 

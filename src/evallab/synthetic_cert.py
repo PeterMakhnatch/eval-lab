@@ -12,7 +12,9 @@ before admission to the experimental registry:
 7. Regeneration Idempotency: identical seed and parameters yield identical content digests.
 8. Secret/Canary Isolation: verifier secrets, answers, and canary tokens are isolated.
 
-Emits a SyntheticCertificate with status='experimental' on complete pass, or 'rejected'.
+This gate emits status='experimental' only on complete pass, or 'rejected' otherwise.
+The contract may still represent historical or developmental experimental records with
+0, 1, or 2 mutants; those records remain nonpassing under SyntheticCertificate.is_passing.
 """
 
 from __future__ import annotations
@@ -194,9 +196,7 @@ class SyntheticCertificationGate:
                             )
                             break
                     elif not result:
-                        diagnostics.append(
-                            f"Reset function returned False on run {run_idx + 1}/2"
-                        )
+                        diagnostics.append(f"Reset function returned False on run {run_idx + 1}/2")
                         break
                 except Exception as exc:
                     diagnostics.append(
@@ -218,11 +218,7 @@ class SyntheticCertificationGate:
             diagnostics.append("No clean reset function provided")
 
         passed = len(diagnostics) == 0
-        details = (
-            "Repeated reset executions succeeded"
-            if passed
-            else "; ".join(diagnostics)
-        )
+        details = "Repeated reset executions succeeded" if passed else "; ".join(diagnostics)
         return GateCheckResult(
             name="clean_reset",
             passed=passed,

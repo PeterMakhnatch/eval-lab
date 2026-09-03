@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from evallab import database
 from evallab.automation import NightlyCycle
 from evallab.cli import _doctor
 from evallab.digest import DigestRenderer
+from evallab.evidence import atif as atif_module
 from evallab.evidence import facts as facts_module
 from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
@@ -18,7 +20,9 @@ from evallab.evidence.atif import (
     check_projection_invariant,
     ingest_and_project,
 )
+from evallab.evidence_store import archive_evidence, evidence_locator
 from evallab.queue import DirectoryQueue, Executor, load_events
+from evallab.runner import SettledRun
 from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
@@ -74,10 +78,13 @@ def test_daily_cost_query_uses_explicit_utc_policy_day(monkeypatch) -> None:
         lambda *_args, **_kwargs: Connection(),
     )
 
-    assert database.daily_cost_usd(
-        "postgresql://catalog",
-        date(2026, 8, 15),
-    ) == 3.5
+    assert (
+        database.daily_cost_usd(
+            "postgresql://catalog",
+            date(2026, 8, 15),
+        )
+        == 3.5
+    )
     query, parameters = observed[0]
     assert "AT TIME ZONE 'UTC'" in query
     assert "current_setting" not in query
@@ -89,13 +96,26 @@ def test_catalog_finishes_before_projection_failure_is_returned(
 ) -> None:
     calls: list[str] = []
     job = SimpleNamespace(id=_failure().job_id, name="oracle-control", trials=())
+    cas_job = SimpleNamespace(id=job.id, name="cas-authoritative", trials=())
+    cataloged: list[SimpleNamespace] = []
+    source_dir = tmp_path / "raw-job"
+    source_dir.mkdir()
+    (source_dir / "result.json").write_text("{}\n")
+    archive = archive_evidence(
+        source_dir,
+        tmp_path / "store",
+        kind="job",
+        record_id=job.id,
+    )
 
     monkeypatch.setattr(database, "initialize", lambda url: calls.append("initialize"))
-    monkeypatch.setattr(
-        database,
-        "ingest",
-        lambda url, jobs, root: calls.append("base-catalog") or len(jobs),
-    )
+
+    def ingest_catalog_job(_url, jobs, *, root):
+        calls.append("base-catalog")
+        cataloged.extend(jobs)
+        return len(jobs)
+
+    monkeypatch.setattr(database, "ingest", ingest_catalog_job)
     monkeypatch.setattr(
         facts_module,
         "ingest_catalog",
@@ -107,17 +127,21 @@ def test_catalog_finishes_before_projection_failure_is_returned(
         raise PermissionError("derived directory is unavailable")
 
     monkeypatch.setattr(facts_module, "rebuild_from_raw", fail_projection)
+    monkeypatch.setattr(atif_module, "load_job", lambda _path: cas_job)
 
     result = ingest_and_project(
         "postgresql://test",
         [job],  # type: ignore[list-item]
         root=tmp_path,
         output_root=tmp_path / "derived/parquet",
+        source_locators={job.id: evidence_locator(tmp_path / "store", archive)},
+        settlement_recorder=lambda *_args: None,
     )
 
     assert calls == ["initialize", "base-catalog", "fact-catalog", "parquet"]
     assert result.cataloged_jobs == 1
     assert [(table.table, table.rows) for table in result.tables] == [("jobs", 1)]
+    assert cataloged == [cas_job]
     assert result.failures[0].reason_code == (
         "projection_failed:00000000-0000-0000-0000-000000000001:PermissionError"
     )
@@ -129,7 +153,18 @@ def test_queue_projection_failure_is_not_execution_failure(tmp_path: Path) -> No
     def runner(request):
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True)
-        return destination
+        store_root = tmp_path / "queue-cas"
+        archive = archive_evidence(
+            destination,
+            store_root,
+            kind="job",
+            record_id=f"test-{request.name}",
+        )
+        shutil.rmtree(destination)
+        return SettledRun(
+            cas_locator=evidence_locator(store_root, archive),
+            cas_record=archive,
+        )
 
     queue = DirectoryQueue(tmp_path / "queue")
     executor = Executor(
@@ -190,9 +225,7 @@ def test_catalog_projection_invariant_requires_partition_or_reasoned_exception(
     queue.append_event(
         SimpleNamespace(
             model_dump_json=lambda exclude_none=True: (
-                '{"reason_code":"projection_failed:'
-                + excepted_job
-                + ':PermissionError"}'
+                '{"reason_code":"projection_failed:' + excepted_job + ':PermissionError"}'
             )
         )
     )
@@ -212,9 +245,7 @@ def test_catalog_projection_invariant_requires_partition_or_reasoned_exception(
     assert invariant.projected_job_ids == {projected_job}
     assert invariant.excepted_job_ids == {excepted_job}
     assert invariant.exceptions_by_reason == {"PermissionError": frozenset({excepted_job})}
-    expected_detail = (
-        "catalog=2 projected=1 exceptions=1 (PermissionError=1) missing=0 extra=0"
-    )
+    expected_detail = "catalog=2 projected=1 exceptions=1 (PermissionError=1) missing=0 extra=0"
     assert invariant.detail == expected_detail
     archived_events = queue.events_path.with_name("events.jsonl.1")
     queue.events_path.replace(archived_events)
@@ -291,16 +322,13 @@ def test_nightly_uses_completed_job_ingester_and_records_projection_failure(
             trial_loader=lambda day: [],
         ),
         committer=lambda path: False,
-        completed_job_ingester=lambda: calls.append("ingest-and-project")
-        or _result(_failure()),
+        completed_job_ingester=lambda: calls.append("ingest-and-project") or _result(_failure()),
     ).run(report_date=date(2026, 8, 14))
 
     assert calls == ["ingest-and-project"]
     assert result.quarantined is False
     event = next(
-        event
-        for event in load_events(queue.events_path)
-        if event.event == "projection_failed"
+        event for event in load_events(queue.events_path) if event.event == "projection_failed"
     )
     assert event.actor == "nightly"
     assert event.reason_code == _failure().reason_code

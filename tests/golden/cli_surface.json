@@ -32,6 +32,207 @@
       }
     ]
   },
+  "agents": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "agents doctor": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit diagnostic report as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "profile",
+        "flags": [],
+        "help": "Specific profile ID to diagnose (omit for all)",
+        "metavar": null,
+        "nargs": "?",
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "agents list": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit readiness records as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "agents qualify": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "profile",
+        "flags": [],
+        "help": "Agent profile ID to qualify",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 3,
+        "dest": "repeats",
+        "flags": [
+          "--repeats"
+        ],
+        "help": "Number of consecutive passing repeats required",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "canary/event-summary",
+        "dest": "task",
+        "flags": [
+          "--task"
+        ],
+        "help": "Canary task reference",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "agents smoke": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "profile",
+        "flags": [],
+        "help": "Agent profile ID to smoke test",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "canary/event-summary",
+        "dest": "task",
+        "flags": [
+          "--task"
+        ],
+        "help": "Canary task reference",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
   "analyst": {
     "options": [
       {
@@ -395,6 +596,65 @@
         "nargs": null,
         "required": true,
         "type": "Path"
+      }
+    ]
+  },
+  "analyze control": {
+    "options": [
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "evidence",
+        "flags": [
+          "--evidence"
+        ],
+        "help": "Calibration evidence JSON; repeat to override policy defaults",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "limit",
+        "flags": [
+          "--limit"
+        ],
+        "help": "Maximum rows to return",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "view",
+        "flags": [],
+        "help": "Stable control view name; unknown names are refused",
+        "metavar": "VIEW",
+        "nargs": null,
+        "required": true,
+        "type": null
       }
     ]
   },
@@ -2651,6 +2911,165 @@
       }
     ]
   },
+  "data backfill contracts": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "apply",
+        "flags": [
+          "--apply"
+        ],
+        "help": "Atomically create or verify predicted descriptive records",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Classify and write only the deterministic manifest (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "expect_derivable",
+        "flags": [
+          "--expect-derivable"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "expect_plan_digest",
+        "flags": [
+          "--expect-plan-digest"
+        ],
+        "help": "Expected canonical regeneration plan digest (required for apply)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "expect_promoted",
+        "flags": [
+          "--expect-promoted"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "expect_source_snapshot",
+        "flags": [
+          "--expect-source-snapshot"
+        ],
+        "help": "Expected canonical source snapshot digest (required for apply)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "manifest_out",
+        "flags": [
+          "--manifest-out"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "repo_root",
+        "flags": [
+          "--repo-root"
+        ],
+        "help": "Git worktree/repository root (default: discover from workspace)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "research/evidence/runs",
+        "dest": "runs_root",
+        "flags": [
+          "--runs-root"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source_revision",
+        "flags": [
+          "--source-revision"
+        ],
+        "help": "Explicit immutable Git revision supplying selected source blobs",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "db": {
     "options": [
       {
@@ -3230,6 +3649,20 @@
         "help": null,
         "metavar": null,
         "nargs": "+",
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "store",
+        "flags": [
+          "--store"
+        ],
+        "help": "Path to the authoritative CAS evidence store root",
+        "metavar": null,
+        "nargs": null,
         "required": true,
         "type": "Path"
       }
@@ -4403,6 +4836,20 @@
         "help": "Source URI for task provenance",
         "metavar": null,
         "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "stage_controls",
+        "flags": [
+          "--stage-controls"
+        ],
+        "help": "Persist a bound registered revision pending strict oracle/nop controls; requires --state registered, --actor, and --certification-packet",
+        "metavar": null,
+        "nargs": 0,
         "required": false,
         "type": null
       },

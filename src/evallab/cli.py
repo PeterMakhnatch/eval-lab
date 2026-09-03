@@ -118,7 +118,7 @@ from evallab.runner import (
 from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME, QueueReason
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.status_generator import generate_status_markdown, update_status_file
-from evallab.storage.attach import attach, attach_and_query, build_sql_preamble, print_zones
+from evallab.storage.attach import attach, build_sql_preamble, print_zones
 from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.tracing import (
     TraceError,
@@ -294,6 +294,187 @@ def _digest_renderer(root: Path) -> DigestRenderer:
 # ---------------------------------------------------------------------------
 # Declarative Command Handlers
 # ---------------------------------------------------------------------------
+
+
+def _agents_list_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles, evaluate_profile_readiness
+
+    effective_root = root
+    profiles = builtin_profiles()
+    records = [evaluate_profile_readiness(p, root=effective_root) for p in profiles.values()]
+    if getattr(args, "json", False):
+        payload = [r.model_dump(mode="json") for r in records]
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    headers = [
+        "Profile ID",
+        "Adapter",
+        "Model Pin",
+        "Host Cred",
+        "Transport",
+        "Trajectory",
+        "Ladder State",
+        "Active Blocker",
+    ]
+    rows: list[list[str]] = []
+    for r in records:
+        blocker_str = f"[{r.blocker.gate}] {r.blocker.reason}" if r.blocker else "(none)"
+        rows.append(
+            [
+                r.profile_id,
+                r.adapter,
+                r.model or "(none)",
+                r.gates.host_credential,
+                r.gates.harbor_transport,
+                r.gates.structured_trajectory,
+                r.state,
+                blocker_str,
+            ]
+        )
+
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            col_widths[i] = max(col_widths[i], len(cell))
+
+    header_line = "  ".join(f"{h:<{col_widths[i]}}" for i, h in enumerate(headers))
+    sep_line = "  ".join("-" * col_widths[i] for i in range(len(headers)))
+    print(header_line)
+    print(sep_line)
+    for row in rows:
+        print("  ".join(f"{cell:<{col_widths[i]}}" for i, cell in enumerate(row)))
+
+    return 0
+
+
+def _agents_doctor_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles, evaluate_profile_readiness
+
+    effective_root = root
+    profiles_dict = builtin_profiles()
+    profile_arg = getattr(args, "profile", None)
+    if profile_arg:
+        if profile_arg not in profiles_dict:
+            print(f"error: unknown profile ID {profile_arg!r}", file=sys.stderr)
+            return 1
+        targets = [profiles_dict[profile_arg]]
+    else:
+        targets = list(profiles_dict.values())
+
+    records = [evaluate_profile_readiness(p, root=effective_root) for p in targets]
+
+    if getattr(args, "json", False):
+        payload = [r.model_dump(mode="json") for r in records]
+        print(json.dumps(payload, indent=2))
+        all_passed = all(
+            r.gates.declared == "pass"
+            and r.gates.installed == "pass"
+            and r.gates.host_credential == "pass"
+            and r.gates.harbor_transport == "pass"
+            and r.gates.environment_network == "pass"
+            and r.gates.structured_trajectory == "pass"
+            for r in records
+        )
+        return 0 if all_passed else 1
+
+    has_preflight_blocker = False
+    for r in records:
+        print(f"Profile: {r.profile_id}")
+        print(f"  Adapter: {r.adapter}  Model: {r.model or '(none)'}  Digest: {r.profile_digest}")
+        print("  Gates:")
+        for gate_name in (
+            "declared",
+            "installed",
+            "host_credential",
+            "harbor_transport",
+            "environment_network",
+            "structured_trajectory",
+            "smoke",
+            "canary",
+        ):
+            status = getattr(r.gates, gate_name)
+            tag = "OK" if status == "pass" else ("BLOCKED" if status == "blocked" else "FAIL")
+            print(f"    [{tag:7}] {gate_name}")
+
+        if r.blocker:
+            print(
+                f"  Verdict: {r.state.upper()} (Active blocker: [{r.blocker.gate}] {r.blocker.reason})"
+            )
+            if r.blocker.remediation:
+                print(f"  Remediation: {r.blocker.remediation}")
+        else:
+            print(f"  Verdict: {r.state.upper()} (All gates pass)")
+        print()
+
+        preflight_passed = (
+            r.gates.declared == "pass"
+            and r.gates.installed == "pass"
+            and r.gates.host_credential == "pass"
+            and r.gates.harbor_transport == "pass"
+            and r.gates.environment_network == "pass"
+            and r.gates.structured_trajectory == "pass"
+        )
+        if not preflight_passed:
+            has_preflight_blocker = True
+
+    return 1 if has_preflight_blocker else 0
+
+
+def _agents_smoke_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles
+
+    effective_root = root
+    profiles_dict = builtin_profiles()
+    if args.profile not in profiles_dict:
+        print(f"error: unknown profile ID {args.profile!r}", file=sys.stderr)
+        return 1
+    profile = profiles_dict[args.profile]
+    executor = Executor.from_repo(effective_root)
+    ok, smoke_rec, err = executor.execute_agent_smoke(profile, task_ref=args.task)
+    if not ok or smoke_rec is None:
+        print(f"Transport/capture smoke failed for {profile.profile_id}: {err}", file=sys.stderr)
+        return 1
+    print(
+        f"Transport/capture smoke passed for {profile.profile_id} on {smoke_rec.task}: "
+        f"reward={smoke_rec.reward} runtime={smoke_rec.runtime_seconds:.1f}s "
+        f"steps={smoke_rec.step_count} tool_calls={smoke_rec.tool_call_count}"
+    )
+    return 0
+
+
+def _agents_qualify_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.profiles import builtin_profiles
+
+    effective_root = root
+    profiles_dict = builtin_profiles()
+    if args.profile not in profiles_dict:
+        print(f"error: unknown profile ID {args.profile!r}", file=sys.stderr)
+        return 1
+    profile = profiles_dict[args.profile]
+    executor = Executor.from_repo(effective_root)
+    ok, qual_digest, err = executor.execute_agent_qualify(
+        profile,
+        repeats=args.repeats,
+        task_ref=args.task,
+    )
+    if not ok or qual_digest is None:
+        print(f"Runtime qualification failed for {profile.profile_id}: {err}", file=sys.stderr)
+        return 1
+    print(
+        f"Runtime qualification succeeded for {profile.profile_id}: "
+        f"{qual_digest.repeats} fresh-container transport/capture smokes passed "
+        f"(digest: {qual_digest.qualification_digest})"
+    )
+    return 0
 
 
 def _doctor_command(
@@ -972,9 +1153,12 @@ def _run_command(
         timeout_seconds=args.timeout_seconds,
         allow_billable=args.allow_billable,
     )
-    job_dir = Executor.from_repo(root).execute_direct(request)
-    print(f"completed: {job_dir}")
-    _print_summary([load_job(job_dir)])
+    from evallab.evidence_store import materialize_evidence
+
+    settled = Executor.from_repo(root).execute_direct(request)
+    print(f"completed: {settled.cas_record.uri}")
+    with materialize_evidence(settled.cas_locator) as restored_job:
+        _print_summary([load_job(restored_job)])
     return 0
 
 
@@ -992,7 +1176,11 @@ def _matrix_command(
         if args.reuse_existing and job_dir.is_dir():
             job = load_job(job_dir)
         else:
-            job = load_job(executor.execute_direct(request))
+            from evallab.evidence_store import materialize_evidence
+
+            settled = executor.execute_direct(request)
+            with materialize_evidence(settled.cas_locator) as restored_job:
+                job = load_job(restored_job)
         completed.append(job)
         expected = expected_primary_reward(run)
         if expected is not None:
@@ -1021,7 +1209,8 @@ def _summarize_command(
 def _ingest_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    jobs = load_jobs([_resolve(root, path) for path in args.paths])
+    resolved_paths = [_resolve(root, path) for path in args.paths]
+    jobs = load_jobs(resolved_paths)
     if not jobs:
         print("No completed Harbor jobs found.", file=sys.stderr)
         return 1
@@ -1030,11 +1219,27 @@ def _ingest_command(
         root,
         explicit=args.derived_dir,
     )
+    from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
+
+    store_root = _resolve(root, args.store)
+    source_locators: dict[str, EvidenceLocator] = {}
+    for job_path, job in zip(resolved_paths, jobs, strict=True):
+        if not job_path.is_dir():
+            continue
+        archive = archive_evidence(
+            job_path,
+            store_root=store_root,
+            kind="job",
+            record_id=str(job.id),
+        )
+        source_locators[str(job.id)] = evidence_locator(store_root, archive)
+
     result = ingest_and_project(
         url,
         jobs,
         root=root,
         output_root=derived_root,
+        source_locators=source_locators,
     )
     record_projection_failures(
         DirectoryQueue(root / "queue"),
@@ -1042,26 +1247,6 @@ def _ingest_command(
         actor="manual-ingest",
         spec_id=f"system-{new_ulid()}",
     )
-    from evallab.interpretation.trajectory_quality import (
-        evaluate_trial_quality,
-        persist_quality_ledger,
-    )
-
-    all_reports = []
-    all_findings = []
-    for job in jobs:
-        for trial in job.trials:
-            rep, findings = evaluate_trial_quality(
-                trial.path,
-                job.path,
-                job_id_override=str(job.id),
-                trial_id_override=str(trial.id),
-            )
-            all_reports.append(rep)
-            all_findings.extend(findings)
-    if all_reports:
-        persist_quality_ledger(all_reports, all_findings, derived_root)
-
     print(f"ingested {result.cataloged_jobs} job(s)")
     for table, rows in sorted(result.row_counts.items()):
         print(f"{table}: {rows} row(s)")
@@ -1573,10 +1758,12 @@ def _analyze_worker_run_one_command(
         authorization_path = _resolve(root, args.authorization)
         scratch_root = _resolve(root, args.scratch_dir)
 
-        def adapter_factory(job, trial, request):
+        from evallab.analysis_worker import AnalysisRequest
+
+        def adapter_factory(request: AnalysisRequest):
             return CodexExecAnalyzer(
                 repo_root=root,
-                trial=trial,
+                source_trial_id=request.trial_id,
                 model=request.model,
                 authorization_path=authorization_path,
                 scratch_dir=scratch_root / request.request_id,
@@ -1821,6 +2008,40 @@ def _analyze_quality_command(
     return 0
 
 
+def _analyze_control_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Materialize and query the governed analysis control plane."""
+    del harbor
+    import duckdb
+
+    from evallab.analysis_control import materialize_analysis_control_views, query_control_view
+
+    evidence_paths = [_resolve(root, path) for path in args.evidence] if args.evidence else None
+    with duckdb.connect(":memory:") as connection:
+        materialization = materialize_analysis_control_views(
+            connection,
+            root=root,
+            evidence_paths=evidence_paths,
+        )
+        rows = query_control_view(connection, args.view, limit=args.limit)
+    print(
+        json.dumps(
+            {
+                "materialization": asdict(materialization),
+                "row_count": len(rows),
+                "rows": rows,
+                "view": args.view,
+            },
+            default=str,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
 def _data_backfill_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1847,6 +2068,51 @@ def _data_backfill_command(
         f"exit={ledger.exit_code} digest={ledger.content_digest}"
     )
     return ledger.exit_code
+
+
+def _data_backfill_contracts_command(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    harbor: HarborBackend | None = None,
+) -> int:
+    del harbor
+    from evallab.storage.data_backfill import (
+        HistoricalRegenerationError,
+        run_historical_contract_regeneration,
+    )
+
+    try:
+        result = run_historical_contract_regeneration(
+            repo_root=(_resolve(root, args.repo_root) if args.repo_root is not None else root),
+            runs_root=args.runs_root,
+            source_revision=args.source_revision,
+            manifest_out=_resolve(root, args.manifest_out),
+            expect_promoted=args.expect_promoted,
+            expect_derivable=args.expect_derivable,
+            expect_source_snapshot=args.expect_source_snapshot,
+            expect_plan_digest=args.expect_plan_digest,
+            apply=args.apply,
+        )
+    except HistoricalRegenerationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    manifest = result.manifest
+    mode = "apply" if result.applied else "dry-run"
+    print(
+        f"historical contracts {mode}: commit={result.resolved_commit}; "
+        f"snapshot={manifest.source_snapshot.snapshot_digest}; "
+        f"{manifest.promoted_count} promoted, "
+        f"{manifest.descriptive_record_count} descriptive, "
+        f"{manifest.analysis_ready_count} ANALYSIS_READY, "
+        f"{manifest.admissible_count} admissible; "
+        f"truth final/missing-final={manifest.truth_with_final_state_count}/"
+        f"{manifest.truth_missing_final_state_count}; "
+        f"missing truth/events={manifest.truth_missing_count}/"
+        f"{manifest.truth_missing_events_count}; "
+        f"plan={manifest.content_digest}"
+    )
+    return 0
 
 
 def _db_init_command(
@@ -1922,12 +2188,13 @@ def _db_attach_command(
         safe_dsn, had_credentials = _redact_database_dsn(dsn)
         if had_credentials:
             print("-- REDACTED / NON-EXECUTABLE: credentials were removed from this SQL preamble.")
-        print(build_sql_preamble(safe_dsn, derived, root))
+        z3 = next(zone for zone in result.zones if zone.name == "z3")
+        print(build_sql_preamble(safe_dsn, derived, root, readiness=z3.tables))
         result.connection.close()
         return 0
     if args.query:
+        rows = result.connection.execute(args.query).fetchall()
         result.connection.close()
-        rows = attach_and_query(args.query, repo_root=root, explicit_derived=derived)
         for row in rows:
             print(row)
         return 0
@@ -2224,11 +2491,10 @@ def _evidence_archive_command(
     payload = {
         "record_id": archive.record_id,
         "kind": archive.kind,
+        "record_digest": archive.record_digest,
         "uri": archive.uri,
         "content_digest": archive.content_digest,
         "archive_digest": archive.archive_digest,
-        "blob_path": str(archive.blob_path),
-        "manifest_path": str(archive.manifest_path),
         "file_count": archive.file_count,
         "uncompressed_bytes": archive.uncompressed_bytes,
     }
@@ -2654,8 +2920,28 @@ def _registry_promote_command(
         if getattr(args, "register", False) or args.state == "registered"
         else "candidate"
     )
-    if state == "registered" and not args.actor:
+    stage_controls = bool(getattr(args, "stage_controls", False))
+    certification_packet = getattr(args, "certification_packet", None)
+    if stage_controls and args.state != "registered":
+        print(
+            "error: --stage-controls requires --state registered",
+            file=sys.stderr,
+        )
+        return 1
+    if stage_controls and getattr(args, "register", False):
+        print(
+            "error: --stage-controls cannot be combined with --register",
+            file=sys.stderr,
+        )
+        return 1
+    if state == "registered" and (not args.actor or not args.actor.strip()):
         print("error: registering a task record requires --actor", file=sys.stderr)
+        return 1
+    if stage_controls and (certification_packet is None or not str(certification_packet).strip()):
+        print(
+            "error: --stage-controls requires --certification-packet",
+            file=sys.stderr,
+        )
         return 1
 
     try:
@@ -2679,7 +2965,8 @@ def _registry_promote_command(
             state=state,
             actor=args.actor,
             jobs_roots=jobs_roots,
-            certification_path=getattr(args, "certification_packet", None),
+            certification_path=certification_packet,
+            stage_controls=stage_controls,
         )
     except (RegistryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -2688,7 +2975,11 @@ def _registry_promote_command(
     if args.json:
         print(json.dumps(record.model_dump(mode="json"), indent=2))
     else:
-        print(f"promoted: {record.task_id}@{record.version} (state: {record.state})")
+        if stage_controls:
+            print(f"staged control-pending registered revision: {record.task_id}@{record.version}")
+            print("  state:    registered (control evidence pending; measurement unavailable)")
+        else:
+            print(f"promoted: {record.task_id}@{record.version} (state: {record.state})")
         print(f"  path:     {record.task_path}")
         print(f"  package:  {record.digests.package}")
         evidence = record.control_evidence
@@ -3484,6 +3775,54 @@ def parser() -> argparse.ArgumentParser:
     claims_pack.add_argument("--json", action="store_true", help="Emit the typed pack as JSON")
     claims_pack.set_defaults(func=_claims_pack_command)
 
+    agents = commands.add_parser(
+        "agents",
+        help="Manage agent profiles, readiness gates, smoke tests, and qualification",
+    )
+    agents_commands = agents.add_subparsers(dest="agents_command", required=True)
+
+    agents_list = agents_commands.add_parser(
+        "list", help="List declared agent profiles and their readiness status"
+    )
+    agents_list.add_argument("--json", action="store_true", help="Emit readiness records as JSON")
+    agents_list.set_defaults(func=_agents_list_command)
+
+    agents_doctor = agents_commands.add_parser(
+        "doctor", help="Run readiness diagnostic probes across all gates"
+    )
+    agents_doctor.add_argument(
+        "profile",
+        nargs="?",
+        help="Specific profile ID to diagnose (omit for all)",
+    )
+    agents_doctor.add_argument("--json", action="store_true", help="Emit diagnostic report as JSON")
+    agents_doctor.set_defaults(func=_agents_doctor_command)
+
+    agents_smoke = agents_commands.add_parser(
+        "smoke", help="Run a bounded smoke canary trial for an agent profile"
+    )
+    agents_smoke.add_argument("profile", help="Agent profile ID to smoke test")
+    agents_smoke.add_argument(
+        "--task", default="canary/event-summary", help="Canary task reference"
+    )
+    agents_smoke.set_defaults(func=_agents_smoke_command)
+
+    agents_qualify = agents_commands.add_parser(
+        "qualify",
+        help="Run repeated canary trials to qualify an agent profile",
+    )
+    agents_qualify.add_argument("profile", help="Agent profile ID to qualify")
+    agents_qualify.add_argument(
+        "--repeats",
+        type=int,
+        default=3,
+        help="Number of consecutive passing repeats required",
+    )
+    agents_qualify.add_argument(
+        "--task", default="canary/event-summary", help="Canary task reference"
+    )
+    agents_qualify.set_defaults(func=_agents_qualify_command)
+
     doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
     doctor.add_argument(
         "--headless",
@@ -3804,6 +4143,12 @@ def parser() -> argparse.ArgumentParser:
     summarize.set_defaults(func=_summarize_command)
 
     ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
+    ingest.add_argument(
+        "--store",
+        type=Path,
+        required=True,
+        help="Path to the authoritative CAS evidence store root",
+    )
     ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
     ingest.add_argument("--database-url")
     ingest.add_argument(
@@ -4109,6 +4454,28 @@ def parser() -> argparse.ArgumentParser:
     )
     analyze_quality.set_defaults(func=_analyze_quality_command)
 
+    analyze_control = analyze_commands.add_parser(
+        "control",
+        help="Materialize and query governed readiness, authority, binding, and feature views",
+    )
+    analyze_control.add_argument(
+        "view",
+        metavar="VIEW",
+        help="Stable control view name; unknown names are refused",
+    )
+    analyze_control.add_argument(
+        "--evidence",
+        type=Path,
+        action="append",
+        help="Calibration evidence JSON; repeat to override policy defaults",
+    )
+    analyze_control.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum rows to return",
+    )
+    analyze_control.set_defaults(func=_analyze_control_command)
+
     data = commands.add_parser(
         "data",
         help="Completed-trial data layer: reconcile durable trials to ANALYSIS_READY or HOLD",
@@ -4142,6 +4509,61 @@ def parser() -> argparse.ArgumentParser:
     )
     data_backfill.add_argument("--database-url")
     data_backfill.set_defaults(func=_data_backfill_command)
+    backfill_modes = data_backfill.add_subparsers(dest="data_backfill_mode")
+    backfill_contracts = backfill_modes.add_parser(
+        "contracts",
+        help="Classify historical promoted trials without inferring missing authority",
+    )
+    backfill_contracts.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Git worktree/repository root (default: discover from workspace)",
+    )
+    backfill_contracts.add_argument(
+        "--runs-root",
+        type=Path,
+        default=Path("research/evidence/runs"),
+    )
+    backfill_contracts.add_argument(
+        "--source-revision",
+        required=True,
+        help="Explicit immutable Git revision supplying selected source blobs",
+    )
+    backfill_contracts.add_argument(
+        "--expect-promoted",
+        type=int,
+        required=True,
+    )
+    backfill_contracts.add_argument(
+        "--expect-derivable",
+        type=int,
+        required=True,
+    )
+    backfill_contracts.add_argument(
+        "--manifest-out",
+        type=Path,
+        required=True,
+    )
+    backfill_contracts.add_argument(
+        "--expect-source-snapshot",
+        help="Expected canonical source snapshot digest (required for apply)",
+    )
+    backfill_contracts.add_argument(
+        "--expect-plan-digest",
+        help="Expected canonical regeneration plan digest (required for apply)",
+    )
+    backfill_mode = backfill_contracts.add_mutually_exclusive_group()
+    backfill_mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Classify and write only the deterministic manifest (default)",
+    )
+    backfill_mode.add_argument(
+        "--apply",
+        action="store_true",
+        help="Atomically create or verify predicted descriptive records",
+    )
+    backfill_contracts.set_defaults(func=_data_backfill_contracts_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)
@@ -4685,6 +5107,14 @@ def parser() -> argparse.ArgumentParser:
         "--register",
         action="store_true",
         help="Register task immediately (requires --actor)",
+    )
+    registry_promote.add_argument(
+        "--stage-controls",
+        action="store_true",
+        help=(
+            "Persist a bound registered revision pending strict oracle/nop controls; "
+            "requires --state registered, --actor, and --certification-packet"
+        ),
     )
     registry_promote.add_argument(
         "--jobs-dir",

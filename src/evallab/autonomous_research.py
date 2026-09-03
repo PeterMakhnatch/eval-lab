@@ -17,8 +17,11 @@ import dataclasses
 import hashlib
 import json
 import math
+import os
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
@@ -36,6 +39,21 @@ def _digest(value: Any) -> str:
         ensure_ascii=False,
     ).encode()
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+@dataclass(frozen=True)
+class ScoreScaleVerificationResult:
+    """Detailed verification status for a ScoreScaleBindingV1 against source artifacts."""
+
+    verified: bool
+    status: Literal["verified", "mismatch", "unresolved"]
+    binding_digest: str | None = None
+    task_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    verifier_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    metric_config_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    visible_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    hidden_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+    reason: str | None = None
 
 
 class ScoreScaleBindingV1(ContractModel):
@@ -129,6 +147,149 @@ class ScoreScaleBindingV1(ContractModel):
             )
         return self
 
+    def verify_against_artifacts(
+        self,
+        *,
+        task_dir: Path | str | None = None,
+        metric_config: Mapping[str, Any] | None = None,
+        visible_outcome: Mapping[str, Any] | None = None,
+        hidden_outcome: Mapping[str, Any] | None = None,
+        fail_closed: bool = True,
+    ) -> ScoreScaleVerificationResult:
+        """Verify declared input digests against actual resolved task and configuration artifacts.
+
+        All five components (task, verifier, metric config, visible outcome, hidden outcome)
+        must be supplied and match their declared cryptographic digests to achieve 'verified' status.
+        If any supplied component does not match its declared digest:
+            - raises ValueError if fail_closed is True (default)
+            - returns ScoreScaleVerificationResult with status='mismatch' if fail_closed is False
+        If any component artifact is omitted/None:
+            - returns ScoreScaleVerificationResult with status='unresolved' and verified=False.
+        """
+        task_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        verifier_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        metric_config_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        visible_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+        hidden_outcome_status: Literal["verified", "mismatch", "unresolved"] = "unresolved"
+
+        # 1. Task package and verifier verification
+        if task_dir is not None:
+            from evallab.registry import compute_task_digests
+
+            p = Path(task_dir).resolve()
+            if not p.is_dir():
+                if fail_closed:
+                    raise ValueError(f"task directory not found: {p}")
+                task_status = "mismatch"
+                verifier_status = "mismatch"
+            else:
+                digests = compute_task_digests(p)
+                if digests.package != self.task_digest:
+                    if fail_closed:
+                        raise ValueError(
+                            f"task_digest mismatch for {self.metric_name}: "
+                            f"expected {self.task_digest}, got {digests.package}"
+                        )
+                    task_status = "mismatch"
+                else:
+                    task_status = "verified"
+
+                if digests.verifier != self.verifier_digest:
+                    if fail_closed:
+                        raise ValueError(
+                            f"verifier_digest mismatch for {self.metric_name}: "
+                            f"expected {self.verifier_digest}, got {digests.verifier}"
+                        )
+                    verifier_status = "mismatch"
+                else:
+                    verifier_status = "verified"
+
+        # 2. Metric config verification
+        if metric_config is not None:
+            computed_metric = _digest(metric_config)
+            if computed_metric != self.metric_config_digest:
+                if fail_closed:
+                    raise ValueError(
+                        f"metric_config_digest mismatch for {self.metric_name}: "
+                        f"expected {self.metric_config_digest}, got {computed_metric}"
+                    )
+                metric_config_status = "mismatch"
+            else:
+                metric_config_status = "verified"
+
+        # 3. Visible outcome binding verification
+        if visible_outcome is not None:
+            computed_vis = _digest(visible_outcome)
+            if computed_vis != self.visible_outcome_binding_digest:
+                if fail_closed:
+                    raise ValueError(
+                        f"visible_outcome_binding_digest mismatch for {self.metric_name}: "
+                        f"expected {self.visible_outcome_binding_digest}, got {computed_vis}"
+                    )
+                visible_outcome_status = "mismatch"
+            else:
+                visible_outcome_status = "verified"
+
+        # 4. Hidden outcome binding verification
+        if hidden_outcome is not None:
+            computed_hid = _digest(hidden_outcome)
+            if computed_hid != self.hidden_outcome_binding_digest:
+                if fail_closed:
+                    raise ValueError(
+                        f"hidden_outcome_binding_digest mismatch for {self.metric_name}: "
+                        f"expected {self.hidden_outcome_binding_digest}, got {computed_hid}"
+                    )
+                hidden_outcome_status = "mismatch"
+            else:
+                hidden_outcome_status = "verified"
+
+        all_statuses = [
+            ("task", task_status),
+            ("verifier", verifier_status),
+            ("metric_config", metric_config_status),
+            ("visible_outcome", visible_outcome_status),
+            ("hidden_outcome", hidden_outcome_status),
+        ]
+        mismatched = [k for k, s in all_statuses if s == "mismatch"]
+        unresolved = [k for k, s in all_statuses if s == "unresolved"]
+
+        if mismatched:
+            return ScoreScaleVerificationResult(
+                verified=False,
+                status="mismatch",
+                binding_digest=self.binding_digest,
+                task_status=task_status,
+                verifier_status=verifier_status,
+                metric_config_status=metric_config_status,
+                visible_outcome_status=visible_outcome_status,
+                hidden_outcome_status=hidden_outcome_status,
+                reason=f"mismatched_components: {mismatched}",
+            )
+        if unresolved:
+            return ScoreScaleVerificationResult(
+                verified=False,
+                status="unresolved",
+                binding_digest=self.binding_digest,
+                task_status=task_status,
+                verifier_status=verifier_status,
+                metric_config_status=metric_config_status,
+                visible_outcome_status=visible_outcome_status,
+                hidden_outcome_status=hidden_outcome_status,
+                reason=f"unresolved_components: {unresolved}",
+            )
+
+        return ScoreScaleVerificationResult(
+            verified=True,
+            status="verified",
+            binding_digest=self.binding_digest,
+            task_status="verified",
+            verifier_status="verified",
+            metric_config_status="verified",
+            visible_outcome_status="verified",
+            hidden_outcome_status="verified",
+            reason=None,
+        )
+
 
 class ResearchIterationV1(ContractModel):
     schema_version: Literal["research-iteration/v1"] = "research-iteration/v1"
@@ -201,7 +362,7 @@ class ResearchRunTraceV1(ContractModel):
     iterations: tuple[ResearchIterationV1, ...]
 
     @property
-    def score_scale_compatible(self) -> bool:
+    def score_scale_binding_declared(self) -> bool:
         return self.score_scale_binding is not None
 
     @model_validator(mode="after")
@@ -398,6 +559,13 @@ class AutonomousResearchFeatures:
 
     # 7. Hidden-Transfer Gap & Generalization (RSI-Exam, MLE-bench)
     scale_binding_digest: str | None
+    scale_binding_status: str | None
+    scale_binding_unresolved_reason: str | None
+    scale_binding_task_status: str | None
+    scale_binding_verifier_status: str | None
+    scale_binding_metric_config_status: str | None
+    scale_binding_visible_outcome_status: str | None
+    scale_binding_hidden_outcome_status: str | None
     score_scale_compatible: bool
     hidden_score: float | None
     visible_hidden_transfer_gap: float | None
@@ -448,6 +616,12 @@ def _hypothesis_key(value: str) -> str:
 
 def extract_autonomous_research_features(
     trace: ResearchRunTraceV1,
+    *,
+    task_dir: Path | str | None = None,
+    metric_config: Mapping[str, Any] | None = None,
+    visible_outcome: Mapping[str, Any] | None = None,
+    hidden_outcome: Mapping[str, Any] | None = None,
+    artifact_resolver: Callable[[ResearchRunTraceV1], dict[str, Any]] | None = None,
 ) -> AutonomousResearchFeatures:
     """Compute research-loop efficiency, selection, and generalization features."""
     iterations = list(trace.iterations)
@@ -663,13 +837,108 @@ def extract_autonomous_research_features(
         optimal_selection_flag = None
         final_selection_regret = None
 
-    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when validated ScoreScaleBindingV1 exists AND selected candidate has score)
+    # 7. Hidden-Transfer Gap & Generalization (emitted ONLY when verified ScoreScaleBindingV1 exists AND selected candidate has score)
     transfer_gap = None
     scale_binding_digest: str | None = None
+    scale_binding_status: str | None = None
+    scale_binding_unresolved_reason: str | None = None
+    scale_binding_task_status: str | None = None
+    scale_binding_verifier_status: str | None = None
+    scale_binding_metric_config_status: str | None = None
+    scale_binding_visible_outcome_status: str | None = None
+    scale_binding_hidden_outcome_status: str | None = None
+    score_scale_compatible = False
+
     if trace.score_scale_binding is not None:
         scale_binding_digest = trace.score_scale_binding.binding_digest
-        if trace.hidden_score is not None and final_visible is not None:
-            transfer_gap = trace.hidden_score - final_visible
+
+        resolver_error_reason: str | None = None
+        resolved: dict[str, Any] = {}
+        if artifact_resolver is not None:
+            try:
+                res_output = artifact_resolver(trace)
+                if not isinstance(res_output, Mapping):
+                    resolver_error_reason = f"artifact_resolver_invalid_return: expected Mapping, got {type(res_output).__name__}"
+                else:
+                    # Validate known-key values inside the guarded block
+                    raw_task_dir = res_output.get("task_dir")
+                    if raw_task_dir is not None and not isinstance(
+                        raw_task_dir, (str, os.PathLike)
+                    ):
+                        resolver_error_reason = f"artifact_resolver_invalid_return: task_dir must be a str or PathLike, got {type(raw_task_dir).__name__}"
+                    elif raw_task_dir is not None:
+                        normalized_task_dir = os.fspath(raw_task_dir)
+                        if not isinstance(normalized_task_dir, str):
+                            raise TypeError("task_dir PathLike must resolve to str")
+                        resolved["task_dir"] = normalized_task_dir
+                    else:
+                        resolved["task_dir"] = None
+
+                    if resolver_error_reason is None:
+                        for field_name in ("metric_config", "visible_outcome", "hidden_outcome"):
+                            raw_val = res_output.get(field_name)
+                            if raw_val is not None and (
+                                not isinstance(raw_val, Mapping)
+                                or isinstance(raw_val, (str, bytes))
+                            ):
+                                resolver_error_reason = f"artifact_resolver_invalid_return: {field_name} must be a Mapping, got {type(raw_val).__name__}"
+                                break
+                            if raw_val is not None:
+                                normalized_value = dict(raw_val)
+                                _digest(normalized_value)
+                                resolved[field_name] = normalized_value
+                            else:
+                                resolved[field_name] = None
+            except Exception as exc:
+                resolver_error_reason = f"artifact_resolver_error: {exc}"
+
+        if resolver_error_reason is not None:
+            scale_binding_status = "unresolved"
+            scale_binding_unresolved_reason = resolver_error_reason
+            scale_binding_task_status = "unresolved"
+            scale_binding_verifier_status = "unresolved"
+            scale_binding_metric_config_status = "unresolved"
+            scale_binding_visible_outcome_status = "unresolved"
+            scale_binding_hidden_outcome_status = "unresolved"
+            score_scale_compatible = False
+            transfer_gap = None
+        else:
+            t_dir = task_dir if task_dir is not None else resolved.get("task_dir")
+            m_cfg = metric_config if metric_config is not None else resolved.get("metric_config")
+            v_out = (
+                visible_outcome if visible_outcome is not None else resolved.get("visible_outcome")
+            )
+            h_out = hidden_outcome if hidden_outcome is not None else resolved.get("hidden_outcome")
+
+            v_res = trace.score_scale_binding.verify_against_artifacts(
+                task_dir=t_dir,
+                metric_config=m_cfg,
+                visible_outcome=v_out,
+                hidden_outcome=h_out,
+                fail_closed=False,
+            )
+
+            scale_binding_status = v_res.status
+            scale_binding_unresolved_reason = v_res.reason
+            scale_binding_task_status = v_res.task_status
+            scale_binding_verifier_status = v_res.verifier_status
+            scale_binding_metric_config_status = v_res.metric_config_status
+            scale_binding_visible_outcome_status = v_res.visible_outcome_status
+            scale_binding_hidden_outcome_status = v_res.hidden_outcome_status
+
+            if (
+                v_res.verified is True
+                and v_res.status == "verified"
+                and v_res.binding_digest == trace.score_scale_binding.binding_digest
+            ):
+                score_scale_compatible = True
+                if trace.hidden_score is not None and final_visible is not None:
+                    transfer_gap = trace.hidden_score - final_visible
+            else:
+                score_scale_compatible = False
+                transfer_gap = None
+    else:
+        scale_binding_status = "not_provided"
 
     # 8. Artifact Replay & Reproducibility
     reproducibility_evaluated_count = sum(
@@ -786,7 +1055,14 @@ def extract_autonomous_research_features(
         "final_selection_regret": final_selection_regret,
         # 7. Hidden-Transfer Gap & Generalization
         "scale_binding_digest": scale_binding_digest,
-        "score_scale_compatible": trace.score_scale_compatible,
+        "scale_binding_status": scale_binding_status,
+        "scale_binding_unresolved_reason": scale_binding_unresolved_reason,
+        "scale_binding_task_status": scale_binding_task_status,
+        "scale_binding_verifier_status": scale_binding_verifier_status,
+        "scale_binding_metric_config_status": scale_binding_metric_config_status,
+        "scale_binding_visible_outcome_status": scale_binding_visible_outcome_status,
+        "scale_binding_hidden_outcome_status": scale_binding_hidden_outcome_status,
+        "score_scale_compatible": score_scale_compatible,
         "hidden_score": trace.hidden_score,
         "visible_hidden_transfer_gap": transfer_gap,
         # 8. Artifact Replay & Reproducibility

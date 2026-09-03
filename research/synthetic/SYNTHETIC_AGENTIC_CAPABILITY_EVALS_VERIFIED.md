@@ -122,6 +122,13 @@ The fail-open code paths identified in the original review have been removed:
 - `check_mutants()` requires at least three supplied runners or records and rejects every mutant.
 - `check_regeneration_idempotency()` requires a regenerator and compares two runs with the spec digests.
 
+`status="experimental"` is a representational lifecycle label, not a passing or promotion
+decision. Historical or developmental records with 0, 1, or 2 tested mutants may retain
+that label, but `SyntheticCertificate.is_passing` is false until every gate passes and at
+least three tested mutants are all rejected. Measurement admission remains exclusively
+the canonical certification-packet → `TaskCertificationEnvelope` →
+`registry.promote_task` boundary.
+
 This repairs the admission logic, not historical evidence. Existing experimental certificates must be regenerated from persisted execution records before they are treated as execution-backed.
 
 ## Build program

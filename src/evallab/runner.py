@@ -12,17 +12,26 @@ import signal
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
-from contextlib import suppress
-from dataclasses import asdict, replace
+import tomllib
+from contextlib import ExitStack, suppress
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from evallab.evidence_store import (
+    EvidenceArchive,
+    EvidenceLocator,
+    archive_evidence,
+    evidence_locator,
+    reopen_evidence_archive,
+)
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     CONTROL_AGENTS,
@@ -49,14 +58,23 @@ from evallab.execution_contracts import (
     REDACTED_SECRET_VALUE,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     WATCHDOG_POLL_SECONDS,
+    ZAI_CAPABILITY_EXPIRES_AT_ENV,
+    ZAI_INPUT_COST_MICROS_PER_MILLION,
+    ZAI_OPENCODE_AGENT,
+    ZAI_OUTPUT_COST_MICROS_PER_MILLION,
+    ZAI_PROXY_ATTEMPT_ID_ENV,
+    ZAI_PROXY_CAPABILITY_ENV,
     ZAI_PROXY_GID_ENV,
     ZAI_PROXY_HOST,
     ZAI_PROXY_SCRIPT,
     ZAI_PROXY_SCRIPT_ENV,
     ZAI_PROXY_UID_ENV,
+    ZAI_PROXY_USAGE_DIR_ENV,
+    ZAI_PROXY_USAGE_FILE_ENV,
     ZAI_SECRET_FILE_ENV,
     ExecutionFailure,
     HarborProcessResult,
+    ProviderFailoverFailure,
     ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
@@ -68,6 +86,8 @@ from evallab.execution_contracts import (
     materialize_deepseek_secret_file,
     materialize_zai_secret_file,
     persist_private_bytes,
+    provider_failover_exception,
+    provider_failover_reason,
     proxy_runtime_identity,
     read_owner_secret_file,
     redact_environment,
@@ -103,9 +123,10 @@ __all__ = [
     "SUPPORT_COMMAND_TIMEOUT_SECONDS",
     "WATCHDOG_POLL_SECONDS",
     "HarborProcessResult",
+    "HarborRuntimeIdentity",
+    "SettledRun",
+    "ProviderFailoverFailure",
     "RunRequest",
-    "TransientHarnessFailure",
-    "TrialTimeoutFailure",
     "build_command",
     "cleanup_new_harbor_containers",
     "database_url_from_environment",
@@ -120,18 +141,43 @@ __all__ = [
     "request_from_matrix",
     "resolve_harbor_agent",
     "resolve_harbor_model",
+    "resolve_harbor_runtime_identity",
     "run_experiment",
     "run_harbor_process",
     "subscription_command",
     "subscription_environment",
-    "tool_version",
+    "provider_failover_exception",
+    "provider_failover_reason",
     "transient_provider_exception",
     "transient_provider_reason",
-    "validate_request",
 ]
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
+
+_SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+
+
+@dataclass(frozen=True)
+class HarborRuntimeIdentity:
+    """The declared lock identity and executable selected for one run."""
+
+    declared_version: str
+    actual_version: str
+    executable_path: Path
+    executable_digest: str
+    executable_device: int
+    executable_inode: int
+    executable_size: int
+    executable_mtime_ns: int
+
+
+@dataclass(frozen=True)
+class SettledRun:
+    """A completed run whose only downstream authority is a CAS locator."""
+
+    cas_locator: EvidenceLocator
+    cas_record: EvidenceArchive
 
 
 def _run_text_command(
@@ -262,6 +308,160 @@ def cleanup_new_harbor_containers(
     return orphaned
 
 
+def _canonical_semver(value: str, *, label: str) -> str:
+    matched = _SEMVER.fullmatch(value)
+    if matched is None:
+        raise ExecutionFailure(
+            "harbor_identity_unavailable",
+            f"{label} is not a strict semantic version: {value!r}",
+        )
+    return ".".join(str(int(component)) for component in matched.groups())
+
+
+def _locked_harbor_version(repo_root: Path) -> str:
+    lock_path = repo_root / "uv.lock"
+    try:
+        payload = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ExecutionFailure(
+            "harbor_identity_unavailable",
+            f"cannot read Harbor lock authority: {lock_path}",
+        ) from exc
+    packages = payload.get("package")
+    if not isinstance(packages, list):
+        raise ExecutionFailure(
+            "harbor_identity_unavailable",
+            f"Harbor lock authority has no package list: {lock_path}",
+        )
+    versions = {
+        item.get("version")
+        for item in packages
+        if isinstance(item, dict) and item.get("name") == "harbor"
+    }
+    if len(versions) != 1 or not isinstance(next(iter(versions), None), str):
+        raise ExecutionFailure(
+            "harbor_identity_unavailable",
+            f"Harbor lock authority is missing or ambiguous: {lock_path}",
+        )
+    return _canonical_semver(next(iter(versions)), label="locked Harbor version")
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def resolve_harbor_runtime_identity(repo_root: Path) -> HarborRuntimeIdentity:
+    """Resolve and require the exact lock-pinned Harbor executable before launch."""
+
+    declared_version = _locked_harbor_version(repo_root)
+    candidate = shutil.which("harbor")
+    if candidate is None:
+        raise ExecutionFailure("harbor_identity_unavailable", "Harbor executable is unavailable")
+    try:
+        executable_path = Path(candidate).resolve(strict=True)
+        completed = subprocess.run(
+            [str(executable_path), "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+            env=subscription_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ExecutionFailure(
+            "harbor_identity_unavailable", "cannot resolve Harbor executable identity"
+        ) from exc
+    if completed.returncode != 0:
+        raise ExecutionFailure(
+            "harbor_identity_unavailable", "Harbor executable does not report a semantic version"
+        )
+    actual_version = _canonical_semver(
+        (completed.stdout or completed.stderr).strip(),
+        label="Harbor executable version",
+    )
+    if actual_version != declared_version:
+        raise ExecutionFailure(
+            "harbor_version_mismatch",
+            f"Harbor executable {actual_version} does not match locked {declared_version}",
+        )
+    try:
+        (
+            executable_device,
+            executable_inode,
+            executable_size,
+            executable_mtime_ns,
+            executable_digest,
+        ) = _executable_snapshot(executable_path)
+    except OSError as exc:
+        raise ExecutionFailure(
+            "harbor_identity_unavailable", "cannot digest Harbor executable identity"
+        ) from exc
+    return HarborRuntimeIdentity(
+        declared_version=declared_version,
+        actual_version=actual_version,
+        executable_path=executable_path,
+        executable_digest=executable_digest,
+        executable_device=executable_device,
+        executable_inode=executable_inode,
+        executable_size=executable_size,
+        executable_mtime_ns=executable_mtime_ns,
+    )
+
+
+def _executable_snapshot(path: Path) -> tuple[int, int, int, int, str]:
+    before = path.stat()
+    if not stat.S_ISREG(before.st_mode):
+        raise OSError("Harbor executable is not a regular file")
+    digest = _file_digest(path)
+    after = path.stat()
+    snapshot = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    if snapshot != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns):
+        raise OSError("Harbor executable changed while its identity was captured")
+    return (*snapshot, digest)
+
+
+def _verify_harbor_runtime_identity(identity: HarborRuntimeIdentity) -> None:
+    try:
+        snapshot = _executable_snapshot(identity.executable_path)
+    except OSError as exc:
+        raise ExecutionFailure(
+            "harbor_identity_drift",
+            "Harbor executable changed before launch",
+        ) from exc
+    if snapshot != (
+        identity.executable_device,
+        identity.executable_inode,
+        identity.executable_size,
+        identity.executable_mtime_ns,
+        identity.executable_digest,
+    ):
+        raise ExecutionFailure(
+            "harbor_identity_drift",
+            "Harbor executable changed before launch",
+        )
+
+
+def _stage_verified_harbor_executable(identity: HarborRuntimeIdentity, staging_dir: Path) -> Path:
+    """Copy locked Harbor bytes to an executor-owned launch artifact."""
+
+    launch_path = staging_dir / ".harbor-launch"
+    try:
+        shutil.copyfile(identity.executable_path, launch_path)
+        launch_path.chmod(0o700)
+        if _executable_snapshot(launch_path)[4] != identity.executable_digest:
+            raise OSError("staged Harbor bytes do not match the locked executable")
+    except OSError as exc:
+        raise ExecutionFailure(
+            "harbor_identity_drift",
+            "Harbor executable changed before launch",
+        ) from exc
+    return launch_path
+
+
 def tool_version(command: str) -> str | None:
     executable = shutil.which(command)
     if not executable:
@@ -347,7 +547,6 @@ def _active_trial_directories(job_dir: Path) -> tuple[Path, ...]:
     )
 
 
-
 def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None:
     if secret_file is not None:
         with suppress(OSError):
@@ -355,6 +554,8 @@ def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None
     if directory is not None:
         with suppress(OSError):
             shutil.rmtree(directory)
+
+
 class _StreamingRedactor:
     """Redact exact secret bytes before any child output reaches disk."""
 
@@ -536,45 +737,50 @@ def _read_proxy_usage(
     capability_id: str,
     attempt_id: str,
     limits: ProxyTrialLimits,
+    provider_label: str = "DeepSeek",
+    expected_pricing: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     try:
         payload = json.loads(read_owner_secret_file(path))
     except (OSError, json.JSONDecodeError) as exc:
         raise ExecutionFailure(
             "proxy_usage_invalid",
-            "DeepSeek proxy usage report is unreadable",
+            f"{provider_label} proxy usage report is unreadable",
         ) from exc
     if not isinstance(payload, dict):
-        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            f"{provider_label} proxy usage report is invalid",
+        )
 
     def integer(value: object, label: str) -> int:
-        if (
-            not isinstance(value, int)
-            or isinstance(value, bool)
-            or value < 0
-            or value > 2**63 - 1
-        ):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 2**63 - 1:
             raise ExecutionFailure(
                 "proxy_usage_invalid",
-                f"DeepSeek proxy usage field {label} is invalid",
+                f"{provider_label} proxy usage field {label} is invalid",
             )
         return value
 
     expected_limits = asdict(limits)
-    if (
+    binding_invalid = (
         payload.get("schema_version") != 1
         or payload.get("capability_id") != capability_id
         or payload.get("attempt_id") != attempt_id
         or payload.get("limits") != expected_limits
-    ):
+        or (expected_pricing is not None and payload.get("pricing") != expected_pricing)
+    )
+    if binding_invalid:
         raise ExecutionFailure(
             "proxy_usage_invalid",
-            "DeepSeek proxy usage binding does not match this trial",
+            f"{provider_label} proxy usage binding does not match this trial",
         )
     calls = payload.get("calls")
     totals = payload.get("totals")
     if not isinstance(calls, list) or not isinstance(totals, dict):
-        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            f"{provider_label} proxy usage report is invalid",
+        )
     computed = {
         "requests": len(calls),
         "input_tokens": 0,
@@ -587,11 +793,15 @@ def _read_proxy_usage(
         if not isinstance(raw_call, dict) or integer(raw_call.get("call_id"), "call_id") != index:
             raise ExecutionFailure(
                 "proxy_usage_invalid",
-                "DeepSeek proxy call sequence is invalid",
+                f"{provider_label} proxy call sequence is invalid",
             )
         state = raw_call.get("state")
         if state == "reconciled":
             source_fields = ("input_tokens", "output_tokens", "cost_micros")
+            expected_sequence += 2
+        elif state == "exceeded":
+            source_fields = ("input_tokens", "output_tokens", "cost_micros")
+            unresolved += 1
             expected_sequence += 2
         elif state in {"reserved", "unresolved"}:
             source_fields = (
@@ -604,7 +814,7 @@ def _read_proxy_usage(
         else:
             raise ExecutionFailure(
                 "proxy_usage_invalid",
-                "DeepSeek proxy call state is invalid",
+                f"{provider_label} proxy call state is invalid",
             )
         computed["input_tokens"] += integer(raw_call.get(source_fields[0]), source_fields[0])
         computed["output_tokens"] += integer(raw_call.get(source_fields[1]), source_fields[1])
@@ -614,14 +824,13 @@ def _read_proxy_usage(
         "total_tokens": computed["input_tokens"] + computed["output_tokens"],
     }
     if (
-        {name: integer(totals.get(name), name) for name in expected_totals}
-        != expected_totals
+        {name: integer(totals.get(name), name) for name in expected_totals} != expected_totals
         or integer(payload.get("unresolved_requests"), "unresolved_requests") != unresolved
         or integer(payload.get("sequence"), "sequence") != expected_sequence
     ):
         raise ExecutionFailure(
             "proxy_usage_invalid",
-            "DeepSeek proxy totals do not reconcile with provider calls",
+            f"{provider_label} proxy totals do not reconcile with provider calls",
         )
     return payload
 
@@ -652,6 +861,7 @@ def run_harbor_process(
     zai_lane = zai_adapter in command
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
+    zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
     deepseek_lane = deepseek_adapter in command
     runtime_environment = subscription_environment(
         include_deepseek_credentials=deepseek_lane, include_zai_credentials=zai_lane
@@ -662,6 +872,7 @@ def run_harbor_process(
     owned_usage_dir: Path | None = None
     owned_usage_path: Path | None = None
     capability_id: str | None = None
+    proxy_pricing: dict[str, int] | None = None
     try:
         if deepseek_lane:
             if proxy_attempt_id is None or proxy_limits is None:
@@ -685,9 +896,7 @@ def run_harbor_process(
             runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
                 DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
             )
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(
-                proxy_limits.max_requests
-            )
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(proxy_limits.max_requests)
             runtime_environment["EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS"] = str(
                 proxy_limits.max_input_tokens
             )
@@ -700,17 +909,13 @@ def run_harbor_process(
             runtime_environment["EVALLAB_DEEPSEEK_MAX_COST_MICROS"] = str(
                 proxy_limits.max_cost_micros
             )
-            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = (
-                os.environ.get(
-                    "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-                    "280000",
-                )
+            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+                "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+                "280000",
             )
-            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = (
-                os.environ.get(
-                    "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
-                    "420000",
-                )
+            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+                "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+                "420000",
             )
             runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
                 time.time() + float(timeout_seconds) + 60.0
@@ -743,7 +948,9 @@ def run_harbor_process(
                 owned_secret_path = owned_secret_dir / "key"
                 materialize_deepseek_secret_file(owned_secret_path)
                 runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
-            runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
+            runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str(
+                (cwd / DEEPSEEK_PROXY_SCRIPT).resolve()
+            )
             proxy_uid, proxy_gid = proxy_runtime_identity(
                 Path(runtime_environment[DEEPSEEK_SECRET_FILE_ENV])
             )
@@ -751,6 +958,38 @@ def run_harbor_process(
             runtime_environment[DEEPSEEK_PROXY_GID_ENV] = str(proxy_gid)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if zai_lane:
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError("Z.ai execution requires a bound trial capability")
+            capability = secrets.token_urlsafe(32)
+            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+            owned_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-zai-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_usage_dir, 0o700)
+            owned_usage_path = owned_usage_dir / "zai-proxy-usage.json"
+            runtime_environment[ZAI_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
+            runtime_environment[ZAI_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
+            runtime_environment[ZAI_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
+            runtime_environment["EVALLAB_ZAI_MAX_REQUESTS"] = str(proxy_limits.max_requests)
+            runtime_environment["EVALLAB_ZAI_MAX_INPUT_TOKENS"] = str(proxy_limits.max_input_tokens)
+            runtime_environment["EVALLAB_ZAI_MAX_OUTPUT_TOKENS"] = str(
+                proxy_limits.max_output_tokens
+            )
+            runtime_environment["EVALLAB_ZAI_MAX_TOTAL_TOKENS"] = str(proxy_limits.max_total_tokens)
+            runtime_environment["EVALLAB_ZAI_MAX_COST_MICROS"] = str(proxy_limits.max_cost_micros)
+            proxy_pricing = {
+                "input_cost_micros_per_million": ZAI_INPUT_COST_MICROS_PER_MILLION,
+                "output_cost_micros_per_million": ZAI_OUTPUT_COST_MICROS_PER_MILLION,
+            }
+            runtime_environment["EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION"] = str(
+                ZAI_INPUT_COST_MICROS_PER_MILLION
+            )
+            runtime_environment["EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION"] = str(
+                ZAI_OUTPUT_COST_MICROS_PER_MILLION
+            )
             existing_zai_secret = runtime_environment.get(ZAI_SECRET_FILE_ENV) or os.environ.get(
                 ZAI_SECRET_FILE_ENV
             )
@@ -785,6 +1024,12 @@ def run_harbor_process(
             )
             runtime_environment[ZAI_PROXY_UID_ENV] = str(proxy_uid)
             runtime_environment[ZAI_PROXY_GID_ENV] = str(proxy_gid)
+            runtime_environment[ZAI_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment[ZAI_CAPABILITY_EXPIRES_AT_ENV] = str(
+                time.time() + float(timeout_seconds) + 60.0
+            )
+            runtime_environment["ZAI_CODING_PLAN_API_KEY"] = capability
+            runtime_environment["ZAI_API_KEY"] = capability
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if any(import_path in command for import_path in repo_imports):
             source_root = cwd / "src"
@@ -803,7 +1048,7 @@ def run_harbor_process(
         ) -> HarborProcessResult:
             proxy_usage = None
             if (
-                deepseek_lane
+                (deepseek_lane or zai_lane)
                 and owned_usage_path is not None
                 and owned_usage_path.is_file()
                 and capability_id is not None
@@ -815,6 +1060,8 @@ def run_harbor_process(
                     capability_id=capability_id,
                     attempt_id=proxy_attempt_id,
                     limits=proxy_limits,
+                    provider_label="Z.ai" if zai_lane else "DeepSeek",
+                    expected_pricing=proxy_pricing,
                 )
             return HarborProcessResult(
                 returncode=returncode,
@@ -823,6 +1070,7 @@ def run_harbor_process(
                 timed_out_trial=timed_out_trial,
                 proxy_usage=proxy_usage,
             )
+
         read_fd, write_fd = os.pipe()
         writer = RedactingBinaryWriter(log_path, secret_bytes)
 
@@ -872,9 +1120,7 @@ def run_harbor_process(
                     _terminate_process_group(process)
                     pump.join(timeout=5)
                     return _result(
-                        returncode=(
-                            process.returncode if process.returncode is not None else -1
-                        ),
+                        returncode=(process.returncode if process.returncode is not None else -1),
                         timed_out=False,
                     )
                 returncode = process.poll()
@@ -911,9 +1157,7 @@ def run_harbor_process(
                     _terminate_process_group(process)
                     pump.join(timeout=5)
                     return _result(
-                        returncode=(
-                            process.returncode if process.returncode is not None else -1
-                        ),
+                        returncode=(process.returncode if process.returncode is not None else -1),
                         timed_out=True,
                         timed_out_trial=timed_out_trial,
                     )
@@ -981,6 +1225,9 @@ def _write_executor_state(
         "trial_timeout_seconds": request.timeout_seconds,
         "job_timeout_seconds": request.job_timeout_seconds,
         "log_path": str(log_path.relative_to(request.jobs_dir)),
+        "provider": request.provider,
+        "provider_route_id": request.provider_route_id,
+        "provider_route_attempt_id": request.provider_route_attempt_id,
     }
     if process is not None:
         payload.update(
@@ -1007,7 +1254,7 @@ def _harbor_project_prefixes(job_dir: Path) -> frozenset[str]:
     )
 
 
-def _transient_reason_from_job(job_dir: Path) -> str | None:
+def _provider_reasons_from_job(job_dir: Path) -> tuple[str | None, str | None]:
     if job_dir.is_dir():
         for path in sorted(job_dir.rglob("result.json")):
             try:
@@ -1015,10 +1262,11 @@ def _transient_reason_from_job(job_dir: Path) -> str | None:
             except (OSError, json.JSONDecodeError):
                 continue
             if isinstance(payload, dict):
-                reason = transient_provider_exception(payload)
-                if reason is not None:
-                    return reason
-    return None
+                failover_reason = provider_failover_exception(payload)
+                transient_reason = transient_provider_exception(payload)
+                if failover_reason is not None or transient_reason is not None:
+                    return failover_reason, transient_reason
+    return None, None
 
 
 def _cleanup_failure(
@@ -1045,6 +1293,7 @@ def _write_run_metadata(
     started: datetime,
     finished: datetime,
     process: HarborProcessResult,
+    harbor_identity: HarborRuntimeIdentity,
     network_adaptation: NetworkAdaptation | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
@@ -1069,6 +1318,12 @@ def _write_run_metadata(
             "harbor": tool_version("harbor"),
             "docker": tool_version("docker"),
             "uv": tool_version("uv"),
+        },
+        "harbor_runtime": {
+            "declared_version": harbor_identity.declared_version,
+            "actual_version": harbor_identity.actual_version,
+            "executable_path": str(harbor_identity.executable_path),
+            "executable_digest": harbor_identity.executable_digest,
         },
         "repository": git_state(repo_root),
     }
@@ -1149,10 +1404,7 @@ def _stage_task_for_host(
     if any(path.is_symlink() for path in source.rglob("*")):
         raise ValueError("task package snapshots reject symlinks")
     source_digest_before = compute_task_digests(source).package
-    if (
-        expected_package_digest is not None
-        and source_digest_before != expected_package_digest
-    ):
+    if expected_package_digest is not None and source_digest_before != expected_package_digest:
         raise ValueError("task package differs from its frozen digest before staging")
 
     if staging_dir.exists():
@@ -1184,7 +1436,6 @@ def _stage_task_for_host(
     return staging_dir, adaptation
 
 
-
 def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None:
     """Redact then chmod lab-owned persisted streams under a Harbor job directory."""
     if not root.is_dir() or not secrets:
@@ -1201,7 +1452,7 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
 
 
 def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
-    if request.agent != "mini-swe-agent":
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         return None
     if (
         request.max_requests is None
@@ -1221,20 +1472,112 @@ def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
 
 
 def _proxy_attempt_id(request: RunRequest) -> str | None:
-    if request.agent != "mini-swe-agent":
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         return None
     if request.provenance is not None:
-        return (
-            request.provenance.campaign_attempt_id
-            or request.provenance.spec_id
-            or request.name
-        )
+        return request.provenance.campaign_attempt_id or request.provenance.spec_id or request.name
     return request.name
 
 
-def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
+def _evidence_store_root() -> Path:
+    configured = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
+    if not configured:
+        raise ExecutionFailure(
+            "evidence_cas_unconfigured",
+            "EVALLAB_EVIDENCE_STORE_ROOT is required before Harbor execution",
+        )
+    return Path(configured).absolute()
+
+
+def _freeze_completed_job(job_dir: Path) -> Path:
+    """Atomically remove completed output from the mutable producer namespace."""
+
+    job_dir = job_dir.absolute()
+    executor_root = job_dir.parent / ".executor"
+    if executor_root.is_symlink():
+        raise ValueError("executor state root cannot be a symlink")
+    executor_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    settlement_root = executor_root / "settled"
+    if settlement_root.is_symlink():
+        raise ValueError("settlement root cannot be a symlink")
+    settlement_root.mkdir(mode=0o700, exist_ok=True)
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    with ExitStack() as descriptors:
+        source_parent_descriptor = os.open(job_dir.parent, flags)
+        descriptors.callback(os.close, source_parent_descriptor)
+        settlement_descriptor = os.open(settlement_root, flags)
+        descriptors.callback(os.close, settlement_descriptor)
+        source_info = os.stat(
+            job_dir.name,
+            dir_fd=source_parent_descriptor,
+            follow_symlinks=False,
+        )
+        if not stat.S_ISDIR(source_info.st_mode):
+            raise ValueError("completed Harbor job is not a regular directory")
+        if source_info.st_dev != os.fstat(settlement_descriptor).st_dev:
+            raise ValueError("completed job and settlement root must share a filesystem")
+        os.fchmod(settlement_descriptor, 0o700)
+        frozen_name = f"source-{secrets.token_hex(16)}"
+        os.rename(
+            job_dir.name,
+            frozen_name,
+            src_dir_fd=source_parent_descriptor,
+            dst_dir_fd=settlement_descriptor,
+        )
+        frozen_info = os.stat(
+            frozen_name,
+            dir_fd=settlement_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISDIR(frozen_info.st_mode)
+            or frozen_info.st_dev != source_info.st_dev
+            or frozen_info.st_ino != source_info.st_ino
+        ):
+            raise ValueError("frozen Harbor job identity changed during settlement")
+        os.fsync(source_parent_descriptor)
+        os.fsync(settlement_descriptor)
+    return settlement_root / frozen_name
+
+
+def _settle_completed_job(
+    job_dir: Path,
+    *,
+    store_root: Path,
+    record_id: str,
+) -> tuple[EvidenceLocator, EvidenceArchive]:
+    """Freeze a completed job and bind its exact content to canonical CAS identity."""
+
+    try:
+        frozen_source = _freeze_completed_job(job_dir)
+        produced = archive_evidence(
+            frozen_source,
+            store_root,
+            record_id=record_id,
+            kind="job",
+        )
+        archive, _record_bytes = reopen_evidence_archive(
+            store_root,
+            kind="job",
+            record_id=record_id,
+            expected_record_digest=produced.record_digest,
+            expected_content_digest=produced.content_digest,
+        )
+    except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError, tarfile.TarError) as exc:
+        raise ExecutionFailure(
+            "evidence_cas_unsettled",
+            "completed Harbor job could not be archived and reopened from its frozen source",
+        ) from exc
+    return evidence_locator(store_root, archive), archive
+
+
+def run_experiment(request: RunRequest, *, repo_root: Path) -> SettledRun:
     validate_request(request)
-    if request.agent in {"mini-swe-agent", "zai-opencode"}:
+    repo_root = repo_root.resolve()
+    harbor_identity = resolve_harbor_runtime_identity(repo_root)
+    evidence_store = _evidence_store_root()
+    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
             raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
@@ -1270,9 +1613,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             agent_allowed_hosts=proxy_hosts if enforce_egress else (),
             unenforced_hosts=() if enforce_egress else proxy_hosts,
             expected_package_digest=(
-                request.provenance.package_digest
-                if request.provenance is not None
-                else None
+                request.provenance.package_digest if request.provenance is not None else None
             ),
         )
         staged_request: RunRequest = replace(request, task=staged_task)
@@ -1280,7 +1621,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         _write_network_adaptation(request, adaptation)
 
         harbor_command = build_command(staged_request)
-        command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
         containers_before = harbor_container_ids(staged_request.task)
         _write_executor_state(
             request,
@@ -1289,6 +1629,9 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             log_path=executor_log,
         )
         try:
+            _verify_harbor_runtime_identity(harbor_identity)
+            harbor_command[0] = str(_stage_verified_harbor_executable(harbor_identity, staging_dir))
+            command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
             process = run_harbor_process(
                 command,
                 cwd=repo_root,
@@ -1319,9 +1662,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request,
             started_at=started,
             status=(
-                "failed"
-                if cancelled or process.timed_out or process.returncode != 0
-                else "running"
+                "failed" if cancelled or process.timed_out or process.returncode != 0 else "running"
             ),
             log_path=executor_log,
             finished_at=finished,
@@ -1334,6 +1675,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             started=started,
             finished=finished,
             process=process,
+            harbor_identity=harbor_identity,
             network_adaptation=adaptation,
         )
         if cancelled:
@@ -1359,10 +1701,15 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             job_dir,
             tuple(value.encode() for value in secret_values),
         )
-        transient_reason = _transient_reason_from_job(job_dir)
+        provider_failover_cause, transient_reason = _provider_reasons_from_job(job_dir)
         if process.returncode != 0:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            if provider_failover_cause is not None:
+                raise ProviderFailoverFailure(
+                    provider_failover_cause,
+                    message=provider_failover_cause + cleanup_detail,
+                )
             if transient_reason is not None:
                 raise TransientHarnessFailure(
                     transient_reason,
@@ -1371,54 +1718,82 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
-        if request.agent == "mini-swe-agent":
+        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+            provider_label = "Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek"
             if process.proxy_usage is None:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
                 cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
                 raise ExecutionFailure(
                     "proxy_usage_missing",
-                    f"DeepSeek proxy usage report is missing{cleanup_detail}",
+                    f"{provider_label} proxy usage report is missing{cleanup_detail}",
                 )
             if process.proxy_usage.get("unresolved_requests") != 0:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
                 cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
                 raise ExecutionFailure(
                     "proxy_usage_unreconciled",
-                    f"DeepSeek proxy has unreconciled provider calls{cleanup_detail}",
+                    f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
-        _write_executor_state(
-            request,
-            started_at=started,
-            status="failed" if transient_reason is not None else "completed",
-            log_path=executor_log,
-            finished_at=finished,
-            process=process,
-        )
+        if provider_failover_cause is not None:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            _write_executor_state(
+                request,
+                started_at=started,
+                status="failed",
+                log_path=executor_log,
+                finished_at=finished,
+                process=process,
+            )
+            raise ProviderFailoverFailure(
+                provider_failover_cause,
+                message=provider_failover_cause + cleanup_detail,
+            )
         if transient_reason is not None:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            _write_executor_state(
+                request,
+                started_at=started,
+                status="failed",
+                log_path=executor_log,
+                finished_at=finished,
+                process=process,
+            )
             raise TransientHarnessFailure(
                 transient_reason,
                 message=transient_reason + cleanup_detail,
             )
-        evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
-        if evidence_root:
-            try:
-                from evallab.evidence_store import archive_evidence
-
-                archive_evidence(
-                    job_dir,
-                    Path(evidence_root),
-                    record_id=str(job.id),
-                    kind="job",
+        try:
+            locator, archive = _settle_completed_job(
+                job_dir,
+                store_root=evidence_store,
+                record_id=str(job.id),
+            )
+        except BaseException:
+            with suppress(Exception):
+                _write_executor_state(
+                    request,
+                    started_at=started,
+                    status="failed",
+                    log_path=executor_log,
+                    finished_at=finished,
+                    process=process,
                 )
-            except Exception as exc:
-                with suppress(Exception):
-                    (job_dir / "evidence-archive-error.txt").write_text(
-                        f"{type(exc).__name__}: {exc}\n"
-                    )
-        return job_dir
+            raise
+        _write_executor_state(
+            request,
+            started_at=started,
+            status="completed",
+            log_path=executor_log,
+            finished_at=finished,
+            process=process,
+        )
+        return SettledRun(
+            cas_locator=locator,
+            cas_record=archive,
+        )
     finally:
         _cleanup_stage(staging_dir)
 

@@ -12,10 +12,18 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from z3_settlement_helpers import admit_z3_tree
 
 from evallab.cli import _redact_database_dsn, run_cli
 from evallab.runner import database_url_from_environment
-from evallab.storage.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach, build_sql_preamble
+from evallab.storage.attach import (
+    SEMANTIC_COMPARISON_COLUMNS,
+    TABLES,
+    build_sql_preamble,
+)
+from evallab.storage.attach import (
+    attach as public_attach,
+)
 
 
 def _catalog_reachable(dsn: str | None = None) -> bool:
@@ -41,6 +49,13 @@ def _write_parquet_tree(root: Path, table: str, rows: list[dict]) -> None:
     table_path = job_dir / f"{table}.parquet"
     tbl = pa.Table.from_pylist(rows) if rows else pa.table({"id": pa.array([], type=pa.string())})
     pq.write_table(tbl, table_path)
+    admit_z3_tree(root)
+
+
+def attach(*, repo_root: Path, explicit_derived: Path | None = None):
+    if explicit_derived is not None and any(explicit_derived.rglob("*.parquet")):
+        admit_z3_tree(explicit_derived)
+    return public_attach(repo_root=repo_root, explicit_derived=explicit_derived)
 
 
 def test_z3_views_return_written_rows(tmp_path: Path) -> None:
@@ -409,8 +424,9 @@ def test_standalone_parquet_is_attached_once_and_preamble_has_one_glob(
         assert result.connection.execute(
             "SELECT count(*), count(DISTINCT label_id) FROM z3.behavior_labels"
         ).fetchone() == (1, 1)
-        assert "behavior_labels/behavior_labels.parquet" not in result.sql_preamble
-        assert result.sql_preamble.count("behavior_labels/*.parquet") == 2
+        exact_path = str(labels_dir / "behavior_labels.parquet")
+        assert result.sql_preamble.count(exact_path) == 2
+        assert "behavior_labels/*.parquet" not in result.sql_preamble
     finally:
         result.connection.close()
 
@@ -493,10 +509,8 @@ def test_cli_zones_reports_z3_with_row_counts(
     code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
     out, _ = capsys.readouterr()
     assert code == 0
-    assert "z3: attached" in out
-    from evallab.storage.attach import TABLES
-
-    assert f"10/{len(TABLES)} tables" in out
+    assert "z3: ready" in out
+    assert f"10 ready, {len(TABLES) - 10} not applicable, 0 blocked" in out
 
 
 def test_cli_zones_exit_codes(
@@ -535,13 +549,16 @@ def test_cli_print_sql_byte_identical(
 def test_sql_preamble_escapes_quote_bearing_dsn_and_parquet_paths(tmp_path: Path) -> None:
     derived = tmp_path / "derived'root"
     dsn = "postgresql://evallab:p'ass@invalid.example/evallab"
+    derived.mkdir()
+    _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}])
 
     preamble = build_sql_preamble(dsn, derived, tmp_path)
 
     escaped_dsn = dsn.replace("'", "''")
-    escaped_glob = str(derived / "job_id=*/trial_id=*/trial_facts.parquet").replace("'", "''")
+    admitted_path = derived / "job_id=testjob" / "trial_id=testtrial" / "trial_facts.parquet"
+    escaped_path = str(admitted_path).replace("'", "''")
     assert f"'{escaped_dsn}' AS z2" in preamble
-    assert f"'{escaped_glob}'" in preamble
+    assert f"'{escaped_path}'" in preamble
     assert "p'ass" not in preamble
 
 
@@ -933,11 +950,12 @@ def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
     try:
         z3_status = next(z for z in result.zones if z.name == "z3")
         assert z3_status.attached is True
-        assert f"1/{len(TABLES)} tables" in z3_status.detail
-        assert "missing: " in z3_status.detail
-        assert "capability_opportunities" in z3_status.detail
-        assert "paired_condition_facts" in z3_status.detail
-        assert "session_dependency_facts" in z3_status.detail
+        assert f"1 ready, {len(TABLES) - 1} not applicable, 0 blocked" in z3_status.detail
+        readiness = {table.table_name: table.state for table in z3_status.tables}
+        assert readiness["evidence_coverage"] == "ready"
+        assert readiness["capability_opportunities"] == "not_applicable"
+        assert readiness["paired_condition_facts"] == "not_applicable"
+        assert readiness["session_dependency_facts"] == "not_applicable"
 
         # Missing semantic table returns 0 rows (honest empty view)
         missing_count = result.connection.execute(
@@ -970,6 +988,7 @@ def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
 def test_all_eight_semantic_tables_registered_in_preamble(tmp_path: Path) -> None:
     derived = tmp_path / "derived"
     derived.mkdir()
+    admit_z3_tree(derived)
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
         expected_tables = [
@@ -983,8 +1002,8 @@ def test_all_eight_semantic_tables_registered_in_preamble(tmp_path: Path) -> Non
             "evidence_coverage",
         ]
         for tbl in expected_tables:
-            assert f"CREATE OR REPLACE VIEW {tbl} AS" in result.sql_preamble
-            assert f"CREATE OR REPLACE VIEW z3.{tbl} AS" in result.sql_preamble
+            assert f'CREATE OR REPLACE VIEW "{tbl}" AS' in result.sql_preamble
+            assert f'CREATE OR REPLACE VIEW z3."{tbl}" AS' in result.sql_preamble
     finally:
         result.connection.close()
 
@@ -1030,15 +1049,15 @@ def test_existing_attach_layouts_return_exact_z3_rows(tmp_path: Path) -> None:
             ).fetchall()
             == expected
         )
-        for pattern in (
-            "job_id=*/trial_id=*/trial_facts.parquet",
-            "compact/trial_facts/dt=*/part*.parquet",
-            "compact/dt=*/trial_facts.parquet",
-            "trial_facts/*.parquet",
+        for relative_path in (
+            "job_id=hot/trial_id=hot/trial_facts.parquet",
+            "compact/trial_facts/dt=2026-08-24/part0.parquet",
+            "compact/dt=2026-08-25/trial_facts.parquet",
+            "trial_facts/batch.parquet",
             "trial_facts.parquet",
         ):
-            assert pattern in result.sql_preamble
-        assert "job_id=*/trial_facts.parquet" not in result.sql_preamble
+            assert relative_path in result.sql_preamble
+        assert "job_id=job-level/trial_facts.parquet" not in result.sql_preamble
     finally:
         result.connection.close()
 
@@ -1070,12 +1089,13 @@ def test_cold_day_overlap_prefers_hot_primary_key(tmp_path: Path) -> None:
 def test_every_z3_sql_view_remains_registered(tmp_path: Path) -> None:
     derived = tmp_path / "derived"
     derived.mkdir()
+    admit_z3_tree(derived)
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
         for table in TABLES:
             assert result.connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone() == (0,)
             assert result.connection.execute(f"SELECT COUNT(*) FROM z3.{table}").fetchone() == (0,)
-            assert f"CREATE OR REPLACE VIEW {table} AS" in result.sql_preamble
-            assert f"CREATE OR REPLACE VIEW z3.{table} AS" in result.sql_preamble
+            assert f'CREATE OR REPLACE VIEW "{table}" AS' in result.sql_preamble
+            assert f'CREATE OR REPLACE VIEW z3."{table}" AS' in result.sql_preamble
     finally:
         result.connection.close()

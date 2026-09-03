@@ -72,6 +72,14 @@ class CohortMember:
     generator_seed_json: str | None
     task_block_inputs_json: str | None
     task_block_id: str | None
+    network_isolation_evidence_digest: str | None
+    network_isolation_status: str
+    network_isolation_reason: str | None
+    analysis_eligibility: str
+    trial_admissibility_digest: str | None
+    trial_admissibility_decision: str
+    trial_admissibility_reason: str
+    trial_allowed_use: str
     agent_name: str | None
     agent_version: str | None
     model_name: str | None
@@ -287,7 +295,7 @@ def _member(
     trial: TrialRecord,
     reward_name: str,
 ) -> CohortMember:
-    fact: TrialFact = extract_trial_fact(job, trial)
+    fact: TrialFact = extract_trial_fact(job, trial, repo_root=root)
     agent_lock = _json_object(trial.lock.get("agent"))
     model_settings = {
         key: value
@@ -336,6 +344,14 @@ def _member(
         generator_seed_json=fact.generator_seed_json,
         task_block_inputs_json=fact.task_block_inputs_json,
         task_block_id=fact.task_block_id,
+        network_isolation_evidence_digest=fact.network_isolation_evidence_digest,
+        network_isolation_status=fact.network_isolation_status,
+        network_isolation_reason=fact.network_isolation_reason,
+        analysis_eligibility=fact.analysis_eligibility,
+        trial_admissibility_digest=fact.trial_admissibility_digest,
+        trial_admissibility_decision=fact.trial_admissibility_decision,
+        trial_admissibility_reason=fact.trial_admissibility_reason,
+        trial_allowed_use=fact.trial_allowed_use,
         agent_name=agent_name,
         agent_version=agent_version,
         model_name=model_name,
@@ -365,6 +381,7 @@ def _member(
 def assemble_members(root: Path, spec: CohortComparisonSpec) -> list[CohortMember]:
     members: list[CohortMember] = []
     owner_by_trial: dict[str, str] = {}
+    rejected: list[str] = []
     for selector in spec.cohorts:
         for job, trial in _selected_trials(root, selector):
             previous = owner_by_trial.get(trial.id)
@@ -373,16 +390,28 @@ def assemble_members(root: Path, spec: CohortComparisonSpec) -> list[CohortMembe
                     f"trial {trial.id} belongs to both {previous!r} and {selector.label!r}"
                 )
             owner_by_trial[trial.id] = selector.label
-            members.append(
-                _member(
-                    root,
-                    spec.experiment_id,
-                    selector.label,
-                    job,
-                    trial,
-                    spec.reward_name,
-                )
+            member = _member(
+                root,
+                spec.experiment_id,
+                selector.label,
+                job,
+                trial,
+                spec.reward_name,
             )
+            if (
+                member.network_isolation_status != "enforced"
+                or member.analysis_eligibility != "causal-eligible"
+                or member.trial_admissibility_decision != "admissible"
+                or member.trial_allowed_use != "causal"
+            ):
+                rejected.append(f"{trial.id}:{member.trial_admissibility_reason}")
+                continue
+            members.append(member)
+    if rejected:
+        raise ValueError(
+            "cohort comparison selected descriptive/calibration-only trials: "
+            + ", ".join(sorted(rejected))
+        )
     return sorted(members, key=lambda item: (item.cohort, item.task_digest or "", item.trial_id))
 
 

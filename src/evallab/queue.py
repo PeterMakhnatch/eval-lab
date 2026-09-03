@@ -4,6 +4,7 @@ import fcntl
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import platform
 import secrets
@@ -12,9 +13,10 @@ import stat
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -28,11 +30,20 @@ from evallab.credentials import (
     missing_credential_for,
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
-from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
-from evallab.evidence_store import EvidenceArchive, archive_evidence
+from evallab.evidence.atif import IngestProjectionResult, ingest_and_project, project_trial
+from evallab.evidence_store import (
+    EvidenceArchive,
+    EvidenceLocator,
+    archive_evidence,
+    materialize_evidence,
+    materialize_evidence_at,
+)
 from evallab.execution_contracts import (
+    ZAI_OPENCODE_AGENT,
     DispatchCapacity,
     PaidRunAuthorization,
+    ProviderFailoverFailure,
+    ProviderRoutesExhaustedFailure,
     is_lease_generation,
     load_policy,
     new_ulid,
@@ -43,7 +54,17 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     evaluate_trial_compliance,
 )
-from evallab.profiles import CONTROL_ADAPTERS
+from evallab.network_isolation_runtime import current_dispatch_isolation_identity
+from evallab.profiles import (
+    CONTROL_ADAPTERS,
+    AgentProfile,
+    ProfileState,
+    SecurityRunner,
+    compute_qualification_digest,
+    evaluate_profile_readiness,
+    load_readiness_record,
+    save_readiness_record,
+)
 from evallab.quota import (
     Headroom,
     default_roots,
@@ -63,14 +84,18 @@ from evallab.registry import (
     TaskUsageNotAllowedError,
     TaskVersionMismatchError,
     compute_task_digests,
+    task_runtime_identity,
 )
-from evallab.results import load_job
+from evallab.results import duration_seconds, load_job
 from evallab.runner import (
     CONTROL_AGENTS,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     ExecutionFailure,
     RunRequest,
+    SettledRun,
     TransientHarnessFailure,
+    _evidence_store_root,
+    _settle_completed_job,
     assert_no_secret_material,
     collected_secret_values,
     database_url_from_environment,
@@ -80,10 +105,18 @@ from evallab.runner import (
     transient_provider_exception,
 )
 from evallab.schemas import (
+    CAUSAL_EXPERIMENT_PURPOSES,
     EXPERIMENT_PURPOSES,
+    AgentGateEvaluations,
+    AgentQualificationDigest,
+    AgentReadinessRecord,
+    AgentSmokeRecord,
     AutoRunRule,
     ExperimentSpec,
+    NetworkIsolationDispatchIdentityV1,
+    NetworkIsolationEvidenceV1,
     PolicyDecision,
+    ProviderRoute,
     QueueEvent,
     QueueReason,
     QueueState,
@@ -92,6 +125,11 @@ from evallab.schemas import (
     canonical_grid_point_id,
 )
 from evallab.storage.paths import derived_root_from_environment
+
+
+class _CampaignDispatchValidationError(ExecutionFailure):
+    """Campaign authority failed before runner execution."""
+
 
 QUEUE_STATES: tuple[QueueState, ...] = (
     "proposed",
@@ -816,6 +854,7 @@ class DirectoryQueue:
         approved_spec_digest: str | None = None,
         approved_campaign_manifest_digest: str | None = None,
         approved_campaign_spec_digest: str | None = None,
+        cas_locator: EvidenceLocator | None = None,
     ) -> Path:
         source_state = source.parent.name
         if source_state not in QUEUE_STATES:
@@ -837,9 +876,19 @@ class DirectoryQueue:
                 policy_rule=policy_rule or spec.policy_rule,
                 reason_code=reason_code,
                 job_name=spec.name,
+                attempt_number=spec.campaign_attempt_index,
                 approved_spec_digest=approved_spec_digest,
                 approved_campaign_manifest_digest=approved_campaign_manifest_digest,
                 approved_campaign_spec_digest=approved_campaign_spec_digest,
+                cas_store_root=(str(cas_locator.store_root) if cas_locator is not None else None),
+                cas_record_kind=cas_locator.kind if cas_locator is not None else None,
+                cas_record_id=cas_locator.record_id if cas_locator is not None else None,
+                cas_record_digest=(
+                    cas_locator.expected_record_digest if cas_locator is not None else None
+                ),
+                cas_content_digest=(
+                    cas_locator.expected_content_digest if cas_locator is not None else None
+                ),
             )
         )
         return destination
@@ -1274,8 +1323,11 @@ class DirectoryQueue:
 
 
 CredentialProbe = Callable[[], frozenset[str]]
-RunCallable = Callable[[RunRequest], Path]
-IngestCallable = Callable[[Path], IngestProjectionResult | None]
+RunCallable = Callable[[RunRequest], SettledRun]
+IngestCallable = Callable[[EvidenceLocator], IngestProjectionResult | None]
+IsolationIdentityProvider = Callable[
+    [NetworkIsolationEvidenceV1], NetworkIsolationDispatchIdentityV1
+]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
@@ -1311,6 +1363,198 @@ def record_projection_failures(
         )
 
 
+def _atomic_no_replace_publish(
+    source: Path,
+    destination: Path,
+    *,
+    expected_content_digest: str | None = None,
+) -> None:
+    """Atomically publish a directory without replacing any existing target.
+
+    Performs final locator digest verification immediately before the raw native syscall.
+    """
+    if expected_content_digest is not None:
+        from evallab.evidence_store import evidence_tree_digest
+
+        actual_digest = evidence_tree_digest(source)
+        if actual_digest != expected_content_digest:
+            raise ExecutionFailure(
+                "staged_evidence_tampered",
+                f"staged evidence content digest {actual_digest} differs from locator {expected_content_digest}",
+            )
+    import ctypes
+    import ctypes.util
+    import errno
+    import platform
+
+    system = platform.system()
+    if system == "Darwin":
+        try:
+            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+            if hasattr(libc, "renameatx_np"):
+                libc.renameatx_np.argtypes = [
+                    ctypes.c_int,
+                    ctypes.c_char_p,
+                    ctypes.c_int,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                ]
+                libc.renameatx_np.restype = ctypes.c_int
+                RENAME_EXCL = 0x00000004
+                AT_FDCWD = -2
+                res = libc.renameatx_np(
+                    AT_FDCWD,
+                    os.fspath(source).encode("utf-8"),
+                    AT_FDCWD,
+                    os.fspath(destination).encode("utf-8"),
+                    ctypes.c_uint(RENAME_EXCL),
+                )
+                if res != 0:
+                    err = ctypes.get_errno()
+                    if err in (errno.EEXIST, errno.ENOTEMPTY):
+                        raise ExecutionFailure(
+                            "control_bootstrap_job_conflict",
+                            f"durable control-bootstrap job destination already exists: {destination}",
+                        )
+                    raise OSError(err, os.strerror(err), str(destination))
+                return
+        except AttributeError:
+            pass
+    elif system == "Linux":
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        RENAME_NOREPLACE = 1
+        AT_FDCWD = -100
+        if hasattr(libc, "renameat2"):
+            libc.renameat2.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            libc.renameat2.restype = ctypes.c_int
+            res = libc.renameat2(
+                AT_FDCWD,
+                os.fspath(source).encode("utf-8"),
+                AT_FDCWD,
+                os.fspath(destination).encode("utf-8"),
+                ctypes.c_uint(RENAME_NOREPLACE),
+            )
+            if res != 0:
+                err = ctypes.get_errno()
+                if err in (errno.EEXIST, errno.ENOTEMPTY):
+                    raise ExecutionFailure(
+                        "control_bootstrap_job_conflict",
+                        f"durable control-bootstrap job destination already exists: {destination}",
+                    )
+                raise OSError(err, os.strerror(err), str(destination))
+            return
+        else:
+            machine = platform.machine().lower()
+            syscall_nr = (
+                276 if (machine.startswith("aarch") or machine.startswith("arm64")) else 316
+            )
+            libc.syscall.argtypes = [
+                ctypes.c_long,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            libc.syscall.restype = ctypes.c_long
+            res = libc.syscall(
+                ctypes.c_long(syscall_nr),
+                AT_FDCWD,
+                os.fspath(source).encode("utf-8"),
+                AT_FDCWD,
+                os.fspath(destination).encode("utf-8"),
+                ctypes.c_uint(RENAME_NOREPLACE),
+            )
+            if res != 0:
+                err = ctypes.get_errno()
+                if err in (errno.EEXIST, errno.ENOTEMPTY):
+                    raise ExecutionFailure(
+                        "control_bootstrap_job_conflict",
+                        f"durable control-bootstrap job destination already exists: {destination}",
+                    )
+                raise OSError(err, os.strerror(err), str(destination))
+            return
+
+    raise ExecutionFailure(
+        "platform_unsupported",
+        "atomic no-replace directory publication is unavailable on this platform",
+    )
+
+
+def select_terminal_job_locator(
+    events_path: Path,
+    *,
+    expected_event: str,
+    job_name: str,
+    spec_id: str,
+    expected_attempt: int | None = None,
+    attempt_number: int | None = None,
+) -> EvidenceLocator:
+    """Select the exact unique terminal event locator matching expected_event, job_name, and spec_id.
+
+    Fails closed if the event is missing, ambiguous, of the wrong kind, or has mismatched identity.
+    """
+    if not events_path.is_file():
+        raise ExecutionFailure("terminal_event_missing", f"events log missing at {events_path}")
+
+    target_attempt = expected_attempt if expected_attempt is not None else attempt_number
+    events = load_events(events_path)
+    matches: list[QueueEvent] = []
+    for event in events:
+        if event.spec_id != spec_id:
+            continue
+        if event.event != expected_event:
+            continue
+        if event.job_name != job_name:
+            continue
+        if event.cas_record_kind != "job":
+            continue
+        if target_attempt is not None and event.attempt_number != target_attempt:
+            continue
+        matches.append(event)
+
+    if len(matches) == 0:
+        raise ExecutionFailure(
+            "terminal_event_missing",
+            f"no terminal {expected_event!r} event found for job '{job_name}' and spec '{spec_id}'",
+        )
+    if len(matches) > 1:
+        raise ExecutionFailure(
+            "terminal_event_ambiguous",
+            f"multiple terminal {expected_event!r} events ({len(matches)}) found for job '{job_name}' and spec '{spec_id}'",
+        )
+
+    event = matches[0]
+    if (
+        not event.cas_store_root
+        or not event.cas_record_kind
+        or not event.cas_record_id
+        or not event.cas_record_digest
+        or not event.cas_content_digest
+    ):
+        raise ExecutionFailure(
+            "terminal_event_incomplete",
+            f"terminal event for job '{job_name}' is missing required CAS locator fields",
+        )
+
+    try:
+        return EvidenceLocator(
+            store_root=Path(event.cas_store_root),
+            kind=event.cas_record_kind,
+            record_id=event.cas_record_id,
+            expected_record_digest=event.cas_record_digest,
+            expected_content_digest=event.cas_content_digest,
+        )
+    except (ValueError, TypeError) as exc:
+        raise ExecutionFailure("terminal_event_invalid", f"invalid CAS locator: {exc}") from exc
+
+
 class Executor:
     """The sole application boundary allowed to start Harbor experiments."""
 
@@ -1329,6 +1573,7 @@ class Executor:
         progress: ProgressCallable | None = None,
         sleeper: Sleeper = time.sleep,
         compliance: ComplianceCallable | None = None,
+        isolation_identity_provider: IsolationIdentityProvider | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
@@ -1344,6 +1589,9 @@ class Executor:
         self._runner = runner or self._run_harbor
         self._compliance = compliance or self._evaluate_post_run_compliance
         self._ingester = ingester or self._ingest
+        self._isolation_identity_provider = (
+            isolation_identity_provider or current_dispatch_isolation_identity
+        )
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
         self._progress = progress
@@ -1523,38 +1771,41 @@ class Executor:
 
     def _settle_post_run(
         self,
-        job_dir: Path,
+        settled_run: SettledRun,
         spec: ExperimentSpec,
         *,
         actor: str,
     ) -> PolicyDecision | None:
         stage = "artifact_scan"
         try:
-            self._assert_persistent_artifacts_safe(spec, job_dir)
-            archive: EvidenceArchive | None = None
-            if spec.campaign_ledger is not None:
-                stage = "post_run_archive"
-                archive = self._archive_post_run(job_dir, spec)
-            stage = "catalog_ingest"
-            ingest_result = self._ingester(job_dir)
-            if ingest_result is not None:
-                record_projection_failures(
-                    self.queue,
-                    ingest_result,
-                    actor=actor,
-                    spec_id=str(spec.spec_id),
-                )
-            if spec.campaign_ledger is not None:
-                stage = "post_run_compliance"
-                if archive is None:
-                    raise ValueError("post-run compliance archive is missing")
-                disposition = self._compliance(job_dir, spec, ingest_result, archive)
-                if disposition != "QUALITY_PASS":
-                    return PolicyDecision(
-                        admitted=False,
-                        reason_code=f"post_run_compliance_{disposition.casefold()}",
-                        message=(f"post-run compliance refused queue completion: {disposition}"),
+            with materialize_evidence(settled_run.cas_locator) as job_dir:
+                self._assert_persistent_artifacts_safe(spec, job_dir)
+                archive: EvidenceArchive | None = None
+                if spec.campaign_ledger is not None:
+                    stage = "post_run_archive"
+                    archive = self._archive_post_run(job_dir, spec)
+                stage = "catalog_ingest"
+                ingest_result = self._ingester(settled_run.cas_locator)
+                if ingest_result is not None:
+                    record_projection_failures(
+                        self.queue,
+                        ingest_result,
+                        actor=actor,
+                        spec_id=str(spec.spec_id),
                     )
+                if spec.campaign_ledger is not None:
+                    stage = "post_run_compliance"
+                    if archive is None:
+                        raise ValueError("post-run compliance archive is missing")
+                    disposition = self._compliance(job_dir, spec, ingest_result, archive)
+                    if disposition != "QUALITY_PASS":
+                        return PolicyDecision(
+                            admitted=False,
+                            reason_code=f"post_run_compliance_{disposition.casefold()}",
+                            message=(
+                                f"post-run compliance refused queue completion: {disposition}"
+                            ),
+                        )
         except Exception as exc:
             reason_code = (
                 exc.reason_code if isinstance(exc, ExecutionFailure) else f"{stage}_failed"
@@ -1562,21 +1813,21 @@ class Executor:
             return PolicyDecision(
                 admitted=False,
                 reason_code=reason_code,
-                message=(
-                    f"{stage.replace('_', ' ')} failed closed before queue completion "
-                    f"({type(exc).__name__})"
-                ),
+                message=f"post-run settlement failed during {stage}: {exc}",
             )
         return None
 
-    def _validate_campaign_dispatch_spec(
-        self,
-        spec: ExperimentSpec,
-        *,
-        source: Path,
-    ) -> None:
-        spec_id = str(spec.spec_id or "")
-        provenance_present = any(
+    @staticmethod
+    def _is_control_bootstrap_spec(spec: ExperimentSpec) -> bool:
+        return (
+            spec.agent in {"oracle", "nop"}
+            and spec.purpose == "baseline"
+            and spec.task.startswith("registered/")
+        )
+
+    @staticmethod
+    def _has_campaign_provenance(spec: ExperimentSpec) -> bool:
+        return any(
             value is not None
             for value in (
                 spec.campaign_ledger,
@@ -1587,7 +1838,23 @@ class Executor:
                 spec.campaign_evidence_store,
             )
         )
+
+    def _validate_campaign_dispatch_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        source: Path,
+        live_rebind: bool = True,
+    ) -> None:
+        spec_id = str(spec.spec_id or "")
+        provenance_present = self._has_campaign_provenance(spec)
         campaign_source = "campaign-" in source.name
+        control_bootstrap = self._is_control_bootstrap_spec(spec)
+        if control_bootstrap and not provenance_present:
+            raise _CampaignDispatchValidationError(
+                "control_bootstrap_binding_missing",
+                "registered baseline controls require a frozen campaign runtime binding",
+            )
         if not provenance_present and not campaign_source and not spec_id.startswith("campaign-"):
             return
         if (
@@ -1595,7 +1862,7 @@ class Executor:
             or spec.campaign_ledger is None
             or spec.campaign_manifest_digest is None
         ):
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_binding_missing",
                 "campaign queue record lost its frozen manifest binding",
             )
@@ -1609,13 +1876,13 @@ class Executor:
             with os.fdopen(descriptor, "rb") as handle:
                 manifest = CampaignManifest.model_validate_json(handle.read())
         except Exception as exc:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_manifest_unavailable",
                 "frozen campaign manifest cannot be validated at dispatch",
             ) from exc
         matches = [attempt for attempt in manifest.attempts if attempt.spec_id == spec_id]
         if len(matches) != 1:
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_attempt_unbound",
                 "queued campaign spec is not uniquely present in the frozen manifest",
             )
@@ -1625,10 +1892,60 @@ class Executor:
             or spec.campaign_spec_digest != attempt.spec_digest
             or experiment_spec_digest(spec) != attempt.spec_digest
         ):
-            raise ExecutionFailure(
+            raise _CampaignDispatchValidationError(
                 "campaign_spec_drifted",
                 "queued campaign spec differs from its frozen attempt",
             )
+        runtime_identity = attempt.runtime_identity
+        if spec.billable or control_bootstrap:
+            if runtime_identity is None:
+                label = "billable" if spec.billable else "control-bootstrap"
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_identity_missing",
+                    f"{label} campaign attempt has no isolation-bound runtime identity",
+                )
+            if not live_rebind:
+                return
+            evidence = runtime_identity.network_isolation_evidence
+            try:
+                live_identity = self._isolation_identity_provider(evidence)
+            except Exception as exc:
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_identity_unavailable",
+                    "live isolation runtime identity cannot be established",
+                ) from exc
+            if (
+                live_identity.runtime_identity != evidence.runtime_identity
+                or live_identity.probe_identity != evidence.probe_identity
+            ):
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_identity_drift",
+                    "live runtime/image/adapter/probe identity differs from isolation evidence",
+                )
+            projection = runtime_identity.network_isolation_evidence.project(
+                as_of=datetime.now(UTC)
+            )
+            if (
+                runtime_identity.network_isolation_status,
+                runtime_identity.network_isolation_reason,
+                runtime_identity.analysis_eligibility,
+            ) != (
+                projection.status,
+                projection.reason,
+                projection.analysis_eligibility,
+            ):
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_evidence_stale",
+                    "campaign isolation evidence no longer matches its current projection",
+                )
+            if (
+                spec.purpose in CAUSAL_EXPERIMENT_PURPOSES
+                and projection.analysis_eligibility != "causal-eligible"
+            ):
+                raise _CampaignDispatchValidationError(
+                    "campaign_isolation_ineligible",
+                    "causal campaign attempt lacks enforced current isolation evidence",
+                )
 
     def _dispatch_one(
         self,
@@ -1638,8 +1955,12 @@ class Executor:
         credentials: frozenset[str],
     ) -> bool:
         try:
-            self._validate_campaign_dispatch_spec(spec, source=path)
-        except ExecutionFailure as exc:
+            self._validate_campaign_dispatch_spec(
+                spec,
+                source=path,
+                live_rebind=False,
+            )
+        except _CampaignDispatchValidationError as exc:
             failure = PolicyDecision(
                 admitted=False,
                 reason_code=exc.reason_code,
@@ -1656,20 +1977,60 @@ class Executor:
             return False
         if self.queue.stop_path.exists():
             return False
-        missing = missing_credential_for(spec.agent, credentials)
-        if missing is not None:
-            self.queue.append_event(
-                QueueEvent(
-                    event_id=new_ulid(),
-                    spec_id=str(spec.spec_id),
-                    occurred_at=datetime.now(UTC),
-                    event="dispatch_deferred",
-                    actor="executor",
-                    reason_code=f"missing_credential:{missing}",
-                    job_name=spec.name,
+        eligible_provider_routes: tuple[ProviderRoute, ...] | None = None
+        if spec.provider_routes:
+            circuit_broken = self._circuit_broken_provider_routes(spec)
+            viable: list[ProviderRoute] = []
+            for priority_index, route in enumerate(spec.provider_routes):
+                missing = (
+                    route.credential_requirement
+                    if route.credential_requirement not in credentials
+                    else None
                 )
-            )
-            return False
+                skip_reason = (
+                    "provider_failover:circuit_open"
+                    if route.route_id in circuit_broken
+                    else (f"missing_credential:{missing}" if missing is not None else None)
+                )
+                if skip_reason is None:
+                    viable.append(route)
+                    continue
+                self._append_provider_event(
+                    spec,
+                    event="provider_route_preflight_skipped",
+                    route=route,
+                    priority_index=priority_index,
+                    reason_code=skip_reason,
+                )
+            if not viable:
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=str(spec.spec_id),
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_deferred",
+                        actor="executor",
+                        reason_code="provider_failover:no_viable_route",
+                        job_name=spec.name,
+                    )
+                )
+                return False
+            eligible_provider_routes = tuple(viable)
+        else:
+            missing = missing_credential_for(spec.agent, credentials)
+            if missing is not None:
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=str(spec.spec_id),
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_deferred",
+                        actor="executor",
+                        reason_code=f"missing_credential:{missing}",
+                        job_name=spec.name,
+                    )
+                )
+                return False
         authorization = authorizations.get(str(spec.spec_id))
         if authorization is not None and (
             authorization.approved_spec_digest != approved_spec_digest(spec)
@@ -1735,9 +2096,31 @@ class Executor:
         )
         try:
             try:
-                job_dir = self.execute_spec(
+                settled_run = self.execute_spec(
                     spec,
                     lease_generation=lease_generation,
+                    provider_routes=eligible_provider_routes,
+                )
+            except ProviderRoutesExhaustedFailure as execution_error:
+                failure = PolicyDecision(
+                    admitted=False,
+                    reason_code=execution_error.reason_code,
+                    message=str(execution_error),
+                )
+                destination_state = (
+                    "waiting" if execution_error.exhaustion_behavior == "wait" else "failed"
+                )
+                terminal = self.queue.transition(
+                    running,
+                    destination_state,
+                    actor="executor",
+                    event="dispatch_provider_routes_exhausted",
+                    reason_code=execution_error.terminal_cause,
+                )
+                self.queue.write_reason(self.queue.load(terminal), failure)
+                self._report_progress(
+                    f"{destination_state} {spec.name} ({execution_error.terminal_cause}); "
+                    f"state: {destination_state}"
                 )
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
@@ -1768,9 +2151,11 @@ class Executor:
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
                 self._report_progress(f"failed {spec.name} ({failure.reason_code}); state: failed")
+                if isinstance(execution_error, _CampaignDispatchValidationError):
+                    return False
             else:
                 failure = self._settle_post_run(
-                    job_dir,
+                    settled_run,
                     spec,
                     actor="executor",
                 )
@@ -1786,6 +2171,7 @@ class Executor:
                             else "post_run_refused"
                         ),
                         reason_code=failure_reason,
+                        cas_locator=settled_run.cas_locator,
                     )
                     self.queue.write_reason(self.queue.load(failed), failure)
                     self._report_progress(
@@ -1798,6 +2184,7 @@ class Executor:
                         actor="executor",
                         event="dispatch_completed",
                         policy_rule=decision.policy_rule,
+                        cas_locator=settled_run.cas_locator,
                     )
                     self._report_progress(f"completed {spec.name}; state: done")
             return True
@@ -1902,13 +2289,20 @@ class Executor:
         spec: ExperimentSpec,
         *,
         lease_generation: str | None = None,
-    ) -> Path:
+        provider_routes: Sequence[ProviderRoute] | None = None,
+    ) -> SettledRun:
+        self._validate_campaign_dispatch_spec(
+            spec,
+            source=Path(),
+        )
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
         package_digest = None
         timeout_seconds = spec.timeout_seconds
         canonical_task_path = spec.executable_task_path
+        resolved_task_runtime = spec.task_runtime_identity
+        resolved_registry_record = None
         task_id = spec.task_id
 
         if spec.task.startswith("registered/"):
@@ -1924,6 +2318,7 @@ class Executor:
             task_version = resolved.version
             verifier_digest = resolved.digests.verifier
             package_digest = resolved.digests.package
+            resolved_registry_record = resolved
             task_id = resolved.task_id
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
         elif spec.task_package_digest is not None:
@@ -1940,6 +2335,24 @@ class Executor:
             raise ExecutionFailure(
                 "task_digest_mismatch",
                 "resolved task package differs from the frozen campaign digest",
+            )
+        if resolved_registry_record is not None:
+            current_task_runtime = task_runtime_identity(resolved_registry_record)
+            if resolved_task_runtime is not None and resolved_task_runtime != current_task_runtime:
+                raise ExecutionFailure(
+                    "task_runtime_identity_mismatch",
+                    "resolved registry revision differs from the frozen task runtime identity",
+                )
+            resolved_task_runtime = current_task_runtime
+        if resolved_task_runtime is not None and (
+            resolved_task_runtime.registry_admission_state != "registered"
+            or resolved_task_runtime.task_id != task_id
+            or resolved_task_runtime.task_version != task_version
+            or resolved_task_runtime.certified_runtime_package_digest != package_digest
+        ):
+            raise ExecutionFailure(
+                "task_runtime_identity_mismatch",
+                "execution task bytes or registry admission differ from the frozen identity",
             )
         grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
         bound_values = (
@@ -2095,20 +2508,253 @@ class Executor:
                 campaign_attempt_id=spec.campaign_attempt_id,
                 campaign_attempt_index=spec.campaign_attempt_index,
                 campaign_manifest_digest=spec.campaign_manifest_digest,
+                task_runtime_identity=resolved_task_runtime,
+                network_isolation_evidence=spec.network_isolation_evidence,
+                network_isolation_evidence_digest=spec.network_isolation_evidence_digest,
+                network_isolation_status=spec.network_isolation_status,
+                network_isolation_reason=spec.network_isolation_reason,
+                analysis_eligibility=spec.analysis_eligibility,
                 campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
-        job_dir = self._run_with_transient_retries(spec, request)
-        self._assert_persistent_artifacts_safe(spec, job_dir)
-        return job_dir
+        settled_run = self._run_with_provider_failover(
+            spec,
+            request,
+            provider_routes=provider_routes,
+        )
+        with materialize_evidence(settled_run.cas_locator) as restored_job:
+            self._assert_persistent_artifacts_safe(spec, restored_job)
+        if self._is_control_bootstrap_spec(spec):
+            self._promote_control_bootstrap_job(settled_run, spec)
+        return settled_run
+
+    def _promote_control_bootstrap_job(
+        self,
+        settled_run: SettledRun,
+        spec: ExperimentSpec,
+    ) -> Path:
+        durable_root = self.repo_root / "research/evidence/runs"
+        durable_root.mkdir(parents=True, exist_ok=True)
+        if os.path.islink(durable_root):
+            raise ExecutionFailure(
+                "symlink_rejected",
+                f"durable root cannot be a symlink: {durable_root}",
+            )
+        destination = durable_root / spec.name
+        if destination.parent != durable_root:
+            raise ExecutionFailure(
+                "control_bootstrap_job_path_invalid",
+                f"destination escapes durable root: {destination}",
+            )
+        try:
+            st = os.lstat(destination)
+            if stat.S_ISLNK(st.st_mode):
+                raise ExecutionFailure(
+                    "control_bootstrap_job_conflict",
+                    f"durable destination is a symlink: {destination}",
+                )
+            raise ExecutionFailure(
+                "control_bootstrap_job_conflict",
+                f"durable control-bootstrap job destination already exists: {destination}",
+            )
+        except FileNotFoundError:
+            pass
+
+        staging_dir = durable_root / f".staging-{spec.name}-{secrets.token_hex(12)}"
+        staging_dir.mkdir(mode=0o700, exist_ok=False)
+        try:
+            materialize_evidence_at(settled_run.cas_locator, staging_dir)
+            load_job(staging_dir)
+            self._assert_persistent_artifacts_safe(spec, staging_dir)
+
+            for path in staging_dir.rglob("*"):
+                if path.is_file():
+                    with path.open("rb") as handle:
+                        os.fsync(handle.fileno())
+                    os.chmod(path, 0o400)
+                elif path.is_dir():
+                    fd = os.open(path, os.O_RDONLY)
+                    try:
+                        os.fsync(fd)
+                    finally:
+                        os.close(fd)
+                    os.chmod(path, 0o500)
+
+            _atomic_no_replace_publish(
+                staging_dir,
+                destination,
+                expected_content_digest=settled_run.cas_locator.expected_content_digest,
+            )
+            parent_fd = os.open(durable_root, os.O_RDONLY)
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
+            return destination
+        finally:
+            if staging_dir.exists():
+                import contextlib
+
+                with contextlib.suppress(OSError):
+                    for root_dir, _dirs, files in os.walk(staging_dir, followlinks=False):
+                        with contextlib.suppress(OSError):
+                            os.chmod(root_dir, 0o700)
+                        for f in files:
+                            with contextlib.suppress(OSError):
+                                os.chmod(os.path.join(root_dir, f), 0o600)
+                shutil.rmtree(staging_dir, ignore_errors=True)
+
+    def _run_with_provider_failover(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+        *,
+        provider_routes: Sequence[ProviderRoute] | None,
+    ) -> SettledRun:
+        routes = tuple(provider_routes if provider_routes is not None else spec.provider_routes)
+        if not routes:
+            return self._run_with_transient_retries(spec, request)
+        for route_position, route in enumerate(routes):
+            priority_index = next(
+                index
+                for index, declared in enumerate(spec.provider_routes)
+                if declared.route_id == route.route_id
+            )
+            route_attempt_id = new_ulid()
+            provenance = (
+                request.provenance.model_copy(
+                    update={
+                        "provider": route.provider,
+                        "provider_route_id": route.route_id,
+                        "provider_route_attempt_id": route_attempt_id,
+                        "logical_model_revision": route.logical_model_revision,
+                        "tool_contract_digest": route.tool_contract_digest,
+                        "provider_failover_max_cost_usd": spec.provider_failover_max_cost_usd,
+                    }
+                )
+                if request.provenance is not None
+                else None
+            )
+            route_request = replace(
+                request,
+                model=route.model,
+                cost_limit_usd=route.max_cost_usd,
+                provider=route.provider,
+                provider_route_id=route.route_id,
+                provider_route_attempt_id=route_attempt_id,
+                provenance=provenance,
+            )
+            self._append_provider_event(
+                spec,
+                event="provider_route_attempt_started",
+                route=route,
+                priority_index=priority_index,
+                route_attempt_id=route_attempt_id,
+                reason_code="provider_failover:attempt_started",
+            )
+            try:
+                settled = self._run_with_transient_retries(
+                    spec,
+                    route_request,
+                    estimated_cost_usd=route.max_cost_usd,
+                )
+            except ProviderFailoverFailure as exc:
+                self._archive_provider_attempt(spec, route_request, route_attempt_id)
+                self._append_provider_event(
+                    spec,
+                    event="provider_route_attempt_failed",
+                    route=route,
+                    priority_index=priority_index,
+                    route_attempt_id=route_attempt_id,
+                    reason_code=exc.reason_code,
+                )
+                if route_position + 1 < len(routes):
+                    continue
+                self._append_provider_event(
+                    spec,
+                    event="provider_routes_exhausted",
+                    route=route,
+                    priority_index=priority_index,
+                    route_attempt_id=route_attempt_id,
+                    reason_code=exc.reason_code,
+                )
+                raise ProviderRoutesExhaustedFailure(
+                    exc.reason_code,
+                    exhaustion_behavior=spec.provider_exhaustion_behavior,
+                ) from exc
+            except Exception as exc:
+                reason_code = (
+                    exc.reason_code if isinstance(exc, ExecutionFailure) else "execution_failed"
+                )
+                self._append_provider_event(
+                    spec,
+                    event="provider_route_attempt_terminal",
+                    route=route,
+                    priority_index=priority_index,
+                    route_attempt_id=route_attempt_id,
+                    reason_code=reason_code,
+                )
+                raise
+            self._append_provider_event(
+                spec,
+                event="provider_route_attempt_succeeded",
+                route=route,
+                priority_index=priority_index,
+                route_attempt_id=route_attempt_id,
+                reason_code="provider_failover:attempt_succeeded",
+            )
+            return settled
+        raise AssertionError("provider route loop exhausted without a terminal outcome")
+
+    def _append_provider_event(
+        self,
+        spec: ExperimentSpec,
+        *,
+        event: str,
+        route: ProviderRoute,
+        priority_index: int,
+        reason_code: str,
+        route_attempt_id: str | None = None,
+    ) -> None:
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event=event,
+                actor="executor",
+                reason_code=reason_code,
+                job_name=spec.name,
+                provider=route.provider,
+                provider_route_id=route.route_id,
+                provider_route_attempt_id=route_attempt_id,
+                provider_priority_index=priority_index,
+            )
+        )
+
+    def _circuit_broken_provider_routes(self, spec: ExperimentSpec) -> frozenset[str]:
+        return frozenset(
+            event.provider_route_id
+            for event in load_events(self.queue.events_path)
+            if event.spec_id == str(spec.spec_id)
+            and event.event == "provider_route_attempt_failed"
+            and event.provider_route_id is not None
+            and (event.reason_code or "").startswith("provider_failover:")
+        )
 
     def _run_with_transient_retries(
         self,
         spec: ExperimentSpec,
         request: RunRequest,
-    ) -> Path:
+        *,
+        estimated_cost_usd: float | None = None,
+    ) -> SettledRun:
         for retry_number in range(self._max_transient_retries + 1):
-            self._reserve_attempt(spec, retry_number + 1)
+            self._reserve_attempt(
+                spec,
+                retry_number + 1,
+                estimated_cost_usd=estimated_cost_usd,
+            )
             try:
                 return self._runner(request)
             except TransientHarnessFailure as exc:
@@ -2179,7 +2825,13 @@ class Executor:
         )
         return False
 
-    def _reserve_attempt(self, spec: ExperimentSpec, attempt_number: int) -> None:
+    def _reserve_attempt(
+        self,
+        spec: ExperimentSpec,
+        attempt_number: int,
+        *,
+        estimated_cost_usd: float | None = None,
+    ) -> None:
         if not spec.billable:
             return
         self.queue.append_event(
@@ -2192,7 +2844,9 @@ class Executor:
                 reason_code="billable_attempt_estimate",
                 job_name=spec.name,
                 attempt_number=attempt_number,
-                estimated_cost_usd=spec.est_cost_usd,
+                estimated_cost_usd=(
+                    spec.est_cost_usd if estimated_cost_usd is None else estimated_cost_usd
+                ),
             )
         )
 
@@ -2238,6 +2892,23 @@ class Executor:
         job_dir.replace(archive)
         return archive
 
+    def _archive_provider_attempt(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+        route_attempt_id: str,
+    ) -> Path | None:
+        job_dir = request.jobs_dir / request.name
+        if not job_dir.exists():
+            return None
+        self._assert_persistent_artifacts_safe(spec, job_dir)
+        archive = request.jobs_dir / ".provider-attempts" / request.name / route_attempt_id
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        if archive.exists():
+            raise FileExistsError(f"provider attempt archive already exists: {archive}")
+        job_dir.replace(archive)
+        return archive
+
     def download_dataset(self, dataset_ref: str, output_dir: Path) -> Path:
         """Download an immutable Harbor dataset through the executor boundary."""
         if "@" not in dataset_ref:
@@ -2267,15 +2938,15 @@ class Executor:
             raise RuntimeError(f"Harbor dataset download exited {completed.returncode}")
         return destination
 
-    def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> Path:
+    def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> SettledRun:
         if request.agent not in CONTROL_AGENTS:
             raise ValueError(
                 "direct execution is restricted to oracle/nop; --allow-billable records "
                 "spend consent but does not bypass the standing-policy queue"
             )
-        job_dir = self._runner(request)
+        settled_run = self._runner(request)
         if ingest:
-            ingest_result = self._ingester(job_dir)
+            ingest_result = self._ingester(settled_run.cas_locator)
             if ingest_result is not None:
                 provenance = request.provenance
                 record_projection_failures(
@@ -2286,7 +2957,7 @@ class Executor:
                         provenance.spec_id if provenance is not None else f"system-{new_ulid()}"
                     ),
                 )
-        return job_dir
+        return settled_run
 
     def local_runtime_checks(self) -> list[tuple[str, bool, str]]:
         """Inspect executable runtimes through the executor's process boundary."""
@@ -2316,6 +2987,337 @@ class Executor:
                 detail = output[0] if output else "no version output"
                 checks.append(("docker-daemon", completed.returncode == 0, detail))
         return checks
+
+    def _docker_daemon_check(self) -> tuple[bool, str]:
+        if not shutil.which("docker"):
+            return False, "docker executable not found in PATH"
+        try:
+            completed = subprocess.run(
+                [
+                    "docker",
+                    "version",
+                    "--format",
+                    "client={{.Client.Version}} server={{.Server.Version}}",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                env=subscription_environment(),
+            )
+            if completed.returncode != 0:
+                return False, "Docker daemon unreachable"
+            return True, "Docker daemon reachable"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return False, f"Docker daemon check failed: {type(exc).__name__}"
+
+    def _resolve_readiness_canary(self, task_ref: str) -> tuple[Path, str]:
+        """Resolve one digest-pinned suite member; arbitrary direct tasks are forbidden."""
+        if not task_ref.startswith("canary/"):
+            raise ValueError("readiness smoke only accepts a registered canary/<name> task")
+        member_name = task_ref.removeprefix("canary/")
+        if not member_name or "/" in member_name:
+            raise ValueError("readiness smoke task must name exactly one registered canary")
+
+        from evallab.canary import load_canary_suite, task_directory_digest
+
+        suite = load_canary_suite(self.repo_root / "policy/canary-suite.yaml")
+        matches = [member for member in suite.members if member.name == member_name]
+        if len(matches) != 1:
+            raise ValueError(f"unknown readiness canary {task_ref!r}")
+        member = matches[0]
+        task_path = (self.repo_root / member.task_path).resolve()
+        if self.repo_root.resolve() not in task_path.parents:
+            raise ValueError(f"readiness canary escapes repository: {member.task_path}")
+        actual_digest = task_directory_digest(task_path)
+        if actual_digest != member.task_digest:
+            raise ValueError(
+                f"readiness canary digest mismatch for {member.name}; "
+                "update policy/canary-suite.yaml through review"
+            )
+        return task_path, member.task_digest
+
+    def execute_agent_smoke(
+        self,
+        profile: AgentProfile,
+        *,
+        task_ref: str = "canary/event-summary",
+        is_installed_fn: Callable[[str], bool] | None = None,
+        docker_checker: Callable[[], tuple[bool, str]] | None = None,
+        cli_runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
+        security_runner: SecurityRunner | None = None,
+        environment: Mapping[str, str] | None = None,
+    ) -> tuple[bool, AgentSmokeRecord | None, str | None]:
+        """Run one fixed-budget fresh-container transport and capture smoke."""
+        readiness = evaluate_profile_readiness(
+            profile,
+            root=self.repo_root,
+            is_installed_fn=is_installed_fn or (lambda binary: shutil.which(binary) is not None),
+            docker_checker=docker_checker or self._docker_daemon_check,
+            cli_runner=cli_runner,
+            security_runner=security_runner,
+            environment=environment,
+        )
+        for gate_name in (
+            "declared",
+            "installed",
+            "host_credential",
+            "harbor_transport",
+            "environment_network",
+            "structured_trajectory",
+        ):
+            if getattr(readiness.gates, gate_name) != "pass":
+                blocker_reason = (
+                    readiness.blocker.reason
+                    if readiness.blocker
+                    else f"Preflight gate '{gate_name}' failed"
+                )
+                return False, None, blocker_reason
+
+        try:
+            task_path, task_digest = self._resolve_readiness_canary(task_ref)
+        except ValueError as exc:
+            return False, None, str(exc)
+
+        job_profile_id = profile.profile_id.replace(".", "-").replace("_", "-")
+        job_name = f"smoke-{job_profile_id}-{new_ulid().lower()}"
+        metered_proxy = profile.adapter in {"mini-swe-agent", ZAI_OPENCODE_AGENT}
+        request = RunRequest(
+            task=task_path,
+            agent=profile.adapter,
+            model=profile.model,
+            name=job_name,
+            jobs_dir=self.repo_root / "runs",
+            timeout_seconds=300,
+            max_requests=16 if metered_proxy else None,
+            max_input_tokens=200_000 if metered_proxy else None,
+            max_output_tokens=64_000 if metered_proxy else None,
+            max_total_tokens=264_000 if metered_proxy else None,
+            cost_limit_usd=1.0 if metered_proxy else None,
+            allow_billable=True,
+            concurrency=1,
+            attempts=1,
+        )
+
+        try:
+            settled_run = self._runner(request)
+        except Exception as exc:
+            return False, None, f"Runner execution failed: {exc}"
+
+        with suppress(Exception):
+            self._ingester(settled_run.cas_locator)
+
+        try:
+            with materialize_evidence(settled_run.cas_locator) as job_dir:
+                job = load_job(job_dir)
+        except Exception as exc:
+            return False, None, f"Failed to load job result: {exc}"
+        if len(job.trials) != 1:
+            return False, None, f"Smoke run must produce exactly one trial, found {len(job.trials)}"
+
+        trial = job.trials[0]
+        exception_info = trial.result.get("exception_info")
+        agent_exception_type = (
+            str(exception_info["exception_type"])
+            if isinstance(exception_info, dict) and exception_info.get("exception_type")
+            else None
+        )
+
+        reward = trial.primary_reward
+        if reward is None:
+            reward_txt = trial.path / "verifier/reward.txt"
+            if reward_txt.is_file():
+                try:
+                    reward = float(reward_txt.read_text().strip())
+                except ValueError:
+                    reward = None
+        if reward is not None and not math.isfinite(reward):
+            reward = None
+
+        runtime_seconds = duration_seconds(
+            trial.result.get("started_at"), trial.result.get("finished_at")
+        )
+        if runtime_seconds is None:
+            return False, None, "Smoke trial did not record a complete runtime interval"
+
+        projection = project_trial(job, trial)
+        trajectory = next(
+            (
+                item
+                for item in projection.trajectories
+                if item.embedded_path is None and item.validation_status == "valid"
+            ),
+            None,
+        )
+        if trajectory is None or trajectory.step_count < 1:
+            return False, None, "Smoke trial did not capture one valid structured ATIF trajectory"
+        tool_call_count = sum(
+            step.tool_call_count
+            for step in projection.steps
+            if step.document_id == trajectory.document_id
+        )
+        native_evidence_path: str | None = None
+        native_evidence_digest: str | None = None
+        if profile.adapter == ZAI_OPENCODE_AGENT:
+            native_path = trial.path / "agent/opencode.txt"
+            if not native_path.is_file() or native_path.stat().st_size == 0:
+                return (
+                    False,
+                    None,
+                    "OpenCode runtime smoke did not capture native opencode.txt evidence",
+                )
+            native_evidence_path = native_path.relative_to(trial.path).as_posix()
+            native_evidence_digest = (
+                "sha256:" + hashlib.sha256(native_path.read_bytes()).hexdigest()
+            )
+
+        smoke_record = AgentSmokeRecord(
+            schema_version=2,
+            profile_id=profile.profile_id,
+            profile_digest=profile.digest,
+            task=task_ref,
+            task_digest=task_digest,
+            job_name=job.name,
+            trial_name=trial.name,
+            reward=reward,
+            agent_exception_type=agent_exception_type,
+            runtime_seconds=runtime_seconds,
+            step_count=trajectory.step_count,
+            tool_call_count=tool_call_count,
+            atif_path=trajectory.source_path,
+            atif_digest=trajectory.source_sha256,
+            native_evidence_path=native_evidence_path,
+            native_evidence_digest=native_evidence_digest,
+            fresh_container=True,
+            transport_status="complete",
+            capture_status="complete",
+            secret_safety_status="pass",
+            executed_at=datetime.now(UTC),
+        )
+
+        updated_readiness = evaluate_profile_readiness(
+            profile,
+            root=self.repo_root,
+            is_installed_fn=is_installed_fn or (lambda binary: shutil.which(binary) is not None),
+            docker_checker=docker_checker or self._docker_daemon_check,
+            cli_runner=cli_runner,
+            security_runner=security_runner,
+            environment=environment,
+            persisted_record=AgentReadinessRecord(
+                schema_version=1,
+                profile_id=profile.profile_id,
+                adapter=profile.adapter,
+                model=profile.model,
+                profile_digest=profile.digest,
+                state=ProfileState.SMOKE_PASSED.value,
+                gates=AgentGateEvaluations(
+                    declared="pass",
+                    installed="pass",
+                    host_credential="pass",
+                    harbor_transport="pass",
+                    environment_network="pass",
+                    structured_trajectory="pass",
+                    smoke="pass",
+                    canary="blocked",
+                ),
+                last_smoke=smoke_record,
+                network_isolation_evidence=readiness.network_isolation_evidence,
+                network_isolation_evidence_digest=readiness.network_isolation_evidence_digest,
+                network_isolation_status=readiness.network_isolation_status,
+                network_isolation_reason=readiness.network_isolation_reason,
+                analysis_eligibility=readiness.analysis_eligibility,
+                updated_at=datetime.now(UTC),
+            ),
+        )
+        save_readiness_record(updated_readiness, root=self.repo_root)
+        return True, smoke_record, None
+
+    def execute_agent_qualify(
+        self,
+        profile: AgentProfile,
+        *,
+        repeats: int = 3,
+        task_ref: str = "canary/event-summary",
+        is_installed_fn: Callable[[str], bool] | None = None,
+        docker_checker: Callable[[], tuple[bool, str]] | None = None,
+        cli_runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
+        security_runner: SecurityRunner | None = None,
+        environment: Mapping[str, str] | None = None,
+    ) -> tuple[bool, AgentQualificationDigest | None, str | None]:
+        """Require exactly three fresh-container transport/capture smokes."""
+        if repeats != 3:
+            return False, None, "Qualification requires exactly 3 fresh-container smokes"
+
+        smoke_records: list[AgentSmokeRecord] = []
+        for index in range(repeats):
+            ok, smoke_rec, err = self.execute_agent_smoke(
+                profile,
+                task_ref=task_ref,
+                is_installed_fn=is_installed_fn,
+                docker_checker=docker_checker,
+                cli_runner=cli_runner,
+                security_runner=security_runner,
+                environment=environment,
+            )
+            if not ok or smoke_rec is None:
+                return False, None, f"Repeat {index + 1}/{repeats} failed: {err}"
+            smoke_records.append(smoke_rec)
+
+        current_readiness = load_readiness_record(profile.profile_id, root=self.repo_root)
+        if current_readiness is None:
+            return False, None, "Qualification lost its persisted readiness evidence"
+
+        qualification = AgentQualificationDigest(
+            schema_version=2,
+            profile_id=profile.profile_id,
+            profile_digest=profile.digest,
+            qualification_basis="transport-capture",
+            repeats=repeats,
+            success_count=len(smoke_records),
+            smoke_records=smoke_records,
+            qualification_digest=compute_qualification_digest(smoke_records),
+            qualified_at=datetime.now(UTC),
+        )
+
+        updated_readiness = evaluate_profile_readiness(
+            profile,
+            root=self.repo_root,
+            is_installed_fn=is_installed_fn or (lambda binary: shutil.which(binary) is not None),
+            docker_checker=docker_checker or self._docker_daemon_check,
+            cli_runner=cli_runner,
+            security_runner=security_runner,
+            environment=environment,
+            persisted_record=AgentReadinessRecord(
+                schema_version=1,
+                profile_id=profile.profile_id,
+                adapter=profile.adapter,
+                model=profile.model,
+                profile_digest=profile.digest,
+                state=ProfileState.CANARY_QUALIFIED.value,
+                gates=AgentGateEvaluations(
+                    declared="pass",
+                    installed="pass",
+                    host_credential="pass",
+                    harbor_transport="pass",
+                    environment_network="pass",
+                    structured_trajectory="pass",
+                    smoke="pass",
+                    canary="pass",
+                ),
+                last_smoke=smoke_records[-1],
+                qualification=qualification,
+                network_isolation_evidence=current_readiness.network_isolation_evidence,
+                network_isolation_evidence_digest=(
+                    current_readiness.network_isolation_evidence_digest
+                ),
+                network_isolation_status=current_readiness.network_isolation_status,
+                network_isolation_reason=current_readiness.network_isolation_reason,
+                analysis_eligibility=current_readiness.analysis_eligibility,
+                updated_at=datetime.now(UTC),
+            ),
+        )
+        save_readiness_record(updated_readiness, root=self.repo_root)
+        return True, qualification, None
 
     def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
         state_path = self._safe_repo_path(spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"
@@ -2389,13 +3391,29 @@ class Executor:
             if not isinstance(result, dict) or result.get("finished_at") is None:
                 continue
             try:
-                job = load_job(job_dir)
+                locator, archive = _settle_completed_job(
+                    job_dir,
+                    store_root=_evidence_store_root(),
+                    record_id=spec.name,
+                )
+            except ExecutionFailure as exc:
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code=exc.reason_code,
+                    message=str(exc),
+                )
+                continue
+            try:
+                with materialize_evidence(locator) as settled_job_dir:
+                    job = load_job(settled_job_dir)
             except Exception:
                 self._fail_reconciled_running(
                     path,
                     spec,
                     reason_code="running_reconcile_incomplete_evidence",
                     message="terminal trial evidence is unreadable; refusing reconciliation",
+                    cas_locator=locator,
                 )
                 continue
             if not job.trials:
@@ -2404,6 +3422,7 @@ class Executor:
                     spec,
                     reason_code="running_reconcile_incomplete_evidence",
                     message="terminal job has no trial evidence; refusing reconciliation",
+                    cas_locator=locator,
                 )
                 continue
             transient_reason = next(
@@ -2423,10 +3442,11 @@ class Executor:
                         "executor stopped after a transient provider failure; "
                         "preserved evidence requires operator resubmission"
                     ),
+                    cas_locator=locator,
                 )
                 continue
             failure = self._settle_post_run(
-                job_dir,
+                SettledRun(cas_locator=locator, cas_record=archive),
                 spec,
                 actor="executor-reconcile",
             )
@@ -2437,6 +3457,7 @@ class Executor:
                     spec,
                     reason_code=failure_reason,
                     message=failure.message,
+                    cas_locator=locator,
                 )
                 continue
             self.queue.transition(
@@ -2445,6 +3466,7 @@ class Executor:
                 actor="executor-reconcile",
                 event="running_reconciled",
                 policy_rule=spec.policy_rule,
+                cas_locator=locator,
             )
 
     def _fail_reconciled_running(
@@ -2454,6 +3476,7 @@ class Executor:
         *,
         reason_code: str,
         message: str,
+        cas_locator: EvidenceLocator | None = None,
     ) -> None:
         decision = PolicyDecision(
             admitted=False,
@@ -2467,6 +3490,7 @@ class Executor:
             event="running_reconcile_failed",
             reason_code=reason_code,
             policy_rule=spec.policy_rule,
+            cas_locator=cas_locator,
         )
         self.queue.write_reason(self.queue.load(failed), decision)
 
@@ -2476,17 +3500,20 @@ class Executor:
             raise ValueError(f"path escapes repository: {relative}")
         return candidate
 
-    def _run_harbor(self, request: RunRequest) -> Path:
+    def _run_harbor(self, request: RunRequest) -> SettledRun:
         return run_experiment(request, repo_root=self.repo_root)
 
-    def _ingest(self, job_dir: Path) -> IngestProjectionResult:
+    def _ingest(self, locator: EvidenceLocator) -> IngestProjectionResult:
         url = database_url_from_environment()
-        return ingest_and_project(
-            url,
-            [load_job(job_dir)],
-            root=self.repo_root,
-            output_root=derived_root_from_environment(self.repo_root),
-        )
+        with materialize_evidence(locator) as job_dir:
+            job = load_job(job_dir)
+            return ingest_and_project(
+                url,
+                [job],
+                root=self.repo_root,
+                output_root=derived_root_from_environment(self.repo_root),
+                source_locators={job.id: locator},
+            )
 
     def _catalog_spend(self) -> float:
         try:

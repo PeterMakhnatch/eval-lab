@@ -24,15 +24,26 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from evallab.execution_contracts import (
+    OPENCODE_AUTH_RELATIVE_PATH,
+    ZAI_AUTH_PROVIDER,
+    ZAI_OPENCODE_AGENT,
+    read_owner_secret_file,
+)
+
+if TYPE_CHECKING:
+    from evallab.schemas import AgentReadinessRecord, AgentSmokeRecord
 
 # Substrings that identify API-key style environment variables. They remain
 # forbidden everywhere except the exact DeepSeek environment source below.
@@ -212,6 +223,19 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def default_security_runner(args: list[str]) -> int:
+    """Probe macOS Keychain metadata without reading or emitting secret values."""
+    completed = subprocess.run(
+        ["/usr/bin/security", *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=10,
+        check=False,
+    )
+    return completed.returncode
+
+
 @dataclass(frozen=True)
 class KeychainProbe:
     """Probe a macOS keychain service for existence — exit status only.
@@ -281,6 +305,40 @@ class AuthFileProbe:
             elif isinstance(node, list):
                 stack.extend(node)
         return None
+
+
+@dataclass(frozen=True)
+class OpenCodeProviderAuthProbe:
+    """Check one provider entry in OpenCode's owner-only auth store.
+
+    Only provider identity and credential presence influence the result. Secret
+    values are never returned, logged, or attached to the readiness record.
+    """
+
+    home: Path
+    relative_path: str
+    provider: str
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        del profile
+        path = self.home / self.relative_path
+        try:
+            payload = json.loads(read_owner_secret_file(path))
+        except OSError:
+            return ProbeResult(
+                ok=False,
+                reason=f"OpenCode auth file missing or not owner-only: ~/{self.relative_path}",
+            )
+        except json.JSONDecodeError:
+            return ProbeResult(ok=False, reason="OpenCode auth file is not valid JSON")
+        entry = payload.get(self.provider) if isinstance(payload, dict) else None
+        key = entry.get("key") if isinstance(entry, dict) else None
+        if not isinstance(key, str) or not key:
+            return ProbeResult(
+                ok=False,
+                reason=f"OpenCode auth has no credential for provider '{self.provider}'",
+            )
+        return ProbeResult(ok=True)
 
 
 @dataclass(frozen=True)
@@ -479,6 +537,29 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="zai-opencode-glm-5.3",
+                adapter=ZAI_OPENCODE_AGENT,
+                adapter_version="1.0.0+opencode-1.18.25",
+                model="zai-coding-plan/glm-5.3",
+                auth_mode="subscription-auth-file",
+                secret_source=f"file:{OPENCODE_AUTH_RELATIVE_PATH.as_posix()}",
+                required_files=(OPENCODE_AUTH_RELATIVE_PATH.as_posix(),),
+                capabilities=(
+                    "credential-transport:proxy-isolated",
+                    "structured-trajectory:ATIF-v1.7",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-08-31: Harbor 0.21 OpenCode declares SUPPORTS_ATIF and emits ATIF-v1.7",
+                    "2026-08-31: host OpenCode auth contains the zai-coding-plan "
+                    "provider entry without exposing its value",
+                ),
+            ),
+            AgentProfile(
                 profile_id="claude-code-fable-5",
                 adapter="claude-code",
                 model="anthropic/claude-fable-5",
@@ -670,6 +751,7 @@ def default_probe_for(
     keychain_account: str,
     clock: Clock = _utc_now,
     environment: Mapping[str, str] | None = None,
+    cli_runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
 ) -> ProbeFn | None:
     """Wire the standard probe for a profile through injected seams only."""
     if profile.auth_mode == "none":
@@ -697,6 +779,459 @@ def default_probe_for(
                 reason=f"{profile.profile_id} declares cli-session auth with no command"
             )
         expect = "gemini" if command[0] == "agy" else "logged in"
-        return CliSessionProbe(argv=tuple(command), expect=expect)
+        return CliSessionProbe(argv=tuple(command), expect=expect, runner=cli_runner)
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        relative = (profile.secret_source or "file:")[len("file:") :]
+        return OpenCodeProviderAuthProbe(
+            home=home,
+            relative_path=relative,
+            provider=ZAI_AUTH_PROVIDER,
+        )
     relative = (profile.secret_source or "file:")[len("file:") :]
     return AuthFileProbe(home=home, relative_path=relative, clock=clock)
+
+
+# ---------------------------------------------------------------------------
+# 8-Gate Qualification Ladder & Deterministic Blocker Control Plane
+# ---------------------------------------------------------------------------
+
+GATE_DECLARED = "declared"
+GATE_INSTALLED = "installed"
+GATE_HOST_CREDENTIAL = "host_credential"
+GATE_HARBOR_TRANSPORT = "harbor_transport"
+GATE_ENVIRONMENT_NETWORK = "environment_network"
+GATE_STRUCTURED_TRAJECTORY = "structured_trajectory"
+GATE_SMOKE = "smoke"
+GATE_CANARY = "canary"
+
+ALL_READINESS_GATES: tuple[str, ...] = (
+    GATE_DECLARED,
+    GATE_INSTALLED,
+    GATE_HOST_CREDENTIAL,
+    GATE_HARBOR_TRANSPORT,
+    GATE_ENVIRONMENT_NETWORK,
+    GATE_STRUCTURED_TRAJECTORY,
+    GATE_SMOKE,
+    GATE_CANARY,
+)
+
+ADAPTER_CLI_BINARIES: dict[str, str] = {
+    "antigravity-cli": "agy",
+    "cursor-cli": "cursor-agent",
+    "codex": "codex",
+    "claude-code": "claude",
+    "gemini-cli": "gemini",
+    "grok-cli": "grok",
+    "zai-opencode": "opencode",
+}
+
+
+def check_installed(
+    profile: AgentProfile,
+    *,
+    is_installed_fn: Callable[[str], bool] | None = None,
+) -> tuple[bool, str | None]:
+    """Check whether adapter host binary or execution module is installed."""
+    if profile.adapter in CONTROL_ADAPTERS:
+        return True, None
+    binary = ADAPTER_CLI_BINARIES.get(profile.adapter)
+    if binary is not None:
+        installed = (
+            is_installed_fn(binary) if is_installed_fn is not None else bool(shutil.which(binary))
+        )
+        if not installed:
+            return (
+                False,
+                f"CLI executable '{binary}' for adapter '{profile.adapter}' not found on host",
+            )
+        return True, None
+    return True, None
+
+
+def check_harbor_transport(
+    profile: AgentProfile,
+    *,
+    host_credential_ok: bool,
+) -> tuple[bool, str | None, str | None]:
+    """Check whether host credentials can be securely transported into Harbor runner."""
+    if profile.adapter in CONTROL_ADAPTERS:
+        return True, None, None
+
+    if profile.profile_id in DECLARED_UNAVAILABLE and not profile.verified_facts:
+        return (
+            False,
+            f"{profile.profile_id} is declared but not independently proven in this lab",
+            "Declared profiles are not runnable until proven in this lab",
+        )
+
+    if profile.adapter == "cursor-cli":
+        # Host subscription session is active, but Harbor runner in Docker requires CURSOR_API_KEY
+        # which is unavailable for subscription sessions.
+        return (
+            False,
+            "Harbor runner requires CURSOR_API_KEY; host cursor-agent subscription session is not transported into Docker",
+            "Cursor subscription cannot be mounted into Harbor Docker runner; use Antigravity or Codex lane for container execution",
+        )
+
+    if not host_credential_ok:
+        return False, "Host credential unavailable or expired; transport cannot proceed", None
+
+    if profile.adapter == "antigravity-cli":
+        return True, None, None
+
+    if profile.adapter == "codex":
+        return True, None, None
+
+    if profile.adapter == "mini-swe-agent":
+        return True, None, None
+
+    if profile.adapter == "claude-code":
+        return True, None, None
+
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        if "credential-transport:proxy-isolated" not in profile.capabilities:
+            return (
+                False,
+                "Z.ai OpenCode profile does not declare proxy-isolated credential transport",
+                "Declare the canonical proxy-isolated transport capability",
+            )
+        return True, None, None
+    return True, None, None
+
+
+def check_environment_network(
+    *,
+    docker_checker: Callable[[], tuple[bool, str]] | None = None,
+) -> tuple[bool, str | None]:
+    """Check container runtime and environment reachability."""
+    if docker_checker is not None:
+        ok, detail = docker_checker()
+        return ok, (None if ok else detail)
+    if not shutil.which("docker"):
+        return False, "docker executable not found in PATH"
+    try:
+        completed = subprocess.run(
+            ["docker", "version", "--format", "client={{.Client.Version}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if completed.returncode != 0:
+            return False, "Docker daemon unreachable"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"Docker check failed: {type(exc).__name__}"
+    return True, None
+
+
+def check_structured_trajectory(profile: AgentProfile) -> tuple[bool, str | None]:
+    """Check whether adapter produces structured ATIF trajectory stream events."""
+    if profile.adapter in CONTROL_ADAPTERS:
+        return True, None
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        if "structured-trajectory:ATIF-v1.7" in profile.capabilities:
+            return True, None
+        return False, "Z.ai OpenCode profile does not declare ATIF-v1.7 capture"
+    structured_adapters = frozenset({"codex", "antigravity-cli", "mini-swe-agent", "oracle", "nop"})
+    if profile.adapter in structured_adapters:
+        return True, None
+    return (
+        False,
+        f"Adapter '{profile.adapter}' lacks structured ATIF stream capture; only raw stdout recorded",
+    )
+
+
+def readiness_record_path(profile_id: str, *, root: Path) -> Path:
+    return root / "research/evidence/readiness" / f"{profile_id}.json"
+
+
+def load_readiness_record(profile_id: str, *, root: Path) -> AgentReadinessRecord | None:
+    from evallab.schemas import AgentReadinessRecord
+
+    path = readiness_record_path(profile_id, root=root)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return AgentReadinessRecord.model_validate(data)
+    except (OSError, ValueError):
+        return None
+
+
+def save_readiness_record(record: AgentReadinessRecord, *, root: Path) -> Path:
+    path = readiness_record_path(record.profile_id, root=root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = json.dumps(record.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def compute_qualification_digest(
+    smoke_records: Sequence[AgentSmokeRecord],
+) -> str:
+    canonical = json.dumps(
+        [record.model_dump(mode="json") for record in smoke_records],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def evaluate_profile_readiness(
+    profile: AgentProfile,
+    *,
+    root: Path | None = None,
+    home: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+    security_runner: SecurityRunner | None = None,
+    keychain_account: str | None = None,
+    cli_runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
+    is_installed_fn: Callable[[str], bool] | None = None,
+    docker_checker: Callable[[], tuple[bool, str]] | None = None,
+    clock: Clock = _utc_now,
+    persisted_record: AgentReadinessRecord | None = None,
+) -> AgentReadinessRecord:
+    """Evaluate the 8-gate qualification ladder and compute first deterministic blocker."""
+    from evallab.schemas import (
+        AgentBlocker,
+        AgentGateEvaluations,
+        AgentQualificationDigest,
+        AgentReadinessRecord,
+        GateStatus,
+    )
+
+    repo_root = root or Path.cwd()
+    env = os.environ if environment is None else environment
+    effective_home = home or Path.home()
+    sec_runner = security_runner or default_security_runner
+    kc_account = keychain_account if keychain_account is not None else env.get("USER", "")
+
+    # Load persisted record if available
+    saved_record = (
+        persisted_record
+        if persisted_record is not None
+        else load_readiness_record(profile.profile_id, root=repo_root)
+    )
+
+    gates: dict[str, GateStatus] = {g: "untested" for g in ALL_READINESS_GATES}
+    active_blocker: AgentBlocker | None = None
+
+    # Gate 1: Declared
+    declared_ok = True
+    declared_reason: str | None = None
+    if not profile.profile_id:
+        declared_ok = False
+        declared_reason = "Profile ID is empty"
+    elif profile.adapter not in CONTROL_ADAPTERS and not profile.model:
+        declared_ok = False
+        declared_reason = "Billable profile requires an exact model pin"
+    elif profile.adapter not in CONTROL_ADAPTERS and profile.secret_source is None:
+        declared_ok = False
+        declared_reason = "Billable profile must identify its secret source"
+
+    if declared_ok:
+        gates[GATE_DECLARED] = "pass"
+    else:
+        gates[GATE_DECLARED] = "fail"
+        active_blocker = AgentBlocker(
+            gate=GATE_DECLARED,
+            reason=declared_reason or "Profile declaration invalid",
+        )
+
+    # Gate 2: Installed
+    if active_blocker is None:
+        installed_ok, installed_reason = check_installed(profile, is_installed_fn=is_installed_fn)
+        if installed_ok:
+            gates[GATE_INSTALLED] = "pass"
+        else:
+            gates[GATE_INSTALLED] = "fail"
+            active_blocker = AgentBlocker(
+                gate=GATE_INSTALLED,
+                reason=installed_reason or f"Adapter '{profile.adapter}' executable not found",
+                remediation=f"Install CLI for adapter '{profile.adapter}' or ensure it is in PATH",
+            )
+    else:
+        gates[GATE_INSTALLED] = "blocked"
+
+    # Gate 3: Host Credential
+    if active_blocker is None:
+        if profile.auth_mode == "none":
+            gates[GATE_HOST_CREDENTIAL] = "pass"
+        else:
+            probe = default_probe_for(
+                profile,
+                home=effective_home,
+                security_runner=sec_runner,
+                keychain_account=kc_account,
+                clock=clock,
+                environment=env,
+                cli_runner=cli_runner,
+            )
+            if probe is None:
+                gates[GATE_HOST_CREDENTIAL] = "fail"
+                active_blocker = AgentBlocker(
+                    gate=GATE_HOST_CREDENTIAL,
+                    reason="No credential probe wired for billable profile",
+                )
+            else:
+                probe_res = probe(profile)
+                if probe_res.ok:
+                    gates[GATE_HOST_CREDENTIAL] = "pass"
+                else:
+                    gates[GATE_HOST_CREDENTIAL] = "fail"
+                    active_blocker = AgentBlocker(
+                        gate=GATE_HOST_CREDENTIAL,
+                        reason=probe_res.reason or "Credential probe failed",
+                        remediation=f"Configure credentials for {profile.secret_source}",
+                    )
+    else:
+        gates[GATE_HOST_CREDENTIAL] = "blocked"
+
+    # Gate 4: Harbor Transport
+    if active_blocker is None:
+        transport_ok, transport_reason, remediation = check_harbor_transport(
+            profile,
+            host_credential_ok=(gates[GATE_HOST_CREDENTIAL] == "pass"),
+        )
+        if transport_ok:
+            gates[GATE_HARBOR_TRANSPORT] = "pass"
+        else:
+            gates[GATE_HARBOR_TRANSPORT] = "fail"
+            active_blocker = AgentBlocker(
+                gate=GATE_HARBOR_TRANSPORT,
+                reason=transport_reason or "Credential transport into Harbor runner failed",
+                remediation=remediation,
+            )
+    else:
+        gates[GATE_HARBOR_TRANSPORT] = "blocked"
+
+    # Gate 5: Environment / Network
+    if active_blocker is None:
+        env_ok, env_reason = check_environment_network(docker_checker=docker_checker)
+        if env_ok:
+            gates[GATE_ENVIRONMENT_NETWORK] = "pass"
+        else:
+            gates[GATE_ENVIRONMENT_NETWORK] = "fail"
+            active_blocker = AgentBlocker(
+                gate=GATE_ENVIRONMENT_NETWORK,
+                reason=env_reason or "Docker daemon or container environment unreachable",
+                remediation="Ensure Docker daemon is running and accessible",
+            )
+    else:
+        gates[GATE_ENVIRONMENT_NETWORK] = "blocked"
+
+    # Gate 6: Structured Trajectory
+    if active_blocker is None:
+        traj_ok, traj_reason = check_structured_trajectory(profile)
+        if traj_ok:
+            gates[GATE_STRUCTURED_TRAJECTORY] = "pass"
+        else:
+            gates[GATE_STRUCTURED_TRAJECTORY] = "fail"
+            active_blocker = AgentBlocker(
+                gate=GATE_STRUCTURED_TRAJECTORY,
+                reason=traj_reason
+                or f"Adapter '{profile.adapter}' lacks structured ATIF trajectory capture",
+                remediation=f"Implement ATIF stream capture for adapter '{profile.adapter}'",
+            )
+    else:
+        gates[GATE_STRUCTURED_TRAJECTORY] = "blocked"
+
+    # Gate 7: Smoke
+    last_smoke: AgentSmokeRecord | None = saved_record.last_smoke if saved_record else None
+    if active_blocker is None:
+        if (
+            last_smoke is not None
+            and last_smoke.profile_digest == profile.digest
+            and last_smoke.transport_status == "complete"
+            and last_smoke.capture_status == "complete"
+            and last_smoke.secret_safety_status == "pass"
+        ):
+            gates[GATE_SMOKE] = "pass"
+        else:
+            gates[GATE_SMOKE] = "blocked"
+            active_blocker = AgentBlocker(
+                gate=GATE_SMOKE,
+                reason=f"No verified transport/capture smoke on record; run 'evallab agents smoke {profile.profile_id}'",
+                remediation=f"Run 'evallab agents smoke {profile.profile_id}'",
+            )
+    else:
+        gates[GATE_SMOKE] = "blocked"
+
+    # Gate 8: Canary
+    qualification: AgentQualificationDigest | None = (
+        saved_record.qualification if saved_record else None
+    )
+    if active_blocker is None:
+        if (
+            qualification is not None
+            and qualification.success_count >= qualification.repeats
+            and qualification.repeats >= 3
+            and qualification.profile_digest == profile.digest
+        ):
+            gates[GATE_CANARY] = "pass"
+        else:
+            gates[GATE_CANARY] = "blocked"
+            active_blocker = AgentBlocker(
+                gate=GATE_CANARY,
+                reason=f"Profile not qualified across repeated canary controls; run 'evallab agents qualify {profile.profile_id}'",
+                remediation=f"Run 'evallab agents qualify {profile.profile_id}'",
+            )
+    else:
+        gates[GATE_CANARY] = "blocked"
+
+    # Compute Ladder State
+    if gates[GATE_CANARY] == "pass":
+        state = ProfileState.CANARY_QUALIFIED
+    elif gates[GATE_SMOKE] == "pass":
+        state = ProfileState.SMOKE_PASSED
+    elif (
+        gates[GATE_DECLARED] == "pass"
+        and gates[GATE_INSTALLED] == "pass"
+        and gates[GATE_HOST_CREDENTIAL] == "pass"
+        and gates[GATE_HARBOR_TRANSPORT] == "pass"
+        and gates[GATE_ENVIRONMENT_NETWORK] == "pass"
+        and gates[GATE_STRUCTURED_TRAJECTORY] == "pass"
+    ):
+        state = ProfileState.CREDENTIAL_READY
+    elif gates[GATE_DECLARED] == "pass" and gates[GATE_INSTALLED] == "pass":
+        state = ProfileState.INSTALLED
+    else:
+        state = ProfileState.DECLARED
+
+    updated_at = clock()
+    isolation_evidence = (
+        saved_record.network_isolation_evidence if saved_record is not None else None
+    )
+    isolation_projection = (
+        isolation_evidence.project(as_of=updated_at) if isolation_evidence is not None else None
+    )
+    return AgentReadinessRecord(
+        schema_version=1,
+        profile_id=profile.profile_id,
+        adapter=profile.adapter,
+        model=profile.model,
+        profile_digest=profile.digest,
+        state=state.value,
+        gates=AgentGateEvaluations(**gates),
+        blocker=active_blocker,
+        last_smoke=last_smoke,
+        qualification=qualification,
+        updated_at=updated_at,
+        network_isolation_evidence=isolation_evidence,
+        network_isolation_evidence_digest=(
+            isolation_evidence.evidence_digest if isolation_evidence is not None else None
+        ),
+        network_isolation_status=(
+            isolation_projection.status if isolation_projection is not None else "unknown"
+        ),
+        network_isolation_reason=(
+            isolation_projection.reason
+            if isolation_projection is not None
+            else "network_isolation_unknown:missing-evidence"
+        ),
+        analysis_eligibility=(
+            isolation_projection.analysis_eligibility
+            if isolation_projection is not None
+            else "calibration-only"
+        ),
+    )

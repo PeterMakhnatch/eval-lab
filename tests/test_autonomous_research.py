@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Literal
+import hashlib
+import json
+from pathlib import Path
+from typing import Any, Literal
 
 import pytest
 
@@ -19,6 +22,7 @@ from evallab.interpretation.feature_registry import (
     feature_analysis_eligibility,
     verify_benchmark_feature_coverage,
 )
+from evallab.registry import compute_task_digests
 
 
 def _sample_scale_binding(
@@ -48,8 +52,39 @@ def _sample_scale_binding(
     )
 
 
-def test_autonomous_research_features_capture_iteration_selection_and_transfer() -> None:
-    scale_binding = _sample_scale_binding(metric_name="score", direction="higher")
+def test_autonomous_research_features_capture_iteration_selection_and_transfer(
+    tmp_path: Path,
+) -> None:
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'test'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Test\n", encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_eval.py").write_text("def test_it(): pass\n", encoding="utf-8")
+
+    task_digests = compute_task_digests(task_dir)
+    metric_cfg = {"metric": "score"}
+    vis_outcome = {"score": 10.0}
+    hid_outcome = {"score": 12.0}
+
+    def _d(v: dict[str, Any]) -> str:
+        return (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(v, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+        )
+
+    scale_binding = _sample_scale_binding(
+        metric_name="score",
+        direction="higher",
+        task_digest=task_digests.package,
+        verifier_digest=task_digests.verifier,
+        metric_config_digest=_d(metric_cfg),
+        visible_outcome_binding_digest=_d(vis_outcome),
+        hidden_outcome_binding_digest=_d(hid_outcome),
+    )
     trace = ResearchRunTraceV1(
         run_id="rsi-run-1",
         benchmark_family="rsi-exam/game2048",
@@ -135,7 +170,13 @@ def test_autonomous_research_features_capture_iteration_selection_and_transfer()
             ),
         ),
     )
-    features = extract_autonomous_research_features(trace)
+    features = extract_autonomous_research_features(
+        trace,
+        task_dir=task_dir,
+        metric_config=metric_cfg,
+        visible_outcome=vis_outcome,
+        hidden_outcome=hid_outcome,
+    )
 
     # Identity & Source
     assert features.source_kind == "harbor"
@@ -712,10 +753,41 @@ def test_leakage_and_contamination_detection() -> None:
     assert features.train_val_split_intact is False
 
 
-def test_lower_is_better_score_direction_semantics() -> None:
+def test_lower_is_better_score_direction_semantics(tmp_path: Path) -> None:
+    task_dir = tmp_path / "task_lower"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text("name = 'task_lower'\n", encoding="utf-8")
+    (task_dir / "instruction.md").write_text("# Task Lower\n", encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_eval.py").write_text("def test_it(): pass\n", encoding="utf-8")
+
+    from evallab.registry import compute_task_digests
+
+    task_digests = compute_task_digests(task_dir)
+    metric_cfg = {"metric": "loss"}
+    vis_outcome = {"score": 2.5}
+    hid_outcome = {"score": 1.7}
+
+    import hashlib
+    import json
+
+    def _d(v: dict[str, Any]) -> str:
+        return (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(v, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+        )
+
     scale_binding = _sample_scale_binding(
         metric_name="loss",
         direction="lower",
+        task_digest=task_digests.package,
+        verifier_digest=task_digests.verifier,
+        metric_config_digest=_d(metric_cfg),
+        visible_outcome_binding_digest=_d(vis_outcome),
+        hidden_outcome_binding_digest=_d(hid_outcome),
         visible_split_id="val",
         hidden_split_id="test",
     )
@@ -764,7 +836,13 @@ def test_lower_is_better_score_direction_semantics() -> None:
             ),
         ),
     )
-    features = extract_autonomous_research_features(trace)
+    features = extract_autonomous_research_features(
+        trace,
+        task_dir=task_dir,
+        metric_config=metric_cfg,
+        visible_outcome=vis_outcome,
+        hidden_outcome=hid_outcome,
+    )
 
     assert features.score_direction == "lower"
     assert features.baseline_visible_score == 2.5

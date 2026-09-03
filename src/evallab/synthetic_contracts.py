@@ -175,7 +175,10 @@ class SyntheticCertificate(ContractModel):
     )
     status: SyntheticCertificateStatus = Field(
         default="experimental",
-        description="Certification status: experimental (all gates passed) or rejected",
+        description=(
+            "Lifecycle label: experimental records remain representable even when "
+            "nonpassing; rejected records a failed certification audit"
+        ),
     )
     static_reachability: bool = Field(
         description="Static verification that solution path is reachable"
@@ -228,7 +231,7 @@ class SyntheticCertificate(ContractModel):
 
     @property
     def is_passing(self) -> bool:
-        """Evaluate if all verification checks passed successfully."""
+        """Return whether an experimental record satisfies every gate, including 3+ mutants."""
         return (
             self.status == "experimental"
             and self.static_reachability
@@ -238,7 +241,8 @@ class SyntheticCertificate(ContractModel):
             and self.alignment_audit_passed
             and self.regeneration_idempotent
             and self.secret_isolation_passed
-            and (self.mutants_failed_count >= self.mutants_tested_count)
+            and self.mutants_tested_count >= 3
+            and self.mutants_failed_count == self.mutants_tested_count
         )
 
 

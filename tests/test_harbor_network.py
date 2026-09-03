@@ -3,6 +3,7 @@
 These tests prove that the staging adapter preserves the canonical task package
 and only changes ``network_mode`` entries to match the host's capabilities.
 """
+
 import re
 import tomllib
 
@@ -232,3 +233,46 @@ def test_darwin_adapts_verifier_phase_override(
         re.MULTILINE | re.DOTALL,
     )
     _assert_non_network_fields_unchanged(canonical, new_text)
+
+
+def test_darwin_records_unsupported_agent_allowlist_without_passing_it_to_harbor() -> None:
+    policy = HarborNetworkPolicy(
+        network_mode="public",
+        network_isolation_enforced=False,
+        network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+    )
+
+    new_text, adaptation = adapt_task_toml_for_host(
+        _SEQGEN_CANONICAL,
+        host_policy=policy,
+        agent_allowed_hosts=("zai-secret-proxy",),
+    )
+
+    assert adaptation is not None
+    assert adaptation.requested_agent_network == "allowlist"
+    assert adaptation.effective_agent_network == "public"
+    assert adaptation.requested_agent_allowed_hosts == ("zai-secret-proxy",)
+    assert adaptation.agent_allowlist_enforced is False
+    assert 'network_mode = "allowlist"' not in new_text
+    assert 'allowed_hosts = ["zai-secret-proxy"]' not in new_text
+
+
+def test_linux_applies_agent_allowlist_when_harbor_can_enforce_it() -> None:
+    policy = HarborNetworkPolicy(
+        network_mode="no-network",
+        network_isolation_enforced=True,
+        network_isolation_reason=None,
+    )
+
+    new_text, adaptation = adapt_task_toml_for_host(
+        _SEQGEN_CANONICAL,
+        host_policy=policy,
+        agent_allowed_hosts=("zai-secret-proxy",),
+    )
+
+    assert adaptation is not None
+    assert adaptation.requested_agent_network == "allowlist"
+    assert adaptation.effective_agent_network == "allowlist"
+    assert adaptation.agent_allowlist_enforced is True
+    assert 'network_mode = "allowlist"' in new_text
+    assert 'allowed_hosts = ["zai-secret-proxy"]' in new_text

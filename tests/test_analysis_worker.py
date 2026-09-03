@@ -41,9 +41,12 @@ POLICY = StandingApprovalsPolicy(
     quiet_failure_rule=3,
     auto_run=[
         {"name": "local-controls", "agents": ["oracle", "nop"]},
-        {"name": "researcher-followups", "agents": ["codex", "claude-code"],
-         "max_attempts": 5,
-         "requires": ["schema_valid", "dedup_pass", "calibrated_judges_only"]},
+        {
+            "name": "researcher-followups",
+            "agents": ["codex", "claude-code"],
+            "max_attempts": 5,
+            "requires": ["schema_valid", "dedup_pass", "calibrated_judges_only"],
+        },
     ],
     escalate_to_human=["new_task_registration", "cloud_or_remote_environment"],
 )
@@ -57,15 +60,28 @@ class CountingAdapter:
     def __call__(self, prompt: str, schema: dict) -> AnalyzerCallResult:
         self.calls += 1
         return AnalyzerCallResult(
-            raw_output=self.response, input_tokens=100, output_tokens=50,
+            raw_output=self.response,
+            input_tokens=100,
+            output_tokens=50,
             cost_usd=0.01,
         )
 
 
-def make_worker(tmp_path: Path, *, adapter=None, adapter_factory=None, indexer=None, stop=False,
-                probe_ok=True, healthy=True, spent=0.0, est_cost=0.01,
-                requirements_ok=True, profile=PROFILE,
-                response="saved-response.json"):
+def make_worker(
+    tmp_path: Path,
+    *,
+    adapter=None,
+    adapter_factory=None,
+    indexer=None,
+    stop=False,
+    probe_ok=True,
+    healthy=True,
+    spent=0.0,
+    est_cost=0.01,
+    requirements_ok=True,
+    profile=PROFILE,
+    response="saved-response.json",
+):
     root = tmp_path / "repo"
     if not (root / "jobs").exists():
         shutil.copytree(FIXTURES / "jobs", root / "jobs")
@@ -76,8 +92,9 @@ def make_worker(tmp_path: Path, *, adapter=None, adapter_factory=None, indexer=N
         stop_present=lambda: stop,
         policy=POLICY,
         profile=profile,
-        probe=(lambda p: ProbeResult(ok=probe_ok,
-                                     reason=None if probe_ok else "auth file missing")),
+        probe=(
+            lambda p: ProbeResult(ok=probe_ok, reason=None if probe_ok else "auth file missing")
+        ),
         spent_today_usd=lambda: spent,
         est_call_cost_usd=est_cost,
         services_healthy=lambda: healthy,
@@ -116,8 +133,7 @@ def test_harness_exception_is_deferred_never_agent_failure(tmp_path):
     worker, root = make_worker(tmp_path)
     worker.stage([root / "jobs"])
     states = {rid: worker.store.transitions(rid)[-1] for rid in worker.store.all_request_ids()}
-    exc = [t for t in states.values()
-           if t.reason and "harness_exception" in t.reason]
+    exc = [t for t in states.values() if t.reason and "harness_exception" in t.reason]
     assert len(exc) == 1
     assert exc[0].state == "deferred"
     assert "not_agent_failure" in exc[0].reason
@@ -142,8 +158,7 @@ def test_request_identity_is_frozen_and_reconstructible(tmp_path):
 def test_cycle_completes_eligible_trials_with_immutable_sidecars(tmp_path):
     adapter = CountingAdapter()
     calls_indexed: list[Path] = []
-    worker, root = make_worker(tmp_path, adapter=adapter,
-                               indexer=calls_indexed.append)
+    worker, root = make_worker(tmp_path, adapter=adapter, indexer=calls_indexed.append)
     report = worker.run_cycle([root / "jobs"])
     assert report.completed == 2 and adapter.calls == 2  # pass + fail trials
     assert len(calls_indexed) == 2
@@ -201,9 +216,12 @@ def test_each_gate_defers_with_zero_calls(tmp_path, kwargs, reason_prefix):
     worker, root = make_worker(tmp_path, adapter=adapter, **kwargs)
     report = worker.run_cycle([root / "jobs"])
     assert adapter.calls == 0 and report.calls == 0
-    reasons = [t.reason for rid in worker.store.all_request_ids()
-               for t in [worker.store.transitions(rid)[-1]]
-               if t.state == "deferred"]
+    reasons = [
+        t.reason
+        for rid in worker.store.all_request_ids()
+        for t in [worker.store.transitions(rid)[-1]]
+        if t.state == "deferred"
+    ]
     assert any(r and r.startswith(reason_prefix) for r in reasons), reasons
 
 
@@ -213,8 +231,7 @@ def test_unqualified_profile_defers_before_any_call(tmp_path):
     worker, root = make_worker(tmp_path, adapter=adapter, profile=unproven)
     worker.run_cycle([root / "jobs"])
     assert adapter.calls == 0
-    reasons = {worker.store.transitions(rid)[-1].reason
-               for rid in worker.store.all_request_ids()}
+    reasons = {worker.store.transitions(rid)[-1].reason for rid in worker.store.all_request_ids()}
     assert any(r and r.startswith("profile_not_qualified") for r in reasons)
 
 
@@ -228,9 +245,11 @@ def test_tampered_evidence_quarantines_before_call(tmp_path):
     victim.write_text(json.dumps(payload, indent=1))
     worker.run_cycle([root / "jobs"])
     assert adapter.calls == 1  # only the untampered eligible trial ran
-    quarantined = [worker.store.transitions(rid)[-1]
-                   for rid in worker.store.all_request_ids()
-                   if worker.store.state(rid) == "quarantined"]
+    quarantined = [
+        worker.store.transitions(rid)[-1]
+        for rid in worker.store.all_request_ids()
+        if worker.store.state(rid) == "quarantined"
+    ]
     assert any(t.reason == "evidence_tampered:result.json" for t in quarantined)
 
 
@@ -240,8 +259,7 @@ def test_missing_evidence_quarantines_before_call(tmp_path):
     worker.stage([root / "jobs"])
     (root / "jobs" / "job-pass" / "join-trial" / "agent" / "trajectory.json").unlink()
     worker.run_cycle([root / "jobs"])
-    reasons = {worker.store.transitions(rid)[-1].reason
-               for rid in worker.store.all_request_ids()}
+    reasons = {worker.store.transitions(rid)[-1].reason for rid in worker.store.all_request_ids()}
     assert "evidence_missing:trajectory.json" in reasons
 
 
@@ -250,13 +268,10 @@ def test_stale_profile_identity_defers(tmp_path):
     worker, root = make_worker(tmp_path, adapter=adapter)
     worker.stage([root / "jobs"])
     changed = PROFILE.model_copy(update={"model": "gpt-5.6-sol"})
-    worker.context = AdmissionContext(
-        **{**worker.context.__dict__, "profile": changed}
-    )
+    worker.context = AdmissionContext(**{**worker.context.__dict__, "profile": changed})
     worker.run_cycle([root / "jobs"])
     assert adapter.calls == 0
-    reasons = {worker.store.transitions(rid)[-1].reason
-               for rid in worker.store.all_request_ids()}
+    reasons = {worker.store.transitions(rid)[-1].reason for rid in worker.store.all_request_ids()}
     assert any(r and r.startswith("stale_identity") for r in reasons)
 
 
@@ -273,15 +288,16 @@ def test_crash_after_call_before_transition_adopts_sidecar(tmp_path):
         if worker.store.state(rid) != "completed":
             continue
         transitions = worker.store.request_dir(rid) / "transitions.jsonl"
-        lines = [ln for ln in transitions.read_text().splitlines()
-                 if '"completed"' not in ln]
+        lines = [ln for ln in transitions.read_text().splitlines() if '"completed"' not in ln]
         transitions.write_text("\n".join(lines) + "\n")
         assert worker.store.state(rid) != "completed"
     recovery = worker.run_cycle([root / "jobs"])
     assert adapter.calls == 2  # ZERO new calls
     assert recovery.adopted == 2
-    assert all(worker.store.state(rid) in {"completed", "deferred", "quarantined"}
-               for rid in worker.store.all_request_ids())
+    assert all(
+        worker.store.state(rid) in {"completed", "deferred", "quarantined"}
+        for rid in worker.store.all_request_ids()
+    )
 
 
 def test_crash_before_index_retries_indexing_idempotently(tmp_path):
@@ -300,8 +316,9 @@ def test_crash_before_index_retries_indexing_idempotently(tmp_path):
     calls_after_crash = adapter.calls
     worker.run_cycle([root / "jobs"])  # recovery
     assert adapter.calls == calls_after_crash + 1  # only the un-run trial calls
-    completed = [rid for rid in worker.store.all_request_ids()
-                 if worker.store.state(rid) == "completed"]
+    completed = [
+        rid for rid in worker.store.all_request_ids() if worker.store.state(rid) == "completed"
+    ]
     assert len(completed) == 2
 
 
@@ -309,8 +326,9 @@ def test_concurrent_worker_lease_prevents_double_call(tmp_path):
     adapter = CountingAdapter()
     worker, root = make_worker(tmp_path, adapter=adapter)
     worker.stage([root / "jobs"])
-    eligible = [rid for rid in worker.store.all_request_ids()
-                if worker.store.state(rid) == "pending"]
+    eligible = [
+        rid for rid in worker.store.all_request_ids() if worker.store.state(rid) == "pending"
+    ]
     rid = eligible[0]
     held = worker.store.acquire_lease(rid)  # a second worker holds the lease
     assert held is not None
@@ -342,12 +360,23 @@ def test_status_shape_is_m005_compatible(tmp_path):
     status = worker.status()
     assert status["provenance"] == "observed"
     assert set(status["counts"]) <= {
-        "pending", "admitted", "running", "completed", "deferred", "quarantined"
+        "pending",
+        "admitted",
+        "running",
+        "completed",
+        "deferred",
+        "quarantined",
     }
     for row in status["requests"]:
         assert row["provenance"] in {"observed", "derived", "draft", "unavailable"}
-        assert row["state"] in {"pending", "admitted", "running", "completed",
-                                "deferred", "quarantined"}
+        assert row["state"] in {
+            "pending",
+            "admitted",
+            "running",
+            "completed",
+            "deferred",
+            "quarantined",
+        }
 
 
 def test_plan_is_read_only(tmp_path):
@@ -356,7 +385,8 @@ def test_plan_is_read_only(tmp_path):
     assert len(rows) == 3
     assert worker.store.all_request_ids() == []  # plan froze nothing
     assert {r["eligibility"] for r in rows} == {
-        "eligible", "defer:harness_exception_not_agent_failure",
+        "eligible",
+        "defer:harness_exception_not_agent_failure",
     }
 
 
@@ -390,25 +420,30 @@ def _nightly(tmp_path, *, stager, ingester):
     class StaticDoctor:
         def run(self):
             checks = HeadlessDoctorChecks(
-                keychain_readable=True, codex_auth_present=True,
-                docker_reachable=True, postgres_reachable=True,
+                keychain_readable=True,
+                codex_auth_present=True,
+                docker_reachable=True,
+                postgres_reachable=True,
                 disk_headroom=True,
             )
-            return HeadlessDoctorReport(
-                checked_at=FROZEN, healthy=True, checks=checks
-            )
+            return HeadlessDoctorReport(checked_at=FROZEN, healthy=True, checks=checks)
 
     queue = DirectoryQueue(tmp_path / "queue")
     service = Executor(
-        repo_root=tmp_path, queue=queue, policy=POLICY,
+        repo_root=tmp_path,
+        queue=queue,
+        policy=POLICY,
         runner=lambda request: request.jobs_dir / request.name,
         ingester=lambda job_dir: None,
         spent_today=lambda: 0.0,
         consecutive_harness_failures=lambda: 0,
     )
     renderer = DigestRenderer(
-        repo_root=tmp_path, queue=queue, policy=POLICY,
-        trial_loader=lambda day: [], drift_loader=lambda day: [],
+        repo_root=tmp_path,
+        queue=queue,
+        policy=POLICY,
+        trial_loader=lambda day: [],
+        drift_loader=lambda day: [],
     )
     cycle = NightlyCycle(
         doctor=StaticDoctor(),  # type: ignore[arg-type]
@@ -452,7 +487,9 @@ def test_nightly_skips_staging_when_ingest_fails(tmp_path):
         raise RuntimeError("catalog down")
 
     cycle, _queue = _nightly(
-        tmp_path, ingester=bad_ingester, stager=lambda: order.append("stage"),
+        tmp_path,
+        ingester=bad_ingester,
+        stager=lambda: order.append("stage"),
     )
     from datetime import date as _date
 
@@ -473,8 +510,7 @@ def test_nightly_staging_failure_emits_durable_event(tmp_path):
     cycle.run(report_date=_date(2026, 8, 15))
     events = load_events(queue.events_path)
     assert any(
-        e.event == "analysis_stage_failed"
-        and "RuntimeError" in (e.reason_code or "")
+        e.event == "analysis_stage_failed" and "RuntimeError" in (e.reason_code or "")
         for e in events
     ), [e.event for e in events]
 
@@ -494,10 +530,8 @@ def test_cli_nightly_stager_composition_stages_real_requests(tmp_path):
         "escalate_to_human:\n  - new_task_registration\n"
     )
     (root / "research/analysis").mkdir(parents=True)
-    shutil.copy(FIXTURES / "stage5-prompt.md",
-                root / "research/analysis/stage5-prompt.md")
-    shutil.copy(FIXTURES / "stage5-rubric.json",
-                root / "research/analysis/stage5-rubric.json")
+    shutil.copy(FIXTURES / "stage5-prompt.md", root / "research/analysis/stage5-prompt.md")
+    shutil.copy(FIXTURES / "stage5-rubric.json", root / "research/analysis/stage5-rubric.json")
     report = _nightly_analysis_stager(root)()
     assert report.staged == 1 and report.calls == 0
     store_dir = root / "derived/analyses/worker/requests"
@@ -514,8 +548,7 @@ def test_prompt_change_defers_before_any_call(tmp_path):
     (root / "prompt.md").write_text("changed prompt\n")
     worker.run_cycle([root / "jobs"])
     assert adapter.calls == 0
-    reasons = {worker.store.transitions(rid)[-1].reason
-               for rid in worker.store.all_request_ids()}
+    reasons = {worker.store.transitions(rid)[-1].reason for rid in worker.store.all_request_ids()}
     assert "stale_identity:prompt_changed" in reasons
 
 
@@ -526,8 +559,7 @@ def test_rubric_missing_quarantines_before_any_call(tmp_path):
     (root / "rubric.json").unlink()
     worker.run_cycle([root / "jobs"])
     assert adapter.calls == 0
-    reasons = {worker.store.transitions(rid)[-1].reason
-               for rid in worker.store.all_request_ids()}
+    reasons = {worker.store.transitions(rid)[-1].reason for rid in worker.store.all_request_ids()}
     assert "evidence_missing:rubric" in reasons
 
 
@@ -538,9 +570,11 @@ def test_lock_tamper_quarantines_task_verifier_truth(tmp_path):
     lock = root / "jobs" / "job-pass" / "join-trial" / "lock.json"
     lock.write_text('{"task": {"digest": "sha256:' + "e" * 64 + '"}}')
     worker.run_cycle([root / "jobs"])
-    quarantined = {worker.store.transitions(rid)[-1].reason
-                   for rid in worker.store.all_request_ids()
-                   if worker.store.state(rid) == "quarantined"}
+    quarantined = {
+        worker.store.transitions(rid)[-1].reason
+        for rid in worker.store.all_request_ids()
+        if worker.store.state(rid) == "quarantined"
+    }
     assert "evidence_tampered:lock.json" in quarantined
     assert adapter.calls == 1  # only the untampered eligible trial ran
 
@@ -563,14 +597,16 @@ def _write_lease(worker, rid, *, pid, age_seconds=0.0):
 
     path = worker.store.request_dir(rid) / "lease"
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"pid": pid, "acquired_at": (FROZEN - timedelta(seconds=age_seconds)).isoformat(),
-               "host": "testhost"}
+    payload = {
+        "pid": pid,
+        "acquired_at": (FROZEN - timedelta(seconds=age_seconds)).isoformat(),
+        "host": "testhost",
+    }
     path.write_text(json.dumps(payload))
 
 
 def _pending(worker):
-    return [rid for rid in worker.store.all_request_ids()
-            if worker.store.state(rid) == "pending"]
+    return [rid for rid in worker.store.all_request_ids() if worker.store.state(rid) == "pending"]
 
 
 def test_dead_owner_lease_is_reclaimed_before_call(tmp_path):
@@ -619,8 +655,7 @@ def test_crash_during_call_dead_lease_plus_sidecar_adopts_without_second_call(tm
     # simulate: process died mid-completion — lease left by a dead pid, and
     # the completed transition never landed
     transitions = worker.store.request_dir(rid) / "transitions.jsonl"
-    lines = [ln for ln in transitions.read_text().splitlines()
-             if '"completed"' not in ln]
+    lines = [ln for ln in transitions.read_text().splitlines() if '"completed"' not in ln]
     transitions.write_text("\n".join(lines) + "\n")
     _write_lease(worker, rid, pid=99999999)
     transition = worker.run_one(rid)
@@ -651,7 +686,8 @@ def test_default_worker_has_catalog_indexer(monkeypatch, tmp_path):
         "evallab.database.initialize", lambda url: indexed.append(("init", Path(url)))
     )
     monkeypatch.setattr(
-        aw, "ingest_analysis_sidecar",
+        aw,
+        "ingest_analysis_sidecar",
         lambda url, path, root: indexed.append(("ingest", path)),
     )
     sidecar = tmp_path / "analysis.json"
@@ -673,9 +709,7 @@ def test_default_indexer_does_not_persist_invalid_analysis(monkeypatch, tmp_path
         "ingest_analysis_sidecar",
         lambda url, path, root: SimpleNamespace(validation_status="invalid"),
     )
-    monkeypatch.setattr(
-        "evallab.labels.persist_behavior_label", persisted.append
-    )
+    monkeypatch.setattr("evallab.labels.persist_behavior_label", persisted.append)
     monkeypatch.setattr(
         "evallab.labels.label_from_analysis_sidecar",
         lambda sidecar: pytest.fail("invalid sidecar must not become a canonical label"),
@@ -697,9 +731,11 @@ def test_default_indexer_failure_leaves_sidecar_adoptable(monkeypatch, tmp_path)
     with pytest.raises(RuntimeError):
         worker.run_cycle([root / "jobs"])
     # sidecar durable, state not completed -> retryable
-    stuck = [rid for rid in worker.store.all_request_ids()
-             if worker.store.sidecar_path(rid).is_file()
-             and worker.store.state(rid) != "completed"]
+    stuck = [
+        rid
+        for rid in worker.store.all_request_ids()
+        if worker.store.sidecar_path(rid).is_file() and worker.store.state(rid) != "completed"
+    ]
     assert stuck
     worker.indexer = None  # catalog comes back (no-op indexer for the test)
     worker.run_cycle([root / "jobs"])
@@ -712,9 +748,7 @@ def test_default_indexer_failure_leaves_sidecar_adoptable(monkeypatch, tmp_path)
 # ============================================================================
 
 
-def test_call_returned_without_sidecar_is_ambiguous_and_never_replayed(
-    monkeypatch, tmp_path
-):
+def test_call_returned_without_sidecar_is_ambiguous_and_never_replayed(monkeypatch, tmp_path):
     """A provider may have charged even when sidecar construction then crashes."""
     from evallab import analysis_worker as aw
 
@@ -755,9 +789,7 @@ def test_ambiguous_invocation_requires_explicit_operator_retry(monkeypatch, tmp_
     monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
     with pytest.raises(RuntimeError, match="lost response"):
         worker.run_one(rid)
-    assert worker.run_one(rid).reason == (
-        "ambiguous_invocation_requires_operator_resolution"
-    )
+    assert worker.run_one(rid).reason == ("ambiguous_invocation_requires_operator_resolution")
 
     transition = worker.resolve_ambiguous(rid, action="retry", actor="operator-test")
     assert transition.state == "pending"
@@ -782,9 +814,7 @@ def test_operator_can_quarantine_ambiguity_without_retry(monkeypatch, tmp_path):
     monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
     with pytest.raises(RuntimeError, match="lost response"):
         worker.run_one(rid)
-    transition = worker.resolve_ambiguous(
-        rid, action="quarantine", actor="operator-test"
-    )
+    transition = worker.resolve_ambiguous(rid, action="quarantine", actor="operator-test")
     assert transition.state == "quarantined"
     assert adapter.calls == 1
     assert worker.run_one(rid).state == "quarantined"
@@ -901,11 +931,9 @@ def test_real_nightly_stager_persists_bounded_returned_quarantine(tmp_path):
     events = load_events(queue.events_path)
     event = next(e for e in events if e.event == "analysis_stage_reported_issues")
     assert event.reason_code == (
-        "analysis_stage_reported_issues:quarantined=1;errors=0;"
-        "reasons=evidence_unreadable=1"
+        "analysis_stage_reported_issues:quarantined=1;errors=0;reasons=evidence_unreadable=1"
     )
     assert len(event.reason_code) <= 512
-
 
 
 # ============================================================================
@@ -1010,14 +1038,14 @@ def test_sidecar_directory_dirent_is_durable(monkeypatch, tmp_path):
 
     sidecar_dir_id = _ident(sidecar_dir)
     created = [
-        index for index, (kind, ident) in enumerate(events)
+        index
+        for index, (kind, ident) in enumerate(events)
         if kind == "mkdir" and ident == sidecar_dir_id
     ]
     assert created, "run_one must create the per-request sidecar directory"
     request_dir_id = _ident(request_dir)
     assert any(
-        kind == "fsync" and ident == request_dir_id
-        for kind, ident in events[created[0] + 1:]
+        kind == "fsync" and ident == request_dir_id for kind, ident in events[created[0] + 1 :]
     ), "the sidecar/ dirent is never fsynced into the request directory"
 
 
@@ -1048,10 +1076,9 @@ def test_run_one_never_reruns_a_permanent_evidence_deferral(tmp_path):
     worker, root = make_worker(tmp_path, adapter=adapter)
     worker.stage([root / "jobs"])
     permanent = [
-        rid for rid in worker.store.all_request_ids()
-        if (worker.store.transitions(rid)[-1].reason or "").startswith(
-            "harness_exception"
-        )
+        rid
+        for rid in worker.store.all_request_ids()
+        if (worker.store.transitions(rid)[-1].reason or "").startswith("harness_exception")
     ]
     assert permanent, "fixture must contain a harness-exception trial"
     rid = permanent[0]
@@ -1081,9 +1108,7 @@ def _fail_closed_root(tmp_path: Path) -> Path:
     )
     (root / "research/analysis").mkdir(parents=True)
     shutil.copy(FIXTURES / "stage5-prompt.md", root / "research/analysis/stage5-prompt.md")
-    shutil.copy(
-        FIXTURES / "stage5-rubric.json", root / "research/analysis/stage5-rubric.json"
-    )
+    shutil.copy(FIXTURES / "stage5-rubric.json", root / "research/analysis/stage5-rubric.json")
     return root
 
 
@@ -1121,13 +1146,11 @@ def test_explicit_adapter_factory_runs_only_after_admission(tmp_path):
     calls: list[str] = []
     adapter = CountingAdapter()
 
-    def factory(job, trial, request):
+    def factory(request):
         calls.append(request.request_id)
         return adapter
 
-    worker, root = make_worker(
-        tmp_path, adapter_factory=factory, requirements_ok=True
-    )
+    worker, root = make_worker(tmp_path, adapter_factory=factory, requirements_ok=True)
     worker.stage([root / "jobs"])
     rid = _pending(worker)[0]
 
@@ -1144,37 +1167,38 @@ def test_default_worker_opens_calibration_gate_for_exact_measured_model(tmp_path
     root = _fail_closed_root(tmp_path)
     records = root / "research/calibration/records/exact"
     records.mkdir(parents=True)
-    (records / "passing.json").write_text(json.dumps({
-        "schema_version": 1,
-        "record_id": "exact-terra",
-        "family": "test-family",
-        "status": "measured",
-        "judge_backend": "codex",
-        "judge_model": "gpt-5.6-terra",
-        "rubric_digest": f"sha256:{'a' * 64}",
-        "corpus_digest": f"sha256:{'b' * 64}",
-        "per_criterion_agreement": {
-            "evidence": {"agreements": 1, "total": 1, "rate": 1.0}
-        },
-        "mean_agreement": 1.0,
-        "agreement_floor": 0.9,
-        "meets_floor": True,
-        "reportable": True,
-        "document_count": 1,
-        "evaluated_on": "2026-08-19",
-        "prediction_artifact": "predictions.json",
-    }))
-
-    worker = aw.default_worker(
-        root, adapter_factory=lambda job, trial, request: CountingAdapter()
+    (records / "passing.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "record_id": "exact-terra",
+                "family": "test-family",
+                "status": "measured",
+                "judge_backend": "codex",
+                "judge_model": "gpt-5.6-terra",
+                "rubric_digest": f"sha256:{'a' * 64}",
+                "corpus_digest": f"sha256:{'b' * 64}",
+                "per_criterion_agreement": {"evidence": {"agreements": 1, "total": 1, "rate": 1.0}},
+                "mean_agreement": 1.0,
+                "agreement_floor": 0.9,
+                "meets_floor": True,
+                "reportable": True,
+                "document_count": 1,
+                "evaluated_on": "2026-08-19",
+                "prediction_artifact": "predictions.json",
+            }
+        )
     )
+
+    worker = aw.default_worker(root, adapter_factory=lambda request: CountingAdapter())
 
     assert worker.adapter_factory is not None
     assert worker.context.requirement_checks["calibrated_judges_only"]() is False
 
-    active_digest = "sha256:" + hashlib.sha256(
-        (root / "research/analysis/stage5-rubric.json").read_bytes()
-    ).hexdigest()
+    active_digest = (
+        "sha256:"
+        + hashlib.sha256((root / "research/analysis/stage5-rubric.json").read_bytes()).hexdigest()
+    )
     payload = json.loads((records / "passing.json").read_text())
     payload["rubric_digest"] = active_digest
     (records / "passing.json").write_text(json.dumps(payload))

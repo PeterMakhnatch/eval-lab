@@ -598,6 +598,7 @@ def synthesize_curriculum_candidates(
             continue
         if parent.source_binding.split == "calibration":
             refusals.append(_refusal("calibration_nonleakage", value, "calibration evidence cannot seed a descriptor"))
+            continue
         provided = parent.content_digest in trace_priorities
         trace = trace_priorities.get(parent.content_digest)
         if trace is None:

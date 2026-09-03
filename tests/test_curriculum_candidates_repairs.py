@@ -187,3 +187,48 @@ def test_candidate_mutation_refuses_rehydration(tmp_path) -> None:
         curriculum.SynthesisResult.model_validate(
             {**result.model_dump(mode="json"), "candidates": [original]}
         )
+
+
+def test_calibration_parent_matching_transform_refuses_exactly_once(
+    tmp_path, monkeypatch
+) -> None:
+    """Calibration fall-through regression (p7/wH:p0 BLOCK): a calibration
+    parent whose family/dimensions otherwise match a transform must yield
+    exactly one typed refusal and zero candidates/pairs - no rank slot, no
+    spurious mislabeled refusal from NonleakageBinding."""
+    import test_curriculum_candidates as acceptance
+
+    base = acceptance._spec()
+    calib = {
+        **base,
+        "source_binding": {**base["source_binding"], "split": "calibration"},
+    }
+    monkeypatch.setattr(acceptance, "_spec", lambda: calib)
+    receipt, expectation = acceptance.real_track_b_receipt(tmp_path)
+    assert receipt.artifact.family in ("complete-but-reordered",)
+    result = curriculum.synthesize_curriculum_candidates(
+        [receipt],
+        trusted_parent_outputs=acceptance._trusted_parent_outputs(receipt, expectation),
+        authority_store_root=tmp_path / "store",
+    )
+    assert result.candidates == ()
+    assert result.contrast_pairs == ()
+    assert len(result.refusals) == 1
+    assert result.refusals[0].reason_code == "calibration_nonleakage"
+
+
+def test_train_control_ranks_unchanged_by_repair(tmp_path) -> None:
+    """Train behavior guard (wH:p1 acceptance): identical to pre-repair output."""
+    receipt, expectation = real_track_b_receipt(tmp_path)
+    result = curriculum.synthesize_curriculum_candidates(
+        [receipt],
+        trusted_parent_outputs=_trusted_parent_outputs(receipt, expectation),
+        authority_store_root=tmp_path / "store",
+    )
+    assert [candidate.rank for candidate in result.candidates] == [1, 1]
+    rerun = curriculum.synthesize_curriculum_candidates(
+        [receipt],
+        trusted_parent_outputs=_trusted_parent_outputs(receipt, expectation),
+        authority_store_root=tmp_path / "store",
+    )
+    assert rerun.model_dump_json() == result.model_dump_json()

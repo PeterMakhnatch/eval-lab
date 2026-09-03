@@ -15,7 +15,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/STATUS.md
-    digest: sha256:03acef707871e0b7a6165a0a549f4d3db0825a208f471fd2388673c8fbb8f1b5
+    digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:f49295b1ec74f32900711ea4a78942915aefc601616a9909422863d6d1ecd689
   - path: docs/WHERE-DOES-THIS-GO.md
@@ -105,7 +105,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:9da2f41c89abbce933289605292ee7d1d1d5e0a83e6c1358638d1f7d867f816a
+    digest: sha256:bbe5ccd785ee8bf5e2c2b99ee1667ea26573948e855fc35c4eed462cd8f62296
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -140,8 +140,6 @@ inputs:
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
     digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
-  - path: docs/workbench-guide.md
-    digest: sha256:587e03b0939bda6c8d5d7f215a15fca6bd3bf19718425e5b156b328c09636653
 ---
 
 <!-- generated-by: docindex v1 -->
@@ -162,7 +160,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-09-02 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
@@ -269,7 +267,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-09-02 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
@@ -307,7 +305,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-09-02 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |

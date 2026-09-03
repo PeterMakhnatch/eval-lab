@@ -115,7 +115,7 @@ from evallab.runner import (
     request_from_matrix,
     subscription_environment,
 )
-from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
+from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME, QueueReason
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.status_generator import generate_status_markdown, update_status_file
 from evallab.storage.attach import attach, attach_and_query, build_sql_preamble, print_zones
@@ -550,6 +550,85 @@ def _approve_command(
     else:
         print("next: uv run evallab tick")
     return 0
+
+
+def _latest_waiting_reason(queue: DirectoryQueue, spec_id: str) -> QueueReason | None:
+    """The most recent entry in `queue/reasons/` for one spec, if any exists."""
+    records: list[tuple[datetime, str, QueueReason]] = []
+    for path in queue.reasons_dir.glob(f"{spec_id}-*.json"):
+        try:
+            reason = QueueReason.model_validate_json(path.read_text())
+        except (OSError, ValueError):
+            continue
+        records.append((reason.occurred_at, path.name, reason))
+    if not records:
+        return None
+    return max(records, key=lambda record: record[:2])[2]
+
+
+def _approve_all_waiting_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    queue = DirectoryQueue(root / "queue")
+    snapshot = queue.list_specs("waiting")
+    if not snapshot:
+        print("nothing waiting: no specs to approve")
+        return 0
+    total_cost = sum(spec.est_cost_usd for _path, spec in snapshot)
+    print(f"{len(snapshot)} waiting spec(s), estimated ${total_cost:.2f} total:")
+    for index, (_path, spec) in enumerate(snapshot, start=1):
+        agent = spec.agent if spec.model is None else f"{spec.agent}/{spec.model}"
+        reason = _latest_waiting_reason(queue, str(spec.spec_id))
+        print(
+            f"  {index}. {spec.spec_id}  {spec.name}  task={spec.task}  "
+            f"agent={agent}  attempts={spec.attempts}  est=${spec.est_cost_usd:.2f}  "
+            f"reason={reason.code if reason is not None else 'unspecified'}"
+        )
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print(
+                "error: approval needs an explicit yes; rerun with --yes when "
+                "stdin is not a terminal",
+                file=sys.stderr,
+            )
+            return 2
+        answer = input(f"approve all {len(snapshot)} spec(s) as {args.actor}? [y/N] ")
+        if answer.strip().lower() not in {"y", "yes"}:
+            print("aborted: nothing approved")
+            return 0
+    approved: list[str] = []
+    skipped: list[str] = []
+    failed: list[str] = []
+    for _path, spec in snapshot:
+        spec_id = str(spec.spec_id)
+        try:
+            # The snapshot can go stale between listing and approving (a tick
+            # or a second operator may claim a spec), so re-check that each id
+            # is still sitting in waiting/ before authorising it.
+            queue.locate(spec_id, ("waiting",))
+        except ValueError:
+            skipped.append(spec_id)
+            continue
+        try:
+            queue.approve(spec_id, actor=args.actor)
+        except (OSError, ValueError) as exc:
+            failed.append(spec_id)
+            print(f"failed: {spec_id}: {exc}", file=sys.stderr)
+        else:
+            approved.append(spec_id)
+    for spec_id in approved:
+        print(f"approved: {spec_id}")
+    for spec_id in skipped:
+        print(f"skipped: {spec_id} (no longer waiting)")
+    for spec_id in failed:
+        print(f"failed: {spec_id}")
+    print(
+        f"done: {len(approved)} approved, {len(skipped)} skipped, "
+        f"{len(failed)} failed of {len(snapshot)} waiting spec(s)"
+    )
+    if approved:
+        print("next: uv run evallab tick")
+    return 1 if failed else 0
 
 
 def _print_campaign_status(status: Any, *, as_json: bool) -> None:
@@ -3554,6 +3633,22 @@ def parser() -> argparse.ArgumentParser:
         ),
     )
     approve.set_defaults(func=_approve_command)
+
+    approve_all = commands.add_parser(
+        "approve-all-waiting",
+        help="Authorize every waiting experiment after one explicit confirmation",
+    )
+    approve_all.add_argument(
+        "--actor",
+        required=True,
+        help="who is authorizing; recorded in queue/events.jsonl and never defaulted",
+    )
+    approve_all.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm without prompting; required when stdin is not a terminal",
+    )
+    approve_all.set_defaults(func=_approve_all_waiting_command)
 
     reject = commands.add_parser("reject", help="Reject one queued experiment")
     reject.add_argument("spec_id")

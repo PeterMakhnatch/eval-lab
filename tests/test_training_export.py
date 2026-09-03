@@ -717,6 +717,14 @@ def test_publication_is_immutable_and_whole_directory_atomic(
         export_training_dataset([source], existing_directory)
     assert list(existing_directory.iterdir()) == []
 
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    symlink_parent = tmp_path / "symlink-parent"
+    symlink_parent.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink destination chain"):
+        export_training_dataset([source], symlink_parent / "output")
+    assert not (real_parent / "output").exists()
+
     original_write = training_export._write_staged_file
     calls = 0
 

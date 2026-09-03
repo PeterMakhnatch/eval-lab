@@ -1127,14 +1127,23 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _prepare_output_parent(parent: Path) -> None:
+    cursor = parent
+    while not os.path.lexists(cursor):
+        if cursor == cursor.parent:
+            break
+        cursor = cursor.parent
+    if cursor.is_symlink() or cursor.resolve(strict=True) != cursor:
+        raise ValueError(f"refusing symlink destination chain: {parent}")
+    parent.mkdir(parents=True, exist_ok=True)
+
+
 def _publish_directory(destination: Path, payloads: dict[str, bytes]) -> Path:
     absolute = Path(os.path.abspath(destination))
     if os.path.lexists(absolute):
         raise FileExistsError(f"training export destination already exists: {destination}")
     parent = absolute.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    if parent.resolve(strict=True) != parent:
-        raise ValueError(f"refusing symlink destination chain: {destination}")
+    _prepare_output_parent(parent)
     staged = Path(tempfile.mkdtemp(prefix=f".{absolute.name}.staging-", dir=parent))
     expected = tuple(sorted(payloads))
     for name in expected:

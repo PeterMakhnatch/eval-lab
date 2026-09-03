@@ -1,11 +1,11 @@
 {
-  "total_packages": 523,
-  "runnable_packages": 503,
+  "total_packages": 524,
+  "runnable_packages": 504,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
   "registered_tasks": 3,
-  "candidate_tasks": 3,
+  "candidate_tasks": 4,
   "items": [
     {
       "task_id": "quixbugs-python-bitcount",
@@ -5200,6 +5200,16 @@
     {
       "task_id": "query-optimize",
       "path": "library/tasks/query-optimize",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": "candidate"
+    },
+    {
+      "task_id": "tau3-retail-1",
+      "path": "library/tasks/tau3-retail-1",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

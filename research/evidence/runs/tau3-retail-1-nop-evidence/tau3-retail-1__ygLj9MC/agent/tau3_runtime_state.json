@@ -1,0 +1,13 @@
+{
+  "domain": "retail",
+  "task_id": "1",
+  "termination_reason": null,
+  "step_count": 0,
+  "num_errors": 0,
+  "max_steps": 200,
+  "max_errors": 10,
+  "seed": null,
+  "bootstrap_complete": false,
+  "start_tool_called": false,
+  "messages": []
+}

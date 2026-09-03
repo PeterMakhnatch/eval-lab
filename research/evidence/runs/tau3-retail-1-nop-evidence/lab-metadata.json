@@ -1,0 +1,30 @@
+{
+  "command": [
+    "harbor",
+    "run",
+    "--config",
+    "runs/tau3-retail-1-oracle.config.json",
+    "--job-name",
+    "tau3-retail-1-nop",
+    "--agent",
+    "nop",
+    "-y"
+  ],
+  "exit_code": 0,
+  "finished_at": "2026-09-03T10:42:16.331117+00:00",
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7"
+  },
+  "repository": {
+    "commit": "4a3ce07999504a55cdc31b29775900bbb19fb409",
+    "dirty": true
+  },
+  "schema_version": 1,
+  "started_at": "2026-09-03T10:41:57.919684+00:00",
+  "tools": {
+    "docker": "Docker version 29.4.1, build 055a478",
+    "harbor": "0.21.0",
+    "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+  }
+}

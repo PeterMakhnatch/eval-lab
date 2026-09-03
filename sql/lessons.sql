@@ -139,6 +139,12 @@ CREATE TABLE IF NOT EXISTS observation_records (
     summary VARCHAR
 );
 
+CREATE TABLE IF NOT EXISTS trajectory_quality_reports (
+    job_id VARCHAR,
+    trial_id VARCHAR,
+    status VARCHAR
+);
+
 CREATE TABLE IF NOT EXISTS craft AS SELECT * FROM craft_schema_fallback;
 CREATE TABLE IF NOT EXISTS trial_facts AS SELECT * FROM trial_facts_schema_fallback;
 
@@ -216,7 +222,8 @@ trial_joined AS (
             WHEN t.primary_reward >= 1.0 THEN 'passed'
             ELSE 'measured_agent_attempt'
         END AS mechanical_validity,
-        'trial_facts' AS mechanical_diagnosis_source
+        'trial_facts' AS mechanical_diagnosis_source,
+        q.status AS quality_status
     FROM craft c
     JOIN trial_facts t
         ON c.task_digest IS NOT NULL
@@ -224,6 +231,9 @@ trial_joined AS (
        AND c.task_digest = t.task_digest
     LEFT JOIN validated_sidecars a
         ON a.source_trial_id = t.trial_id
+    LEFT JOIN trajectory_quality_reports q
+        ON q.trial_id = t.trial_id
+       AND (q.job_id = t.job_id OR q.job_id = '')
 ),
 faceted_trials AS (
     SELECT source_repo, 'verifier_type' AS facet_name, verifier_type AS facet_value, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined
@@ -256,18 +266,36 @@ SELECT
     mechanical_failure_category,
     mechanical_validity,
     mechanical_diagnosis_source,
-    count(*) AS total_trials_n,
-    count(is_failure) AS n,
-    count(*) FILTER (WHERE mechanical_failure_category = 'exception') AS exceptions_n,
-    count(*) FILTER (WHERE mechanical_failure_category = 'unmeasured') AS never_measured_n,
+    count(*) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine') AS total_trials_n,
+    count(is_failure) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine') AS n,
     count(*) FILTER (
-        WHERE mechanical_failure_category IN ('exception', 'unmeasured')
+        WHERE quality_status IS DISTINCT FROM 'quarantine'
+          AND mechanical_failure_category = 'exception'
+    ) AS exceptions_n,
+    count(*) FILTER (
+        WHERE quality_status IS DISTINCT FROM 'quarantine'
+          AND mechanical_failure_category = 'unmeasured'
+    ) AS never_measured_n,
+    count(*) FILTER (
+        WHERE quality_status IS DISTINCT FROM 'quarantine'
+          AND mechanical_failure_category IN ('exception', 'unmeasured')
     ) AS excluded_n,
-    count(*) FILTER (WHERE is_failure = 1) AS failures_n,
+    count(*) FILTER (
+        WHERE quality_status IS DISTINCT FROM 'quarantine' AND is_failure = 1
+    ) AS failures_n,
     round(
-        100.0 * count(*) FILTER (WHERE is_failure = 1) / nullif(count(is_failure), 0),
+        100.0 * count(*) FILTER (
+            WHERE quality_status IS DISTINCT FROM 'quarantine' AND is_failure = 1
+        ) / nullif(
+            count(is_failure) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine'),
+            0
+        ),
         2
-    ) AS failure_rate_pct
+    ) AS failure_rate_pct,
+    count(*) FILTER (WHERE quality_status = 'pass') AS quality_pass_n,
+    count(*) FILTER (WHERE quality_status = 'warn') AS quality_warn_n,
+    count(*) FILTER (WHERE quality_status = 'fail') AS quality_fail_n,
+    count(*) FILTER (WHERE quality_status = 'quarantine') AS quality_quarantine_n
 FROM faceted_trials
 GROUP BY
     source_repo,
@@ -302,12 +330,15 @@ WITH env_joined AS (
         obs.tool_errors AS observation_tool_errors,
         'observation_markdown' AS observation_source,
         obs.trial_id IS NOT NULL AS is_annotated,
-        t.trial_id
+        q.status AS quality_status
     FROM craft c
     JOIN trial_facts t
         ON c.task_digest IS NOT NULL
        AND t.task_digest IS NOT NULL
        AND c.task_digest = t.task_digest
+    LEFT JOIN trajectory_quality_reports q
+        ON q.trial_id = t.trial_id
+       AND (q.job_id = t.job_id OR q.job_id = '')
     LEFT JOIN observation_records obs
         ON obs.trial_id = t.trial_id
 )
@@ -317,18 +348,22 @@ SELECT
     env_multi_container,
     env_files_bucket,
     observation_source,
-    count(*) AS total_trials_n,
-    count(*) FILTER (WHERE is_annotated) AS annotated_n,
-    count(*) FILTER (WHERE NOT is_annotated) AS unannotated_n,
-    count(observation_loop_detected) AS n,
-    count(*) FILTER (WHERE observation_loop_detected IS TRUE) AS loops_n,
+    count(*) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine') AS total_trials_n,
+    count(*) FILTER (WHERE is_annotated AND quality_status IS DISTINCT FROM 'quarantine') AS annotated_n,
+    count(*) FILTER (WHERE NOT is_annotated AND quality_status IS DISTINCT FROM 'quarantine') AS unannotated_n,
+    count(observation_loop_detected) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine') AS n,
+    count(*) FILTER (WHERE observation_loop_detected IS TRUE AND quality_status IS DISTINCT FROM 'quarantine') AS loops_n,
     round(
-        100.0 * count(*) FILTER (WHERE observation_loop_detected IS TRUE)
-        / nullif(count(observation_loop_detected), 0),
+        100.0 * count(*) FILTER (WHERE observation_loop_detected IS TRUE AND quality_status IS DISTINCT FROM 'quarantine')
+        / nullif(count(observation_loop_detected) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine'), 0),
         2
     ) AS loop_rate_pct,
-    round(avg(observation_steps_taken), 1) AS avg_observation_steps,
-    round(avg(observation_tool_errors), 1) AS avg_observation_tool_errors
+    round(avg(observation_steps_taken) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine'), 1) AS avg_observation_steps,
+    round(avg(observation_tool_errors) FILTER (WHERE quality_status IS DISTINCT FROM 'quarantine'), 1) AS avg_observation_tool_errors,
+    count(*) FILTER (WHERE quality_status = 'pass') AS quality_pass_n,
+    count(*) FILTER (WHERE quality_status = 'warn') AS quality_warn_n,
+    count(*) FILTER (WHERE quality_status = 'fail') AS quality_fail_n,
+    count(*) FILTER (WHERE quality_status = 'quarantine') AS quality_quarantine_n
 FROM env_joined
 GROUP BY source_repo, env_services_n, env_multi_container, env_files_bucket, observation_source
 ORDER BY source_repo, n DESC, loop_rate_pct DESC;
@@ -340,51 +375,69 @@ CREATE OR REPLACE VIEW v_outcome_by_verifier_type AS
 SELECT
     c.source_repo,
     coalesce(c.verifier_type, 'unclassified') AS verifier_type,
-    count(*) AS total_trials_n,
+    count(*) FILTER (WHERE q.status IS DISTINCT FROM 'quarantine') AS total_trials_n,
     count(*) FILTER (
         WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+          AND q.status IS DISTINCT FROM 'quarantine'
     ) AS n,
     count(*) FILTER (
         WHERE t.primary_reward >= 1.0 AND t.exception_class IS NULL
+          AND q.status IS DISTINCT FROM 'quarantine'
     ) AS passed_n,
     round(
         100.0 * count(*) FILTER (
             WHERE t.primary_reward >= 1.0 AND t.exception_class IS NULL
+              AND q.status IS DISTINCT FROM 'quarantine'
         ) / nullif(
             count(*) FILTER (
                 WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+                  AND q.status IS DISTINCT FROM 'quarantine'
             ),
             0
         ),
         2
     ) AS pass_rate_pct,
-    count(*) FILTER (WHERE t.exception_class IS NOT NULL) AS exceptions_n,
+    count(*) FILTER (
+        WHERE t.exception_class IS NOT NULL AND q.status IS DISTINCT FROM 'quarantine'
+    ) AS exceptions_n,
     count(*) FILTER (
         WHERE t.primary_reward IS NULL AND t.exception_class IS NULL
+          AND q.status IS DISTINCT FROM 'quarantine'
     ) AS never_measured_n,
     count(*) FILTER (
-        WHERE t.exception_class IS NOT NULL
-           OR (t.primary_reward IS NULL AND t.exception_class IS NULL)
+        WHERE (t.exception_class IS NOT NULL
+               OR (t.primary_reward IS NULL AND t.exception_class IS NULL))
+          AND q.status IS DISTINCT FROM 'quarantine'
     ) AS excluded_n,
     count(*) FILTER (
         WHERE t.primary_reward < 1.0 AND t.exception_class IS NULL
+          AND q.status IS DISTINCT FROM 'quarantine'
     ) AS failed_unexcepted_n,
     round(
         avg(t.duration_seconds) FILTER (
             WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+              AND q.status IS DISTINCT FROM 'quarantine'
         ),
         2
     ) AS avg_duration_seconds,
     round(
         avg(t.cost_usd) FILTER (
             WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+              AND q.status IS DISTINCT FROM 'quarantine'
         ),
         4
-    ) AS avg_cost_usd
+    ) AS avg_cost_usd,
+    count(*) FILTER (WHERE q.status = 'pass') AS quality_pass_n,
+    count(*) FILTER (WHERE q.status = 'warn') AS quality_warn_n,
+    count(*) FILTER (WHERE q.status = 'fail') AS quality_fail_n,
+    count(*) FILTER (WHERE q.status = 'quarantine') AS quality_quarantine_n
 FROM craft c
 JOIN trial_facts t
     ON c.task_digest IS NOT NULL
    AND t.task_digest IS NOT NULL
    AND c.task_digest = t.task_digest
+LEFT JOIN trajectory_quality_reports q
+    ON q.trial_id = t.trial_id
+   AND (q.job_id = t.job_id OR q.job_id = '')
 GROUP BY c.source_repo, coalesce(c.verifier_type, 'unclassified')
 ORDER BY c.source_repo, n DESC, verifier_type;

@@ -23,7 +23,14 @@ auth.json
 /derived/*
 !/derived/parquet/
 /derived/parquet/*
-!/derived/parquet/trajectory_quality_reports.parquet
+!/derived/parquet/craft/
+/derived/parquet/craft/*
+!/derived/parquet/craft/craft.parquet
+!/derived/parquet/compact/
+/derived/parquet/compact/*
+!/derived/parquet/compact/dt=*/
+/derived/parquet/compact/dt=*/**
+!/derived/parquet/compact/dt=*/trial_facts.parquet
 /backups/
 /logs/
 /notebooks/.ipynb_checkpoints/

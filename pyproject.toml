@@ -86,6 +86,9 @@ extend-exclude = [
     "library/tasks/terminal-bench-html-js-filter", "library/curated",
     "library/tasks/experimental",
     "library/external/terminal-bench-v3.0.0",
+    # Generated tau3-bench task code is vendored upstream; editing it would
+    # desync the package from its source and invalidate registry digests.
+    "library/tasks/tau3-retail-1",
     # Promoted evidence is a verbatim record of what an agent produced. Its
     # digests are pinned in each bundle's PROMOTION.json, so linting or
     # reformatting it would falsify the record rather than improve it.

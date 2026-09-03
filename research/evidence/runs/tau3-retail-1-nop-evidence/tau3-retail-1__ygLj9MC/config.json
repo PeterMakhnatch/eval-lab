@@ -1,0 +1,11 @@
+{
+    "task": {
+        "path": "library/tasks/tau3-retail-1"
+    },
+    "trial_name": "tau3-retail-1__ygLj9MC",
+    "trials_dir": "runs/tau3-retail-1-nop",
+    "agent": {
+        "name": "nop"
+    },
+    "job_id": "8ced68cc-79ce-40e3-ad81-6fc7a1897269"
+}

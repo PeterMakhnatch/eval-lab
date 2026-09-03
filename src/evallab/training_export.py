@@ -21,7 +21,16 @@ from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, JsonValue, model_validator
 
-from evallab.evidence_store import EvidenceLocator, materialize_evidence
+from evallab.artifact_authority import (
+    VERIFIER_IMPLEMENTATION_DIGEST,
+    ArchiveAnchor,
+    ArtifactAuthority,
+    ArtifactRef,
+    AuthorityRefusal,
+    reverify_authority,
+    verify_artifact,
+)
+from evallab.evidence_store import EvidenceLocator
 from evallab.explorer import redact_text
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.registry import task_registry_record_digest
@@ -121,6 +130,77 @@ TrainingExclusionReason = Literal[
 
 class _FrozenContract(ContractModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+def _require_authority_bindings(
+    *,
+    trial_id: str,
+    source_path: str,
+    source_digest: str,
+    lineage_path: str,
+    lineage_digest: str,
+    admissibility_record_path: str,
+    admissibility_record_digest: str,
+    admissibility_digest: str,
+    evidence_kind: str,
+    evidence_record_id: str,
+    evidence_record_digest: str,
+    evidence_content_digest: str,
+    source_authority: ArtifactAuthority,
+    lineage_authority: ArtifactAuthority,
+    admissibility_record_authority: ArtifactAuthority,
+) -> None:
+    expected_anchors = (
+        ArchiveAnchor(
+            record_kind=evidence_kind,
+            record_id=evidence_record_id,
+            expected_record_digest=evidence_record_digest,
+            expected_content_digest=evidence_content_digest,
+            inner_path=source_path,
+        ),
+        ArchiveAnchor(
+            record_kind=evidence_kind,
+            record_id=evidence_record_id,
+            expected_record_digest=evidence_record_digest,
+            expected_content_digest=evidence_content_digest,
+            inner_path=lineage_path,
+        ),
+        ArchiveAnchor(
+            record_kind=evidence_kind,
+            record_id=evidence_record_id,
+            expected_record_digest=evidence_record_digest,
+            expected_content_digest=evidence_content_digest,
+            inner_path=admissibility_record_path,
+        ),
+    )
+    authorities = (
+        (source_authority, source_path, source_digest, expected_anchors[0]),
+        (lineage_authority, lineage_path, lineage_digest, expected_anchors[1]),
+        (
+            admissibility_record_authority,
+            admissibility_record_path,
+            admissibility_record_digest,
+            expected_anchors[2],
+        ),
+    )
+    if any(
+        authority.level != "bytes-verified"
+        or authority.verifier_implementation_digest
+        != VERIFIER_IMPLEMENTATION_DIGEST
+        or authority.artifact != ArtifactRef(ref=path, digest=digest)
+        or authority.anchor != expected_anchor
+        for authority, path, digest, expected_anchor in authorities
+    ):
+        raise ValueError("training source authority binding mismatch")
+    binding = source_authority.admissibility_binding
+    if (
+        binding is None
+        or binding.trial_id != trial_id
+        or binding.admissibility_digest != admissibility_digest
+        or binding.artifact_kind != "trajectory"
+        or lineage_authority.admissibility_binding is not None
+        or admissibility_record_authority.admissibility_binding is not None
+    ):
+        raise ValueError("training source admissibility authority binding mismatch")
 
 
 class TrainingFunctionDefinition(_FrozenContract):
@@ -299,7 +379,11 @@ class TrainingSourceBinding(_FrozenContract):
     evidence_record_id: str = Field(min_length=1, pattern=r"^[^/\x00]+$")
     evidence_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     evidence_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    trial_admissibility_record_path: str
     trial_admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_authority: ArtifactAuthority
+    lineage_authority: ArtifactAuthority
+    trial_admissibility_record_authority: ArtifactAuthority
     registry_allowed_use: Literal["training"] = "training"
     task_registry_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trial_admissibility_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -327,6 +411,29 @@ class TrainingSourceBinding(_FrozenContract):
             raise ValueError("training source path must be safe normalized agent evidence")
         if not _safe_evidence_path(self.lineage_path):
             raise ValueError("training lineage path must be safe normalized evidence")
+        if not _safe_evidence_path(self.trial_admissibility_record_path):
+            raise ValueError(
+                "training admissibility path must be safe normalized evidence"
+            )
+        _require_authority_bindings(
+            trial_id=self.trial_id,
+            source_path=self.source_path,
+            source_digest=self.source_artifact_digest,
+            lineage_path=self.lineage_path,
+            lineage_digest=self.lineage_digest,
+            admissibility_record_path=self.trial_admissibility_record_path,
+            admissibility_record_digest=self.trial_admissibility_record_digest,
+            admissibility_digest=self.trial_admissibility_digest,
+            evidence_kind=self.evidence_kind,
+            evidence_record_id=self.evidence_record_id,
+            evidence_record_digest=self.evidence_record_digest,
+            evidence_content_digest=self.evidence_content_digest,
+            source_authority=self.source_authority,
+            lineage_authority=self.lineage_authority,
+            admissibility_record_authority=(
+                self.trial_admissibility_record_authority
+            ),
+        )
         return self
 
 
@@ -407,7 +514,11 @@ class TrainingSourceRefV1(_FrozenContract):
     evidence_record_id: str = Field(min_length=1, pattern=r"^[^/\x00]+$")
     evidence_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     evidence_content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    trial_admissibility_record_path: str
     trial_admissibility_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_authority: ArtifactAuthority
+    lineage_authority: ArtifactAuthority
+    trial_admissibility_record_authority: ArtifactAuthority
     registry_allowed_use: Literal["training"] = "training"
     task_registry_record_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trial_admissibility_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -429,8 +540,31 @@ class TrainingSourceRefV1(_FrozenContract):
             "cas://sha256/"
         ) != self.evidence_content_digest.removeprefix("sha256:"):
             raise ValueError("training source ref CAS URI must bind evidence_content_digest")
-        if not _safe_source_path(self.source_path) or not _safe_evidence_path(self.lineage_path):
+        if not _safe_source_path(self.source_path) or not _safe_evidence_path(
+            self.lineage_path
+        ):
             raise ValueError("training source ref paths must be canonical evidence paths")
+        if not _safe_evidence_path(self.trial_admissibility_record_path):
+            raise ValueError("training source ref admissibility path must be canonical")
+        _require_authority_bindings(
+            trial_id=self.trial_id,
+            source_path=self.source_path,
+            source_digest=self.source_digest,
+            lineage_path=self.lineage_path,
+            lineage_digest=self.lineage_digest,
+            admissibility_record_path=self.trial_admissibility_record_path,
+            admissibility_record_digest=self.trial_admissibility_record_digest,
+            admissibility_digest=self.trial_admissibility_digest,
+            evidence_kind=self.evidence_kind,
+            evidence_record_id=self.evidence_record_id,
+            evidence_record_digest=self.evidence_record_digest,
+            evidence_content_digest=self.evidence_content_digest,
+            source_authority=self.source_authority,
+            lineage_authority=self.lineage_authority,
+            admissibility_record_authority=(
+                self.trial_admissibility_record_authority
+            ),
+        )
         return self
 
 
@@ -564,6 +698,12 @@ class TrainingExportResult:
     exclusions: tuple[TrainingExclusionRecord, ...]
 
 
+
+@dataclass(frozen=True)
+class _VerifiedSourceAuthorities:
+    source: ArtifactAuthority
+    lineage: ArtifactAuthority
+    admissibility_record: ArtifactAuthority
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(
         value,
@@ -641,12 +781,26 @@ def _safe_metadata(value: str) -> str:
     return f"redacted-metadata-{hashlib.sha256(value.encode()).hexdigest()}"
 
 
+def _authority_refusal_reason(
+    refusal: AuthorityRefusal,
+    *,
+    admissibility_record: bool = False,
+) -> TrainingExclusionReason:
+    if admissibility_record and refusal.reason == "source_unreadable":
+        return "receipt_admissibility_unavailable"
+    if refusal.reason in {"ref_digest_parity_failed", "receipt_digest_mismatch"}:
+        return "receipt_digest_mismatch"
+    if refusal.reason == "source_unreadable":
+        return "untrusted_provenance"
+    return "receipt_contradiction"
+
+
 def _provenance_reasons(
     source: NormalizedTrainingEvidence,
-) -> list[TrainingExclusionReason]:
+) -> tuple[list[TrainingExclusionReason], _VerifiedSourceAuthorities | None]:
     receipt = source.source_receipt
     if receipt is None:
-        return ["missing_trusted_provenance"]
+        return ["missing_trusted_provenance"], None
     if (
         not _safe_source_path(source.source_path)
         or not _safe_evidence_path(source.lineage_path)
@@ -656,14 +810,14 @@ def _provenance_reasons(
         or not _DIGEST.fullmatch(source.lineage_digest)
         or source.source_cas_uri is None
         or not _CAS_URI.fullmatch(source.source_cas_uri)
+        or source.admissibility is None
     ):
-        return []
+        return [], None
     reasons: list[TrainingExclusionReason] = []
     locator = receipt.evidence_locator
     kinds = tuple(item.source_kind for item in receipt.source_digests)
     if kinds != ("lineage", "trajectory"):
-        reasons.append("canonical_set_mismatch")
-        return reasons
+        return ["canonical_set_mismatch"], None
     receipt_paths = (
         receipt.admissibility_record_path,
         *(item.path for item in receipt.source_digests),
@@ -677,12 +831,13 @@ def _provenance_reasons(
         or receipt.consumer_name != TRAINING_EXPORTER_NAME
         or receipt.consumer_version != TRAINING_EXPORTER_VERSION
         or receipt.consumer_digest != _digest_bytes(Path(__file__).read_bytes())
-        or not _safe_evidence_path(receipt.admissibility_record_path)
         or len(receipt_paths) != len(set(receipt_paths))
         or any(not _safe_evidence_path(path) for path in receipt_paths)
     ):
         reasons.append("receipt_contradiction")
-    expected_uri = f"cas://sha256/{receipt.cas_content_digest.removeprefix('sha256:')}"
+    expected_uri = (
+        f"cas://sha256/{receipt.cas_content_digest.removeprefix('sha256:')}"
+    )
     if source.source_cas_uri != expected_uri:
         reasons.append("source_cas_digest_mismatch")
     receipt_sources = {item.source_kind: item for item in receipt.source_digests}
@@ -696,41 +851,85 @@ def _provenance_reasons(
     ):
         reasons.append("receipt_contradiction")
     try:
-        with materialize_evidence(receipt.evidence_locator) as root:
-            actual_sources: dict[str, str] = {}
-            for item in receipt.source_digests:
-                path = root.joinpath(*PurePosixPath(item.path).parts)
-                if not path.is_file():
-                    raise FileNotFoundError(item.path)
-                actual_sources[item.source_kind] = _digest_bytes(path.read_bytes())
-            if any(
-                actual_sources[item.source_kind] != item.digest for item in receipt.source_digests
-            ):
-                reasons.append("receipt_digest_mismatch")
-            authority_path = root.joinpath(*PurePosixPath(receipt.admissibility_record_path).parts)
-            if not authority_path.is_file():
-                reasons.append("receipt_admissibility_unavailable")
-            else:
-                authority_bytes = authority_path.read_bytes()
-                if _digest_bytes(authority_bytes) != receipt.admissibility_record_digest:
-                    reasons.append("receipt_digest_mismatch")
-                try:
-                    authority = TrialAdmissibilityV1.model_validate_json(authority_bytes)
-                except ValueError:
-                    reasons.append("receipt_admissibility_unavailable")
-                else:
-                    canonical_authority = _canonical_json(authority.model_dump(mode="json")) + b"\n"
-                    if authority_bytes != canonical_authority:
-                        reasons.append("receipt_digest_mismatch")
-                    if source.admissibility is None or authority != source.admissibility:
-                        reasons.append("receipt_contradiction")
-                    if authority.source_digests.trajectory != actual_sources.get("trajectory"):
-                        reasons.append("receipt_contradiction")
-    except OSError:
-        reasons.append("untrusted_provenance")
+        base_anchor = {
+            "record_kind": receipt.cas_record_kind,
+            "record_id": receipt.cas_record_id,
+            "expected_record_digest": receipt.cas_record_digest,
+            "expected_content_digest": receipt.cas_content_digest,
+        }
+        source_authority = verify_artifact(
+            ArtifactRef(ref=source.source_path, digest=source.source_artifact_digest),
+            minimum_level="bytes-verified",
+            verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+            anchor=ArchiveAnchor(**base_anchor, inner_path=source.source_path),
+            admissibility=source.admissibility,
+            artifact_kind="trajectory",
+            store_root=locator.store_root,
+        )
+        lineage_authority = verify_artifact(
+            ArtifactRef(ref=source.lineage_path, digest=source.lineage_digest),
+            minimum_level="bytes-verified",
+            verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+            anchor=ArchiveAnchor(**base_anchor, inner_path=source.lineage_path),
+            store_root=locator.store_root,
+        )
+        record_authority = verify_artifact(
+            ArtifactRef(
+                ref=receipt.admissibility_record_path,
+                digest=receipt.admissibility_record_digest,
+            ),
+            minimum_level="bytes-verified",
+            verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+            anchor=ArchiveAnchor(
+                **base_anchor, inner_path=receipt.admissibility_record_path
+            ),
+            store_root=locator.store_root,
+        )
     except ValueError:
-        reasons.append("receipt_digest_mismatch")
-    return reasons
+        return [*reasons, "receipt_contradiction"], None
+    for result, is_record in (
+        (source_authority, False),
+        (lineage_authority, False),
+        (record_authority, True),
+    ):
+        if isinstance(result, AuthorityRefusal):
+            reasons.append(
+                _authority_refusal_reason(
+                    result, admissibility_record=is_record
+                )
+            )
+    if reasons:
+        return reasons, None
+    assert isinstance(source_authority, ArtifactAuthority)
+    assert isinstance(lineage_authority, ArtifactAuthority)
+    assert isinstance(record_authority, ArtifactAuthority)
+    reopened = reverify_authority(
+        record_authority,
+        expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        store_root=locator.store_root,
+    )
+    if isinstance(reopened, AuthorityRefusal):
+        return [
+            _authority_refusal_reason(reopened, admissibility_record=True)
+        ], None
+    authority_bytes, verified_record_authority = reopened
+    try:
+        authority = TrialAdmissibilityV1.model_validate_json(authority_bytes)
+    except ValueError:
+        return ["receipt_admissibility_unavailable"], None
+    canonical_authority = _canonical_json(authority.model_dump(mode="json")) + b"\n"
+    if authority_bytes != canonical_authority:
+        return ["receipt_digest_mismatch"], None
+    if authority != source.admissibility:
+        return ["receipt_contradiction"], None
+    return (
+        [],
+        _VerifiedSourceAuthorities(
+            source=source_authority,
+            lineage=lineage_authority,
+            admissibility_record=verified_record_authority,
+        ),
+    )
 
 
 def _valid_tool_linkage(source: NormalizedTrainingEvidence) -> bool:
@@ -819,7 +1018,11 @@ def _exclusion(
 
 def _gate_source(
     source: NormalizedTrainingEvidence,
-) -> tuple[list[TrainingExclusionReason], list[str]]:
+) -> tuple[
+    list[TrainingExclusionReason],
+    list[str],
+    _VerifiedSourceAuthorities | None,
+]:
     reasons: list[TrainingExclusionReason] = []
     details: list[str] = []
     registry_record = source.registry_record
@@ -901,7 +1104,8 @@ def _gate_source(
         reasons.append("unsafe_source_path")
     if not _safe_evidence_path(source.lineage_path):
         reasons.append("unsafe_lineage_path")
-    reasons.extend(_provenance_reasons(source))
+    provenance_reasons, verified_authorities = _provenance_reasons(source)
+    reasons.extend(provenance_reasons)
     if source.capture_status != "complete":
         reasons.append("capture_incomplete")
     if source.environment_integrity != "passed":
@@ -956,7 +1160,7 @@ def _gate_source(
         elif feature.is_quarantined():
             reasons.append("quarantined_feature")
             details.append(f"quarantined feature: {name} ({feature.quarantine_reason})")
-    return reasons, details
+    return reasons, details, verified_authorities
 
 
 def _source_content_digest(source: NormalizedTrainingEvidence) -> str:
@@ -998,7 +1202,10 @@ def _latest_history(
     return selected, exclusions
 
 
-def _source_binding(source: NormalizedTrainingEvidence) -> TrainingSourceBinding:
+def _source_binding(
+    source: NormalizedTrainingEvidence,
+    authorities: _VerifiedSourceAuthorities,
+) -> TrainingSourceBinding:
     assert source.source_artifact_digest is not None
     assert source.source_cas_uri is not None
     assert source.lineage_digest is not None
@@ -1026,7 +1233,11 @@ def _source_binding(source: NormalizedTrainingEvidence) -> TrainingSourceBinding
         evidence_record_id=receipt.cas_record_id,
         evidence_record_digest=receipt.cas_record_digest,
         evidence_content_digest=receipt.cas_content_digest,
+        trial_admissibility_record_path=receipt.admissibility_record_path,
         trial_admissibility_record_digest=receipt.admissibility_record_digest,
+        source_authority=authorities.source,
+        lineage_authority=authorities.lineage,
+        trial_admissibility_record_authority=authorities.admissibility_record,
         registry_allowed_use="training",
         task_registry_record_digest=task_registry_record_digest(source.registry_record),
         trial_admissibility_digest=source.admissibility.admissibility_digest,
@@ -1039,9 +1250,10 @@ def _source_binding(source: NormalizedTrainingEvidence) -> TrainingSourceBinding
 def _candidate_records(
     source: NormalizedTrainingEvidence,
     representations: tuple[TrainingRepresentation, ...],
+    authorities: _VerifiedSourceAuthorities,
 ) -> list[TrainingExampleRecord]:
     ordered = sorted(source.messages, key=lambda message: message.sequence)
-    binding = _source_binding(source)
+    binding = _source_binding(source, authorities)
     tools = [tool.model_dump(mode="json") for tool in source.tools]
     candidates: list[TrainingExampleRecord] = []
     for representation in representations:
@@ -1199,12 +1411,15 @@ def export_training_dataset(
 
     initially_valid: list[NormalizedTrainingEvidence] = []
     exclusions: list[TrainingExclusionRecord] = []
+    authorities_by_source: dict[int, _VerifiedSourceAuthorities] = {}
     for source in sources:
-        reasons, details = _gate_source(source)
+        reasons, details, verified_authorities = _gate_source(source)
         if reasons:
             exclusions.append(_exclusion(source, reasons, details=details))
         else:
+            assert verified_authorities is not None
             initially_valid.append(source)
+            authorities_by_source[id(source)] = verified_authorities
 
     latest, history_exclusions = _latest_history(initially_valid)
     exclusions.extend(history_exclusions)
@@ -1231,7 +1446,13 @@ def export_training_dataset(
             source.history_revision,
         )
         source_by_key[key] = source
-        candidates.extend(_candidate_records(source, representations))
+        candidates.extend(
+            _candidate_records(
+                source,
+                representations,
+                authorities_by_source[id(source)],
+            )
+        )
 
     grouped_records: dict[str, list[TrainingExampleRecord]] = defaultdict(list)
     for record in candidates:
@@ -1318,7 +1539,15 @@ def export_training_dataset(
             evidence_record_id=source.evidence_record_id,
             evidence_record_digest=source.evidence_record_digest,
             evidence_content_digest=source.evidence_content_digest,
+            trial_admissibility_record_path=(
+                source.trial_admissibility_record_path
+            ),
             trial_admissibility_record_digest=source.trial_admissibility_record_digest,
+            source_authority=source.source_authority,
+            lineage_authority=source.lineage_authority,
+            trial_admissibility_record_authority=(
+                source.trial_admissibility_record_authority
+            ),
             registry_allowed_use=source.registry_allowed_use,
             task_registry_record_digest=source.task_registry_record_digest,
             trial_admissibility_digest=source.trial_admissibility_digest,

@@ -10,6 +10,11 @@ import pytest
 from pydantic import ValidationError
 
 import evallab.training_export as training_export
+from evallab.artifact_authority import (
+    VERIFIER_IMPLEMENTATION_DIGEST,
+    AuthorityRefusal,
+    reverify_authority,
+)
 from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
 from evallab.registry import task_runtime_identity
 from evallab.schemas import (
@@ -55,6 +60,18 @@ def _manifest_digest(payload: dict[str, object]) -> str:
     body = {
         key: value for key, value in payload.items() if key not in {"manifest_digest", "cas_uri"}
     }
+    return _sha_bytes(
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    )
+
+def _authority_digest(payload: dict[str, object]) -> str:
+    body = {key: value for key, value in payload.items() if key != "authority_digest"}
     return _sha_bytes(
         json.dumps(
             body,
@@ -306,6 +323,30 @@ def test_fixture_export_is_byte_identical_and_authority_bound(tmp_path: Path) ->
     assert source_ref.trial_admissibility_decision == "admissible"
     assert source_ref.trial_analysis_eligibility == "causal-eligible"
     assert source_ref.trial_admissibility_allowed_use == "causal"
+    assert source_ref.source_authority.level == "bytes-verified"
+    assert (
+        source_ref.source_authority.verifier_implementation_digest
+        == VERIFIER_IMPLEMENTATION_DIGEST
+    )
+    assert source_ref.source_authority.admissibility_binding is not None
+    assert (
+        source_ref.source_authority.admissibility_binding.artifact_kind
+        == "trajectory"
+    )
+    assert source_ref.lineage_authority.level == "bytes-verified"
+    assert source_ref.trial_admissibility_record_authority.level == "bytes-verified"
+    assert source.source_receipt is not None
+    for authority in (
+        source_ref.source_authority,
+        source_ref.lineage_authority,
+        source_ref.trial_admissibility_record_authority,
+    ):
+        reopened = reverify_authority(
+            authority,
+            expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+            store_root=source.source_receipt.evidence_locator.store_root,
+        )
+        assert not isinstance(reopened, AuthorityRefusal)
     assert {record.representation for record in first.records} == {
         "prompt_response_sft",
         "episode_steps",
@@ -783,6 +824,16 @@ def test_manifest_tampering_paths_and_symlinks_fail_closed(tmp_path: Path) -> No
         TrainingDatasetManifestV1.model_validate(reordered_payload)
 
     alias_payload = result.manifest.model_dump(mode="json")
+
+    authority_binding_payload = result.manifest.model_dump(mode="json")
+    source_authority = authority_binding_payload["source_refs"][0]["source_authority"]
+    source_authority["artifact"]["digest"] = _sha("forged-source")
+    source_authority["authority_digest"] = _authority_digest(source_authority)
+    authority_binding_payload["manifest_digest"] = _manifest_digest(
+        authority_binding_payload
+    )
+    with pytest.raises(ValidationError, match="source authority binding mismatch"):
+        TrainingDatasetManifestV1.model_validate(authority_binding_payload)
     alias_payload["exclusions_path"] = "./exclusions.jsonl"
     alias_payload["manifest_digest"] = _manifest_digest(alias_payload)
     with pytest.raises(ValidationError, match="exact canonical path"):

@@ -459,6 +459,31 @@ class CapabilityDeficitArtifact(ContractModel):
         return self
 
 
+class CapabilityDeficitArtifactReceipt(ContractModel):
+    """Externally archived authority over one exact generated artifact payload."""
+
+    artifact: CapabilityDeficitArtifact
+    artifact_authority: ArtifactAuthority
+
+    @model_validator(mode="after")
+    def _require_external_bytes_authority(self) -> CapabilityDeficitArtifactReceipt:
+        authority = self.artifact_authority
+        anchor = authority.anchor
+        if (
+            authority.level != "bytes-verified"
+            or authority.verifier_implementation_digest
+            != VERIFIER_IMPLEMENTATION_DIGEST
+            or anchor is None
+            or authority.admissibility_binding is not None
+            or authority.artifact.ref != anchor.inner_path
+        ):
+            raise ValueError(
+                "artifact receipt requires anchored, bytes-verified external "
+                "authority without an admissibility binding"
+            )
+        return self
+
+
 class _EvidenceBuilder:
     """Collects mechanical facts while classification walks the input."""
 
@@ -613,34 +638,51 @@ def _args_id(call: ToolCallSpec) -> str:
 
 
 def reverify_capability_deficit_artifact(
-    artifact_or_mapping: CapabilityDeficitArtifact | Mapping[str, Any],
+    receipt_or_mapping: CapabilityDeficitArtifactReceipt | Mapping[str, Any],
     *,
     authority_repo_root: Path | str | None = None,
     authority_store_root: Path | str | None = None,
 ) -> bool:
-    """Return whether a retained positive artifact still has live authority.
-
-    This is the public consumer boundary: it strictly rehydrates the retained
-    artifact, reopens the canonical archived admissibility record, and re-reads
-    every cited source through its retained authority receipt.
-    """
+    """Return whether an externally authenticated artifact retains live authority."""
 
     try:
-        if isinstance(artifact_or_mapping, CapabilityDeficitArtifact):
-            raw_artifact: Mapping[str, Any] = artifact_or_mapping.model_dump(mode="json")
-        elif isinstance(artifact_or_mapping, Mapping):
-            raw_artifact = artifact_or_mapping
+        if isinstance(receipt_or_mapping, CapabilityDeficitArtifactReceipt):
+            raw_receipt: Mapping[str, Any] = receipt_or_mapping.model_dump(mode="json")
+        elif isinstance(receipt_or_mapping, Mapping):
+            raw_receipt = receipt_or_mapping
         else:
             return False
-        artifact = CapabilityDeficitArtifact.model_validate(raw_artifact)
-        if artifact.attribution_gate not in ("deficit_supported", "deficit_refuted"):
+        receipt = CapabilityDeficitArtifactReceipt.model_validate(raw_receipt)
+        reopened_output = reverify_authority(
+            receipt.artifact_authority,
+            expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+            repo_root=authority_repo_root,
+            store_root=authority_store_root,
+        )
+        if not isinstance(reopened_output, tuple):
+            return False
+        output_bytes, verified_output_authority = reopened_output
+        if verified_output_authority != receipt.artifact_authority:
+            return False
+        expected_bytes = (
+            _canonical_json_bytes(receipt.artifact.model_dump(mode="json")) + b"\n"
+        )
+        if output_bytes != expected_bytes:
+            return False
+        authenticated_artifact = CapabilityDeficitArtifact.model_validate_json(output_bytes)
+        if authenticated_artifact != receipt.artifact:
+            return False
+        if authenticated_artifact.attribution_gate not in (
+            "deficit_supported",
+            "deficit_refuted",
+        ):
             return False
         verified = _reverified_authorities(
-            artifact.source_binding,
-            artifact.evidence,
-            artifact.counterevidence,
-            artifact.evidence_authorities,
-            artifact.admissibility_record_authority,
+            authenticated_artifact.source_binding,
+            authenticated_artifact.evidence,
+            authenticated_artifact.counterevidence,
+            authenticated_artifact.evidence_authorities,
+            authenticated_artifact.admissibility_record_authority,
             repo_root=authority_repo_root,
             store_root=authority_store_root,
         )
@@ -648,8 +690,9 @@ def reverify_capability_deficit_artifact(
             return False
         authorities, record_authority = verified
         return (
-            authorities == artifact.evidence_authorities
-            and record_authority == artifact.admissibility_record_authority
+            authorities == authenticated_artifact.evidence_authorities
+            and record_authority
+            == authenticated_artifact.admissibility_record_authority
         )
     except (TypeError, ValueError):
         return False

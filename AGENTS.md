@@ -7,6 +7,7 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
 
 ## Working rules
 
+- **Read [`agents/CONTEXT-HUB.md`](agents/CONTEXT-HUB.md) FIRST, every session.** It is the single source of truth for current focus, model policy, and open items. If anything contradicts it, the hub wins; update the hub when decisions change instead of briefing agents individually.
 - Read this file and `docs/architecture.md` before substantial changes.
 - Treat this as a Python repository. New application code, adapters, verifiers,
   and benchmark tasks must be Python. Shell, SQL, Dockerfiles, and data/config

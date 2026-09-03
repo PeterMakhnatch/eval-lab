@@ -1,0 +1,48 @@
+# ══════════════════════════════════════════════════════════════════════════
+# EVAL ROSTER — THE single source of truth for models, agents, benchmarks.
+#
+# RUNBOOK (also in agents/CONTEXT-HUB.md §7):
+#   1. To change what we run evals with: edit THIS file. Nothing else.
+#   2. Record the change in CONTEXT-HUB.md §5 Decision Log (one line).
+#   3. Commit both in the same commit. Reviewers: reject PRs that change
+#      model/agent/benchmark config anywhere ELSE without also updating here.
+#   4. `uv run python -m evallab.roster` verifies consumers are in sync
+#      (runs automatically in the 08:00 briefing; drift is REPORTED, never
+#      auto-fixed).
+#
+# AGENTS: you READ this file. You do not EDIT it without a decision-log entry.
+# ══════════════════════════════════════════════════════════════════════════
+version: 1
+updated: 2026-09-03
+updated_by: peter
+
+# ── What runs the trials ──────────────────────────────────────────────────
+trial:
+  agent: zai-opencode
+  model: zai/glm-5.3-flash
+  harness: harbor
+  harness_path: ~/Developer/agent-evals/harbor
+
+# ── What simulates the user & verifies (τ-style benchmarks) ───────────────
+simulator:
+  provider: zai-coding-plan
+  base_url: https://api.z.ai/api/coding/paas/v4
+  model: glm-5.3-flash
+  note: >
+    τ³ reward is partly LLM-judged. Pin the assertion model identity with the
+    trial record; never compare across different assertion models.
+
+# ── What we evaluate on ───────────────────────────────────────────────────
+benchmark:
+  primary: sierra-research/tau3-bench
+  primary_path: ~/Developer/agent-evals/harbor/adapters/tau3-bench/
+  registry: harbor-hub
+
+# ── What is NOT allowed for trials (each needs a decision-log entry to lift)
+banned_for_trials:
+  - codex        # credits=0, hard-stop lockout at window exhaustion
+  - deepseek     # balance 0 since 2026-08-31
+  - cursor-cli   # no quota snapshots, unverifiable allowance
+
+# ── Free local controls (never billable) ──────────────────────────────────
+free_controls: [oracle, nop]

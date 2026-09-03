@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "task_id": "mcp-funcdag-schema-drift-twin-seed42",
+  "task_family": "mcp-funcdag-v1",
+  "version": "1.0.0",
+  "task_path": "derived/harbor-tasks/mcp-funcdag/72d270d48423e81b/mcp-funcdag-schema_drift_twin-seed42",
+  "digests": {
+    "task_toml": "sha256:27e94d3d41da83fa2afbbd0805d3872b203f68923cb3d9f3deadb71a53487ffa",
+    "instruction": "sha256:b549170340f5b928d73cb8919516402779e5ef2449c4b38a0c5c8f5b10ab95f3",
+    "environment": "sha256:852f3f0753efbf9a2293cf5e63fc46040e718ea947c665df92e55f1352144d63",
+    "verifier": "sha256:154e3adb68327c50d833c18c688030dc0ccaa902cdb48875fd4d9e7c87d883e8",
+    "package": "sha256:67051ae119db334a31ca4ce41438a1915334f8d10d09d8a9dbc4e1b5dc55ff29"
+  },
+  "source_uri": "eval-lab/synthetic/mcp-funcdag-v1",
+  "source_ref": "local/eval-lab/benchmarks/mcp-funcdag-v1@1.0.0",
+  "license": "Apache-2.0",
+  "provenance_zone": "03-synthetic",
+  "is_synthetic": true,
+  "limits": {
+    "timeout_seconds": 180,
+    "max_memory_mb": 512,
+    "max_cpus": 1.0
+  },
+  "control_evidence": null,
+  "certification": {
+    "state": "legacy_missing"
+  },
+  "state": "candidate",
+  "allowed_uses": [
+    "measurement"
+  ],
+  "contamination": null,
+  "human_minutes": null,
+  "approved_by": null,
+  "approved_at": null,
+  "state_reason": "control_evidence_pending"
+}

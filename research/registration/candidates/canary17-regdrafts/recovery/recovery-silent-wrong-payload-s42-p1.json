@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "task_id": "recovery-silent-wrong-payload-s42-p1",
+  "task_family": "mcp-recovery-v1",
+  "version": "1.0.0",
+  "task_path": "TODO-NOT-MATERIALIZED",
+  "digests": {
+    "task_toml": "TODO-NOT-MATERIALIZED",
+    "instruction": "TODO-NOT-MATERIALIZED",
+    "environment": "TODO-NOT-MATERIALIZED",
+    "verifier": "TODO-NOT-MATERIALIZED",
+    "package": "TODO-NOT-MATERIALIZED"
+  },
+  "source_uri": "eval-lab/synthetic/mcp-recovery-v1",
+  "source_ref": "local/eval-lab/benchmarks/mcp-recovery-v1@1.0.0",
+  "license": "Apache-2.0",
+  "provenance_zone": "03-synthetic",
+  "is_synthetic": true,
+  "limits": {
+    "timeout_seconds": 180,
+    "max_memory_mb": 512,
+    "max_cpus": 1.0
+  },
+  "control_evidence": null,
+  "certification": {
+    "state": "legacy_missing"
+  },
+  "state": "candidate",
+  "allowed_uses": [
+    "measurement"
+  ],
+  "contamination": null,
+  "human_minutes": null,
+  "approved_by": null,
+  "approved_at": null,
+  "state_reason": "control_evidence_pending"
+}

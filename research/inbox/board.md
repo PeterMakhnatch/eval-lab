@@ -62,6 +62,7 @@ backlog:
 claims:
   - wK:p4/Tutor → Track F gates exercise (blocked: needs Peter on Linux host + ICC pilot; needs wH:p9 on SFT control arm)
   - wS:p9 (Fable) → system-design #2 S0 GPU sign-off PROBE (claimed Sep 3, granted; record not authorization — sign-off stays Peter's)
+  - wS:pA (zai/glm-5.3-flash) → system-design #3 evidence-visibility (claimed Sep 3, granted; EXP-S03 de-dup respected; scratch worktree stood up/torn down clean, no changes)
 done:
   - wK:p9 (GPT-5.6 Sol) → system-design #1 KEEP CLOSED/REJECT until 4 conjunctive conditions (output verl-second-wave-reopen-criteria-20260903.md; sha CONFIRMED f079fb59 on re-post; 6 rejected alts, 10-item spike gate, no code; pending Peter review)
 

@@ -2,6 +2,7 @@
 
 Grounding: Track F second-wave specification (research/inbox/artifact-authority-boundary-20260903.md)
 Provides a fail-closed boundary distinguishing structural self-consistency from repo-jailed, bytes-verified authority.
+Integrates natively with evallab.evidence_store primitives and TrialAdmissibilityV1 authority records.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from evallab.benchmark_program_contracts import canonical_json, compute_prefixed_sha256
+from evallab.evidence_store import _absolute, load_blob, read_archive
 from evallab.schemas import ContractModel, Digest, TrialAdmissibilityV1
 
 AuthorityLevel = Literal["structural-self-consistent", "bytes-verified"]
@@ -74,6 +76,17 @@ class ArtifactRef(ContractModel):
             )
         return value
 
+    @model_validator(mode="after")
+    def cas_uri_matches_declared_digest(self) -> ArtifactRef:
+        if self.ref.startswith("cas://sha256/"):
+            hex_part = self.ref.removeprefix("cas://sha256/")
+            expected_digest = f"sha256:{hex_part}"
+            if self.digest != expected_digest:
+                raise ValueError(
+                    f"cas ref URI digest {hex_part!r} does not match declared digest {self.digest!r}"
+                )
+        return self
+
 
 def compute_authority_digest(
     artifact: ArtifactRef,
@@ -132,7 +145,7 @@ AuthorityResult = ArtifactAuthority | AuthorityRefusal
 
 
 def _read_repo_regular_file(repo_root: Path, relative_path: str) -> tuple[bytes | None, str | None]:
-    """Read repo-confined bytes without following any symlink component."""
+    """Read repo-confined bytes without following any component symlink."""
     path = PurePosixPath(relative_path)
     components = path.parts
     if (
@@ -143,9 +156,14 @@ def _read_repo_regular_file(repo_root: Path, relative_path: str) -> tuple[bytes 
     ):
         return None, "ref_not_canonical: path must be canonical and repo-relative"
 
+    try:
+        canonical_root = _absolute(repo_root)
+    except ValueError as exc:
+        return None, f"source_unreadable: invalid repo root: {exc}"
+
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     try:
-        directory = os.open(repo_root.resolve(), flags)
+        directory = os.open(canonical_root, flags)
     except OSError as exc:
         return None, f"source_unreadable: cannot open repository root: {exc}"
 
@@ -178,22 +196,32 @@ def _read_repo_regular_file(repo_root: Path, relative_path: str) -> tuple[bytes 
         os.close(directory)
 
 
-def _read_cas_bytes(cas_root: Path, hex_digest: str) -> tuple[bytes | None, str | None]:
-    """Read raw CAS object bytes from the content-addressed store."""
-    prefix = hex_digest[:2]
-    candidates = [
-        cas_root / "objects" / prefix / hex_digest,
-        cas_root / prefix / hex_digest,
-        cas_root / hex_digest,
-    ]
-    for candidate in candidates:
-        if candidate.is_file() and not candidate.is_symlink():
-            try:
-                return candidate.read_bytes(), None
-            except OSError as exc:
-                return None, f"source_unreadable: failed reading CAS object {hex_digest}: {exc}"
+def _read_cas_payload(store_root: Path, uri: str) -> tuple[bytes | None, str | None]:
+    """Load CAS payload using evidence_store primitives with no-follow descriptors."""
+    try:
+        canonical_store = _absolute(store_root)
+    except ValueError as exc:
+        return None, f"source_unreadable: invalid CAS root: {exc}"
 
-    return None, f"source_unreadable: CAS object {hex_digest} not found under {cas_root}"
+    try:
+        return load_blob(canonical_store, uri), None
+    except FileNotFoundError:
+        # Check if it's an archive URI
+        try:
+            return read_archive(canonical_store, uri), None
+        except FileNotFoundError:
+            return None, f"source_unreadable: CAS artifact missing at {uri}"
+        except Exception as exc:
+            return None, f"source_unreadable: cannot open CAS archive {uri}: {exc}"
+    except ValueError as exc:
+        if "directory archive" in str(exc):
+            try:
+                return read_archive(canonical_store, uri), None
+            except Exception as archive_exc:
+                return None, f"source_unreadable: cannot read CAS archive {uri}: {archive_exc}"
+        return None, f"source_unreadable: invalid CAS read for {uri}: {exc}"
+    except Exception as exc:
+        return None, f"source_unreadable: failed reading CAS payload for {uri}: {exc}"
 
 
 def verify_artifact(
@@ -234,8 +262,7 @@ def verify_artifact(
         effective_cas_root = Path(cas_root or effective_repo_root / "derived" / "evidence-cas")
 
         if artifact.ref.startswith("cas://sha256/"):
-            hex_part = artifact.ref.removeprefix("cas://sha256/")
-            raw_bytes, error_detail = _read_cas_bytes(effective_cas_root, hex_part)
+            raw_bytes, error_detail = _read_cas_payload(effective_cas_root, artifact.ref)
             if raw_bytes is None:
                 return AuthorityRefusal(
                     reason="source_unreadable",
@@ -266,26 +293,27 @@ def verify_artifact(
                 ),
             )
 
+        # For trial-derived evidence where admissibility is provided:
         if admissibility is not None:
-            if admissibility.decision != "admissible":
+            if not admissibility.causal_eligible:
                 return AuthorityRefusal(
                     reason="authority_level_insufficient",
                     detail=(
                         f"trial admissibility for trial {admissibility.trial_id!r} "
-                        f"has non-admissible decision: {admissibility.decision!r}"
+                        f"is not causal-eligible (decision={admissibility.decision!r}, "
+                        f"allowed_use={admissibility.allowed_use!r})"
                     ),
                 )
 
+            # Check that the artifact's digest is actively bound in the source_digests of this trial:
             digests_dict = admissibility.source_digests.model_dump(mode="json")
-            matching_kinds = [
-                kind for kind, digest_val in digests_dict.items() if digest_val == actual_digest
-            ]
-            if not matching_kinds and artifact.digest in digests_dict.values():
+            bound_digests = [v for v in digests_dict.values() if v is not None]
+            if actual_digest not in bound_digests:
                 return AuthorityRefusal(
-                    reason="receipt_contradiction",
+                    reason="receipt_digest_mismatch",
                     detail=(
-                        f"artifact digest {artifact.digest!r} contradicts admissibility "
-                        f"source digests for trial {admissibility.trial_id!r}"
+                        f"artifact digest {actual_digest!r} for {artifact.ref!r} is not "
+                        f"present in trial {admissibility.trial_id!r} source digests: {bound_digests}"
                     ),
                 )
 

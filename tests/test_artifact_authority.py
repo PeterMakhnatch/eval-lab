@@ -1,13 +1,14 @@
 """Comprehensive test suite for shared artifact authority boundary.
 
-Covers:
-- Structural-self-consistent verification
-- Bytes-verified verification (repo-jailed file & CAS)
-- Jailed path traversal refusal (absolute paths, .., symlinks)
-- Digest mismatch & parity refusal
-- Verifier implementation mismatch refusal
-- Admissibility gating & source receipt contradiction checks
-- Model immutability and schema invariants
+Covers all Section 4 and audit-required controls:
+- (a) Ref/digest parity and CAS URI mismatch validation
+- (b) Admissibility gating (causal eligibility, source_digests receipt binding)
+- (c) Canonical ref validation (no absolute, no .., no uncanonical parts)
+- (d) Jailed path traversal refusal & symlink root refusal
+- (e) CAS loading via evidence_store primitives (blobs/sha256/xx/hash.bin)
+- (f) Verifier implementation digest mismatch refusal
+- (g) Model immutability, frozen contracts, extra-field rejection
+- (h) Rehydration parity and authority_digest determinism
 """
 
 import hashlib
@@ -25,6 +26,7 @@ from evallab.artifact_authority import (
     compute_authority_digest,
     verify_artifact,
 )
+from evallab.evidence_store import store_blob
 from evallab.schemas import (
     NETWORK_ESCAPE_CLASSES,
     Digest,
@@ -90,6 +92,7 @@ def _make_admissibility(
     trial_id: str = "trial-001",
     trajectory: str = "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     task_state: str = "registered",
+    allowed_use_override: str | None = None,
 ) -> TrialAdmissibilityV1:
     task_identity = TaskRuntimeIdentityV1(
         task_id="task-01",
@@ -115,7 +118,7 @@ def _make_admissibility(
         interpretation=("interpretation.json",),
     )
     isolation = _isolation_evidence() if task_state == "registered" else None
-    return build_trial_admissibility(
+    record = build_trial_admissibility(
         trial_id=trial_id,
         task_runtime_identity=task_identity,
         source_digests=source_digests,
@@ -123,6 +126,9 @@ def _make_admissibility(
         network_isolation_evidence=isolation,
         evaluated_at=NOW,
     )
+    if allowed_use_override:
+        return record.model_copy(update={"allowed_use": allowed_use_override})
+    return record
 
 
 def test_structural_verification_success() -> None:
@@ -142,10 +148,11 @@ def test_structural_verification_success() -> None:
     assert result.authority_digest.startswith("sha256:")
 
 
-def test_cas_ref_structural_validation() -> None:
+def test_cas_ref_structural_validation_and_uri_digest_mismatch() -> None:
+    valid_hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     valid_cas = ArtifactRef(
-        ref="cas://sha256/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        digest=Digest("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
+        ref=f"cas://sha256/{valid_hex}",
+        digest=Digest(f"sha256:{valid_hex}"),
     )
     result = verify_artifact(
         valid_cas,
@@ -154,12 +161,19 @@ def test_cas_ref_structural_validation() -> None:
     )
     assert isinstance(result, ArtifactAuthority)
 
+    # Invalid non-hex
     with pytest.raises(ValidationError):
         ArtifactRef(
             ref="cas://sha256/not-hex",
-            digest=Digest(
-                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-            ),
+            digest=Digest(f"sha256:{valid_hex}"),
+        )
+
+    # URI hex contradicts declared digest
+    mismatched_hex = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    with pytest.raises(ValidationError):
+        ArtifactRef(
+            ref=f"cas://sha256/{valid_hex}",
+            digest=Digest(f"sha256:{mismatched_hex}"),
         )
 
 
@@ -259,16 +273,14 @@ def test_bytes_verified_source_unreadable(tmp_path: Path) -> None:
     assert result.reason == "source_unreadable"
 
 
-def test_bytes_verified_cas_object(tmp_path: Path) -> None:
+def test_bytes_verified_cas_object_via_evidence_store(tmp_path: Path) -> None:
     cas_root = tmp_path / "cas"
-    content = b"cas payload data"
-    sha_hex = hashlib.sha256(content).hexdigest()
-    prefix = sha_hex[:2]
-    obj_dir = cas_root / "objects" / prefix
-    obj_dir.mkdir(parents=True)
-    (obj_dir / sha_hex).write_bytes(content)
+    content = b"cas payload data stored via store_blob"
+    uri = store_blob(cas_root, content)
+    digest_hex = hashlib.sha256(content).hexdigest()
+    declared_digest = Digest(f"sha256:{digest_hex}")
 
-    ref = ArtifactRef(ref=f"cas://sha256/{sha_hex}", digest=Digest(f"sha256:{sha_hex}"))
+    ref = ArtifactRef(ref=uri, digest=declared_digest)
     result = verify_artifact(
         ref,
         minimum_level="bytes-verified",
@@ -277,6 +289,7 @@ def test_bytes_verified_cas_object(tmp_path: Path) -> None:
     )
     assert isinstance(result, ArtifactAuthority)
     assert result.level == "bytes-verified"
+    assert result.artifact.digest == declared_digest
 
 
 def test_bytes_verified_with_admissibility_success(tmp_path: Path) -> None:
@@ -287,7 +300,7 @@ def test_bytes_verified_with_admissibility_success(tmp_path: Path) -> None:
     (repo_root / "trajectory.json").write_bytes(content)
 
     admissibility = _make_admissibility(trajectory=sha, task_state="registered")
-    assert admissibility.decision == "admissible"
+    assert admissibility.causal_eligible is True
     ref = ArtifactRef(ref="trajectory.json", digest=sha)
     result = verify_artifact(
         ref,
@@ -308,7 +321,7 @@ def test_bytes_verified_with_non_admissible_refusal(tmp_path: Path) -> None:
     (repo_root / "trajectory.json").write_bytes(content)
 
     admissibility = _make_admissibility(trajectory=sha, task_state="candidate")
-    assert admissibility.decision != "admissible"
+    assert admissibility.causal_eligible is False
     ref = ArtifactRef(ref="trajectory.json", digest=sha)
     result = verify_artifact(
         ref,
@@ -319,6 +332,26 @@ def test_bytes_verified_with_non_admissible_refusal(tmp_path: Path) -> None:
     )
     assert isinstance(result, AuthorityRefusal)
     assert result.reason == "authority_level_insufficient"
+
+
+def test_bytes_verified_with_receipt_digest_mismatch(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    content = b"unbound trajectory bytes"
+    sha = Digest(f"sha256:{hashlib.sha256(content).hexdigest()}")
+    (repo_root / "unbound.json").write_bytes(content)
+
+    admissibility = _make_admissibility(trajectory="sha256:" + "9" * 64, task_state="registered")
+    ref = ArtifactRef(ref="unbound.json", digest=sha)
+    result = verify_artifact(
+        ref,
+        minimum_level="bytes-verified",
+        verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        admissibility=admissibility,
+        repo_root=repo_root,
+    )
+    assert isinstance(result, AuthorityRefusal)
+    assert result.reason == "receipt_digest_mismatch"
 
 
 def test_model_immutability_and_extra_forbidden() -> None:

@@ -117,6 +117,8 @@ TrainingExclusionReason = Literal[
     "source_path_mismatch",
     "truncated_terminal_span",
     "source_bytes_mismatch",
+    "trajectory_message_mismatch",
+    "trajectory_messages_unavailable",
     "trainer_only_material",
     "superseded_history",
     "training_use_not_allowed",
@@ -935,12 +937,30 @@ def _provenance_reasons(
     canonical_authority = _canonical_json(authority.model_dump(mode="json")) + b"\n"
     if authority_bytes != canonical_authority:
         return ["receipt_digest_mismatch"], None
+    reopened_source = reverify_authority(
+        source_authority,
+        expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        store_root=locator.store_root,
+    )
+    if isinstance(reopened_source, AuthorityRefusal):
+        return [_authority_refusal_reason(reopened_source)], None
+    trajectory_bytes, verified_source_authority = reopened_source
+    try:
+        trajectory_payload = json.loads(trajectory_bytes)
+        trajectory_messages = tuple(
+            TrainingMessage.model_validate(item)
+            for item in trajectory_payload["messages"]
+        )
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return ["trajectory_messages_unavailable"], None
+    if trajectory_messages != source.messages:
+        return ["trajectory_message_mismatch"], None
     if authority != source.admissibility:
         return ["receipt_contradiction"], None
     return (
         [],
         _VerifiedSourceAuthorities(
-            source=source_authority,
+            source=verified_source_authority,
             lineage=lineage_authority,
             admissibility_record=verified_record_authority,
         ),

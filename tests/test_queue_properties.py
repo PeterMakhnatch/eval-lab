@@ -1,6 +1,7 @@
 """Property-based state machine fuzz for DirectoryQueue and Executor using Hypothesis."""
 
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -11,6 +12,7 @@ from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
+from evallab.evidence_store import EvidenceLocator, archive_evidence, evidence_locator
 from evallab.queue import (
     QUEUE_STATES,
     DirectoryQueue,
@@ -18,7 +20,7 @@ from evallab.queue import (
     PolicyGate,
     load_events,
 )
-from evallab.runner import RunRequest
+from evallab.runner import RunRequest, SettledRun
 from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
 
 FREE_AGENTS = {"oracle", "nop"}
@@ -90,6 +92,26 @@ def spec(
     )
 
 
+def settled_run(request: RunRequest) -> SettledRun:
+    """Return a real CAS-only result for queue property runners."""
+
+    job_dir = request.jobs_dir / request.name
+    job_dir.mkdir(parents=True, exist_ok=True)
+    store_root = request.jobs_dir / ".queue-property-cas"
+    store_root.mkdir(parents=True, exist_ok=True)
+    archive = archive_evidence(
+        job_dir,
+        store_root,
+        record_id=request.name,
+        kind="job",
+    )
+    shutil.rmtree(job_dir)
+    return SettledRun(
+        cas_locator=evidence_locator(store_root, archive),
+        cas_record=archive,
+    )
+
+
 class DirectoryQueueStateMachine(RuleBasedStateMachine):
     """Fuzzes DirectoryQueue transitions, conservation, admission, credential deferral,
     vanished files, and mid-tick quota enforcement."""
@@ -106,16 +128,14 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         self.active_credentials: set[str] = {CLAUDE_OAUTH, CODEX_AUTH}
         self.dispatched_specs: list[str] = []
 
-        def stub_runner(request: RunRequest) -> Path:
+        def stub_runner(request: RunRequest) -> SettledRun:
             self.dispatched_specs.append(request.name)
-            destination = request.jobs_dir / request.name
-            destination.mkdir(parents=True, exist_ok=True)
-            return destination
+            return settled_run(request)
 
-        def stub_ingester(path: Path) -> None:
-            # When run completes, record catalog spend
+        def stub_ingester(locator: EvidenceLocator) -> None:
+            # When run completes, record catalog spend.
             for _sid, spec_obj in self.spec_objects.items():
-                if spec_obj.name == path.name:
+                if spec_obj.name == locator.record_id:
                     self.current_spent += spec_obj.est_cost_usd
                     break
 
@@ -400,7 +420,7 @@ def test_property_credential_deferral_preserves_approved_state(agents: list[str]
             repo_root=root,
             queue=queue,
             policy=policy(),
-            runner=lambda req: req.jobs_dir / req.name,
+            runner=settled_run,
             ingester=lambda _path: None,
             spent_today=lambda: 0.0,
             consecutive_harness_failures=lambda: 0,
@@ -457,22 +477,18 @@ def test_property_quota_never_exceeded_mid_tick(costs: list[float]) -> None:
 
         total_catalog_spent = [0.0]
 
-        def stub_runner(req: RunRequest) -> Path:
-            destination = req.jobs_dir / req.name
-            destination.mkdir(parents=True, exist_ok=True)
-            return destination
 
-        def stub_ingester(path: Path) -> None:
-            for _pth, s in queue.list_specs("running"):
-                if s.name == path.name:
-                    total_catalog_spent[0] += s.est_cost_usd
+        def stub_ingester(locator: EvidenceLocator) -> None:
+            for _path, item in queue.list_specs("running"):
+                if item.name == locator.record_id:
+                    total_catalog_spent[0] += item.est_cost_usd
                     break
 
         exec_service = Executor(
             repo_root=root,
             queue=queue,
             policy=p,
-            runner=stub_runner,
+            runner=settled_run,
             ingester=stub_ingester,
             spent_today=lambda: total_catalog_spent[0],
             consecutive_harness_failures=lambda: 0,
@@ -530,13 +546,11 @@ def test_property_two_concurrent_ticks_never_dispatch_the_same_spec_twice(
         dispatched_runs: list[str] = []
         lock = threading.Lock()
 
-        def tracking_runner(req: RunRequest) -> Path:
+        def tracking_runner(req: RunRequest) -> SettledRun:
             with lock:
                 dispatched_runs.append(req.name)
             time.sleep(0.01)
-            dest = req.jobs_dir / req.name
-            dest.mkdir(parents=True, exist_ok=True)
-            return dest
+            return settled_run(req)
 
         exec_service = Executor(
             repo_root=root,
@@ -585,7 +599,7 @@ def test_property_lost_claim_race_tolerated_silently(num_racers: int) -> None:
             repo_root=root,
             queue=queue,
             policy=policy(),
-            runner=lambda req: req.jobs_dir / req.name,
+            runner=settled_run,
             ingester=lambda _p: None,
             spent_today=lambda: 0.0,
             consecutive_harness_failures=lambda: 0,
@@ -644,11 +658,9 @@ def test_property_parallel_1_matches_single_threaded_behavior(
 
         dispatch_order: list[str] = []
 
-        def runner(req: RunRequest) -> Path:
+        def runner(req: RunRequest) -> SettledRun:
             dispatch_order.append(req.name)
-            dest = req.jobs_dir / req.name
-            dest.mkdir(parents=True, exist_ok=True)
-            return dest
+            return settled_run(req)
 
         exec_service = Executor(
             repo_root=root,
@@ -708,7 +720,7 @@ def test_property_stale_lease_never_permanently_blocks_spec(
             repo_root=root,
             queue=queue,
             policy=policy(),
-            runner=lambda req: req.jobs_dir / req.name,
+            runner=settled_run,
             ingester=lambda _p: None,
             spent_today=lambda: 0.0,
             consecutive_harness_failures=lambda: 0,

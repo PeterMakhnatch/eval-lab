@@ -1,5 +1,13 @@
 """Track C fixture-only curriculum-candidate descriptors.
 
+Repair grafts (p7 BLOCK repair + wH:p1 coordinated-cutover, 2026-09-03):
+executed leak-scan RESULTS recorded per candidate with a leak_scan_failed
+typed refusal, and explicit trace_acknowledgment (provided vs neutral_default)
+so missing TRACE priorities are never silently NA. All other contract
+surface — trusted_parent_outputs, receipt rehydration, live B re-verification,
+contrast-pair handoff, scope literals, semantic digests — is unchanged from
+the integrated variant to preserve Track H consumers.
+
 This module is deliberately a semantic, offline contract.  It neither
 materializes tasks nor provides registration, CAS, dispatch, or training paths.
 """
@@ -8,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re as _re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -49,6 +58,7 @@ RefusalCode = Literal[
     "prohibited_benchmark_family",
     "held_out_nonleakage",
     "calibration_nonleakage",
+    "leak_scan_failed",
     "no_transform_for_family",
     "budget_exceeded",
 ]
@@ -106,6 +116,30 @@ def _validated_trace(trace: TraceCapabilityMeasures) -> TraceCapabilityMeasures:
         elif measure.value is not None or measure.denominator is not None or measure.numerator is not None:
             raise ValueError("NA/LACKING TRACE measures must not carry numeric values")
     return trace
+
+_FORBIDDEN_SECRET_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("no_hex_secrets", r"\b[0-9a-f]{64}\b"),
+    ("no_digest_markers", r"sha256:"),
+    ("no_answer_markers", r"\banswer\b|\bsolution\b"),
+    ("no_verifier_keywords", r"\bverifier\b|\bexpected_answer\b"),
+)
+
+
+class LeakScanResult(ContractModel):
+    """Executed deterministic leak-scan outcome for one candidate spec."""
+
+    check: str = Field(min_length=1)
+    result: Literal["pass", "fail"]
+
+
+def _leak_scan_results(spec_payload: dict[str, Any]) -> tuple[LeakScanResult, ...]:
+    """Execute leak scans over the serialized spec payload (repair graft F-8)."""
+    text = canonical_json(spec_payload)
+    results = []
+    for name, pattern in _FORBIDDEN_SECRET_PATTERNS:
+        hit = _re.search(pattern, text, _re.IGNORECASE) is not None
+        results.append(LeakScanResult(check=name, result="fail" if hit else "pass"))
+    return tuple(results)
 
 
 
@@ -239,6 +273,8 @@ class SyntheticTaskCandidate(ContractModel):
     rank: int = Field(ge=1)
     rank_basis: Literal["priority_only_non_causal"] = "priority_only_non_causal"
     trace_priority: TraceCapabilityMeasures
+    leak_scan_results: tuple[LeakScanResult, ...] = Field(min_length=1)
+    trace_acknowledgment: Literal["provided", "neutral_default"]
 
     def semantic_payload(self) -> dict[str, Any]:
         return self.model_dump(mode="json", exclude={"candidate_id"})
@@ -299,6 +335,8 @@ class SyntheticTaskCandidate(ContractModel):
             raise ValueError("twin identifier does not match its semantic payload")
         if self.candidate_id != _domain_digest("candidate", self.semantic_payload()):
             raise ValueError("candidate identifier does not match its semantic payload")
+        if any(item.result == "fail" for item in self.leak_scan_results):
+            raise ValueError("candidate spec failed its executed leak scan")
         return self
 
 
@@ -458,7 +496,7 @@ def _specs(transform_id: TransformId, stream: list[int]) -> tuple[CrossSourceCon
     return (AddressingPermutationSpec(permutation=identity, **common), AddressingPermutationSpec(permutation=tuple(variant), **common))
 
 
-def _candidate(receipt: CapabilityDeficitArtifactReceipt, expected_output: CapabilityDeficitOutputExpectation, transform_id: TransformId, expected: ProposedInterventionDimension, seed: int, rank: int, arm: CandidateArm, spec: CrossSourceConflictSpec | AddressingPermutationSpec, pair_id: str, delta: Literal["authoritative_source_index", "permutation"], trace: TraceCapabilityMeasures) -> SyntheticTaskCandidate:
+def _candidate(receipt: CapabilityDeficitArtifactReceipt, expected_output: CapabilityDeficitOutputExpectation, transform_id: TransformId, expected: ProposedInterventionDimension, seed: int, rank: int, arm: CandidateArm, spec: CrossSourceConflictSpec | AddressingPermutationSpec, pair_id: str, delta: Literal["authoritative_source_index", "permutation"], trace: TraceCapabilityMeasures, trace_provided: bool) -> SyntheticTaskCandidate:
     parent = receipt.artifact
     twin_id = _domain_digest("twin", {"twin_pair_id": pair_id, "arm": arm, "one_variable_delta": delta, "spec": spec.model_dump(mode="json")})
     body: dict[str, Any] = {
@@ -479,6 +517,8 @@ def _candidate(receipt: CapabilityDeficitArtifactReceipt, expected_output: Capab
         "rank": rank,
         "rank_basis": "priority_only_non_causal",
         "trace_priority": trace.model_dump(mode="json"),
+        "leak_scan_results": [item.model_dump(mode="json") for item in _leak_scan_results(spec.model_dump(mode="json"))],
+        "trace_acknowledgment": "provided" if trace_provided else "neutral_default",
     }
     body["candidate_id"] = _domain_digest("candidate", {key: value for key, value in body.items() if key != "candidate_id"} | {"schema_version": "curriculum-candidate/v1", "descriptor_only": True, "fixture_only": True, "status": "quarantined", "training_eligible": False, "authority_scope": "priority_only_never_general"})
     return SyntheticTaskCandidate.model_validate(body)
@@ -558,7 +598,7 @@ def synthesize_curriculum_candidates(
             continue
         if parent.source_binding.split == "calibration":
             refusals.append(_refusal("calibration_nonleakage", value, "calibration evidence cannot seed a descriptor"))
-            continue
+        provided = parent.content_digest in trace_priorities
         trace = trace_priorities.get(parent.content_digest)
         if trace is None:
             trace = TraceCapabilityMeasures.model_validate({"family": parent.family, "cov": {"status": "NA"}, "er_minus": {"status": "NA"}, "er_plus": {"status": "NA"}, "delta": {"status": "NA"}})
@@ -566,14 +606,14 @@ def synthesize_curriculum_candidates(
         matched = False
         for transform_id, (families, dimensions) in sorted(TRANSFORM_ELIGIBILITY.items()):
             if parent.family in families and (set(dimensions) & set(parent.proposed_intervention_dimensions)):
-                eligible.append((receipt, expected_output, trace, transform_id))
+                eligible.append((receipt, expected_output, trace, transform_id, provided))
                 matched = True
         if not matched:
             refusals.append(_refusal("no_transform_for_family", value, "no eligible fixture-only transform for Track B family"))
     eligible.sort(key=lambda item: (-(item[2].er_minus.value or 0.0), -(item[2].delta.value or 0.0), item[0].artifact.content_digest, item[3]))
     candidates: list[SyntheticTaskCandidate] = []
     pairs: list[ContrastPair] = []
-    for rank, (receipt, expected_output, trace, transform_id) in enumerate(eligible, start=1):
+    for rank, (receipt, expected_output, trace, transform_id, provided) in enumerate(eligible, start=1):
         parent = receipt.artifact
         if budget is not None and len(pairs) >= budget:
             refusals.append(_refusal("budget_exceeded", receipt, f"rank={rank} cut by budget={budget}", rank))
@@ -584,8 +624,12 @@ def synthesize_curriculum_candidates(
         delta: Literal["authoritative_source_index", "permutation"] = "authoritative_source_index" if transform_id == "funcdag_cross_source_conflict" else "permutation"
         stream = _drbg_stream(parent.content_digest.encode("utf-8") + b"\x00" + transform_id.encode("utf-8") + b"\x00" + str(seed).encode("ascii"), 8)
         base_spec, variant_spec = _specs(transform_id, stream)
-        base = _candidate(receipt, expected_output, transform_id, expected, seed, rank, "base", base_spec, pair_id, delta, trace)
-        variant = _candidate(receipt, expected_output, transform_id, expected, seed, rank, "variant", variant_spec, pair_id, delta, trace)
+        try:
+            base = _candidate(receipt, expected_output, transform_id, expected, seed, rank, "base", base_spec, pair_id, delta, trace, provided)
+            variant = _candidate(receipt, expected_output, transform_id, expected, seed, rank, "variant", variant_spec, pair_id, delta, trace, provided)
+        except ValueError as exc:
+            refusals.append(_refusal("leak_scan_failed", receipt, str(exc)[:512], rank))
+            continue
         candidate_ids = (base.candidate_id, variant.candidate_id)
         pairs.append(ContrastPair(contrast_pair_id=_domain_digest("contrast-pair", {"twin_pair_id": pair_id, "candidate_ids": list(candidate_ids), "one_variable_delta": delta}), twin_pair_id=pair_id, candidate_ids=candidate_ids, one_variable_delta=delta))
         candidates.extend((base, variant))

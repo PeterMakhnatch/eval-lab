@@ -180,20 +180,19 @@ def _source(
     history_key: str | None = None,
     history_revision: int = 1,
     messages: tuple[TrainingMessage, ...] | None = None,
+    trajectory_payload_override: dict[str, object] | None = None,
 ) -> NormalizedTrainingEvidence:
     registry_record = _registry_record()
     trial_id = f"trial-{index}"
     normalized_messages = messages or _messages()
+    payload: dict[str, object] = {
+        "messages": [message.model_dump(mode="json") for message in normalized_messages],
+        "trial_id": trial_id,
+    }
+    if trajectory_payload_override is not None:
+        payload = trajectory_payload_override
     source_bytes = (
-        json.dumps(
-            {
-                "messages": [message.model_dump(mode="json") for message in normalized_messages],
-                "trial_id": trial_id,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-        + b"\n"
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     )
     source_digest = _sha_bytes(source_bytes)
     admissibility = _admissibility(
@@ -601,6 +600,29 @@ def test_incomplete_malicious_and_prohibited_inputs_are_typed_exclusions(tmp_pat
     assert "sk-proj-metadata" not in serialized
     assert "../../solution/answer.txt" not in serialized
 
+def test_forged_messages_are_refused_against_reverified_trajectory(tmp_path: Path) -> None:
+    base = _source(tmp_path)
+    forged = base.model_copy(
+        update={
+            "trial_id": "forged-messages",
+            "history_key": "h-forged-messages",
+            "messages": _messages(
+                "Caller-asserted content that never touched the trajectory bytes."
+            ),
+        }
+    )
+    result = export_training_dataset([forged], tmp_path / "forged-messages-output")
+
+    assert result.records == ()
+    assert _reason_set(result) >= {"trajectory_message_mismatch"}
+
+
+def test_unparseable_trajectory_payload_is_typed_exclusion(tmp_path: Path) -> None:
+    base = _source(tmp_path, trajectory_payload_override={"trial_id": "trial-1"})
+    result = export_training_dataset([base], tmp_path / "unparseable-output")
+
+    assert result.records == ()
+    assert _reason_set(result) >= {"trajectory_messages_unavailable"}
 
 def test_latest_history_content_dedup_and_cluster_split_are_fail_closed(tmp_path: Path) -> None:
     old = _source(

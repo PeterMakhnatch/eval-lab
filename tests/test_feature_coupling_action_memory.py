@@ -19,6 +19,7 @@ from evallab.interpretation.feature_registry import (
     audit_predictor_eligibility,
     audit_registry_predictor_eligibility,
     audit_verdict_coupling,
+    feature_analysis_eligibility,
 )
 from evallab.interpretation.producers.action_memory import (
     extract_action_memory_features,
@@ -692,3 +693,62 @@ def test_registered_action_memory_features_audit():
     assert "raw_binding_opportunities" not in refusals
     assert "raw_conflicting_opportunities" not in refusals
     assert "context_burn_velocity" not in refusals
+
+
+def test_quarantined_features_are_excluded_from_analysis_roles():
+    """Quarantined measurements cannot be outcomes, predictors, or descriptives."""
+    dead_features = {
+        "step_to_first_error": "all_null",
+        "time_to_first_error_seconds": "all_null",
+        "recovery_latency_steps": "all_null",
+        "recovery_latency_seconds": "all_null",
+        "error_count": "zero_discrimination",
+        "recovery_count": "zero_discrimination",
+        "max_exit_code_cascade_screening": "zero_discrimination",
+        "unrecovered_at_terminal": "zero_discrimination",
+        "state_diff_observed": "zero_discrimination",
+        "state_events_count": "zero_discrimination",
+        "state_mutations_count": "zero_discrimination",
+        "state_files_created_count": "zero_discrimination",
+        "state_files_modified_count": "zero_discrimination",
+        "state_files_deleted_count": "zero_discrimination",
+        "state_diff_path_count": "zero_discrimination",
+        "state_diff_bytes_delta": "zero_discrimination",
+        "unobserved_state_mutations_count": "zero_discrimination",
+        "invalid_path_reference_count": "zero_discrimination",
+        "invalid_citation_reference_count": "zero_discrimination",
+        "path_reference_validity_rate_screening": "zero_discrimination",
+        "citation_reference_validity_rate_screening": "zero_discrimination",
+        "edit_efficiency_screening": "zero_discrimination",
+        "is_expected_negative": "zero_discrimination",
+        "expected_probe_count": "zero_discrimination",
+        "unavailable_reason": "zero_discrimination",
+        "state_journal_status": "zero_discrimination",
+        "state_journal_reason": "zero_discrimination",
+    }
+    assert {
+        name: TRAJECTORY_FEATURE_REGISTRY.get(name).quarantine_reason
+        for name in dead_features
+    } == dead_features
+
+    feature = FeatureDefinition(
+        column_name="quarantined_comparison_candidate",
+        data_type="BIGINT",
+        category="benchmark_l1_fact",
+        is_screening=False,
+        source_table="benchmark_events",
+        formula_or_rule="test",
+        null_condition="never",
+        description="Otherwise eligible comparison candidate.",
+        denominator_policy="not_applicable",
+        available_before_verdict=True,
+        verdict_coupling="independent",
+        quarantine_reason="all_null",
+    )
+    eligibility = feature_analysis_eligibility(feature)
+
+    assert feature.is_quarantined()
+    assert eligibility.outcome_allowed is False
+    assert eligibility.predictor_allowed is False
+    assert eligibility.descriptive_allowed is False
+    assert eligibility.predictor_refusal == "QUARANTINED_ALL_NULL"

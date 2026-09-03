@@ -56,7 +56,13 @@ FeatureCategory = Literal[
 FeatureDataType = Literal["VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN"]
 DenominatorPolicy = Literal["required", "not_applicable"]
 VerdictCoupling = Literal["defines", "correlates", "independent", "not_applicable"]
-
+QuarantineReason = Literal[
+    "all_null",
+    "zero_discrimination",
+    "unregistered",
+    "no_producer",
+    "empty_source_table",
+]
 
 @dataclass(frozen=True)
 class FeatureDefinition:
@@ -86,6 +92,11 @@ class FeatureDefinition:
     metric_order: int | None = None
     eligibility_precondition: str | None = None
     family: str | None = None
+    quarantine_reason: QuarantineReason | None = None
+
+    def is_quarantined(self) -> bool:
+        """Return whether this feature is excluded from comparisons and rankings."""
+        return self.quarantine_reason is not None
 
     def validate_contract(self) -> list[str]:
         """Validate naming, typing, and denominator invariants for this feature."""
@@ -126,6 +137,16 @@ class FeatureDefinition:
                 errors.append(
                     f"Feature {self.column_name!r} with verdict_coupling={self.verdict_coupling!r} requires non-empty coupling_basis"
                 )
+        if self.quarantine_reason is not None and self.quarantine_reason not in (
+            "all_null",
+            "zero_discrimination",
+            "unregistered",
+            "no_producer",
+            "empty_source_table",
+        ):
+            errors.append(
+                f"Feature {self.column_name!r} has invalid quarantine_reason={self.quarantine_reason!r}"
+            )
         return errors
 
 
@@ -252,6 +273,9 @@ def audit_predictor_eligibility(
     - coupling is 'defines' or 'correlates' but lacks an evidence basis
     - feature is 'not_applicable' (e.g. identity / projection metadata)
     """
+    if feature.is_quarantined():
+        return f"QUARANTINED_{feature.quarantine_reason.upper()}"
+
     if feature.available_before_verdict is None:
         return "MISSING_TEMPORAL_AVAILABILITY"
     if feature.available_before_verdict is False:
@@ -298,6 +322,14 @@ class FeatureAnalysisEligibility:
 
 def feature_analysis_eligibility(feature: FeatureDefinition) -> FeatureAnalysisEligibility:
     """Resolve outcome, predictor, and descriptive eligibility without guessing."""
+    predictor_refusal = audit_predictor_eligibility(feature, strict_independence=True)
+    if feature.is_quarantined():
+        return FeatureAnalysisEligibility(
+            outcome_allowed=False,
+            predictor_allowed=False,
+            descriptive_allowed=False,
+            predictor_refusal=predictor_refusal,
+        )
     coupling_audit = audit_verdict_coupling(feature)
     denominator_audit = audit_denominator_policy(feature)
     coupling_governed = coupling_audit is None
@@ -308,7 +340,6 @@ def feature_analysis_eligibility(feature: FeatureDefinition) -> FeatureAnalysisE
         and feature.verdict_coupling != "not_applicable"
         and feature.category != "identity"
     )
-    predictor_refusal = audit_predictor_eligibility(feature, strict_independence=True)
     return FeatureAnalysisEligibility(
         outcome_allowed=outcome_allowed,
         predictor_allowed=fully_governed and predictor_refusal is None,
@@ -362,6 +393,7 @@ def register_trajectory_feature(
     metric_order: int | None = None,
     eligibility_precondition: str | None = None,
     family: str | None = None,
+    quarantine_reason: QuarantineReason | None = None,
 ) -> FeatureDefinition:
     """Helper to register a trajectory feature in the global registry."""
     actual_coupling_basis = coupling_basis if coupling_basis is not None else verdict_coupling_basis
@@ -390,6 +422,7 @@ def register_trajectory_feature(
         metric_order=metric_order,
         eligibility_precondition=eligibility_precondition,
         family=family,
+        quarantine_reason=quarantine_reason,
     )
     return TRAJECTORY_FEATURE_REGISTRY.register(feat)
 
@@ -485,6 +518,7 @@ register_trajectory_feature(
     formula_or_rule="Reason code when status='accounted_unavailable', else NULL",
     null_condition="NULL when status='featured'",
     description="Detailed reason when trajectory is unavailable.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "source_path",
@@ -611,6 +645,7 @@ register_trajectory_feature(
     formula_or_rule="Count of steps with true error status (excluding expected probe misses)",
     null_condition="0 by default",
     description="Total error step count.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "recovery_count",
@@ -620,6 +655,7 @@ register_trajectory_feature(
     formula_or_rule="Count of successful error-to-success step transitions",
     null_condition="0 by default",
     description="Count of error recoveries.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "is_expected_negative",
@@ -629,6 +665,7 @@ register_trajectory_feature(
     formula_or_rule="Boolean flag indicating expected negative probes were observed",
     null_condition="False by default",
     description="Flag indicating expected negative probe presence.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "expected_probe_count",
@@ -638,6 +675,7 @@ register_trajectory_feature(
     formula_or_rule="Count of reconnaissance/probe commands that exit non-zero by design",
     null_condition="0 by default",
     description="Count of expected probe misses.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "step_to_first_error",
@@ -647,6 +685,7 @@ register_trajectory_feature(
     formula_or_rule="1-based step ordinal of the first non-probe error",
     null_condition="NULL when no errors occur",
     description="Step index of first observed error.",
+    quarantine_reason="all_null",
 )
 register_trajectory_feature(
     "time_to_first_error_seconds",
@@ -656,6 +695,7 @@ register_trajectory_feature(
     formula_or_rule="Elapsed time from start to first error in seconds",
     null_condition="NULL when no errors occur",
     description="Time to first error onset in seconds.",
+    quarantine_reason="all_null",
 )
 register_trajectory_feature(
     "recovery_latency_steps",
@@ -665,6 +705,7 @@ register_trajectory_feature(
     formula_or_rule="Step difference between first error and first recovery",
     null_condition="NULL when no recovery occurs",
     description="Steps required to achieve first recovery.",
+    quarantine_reason="all_null",
 )
 register_trajectory_feature(
     "recovery_latency_seconds",
@@ -674,6 +715,7 @@ register_trajectory_feature(
     formula_or_rule="Elapsed seconds between first error and first recovery",
     null_condition="NULL when no recovery occurs",
     description="Wall time required to achieve first recovery.",
+    quarantine_reason="all_null",
 )
 register_trajectory_feature(
     "unrecovered_at_terminal",
@@ -683,6 +725,7 @@ register_trajectory_feature(
     formula_or_rule="True if final step was in error or trial ended without recovering",
     null_condition="False by default",
     description="Flag indicating trial ended in unrecovered error state.",
+    quarantine_reason="zero_discrimination",
 )
 
 # 5. Intervention provenance
@@ -732,6 +775,7 @@ register_trajectory_feature(
     formula_or_rule="State journal document status: 'available' | 'missing' | 'malformed' | 'not_observed'",
     null_condition="Never NULL ('not_observed' by default)",
     description="Validation status of state-journal and state-diff.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_journal_reason",
@@ -741,6 +785,7 @@ register_trajectory_feature(
     formula_or_rule="Detailed failure or hold reason when state-journal is malformed or missing",
     null_condition="NULL when state-journal status is 'available' or 'not_observed'",
     description="Explanation of state-journal unavailability.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_events_count",
@@ -750,6 +795,7 @@ register_trajectory_feature(
     formula_or_rule="Count of raw filesystem state events recorded by state-journal",
     null_condition="0 by default",
     description="Total count of state journal events.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_mutations_count",
@@ -759,6 +805,7 @@ register_trajectory_feature(
     formula_or_rule="Count of mutating state events (added, modified, deleted)",
     null_condition="0 by default",
     description="Total count of filesystem mutations.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_files_created_count",
@@ -768,6 +815,7 @@ register_trajectory_feature(
     formula_or_rule="Count of files added in state-diff",
     null_condition="0 by default",
     description="Count of files created during trial.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_files_modified_count",
@@ -777,6 +825,7 @@ register_trajectory_feature(
     formula_or_rule="Count of existing files modified in state-diff",
     null_condition="0 by default",
     description="Count of files modified during trial.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_files_deleted_count",
@@ -786,6 +835,7 @@ register_trajectory_feature(
     formula_or_rule="Count of files deleted in state-diff",
     null_condition="0 by default",
     description="Count of files deleted during trial.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_diff_observed",
@@ -795,6 +845,7 @@ register_trajectory_feature(
     formula_or_rule="True when validated state-diff.json was loaded",
     null_condition="False by default",
     description="Flag indicating validated state-diff observation.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_diff_path_count",
@@ -804,6 +855,7 @@ register_trajectory_feature(
     formula_or_rule="Count of distinct paths recorded in state-diff.json",
     null_condition="0 by default",
     description="Number of distinct paths changed in state diff.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "state_diff_bytes_delta",
@@ -813,6 +865,7 @@ register_trajectory_feature(
     formula_or_rule="Net sum of size deltas (after - before) across all state-diff changes",
     null_condition="0 by default",
     description="Net byte size change across all changed paths.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "edit_tool_call_count",
@@ -833,6 +886,7 @@ register_trajectory_feature(
     denominator_sibling="edit_tool_call_count",
     null_on_zero_denominator=True,
     description="Ratio of distinct changed paths to edit tool calls.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "unobserved_state_mutations_count",
@@ -842,6 +896,7 @@ register_trajectory_feature(
     formula_or_rule="Count of state-diff mutations on paths never referenced in agent tool calls",
     null_condition="0 by default",
     description="Count of filesystem changes with no corresponding agent tool reference.",
+    quarantine_reason="zero_discrimination",
 )
 
 # 7. Reference validity metrics
@@ -871,6 +926,7 @@ register_trajectory_feature(
     formula_or_rule="Count of path references that produced missing-file errors",
     null_condition="0 by default",
     description="Count of invalid or missing path references.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "path_reference_validity_rate_screening",
@@ -882,6 +938,7 @@ register_trajectory_feature(
     denominator_sibling="path_reference_count",
     null_on_zero_denominator=True,
     description="Ratio of valid path references to total path references.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "citation_reference_count",
@@ -909,6 +966,7 @@ register_trajectory_feature(
     formula_or_rule="Count of citations with missing or malformed digest",
     null_condition="0 by default",
     description="Count of invalid citation references.",
+    quarantine_reason="zero_discrimination",
 )
 register_trajectory_feature(
     "citation_reference_validity_rate_screening",
@@ -920,6 +978,7 @@ register_trajectory_feature(
     denominator_sibling="citation_reference_count",
     null_on_zero_denominator=True,
     description="Ratio of valid citations to total citations.",
+    quarantine_reason="zero_discrimination",
 )
 
 # 8. Screening Rates & Ratios (with explicit denominator siblings)
@@ -1017,6 +1076,7 @@ register_trajectory_feature(
     formula_or_rule="Maximum consecutive run of steps with non-zero exit codes or errors",
     null_condition="0 by default",
     description="Longest consecutive exit-code error streak.",
+    quarantine_reason="zero_discrimination",
 )
 
 # 9. Token & Cost metrics

@@ -109,6 +109,18 @@ class ExtraInstructionDelta(_FrozenContract):
     treatment_path: str = Field(min_length=1)
     treatment_sha256: Digest
 
+    @field_validator("treatment_path")
+    @classmethod
+    def treatment_path_is_canonical_and_relative(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if (
+            path.is_absolute()
+            or path.as_posix() != value
+            or any(component in {"", ".", ".."} for component in path.parts)
+        ):
+            raise ValueError("treatment_path must be a canonical repo-relative path")
+        return value
+
     @model_validator(mode="after")
     def digest_is_non_zero(self) -> ExtraInstructionDelta:
         if self.treatment_sha256 == _ZERO_DIGEST:
@@ -197,6 +209,7 @@ class PairedInterventionPlan(_FrozenContract):
         ordinals = tuple(entry.ordinal for entry in self.schedule)
         if ordinals != tuple(range(1, len(self.schedule) + 1)):
             raise ValueError("schedule ordinals must be contiguous and one-based")
+        _validate_rehydrated_plan(self)
         return self
 
     @property
@@ -223,9 +236,18 @@ def _refuse(reason_code: str, message: str) -> None:
 def _read_repo_regular_file(repo_root: Path, relative_path: str) -> bytes:
     """Read repo-confined bytes without following any symlink component."""
 
-    components = PurePosixPath(relative_path).parts
-    if not components or any(component in {"", ".", ".."} for component in components):
-        _refuse("invalid_intervention_path", "treatment path must be repo-relative")
+    path = PurePosixPath(relative_path)
+    components = path.parts
+    if (
+        path.is_absolute()
+        or path.as_posix() != relative_path
+        or not components
+        or any(component in {"", ".", ".."} for component in components)
+    ):
+        _refuse(
+            "invalid_intervention_path",
+            "treatment path must be canonical and repo-relative",
+        )
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     try:
         directory = os.open(repo_root.resolve(), flags)
@@ -294,6 +316,11 @@ def _require_planning_state(candidate: PairedArmCandidate) -> None:
         _refuse(
             "preassigned_campaign_provenance",
             "planner accepts no registered campaign attempt provenance",
+        )
+    if spec.task_instance_id != candidate.assignment_unit_id:
+        _refuse(
+            "assignment_identity_mismatch",
+            "assignment_unit_id must equal the spec task_instance_id",
         )
     if spec.attempts != 1 or spec.concurrency != 1:
         _refuse(
@@ -415,6 +442,120 @@ def _interleaved_pair_order(
             if queues[block]:
                 interleaved.append(queues[block].popleft())
     return interleaved
+
+
+def _require_scheduled_state(
+    entry: ScheduledArm,
+    *,
+    plan: PairedInterventionPlan,
+) -> PairedArmCandidate:
+    spec = entry.spec
+    planning_spec = spec.model_copy(update={"grid_id": None, "grid_point": None})
+    candidate = PairedArmCandidate(
+        pair_id=entry.pair_id,
+        block_id=entry.block_id,
+        assignment_unit_id=entry.assignment_unit_id,
+        arm=entry.arm,
+        spec=planning_spec,
+        capture=plan.capture_expectation,
+    )
+    _require_planning_state(candidate)
+    expected_grid_point = {
+        "pair_id": entry.pair_id,
+        "block_id": entry.block_id,
+        "assignment_unit_id": entry.assignment_unit_id,
+        "arm": entry.arm,
+        "intervention_variable": plan.delta.variable,
+        "preamble_sha256": spec.extra_instruction_sha256,
+    }
+    if spec.grid_id != plan.plan_id or spec.grid_point != expected_grid_point:
+        _refuse(
+            "schedule_metadata_mismatch",
+            f"spec {spec.name!r} grid metadata does not match its schedule entry",
+        )
+    expected_spec_digest = experiment_spec_digest(spec)
+    if entry.spec_digest != expected_spec_digest:
+        _refuse(
+            "spec_digest_mismatch",
+            f"spec {spec.name!r} does not match its declared execution digest",
+        )
+    if (
+        entry.policy_decision.admitted
+        or entry.policy_decision.reason_code != "paid_run_unauthorized"
+    ):
+        _refuse(
+            "approval_gate_not_preserved",
+            f"spec {spec.name!r} does not carry the required paid-run refusal",
+        )
+    return candidate
+
+
+def _validate_rehydrated_plan(plan: PairedInterventionPlan) -> None:
+    grouped: dict[str, list[PairedArmCandidate]] = defaultdict(list)
+    assignment_to_pair: dict[str, str] = {}
+    names: set[str] = set()
+    for entry in plan.schedule:
+        candidate = _require_scheduled_state(entry, plan=plan)
+        prior_pair = assignment_to_pair.setdefault(entry.assignment_unit_id, entry.pair_id)
+        if prior_pair != entry.pair_id:
+            _refuse(
+                "duplicate_assignment",
+                f"assignment unit {entry.assignment_unit_id!r} appears in multiple pairs",
+            )
+        if entry.spec.name in names:
+            _refuse(
+                "duplicate_assignment",
+                f"spec name {entry.spec.name!r} is duplicated",
+            )
+        names.add(entry.spec.name)
+        grouped[entry.pair_id].append(candidate)
+
+    complete: dict[str, tuple[PairedArmCandidate, PairedArmCandidate]] = {}
+    for pair_id, candidates in grouped.items():
+        by_arm = {candidate.arm: candidate for candidate in candidates}
+        if len(candidates) != 2 or set(by_arm) != {"control", "treatment"}:
+            _refuse(
+                "missing_twin",
+                f"pair {pair_id!r} must contain exactly one control and one treatment",
+            )
+        control = by_arm["control"]
+        treatment = by_arm["treatment"]
+        _validate_pair(control, treatment, delta=plan.delta)
+        complete[pair_id] = (control, treatment)
+
+    if len(complete) < plan.analysis_gate.minimum_complete_pairs:
+        _refuse(
+            "insufficient_complete_pairs",
+            f"plan has {len(complete)} complete pairs; analysis requires "
+            f"{plan.analysis_gate.minimum_complete_pairs}",
+        )
+    if len(plan.schedule) % 2:
+        _refuse("missing_twin", "interleaved schedule must contain adjacent complete pairs")
+    actual_pair_order: list[str] = []
+    for pair_index in range(0, len(plan.schedule), 2):
+        first, second = plan.schedule[pair_index : pair_index + 2]
+        if first.pair_id != second.pair_id:
+            _refuse(
+                "nonadjacent_twins",
+                "each control/treatment twin must be adjacent in the schedule",
+            )
+        expected_arms: tuple[Arm, Arm] = (
+            ("control", "treatment") if pair_index // 2 % 2 == 0 else ("treatment", "control")
+        )
+        if (first.arm, second.arm) != expected_arms:
+            _refuse(
+                "arm_balance_mismatch",
+                "schedule first-arm assignment is not deterministically counterbalanced",
+            )
+        actual_pair_order.append(first.pair_id)
+    expected_pair_order = [
+        pair[0].pair_id for pair in _interleaved_pair_order(complete, seed=plan.randomization_seed)
+    ]
+    if actual_pair_order != expected_pair_order:
+        _refuse(
+            "schedule_order_mismatch",
+            "schedule does not match deterministic block-interleaved pair order",
+        )
 
 
 def _scheduled_spec(

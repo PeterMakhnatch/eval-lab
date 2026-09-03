@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from evallab.paired_intervention import (
     ExtraInstructionDelta,
     PairedAnalysisGate,
     PairedArmCandidate,
+    PairedInterventionPlan,
     PairedInterventionRefusal,
     RetryReplacementPolicy,
     plan_paired_intervention,
@@ -26,6 +28,17 @@ from evallab.queue import PolicyGate
 from evallab.schemas import ElicitationSpec, ExperimentSpec, PreregSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _canonical_digest(value: object) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _redigest(payload: dict[str, object]) -> dict[str, object]:
+    body = {key: value for key, value in payload.items() if key != "plan_digest"}
+    payload["plan_digest"] = _canonical_digest(body)
+    return payload
 
 
 def _delta(
@@ -194,6 +207,7 @@ def test_plan_is_deterministic_balanced_interleaved_and_approval_preserving(
     assert first.model_dump_json() == second.model_dump_json()
     assert first.plan_digest.startswith("sha256:")
     assert len(first.schedule) == 8
+    assert PairedInterventionPlan.model_validate_json(first.model_dump_json()) == first
     assert Counter(entry.arm for entry in first.schedule) == {
         "control": 4,
         "treatment": 4,
@@ -236,10 +250,18 @@ def test_missing_twin_is_refused(tmp_path: Path) -> None:
 def test_duplicate_assignment_across_pairs_is_refused(tmp_path: Path) -> None:
     delta = _delta(tmp_path)
     candidates = _candidates(delta)
-    duplicated = candidates[2].model_copy(
-        update={"assignment_unit_id": candidates[0].assignment_unit_id}
-    )
-    candidates = _replace_candidate(candidates, duplicated)
+    duplicate_assignment = candidates[0].assignment_unit_id
+    for index in (2, 3):
+        candidate = candidates[index]
+        duplicated_spec = candidate.spec.model_copy(
+            update={"task_instance_id": duplicate_assignment}
+        )
+        candidates[index] = candidate.model_copy(
+            update={
+                "assignment_unit_id": duplicate_assignment,
+                "spec": duplicated_spec,
+            }
+        )
 
     with pytest.raises(PairedInterventionRefusal, match="duplicate_assignment"):
         _plan(tmp_path, candidates, delta)
@@ -313,3 +335,70 @@ def test_symlinked_intervention_is_refused(tmp_path: Path) -> None:
 
     with pytest.raises(PairedInterventionRefusal, match="invalid_intervention_path"):
         _plan(tmp_path, _candidates(delta), delta)
+
+
+def test_absolute_intervention_path_is_refused_before_open(tmp_path: Path) -> None:
+    valid_delta = _delta(tmp_path)
+    with pytest.raises(ValueError, match="canonical repo-relative"):
+        ExtraInstructionDelta(
+            treatment_path="/etc/passwd",
+            treatment_sha256=valid_delta.treatment_sha256,
+        )
+    bypassed_schema = ExtraInstructionDelta.model_construct(
+        variable="extra_instruction",
+        control_path=None,
+        control_sha256=None,
+        treatment_path="/etc/passwd",
+        treatment_sha256=valid_delta.treatment_sha256,
+    )
+
+    with pytest.raises(PairedInterventionRefusal, match="invalid_intervention_path"):
+        _plan(tmp_path, _candidates(valid_delta), bypassed_schema)
+
+
+def test_rehydration_refuses_mismatched_spec_digest(tmp_path: Path) -> None:
+    delta = _delta(tmp_path)
+    payload = _plan(tmp_path, _candidates(delta), delta).model_dump(mode="json")
+    payload["schedule"][0]["spec_digest"] = "sha256:" + "1" * 64
+
+    with pytest.raises(ValueError, match="spec_digest_mismatch"):
+        PairedInterventionPlan.model_validate(_redigest(payload))
+
+
+def test_rehydration_refuses_admitted_policy_decision(tmp_path: Path) -> None:
+    delta = _delta(tmp_path)
+    payload = _plan(tmp_path, _candidates(delta), delta).model_dump(mode="json")
+    payload["schedule"][0]["policy_decision"]["admitted"] = True
+    payload["schedule"][0]["policy_decision"]["reason_code"] = None
+
+    with pytest.raises(ValueError, match="approval_gate_not_preserved"):
+        PairedInterventionPlan.model_validate(_redigest(payload))
+
+
+def test_rehydration_refuses_schedule_missing_a_twin(tmp_path: Path) -> None:
+    delta = _delta(tmp_path)
+    payload = _plan(tmp_path, _candidates(delta), delta).model_dump(mode="json")
+    del payload["schedule"][1]
+    for ordinal, entry in enumerate(payload["schedule"], start=1):
+        entry["ordinal"] = ordinal
+
+    with pytest.raises(ValueError, match="missing_twin"):
+        PairedInterventionPlan.model_validate(_redigest(payload))
+
+
+def test_rehydration_refuses_grid_metadata_disagreement(tmp_path: Path) -> None:
+    delta = _delta(tmp_path)
+    payload = _plan(tmp_path, _candidates(delta), delta).model_dump(mode="json")
+    payload["schedule"][0]["spec"]["grid_point"]["pair_id"] = "forged-pair"
+
+    with pytest.raises(ValueError, match="schedule_metadata_mismatch"):
+        PairedInterventionPlan.model_validate(_redigest(payload))
+
+
+def test_rehydration_refuses_treatment_payload_disagreement(tmp_path: Path) -> None:
+    delta = _delta(tmp_path)
+    payload = _plan(tmp_path, _candidates(delta), delta).model_dump(mode="json")
+    payload["delta"]["treatment_sha256"] = "sha256:" + "2" * 64
+
+    with pytest.raises(ValueError, match="unbound_intervention_payload"):
+        PairedInterventionPlan.model_validate(_redigest(payload))

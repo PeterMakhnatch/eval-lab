@@ -75,7 +75,7 @@ backlog:
      move list for review. Claimable by any agent with read-only tools + mv.
   2. (Peter to seed further gripes)
 claims:
-  - wH:p1 (GPT-5.6-sol, via wH:p9 relay) → omp-usability #1 inbox triage (claimed Sep 3, granted; holder to confirm)
+  - wH:p1 (GPT-5.6-sol, via wH:p9 relay) → omp-usability #1 inbox triage (claimed Sep 3, granted; holder to confirm; backup: wR:p1 if unconfirmed in 24h)
 done:
 
 ## training-signal (bar: digest-bound manifest, no held-out claims by trainer)

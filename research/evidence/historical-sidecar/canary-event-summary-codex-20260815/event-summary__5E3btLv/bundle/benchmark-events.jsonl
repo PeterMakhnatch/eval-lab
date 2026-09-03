@@ -1,0 +1,11 @@
+{"event_index":1,"event_type":"historical_trajectory_step","payload":{"source":"system","step_id":1,"tool_calls":[]}}
+{"event_index":2,"event_type":"historical_trajectory_step","payload":{"source":"system","step_id":2,"tool_calls":[]}}
+{"event_index":3,"event_type":"historical_trajectory_step","payload":{"source":"system","step_id":3,"tool_calls":[]}}
+{"event_index":4,"event_type":"historical_trajectory_step","payload":{"source":"user","step_id":4,"tool_calls":[]}}
+{"event_index":5,"event_type":"historical_trajectory_step","payload":{"source":"user","step_id":5,"tool_calls":[]}}
+{"event_index":6,"event_type":"historical_trajectory_step","payload":{"source":"agent","step_id":6,"tool_calls":[{"function_name":"exec","tool_call_id":"call_BdpVM511tkUwSfIxZtaNVwIv"}]}}
+{"event_index":7,"event_type":"historical_trajectory_step","payload":{"source":"system","step_id":7,"tool_calls":[]}}
+{"event_index":8,"event_type":"historical_trajectory_step","payload":{"source":"agent","step_id":8,"tool_calls":[{"function_name":"exec","tool_call_id":"call_cimu3tD60tHLhKkTedTvZKXU"}]}}
+{"event_index":9,"event_type":"historical_trajectory_step","payload":{"source":"agent","step_id":9,"tool_calls":[{"function_name":"exec","tool_call_id":"call_cNjNVo8tVLBhWAhs1FcUe4x1"}]}}
+{"event_index":10,"event_type":"historical_trajectory_step","payload":{"source":"agent","step_id":10,"tool_calls":[{"function_name":"exec","tool_call_id":"call_Z2M4ktNaDlbfFJW3klNinbEZ"}]}}
+{"event_index":11,"event_type":"historical_trajectory_step","payload":{"source":"agent","step_id":11,"tool_calls":[]}}

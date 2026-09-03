@@ -23,3 +23,4 @@ Never ask agents what they're good at. Read this file instead.
 - wS:pA (zai/glm-5.3-flash) → good-codebase #2 executor hygiene: ✓ — commit 21561c98 pushed, queue/campaign modules green, ruff clean, acked wH:p1
 - wS:p9 → analysis #2 lane-3 flake: ✓ structure (verdict harness_failure, root cause zai-proxy allowlist + file:line, latent-main warning, repairs proposed-not-committed); sha 08d062f3 CONFIRMED; pending Peter review
 - wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage: ✓ — caught base over-archive (39 active), restored, completed review candidate @7177e1b0 (22 archived, 39+7 restored, move list posted), not pushed; pending Peter review/integration
+- wS:pA (zai/glm-5.3-flash) → system-design #3 evidence-visibility: ✓ — commit 6f465650 verified, loaders refuse on corrupt snapshots, 7 new contract tests + consumers green, ruff clean; live 238 = 179 eligible + 59 excluded (26 pass-but-not-ready open question); ready for review + Peter push

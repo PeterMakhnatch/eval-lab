@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -22,10 +23,12 @@ from typing import Any
 
 import duckdb
 import pyarrow as pa
+import pyarrow.parquet as pq
 
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.evidence.facts import TRIAL_FACT_SCHEMA
+from evallab.interpretation.trajectory_quality import QUALITY_REPORT_TABLE
 from evallab.lineage import compute_file_digest, resolve_lineage
 
 GENERATED_HEADER = "generated-by: lessons v1"
@@ -65,6 +68,21 @@ OBSERVATION_RECORD_SCHEMA = pa.schema(
         pa.field("tool_errors", pa.int64()),
         pa.field("summary", pa.string()),
     ]
+)
+
+
+TRIAL_FACTS_LEDGER_SCHEMA = pa.schema(
+    [
+        *TRIAL_FACT_SCHEMA,
+        pa.field("quality_status", pa.string()),
+    ]
+)
+
+QUALITY_STATUS_COLUMNS = (
+    "quality_pass_n",
+    "quality_warn_n",
+    "quality_fail_n",
+    "quality_quarantine_n",
 )
 
 
@@ -124,7 +142,7 @@ def _relative_path(path: Path, root: Path) -> str:
 def collect_lessons_inputs(
     root: Path,
     sql_path: Path | None = None,
-    *,
+    quality_ledger: QualityLedgerRead | None = None,
     trial_parquet_partition_limit: int = 100,
 ) -> list[dict[str, str]]:
     """Collect all upstream input files aggregated by the lessons generator."""
@@ -199,7 +217,6 @@ def collect_lessons_inputs(
                         "digest": compute_file_digest(path),
                     }
                 )
-
     # 5. Trial facts parquet partitions (if present)
     trial_parquet_files = sorted(root.glob("derived/parquet/**/trial_facts.parquet"))
     if trial_parquet_files:
@@ -224,8 +241,22 @@ def collect_lessons_inputs(
                 }
             )
 
+
+    # 6. Evidence Quality Ledger (shared derived store). When a bound read is
+    # supplied, its digest — taken from the same bytes the rows were parsed
+    # from — is recorded verbatim, closing the read/digest TOCTOU window.
+    bound = quality_ledger if quality_ledger is not None else load_quality_ledger_bound(root)
+    if bound.path is not None and bound.digest is not None:
+        inputs.append(
+            {
+                "path": bound.path,
+                "digest": bound.digest,
+            }
+        )
+
     inputs.sort(key=lambda x: x["path"])
     return inputs
+
 
 # --------------------------------------------------------------------------- #
 # Data Loaders
@@ -439,9 +470,12 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
         try:
             with duckdb.connect(":memory:") as con:
                 glob_path = str(root / "derived/parquet/**/trial_facts.parquet")
+                # Hive partitioning is deliberately off: the derived store mixes
+                # `job_id=/trial_id=` and `compact/dt=` layouts whose partition
+                # keys cannot be unified, and `job_id`/`trial_id` are physical
+                # columns in every file anyway.
                 rows = con.execute(
-                    "SELECT * FROM read_parquet(?, hive_partitioning = true, "
-                    "union_by_name = true)",
+                    "SELECT * FROM read_parquet(?, union_by_name = true)",
                     [glob_path],
                 ).fetchall()
                 cols = [desc[0] for desc in con.description]
@@ -449,6 +483,106 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
         except Exception:
             return []
     return []
+
+
+@dataclass(frozen=True)
+class QualityLedgerRead:
+    """Ledger rows bound to the exact bytes they were parsed from.
+
+    ``digest`` is computed from the same single ``read_bytes()`` payload the
+    rows were deserialized from, so a bytes swap between read and digest
+    recording cannot make the recorded identity describe different content.
+    """
+
+    rows: tuple[dict[str, Any], ...]
+    digest: str | None
+    path: str | None
+
+
+def load_quality_ledger_bound(
+    root: Path,
+    *,
+    derived_root: Path | None = None,
+) -> QualityLedgerRead:
+    """Read the Evidence Quality Ledger once, binding digest to parsed bytes.
+
+    The ledger is read from the tracked repository snapshot
+    (``derived/parquet/trajectory_quality_reports.parquet``), not the live
+    derived store: the snapshot is what the committed lessons.md was rendered
+    from, so every checkout — clean or not — reproduces the artifact
+    byte-for-byte. Updating the projection means refreshing the snapshot and
+    regenerating in the same change.
+    """
+    resolved = (
+        derived_root if derived_root is not None else root / "derived/parquet"
+    )
+    reports_path = resolved / f"{QUALITY_REPORT_TABLE}.parquet"
+    if not reports_path.is_file():
+        return QualityLedgerRead(rows=(), digest=None, path=None)
+    payload = reports_path.read_bytes()
+    digest = f"sha256:{hashlib.sha256(payload).hexdigest()}"
+    relative = _relative_path(reports_path, root)
+    try:
+        rows = tuple(pq.read_table(pa.BufferReader(payload)).to_pylist())
+    except Exception:
+        return QualityLedgerRead(rows=(), digest=digest, path=relative)
+    return QualityLedgerRead(rows=rows, digest=digest, path=relative)
+
+
+def load_quality_ledger(
+    root: Path,
+    *,
+    derived_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Load Evidence Quality Ledger report rows from the shared derived store."""
+    return list(load_quality_ledger_bound(root, derived_root=derived_root).rows)
+
+
+def join_quality_statuses(
+    trial_facts: Sequence[dict[str, Any]],
+    quality_reports: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach the Evidence Quality Ledger status to each trial fact row.
+
+    Trials bind by exact ``(job_id, trial_id)`` pair only. A ``trial_id``-only
+    fallback binds solely when the ledger holds exactly one job identity for
+    that trial and that identity is empty — the ledger's own dedup key carries
+    no job authority of its own. Conflicting statuses for one identity, or a
+    non-empty ledger job identity that differs from the fact row, stay
+    unbound (``quality_status=None``). Binding depends only on the set of
+    ledger reports, never on row order. Unbound rows keep their current,
+    ungated treatment unchanged.
+    """
+    pair_statuses: dict[tuple[str, str], set[str]] = {}
+    trial_job_ids: dict[str, set[str]] = {}
+    for report in quality_reports:
+        status = str(report.get("status") or "")
+        trial_id = str(report.get("trial_id") or "")
+        if not status or not trial_id:
+            continue
+        pair = (str(report.get("job_id") or ""), trial_id)
+        pair_statuses.setdefault(pair, set()).add(status)
+        trial_job_ids.setdefault(trial_id, set()).add(pair[0])
+
+    # Conflicting statuses for one identity are ambiguous authority: unbound,
+    # deterministically, regardless of ledger row order.
+    bound: dict[tuple[str, str], str | None] = {
+        pair: (next(iter(statuses)) if len(statuses) == 1 else None)
+        for pair, statuses in pair_statuses.items()
+    }
+
+    joined: list[dict[str, Any]] = []
+    for row in trial_facts:
+        trial_id = str(row.get("trial_id") or "")
+        job_id = str(row.get("job_id") or "")
+        status = bound.get((job_id, trial_id))
+        if status is None and trial_job_ids.get(trial_id) == {""}:
+            # The ledger knows this trial under no job identity at all; bind
+            # the unique empty-identity status. Any cross-job or conflicting
+            # ledger identity never binds.
+            status = bound.get(("", trial_id))
+        joined.append({**row, "quality_status": status})
+    return joined
 
 
 # --------------------------------------------------------------------------- #
@@ -466,19 +600,253 @@ def populate_duckdb(
     sql_path: Path | None = None,
 ) -> None:
     """Populate DuckDB with in-memory tables and execute view definitions."""
+    # Math input: ledger-quarantined trials are excluded from the frozen
+    # sql/lessons.sql eligibility views BEFORE the math runs, not filtered at
+    # presentation time. The full joined set stays reachable as
+    # `trial_facts_all`, which backs the companion quality-count views, so
+    # quarantined trials remain visible in quality_*_n without entering any
+    # eligibility denominator. With no ledger (all statuses None) the two
+    # tables are identical and the math is unchanged.
+    math_facts = [
+        row for row in trial_facts if row.get("quality_status") != "quarantine"
+    ]
     t_craft = pa.Table.from_pylist(list(craft_records), schema=CRAFT_SCHEMA)
-    t_trials = pa.Table.from_pylist(list(trial_facts), schema=TRIAL_FACT_SCHEMA)
+    t_trials = pa.Table.from_pylist(list(math_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA)
+    t_trials_all = pa.Table.from_pylist(
+        list(trial_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA
+    )
     t_analysis = pa.Table.from_pylist(list(analysis_sidecars), schema=ANALYSIS_SIDECAR_SCHEMA)
     t_obs = pa.Table.from_pylist(list(observation_records), schema=OBSERVATION_RECORD_SCHEMA)
 
     con.register("craft", t_craft)
     con.register("trial_facts", t_trials)
+    con.register("trial_facts_all", t_trials_all)
     con.register("analysis_sidecars", t_analysis)
     con.register("observation_records", t_obs)
 
     resolved_sql = sql_path if sql_path is not None else SQL_LESSONS_PATH
     if resolved_sql.is_file():
         con.execute(resolved_sql.read_text(encoding="utf-8"))
+    con.execute(_QUALITY_GRAIN_SQL)
+
+
+# Trial-level companions to the frozen `sql/lessons.sql` views. They reproduce
+# each view's grouping keys verbatim (facet view: sidecar dedup and mechanical
+# CASEs included) only to count ledger quality states per row; the eligibility
+# math (n, failures_n, rates, intervals) stays exclusively in sql/lessons.sql.
+# Update the grains together with sql/lessons.sql.
+_QUALITY_GRAIN_SQL = """
+CREATE OR REPLACE VIEW trial_quality_by_verifier_type AS
+SELECT
+    c.source_repo,
+    coalesce(c.verifier_type, 'unclassified') AS verifier_type,
+    t.trial_id,
+    t.quality_status
+FROM craft c
+JOIN trial_facts_all t
+    ON c.task_digest IS NOT NULL
+   AND t.task_digest IS NOT NULL
+   AND c.task_digest = t.task_digest;
+
+CREATE OR REPLACE VIEW trial_quality_by_env AS
+SELECT
+    c.source_repo,
+    coalesce(c.env_services_n, 1) AS env_services_n,
+    coalesce(c.env_multi_container, false) AS env_multi_container,
+    CASE
+        WHEN c.env_n_files IS NULL THEN 'unknown'
+        WHEN c.env_n_files = 0 THEN '0_files'
+        WHEN c.env_n_files <= 5 THEN '1_to_5_files'
+        WHEN c.env_n_files <= 20 THEN '6_to_20_files'
+        ELSE 'over_20_files'
+    END AS env_files_bucket,
+    t.trial_id,
+    t.quality_status
+FROM craft c
+JOIN trial_facts_all t
+    ON c.task_digest IS NOT NULL
+   AND t.task_digest IS NOT NULL
+   AND c.task_digest = t.task_digest;
+
+CREATE OR REPLACE VIEW trial_quality_by_facet AS
+WITH validated_sidecars AS (
+    SELECT * EXCLUDE (sidecar_rank)
+    FROM (
+        SELECT
+            a.*,
+            row_number() OVER (
+                PARTITION BY a.source_trial_id
+                ORDER BY
+                    coalesce(a.source_path, ''),
+                    coalesce(a.analysis_id, ''),
+                    coalesce(a.job_id, ''),
+                    coalesce(a.source_digest, ''),
+                    coalesce(a.primary_category, ''),
+                    coalesce(a.validity, ''),
+                    coalesce(a.summary, ''),
+                    coalesce(cast(a.earliest_failure_step_id AS VARCHAR), ''),
+                    coalesce(a.confidence, '')
+            ) AS sidecar_rank
+        FROM analysis_sidecars a
+        WHERE a.validation_status = 'valid'
+          AND nullif(a.source_trial_id, '') IS NOT NULL
+    )
+    WHERE sidecar_rank = 1
+),
+trial_joined AS (
+    SELECT
+        c.source_repo,
+        coalesce(c.verifier_type, 'unclassified') AS verifier_type,
+        coalesce(c.instruction_style, 'unclassified') AS instruction_style,
+        coalesce(c.difficulty_mechanism, 'unclassified') AS difficulty_mechanism,
+        CASE
+            WHEN c.env_multi_container IS TRUE THEN 'multi_container'
+            WHEN c.env_multi_container IS FALSE THEN 'single_container'
+            ELSE 'unspecified'
+        END AS env_container_mode,
+        coalesce(c.base_image_pin, 'unpinned') AS base_image_pin,
+        CASE
+            WHEN c.pinned_deps IS TRUE THEN 'pinned'
+            WHEN c.pinned_deps IS FALSE THEN 'unpinned'
+            ELSE 'unstated'
+        END AS dependency_pinning,
+        t.trial_id,
+        a.primary_category AS model_failure_category,
+        a.validity AS model_validity,
+        CASE WHEN a.source_trial_id IS NOT NULL THEN 'validated_analysis_sidecar' END
+            AS model_diagnosis_source,
+        CASE
+            WHEN t.exception_class IS NOT NULL THEN 'exception'
+            WHEN t.primary_reward IS NULL THEN 'unmeasured'
+            WHEN t.primary_reward < 1.0 THEN 'unscored_failure'
+            ELSE 'none'
+        END AS mechanical_failure_category,
+        CASE
+            WHEN t.exception_class IS NOT NULL THEN 'exception_trial'
+            WHEN t.primary_reward IS NULL THEN 'not_measured'
+            WHEN t.primary_reward >= 1.0 THEN 'passed'
+            ELSE 'measured_agent_attempt'
+        END AS mechanical_validity,
+        'trial_facts' AS mechanical_diagnosis_source,
+        t.quality_status
+    FROM craft c
+    JOIN trial_facts_all t
+        ON c.task_digest IS NOT NULL
+       AND t.task_digest IS NOT NULL
+       AND c.task_digest = t.task_digest
+    LEFT JOIN validated_sidecars a
+        ON a.source_trial_id = t.trial_id
+)
+SELECT source_repo, 'verifier_type' AS facet_name, verifier_type AS facet_value, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined
+UNION ALL
+SELECT source_repo, 'instruction_style', instruction_style, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined
+UNION ALL
+SELECT source_repo, 'difficulty_mechanism', difficulty_mechanism, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined
+UNION ALL
+SELECT source_repo, 'env_container_mode', env_container_mode, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined
+UNION ALL
+SELECT source_repo, 'base_image_pin', base_image_pin, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined
+UNION ALL
+SELECT source_repo, 'dependency_pinning', dependency_pinning, * EXCLUDE (source_repo, verifier_type, instruction_style, difficulty_mechanism, env_container_mode, base_image_pin, dependency_pinning) FROM trial_joined;
+
+CREATE OR REPLACE VIEW v_outcome_by_verifier_type_quality AS
+SELECT
+    source_repo,
+    verifier_type,
+    count(trial_id) FILTER (WHERE quality_status = 'pass') AS quality_pass_n,
+    count(trial_id) FILTER (WHERE quality_status = 'warn') AS quality_warn_n,
+    count(trial_id) FILTER (WHERE quality_status = 'fail') AS quality_fail_n,
+    count(trial_id) FILTER (WHERE quality_status = 'quarantine') AS quality_quarantine_n
+FROM trial_quality_by_verifier_type
+GROUP BY source_repo, verifier_type;
+
+CREATE OR REPLACE VIEW v_loop_rate_by_env_quality AS
+SELECT
+    source_repo,
+    env_services_n,
+    env_multi_container,
+    env_files_bucket,
+    count(trial_id) FILTER (WHERE quality_status = 'pass') AS quality_pass_n,
+    count(trial_id) FILTER (WHERE quality_status = 'warn') AS quality_warn_n,
+    count(trial_id) FILTER (WHERE quality_status = 'fail') AS quality_fail_n,
+    count(trial_id) FILTER (WHERE quality_status = 'quarantine') AS quality_quarantine_n
+FROM trial_quality_by_env
+GROUP BY source_repo, env_services_n, env_multi_container, env_files_bucket;
+
+CREATE OR REPLACE VIEW v_failure_by_facet_quality AS
+SELECT
+    source_repo,
+    facet_name,
+    facet_value,
+    model_failure_category,
+    model_validity,
+    model_diagnosis_source,
+    mechanical_failure_category,
+    mechanical_validity,
+    mechanical_diagnosis_source,
+    count(trial_id) FILTER (WHERE quality_status = 'pass') AS quality_pass_n,
+    count(trial_id) FILTER (WHERE quality_status = 'warn') AS quality_warn_n,
+    count(trial_id) FILTER (WHERE quality_status = 'fail') AS quality_fail_n,
+    count(trial_id) FILTER (WHERE quality_status = 'quarantine') AS quality_quarantine_n
+FROM trial_quality_by_facet
+GROUP BY ALL;
+"""
+
+_VIEW_QUALITY_JOIN_KEYS: dict[str, tuple[str, ...]] = {
+    "v_outcome_by_verifier_type": ("source_repo", "verifier_type"),
+    "v_loop_rate_by_env": (
+        "source_repo",
+        "env_services_n",
+        "env_multi_container",
+        "env_files_bucket",
+    ),
+    "v_failure_by_facet": (
+        "source_repo",
+        "facet_name",
+        "facet_value",
+        "model_failure_category",
+        "model_validity",
+        "model_diagnosis_source",
+        "mechanical_failure_category",
+        "mechanical_validity",
+        "mechanical_diagnosis_source",
+    ),
+}
+
+# The frozen views end in ORDER BY, but the enrichment join would otherwise
+# leave ties between equal sort keys to the query plan. Restating each frozen
+# ordering and extending it with the remaining group keys keeps row order —
+# and therefore lesson ids — total and deterministic.
+_VIEW_ORDER_BY: dict[str, str] = {
+    "v_outcome_by_verifier_type": "v.source_repo, v.n DESC, v.verifier_type",
+    "v_loop_rate_by_env": (
+        "v.source_repo, v.n DESC, v.loop_rate_pct DESC, "
+        "v.env_services_n, v.env_multi_container, v.env_files_bucket"
+    ),
+    "v_failure_by_facet": (
+        "v.source_repo, v.facet_name, v.n DESC, v.failures_n DESC, v.facet_value, "
+        "v.model_failure_category, v.model_validity, v.model_diagnosis_source, "
+        "v.mechanical_failure_category, v.mechanical_validity, v.mechanical_diagnosis_source"
+    ),
+}
+
+
+def _enriched_view_sql(view_name: str) -> str:
+    """LEFT-join precomputed ledger counts onto a frozen view's rows."""
+    predicate = "\n       AND ".join(
+        f"v.{key} IS NOT DISTINCT FROM q.{key}"
+        for key in _VIEW_QUALITY_JOIN_KEYS[view_name]
+    )
+    columns = ", ".join(
+        f"coalesce(q.{column}, 0) AS {column}" for column in QUALITY_STATUS_COLUMNS
+    )
+    return (
+        f"SELECT v.*, {columns}\n"
+        f"FROM {view_name} v\n"
+        f"LEFT JOIN {view_name}_quality q\n"
+        f"  ON {predicate}\n"
+        f"ORDER BY {_VIEW_ORDER_BY[view_name]}"
+    )
 
 
 def execute_lessons_views(
@@ -489,7 +857,7 @@ def execute_lessons_views(
     results: dict[str, list[dict[str, Any]]] = {}
 
     for view_name in views:
-        cursor = con.execute(f"SELECT * FROM {view_name}")
+        cursor = con.execute(_enriched_view_sql(view_name))
         cols = [desc[0] for desc in con.description]
         rows = cursor.fetchall()
         results[view_name] = [dict(zip(cols, r, strict=False)) for r in rows]
@@ -767,8 +1135,9 @@ def build_lessons(
     craft_records = load_craft_records(root)
     observations = load_observation_records(root)
     sidecars = load_analysis_sidecars(root)
-    facts = load_trial_facts(root)
-
+    ledger = load_quality_ledger_bound(root)
+    quality_reports = list(ledger.rows)
+    facts = join_quality_statuses(load_trial_facts(root), quality_reports)
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
             con,
@@ -786,11 +1155,19 @@ def build_lessons(
     powered = sum(1 for item in all_lessons if item.powered)
     underpowered = sum(1 for item in all_lessons if not item.powered)
 
+    quality_status_counts = Counter(
+        str(report.get("status") or "") for report in quality_reports
+    )
     records_summary = {
         "craft_records": len(craft_records),
         "trial_facts": len(facts),
         "analysis_sidecars": len(sidecars),
         "observation_records": len(observations),
+        "quality_ledger_evaluated": len(quality_reports),
+        "quality_ledger_pass": quality_status_counts.get("pass", 0),
+        "quality_ledger_warn": quality_status_counts.get("warn", 0),
+        "quality_ledger_fail": quality_status_counts.get("fail", 0),
+        "quality_ledger_quarantine": quality_status_counts.get("quarantine", 0),
     }
 
     rankings_by_view = {
@@ -798,7 +1175,7 @@ def build_lessons(
         for view_name, rows in lessons_by_view.items()
     }
 
-    inputs = collect_lessons_inputs(root, sql_path=sql_path)
+    inputs = collect_lessons_inputs(root, sql_path=sql_path, quality_ledger=ledger)
     return LessonsResult(
         generated_at=generated_at if generated_at is not None else datetime.now(UTC),
         power_threshold=power_threshold,
@@ -822,6 +1199,21 @@ def _format_ci(interval: tuple[float, float] | None) -> str:
         return "n/a"
     low, high = interval
     return f"[{low:.1%}, {high:.1%}]"
+
+
+def _quality_counts(details: dict[str, Any]) -> tuple[int, int, int, int]:
+    """Ledger pass/warn/fail/quarantine counts recorded on a view row."""
+    return (
+        int(details.get("quality_pass_n", 0) or 0),
+        int(details.get("quality_warn_n", 0) or 0),
+        int(details.get("quality_fail_n", 0) or 0),
+        int(details.get("quality_quarantine_n", 0) or 0),
+    )
+
+
+def _quality_cells(counts: tuple[int, int, int, int]) -> str:
+    """Render the four ledger count cells of a lesson table row."""
+    return f"{counts[0]} | {counts[1]} | {counts[2]} | {counts[3]}"
 
 
 def render_lessons_markdown(result: LessonsResult) -> str:
@@ -859,6 +1251,20 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"{rec_sum.get('observation_records', 0)} observation records, "
                 f"{rec_sum.get('analysis_sidecars', 0)} analysis sidecars"
             ),
+            *(
+                [
+                    (
+                        "- **Evidence Quality Ledger:** "
+                        f"{rec_sum.get('quality_ledger_evaluated', 0)} evaluated trials "
+                        f"(pass {rec_sum.get('quality_ledger_pass', 0)}, "
+                        f"warn {rec_sum.get('quality_ledger_warn', 0)}, "
+                        f"fail {rec_sum.get('quality_ledger_fail', 0)}, "
+                        f"quarantine {rec_sum.get('quality_ledger_quarantine', 0)})"
+                    )
+                ]
+                if "quality_ledger_evaluated" in rec_sum
+                else []
+            ),
             (
                 f"- **Findings Gate:** {result.powered_lessons} statistically powered finding(s), "
                 f"{result.underpowered_lessons} observation row(s) gated with `insufficient n`"
@@ -876,9 +1282,10 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "",
             (
                 "| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | "
-                "Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Status | Finding |"
+                "Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | "
+                "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
-            "|---|---|---:|---:|---:|---:|---|---:|---:|---|---|",
+            "|---|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|",
         ]
     )
 
@@ -892,7 +1299,8 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                     f"{det.get('verifier_type', 'none')} | "
                     f"{int(det.get('total_trials_n', 0))} | 0 | 0 | 0.0% | n/a | "
                     f"{int(det.get('exceptions_n', 0))} | "
-                    f"{int(det.get('never_measured_n', 0))} | `insufficient n` | "
+                    f"{int(det.get('never_measured_n', 0))} | "
+                    f"{_quality_cells(_quality_counts(det))} | `insufficient n` | "
                     "insufficient n |"
                 )
                 continue
@@ -906,13 +1314,14 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             ci_str = _format_ci(row.wilson_95)
             lines.append(
                 f"| {repo} | {vtype} | {total} | {row.n} | {passed} | {row.rate:.1%} | "
-                f"{ci_str} | {exceptions} | {never_measured} | `{row.status}` | "
+                f"{ci_str} | {exceptions} | {never_measured} | "
+                f"{_quality_cells(_quality_counts(det))} | `{row.status}` | "
                 f"{row.finding} |"
             )
     else:
         lines.append(
-            "| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | `insufficient n` | "
-            "insufficient n |"
+            "| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | 0 | 0 | "
+            "`insufficient n` | insufficient n |"
         )
 
     lines.extend(
@@ -924,14 +1333,16 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 "Observation-annotation loop rates by environment complexity. Markdown "
                 "annotations remain identified and are not substituted for deterministic facts."
             ),
-            "",
             (
                 "| Source Repo | Annotation Source | Services | Container Mode | Env Files | "
                 "Total Trials | Annotated | Unannotated | Eligible n | Loops | Loop Rate | "
                 "Wilson 95% CI | Avg Annotated Steps | Avg Annotated Tool Errors | "
-                "Status | Finding |"
+                "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
-            "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---|---|",
+            (
+                "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|"
+                "---:|---:|---:|---:|---|---|"
+            ),
         ]
     )
 
@@ -959,12 +1370,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"| {repo} | {annotation_source} | {services} | {multi} | {files_b} | "
                 f"{total} | {annotated} | {unannotated} | {row.n} | {loops} | "
                 f"{row.rate:.1%} | {ci_str} | {avg_s_str} | {avg_e_str} | "
-                f"`{row.status}` | {row.finding} |"
+                f"{_quality_cells(_quality_counts(det))} | `{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
             "| - | observation_markdown | 0 | single | 0_files | 0 | 0 | 0 | 0 | 0 | "
-            "0.0% | n/a | n/a | n/a | `insufficient n` | insufficient n |"
+            "0.0% | n/a | n/a | n/a | 0 | 0 | 0 | 0 | `insufficient n` | insufficient n |"
         )
 
     lines.extend(
@@ -981,11 +1392,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 "| Source Repo | Facet Name | Facet Value | Model Category | Model Validity | "
                 "Model Source | Mechanical Category | Mechanical Validity | Mechanical Source | "
                 "Total Trials | Eligible n | Exceptions | Never Measured | Excluded | Failures | "
-                "Failure Rate | Wilson 95% CI | Status | Finding |"
+                "Failure Rate | Wilson 95% CI | "
+                "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
             (
                 "|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|"
-                "---:|---|---|---|"
+                "---:|---|---:|---:|---:|---:|---|---|"
             ),
         ]
     )
@@ -1014,12 +1426,14 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"| {repo} | {fname} | {fval} | {model_cat} | {model_val} | {model_source} | "
                 f"{mechanical_cat} | {mechanical_val} | {mechanical_source} | {total} | "
                 f"{row.n} | {exceptions} | {never_measured} | {excluded} | {row.k} | "
-                f"{row.rate:.1%} | {ci_str} | `{row.status}` | {row.finding} |"
+                f"{row.rate:.1%} | {ci_str} | "
+                f"{_quality_cells(_quality_counts(det))} | `{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
             "| - | none | none | none | none | none | none | none | trial_facts | 0 | 0 | "
-            "0 | 0 | 0 | 0 | 0.0% | n/a | `insufficient n` | insufficient n |"
+            "0 | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | `insufficient n` | "
+            "insufficient n |"
         )
 
     lines.extend(

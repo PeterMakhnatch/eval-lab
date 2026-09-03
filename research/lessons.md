@@ -4,6 +4,8 @@ audience:
   - builder
   - analyst
 inputs:
+  - path: derived/parquet/trajectory_quality_reports.parquet
+    digest: sha256:652a23a3a642c6e0d3bea70a70a9391e386ac3c83f447298abe65bf5dc8ab341
   - path: library/tasks/event-summary/task.toml
     digest: sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8
   - path: library/tasks/query-optimize/task.toml
@@ -75,9 +77,10 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-08-28 04:11:40Z
+- **Generated at:** 2026-09-03 16:00:23Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
 - **Corpus Summary:** 9 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
+- **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 
 ---
@@ -86,25 +89,24 @@ inputs:
 
 Cross-tabulation of task verifier architecture against measured trial pass rates. Exception and never-measured trials are reported but excluded from the capability denominator.
 
-| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Status | Finding |
-|---|---|---:|---:|---:|---:|---|---:|---:|---|---|
-| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | `insufficient n` | insufficient n |
+| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |
+|---|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|
+| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | 0 | 0 | `insufficient n` | insufficient n |
 
 ## 2. Loop Rate by Environment Complexity (`v_loop_rate_by_env`)
 
 Observation-annotation loop rates by environment complexity. Markdown annotations remain identified and are not substituted for deterministic facts.
-
-| Source Repo | Annotation Source | Services | Container Mode | Env Files | Total Trials | Annotated | Unannotated | Eligible n | Loops | Loop Rate | Wilson 95% CI | Avg Annotated Steps | Avg Annotated Tool Errors | Status | Finding |
-|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---|---|
-| - | observation_markdown | 1 | single | unknown | 0 | 0 | 0 | 0 | 0 | 0.0% | n/a | n/a | n/a | `insufficient n` | insufficient n |
+| Source Repo | Annotation Source | Services | Container Mode | Env Files | Total Trials | Annotated | Unannotated | Eligible n | Loops | Loop Rate | Wilson 95% CI | Avg Annotated Steps | Avg Annotated Tool Errors | Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |
+|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|
+| - | observation_markdown | 1 | single | unknown | 0 | 0 | 0 | 0 | 0 | 0.0% | n/a | n/a | n/a | 0 | 0 | 0 | 0 | `insufficient n` | insufficient n |
 
 ## 3. Failure by Craft Facet (`v_failure_by_facet`)
 
 Source-discriminated model diagnoses and mechanical trial-fact classifications across structural task facets. The two vocabularies are never merged.
 
-| Source Repo | Facet Name | Facet Value | Model Category | Model Validity | Model Source | Mechanical Category | Mechanical Validity | Mechanical Source | Total Trials | Eligible n | Exceptions | Never Measured | Excluded | Failures | Failure Rate | Wilson 95% CI | Status | Finding |
-|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|
-| - | none | none | none | none | none | none | none | trial_facts | 0 | 0 | 0 | 0 | 0 | 0 | 0.0% | n/a | `insufficient n` | insufficient n |
+| Source Repo | Facet Name | Facet Value | Model Category | Model Validity | Model Source | Mechanical Category | Mechanical Validity | Mechanical Source | Total Trials | Eligible n | Exceptions | Never Measured | Excluded | Failures | Failure Rate | Wilson 95% CI | Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |
+|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---|---|
+| - | none | none | none | none | none | none | none | trial_facts | 0 | 0 | 0 | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | `insufficient n` | insufficient n |
 
 ## Statistical Gating Rules
 

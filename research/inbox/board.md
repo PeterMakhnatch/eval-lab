@@ -9,6 +9,15 @@
 and bars. Agents own only their `claims` line and may append `proposed by`
 lines to backlogs. Ledger: research/inbox/ledger.md.
 
+# Chains vs cohorts (how tasks relate — the only org rule that matters)
+# - chain: B needs A's OUTPUT first (`chain: after #1`). Sequential within
+#   the chain: one active claim, each step links the prior artifact.
+# - cohort: independent items, any order, any agent (`cohort: <name>`).
+#   Fifty parallel ANALYSIS tasks are a cohort, not a problem — agents
+#   spread across them by complement rule, no ordering needed.
+# Default is cohort. Mark chains explicitly. A lane is just a named backlog
+# with one bar; chains run inside lanes, never across them without Peter.
+
 # house rules
 1. No agent assigns work to another agent. Propose it to the lane backlog
    instead (`proposed by <pane> (<model>): ...`). No DM tasking, ever.

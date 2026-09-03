@@ -25,6 +25,7 @@ from evallab.sft_signal import (
     SftSignalDecisionV1,
     SftSignalInputV1,
     SftSignalObservationV1,
+    SftSignalRefusal,
     SftSignalRefusalCode,
     SignalStatus,
     analyze_sft_signal,
@@ -746,6 +747,21 @@ def test_each_frozen_task_can_contribute_only_one_pair(tmp_path: Path) -> None:
     decision = analyze_sft_signal(_input(tmp_path, freeze, observations=tuple(observations)))
     assert decision.status is SignalStatus.REFUSED
     assert SftSignalRefusalCode.DUPLICATE_EVALUATION_TASK in decision.reason_codes
+
+
+def test_typed_model_copy_rule_mutation_refuses(tmp_path: Path) -> None:
+    strict_freeze = _freeze(minimum_effect=0.5)
+    strict_input = _input(tmp_path, strict_freeze)
+    strict_decision = analyze_sft_signal(strict_input)
+    assert strict_decision.status is SignalStatus.NOT_ESTABLISHED
+
+    forged_freeze = strict_freeze.model_copy(update={"minimum_effect": 0.1})
+    assert forged_freeze.freeze_digest == strict_freeze.freeze_digest
+    forged_input = strict_input.model_copy(update={"freeze": forged_freeze})
+    with pytest.raises(SftSignalRefusal, match="freeze_digest does not match"):
+        analyze_sft_signal(forged_input)
+    with pytest.raises(SftSignalRefusal, match="freeze_digest does not match"):
+        assess_sft_readiness(forged_input)
 
 
 def test_stale_outcome_bytes_refuse(tmp_path: Path) -> None:

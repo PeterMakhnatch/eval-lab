@@ -596,12 +596,36 @@ def _chain_reasons(
 
 
 def _parse_input(value: Mapping[str, Any] | SftSignalInputV1) -> SftSignalInputV1:
-    if isinstance(value, SftSignalInputV1):
-        return value
+    """Always revalidate a JSON snapshot, including typed instances.
+
+    ``model_copy(update=...)`` bypasses nested validators, so trusting an
+    already-built :class:`SftSignalInputV1` would let a copied freeze carry a
+    stale ``freeze_digest``. The full JSON round-trip reruns every nested
+    validator before any analysis.
+    """
+
     try:
-        return SftSignalInputV1.model_validate(dict(value))
+        return SftSignalInputV1.model_validate(
+            _normalized_json_payload(value.model_dump(mode="json"))
+            if isinstance(value, SftSignalInputV1)
+            else dict(value)
+        )
     except ValidationError as exc:
         _refuse("invalid_input", str(exc.errors()[:3]))
+
+
+def create_sft_signal_freeze(**kwargs: Any) -> SftSignalFreezeV1:
+    """Create a freeze and fill its deterministic content digest when omitted."""
+
+    kwargs.setdefault("schema_version", SFT_SIGNAL_FREEZE_SCHEMA)
+    if not kwargs.get("freeze_digest"):
+        payload = {
+            key: _normalized_json_payload(value)
+            for key, value in kwargs.items()
+            if key != "freeze_digest"
+        }
+        kwargs["freeze_digest"] = _canonical_digest(payload)
+    return SftSignalFreezeV1.model_validate(kwargs)
 
 
 def assess_sft_readiness(
@@ -934,20 +958,6 @@ def _normalized_json_payload(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_normalized_json_payload(item) for item in value]
     return value
-
-
-def create_sft_signal_freeze(**kwargs: Any) -> SftSignalFreezeV1:
-    """Create a freeze and fill its deterministic content digest when omitted."""
-
-    kwargs.setdefault("schema_version", SFT_SIGNAL_FREEZE_SCHEMA)
-    if not kwargs.get("freeze_digest"):
-        payload = {
-            key: _normalized_json_payload(value)
-            for key, value in kwargs.items()
-            if key != "freeze_digest"
-        }
-        kwargs["freeze_digest"] = _canonical_digest(payload)
-    return SftSignalFreezeV1.model_validate(kwargs)
 
 
 def publish_sft_artifact(

@@ -148,12 +148,36 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
     ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
 }
 
+ZAI_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
+    {"ZAI_CODING_PLAN_API_KEY", "ZAI_API_KEY"}
+)
+ZAI_PROXY_HOST = "zai-secret-proxy"
+ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
+ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
+ZAI_PROXY_SCRIPT = Path("containers/zai_secret_proxy.py")
+ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
+ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
+ZAI_PROXY_SCRIPT_ENV = "EVALLAB_ZAI_PROXY_SCRIPT"
+ZAI_UPSTREAM_ENV = "EVALLAB_ZAI_UPSTREAM"
+ZAI_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
+ZAI_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
+ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
+ZAI_PROXY_FORWARD_KEYS: frozenset[str] = frozenset(
+    {
+        ZAI_SECRET_FILE_ENV,
+        ZAI_PROXY_SCRIPT_ENV,
+        ZAI_UPSTREAM_ENV,
+        ZAI_PROXY_UID_ENV,
+        ZAI_PROXY_GID_ENV,
+    }
+)
 HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "codex": "evallab.harbor_codex:PinnedCodex",
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+    "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
 }
-
+ZAI_MODEL_SELECTOR = "zai-coding-plan/glm-5.3-flash"
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-v4-flash"
 DEEPSEEK_SECRET_COMPOSE = Path("containers/deepseek-v4-flash-secret.compose.yaml")
 
@@ -366,20 +390,22 @@ def collected_secret_values(
     """Return non-placeholder provider secret strings present in *environment*."""
     source = os.environ if environment is None else environment
     values: set[str] = set()
-    for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
+    for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS | ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
         value = source.get(key)
-        if value and value != DEEPSEEK_PROXY_TOKEN:
+        if value and value not in {DEEPSEEK_PROXY_TOKEN, ZAI_PROXY_TOKEN}:
             values.add(value)
-    secret_file = source.get(DEEPSEEK_SECRET_FILE_ENV)
+    secret_file = source.get(DEEPSEEK_SECRET_FILE_ENV) or source.get(ZAI_SECRET_FILE_ENV)
     if secret_file:
         try:
             file_value = read_owner_secret_file(Path(secret_file))
         except OSError:
             file_value = ""
-        if file_value and file_value != DEEPSEEK_PROXY_TOKEN:
+        if file_value and file_value not in {DEEPSEEK_PROXY_TOKEN, ZAI_PROXY_TOKEN}:
             values.add(file_value)
-    capability = source.get(DEEPSEEK_PROXY_CAPABILITY_ENV)
-    if capability and capability != DEEPSEEK_PROXY_TOKEN:
+    capability = source.get(DEEPSEEK_PROXY_CAPABILITY_ENV) or source.get(
+        ZAI_PROXY_CAPABILITY_ENV
+    )
+    if capability and capability not in {DEEPSEEK_PROXY_TOKEN, ZAI_PROXY_TOKEN}:
         values.add(capability)
     return frozenset(values)
 
@@ -510,15 +536,39 @@ def materialize_deepseek_secret_file(
     return destination
 
 
+def materialize_zai_secret_file(
+    destination: Path,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the provider key to a 0600 file for Compose secret mounting."""
+    source = os.environ if environment is None else environment
+    value = source.get("ZAI_CODING_PLAN_API_KEY") or source.get("ZAI_API_KEY")
+    if value == ZAI_PROXY_TOKEN:
+        value = None
+    if not value:
+        existing = source.get(ZAI_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            try:
+                read_owner_secret_file(path)
+            except OSError as exc:
+                raise RuntimeError("Z.ai provider credential is missing") from exc
+            return path
+        raise RuntimeError("Z.ai provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
+
 def subscription_environment(
     environment: Mapping[str, str] | None = None,
     *,
     include_deepseek_credentials: bool = False,
+    include_zai_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
 
-    DeepSeek provider keys never enter this mapping. The mini-swe-agent lane
-    receives only the internal proxy script path and a file-mounted secret path.
+    DeepSeek and Z.ai provider keys never enter this mapping. Proxy lanes
+    receive only the internal proxy script path and a file-mounted secret path.
     """
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
@@ -538,6 +588,17 @@ def subscription_environment(
         sanitized["DEEPSEEK_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
         sanitized["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL
+    if include_zai_credentials:
+        for key in ZAI_PROXY_FORWARD_KEYS:
+            if source.get(key):
+                sanitized[key] = source[key]
+        capability = source.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
+        sanitized[ZAI_PROXY_CAPABILITY_ENV] = capability
+        sanitized["ZAI_CODING_PLAN_API_KEY"] = capability
+        sanitized["ZAI_API_KEY"] = capability
+        sanitized["ZAI_BASE_URL"] = ZAI_PROXY_URL
+        sanitized["OPENAI_BASE_URL"] = ZAI_PROXY_URL
+        sanitized["OPENAI_API_BASE"] = ZAI_PROXY_URL
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
@@ -546,14 +607,15 @@ def subscription_environment(
 
 
 def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
-    """Return a log-safe copy with every admitted DeepSeek value replaced."""
+    """Return a log-safe copy with every admitted proxy-lane value replaced."""
     secrets = collected_secret_values(environment)
     redacted: dict[str, str] = {}
     for key, value in environment.items():
-        if (key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value) or value in secrets:
-            redacted[key] = REDACTED_SECRET_VALUE
-        else:
-            redacted[key] = value
+        sensitive = value and (
+            key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
+            or value in secrets
+        )
+        redacted[key] = REDACTED_SECRET_VALUE if sensitive else value
     return redacted
 
 
@@ -657,6 +719,8 @@ def build_command(request: RunRequest) -> list[str]:
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
+    if request.agent == "zai-opencode" and harbor_model != ZAI_MODEL_SELECTOR:
+        raise ValueError(f"zai-opencode requires the exact model {ZAI_MODEL_SELECTOR}")
     if request.agent == "mini-swe-agent":
         if harbor_model != DEEPSEEK_MODEL_SELECTOR:
             raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
@@ -704,6 +768,16 @@ def subscription_command(
             raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
         if not proxy.is_file():
             raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
+        return [*harbor_command, "--extra-docker-compose", str(overlay)]
+    if request.agent == "zai-opencode":
+        if request.model != ZAI_MODEL_SELECTOR:
+            raise RuntimeError(f"the zai-opencode execution lane is pinned to {ZAI_MODEL_SELECTOR}")
+        overlay = (repo_root / ZAI_SECRET_COMPOSE).resolve()
+        proxy = (repo_root / ZAI_PROXY_SCRIPT).resolve()
+        if not overlay.is_file():
+            raise RuntimeError(f"Z.ai secret overlay is missing: {overlay}")
+        if not proxy.is_file():
+            raise RuntimeError(f"Z.ai secret proxy is missing: {proxy}")
         return [*harbor_command, "--extra-docker-compose", str(overlay)]
     return harbor_command
 

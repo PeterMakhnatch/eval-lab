@@ -49,6 +49,12 @@ from evallab.execution_contracts import (
     REDACTED_SECRET_VALUE,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     WATCHDOG_POLL_SECONDS,
+    ZAI_PROXY_GID_ENV,
+    ZAI_PROXY_HOST,
+    ZAI_PROXY_SCRIPT,
+    ZAI_PROXY_SCRIPT_ENV,
+    ZAI_PROXY_UID_ENV,
+    ZAI_SECRET_FILE_ENV,
     ExecutionFailure,
     HarborProcessResult,
     ProxyTrialLimits,
@@ -60,6 +66,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
     is_lease_generation,
     materialize_deepseek_secret_file,
+    materialize_zai_secret_file,
     persist_private_bytes,
     proxy_runtime_identity,
     read_owner_secret_file,
@@ -640,10 +647,14 @@ def run_harbor_process(
             "execution_cancelled",
             "campaign owner cancelled the active queue lease before Harbor launch",
         )
+    zai_adapter = HARBOR_AGENT_IMPORT_PATHS["zai-opencode"]
+    zai_lane = zai_adapter in command
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
     deepseek_lane = deepseek_adapter in command
-    runtime_environment = subscription_environment(include_deepseek_credentials=deepseek_lane)
+    runtime_environment = subscription_environment(
+        include_deepseek_credentials=deepseek_lane, include_zai_credentials=zai_lane
+    )
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
@@ -737,6 +748,42 @@ def run_harbor_process(
             )
             runtime_environment[DEEPSEEK_PROXY_UID_ENV] = str(proxy_uid)
             runtime_environment[DEEPSEEK_PROXY_GID_ENV] = str(proxy_gid)
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if zai_lane:
+            existing_zai_secret = runtime_environment.get(ZAI_SECRET_FILE_ENV) or os.environ.get(
+                ZAI_SECRET_FILE_ENV
+            )
+            log_root = log_path.resolve()
+            if existing_zai_secret:
+                try:
+                    read_owner_secret_file(Path(existing_zai_secret))
+                    existing_zai_path = Path(existing_zai_secret).resolve()
+                except OSError:
+                    existing_zai_secret = None
+                else:
+                    if log_root.parent in existing_zai_path.parents or (
+                        job_dir is not None and job_dir.resolve() in existing_zai_path.parents
+                    ):
+                        existing_zai_secret = None
+            if existing_zai_secret:
+                runtime_environment[ZAI_SECRET_FILE_ENV] = existing_zai_secret
+            else:
+                owned_secret_dir = Path(
+                    tempfile.mkdtemp(
+                        prefix="evallab-zai-secret.",
+                        dir=os.environ.get("TMPDIR") or None,
+                    )
+                )
+                os.chmod(owned_secret_dir, 0o700)
+                owned_secret_path = owned_secret_dir / "key"
+                materialize_zai_secret_file(owned_secret_path)
+                runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
+            runtime_environment[ZAI_PROXY_SCRIPT_ENV] = str((cwd / ZAI_PROXY_SCRIPT).resolve())
+            proxy_uid, proxy_gid = proxy_runtime_identity(
+                Path(runtime_environment[ZAI_SECRET_FILE_ENV])
+            )
+            runtime_environment[ZAI_PROXY_UID_ENV] = str(proxy_uid)
+            runtime_environment[ZAI_PROXY_GID_ENV] = str(proxy_gid)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if any(import_path in command for import_path in repo_imports):
             source_root = cwd / "src"
@@ -1185,10 +1232,10 @@ def _proxy_attempt_id(request: RunRequest) -> str | None:
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
-    if request.agent == "mini-swe-agent":
+    if request.agent in {"mini-swe-agent", "zai-opencode"}:
         decision = preflight_request(request)
         if not decision.proceed:
-            raise RuntimeError(f"DeepSeek credential preflight stopped: {decision.reason}")
+            raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
     if not shutil.which("harbor"):
         raise RuntimeError("harbor is not installed or not on PATH")
 
@@ -1207,7 +1254,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request.task,
             staging_dir,
             agent_allowed_hosts=(
-                (DEEPSEEK_PROXY_HOST,) if request.agent == "mini-swe-agent" else ()
+                (DEEPSEEK_PROXY_HOST,)
+                if request.agent == "mini-swe-agent"
+                else (ZAI_PROXY_HOST,)
+                if request.agent == "zai-opencode"
+                else ()
             ),
             expected_package_digest=(
                 request.provenance.package_digest

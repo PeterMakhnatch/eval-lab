@@ -240,6 +240,31 @@ def test_deepseek_credentials_are_opt_in_and_log_redacted() -> None:
     assert secret not in repr(redacted)
 
 
+def test_zai_credentials_are_opt_in_and_log_redacted() -> None:
+    secret = "fresh-zai-secret-never-log"
+    source = {
+        "HOME": "/home/user",
+        "ZAI_API_KEY": secret,
+        "OPENAI_API_KEY": "never-forward",
+        "EVALLAB_ZAI_SECRET_FILE": "/tmp/evallab-zai.key",
+        "EVALLAB_ZAI_PROXY_SCRIPT": "/tmp/zai_secret_proxy.py",
+    }
+
+    assert "ZAI_API_KEY" not in subscription_environment(source)
+    admitted = subscription_environment(source, include_zai_credentials=True)
+    assert admitted["ZAI_CODING_PLAN_API_KEY"] == "evallab-proxy-placeholder"
+    assert admitted["ZAI_API_KEY"] == "evallab-proxy-placeholder"
+    assert admitted["EVALLAB_ZAI_PROXY_CAPABILITY"] == "evallab-proxy-placeholder"
+    assert admitted["OPENAI_BASE_URL"] == "http://zai-secret-proxy:8080"
+    assert admitted["EVALLAB_ZAI_SECRET_FILE"] == "/tmp/evallab-zai.key"
+    assert admitted["EVALLAB_ZAI_PROXY_SCRIPT"].endswith("zai_secret_proxy.py")
+    assert "OPENAI_API_KEY" not in admitted
+    assert secret not in admitted.values()
+
+    redacted = redact_environment({"ZAI_API_KEY": secret, "HOME": "/home/user"})
+    assert redacted["ZAI_API_KEY"] == "<redacted>"
+    assert secret not in repr(redacted)
+
 def test_new_ulid_format_and_monotonicity() -> None:
     """new_ulid generates 26-character sortable Crockford Base32 identifiers."""
     u1 = new_ulid(timestamp_ms=1000, randomness=1)

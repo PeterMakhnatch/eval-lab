@@ -179,6 +179,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
     "cursor-cli": "cursor-grok-4.6-high",
     "antigravity-cli": "antigravity-gemini-3.7-flash-high",
     "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
+    "zai-opencode": "zai-opencode-glm53-flash",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

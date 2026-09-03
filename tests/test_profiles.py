@@ -129,6 +129,24 @@ def test_deepseek_profile_allows_only_admitted_environment_names(tmp_path: Path)
         )
 
 
+def test_zai_profile_is_pinned_and_env_probed(tmp_path: Path) -> None:
+    profile = builtin_profiles()["zai-opencode-glm53-flash"]
+    assert profile.adapter == "zai-opencode"
+    assert profile.model == "zai-coding-plan/glm-5.3-flash"
+    assert profile.auth_mode == "api-key-environment"
+
+    probe = default_probe_for(
+        profile,
+        home=tmp_path,
+        security_runner=lambda argv: 1,
+        keychain_account="nobody",
+        environment={"ZAI_API_KEY": FAKE_SECRET},
+    )
+    assert isinstance(probe, EnvironmentPresenceProbe)
+    decision = preflight(profile, probe)
+    assert decision.proceed
+    assert FAKE_SECRET not in repr(decision)
+
 # ---- model pin discipline ---------------------------------------------------
 
 

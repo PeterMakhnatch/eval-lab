@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # forbidden everywhere except the exact DeepSeek environment source below.
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
+ZAI_CREDENTIAL_NAMES = frozenset({"ZAI_CODING_PLAN_API_KEY", "ZAI_API_KEY"})
 
 AuthMode = Literal[
     "none",
@@ -116,9 +117,9 @@ class AgentProfile(BaseModel):
             names = tuple(name.strip() for name in value.removeprefix("env:").split(","))
             if not names or any(not name for name in names):
                 raise ValueError("environment secret_source must name at least one variable")
-            if frozenset(names) != DEEPSEEK_CREDENTIAL_NAMES:
+            if frozenset(names) not in {DEEPSEEK_CREDENTIAL_NAMES, ZAI_CREDENTIAL_NAMES}:
                 raise ValueError(
-                    "environment secret_source may name only the admitted DeepSeek variables"
+                    "environment secret_source may name only the admitted DeepSeek or Z.ai variables"
                 )
             return value
         _rejects_api_key_names((value,))
@@ -515,6 +516,24 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-08: credential-free Harbor install smoke completed "
                     "with zero model trials",
+                ),
+            ),
+            AgentProfile(
+                profile_id="zai-opencode-glm53-flash",
+                adapter="zai-opencode",
+                model="zai-coding-plan/glm-5.3-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:ZAI_CODING_PLAN_API_KEY,ZAI_API_KEY",
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=3,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-08-29: Z.ai GLM-5.3-Flash pilot executed end to end "
+                    "across the three MCP verticals (18 trials, 15 reward 1.0) "
+                    "via the trusted-lane adapter; this profile wires the "
+                    "proxy-isolated SecretSafe adapter into the queue",
                 ),
             ),
             # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`

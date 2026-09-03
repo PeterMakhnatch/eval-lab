@@ -153,6 +153,84 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
     assert "max_tokens=8192" in command
 
 
+def test_zai_routes_through_pinned_secret_safe_opencode_adapter(
+    tmp_path: Path,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3-flash",
+        name="zai-pinned-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    command = build_command(request)
+
+    assert resolve_harbor_agent("zai-opencode") == (
+        "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent"
+    )
+    assert command[command.index("--agent") + 1] == resolve_harbor_agent("zai-opencode")
+    assert command[command.index("--model") + 1] == "zai-coding-plan/glm-5.3-flash"
+
+
+def test_zai_rejects_unpinned_model(tmp_path: Path) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/other-model",
+        name="zai-wrong-model",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    with pytest.raises(ValueError, match="requires the exact model"):
+        build_command(request)
+
+
+def test_zai_subscription_command_adds_secret_overlay(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    overlay = repo / "containers/zai-secret.compose.yaml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text("services: {}\n")
+    proxy_script = repo / "containers/zai_secret_proxy.py"
+    proxy_script.write_text("#!/usr/bin/env python3\n")
+    harbor_command = ["harbor", "run"]
+    zai = RunRequest(
+        task=task(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3-flash",
+        name="zai-overlay-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    assert subscription_command(zai, harbor_command, repo_root=repo) == [
+        *harbor_command,
+        "--extra-docker-compose",
+        str(overlay.resolve()),
+    ]
+
+
+def test_subscription_command_refuses_when_zai_proxy_is_missing(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    overlay = repo / "containers/zai-secret.compose.yaml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text("services: {}\n")
+    zai = RunRequest(
+        task=task(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3-flash",
+        name="zai-overlay-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    with pytest.raises(RuntimeError, match="secret proxy is missing"):
+        subscription_command(zai, ["harbor", "run"], repo_root=repo)
+
 def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
     tmp_path: Path,
 ) -> None:

@@ -59,6 +59,7 @@ from pydantic import Field, model_validator
 
 from evallab.artifact_authority import (
     VERIFIER_IMPLEMENTATION_DIGEST,
+    ArchiveAnchor,
     ArtifactAuthority,
     reverify_authority,
 )
@@ -483,6 +484,18 @@ class CapabilityDeficitArtifactReceipt(ContractModel):
             )
         return self
 
+class CapabilityDeficitOutputExpectation(ContractModel):
+    """Trusted identity for one exact generated output.
+
+    Trusted orchestration independently obtains and supplies this trust-root input
+    to :func:`reverify_capability_deficit_artifact`. It MUST NOT be derived from
+    the receipt being evaluated.
+    """
+
+    artifact_content_digest: Digest
+    artifact_bytes_digest: Digest
+    anchor: ArchiveAnchor
+
 
 class _EvidenceBuilder:
     """Collects mechanical facts while classification walks the input."""
@@ -640,10 +653,15 @@ def _args_id(call: ToolCallSpec) -> str:
 def reverify_capability_deficit_artifact(
     receipt_or_mapping: CapabilityDeficitArtifactReceipt | Mapping[str, Any],
     *,
+    expected_output: CapabilityDeficitOutputExpectation | Mapping[str, Any],
     authority_repo_root: Path | str | None = None,
     authority_store_root: Path | str | None = None,
 ) -> bool:
-    """Return whether an externally authenticated artifact retains live authority."""
+    """Return whether an authenticated receipt matches a trusted output identity.
+
+    ``expected_output`` is an independently obtained trust-root input from trusted
+    orchestration. It MUST NOT be derived from the receipt being evaluated.
+    """
 
     try:
         if isinstance(receipt_or_mapping, CapabilityDeficitArtifactReceipt):
@@ -652,7 +670,26 @@ def reverify_capability_deficit_artifact(
             raw_receipt = receipt_or_mapping
         else:
             return False
+        if isinstance(expected_output, CapabilityDeficitOutputExpectation):
+            raw_expected_output: Mapping[str, Any] = expected_output.model_dump(
+                mode="json"
+            )
+        elif isinstance(expected_output, Mapping):
+            raw_expected_output = expected_output
+        else:
+            return False
         receipt = CapabilityDeficitArtifactReceipt.model_validate(raw_receipt)
+        trusted_output = CapabilityDeficitOutputExpectation.model_validate(
+            raw_expected_output
+        )
+        if (
+            receipt.artifact.content_digest
+            != trusted_output.artifact_content_digest
+            or receipt.artifact_authority.artifact.digest
+            != trusted_output.artifact_bytes_digest
+            or receipt.artifact_authority.anchor != trusted_output.anchor
+        ):
+            return False
         reopened_output = reverify_authority(
             receipt.artifact_authority,
             expected_verifier_digest=VERIFIER_IMPLEMENTATION_DIGEST,

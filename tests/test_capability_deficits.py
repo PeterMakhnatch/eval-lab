@@ -28,6 +28,7 @@ from evallab.interpretation.capability_deficits import (
     CapabilityDeficitArtifact,
     CapabilityDeficitArtifactReceipt,
     CapabilityDeficitInput,
+    CapabilityDeficitOutputExpectation,
     mine_capability_deficit,
     reverify_capability_deficit_artifact,
     trace_capability_measures,
@@ -471,47 +472,124 @@ def _positive_receipt(tmp_path):
     )
 
 
-def _assert_receipt_structural_but_untrusted(receipt_body, store_root):
+def _trusted_output_expectation(
+    publisher_receipt: CapabilityDeficitArtifactReceipt,
+) -> CapabilityDeficitOutputExpectation:
+    """Trusted orchestration records this before any receipt mutation."""
+    return CapabilityDeficitOutputExpectation(
+        artifact_content_digest=publisher_receipt.artifact.content_digest,
+        artifact_bytes_digest=publisher_receipt.artifact_authority.artifact.digest,
+        anchor=publisher_receipt.artifact_authority.anchor,
+    )
+
+
+def _assert_receipt_structural_but_untrusted(
+    receipt_body, expected_output, store_root
+):
     _rehash_artifact_body(receipt_body["artifact"])
     CapabilityDeficitArtifact.model_validate(receipt_body["artifact"])
     CapabilityDeficitArtifactReceipt.model_validate(receipt_body)
     assert not reverify_capability_deficit_artifact(
-        receipt_body, authority_store_root=store_root
+        receipt_body,
+        expected_output=expected_output,
+        authority_store_root=store_root,
     )
 
 
 def test_live_verifier_accepts_mined_and_serialized_receipt(tmp_path):
     receipt = _positive_receipt(tmp_path)
+    expected_output = _trusted_output_expectation(receipt)
     store_root = tmp_path / "store"
 
     assert reverify_capability_deficit_artifact(
-        receipt, authority_store_root=store_root
+        receipt,
+        expected_output=expected_output,
+        authority_store_root=store_root,
     )
     assert reverify_capability_deficit_artifact(
-        json.loads(receipt.model_dump_json()), authority_store_root=store_root
+        json.loads(receipt.model_dump_json()),
+        expected_output=json.loads(expected_output.model_dump_json()),
+        authority_store_root=store_root,
     )
 
 
 def test_live_verifier_rejects_rehashed_semantic_forgeries(tmp_path):
     receipt = _positive_receipt(tmp_path)
+    expected_output = _trusted_output_expectation(receipt)
     store_root = tmp_path / "store"
 
     family_forgery = receipt.model_dump(mode="json")
     family_forgery["artifact"]["family"] = "blind-retry"
     family_forgery["artifact"]["proposed_intervention_dimensions"] = ["retry_policy"]
-    _assert_receipt_structural_but_untrusted(family_forgery, store_root)
+    _assert_receipt_structural_but_untrusted(
+        family_forgery, expected_output, store_root
+    )
 
     evidence_forgery = receipt.model_dump(mode="json")
     evidence_forgery["artifact"]["evidence"][0]["detail"] = "forged mechanical detail"
-    _assert_receipt_structural_but_untrusted(evidence_forgery, store_root)
+    _assert_receipt_structural_but_untrusted(
+        evidence_forgery, expected_output, store_root
+    )
+
+
+def test_live_verifier_rejects_rearchived_reissued_output(tmp_path):
+    publisher_receipt = _positive_receipt(tmp_path)
+    expected_output = _trusted_output_expectation(publisher_receipt)
+    forged_body = publisher_receipt.artifact.model_dump(mode="json")
+    forged_body["family"] = "blind-retry"
+    forged_body["proposed_intervention_dimensions"] = ["retry_policy"]
+    _rehash_artifact_body(forged_body)
+    forged_artifact = CapabilityDeficitArtifact.model_validate(forged_body)
+
+    artifact_path = publisher_receipt.artifact_authority.artifact.ref
+    forged_source = tmp_path / "forged-output"
+    forged_file = forged_source / artifact_path
+    forged_file.parent.mkdir(parents=True)
+    forged_bytes = canonical_json(forged_artifact.model_dump(mode="json")).encode() + b"\n"
+    forged_file.write_bytes(forged_bytes)
+    forged_archive = archive_evidence(
+        forged_source,
+        tmp_path / "store",
+        record_id="capability-deficit-artifact-reissue",
+        kind="job",
+    )
+    forged_authority = verify_artifact(
+        ArtifactRef(
+            ref=artifact_path,
+            digest="sha256:" + hashlib.sha256(forged_bytes).hexdigest(),
+        ),
+        minimum_level="bytes-verified",
+        verifier_implementation_digest=VERIFIER_IMPLEMENTATION_DIGEST,
+        anchor=ArchiveAnchor(
+            record_kind="job",
+            record_id="capability-deficit-artifact-reissue",
+            expected_record_digest=forged_archive.record_digest,
+            expected_content_digest=forged_archive.content_digest,
+            inner_path=artifact_path,
+        ),
+        store_root=tmp_path / "store",
+    )
+    assert isinstance(forged_authority, ArtifactAuthority)
+    forged_receipt = CapabilityDeficitArtifactReceipt(
+        artifact=forged_artifact,
+        artifact_authority=forged_authority,
+    )
+
+    assert not reverify_capability_deficit_artifact(
+        forged_receipt,
+        expected_output=expected_output,
+        authority_store_root=tmp_path / "store",
+    )
 
 
 def test_live_verifier_rejects_rehashed_source_and_admissibility_forgeries(tmp_path):
-    def assert_structural_but_untrusted(body, store_root):
-        _assert_receipt_structural_but_untrusted(body, store_root)
+    def assert_structural_but_untrusted(body, expected_output, store_root):
+        _assert_receipt_structural_but_untrusted(body, expected_output, store_root)
 
     receipt_root = tmp_path / "receipt"
-    receipt_body = _positive_receipt(receipt_root).model_dump(mode="json")
+    publisher_receipt = _positive_receipt(receipt_root)
+    receipt_expectation = _trusted_output_expectation(publisher_receipt)
+    receipt_body = publisher_receipt.model_dump(mode="json")
     receipt_artifact = receipt_body["artifact"]
     receipt_authority = ArtifactAuthority.model_validate(
         receipt_artifact["evidence_authorities"][0]
@@ -522,10 +600,14 @@ def test_live_verifier_rejects_rehashed_source_and_admissibility_forgeries(tmp_p
     receipt_artifact["evidence_authorities"][0] = _reissue_authority(
         receipt_authority, receipt=bad_receipt
     ).model_dump(mode="json")
-    assert_structural_but_untrusted(receipt_body, receipt_root / "store")
+    assert_structural_but_untrusted(
+        receipt_body, receipt_expectation, receipt_root / "store"
+    )
 
     record_root = tmp_path / "record"
-    record_body = _positive_receipt(record_root).model_dump(mode="json")
+    publisher_record = _positive_receipt(record_root)
+    record_expectation = _trusted_output_expectation(publisher_record)
+    record_body = publisher_record.model_dump(mode="json")
     record_artifact = record_body["artifact"]
     record_authority = ArtifactAuthority.model_validate(
         record_artifact["admissibility_record_authority"]
@@ -534,10 +616,13 @@ def test_live_verifier_rejects_rehashed_source_and_admissibility_forgeries(tmp_p
     record_artifact["admissibility_record_authority"] = _reissue_authority(
         record_authority, artifact=bad_record_ref
     ).model_dump(mode="json")
-    assert_structural_but_untrusted(record_body, record_root / "store")
+    assert_structural_but_untrusted(
+        record_body, record_expectation, record_root / "store"
+    )
 
     bytes_root = tmp_path / "bytes"
     bytes_receipt = _positive_receipt(bytes_root)
+    bytes_expectation = _trusted_output_expectation(bytes_receipt)
     bytes_body = bytes_receipt.model_dump(mode="json")
     CapabilityDeficitArtifactReceipt.model_validate(bytes_body)
     bytes_authority = bytes_receipt.artifact.admissibility_record_authority
@@ -552,11 +637,15 @@ def test_live_verifier_rejects_rehashed_source_and_admissibility_forgeries(tmp_p
     )
     archive_blob.write_bytes(b"mutated after artifact retention")
     assert not reverify_capability_deficit_artifact(
-        bytes_body, authority_store_root=bytes_root / "store"
+        bytes_body,
+        expected_output=bytes_expectation,
+        authority_store_root=bytes_root / "store",
     )
 
     anchor_root = tmp_path / "anchor"
-    anchor_body = _positive_receipt(anchor_root).model_dump(mode="json")
+    publisher_anchor = _positive_receipt(anchor_root)
+    anchor_expectation = _trusted_output_expectation(publisher_anchor)
+    anchor_body = publisher_anchor.model_dump(mode="json")
     anchor_artifact = anchor_body["artifact"]
 
     def with_bad_archive_coordinate(authority):
@@ -570,10 +659,14 @@ def test_live_verifier_rejects_rehashed_source_and_admissibility_forgeries(tmp_p
         with_bad_archive_coordinate(ArtifactAuthority.model_validate(authority))
         for authority in anchor_artifact["evidence_authorities"]
     ]
-    assert_structural_but_untrusted(anchor_body, anchor_root / "store")
+    assert_structural_but_untrusted(
+        anchor_body, anchor_expectation, anchor_root / "store"
+    )
 
     ref_root = tmp_path / "ref"
-    ref_body = _positive_receipt(ref_root).model_dump(mode="json")
+    publisher_ref = _positive_receipt(ref_root)
+    ref_expectation = _trusted_output_expectation(publisher_ref)
+    ref_body = publisher_ref.model_dump(mode="json")
     ref_artifact = ref_body["artifact"]
     source_index = next(
         index
@@ -599,7 +692,7 @@ def test_live_verifier_rejects_rehashed_source_and_admissibility_forgeries(tmp_p
     )
     ref_artifact["evidence"][evidence_index]["source_path"] = forged_ref.ref
     ref_artifact["source_binding"]["test_stdout_digest"] = forged_ref.digest
-    assert_structural_but_untrusted(ref_body, ref_root / "store")
+    assert_structural_but_untrusted(ref_body, ref_expectation, ref_root / "store")
 
 
 

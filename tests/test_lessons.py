@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,6 +33,7 @@ from evallab.lessons import (
     join_quality_statuses,
     load_analysis_sidecars,
     load_quality_ledger,
+    load_quality_ledger_bound,
     load_trial_facts,
     parse_observation_markdown,
     populate_duckdb,
@@ -1156,7 +1158,7 @@ def _strip_quality_columns(rows: list[dict]) -> list[dict]:
     ]
 
 
-def test_join_quality_statuses_prefers_exact_pair_with_trial_fallback() -> None:
+def test_join_quality_statuses_binds_exact_pairs_and_refuses_cross_job() -> None:
     facts = _make_mock_trial_facts()
     reports = [
         {"job_id": "other-job", "trial_id": "t-pytest-pass-0", "status": "warn"},
@@ -1167,11 +1169,44 @@ def test_join_quality_statuses_prefers_exact_pair_with_trial_fallback() -> None:
         row["trial_id"]: row["quality_status"] for row in join_quality_statuses(facts, reports)
     }
     assert joined["t-pytest-pass-0"] == "pass"  # exact (job_id, trial_id) pair wins
-    assert joined["t-golden-fail-0"] == "fail"  # trial-id fallback matches the ledger key
+    assert joined["t-golden-fail-0"] is None  # a foreign job identity never binds
     assert joined["t-pytest-exc-0"] is None  # absent entry keeps the ungated treatment
     assert join_quality_statuses(facts, []) == [
         {**row, "quality_status": None} for row in facts
     ]
+
+
+def test_join_quality_statuses_allows_unique_empty_job_fallback() -> None:
+    facts = [row for row in _make_mock_trial_facts() if row["trial_id"] == "t-golden-fail-0"]
+    reports = [{"job_id": "", "trial_id": "t-golden-fail-0", "status": "fail"}]
+    joined = join_quality_statuses(facts, reports)
+    assert joined[0]["quality_status"] == "fail"
+
+
+def test_join_quality_statuses_is_row_order_independent() -> None:
+    facts = _make_mock_trial_facts()
+    reports = [
+        {"job_id": "job-1", "trial_id": "t-pytest-exc-0", "status": "quarantine"},
+        {"job_id": "job-1", "trial_id": "t-pytest-fail-0", "status": "warn"},
+        {"job_id": "", "trial_id": "t-pytest-exc-0", "status": "pass"},
+        {"job_id": "", "trial_id": "t-pytest-fail-0", "status": "fail"},
+    ]
+    forward = join_quality_statuses(facts, reports)
+    backward = join_quality_statuses(facts, list(reversed(reports)))
+    assert forward == backward
+    statuses = {row["trial_id"]: row["quality_status"] for row in forward}
+    assert statuses["t-pytest-fail-0"] == "warn"  # exact pair beats the empty-identity duplicate
+
+
+def test_join_quality_statuses_refuses_conflicting_pair_regardless_of_order() -> None:
+    facts = [row for row in _make_mock_trial_facts() if row["trial_id"] == "t-pytest-pass-0"]
+    reports = [
+        {"job_id": "job-1", "trial_id": "t-pytest-pass-0", "status": "pass"},
+        {"job_id": "job-1", "trial_id": "t-pytest-pass-0", "status": "fail"},
+    ]
+    for ordered in (reports, list(reversed(reports))):
+        joined = join_quality_statuses(facts, ordered)
+        assert joined[0]["quality_status"] is None
 
 
 def test_load_quality_ledger_reads_shared_store_and_missing_file_falls_back(
@@ -1192,6 +1227,24 @@ def test_load_quality_ledger_reads_shared_store_and_missing_file_falls_back(
     assert statuses.count("fail") == 1
     assert statuses.count("quarantine") == 1
     assert statuses.count("quality_not_evaluated") == 1
+
+
+def test_quality_ledger_read_binds_digest_to_parsed_bytes(tmp_path: Path) -> None:
+    reports_path = _write_quality_ledger(tmp_path)
+    original = reports_path.read_bytes()
+    bound = load_quality_ledger_bound(tmp_path)
+    assert bound.digest == "sha256:" + hashlib.sha256(original).hexdigest()
+    assert len(bound.rows) == 10
+    # TOCTOU regression: bytes swapped after the read cannot change the
+    # recorded identity — digest and rows come from the same opened payload.
+    reports_path.write_bytes(original[:-1] + b"\x00")
+    assert bound.digest == "sha256:" + hashlib.sha256(original).hexdigest()
+    assert len(bound.rows) == 10
+    # The same bound read feeds input recording; no second file open races it.
+    inputs = collect_lessons_inputs(tmp_path, quality_ledger=bound)
+    ledger_inputs = [item for item in inputs if item["path"] == bound.path]
+    assert ledger_inputs
+    assert ledger_inputs[0]["digest"] == bound.digest
 
 
 def test_quality_ledger_states_decompose_into_view_columns() -> None:
@@ -1228,14 +1281,11 @@ def test_quality_ledger_states_decompose_into_view_columns() -> None:
         for row in views["v_failure_by_facet"]
         if row["facet_name"] == "verifier_type" and row["facet_value"] == "pytest"
     ]
-    for column in (
-        "quality_pass_n",
-        "quality_warn_n",
-        "quality_fail_n",
-        "quality_quarantine_n",
-    ):
+    # Ledger-bound math: quarantined trials are excluded before the frozen
+    # views run, so a quarantined exception trial's count has no math row to
+    # land on at facet level. Pass/warn/fail must still decompose exactly.
+    for column in ("quality_pass_n", "quality_warn_n", "quality_fail_n"):
         assert sum(row[column] for row in pytest_facet) == pytest_row[column]
-
     loop_totals = [
         sum(row[column] for row in views["v_loop_rate_by_env"])
         for column in (
@@ -1252,44 +1302,71 @@ def test_quarantined_trials_stay_out_of_eligibility_but_are_counted() -> None:
     craft = _make_mock_craft_records()
     sidecars = _make_mock_analysis_sidecars()
     observations = _make_mock_observation_records()
+    joined = _joined_mock_facts()
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
             con,
             craft_records=craft,
-            trial_facts=_joined_mock_facts(),
+            trial_facts=joined,
             analysis_sidecars=sidecars,
             observation_records=observations,
         )
         with_ledger = execute_lessons_views(con)
+    # The same math, produced by manually deleting the quarantined trial and
+    # using no ledger: ledger quarantine must equal manual exclusion.
+    manually_excluded = [
+        row for row in _make_mock_trial_facts() if row["trial_id"] != "t-pytest-exc-0"
+    ]
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
             con,
             craft_records=craft,
-            trial_facts=_make_mock_trial_facts(),
+            trial_facts=manually_excluded,
             analysis_sidecars=sidecars,
             observation_records=observations,
         )
-        without_ledger = execute_lessons_views(con)
+        manual = execute_lessons_views(con)
 
     pytest_row = next(
         row
         for row in with_ledger["v_outcome_by_verifier_type"]
         if row["verifier_type"] == "pytest"
     )
-    assert pytest_row["quality_quarantine_n"] == 1
-    assert pytest_row["n"] == 5  # the quarantined exception trial stays excluded
+    assert pytest_row["quality_quarantine_n"] == 1  # counted separately
+    assert pytest_row["total_trials_n"] == 5  # 6 facts minus the quarantined one
     for view_name, rows in with_ledger.items():
-        assert _strip_quality_columns(rows) == _strip_quality_columns(
-            without_ledger[view_name]
-        )
+        assert _strip_quality_columns(rows) == _strip_quality_columns(manual[view_name])
 
     gated_with = apply_statistical_gating(with_ledger)
-    gated_without = apply_statistical_gating(without_ledger)
+    gated_manual = apply_statistical_gating(manual)
     for view_name, rows in gated_with.items():
         assert [(row.n, row.k, row.rate, row.wilson_95, row.powered, row.status) for row in rows] == [
             (row.n, row.k, row.rate, row.wilson_95, row.powered, row.status)
-            for row in gated_without[view_name]
+            for row in gated_manual[view_name]
         ]
+
+
+def test_all_quarantine_ledger_empties_math_but_keeps_counts() -> None:
+    facts = _make_mock_trial_facts()
+    reports = [
+        {"job_id": row["job_id"], "trial_id": row["trial_id"], "status": "quarantine"}
+        for row in facts
+    ]
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=join_quality_statuses(facts, reports),
+            analysis_sidecars=_make_mock_analysis_sidecars(),
+            observation_records=_make_mock_observation_records(),
+        )
+        views = execute_lessons_views(con)
+    for _view_name, rows in views.items():
+        for row in rows:
+            assert row["n"] == 0
+            assert row["total_trials_n"] == 0
+            assert row["quality_quarantine_n"] > 0
+            assert row["quality_pass_n"] == 0
 
 
 def test_rendered_markdown_decomposes_ledger_counts() -> None:

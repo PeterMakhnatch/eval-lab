@@ -23,13 +23,13 @@ from typing import Any
 
 import duckdb
 import pyarrow as pa
+import pyarrow.parquet as pq
 
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.evidence.facts import TRIAL_FACT_SCHEMA
 from evallab.interpretation.trajectory_quality import QUALITY_REPORT_TABLE
 from evallab.lineage import compute_file_digest, resolve_lineage
-from evallab.storage.paths import derived_root_from_environment
 
 GENERATED_HEADER = "generated-by: lessons v1"
 DEFAULT_POWER_THRESHOLD = 5
@@ -142,7 +142,7 @@ def _relative_path(path: Path, root: Path) -> str:
 def collect_lessons_inputs(
     root: Path,
     sql_path: Path | None = None,
-    *,
+    quality_ledger: QualityLedgerRead | None = None,
     trial_parquet_partition_limit: int = 100,
 ) -> list[dict[str, str]]:
     """Collect all upstream input files aggregated by the lessons generator."""
@@ -241,20 +241,22 @@ def collect_lessons_inputs(
                 }
             )
 
-    # 6. Evidence Quality Ledger (shared derived store)
-    quality_ledger_path = (
-        derived_root_from_environment(root) / f"{QUALITY_REPORT_TABLE}.parquet"
-    )
-    if quality_ledger_path.is_file():
+
+    # 6. Evidence Quality Ledger (shared derived store). When a bound read is
+    # supplied, its digest — taken from the same bytes the rows were parsed
+    # from — is recorded verbatim, closing the read/digest TOCTOU window.
+    bound = quality_ledger if quality_ledger is not None else load_quality_ledger_bound(root)
+    if bound.path is not None and bound.digest is not None:
         inputs.append(
             {
-                "path": _relative_path(quality_ledger_path, root),
-                "digest": compute_file_digest(quality_ledger_path),
+                "path": bound.path,
+                "digest": bound.digest,
             }
         )
 
     inputs.sort(key=lambda x: x["path"])
     return inputs
+
 
 # --------------------------------------------------------------------------- #
 # Data Loaders
@@ -483,28 +485,57 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
     return []
 
 
+@dataclass(frozen=True)
+class QualityLedgerRead:
+    """Ledger rows bound to the exact bytes they were parsed from.
+
+    ``digest`` is computed from the same single ``read_bytes()`` payload the
+    rows were deserialized from, so a bytes swap between read and digest
+    recording cannot make the recorded identity describe different content.
+    """
+
+    rows: tuple[dict[str, Any], ...]
+    digest: str | None
+    path: str | None
+
+
+def load_quality_ledger_bound(
+    root: Path,
+    *,
+    derived_root: Path | None = None,
+) -> QualityLedgerRead:
+    """Read the Evidence Quality Ledger once, binding digest to parsed bytes.
+
+    The ledger is read from the tracked repository snapshot
+    (``derived/parquet/trajectory_quality_reports.parquet``), not the live
+    derived store: the snapshot is what the committed lessons.md was rendered
+    from, so every checkout — clean or not — reproduces the artifact
+    byte-for-byte. Updating the projection means refreshing the snapshot and
+    regenerating in the same change.
+    """
+    resolved = (
+        derived_root if derived_root is not None else root / "derived/parquet"
+    )
+    reports_path = resolved / f"{QUALITY_REPORT_TABLE}.parquet"
+    if not reports_path.is_file():
+        return QualityLedgerRead(rows=(), digest=None, path=None)
+    payload = reports_path.read_bytes()
+    digest = f"sha256:{hashlib.sha256(payload).hexdigest()}"
+    relative = _relative_path(reports_path, root)
+    try:
+        rows = tuple(pq.read_table(pa.BufferReader(payload)).to_pylist())
+    except Exception:
+        return QualityLedgerRead(rows=(), digest=digest, path=relative)
+    return QualityLedgerRead(rows=rows, digest=digest, path=relative)
+
+
 def load_quality_ledger(
     root: Path,
     *,
     derived_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Load Evidence Quality Ledger report rows from the shared derived store."""
-    resolved = (
-        derived_root if derived_root is not None else derived_root_from_environment(root)
-    )
-    reports_path = resolved / f"{QUALITY_REPORT_TABLE}.parquet"
-    if not reports_path.is_file():
-        return []
-    try:
-        with duckdb.connect(":memory:") as con:
-            rows = con.execute(
-                "SELECT * FROM read_parquet(?)",
-                [str(reports_path)],
-            ).fetchall()
-            cols = [desc[0] for desc in con.description]
-            return [dict(zip(cols, r, strict=False)) for r in rows]
-    except Exception:
-        return []
+    return list(load_quality_ledger_bound(root, derived_root=derived_root).rows)
 
 
 def join_quality_statuses(
@@ -513,27 +544,43 @@ def join_quality_statuses(
 ) -> list[dict[str, Any]]:
     """Attach the Evidence Quality Ledger status to each trial fact row.
 
-    Trials join by ``(job_id, trial_id)``, falling back to ``trial_id`` alone
-    (the ledger's own dedup key) when no exact pair matches. Rows without any
-    ledger entry carry ``quality_status=None`` and keep their current,
+    Trials bind by exact ``(job_id, trial_id)`` pair only. A ``trial_id``-only
+    fallback binds solely when the ledger holds exactly one job identity for
+    that trial and that identity is empty — the ledger's own dedup key carries
+    no job authority of its own. Conflicting statuses for one identity, or a
+    non-empty ledger job identity that differs from the fact row, stay
+    unbound (``quality_status=None``). Binding depends only on the set of
+    ledger reports, never on row order. Unbound rows keep their current,
     ungated treatment unchanged.
     """
-    by_pair: dict[tuple[str, str], str] = {}
-    by_trial: dict[str, str] = {}
+    pair_statuses: dict[tuple[str, str], set[str]] = {}
+    trial_job_ids: dict[str, set[str]] = {}
     for report in quality_reports:
         status = str(report.get("status") or "")
-        if not status:
-            continue
         trial_id = str(report.get("trial_id") or "")
+        if not status or not trial_id:
+            continue
         pair = (str(report.get("job_id") or ""), trial_id)
-        by_pair.setdefault(pair, status)
-        by_trial.setdefault(trial_id, status)
+        pair_statuses.setdefault(pair, set()).add(status)
+        trial_job_ids.setdefault(trial_id, set()).add(pair[0])
+
+    # Conflicting statuses for one identity are ambiguous authority: unbound,
+    # deterministically, regardless of ledger row order.
+    bound: dict[tuple[str, str], str | None] = {
+        pair: (next(iter(statuses)) if len(statuses) == 1 else None)
+        for pair, statuses in pair_statuses.items()
+    }
 
     joined: list[dict[str, Any]] = []
     for row in trial_facts:
         trial_id = str(row.get("trial_id") or "")
         job_id = str(row.get("job_id") or "")
-        status = by_pair.get((job_id, trial_id), by_trial.get(trial_id))
+        status = bound.get((job_id, trial_id))
+        if status is None and trial_job_ids.get(trial_id) == {""}:
+            # The ledger knows this trial under no job identity at all; bind
+            # the unique empty-identity status. Any cross-job or conflicting
+            # ledger identity never binds.
+            status = bound.get(("", trial_id))
         joined.append({**row, "quality_status": status})
     return joined
 
@@ -553,13 +600,27 @@ def populate_duckdb(
     sql_path: Path | None = None,
 ) -> None:
     """Populate DuckDB with in-memory tables and execute view definitions."""
+    # Math input: ledger-quarantined trials are excluded from the frozen
+    # sql/lessons.sql eligibility views BEFORE the math runs, not filtered at
+    # presentation time. The full joined set stays reachable as
+    # `trial_facts_all`, which backs the companion quality-count views, so
+    # quarantined trials remain visible in quality_*_n without entering any
+    # eligibility denominator. With no ledger (all statuses None) the two
+    # tables are identical and the math is unchanged.
+    math_facts = [
+        row for row in trial_facts if row.get("quality_status") != "quarantine"
+    ]
     t_craft = pa.Table.from_pylist(list(craft_records), schema=CRAFT_SCHEMA)
-    t_trials = pa.Table.from_pylist(list(trial_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA)
+    t_trials = pa.Table.from_pylist(list(math_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA)
+    t_trials_all = pa.Table.from_pylist(
+        list(trial_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA
+    )
     t_analysis = pa.Table.from_pylist(list(analysis_sidecars), schema=ANALYSIS_SIDECAR_SCHEMA)
     t_obs = pa.Table.from_pylist(list(observation_records), schema=OBSERVATION_RECORD_SCHEMA)
 
     con.register("craft", t_craft)
     con.register("trial_facts", t_trials)
+    con.register("trial_facts_all", t_trials_all)
     con.register("analysis_sidecars", t_analysis)
     con.register("observation_records", t_obs)
 
@@ -582,7 +643,7 @@ SELECT
     t.trial_id,
     t.quality_status
 FROM craft c
-JOIN trial_facts t
+JOIN trial_facts_all t
     ON c.task_digest IS NOT NULL
    AND t.task_digest IS NOT NULL
    AND c.task_digest = t.task_digest;
@@ -602,7 +663,7 @@ SELECT
     t.trial_id,
     t.quality_status
 FROM craft c
-JOIN trial_facts t
+JOIN trial_facts_all t
     ON c.task_digest IS NOT NULL
    AND t.task_digest IS NOT NULL
    AND c.task_digest = t.task_digest;
@@ -669,7 +730,7 @@ trial_joined AS (
         'trial_facts' AS mechanical_diagnosis_source,
         t.quality_status
     FROM craft c
-    JOIN trial_facts t
+    JOIN trial_facts_all t
         ON c.task_digest IS NOT NULL
        AND t.task_digest IS NOT NULL
        AND c.task_digest = t.task_digest
@@ -1074,9 +1135,9 @@ def build_lessons(
     craft_records = load_craft_records(root)
     observations = load_observation_records(root)
     sidecars = load_analysis_sidecars(root)
-    quality_reports = load_quality_ledger(root)
+    ledger = load_quality_ledger_bound(root)
+    quality_reports = list(ledger.rows)
     facts = join_quality_statuses(load_trial_facts(root), quality_reports)
-
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
             con,
@@ -1114,7 +1175,7 @@ def build_lessons(
         for view_name, rows in lessons_by_view.items()
     }
 
-    inputs = collect_lessons_inputs(root, sql_path=sql_path)
+    inputs = collect_lessons_inputs(root, sql_path=sql_path, quality_ledger=ledger)
     return LessonsResult(
         generated_at=generated_at if generated_at is not None else datetime.now(UTC),
         power_threshold=power_threshold,

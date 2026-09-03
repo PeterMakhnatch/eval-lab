@@ -20,7 +20,10 @@ auth.json
 /exports/
 /operator-state/
 /queue/
-/derived/
+/derived/*
+!/derived/parquet/
+/derived/parquet/*
+!/derived/parquet/trajectory_quality_reports.parquet
 /backups/
 /logs/
 /notebooks/.ipynb_checkpoints/

@@ -19,3 +19,5 @@ Never ask agents what they're good at. Read this file instead.
 - librarian → analysis: memgym/local verifications from source: ✓ — source-grounded
 - wS:p2 Synth → training-signal: Track C PR #360 (f63172b3): ~ — BLOCKED at review (trust-anchor drop, forged-parent admission); repair in prep
 - engineer-lead → tooling: zai-opencode metered lane live-fire (k1h dispatched, 401s root-caused): ~ — in flight, SIGTERM cause open
+- wK:p9 (GPT-5.6 Sol) → system-design #1 verl criteria: ~ — delivered DEFER/KEEP_REJECTED+R1–R5+5 alts+gates, no churn; FILED sha f079fb59 != REPORTED 7780b83a, re-post requested; pending Peter review
+- wS:pA (zai/glm-5.3-flash) → good-codebase #2 executor hygiene: ✓ — commit 21561c98 pushed, queue/campaign modules green, ruff clean, acked wH:p1

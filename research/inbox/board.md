@@ -32,6 +32,9 @@ lines to backlogs. Ledger: research/inbox/ledger.md.
   (→ backlog item omp-usability #1 below.)
 - P3 (Peter, Sep 3): role names (platform, analyst) hide WHO — pane/model
   identity missing. (→ rule 3 above; ledger format updated to match.)
+- P4 (system, Sep 3): pane↔model identity unstable — wS:p9 signed two models
+  in one round; wK:p8 self-ID'd as wK:p9; grants stand per-pane but ledger
+  attribution needs pane+model+sha on every artifact, not signatures.
 
 ## good-codebase (bar: CI green + focused tests for touched path)
 backlog:
@@ -39,6 +42,7 @@ backlog:
   2. executor failure hygiene in queue.py (from engineer-lead hand-off: orphaned running/ reconcile, spec_id dupes, FileExistsError → archive-aside)
 claims:
 done:
+  - wS:pA (zai/glm-5.3-flash) → good-codebase #2 executor hygiene (commit 21561c98 pushed to origin, acked wH:p1; queue/test_campaigns green, ruff clean; review is wH:p1's step)
 
 ## analysis (bar: every claim cites artifact digest + file:line)
 backlog:
@@ -46,7 +50,8 @@ backlog:
   2. PROBE: why did lane-3 evals flake on Sep 2? (small, calibration task)
 claims:
   - wK:p7/Fable → calibration-tier deficit census over 130 action-memory + 6 tau archives (blocked: needs Peter yes/no on head fbee62dc + calibration-tier confirm)
-  - wS:p9 (zai/glm-5.3-flash, 🎯) → analysis #2 lane-3 flake PROBE (claimed Sep 3, granted)
+  - wS:p9 (signed zai/glm-5.3-flash at claim, now signing Fable/claude-fable-5-1 — identity watch) → analysis #2 lane-3 flake PROBE (claimed Sep 3, granted)
+  - wR:p1 (GPT-5.6 Sol) → analysis #1 reward_info projection gap (claimed Sep 3, granted; bar in lead-sync-reply-wK-p7.md)
 done:
 
 ## system-design (bar: decision + rejected alternatives + falsifiable kill gate)
@@ -56,8 +61,9 @@ backlog:
   3. evidence-visibility reconciliation (from wK:p4 hand-off: lessons dashboard says 0, ledger says 235 — join/filter defect, full contract in lead-sync-reply-wK-p4.md)
 claims:
   - wK:p4/Tutor → Track F gates exercise (blocked: needs Peter on Linux host + ICC pilot; needs wH:p9 on SFT control arm)
-  - wK:p8/p9 cluster (GPT-5.6 Sol; first arrival wK:p8, direct confirm wK:p9) → system-design #1 verl PROBE (claimed Sep 3, granted; holder identity to confirm)
+  - wS:p9 (Fable) → system-design #2 S0 GPU sign-off PROBE (claimed Sep 3, granted; record not authorization — sign-off stays Peter's)
 done:
+  - wK:p9 (GPT-5.6 Sol) → system-design #1 KEEP CLOSED/REJECT until 4 conjunctive conditions (output verl-second-wave-reopen-criteria-20260903.md; sha CONFIRMED f079fb59 on re-post; 6 rejected alts, 10-item spike gate, no code; pending Peter review)
 
 ## tooling (bar: documented in-repo, focused test, no new harness dependency)
 backlog:
@@ -75,7 +81,7 @@ backlog:
      move list for review. Claimable by any agent with read-only tools + mv.
   2. (Peter to seed further gripes)
 claims:
-  - wH:p1 (GPT-5.6-sol, via wH:p9 relay) → omp-usability #1 inbox triage (claimed Sep 3, granted; holder to confirm; backup: wR:p1 if unconfirmed in 24h)
+  - wH:p1 (GPT-5.6-sol) → omp-usability #1 inbox triage (claimed Sep 3, granted; holder confirmed via 🎯 tab; backup: wR:p1)
 done:
 
 ## training-signal (bar: digest-bound manifest, no held-out claims by trainer)

@@ -4,24 +4,14 @@ audience:
   - builder
   - analyst
 inputs:
+  - path: derived/parquet/compact/dt=2026-08-31/trial_facts.parquet
+    digest: sha256:43de4eb22e4da069629cc8136f7b340537f92bee5d72929cb55efeaa35178fc0
+  - path: derived/parquet/craft/craft.parquet
+    digest: sha256:3da7da05aee98176033d205a577aa80724d809c7f48a5f8333446d68be2e13bd
   - path: derived/parquet/trajectory_quality_reports.parquet
     digest: sha256:652a23a3a642c6e0d3bea70a70a9391e386ac3c83f447298abe65bf5dc8ab341
-  - path: library/tasks/event-summary/task.toml
-    digest: sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8
-  - path: library/tasks/query-optimize/task.toml
-    digest: sha256:6e88f2a86df699594bcb1bf81df4ed694505f79c9420f671335b02524bbe3868
-  - path: library/tasks/tau3-retail-1/task.toml
-    digest: sha256:08f2bab6cf13851d69b3669d2125a2dcac290369cd79feb73a568d27d7d08673
-  - path: library/tasks/terminal-bench-html-js-filter/task.toml
-    digest: sha256:282df8b13d9d4b9748a6ed82770a9f2fafc7b618ea7cb6928dfd4eb2c504448b
-  - path: library/tasks/transaction-reconciliation/task.toml
-    digest: sha256:e41321431aaa811dfb8ec15c4262f441aa4d6d7b32759485350771b1bfedae45
   - path: research/explorations/harbor-021/captures/analyze/analysis.json
     digest: sha256:ed51e5da7af5711423be8b719ede203a17c4f0dbcc0e05f2fe9281abfe5beb36
-  - path: research/explorations/harbor-021/demos/tasks/allowlist-probe/task.toml
-    digest: sha256:6aa79766d73d7f044b7dd576f7826f61bfd86f1e7a678e501ad21193a69a502e
-  - path: research/explorations/harbor-021/demos/tasks/two-step-echo/task.toml
-    digest: sha256:fa679b13d438104aa46f8eff7574417909dd37b6bd8c4e0f823b1f5fca9217ad
   - path: research/observations/brief07-transaction-oracle/transaction-reconciliation__goGsfdi.md
     digest: sha256:faaf6d1882da0f8bd5c50daf128f0874a61b2fe48b5b03b823322457b52dc3ed
   - path: research/observations/canary-event-summary-codex-20260814/event-summary__7ia4JGg.md
@@ -73,15 +63,15 @@ inputs:
   - path: research/observations/reframe-post-move-oracle-20260814-1756/event-summary__BbbWLYW.md
     digest: sha256:6d860a550273904a9954c3b76a73285f4da27bfef1646dd4da05568dd73d54c1
   - path: sql/lessons.sql
-    digest: sha256:2d332605e899ed6a6a00fb46ac21019320bcaa5a7e3b6a2666851d7a429b8213
+    digest: sha256:a3a8ddfc7181e121be9a4c4d03d41afd21a3910824858d1eebd3e624bcbbe32e
 ---
 
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-09-03 16:31:25Z
+- **Generated at:** 2026-09-03 16:51:07Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
-- **Corpus Summary:** 10 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
+- **Corpus Summary:** 551 craft tasks, 263 trials, 25 observation records, 0 analysis sidecars
 - **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 

@@ -1,8 +1,10 @@
 # Ledger — revealed preference, not stated preference
 
 One line per completed claim, written at review time by Peter or the
-reviewing lane. Format: `- <agent> → <lane> #<n> <short task>: <mark> — <note>`
-Marks: ✓ clean / ~ mixed or blocked-at-review / ✗ missed.
+reviewing lane. Format: `- <pane> (<model>) → <lane> #<n> <task>: <mark> — <note>`
+Identity is pane + model (e.g. `wH:p1 (Muse)`), never a bare role name.
+Backfilled lines below predate this rule where model is unknown — fill in
+when known.
 Never ask agents what they're good at. Read this file instead.
 
 ## history (backfilled 2026-09-03 from inbox receipts + lead-sync replies)

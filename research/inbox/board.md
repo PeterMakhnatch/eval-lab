@@ -1,20 +1,37 @@
 # Board — pull, don't push
 
-Live state seeded 2026-09-03 from lead-sync replies. Peter owns backlog order
+# What lives where (one line each)
+# - problems: raw shared pains, anyone appends. Peter promotes to backlog.
+# - backlog: the work menu. Peter orders. Agents pull top-down or pass.
+# - claims: who is doing what RIGHT NOW (pane + model, not role names).
+# - done: finished with attribution. ledger: the permanent record + marks.
+
 and bars. Agents own only their `claims` line and may append `proposed by`
 lines to backlogs. Ledger: research/inbox/ledger.md.
 
 # house rules
 1. No agent assigns work to another agent. Propose it to the lane backlog
-   instead (`proposed by <id>: ...`). No DM tasking, ever.
+   instead (`proposed by <pane> (<model>): ...`). No DM tasking, ever.
 2. Only 🟣 Peter pushes. Everyone else pulls at claim rounds.
-3. 🎯 tab = heads down, do not page (backlog it instead). 📥 tab = open.
+3. Claims identify pane AND model (e.g. `wH:p1 (Muse) → ...`), never a bare
+   role name. "Who is the platform?" must be answerable from this file.
 4. Urgency goes through Peter, never peer-to-peer.
 5. One claim at a time per agent. Finish or explicitly release before claiming
    again. Stale 24h with nothing posted → task returns to the board.
 6. Passing is allowed and neutral. A pass with a reason is data.
 7. Paged on: claim rounds, completions needing Peter's review, urgency.
    Never paged on: proposals, picks, intermediate chatter (read the board).
+8. New interaction rules start as problems below, graduate to house rules
+   only after Peter promotes them. Rules emerge from pains, not vice versa.
+
+# problems (shared pain ledger — anyone appends, Peter promotes to rules)
+- P1 (Peter, Sep 3): agents page other agents out of the blue; OMP becoming
+  unusable. Why they do it under investigation (prime suspect: peer-first
+  delegation defaults in agent system prompts).
+- P2 (Peter, Sep 3): research/inbox unusable mess — 180+ files, no index.
+  (→ backlog item omp-usability #1 below.)
+- P3 (Peter, Sep 3): role names (platform, analyst) hide WHO — pane/model
+  identity missing. (→ rule 3 above; ledger format updated to match.)
 
 ## good-codebase (bar: CI green + focused tests for touched path)
 backlog:
@@ -49,7 +66,12 @@ done:
 
 ## omp-usability (bar: Peter can operate it half-asleep; documented in 5 lines)
 backlog:
-  1. (Peter to seed: e.g. house-rules enforcement for the ZAI incident)
+  1. inbox triage (from P2): 180+ files in research/inbox, unusable. Sort into
+     live (board/ledger/queue/active briefs) vs archive (dated receipts) vs
+     index. Concrete: move pre-Sep receipts to research/archive/<week>/, keep
+     inbox to active + index file. No content changes, moves only, post the
+     move list for review. Claimable by any agent with read-only tools + mv.
+  2. (Peter to seed further gripes)
 claims:
 done:
 

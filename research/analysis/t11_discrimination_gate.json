@@ -1,0 +1,6816 @@
+{
+  "source_parquet": "derived/parquet/traj_features/traj_features.parquet",
+  "source_snapshot_digest": "sha256:5ab4932fb35a50d944aab16de7bfcc081e59fa1cc1ef8ca54d2cc1f83c0dea85",
+  "featured_rows_raw": 190,
+  "featured_rows_unique_trials": 181,
+  "task_success_rows": 105,
+  "task_failure_rows": 76,
+  "clearance_n": 20,
+  "quarantined_excluded": {
+    "citation_reference_validity_rate_screening": "zero_discrimination",
+    "edit_efficiency_screening": "zero_discrimination",
+    "error_count": "zero_discrimination",
+    "expected_probe_count": "zero_discrimination",
+    "invalid_citation_reference_count": "zero_discrimination",
+    "invalid_path_reference_count": "zero_discrimination",
+    "is_expected_negative": "zero_discrimination",
+    "max_exit_code_cascade_screening": "zero_discrimination",
+    "path_reference_validity_rate_screening": "zero_discrimination",
+    "recovery_count": "zero_discrimination",
+    "recovery_latency_seconds": "all_null",
+    "recovery_latency_steps": "all_null",
+    "state_diff_bytes_delta": "zero_discrimination",
+    "state_diff_observed": "zero_discrimination",
+    "state_diff_path_count": "zero_discrimination",
+    "state_events_count": "zero_discrimination",
+    "state_files_created_count": "zero_discrimination",
+    "state_files_deleted_count": "zero_discrimination",
+    "state_files_modified_count": "zero_discrimination",
+    "state_journal_reason": "zero_discrimination",
+    "state_journal_status": "zero_discrimination",
+    "state_mutations_count": "zero_discrimination",
+    "step_to_first_error": "all_null",
+    "time_to_first_error_seconds": "all_null",
+    "unavailable_reason": "zero_discrimination",
+    "unobserved_state_mutations_count": "zero_discrimination",
+    "unrecovered_at_terminal": "zero_discrimination"
+  },
+  "observed_features": [
+    "agent_name",
+    "agent_step_count",
+    "agent_version",
+    "assisted_step_count",
+    "autonomous_step_count",
+    "cached_tokens",
+    "citation_reference_count",
+    "completion_tokens",
+    "context_burn_velocity_screening",
+    "cost_usd",
+    "created_at",
+    "duration_seconds",
+    "exception_class",
+    "intervention_category",
+    "intervention_count",
+    "job_id",
+    "job_name",
+    "loop_reasons_json",
+    "loop_suspicion_detected",
+    "loop_suspicion_score",
+    "model_name",
+    "path_reference_count",
+    "prompt_tokens",
+    "repeated_command_count",
+    "source_path",
+    "source_sha256",
+    "status",
+    "step_count",
+    "system_step_count",
+    "task_name",
+    "tool_call_count",
+    "trial_id",
+    "trial_name",
+    "unique_tools_count",
+    "user_step_count",
+    "valid_citation_reference_count",
+    "valid_path_reference_count"
+  ],
+  "data_absent_features": [
+    "alphabet_id",
+    "alphabet_version",
+    "analysis_ready",
+    "artifact_replay_verified",
+    "assisted_step_ratio_screening",
+    "autonomous_recovery_rate",
+    "autonomous_step_ratio_screening",
+    "baseline_visible_score",
+    "best_improvement_iteration",
+    "best_visible_score",
+    "binding_matched",
+    "binding_survival_rate",
+    "blind_retries",
+    "blind_retry_rate",
+    "bound_target_attribute",
+    "bound_target_entity",
+    "bound_target_value",
+    "budget_seconds",
+    "budget_utilization_rate",
+    "cache_hit_rate_screening",
+    "capture_concordance_status",
+    "cas_uri",
+    "causal_consistency_rate",
+    "certified_recovered_faults",
+    "changed_bytes_per_improvement",
+    "completed_milestones",
+    "completed_rubric_subtasks",
+    "conflict_resolution_success",
+    "context_burn_velocity",
+    "controlled_replay_available",
+    "controlled_replay_outcome_delta",
+    "correct_value_bindings",
+    "cost_per_improvement",
+    "cross_session_retrieval_opportunities",
+    "cross_session_retrieval_rate",
+    "cross_session_retrieval_successes",
+    "cycle_violations",
+    "dag_edge_conformance_rate",
+    "dependency_repair_attempts",
+    "dependency_repair_success_rate",
+    "dependency_repair_successes",
+    "diagnosis_class",
+    "dimension_digest",
+    "dose_axis",
+    "dose_unit",
+    "dose_value",
+    "duplicate_handle_count",
+    "edit_tool_call_count",
+    "elapsed_seconds",
+    "environment_setup_seconds",
+    "executed_dag_edges",
+    "expected_handle_count",
+    "experiment_throughput_per_hour",
+    "fault_detected_count",
+    "fault_detection_rate",
+    "fault_recovery_latency",
+    "final_artifact_digest",
+    "final_selection_regret",
+    "final_visible_score",
+    "first_edge_latency",
+    "first_edge_step",
+    "first_improvement_iteration",
+    "handle_coverage_rate",
+    "handle_issuance_ratio",
+    "handle_order_concordance",
+    "handle_order_match",
+    "handle_set_match",
+    "harness_version",
+    "hidden_outcome_binding_digest",
+    "hidden_score",
+    "hypothesis_turnover_rate",
+    "improvement_per_experiment",
+    "injected_fault_count",
+    "injected_fault_record",
+    "insufficient_information_handled",
+    "insufficient_information_opportunities",
+    "invalid_iteration_count",
+    "issued_handle_count",
+    "iteration_count",
+    "kept_iteration_count",
+    "late_improvement_share",
+    "leakage_detected_flag",
+    "leakage_warning_count",
+    "linear_innocence_screening",
+    "max_blind_retry_streak",
+    "max_consecutive_regressions",
+    "measured_iteration_count",
+    "metric_config_digest",
+    "milestone_completion_rate",
+    "milestone_progress_rate",
+    "occupancy_first_failure",
+    "optimal_selection_flag",
+    "plan_revision_count",
+    "plateau_streak_max",
+    "policy_violation_count",
+    "post_error_review_count",
+    "post_fault_retries",
+    "producer_version",
+    "projection_identity",
+    "projection_refusals",
+    "projection_status",
+    "prompt_cache_hit_rate",
+    "prompt_tokens_per_step",
+    "propagated_error_count",
+    "quality_status",
+    "raw_binding_opportunities",
+    "raw_conflicting_opportunities",
+    "recovery_rate_screening",
+    "recovery_succeeded_at_persistence",
+    "redundant_call_ratio",
+    "redundant_tool_calls",
+    "regression_count",
+    "regression_rate",
+    "repeat_group_id",
+    "repeated_hypothesis_count",
+    "report_digest",
+    "reproducibility_evaluated_count",
+    "reproducibility_rate",
+    "reproducible_iteration_count",
+    "required_dag_edges",
+    "required_milestones",
+    "required_value_bindings",
+    "retained_obsolete_fact_count",
+    "retrieval_authority",
+    "reverted_iteration_count",
+    "rollback_rate",
+    "rubric_completion_rate",
+    "runtime_environment_repaired",
+    "satisfied_edge_opportunities",
+    "scaffold_version",
+    "scale_binding_digest",
+    "schema_conformance_rate",
+    "score_direction",
+    "score_scale_compatible",
+    "selected_iteration_id",
+    "selection_decision_count",
+    "selective_forgetting_success",
+    "source_digest",
+    "source_error_count",
+    "source_kind",
+    "source_record_id",
+    "source_revision_id",
+    "source_version",
+    "stale_value_bound",
+    "stale_value_override_rate",
+    "stalled_iteration_count",
+    "stalled_iteration_rate",
+    "state_dependency_satisfaction_rate",
+    "step_to_first_fault",
+    "step_to_recovery",
+    "strategy_changed_after_failure",
+    "subagent_overhead_ratio_screening",
+    "task_digest",
+    "temporal_consistency_rate",
+    "time_to_best_score_seconds",
+    "time_to_first_improvement_seconds",
+    "tokens_per_experiment",
+    "tool_error_rate_screening",
+    "total_changed_bytes",
+    "total_cost_usd",
+    "total_rubric_subtasks",
+    "total_tokens",
+    "total_tool_calls",
+    "train_val_split_intact",
+    "unique_hypothesis_count",
+    "unknown_handle_count",
+    "valid_experiment_count",
+    "valid_experiment_rate",
+    "valid_handle_count",
+    "value_propagation_accuracy",
+    "verifier_digest",
+    "visible_hidden_transfer_gap",
+    "visible_improvement",
+    "visible_outcome_binding_digest",
+    "write_update_event_count"
+  ],
+  "unregistered_parquet_columns": [
+    "edit_call_count",
+    "step_to_first_edit",
+    "step_to_first_tool",
+    "time_to_first_edit_seconds",
+    "time_to_first_tool_seconds",
+    "tool_mix_json"
+  ],
+  "t11_report": {
+    "method_version": "t1.1-outcome-lineage/v1",
+    "source_analysis_snapshot_digest": "sha256:5ab4932fb35a50d944aab16de7bfcc081e59fa1cc1ef8ca54d2cc1f83c0dea85",
+    "input_digest": "sha256:a3e25125cc165cccf00d654810722824c345e26bcef87969c62c387350863396",
+    "results": [
+      {
+        "feature_name": "agent_name",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 2,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "agent_step_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 21,
+              "variance": 849.8885041551247
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 12,
+              "variance": 618.3452154195012
+            }
+          ],
+          "auc_x_to_task_success": 0.33383458646616543,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "agent_version",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 3,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 2,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "alphabet_id",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "alphabet_version",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "analysis_ready",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "artifact_replay_verified",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "assisted_step_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": 0.15841412742382271
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 2,
+              "variance": 0.09378684807256236
+            }
+          ],
+          "auc_x_to_task_success": 0.4536967418546366,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "assisted_step_ratio_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "autonomous_recovery_rate",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "autonomous_step_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 21,
+              "variance": 849.8885041551247
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 12,
+              "variance": 618.3452154195012
+            }
+          ],
+          "auc_x_to_task_success": 0.33383458646616543,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "autonomous_step_ratio_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "baseline_visible_score",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "best_improvement_iteration",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "best_visible_score",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "binding_matched",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "binding_survival_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "blind_retries",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "blind_retry_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "bound_target_attribute",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "bound_target_entity",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "bound_target_value",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "budget_seconds",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "budget_utilization_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cache_hit_rate_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cached_tokens",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 66,
+              "variance": 759122585880.1108
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 93,
+              "variance": 412977588147.28125
+            }
+          ],
+          "auc_x_to_task_success": 0.350125313283208,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "capture_concordance_status",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cas_uri",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "causal_consistency_rate",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "certified_recovered_faults",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "changed_bytes_per_improvement",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "citation_reference_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 1,
+              "variance": 0.0
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": 0.0
+            }
+          ],
+          "auc_x_to_task_success": 0.5,
+          "disagreement_rate": null,
+          "sample_degenerate": true,
+          "zero_variance": true,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "completed_milestones",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "completed_rubric_subtasks",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "completion_tokens",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 70,
+              "variance": 19249983.486668974
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 98,
+              "variance": 4009926.5890249433
+            }
+          ],
+          "auc_x_to_task_success": 0.3383458646616541,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "conflict_resolution_success",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "context_burn_velocity",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "context_burn_velocity_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 175,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 70,
+              "distinct_count": 70,
+              "variance": 1019057.3424256629
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 105,
+              "variance": 968685.5967955625
+            }
+          ],
+          "auc_x_to_task_success": 0.3402721088435374,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "controlled_replay_available",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "controlled_replay_outcome_delta",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "correct_value_bindings",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cost_per_improvement",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cost_usd",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 10,
+              "variance": 0.004542797685151662
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 12,
+              "variance": 0.00010341931141950113
+            }
+          ],
+          "auc_x_to_task_success": 0.48947368421052634,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "created_at",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 16,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 12,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "cross_session_retrieval_opportunities",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cross_session_retrieval_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cross_session_retrieval_successes",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "cycle_violations",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dag_edge_conformance_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dependency_repair_attempts",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dependency_repair_success_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dependency_repair_successes",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "diagnosis_class",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dimension_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dose_axis",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dose_unit",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "dose_value",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "duplicate_handle_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "duration_seconds",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 76,
+              "variance": 120324.98845182256
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 105,
+              "variance": 1127304.3244479876
+            }
+          ],
+          "auc_x_to_task_success": 0.38609022556390976,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "edit_tool_call_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "elapsed_seconds",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "environment_setup_seconds",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "exception_class",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 8,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 8,
+              "distinct_count": 2,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "executed_dag_edges",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "expected_handle_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "experiment_throughput_per_hour",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "fault_detected_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "fault_detection_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "fault_recovery_latency",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "final_artifact_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "final_selection_regret",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "final_visible_score",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "first_edge_latency",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "first_edge_step",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "first_improvement_iteration",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "handle_coverage_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "handle_issuance_ratio",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "handle_order_concordance",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "handle_order_match",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "handle_set_match",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "harness_version",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "hidden_outcome_binding_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "hidden_score",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "hypothesis_turnover_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "improvement_per_experiment",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "injected_fault_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "injected_fault_record",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "insufficient_information_handled",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "insufficient_information_opportunities",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "intervention_category",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 2,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "intervention_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": 0.15841412742382271
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 2,
+              "variance": 0.09378684807256236
+            }
+          ],
+          "auc_x_to_task_success": 0.4536967418546366,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "invalid_iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "issued_handle_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "job_id",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 17,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 17,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "job_name",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 17,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 17,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "kept_iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "late_improvement_share",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "leakage_detected_flag",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "leakage_warning_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "linear_innocence_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "loop_reasons_json",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "loop_suspicion_detected",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": 0.012984764542936287
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": 0.0
+            }
+          ],
+          "auc_x_to_task_success": 0.4934210526315789,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "loop_suspicion_score",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": 0.005486063019390582
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": 0.0
+            }
+          ],
+          "auc_x_to_task_success": 0.4934210526315789,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "max_blind_retry_streak",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "max_consecutive_regressions",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "measured_iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "metric_config_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "milestone_completion_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "milestone_progress_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "model_name",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 4,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 3,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "occupancy_first_failure",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "optimal_selection_flag",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "path_reference_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 14,
+              "variance": 4182.225069252077
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 16,
+              "variance": 221.07174603174604
+            }
+          ],
+          "auc_x_to_task_success": 0.5050751879699248,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "plan_revision_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "plateau_streak_max",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "policy_violation_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "post_error_review_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "post_fault_retries",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "primary_reward",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "producer_version",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "projection_identity",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "projection_refusals",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "projection_status",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "prompt_cache_hit_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "prompt_tokens",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 71,
+              "variance": 771250756818.8772
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 104,
+              "variance": 418672209011.5477
+            }
+          ],
+          "auc_x_to_task_success": 0.356077694235589,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "prompt_tokens_per_step",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "propagated_error_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "quality_status",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "raw_binding_opportunities",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "raw_conflicting_opportunities",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "recovery_rate_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "recovery_succeeded_at_persistence",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "redundant_call_ratio",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "redundant_tool_calls",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "regression_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "regression_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "repeat_group_id",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "repeated_command_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": 0.05193905817174515
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": 0.0
+            }
+          ],
+          "auc_x_to_task_success": 0.4934210526315789,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "repeated_hypothesis_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "report_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "reproducibility_evaluated_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "reproducibility_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "reproducible_iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "required_dag_edges",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "required_milestones",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "required_value_bindings",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "retained_obsolete_fact_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "retrieval_authority",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "reverted_iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "rollback_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "rubric_completion_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "runtime_environment_repaired",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "satisfied_edge_opportunities",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "scaffold_version",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "scale_binding_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "schema_conformance_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "score_direction",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "score_scale_compatible",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "selected_iteration_id",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "selection_decision_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "selective_forgetting_success",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "source_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "source_error_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "source_kind",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "source_path",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 76,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 105,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "source_record_id",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "source_revision_id",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "source_sha256",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 76,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 105,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "source_version",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "stale_value_bound",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "stale_value_override_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "stalled_iteration_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "stalled_iteration_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "state_dependency_satisfaction_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "status",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 1,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": true,
+          "zero_variance": true,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "step_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 20,
+              "variance": 845.0711565096952
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 13,
+              "variance": 617.6250340136054
+            }
+          ],
+          "auc_x_to_task_success": 0.33715538847117793,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "step_to_first_fault",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "step_to_recovery",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "strategy_changed_after_failure",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "subagent_overhead_ratio_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "system_step_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 5,
+              "variance": 1.4806094182825484
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 3,
+              "variance": 1.2048979591836735
+            }
+          ],
+          "auc_x_to_task_success": 0.4582080200501253,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "task_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "task_name",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 44,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 64,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "temporal_consistency_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "time_to_best_score_seconds",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "time_to_first_improvement_seconds",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "tokens_per_experiment",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "tool_call_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 21,
+              "variance": 8875.292763157895
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 12,
+              "variance": 3645.9161904761904
+            }
+          ],
+          "auc_x_to_task_success": 0.3543233082706767,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "tool_error_rate_screening",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "total_changed_bytes",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "total_cost_usd",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "total_rubric_subtasks",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "total_tokens",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "total_tool_calls",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "train_val_split_intact",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "trial_id",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 76,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 105,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "trial_name",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 76,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 105,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "unique_hypothesis_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "unique_tools_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 6,
+              "variance": 1.2816828254847645
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 6,
+              "variance": 1.525079365079365
+            }
+          ],
+          "auc_x_to_task_success": 0.49799498746867166,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "unknown_handle_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "user_step_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 2,
+              "variance": 0.15841412742382271
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 2,
+              "variance": 0.09378684807256236
+            }
+          ],
+          "auc_x_to_task_success": 0.4536967418546366,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "valid_citation_reference_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 1,
+              "variance": 0.0
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 1,
+              "variance": 0.0
+            }
+          ],
+          "auc_x_to_task_success": 0.5,
+          "disagreement_rate": null,
+          "sample_degenerate": true,
+          "zero_variance": true,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "valid_experiment_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "valid_experiment_rate",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "valid_handle_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "valid_path_reference_count",
+        "verdict": "MISSING_LINEAGE_DECLARATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "MISSING_LINEAGE_DECLARATION",
+          "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+        ],
+        "empirical": {
+          "n_nonnull": 181,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 76,
+              "distinct_count": 14,
+              "variance": 4182.225069252077
+            },
+            {
+              "task_success": true,
+              "n": 105,
+              "distinct_count": 16,
+              "variance": 221.07174603174604
+            }
+          ],
+          "auc_x_to_task_success": 0.5050751879699248,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": null
+        }
+      },
+      {
+        "feature_name": "value_propagation_accuracy",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "verifier_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "visible_hidden_transfer_gap",
+        "verdict": "LINEAGE_VIOLATION",
+        "basis": "REGISTRY_CONFIRMED",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": true,
+        "structural_violations": [
+          "LINEAGE_VIOLATION"
+        ],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "visible_improvement",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "visible_outcome_binding_digest",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      },
+      {
+        "feature_name": "write_update_event_count",
+        "verdict": "UNDERPOWERED",
+        "basis": "NONE",
+        "ci_disposition": "ADVISORY",
+        "requires_allowlist": false,
+        "structural_violations": [],
+        "empirical": {
+          "n_nonnull": 0,
+          "strata": [
+            {
+              "task_success": false,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            },
+            {
+              "task_success": true,
+              "n": 0,
+              "distinct_count": 0,
+              "variance": null
+            }
+          ],
+          "auc_x_to_task_success": null,
+          "disagreement_rate": null,
+          "sample_degenerate": false,
+          "zero_variance": false,
+          "refusal_code": "UNDERPOWERED"
+        }
+      }
+    ],
+    "report_digest": "sha256:e639174c357c8858d31a415d772f68d1eb2afb5a3ae0ea95a785388dbf65cd9b"
+  }
+}

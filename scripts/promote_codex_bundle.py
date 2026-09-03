@@ -112,6 +112,19 @@ R4 -- redacted quota sidecar (``<trial>/agent/quota/<rollout>.rate-limits.json``
     decomposed into the lab's share, it is a point-in-time snapshot rather than
     a series, and it is only as fresh as the trial that recorded it.
 
+C1 -- registry-bound benchmark contract emission (Gate Zero).
+    Every trial in a promoted bundle must bind to an explicitly registered
+    task. ``evallab.contract_emission`` resolves the trial's ``result.json``
+    ``task_name`` against ``library/registry``, proves the on-disk task
+    package still matches the registered digests, and emits
+    ``<trial>/benchmark_contract.json`` carrying the registry's task identity,
+    family, version and verifier truth digest. Nothing is inferred from path
+    shapes, platform, config/lock files or auxiliary JSON; every digest is
+    canonical ``sha256:<64 hex>``; a trial that already carries contract
+    authority is never overwritten (additive-only). Any missing,
+    contradictory, or unknown state refuses the whole promotion BEFORE a byte
+    is written, so a refused promotion cannot leave a partial bundle.
+
 Every promoted file records the SHA-256 of its unredacted parent in
 ``PROMOTION.json`` next to the SHA-256 of the promoted bytes.
 
@@ -123,10 +136,15 @@ Every promoted file records the SHA-256 of its unredacted parent in
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
+import os
 import shutil
+import stat
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -140,6 +158,7 @@ VERIFIER_JSON_STRING_LIMIT = 1024
 VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
+CONTRACT_NAME = "benchmark_contract.json"
 EVIDENCE_RUNS = Path(__file__).resolve().parents[1] / "research" / "evidence" / "runs"
 
 #: R4. Longest whitelisted quota string this repository has ever observed is
@@ -481,61 +500,265 @@ def omission_record(
     return record
 
 
-def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
+def _plan_contracts(job_dir: Path) -> list[Any]:
+    """Plan C1 contract emission for every trial, refusing before any write.
+
+    Additive-only: the R1-R4 walk below is untouched. Planning runs before
+    the destination is touched so a binding refusal cannot leave a partial
+    bundle behind.
+    """
+    try:
+        from evallab.contract_emission import (
+            ContractEmissionRefusal,
+            plan_contract_emission,
+        )
+    except ImportError as exc:  # pragma: no cover - broken runtime
+        raise SystemExit(
+            f"contract emission requires the evallab runtime ({exc}); promotion "
+            "refuses to emit unbound bundles"
+        ) from exc
+    try:
+        return plan_contract_emission(job_dir, Path(__file__).resolve().parents[1])
+    except ContractEmissionRefusal as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+
+def _refuse_destination(code: str, detail: str) -> None:
+    raise SystemExit(f"{code}: {detail}")
+
+
+def _safe_destination(destination: Path) -> Path:
+    """Create a non-symlink parent, without accepting lexical escapes."""
+    if ".." in destination.parts:
+        _refuse_destination("destination_path_escape", f"{destination} contains '..'")
+    destination = destination.absolute()
+    parent = destination.parent
+    current = Path(parent.anchor)
+    for part in parent.parts[1:]:
+        current /= part
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            try:
+                current.mkdir(mode=0o700)
+            except FileExistsError:
+                mode = os.lstat(current).st_mode
+            else:
+                continue
+        if stat.S_ISLNK(mode):
+            _refuse_destination("symlinked_destination_parent", f"{current} is a symlink")
+        if not stat.S_ISDIR(mode):
+            _refuse_destination("destination_parent_not_directory", f"{current} is not a directory")
+    try:
+        mode = os.lstat(destination).st_mode
+    except FileNotFoundError:
+        return destination
+    if stat.S_ISLNK(mode):
+        _refuse_destination("symlinked_destination", f"{destination} is a symlink")
+    _refuse_destination("destination_exists", f"{destination} already exists; promoted bundles are immutable")
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_bundle(bundle: Path) -> None:
+    """Make staged contents durable and fail closed on unexpected links."""
+    directories = [bundle]
+    for path in bundle.rglob("*"):
+        mode = os.lstat(path).st_mode
+        if stat.S_ISLNK(mode):
+            raise SystemExit(f"staging_symlink: refusing staged symlink {path}")
+        if stat.S_ISDIR(mode):
+            directories.append(path)
+            continue
+        if not stat.S_ISREG(mode):
+            raise SystemExit(f"staging_nonregular_file: refusing staged entry {path}")
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    for directory in reversed(directories):
+        _fsync_directory(directory)
+
+
+def _verify_staged_bundle(bundle: Path, manifest: dict[str, Any]) -> None:
+    """Verify exactly the staged bytes before the one-way directory publish."""
+    try:
+        rendered = json.loads((bundle / MANIFEST_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"staging_manifest_invalid: {exc}") from exc
+    if rendered != manifest:
+        raise SystemExit("staging_manifest_mismatch: staged manifest differs from render plan")
+
+    declared: set[str] = set()
+    for entry in manifest["files"]:
+        promoted = entry.get("promoted_path")
+        if not promoted:
+            continue
+        relative = Path(promoted)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise SystemExit(f"staging_manifest_escape: {promoted!r}")
+        path = bundle / relative
+        if path.is_symlink() or not path.is_file():
+            raise SystemExit(f"staging_missing_promoted_file: {promoted}")
+        if sha256_file(path) != entry["promoted_sha256"]:
+            raise SystemExit(f"staging_digest_mismatch: {promoted}")
+        declared.add(str(relative))
+    actual = {
+        str(path.relative_to(bundle))
+        for path in bundle.rglob("*")
+        if path.is_file() and path.name != MANIFEST_NAME
+    }
+    if actual != declared:
+        raise SystemExit(
+            "staging_unmanifested_files: "
+            + ", ".join(sorted(actual.symmetric_difference(declared)))
+        )
+
+
+def _rename_without_replacement(source: Path, destination: Path) -> None:
+    """Atomically rename a directory only when destination does not exist."""
+    library = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename = getattr(library, "renamex_np", None)
+        if rename is None:
+            raise SystemExit("atomic_publish_unsupported: renamex_np is unavailable")
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(os.fsencode(source), os.fsencode(destination), 0x00000004)  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename = getattr(library, "renameat2", None)
+        if rename is None:
+            raise SystemExit("atomic_publish_unsupported: renameat2 is unavailable")
+        rename.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        rename.restype = ctypes.c_int
+        result = rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1)
+    else:
+        raise SystemExit("atomic_publish_unsupported: no no-replace directory rename")
+    if result == 0:
+        return
+    error = ctypes.get_errno()
+    if error in {errno.EEXIST, errno.ENOTEMPTY}:
+        _refuse_destination("destination_exists", f"{destination} appeared during publish")
+    raise OSError(error, os.strerror(error), destination)
+
+def promote(job_dir: Path, destination: Path) -> dict[str, Any]:
     if not job_dir.is_dir():
         raise SystemExit(f"source job directory not found: {job_dir}")
-    if destination.exists():
-        if not force:
-            raise SystemExit(
-                f"{destination} already exists; agents/STRUCTURE.md calls promoted "
-                "bundles immutable. Pass --force to re-promote deliberately."
-            )
-        shutil.rmtree(destination)
-
-    entries: list[dict[str, Any]] = []
-    promoted_bytes = 0
-    for source in sorted(job_dir.rglob("*")):
-        # Symlinks are enumerated explicitly and handled by path alone. Their
-        # content is never read: a live link would dereference the target
-        # (disclosing its bytes into the digest), and a broken link cannot be
-        # read at all. Only the link-target *string* is recorded.
-        if source.is_symlink():
-            relative = source.relative_to(job_dir)
-            if not omit_r2(relative):
-                raise SystemExit(
-                    "refusing to promote a symlink outside an R2 omission path: "
-                    f"{relative} (promotion never dereferences symlinks)"
+    # C1 first: bind every trial to the task registry before creating a staging
+    # directory. A refusal therefore cannot leave an evidence bundle behind.
+    contracts = _plan_contracts(job_dir)
+    planned_identity_digests = {
+        plan.identity_source: plan.identity_source_sha256 for plan in contracts
+    }
+    destination_candidate = destination.absolute()
+    try:
+        destination_candidate.relative_to(job_dir.resolve())
+    except ValueError:
+        pass
+    else:
+        _refuse_destination(
+            "destination_path_escape",
+            f"{destination_candidate} is inside source job {job_dir}",
+        )
+    destination = _safe_destination(destination)
+    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
+    try:
+        entries: list[dict[str, Any]] = []
+        promoted_bytes = 0
+        for source in sorted(job_dir.rglob("*")):
+            # Symlinks are enumerated explicitly and handled by path alone. Their
+            # content is never read: a live link would dereference the target
+            # (disclosing its bytes into the digest), and a broken link cannot be
+            # read at all. Only the link-target *string* is recorded.
+            if source.is_symlink():
+                relative = source.relative_to(job_dir)
+                if not omit_r2(relative):
+                    raise SystemExit(
+                        "refusing to promote a symlink outside an R2 omission path: "
+                        f"{relative} (promotion never dereferences symlinks)"
+                    )
+                try:
+                    link_target = str(source.readlink())
+                except OSError as exc:  # pragma: no cover - filesystem failure
+                    raise SystemExit(f"cannot read link target for {relative}: {exc}") from exc
+                entries.append(
+                    omission_record(relative, entry_type="symlink", link_target=link_target)
                 )
-            try:
-                link_target = str(source.readlink())
-            except OSError as exc:  # pragma: no cover - filesystem failure
-                raise SystemExit(f"cannot read link target for {relative}: {exc}") from exc
-            entries.append(
-                omission_record(relative, entry_type="symlink", link_target=link_target)
-            )
-            continue
-        if not source.is_file():
-            continue
-        relative = source.relative_to(job_dir)
-        raw = source.read_bytes()
-        parent_digest = sha256_bytes(raw)
-        action = classify(relative)
-
-        if action == "omit-R2":
-            omission = omission_record(relative, entry_type="file", raw=raw)
-            entries.append(omission)
-            # R4: the rollout goes, but the provider's own quota reading inside
-            # it survives as a whitelisted sidecar carrying this same parent
-            # digest. Recorded as a second entry rather than folded into the
-            # omission record, so `verify` checks the sidecar's own digest and
-            # the explorer can report what it cost -- a few hundred bytes out of
-            # the whole rollout -- instead of presenting it as a promoted file.
-            body = rate_limits_sidecar(relative, raw)
-            if body is None:
                 continue
-            target = sidecar_path(relative)
-            omission["quota_sidecar_path"] = str(target)
-            out = destination / target
+            if not source.is_file():
+                continue
+            relative = source.relative_to(job_dir)
+            raw = source.read_bytes()
+            parent_digest = sha256_bytes(raw)
+            planned_identity_digest = planned_identity_digests.get(str(relative))
+            if (
+                planned_identity_digest is not None
+                and parent_digest != planned_identity_digest
+            ):
+                raise SystemExit(
+                    "identity_source_changed: "
+                    f"{relative} changed after contract authority was planned"
+                )
+            action = classify(relative)
+
+            if action == "omit-R2":
+                omission = omission_record(relative, entry_type="file", raw=raw)
+                entries.append(omission)
+                body = rate_limits_sidecar(relative, raw)
+                if body is None:
+                    continue
+                target = sidecar_path(relative)
+                omission["quota_sidecar_path"] = str(target)
+                out = staging / target
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_bytes(body)
+                promoted_bytes += len(body)
+                entries.append(
+                    {
+                        "source_path": str(relative),
+                        "promoted_path": str(target),
+                        "action": "redacted",
+                        "rule": "R4",
+                        "derived_from": str(relative),
+                        "source_bytes": len(raw),
+                        "source_sha256": parent_digest,
+                        "promoted_bytes": len(body),
+                        "promoted_sha256": sha256_bytes(body),
+                    }
+                )
+                continue
+
+            if action == "redact-R1":
+                body = redact_trajectory(raw)
+                target = relative
+                rule, applied = "R1", "redacted"
+            elif action == "maybe-redact-R3":
+                body, hits = redact_verifier(source, raw)
+                if hits:
+                    target = relative.with_name(
+                        f"{relative.stem}.redacted{relative.suffix}"
+                    )
+                    rule, applied = "R3", "redacted"
+                else:
+                    target, rule, applied = relative, None, "verbatim"
+            else:
+                body, target, rule, applied = raw, relative, None, "verbatim"
+
+            out = staging / target
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(body)
             promoted_bytes += len(body)
@@ -543,100 +766,92 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
                 {
                     "source_path": str(relative),
                     "promoted_path": str(target),
-                    "action": "redacted",
-                    "rule": "R4",
-                    "derived_from": str(relative),
+                    "action": applied,
+                    "rule": rule,
                     "source_bytes": len(raw),
                     "source_sha256": parent_digest,
                     "promoted_bytes": len(body),
                     "promoted_sha256": sha256_bytes(body),
                 }
             )
-            continue
 
-        if action == "redact-R1":
-            body = redact_trajectory(raw)
-            # Keep the canonical ATIF path. Every consumer hardcodes
-            # agent/trajectory.json -- atif.py:399, facts.py:750, tracing.py:21,
-            # explorer.py:226, status.py:125, analysis_worker.py:485,
-            # calibration/inventory.py:275 -- so a .redacted suffix would promote
-            # a trajectory that no tool can read, which is the F-05 gap again. The
-            # redaction is recorded in-band instead: evallab_redaction plus
-            # per-step message_sha256 and message_chars.
-            target = relative
-            rule, applied = "R1", "redacted"
-        elif action == "maybe-redact-R3":
-            body, hits = redact_verifier(source, raw)
-            if hits:
-                target = relative.with_name(
-                    f"{relative.stem}.redacted{relative.suffix}"
-                )
-                rule, applied = "R3", "redacted"
-            else:
-                target, rule, applied = relative, None, "verbatim"
-        else:
-            body, target, rule, applied = raw, relative, None, "verbatim"
+        # C1 writes only within the private staging bundle. The public
+        # destination is published exactly once after this render verifies.
+        from evallab.contract_emission import atomic_write_bytes
 
-        out = destination / target
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(body)
-        promoted_bytes += len(body)
-        entries.append(
-            {
-                "source_path": str(relative),
-                "promoted_path": str(target),
-                "action": applied,
-                "rule": rule,
-                "source_bytes": len(raw),
-                "source_sha256": parent_digest,
-                "promoted_bytes": len(body),
-                "promoted_sha256": sha256_bytes(body),
-            }
+        for plan in contracts:
+            target = Path(plan.trial_name) / CONTRACT_NAME
+            out = staging / target
+            atomic_write_bytes(out, plan.body)
+            promoted_bytes += len(plan.body)
+            entries.append(
+                {
+                    "source_path": plan.identity_source,
+                    "promoted_path": str(target),
+                    "action": "emitted",
+                    "rule": "C1",
+                    "derived_from": plan.identity_source,
+                    "source_bytes": plan.identity_source_bytes,
+                    "source_sha256": plan.identity_source_sha256,
+                    "promoted_bytes": len(plan.body),
+                    "promoted_sha256": sha256_bytes(plan.body),
+                    "registry_task_id": plan.task_id,
+                    "registry_record_digest": plan.registry_record_digest,
+                    "certified_runtime_package_digest": plan.certified_runtime_package_digest,
+                    "certified_environment_digest": plan.certified_environment_digest,
+                    "trial_run_id": plan.trial_run_id,
+                }
+            )
+
+        sources = [entry for entry in entries if "derived_from" not in entry]
+        job_result = job_dir / "result.json"
+        manifest = {
+            "schema_version": SCHEMA_VERSION,
+            "bundle": destination.name,
+            "source_job_runtime_path": f"runs/{job_dir.name}",
+            "source_job_result_sha256": sha256_file(job_result) if job_result.is_file() else None,
+            "promoted_by": "scripts/promote_codex_bundle.py",
+            "redaction_rules": {
+                "R1": "system/user ATIF step message text removed; sha256 and length kept",
+                "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+                "R3a": (
+                    "verifier/* JSON string values over "
+                    f"{VERIFIER_JSON_STRING_LIMIT} bytes replaced by digest markers"
+                ),
+                "R3b": (
+                    f"verifier/* text files over {VERIFIER_TEXT_LIMIT} bytes promoted "
+                    "as a whole-file digest marker with no body"
+                ),
+                "R4": (
+                    "each omitted rollout leaves a quota sidecar under "
+                    f"<trial>/agent/{SIDECAR_DIRNAME}/ holding only the event timestamp "
+                    "and a whitelist of payload.rate_limits scalars, with the parent "
+                    "rollout's sha256; account-scope point-in-time readings, no message, "
+                    "prompt, reasoning, session title or token"
+                ),
+            },
+            "totals": {
+                "source_files": len(sources),
+                "promoted_files": sum(1 for entry in sources if entry["promoted_path"]),
+                "omitted_files": sum(1 for entry in sources if not entry["promoted_path"]),
+                "quota_sidecars": sum(1 for entry in entries if entry.get("rule") == "R4"),
+                "emitted_contracts": sum(1 for entry in entries if entry.get("rule") == "C1"),
+                "promoted_bytes": promoted_bytes,
+                "source_bytes": sum(entry["source_bytes"] for entry in sources),
+            },
+            "files": entries,
+        }
+        (staging / MANIFEST_NAME).write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
         )
-
-    # A sidecar is derived from a source file already counted, so counting it as
-    # a source file would inflate `source_files` and double-count its bytes.
-    sources = [e for e in entries if "derived_from" not in e]
-    job_result = job_dir / "result.json"
-    manifest = {
-        "schema_version": SCHEMA_VERSION,
-        "bundle": destination.name,
-        "source_job_runtime_path": f"runs/{job_dir.name}",
-        "source_job_result_sha256": sha256_file(job_result) if job_result.is_file() else None,
-        "promoted_by": "scripts/promote_codex_bundle.py",
-        "redaction_rules": {
-            "R1": "system/user ATIF step message text removed; sha256 and length kept",
-            "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
-            "R3a": (
-                "verifier/* JSON string values over "
-                f"{VERIFIER_JSON_STRING_LIMIT} bytes replaced by digest markers"
-            ),
-            "R3b": (
-                f"verifier/* text files over {VERIFIER_TEXT_LIMIT} bytes promoted "
-                "as a whole-file digest marker with no body"
-            ),
-            "R4": (
-                "each omitted rollout leaves a quota sidecar under "
-                f"<trial>/agent/{SIDECAR_DIRNAME}/ holding only the event timestamp "
-                "and a whitelist of payload.rate_limits scalars, with the parent "
-                "rollout's sha256; account-scope point-in-time readings, no message, "
-                "prompt, reasoning, session title or token"
-            ),
-        },
-        "totals": {
-            "source_files": len(sources),
-            "promoted_files": sum(1 for e in sources if e["promoted_path"]),
-            "omitted_files": sum(1 for e in sources if not e["promoted_path"]),
-            "quota_sidecars": len(entries) - len(sources),
-            "promoted_bytes": promoted_bytes,
-            "source_bytes": sum(e["source_bytes"] for e in sources),
-        },
-        "files": entries,
-    }
-    (destination / MANIFEST_NAME).write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
-    )
-    return manifest
+        _verify_staged_bundle(staging, manifest)
+        _fsync_bundle(staging)
+        _rename_without_replacement(staging, destination)
+        _fsync_directory(destination.parent)
+        return manifest
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
 
 
 def verify(evidence_runs: Path) -> int:
@@ -733,7 +948,6 @@ def main(argv: list[str] | None = None) -> int:
         "--evidence-runs", type=Path, default=EVIDENCE_RUNS, help="destination runs/ tree"
     )
     parser.add_argument("--verify", action="store_true", help="recheck promoted digests only")
-    parser.add_argument("--force", action="store_true", help="re-promote over an existing bundle")
     args = parser.parse_args(argv)
 
     if args.verify:
@@ -743,7 +957,7 @@ def main(argv: list[str] | None = None) -> int:
 
     total = 0
     for job in args.job:
-        manifest = promote(args.source_runs / job, args.evidence_runs / job, force=args.force)
+        manifest = promote(args.source_runs / job, args.evidence_runs / job)
         totals = manifest["totals"]
         total += totals["promoted_bytes"]
         print(

@@ -1780,7 +1780,10 @@ class CanaryMember(ContractModel):
 class CanarySuite(ContractModel):
     version: Literal[1] = 1
     attempts: Literal[3] = 3
-    agents: list[Literal["codex", "claude-code"]] = Field(min_length=1)
+    agents: list[Literal["codex", "claude-code", "zai-opencode"]] = Field(
+        default_factory=list,
+        description="Nightly canary agents; empty disables nightly billable canaries.",
+    )
     members: list[CanaryMember] = Field(min_length=3, max_length=5)
 
     @model_validator(mode="after")

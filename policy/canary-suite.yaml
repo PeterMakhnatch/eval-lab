@@ -1,6 +1,6 @@
 version: 1
 attempts: 3
-agents: [codex]
+agents: []
 members:
   - name: transaction-reconciliation
     task_path: library/tasks/transaction-reconciliation

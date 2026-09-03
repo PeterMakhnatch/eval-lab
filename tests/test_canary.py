@@ -99,7 +99,7 @@ def test_committed_suite_has_three_pinned_verified_members() -> None:
 
     assert len(suite.members) == 3
     assert suite.attempts == 3
-    assert suite.agents == ["codex"]
+    assert suite.agents == []
     assert {member.name for member in suite.members} == {
         "transaction-reconciliation",
         "terminal-bench-html-js-filter",

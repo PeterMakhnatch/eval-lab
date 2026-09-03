@@ -46,6 +46,7 @@ backlog:
   2. PROBE: why did lane-3 evals flake on Sep 2? (small, calibration task)
 claims:
   - wK:p7/Fable → calibration-tier deficit census over 130 action-memory + 6 tau archives (blocked: needs Peter yes/no on head fbee62dc + calibration-tier confirm)
+  - wS:p9 (zai/glm-5.3-flash, 🎯) → analysis #2 lane-3 flake PROBE (claimed Sep 3, granted)
 done:
 
 ## system-design (bar: decision + rejected alternatives + falsifiable kill gate)
@@ -55,6 +56,7 @@ backlog:
   3. evidence-visibility reconciliation (from wK:p4 hand-off: lessons dashboard says 0, ledger says 235 — join/filter defect, full contract in lead-sync-reply-wK-p4.md)
 claims:
   - wK:p4/Tutor → Track F gates exercise (blocked: needs Peter on Linux host + ICC pilot; needs wH:p9 on SFT control arm)
+  - wK:p8/p9 cluster (GPT-5.6 Sol; first arrival wK:p8, direct confirm wK:p9) → system-design #1 verl PROBE (claimed Sep 3, granted; holder identity to confirm)
 done:
 
 ## tooling (bar: documented in-repo, focused test, no new harness dependency)
@@ -73,6 +75,7 @@ backlog:
      move list for review. Claimable by any agent with read-only tools + mv.
   2. (Peter to seed further gripes)
 claims:
+  - wH:p1 (GPT-5.6-sol, via wH:p9 relay) → omp-usability #1 inbox triage (claimed Sep 3, granted; holder to confirm)
 done:
 
 ## training-signal (bar: digest-bound manifest, no held-out claims by trainer)

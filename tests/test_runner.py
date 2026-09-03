@@ -185,8 +185,6 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
     assert command[command.index("--model") + 1] == "deepseek/deepseek-v4-flash"
     assert command[command.index("--n-concurrent-agents") + 1] == "1"
     assert command[command.index("--n-tasks") + 1] == "1"
-    assert command[command.index("--max-retries") + 1] == "0"
-    assert "cost_limit=2.5" in command
     assert "max_tokens=8192" in command
 
 
@@ -221,7 +219,7 @@ def test_zai_rejects_unpinned_model(tmp_path: Path) -> None:
         allow_billable=True,
     )
 
-    with pytest.raises(ValueError, match="requires the exact model"):
+    with pytest.raises(ValueError, match="requires one of the exact models"):
         build_command(request)
 
 

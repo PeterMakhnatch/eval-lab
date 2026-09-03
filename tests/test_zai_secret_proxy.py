@@ -699,7 +699,7 @@ def test_proxy_forwards_openai_style_chat_paths_to_pinned_upstream(
 
         assert len(_MockZaiUpstream.seen) == 2
         for path, auth, _fwd_body in _MockZaiUpstream.seen:
-            assert path == "/api/paas/v4/chat/completions"
+            assert path == "/api/coding/paas/v4/chat/completions"
             assert auth == f"Bearer {SECRET_SENTINEL}"
     finally:
         proxy.shutdown()

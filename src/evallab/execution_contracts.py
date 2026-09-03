@@ -675,23 +675,13 @@ def materialize_deepseek_secret_file(
 
 def materialize_zai_secret_file(
     destination: Path,
+    *,
+    home: Path | None = None,
     environment: Mapping[str, str] | None = None,
 ) -> Path:
-    """Write the provider key to a 0600 file for Compose secret mounting."""
-    source = os.environ if environment is None else environment
-    value = source.get("ZAI_CODING_PLAN_API_KEY") or source.get("ZAI_API_KEY")
-    if value == ZAI_PROXY_TOKEN:
-        value = None
-    if not value:
-        existing = source.get(ZAI_SECRET_FILE_ENV)
-        if existing:
-            path = Path(existing)
-            try:
-                read_owner_secret_file(path)
-            except OSError as exc:
-                raise RuntimeError("Z.ai provider credential is missing") from exc
-            return path
-        raise RuntimeError("Z.ai provider credential is missing")
+    """Write only the Z.ai provider key from OpenCode's auth store to a 0400 file."""
+    source_path = opencode_auth_path(home=home, environment=environment)
+    value = read_zai_opencode_key(source_path)
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
     return destination
 
@@ -864,8 +854,6 @@ def build_command(request: RunRequest) -> list[str]:
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
-    if request.agent == "zai-opencode" and harbor_model != ZAI_MODEL_SELECTOR:
-        raise ValueError(f"zai-opencode requires the exact model {ZAI_MODEL_SELECTOR}")
     if request.agent == "mini-swe-agent":
         if harbor_model != DEEPSEEK_MODEL_SELECTOR:
             raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
@@ -931,8 +919,11 @@ def subscription_command(
             raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
         return [*harbor_command, "--extra-docker-compose", str(overlay)]
     if request.agent == "zai-opencode":
-        if request.model != ZAI_MODEL_SELECTOR:
-            raise RuntimeError(f"the zai-opencode execution lane is pinned to {ZAI_MODEL_SELECTOR}")
+        if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise RuntimeError(
+                "the zai-opencode execution lane is pinned to "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
         overlay = (repo_root / ZAI_SECRET_COMPOSE).resolve()
         proxy = (repo_root / ZAI_PROXY_SCRIPT).resolve()
         if not overlay.is_file():

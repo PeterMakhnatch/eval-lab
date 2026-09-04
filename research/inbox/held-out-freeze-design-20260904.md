@@ -4,8 +4,8 @@ program: trajectory-to-training
 author: eval-runner
 mission: M4-EVAL-HOLDOUT-FREEZE
 date: 2026-09-04
-status: local-control-frozen-m1-conformant-scientific-freeze-blocked
-base: integrate/spine-batch1@e3856849
+status: local-control-implemented-scientific-freeze-blocked
+base: integrate/spine-batch1@99d471d1
 execution: none
 ---
 
@@ -27,7 +27,11 @@ This brief freezes a deterministic **local-control-only** identity set and pair 
 
 Mission: `M4 EVAL-HOLDOUT-FREEZE`.
 
-Exclusive writer lease: `research/inbox/held-out-freeze-design-20260904.md`.
+Exclusive writer lease:
+
+- `research/inbox/held-out-freeze-design-20260904.md`;
+- `src/evallab/trajectory_training_eval.py`;
+- `tests/test_trajectory_training_eval.py`.
 
 Approved scope:
 
@@ -37,9 +41,9 @@ Approved scope:
 - no training-data reads;
 - no task registration;
 - no billable model, network, GPU, Harbor, queue, or trainer action;
-- no edits to `sft_signal.py`, `paired_intervention.py`, `paired_outcome.py`, `training_result.py`, or shared schemas.
+- no edits to `sft_signal.py`, `paired_intervention.py`, `paired_outcome.py`, `training_result.py`, `training_export.py`, or shared schemas.
 
-M1 published its field map at `e3856849` in `architect-contract-audit-20260904.md`. This design now conforms to F3, F4, and §5; the contingent code lease still requires explicit activation by the Integration Lead.
+M1 published its field map at `e3856849` in `architect-contract-audit-20260904.md`; its attribution correction is on the `99d471d1` spine. The activated code lease implements only the claim-ineligible local pair projection. Scientific construction remains structurally absent until the F3/F4 owner fields land.
 
 ## Existing authority map
 
@@ -195,6 +199,22 @@ Two independent local invocations produced the same canonical output SHA-256:
 
 `83903a33449459a2aa17a7b2097f90a1391e90f0f9b873fbca6a81b41d63d4b7`
 
+### Committed calculator and projection
+
+`trajectory_training_eval.py` now provides only:
+
+- `SftFrozenEvalPairV1`, a subordinate pair identity that embeds the canonical `TrainerTaskIdentityV1` and `SftCheckpointIdentityV1` types;
+- `SftEvalPairProjectionV1`, explicitly documented as not a manifest, authority, scientific freeze, or run request;
+- `build_local_eval_pair_projection`, the only builder, whose literals fix `scope="local-control-only"`, `submission_permitted=false`, `scientific_claim_permitted=false`, and `outcomes_present=false`.
+
+The projection references F2 only through `selection_recipe_digest`; it does not duplicate `SelectionRecipeV1` fields or arm vocabulary. For the control inputs above plus the F2 sentinel digest `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, the committed builder produces:
+
+- pair IDs `pair-6e53b6f2e7852f68d979` and `pair-7d3355173f33ba2f8f55`;
+- pair-set digest `sha256:e2a7b89b4c57881fe7380adcb9037832450ef9555665adcd789cad34f053b948`;
+- projection digest `sha256:c2682bc869ef80e4975e5c6a3e92339b7b494b93aad411eece264d44384cc8b6`.
+
+The regeneration test also rebuilds the original design witnesses `37db3a34…`, `f44f2652…`, and `83903a33…` from typed fixture identities rather than pinning an unexplained constant.
+
 ## Admission and refusal controls
 
 The future implementation must extend the existing `SftSignalRefusalCode` and `SftExclusionCode` surfaces before ordinary run planning. It must not introduce an Eval Runner refusal or capture taxonomy:
@@ -229,13 +249,21 @@ When F3 and F4 are separately implemented and execution is separately authorized
 - every requested arm settles to completed, typed-failed, or typed-rejected; silent loss is impossible;
 - no execution begins until the trainer result is valid and Peter separately approves the run.
 
+## Verification
+
+- `PYTHONPATH=src uv run pytest -q tests/test_trajectory_training_eval.py` — five focused controls pass.
+- `uv run ruff check src/evallab/trajectory_training_eval.py tests/test_trajectory_training_eval.py` — clean.
+- Exact coverage: deterministic rebuild; exact task/seed membership; F2 digest propagation; distinct compatible checkpoints; stale identity/digest rejection; missing/extra task refusal; literal no-submission/no-scientific-claim/no-outcome gates; exact regeneration of the three M8 design witnesses.
+- No test or command opened training data, task content, Harbor, a queue, a network, a model, a trainer, or a GPU.
+
 ## Blockers and handoff
 
-1. **Contingent code lease:** M1 is complete at `e3856849`; Integration Lead must now grant exact code paths. Implementation must follow F3/F4/§5 and may not edit owner files without an additional coordinated lease.
-2. **F3 producer field:** the canonical `ownership_domain` extension to the existing `TrainingSplit` boundary is not yet implemented. Scientific freeze must refuse until it is available; M4 will not create a substitute field.
-3. **F4 owner fields:** Researcher–Evals must place the typed stopping rule, preregistered exclusions, and hardware class on `SftSignalFreezeV1`; M4 will consume them rather than define another freeze.
-4. **Scientific held-out identity set:** unavailable until Program Lead/Architect select exact identities and Data proves source/parent/template/topology/cluster disjointness. M4 will consume that proof; it will not inspect training data.
-5. **Valid candidate trainer result:** required before binding the real candidate checkpoint or rendering `FrozenHeldOutEvaluationPlan`.
-6. **Separate run approval:** required after freeze and before any baseline/candidate execution.
+Implementation lease is complete on the three exclusive paths; no owner file was edited. Remaining blockers apply only to a future scientific freeze and execution:
 
-Until blockers 2–6 resolve, the only frozen artifact is the local-control identity set above, with `submission_permitted=false` and `outcome_claim_permitted=false`.
+1. **F3 producer field:** the canonical `ownership_domain` extension to the existing `TrainingSplit` boundary is not yet implemented. Scientific freeze must refuse until it is available; M4 does not create a substitute field.
+2. **F4 owner fields:** Researcher–Evals must place the typed stopping rule, preregistered exclusions, and hardware class on `SftSignalFreezeV1`; M4 consumes them rather than defining another freeze.
+3. **Scientific held-out identity set:** unavailable until Program Lead/Architect select exact identities and Data proves source/parent/template/topology/cluster disjointness. M4 consumes that proof; it does not inspect training data.
+4. **Valid candidate trainer result:** required before binding the real candidate checkpoint or rendering `FrozenHeldOutEvaluationPlan`.
+5. **Separate run approval:** required after freeze and before any baseline/candidate execution.
+
+Until blockers 1–5 resolve, the only frozen artifact is the local-control identity set above, with `submission_permitted=false` and `scientific_claim_permitted=false`.

@@ -1,0 +1,99 @@
+{
+  "schema_version": "s1-four-arm-render-staging/v1",
+  "status": "blocked_before_bundle_materialization",
+  "scope": "plan_and_format_only",
+  "authorized_operations": [
+    "read_dependency_artifacts",
+    "validate_fixture_rendering",
+    "render_nonexecuting_plans_after_dependencies_pass"
+  ],
+  "prohibited_operations": [
+    "trainer_execution",
+    "gpu_execution",
+    "network_access",
+    "billable_model_call",
+    "task_registration",
+    "queue_submission"
+  ],
+  "dependency_state": {
+    "M1": {
+      "head": "f3d6ee427a9aea76fe3c077ebcc76da3c12b372c",
+      "status": "complete_with_interface_gaps",
+      "blocking_findings": [
+        "F1_producer_and_source_provenance_fields_missing",
+        "F2_selection_recipe_arm_and_token_budget_binding_missing",
+        "F3_ownership_domain_missing"
+      ]
+    },
+    "M2": {
+      "head": "b81edd5e515d887fca64600ee03b5054bdfc7930",
+      "status": "complete_g0_closed",
+      "blocking_findings": [
+        "all_local_sources_unadmitted",
+        "redaction_unassessed",
+        "splits_unassigned",
+        "public_dataset_license_unresolved"
+      ]
+    },
+    "M3": {
+      "head": "47653b3eb141e4ca3a73a3a15d2351f0f6aeca84",
+      "status": "conditional_preregistration_g2_closed",
+      "blocking_findings": [
+        "zero_strictly_eligible_rows",
+        "arms_C_and_D_have_degenerate_process_quality_support",
+        "student_tokenizer_budget_recompute_pending",
+        "wave_1_freeze_declarations_pending"
+      ]
+    }
+  },
+  "s1_model_target": {
+    "status": "unfrozen",
+    "required_class": "Qwen3-4B-class-LoRA",
+    "freeze_requires": [
+      "immutable_model_revision",
+      "tokenizer_digest",
+      "chat_template_digest",
+      "hardware_class",
+      "external_backend_identity"
+    ]
+  },
+  "arms": [
+    {
+      "arm": "A",
+      "selection_policy": "stratified_random_verified_successes",
+      "recipe_disposition": "eligible_after_all_gates_pass",
+      "bundle_manifest_status": "not_materialized",
+      "rendered_plan_status": "not_rendered"
+    },
+    {
+      "arm": "B",
+      "selection_policy": "concise_process_ordering_within_shared_strata",
+      "recipe_disposition": "eligible_after_all_gates_pass",
+      "bundle_manifest_status": "not_materialized",
+      "rendered_plan_status": "not_rendered"
+    },
+    {
+      "arm": "C",
+      "selection_policy": "process_quality_ordering_within_shared_strata",
+      "recipe_disposition": "unavailable_degenerate_support",
+      "bundle_manifest_status": "not_materialized",
+      "rendered_plan_status": "not_rendered"
+    },
+    {
+      "arm": "D",
+      "selection_policy": "process_quality_plus_structure_diversity",
+      "recipe_disposition": "unavailable_degenerate_support",
+      "bundle_manifest_status": "not_materialized",
+      "rendered_plan_status": "not_rendered"
+    }
+  ],
+  "render_preconditions": [
+    "M1_F1_F2_F3_have_existing_type_carriers",
+    "M2_G0_has_admitted_source_bytes_and_assigned_splits",
+    "M3_recipe_is_live_and_all_four_arms_have_nondegenerate_support",
+    "all_arms_share_provenance_and_family_blocks",
+    "all_arms_have_equal_supervised_assistant_token_budget",
+    "S1_model_tokenizer_template_and_hardware_are_frozen",
+    "G3_assistant_only_supervision_is_explicitly_bound"
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": "s0-expected-render/v1",
+  "records": [
+    {
+      "target_sequence": 2,
+      "prompt": [
+        {
+          "role": "system",
+          "content": "You are a deterministic fixture assistant.",
+          "tool_calls": []
+        },
+        {
+          "role": "user",
+          "content": "Read alpha and report its authoritative value.",
+          "tool_calls": []
+        }
+      ],
+      "response": {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_read_alpha",
+            "type": "function",
+            "function": {
+              "name": "read_record",
+              "arguments": "{\"record_id\":\"alpha\"}"
+            }
+          }
+        ]
+      },
+      "supervised_payload_fields": [
+        "response"
+      ]
+    },
+    {
+      "target_sequence": 4,
+      "prompt": [
+        {
+          "role": "system",
+          "content": "You are a deterministic fixture assistant.",
+          "tool_calls": []
+        },
+        {
+          "role": "user",
+          "content": "Read alpha and report its authoritative value.",
+          "tool_calls": []
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_read_alpha",
+              "type": "function",
+              "function": {
+                "name": "read_record",
+                "arguments": "{\"record_id\":\"alpha\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "{\"record_id\":\"alpha\",\"value\":\"blue\"}",
+          "name": "read_record",
+          "tool_call_id": "call_read_alpha",
+          "tool_calls": []
+        }
+      ],
+      "response": {
+        "role": "assistant",
+        "content": "The authoritative value for alpha is blue.",
+        "tool_calls": []
+      },
+      "supervised_payload_fields": [
+        "response"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": "s0-render-fixture/v1",
+  "scope": "fixture_only_no_weights_no_execution",
+  "model_identity": {
+    "provider": "fixture-local",
+    "name": "Qwen/Qwen3-0.6B",
+    "revision": "fixture-only-no-upstream-weights",
+    "digest": "sha256:95d795b5139640ada341dcee4cafc42063f8d2053b155c86671b1246df36f2dc",
+    "tokenizer_revision": "tokenizer-fixture.json",
+    "tokenizer_digest": "sha256:d1f22802df716f312bd242a9ac9711ea9a3888962f3d0f4f53913db3367b74ce",
+    "chat_template_revision": "chat-template-fixture.json",
+    "chat_template_digest": "sha256:61a4745b78fbc8b18c0642e1c030911b3c77e6fd8b9a2ce558fe5e0bc5fb723d",
+    "enable_thinking": false,
+    "checkpoint_path": "trainer-bundle/model/checkpoint.safetensors",
+    "checkpoint_digest": "sha256:95d795b5139640ada341dcee4cafc42063f8d2053b155c86671b1246df36f2dc"
+  },
+  "backend_identity": {
+    "name": "generic-trl",
+    "version": "fixture-plan-only",
+    "source_commit": "6eaa8b450e620932c5e6bb561695713ed6fd4912",
+    "image_digest": "sha256:614591f635cfcf4535d7e63c57d61b8f48cfef4d114efca37b243b8412d66246"
+  },
+  "rendering": {
+    "representation": "prompt_response_sft",
+    "sft_format": "prompt_completion",
+    "prompt_field": "prompt",
+    "completion_field": "response",
+    "truncation": "error",
+    "max_sequence_length": 4096,
+    "requested_supervision": "assistant_only",
+    "observed_trainer_contract_assistant_only_loss": false
+  },
+  "forbidden_training_fields": [
+    "assistant_mask",
+    "attention_mask",
+    "completion_mask",
+    "input_ids",
+    "label",
+    "labels",
+    "log_probs",
+    "logprobs",
+    "loss_mask",
+    "mask",
+    "masks",
+    "reward",
+    "rewards",
+    "token_id",
+    "token_ids",
+    "verifier_reward"
+  ]
+}

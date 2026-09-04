@@ -1,0 +1,14 @@
+{
+  "schema_version": "qwen3-tokenizer-fixture/v1",
+  "scope": "identity_and_special_tokens_only",
+  "upstream_tokenizer_available": false,
+  "model_family": "Qwen3",
+  "special_tokens": {
+    "bos_token": null,
+    "eos_token": "<|im_end|>",
+    "message_start": "<|im_start|>",
+    "message_end": "<|im_end|>"
+  },
+  "tokenization_supported": false,
+  "reason": "Exact Qwen3-0.6B tokenizer bytes are unavailable in the offline fixture environment."
+}

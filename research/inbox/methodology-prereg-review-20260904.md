@@ -416,3 +416,94 @@ trainer operation, and outcome production. The post-outcome review is a separate
 append-only section that checks the frozen analysis against actual manifests; it
 must not revise this rubric, the G2 decision rule, or any threshold after results
 are visible.
+
+## H. Signed preregistration-draft review — PR #370
+
+### Exact evidence reviewed
+
+- Charter spine: `6df601b1`
+- Analyst preregistration: PR #370, exact head `1dd17b19`
+- Analyst artifact:
+  `research/inbox/selection-recipe-prereg-20260904.md`
+- Rubric base: `07421e33624b36872445991f8dd9227c09d761df`
+- Review scope: the submitted spec and dry-run inputs. M1, M2,
+  `SftSignalFreezeV1`, and the held-out freeze are not yet available and are not
+  inferred.
+
+### Section decisions
+
+| Rubric section | PASS / BLOCK | Finding |
+|---|---|---|
+| A — estimand and claim boundary | **BLOCK** | The family-specific question and no-pooled-headline rule pass. The underpowered-pilot declaration is candid. However, “strongest” lacks frozen direct arm contrasts, and one training seed would license only a checkpoint-conditional recipe-instance pilot, not a stable selection-policy effect. |
+| B — power and precision | **BLOCK** | The draft supplies honest feasibility counts (`13/29` pending blocks and roughly 72 action-memory rows), but no minimum effect, protected margin, minimum independent clusters/pairs, cluster correlation sensitivity, capture-yield inflation, simultaneous interval width, or training-seed rule. Calling the study underpowered is correct disclosure, not a power rationale. |
+| C — transitive-parent leakage | **BLOCK** | `cluster_key = family|task_name` is a design-cell key, not a demonstrated transitive provenance component. The draft provides no parent graph, exact/near-duplicate cross-domain audit, ancestor/descendant expansion, hidden-input/template/topology firewall report, or frozen held-out identity. “Splits follow blocks” cannot establish cluster disjointness. |
+| D — multiplicity | **BLOCK** | Per-family analysis is correct, but a percentile cluster bootstrap alone does not control the confirmatory family. The draft lacks the complete arm × family contrast inventory, Holm or justified max-T correction, simultaneous bounds, and a direct-contrast rule for naming a best arm. |
+| D — protected families | **BLOCK** | Recommending **all families protected** is the right conservative policy and passes as a recommendation. G2 still lacks named eligible protected families, non-inferiority margins, minimum denominators, simultaneous lower-bound logic, and the rule that a missing protected-family denominator makes the decision unavailable rather than safe. |
+| E — source-quality falsification | **BLOCK** | The disclosure that zero pending rows pass the process-quality screen is honest and scientifically important. Its refusal to claim a present process-quality effect is correct. But C then collapses to B’s shortest-first ordering, while D can at most probe structural diversity among quality-failing rows; neither identifies the chartered process-quality or quality-plus-structure estimand. No within-block shuffle, selector ablation, leave-one-source-out influence, length-proxy, blinded criterion, or missingness stress rule is frozen. |
+| stopping and exclusions | **BLOCK** | A stopping/materialization rule is present, but “the block is excluded” is too permissive. The frozen eligible-block denominator and every failure must remain reported; an arm-specific, outcome-related, or post-freeze failure makes the affected comparison unavailable. Administrative completion may stop collection, but post-materialization exclusion cannot silently redefine the target population. |
+| source authority and independence | **BLOCK** | Strict SFT eligibility is `0/164`, all proposed rows remain rehydration-pending, and independence of the three nominal provenance strata is not established. The charter’s requirement for at least two independent provenance strata is a stop condition, not “borderline.” M1/M2 evidence must resolve it before materialization. |
+
+### Binding refusal conditions
+
+The following conditions must be resolved in a revised immutable
+preregistration head before G2 can pass:
+
+1. **M7-G2-01 — freeze an estimand and precision table.** For every confirmatory
+   arm × family cell, declare the effect threshold, protected margin, independent
+   cluster/pair count, baseline/discordance assumption, cluster-correlation
+   sensitivity, capture yield, simultaneous interval width, and training-seed
+   scope. If the feasible design remains underpowered, retain the pilot label
+   and remove confirmatory or “best recipe” claims.
+2. **M7-G2-02 — replace the design-cell key with a provenance-component audit.**
+   Construct transitive parent components, assign whole components to one
+   ownership domain, and publish reproducible zero-intersection plus
+   near-duplicate/ancestor/hidden-input leakage reports against the frozen
+   held-out identities.
+3. **M7-G2-03 — freeze multiplicity mechanically.** Enumerate all confirmatory
+   improvement, protection, and direct-best-arm cells; use Holm or a justified
+   frozen cluster-level max-T procedure; bind simultaneous confidence bounds to
+   the decision rule.
+4. **M7-G2-04 — operationalize the all-protected recommendation.** Name every
+   eligible protected family, its non-inferiority margin and minimum denominator,
+   and make missing/incomplete protection evidence `UNAVAILABLE`, never a pass.
+5. **M7-G2-05 — refuse degenerate quality arms.** Do not materialize C/D as tests
+   of process quality while the quality-positive support is zero. Acquire
+   authorized, cluster-diverse support containing both passing and failing
+   examples within the relevant blocks, or rename/narrow the arms and primary
+   question before outcomes.
+6. **M7-G2-06 — freeze source-quality falsification.** Pin the selector and add
+   within-block shuffle, selector-ablation, leave-one-source-out, length-proxy,
+   blinded-criterion, and missingness stress checks with interpretation rules.
+7. **M7-G2-07 — make stopping denominator-preserving.** Freeze the eligible block
+   set after G0/G1, retain all attempted blocks in capture accounting, and mark a
+   comparison unavailable when a materialization failure is arm-specific or can
+   alter the estimand.
+8. **M7-G2-08 — satisfy authority prerequisites.** Bind M1/M2, exact tokenizer
+   budgets, at least two demonstrated independent provenance strata, the
+   held-out freeze, and `SftSignalFreezeV1`. Zero strictly eligible rows remains
+   an immediate materialization stop.
+
+### Decision
+
+**BLOCK G2.** The draft is unusually candid about its current negative facts:
+zero strict eligibility, an underpowered pending corpus, zero process-quality
+passes, and unresolved provenance independence. Those declarations pass the
+integrity test and should remain unchanged. They also make the current
+four-arm scientific comparison unavailable. The correct next move is to close
+authority and cluster-firewall prerequisites and either obtain nondegenerate
+quality support or explicitly narrow this to a descriptive/plumbing pilot.
+
+### Signature
+
+```text
+Reviewer: M7 Experimental Methodologist
+Review artifact base: 07421e33624b36872445991f8dd9227c09d761df
+Charter head: 6df601b1
+Analyst preregistration head: 1dd17b19
+Held-out freeze head/digest: UNAVAILABLE
+SftSignalFreezeV1 digest: UNAVAILABLE
+Decision: BLOCK
+Conditions/refusals: M7-G2-01,M7-G2-02,M7-G2-03,M7-G2-04,M7-G2-05,M7-G2-06,M7-G2-07,M7-G2-08
+Reviewed at: 2026-09-04T19:17:52Z
+Signature digest: sha256:222f7dc3a41854a065cfe3641e7f40581d62e1800626b624b755f3f19d931b93
+```

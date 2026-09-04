@@ -5,8 +5,9 @@ author: wK:p7 (Fable 5.1, Analyst)
 date: 2026-09-04
 status: spec-plus-dry-run-inputs
 charter: research/inbox/trajectory-training-execution-charter-20260904.md
-base: integrate/spine-batch1@6df601b1
+base: integrate/spine-batch1@e3856849 (rebased; spine delta 6df601b1..e3856849 is the M1 audit doc only)
 depends: M1 field map, M2 source census (freeze blocked until both land)
+aligned: architect-contract-audit-20260904.md §3b + F2 (SelectionRecipeV1); F6 post-outcome duty accepted
 ---
 
 # Selection recipe preregistration — provenance-aware census spec and four-arm recipe
@@ -27,7 +28,7 @@ selection policy with corpus shrinkage and break the source-comparability contro
 
 | Arm | Ordering within block | Tests |
 |---|---|---|
-| A | bundle/task order; Fisher-Yates with `seed = sha256(block_key + freeze_digest)` at materialization | honest baseline |
+| A | bundle/task order; Fisher-Yates with `seed = sha256(block_key + freeze_digest)` at materialization | honest baseline (arm enum: NEW named `Literal["A","B","C","D"]` per M1 F2 — never a reuse of `base/variant` or `baseline/candidate`) |
 | B | shortest `assistant_turns` first, ties by source path; preferred region `assistant_turns < 5` (transparency metric only) | short-trajectory hypothesis |
 | C | process-quality pass first (grounded tool use, post-mutation inspection when mutating, non-empty terminal output, no blind identical retry), then shortest-turns | process-quality selection |
 | D | arm C's order with one row per tool-sequence signature (`tool_sequence_sha256`) in the leading positions | nonredundant process coverage |
@@ -58,20 +59,36 @@ parent digests) must succeed before any row is admitted.
 ownership domains (training/discovery, curation-development, sealed test) are assigned
 at cluster granularity by the Program Lead + Methodologist in Wave 1.
 
-## 4. Budget (frozen rule, unit pending)
+## 4. Budget and `SelectionRecipeV1` carrier (frozen rule; typed per M1 F2)
 
-Equalized quantity = **supervised assistant target tokens** under ONE frozen student
-tokenizer/template (Training Engineer pins; charter S1). Census proxy = assistant target
-characters/bytes (student-tokenizer-exact counts are impossible before the pin; producer
-completion tokens are reported but are NOT the budget - they come from producer
-tokenizers and may include hidden reasoning).
+Typed carrier is M1's `SelectionRecipeV1` record (referenced by
+`TrainingDatasetManifestV1`; not a new manifest family). Mapping of this spec onto its
+fields:
 
-`budget(block) = 0.9 x min over arms of attainable supervised-target size` - because all
-arms share one pool this equals `0.9 x pool target total`. Each arm fills the budget in
-its own order; **semantic truncation of any tool call, tool result, or terminal
-assistant target is prohibited** (G3 refuses). At bundle time the Training Engineer
-recomputes budgets under the frozen tokenizer; the recipe refuses if any block's
-arm-feasibility or ordering changes.
+| `SelectionRecipeV1` field | This spec binds |
+|---|---|
+| `arm: Literal["A","B","C","D"]` | §2 orderings; one recipe record per arm per bundle materialization |
+| `selection_policy_id` | `provenance-census/v1#arms` — the §2 orderings plus the sub-stratum rule below |
+| `block_keys` | `provenance_stratum\|family` (M1's provenance × family). The census's bundle × difficulty cells are sub-strata of a block key used for stratification at materialization; they never split a block into separate recipes |
+| `supervised_assistant_token_budget: int` | per block_key: `0.9 ×` pool total, recomputed under the pinned tokenizer before materialization; refuse if any arm ordering flips |
+| `token_budget_tokenizer_digest` | Training Engineer's frozen student tokenizer/template digest; the dry-run char budgets in §6 are draft values until this digest exists |
+
+Equalized quantity = **supervised assistant target tokens** under the pinned
+tokenizer/template (charter S1). Census proxy = assistant target characters/bytes
+(explicitly draft until the pin; producer completion tokens are reported but are NOT
+the budget — producer tokenizers, may include hidden reasoning).
+
+**G1 comparability refusals attach to F2** (M1 §4): `arm_changes_source_or_teacher` —
+an arm's ordering may never alter which sources, teachers, families, templates, or
+action spaces a row's provenance carries; `budget_mismatch` — arms within a block_key
+must carry equal `supervised_assistant_token_budget` or the bundle refuses.
+
+`budget(block) = 0.9 × pool target total` (all arms share one pool, so the
+min-over-arms attainable size equals the pool total). Each arm fills the budget in its
+own order; **semantic truncation of any tool call, tool result, or terminal assistant
+target is prohibited** (G3 refuses; tool-call/result truncation refusal rides message
+binding per #367). At bundle time the Training Engineer recomputes budgets under the
+frozen tokenizer; the recipe refuses if any block's arm-feasibility or ordering changes.
 
 ## 5. Preregistration fields to `SftSignalFreezeV1` (Wave 1 freeze checklist)
 
@@ -82,9 +99,13 @@ budget rule, analysis rule (below), typed exclusions (census `missingness` taxon
 Declared in Wave 1 by Program Lead + Methodologist (NOT defaulted here, per charter):
 minimum effect, minimum eligible pairs per family, protected families (recommendation:
 **all** families protected - any cross-family regression vetoes), interval method
-(per-family percentile cluster bootstrap, deterministic seed - consistent with
-`SftSignalFreezeV1` I4's no-pooled-headline rule), stopping rule (all four arms
+(per-family percentile cluster bootstrap, deterministic seed — consistent with
+`SftSignalFreezeV1` I4's no-pooled-headline rule), and stopping rule (all four arms
 materialize for a block or the block is excluded from the primary analysis).
+Carrier note (M1 F4): `stopping_rule`, `preregistered_exclusions`
+(extending `SftExclusionCode` — never a fourth taxonomy), and `hardware_class` land on
+`SftSignalFreezeV1` via the Researcher-Evals lane; this spec's exclusion taxonomy feeds
+that closed set.
 
 **No pooled summary is primary.** Per-family decisions only; cross-family numbers may
 appear as descriptive denominators with explicit "not a headline" labels.
@@ -155,3 +176,13 @@ binding replaces rule v1; (b) M2 census reproduces the denominators above from a
 independent implementation (or diffs are reconciled on the record); (c) Wave 1 declares
 the remaining `SftSignalFreezeV1` fields. Until then this document is the spec + dry-run
 inputs, and no bundle may materialize (G2 refuses).
+
+## 9. Post-outcome obligation (M1 F6, Analyst-owned)
+
+After outcomes exist, this lane owns **F6**: add `discovery_evidence_epoch` (checkpoint
+identity digest) to `CapabilityDeficitArtifact` so every deficit label is tied to the
+checkpoint it was mined against and is refused as stale after a model update — the
+charter's closed-loop rerun rule as a typed carrier. Implementation follows on
+`capability_deficits.py` as a separate exact-head change once the SFT signal gate
+produces the first checkpoint transition; nothing in this PR touches that type.
+

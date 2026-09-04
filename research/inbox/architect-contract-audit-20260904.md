@@ -144,3 +144,18 @@ Everything else the charter names already has a typed carrier; the empirical wor
 ## 6. Verification
 
 Read-only: every `module:line` above was read from `6df601b1` via `git show`/worktree; a scout map (agent `TrainingChainMap`) produced the initial coverage and duplicate-concept list, which I re-verified against source for every PRESENT/MISSING call in §2–§3a. No tests run, no code changed, no manifest family created. Branch `research/tt-arch-contract-audit` off `6df601b1`, single file at the leased path.
+
+
+## 7. Addendum — M3 selection-prereg conformance (PR #370 @1dd17b19, docs-only)
+
+PR #370 (`research/inbox/selection-recipe-prereg-20260904.md`) is the first consumer of the F2 shape. Type-conformance findings:
+
+- PASS — arms A–D are a *named* recipe enum with distinct deterministic orderings (ordering-only fill; "prefer, never exclude" matches charter arm semantics). No reuse of `base|variant` / `baseline|candidate` / `hinted|unhinted`.
+- PASS — block keys = family × source_stratum × provenance_stratum × difficulty, with `cluster_key = family|task_name`; freeze-side stays `cluster_key_digest`. Cluster naming split respected; no third vocabulary.
+- PASS — budget: supervised assistant-target tokens under one frozen student tokenizer/template; census proxy chars/bytes explicitly not the budget; bundle-time recompute refusal; truncation prohibited (G3). Matches F2 `supervised_assistant_token_budget` + tokenizer digest.
+- PASS — G1 refusals declared: recipe refuses on any block ordering change after family binding lands; prereg voids on screen change; bundle-time recompute refuses arm-infeasibility/ordering changes. Maps 1:1 onto F2's `arm_changes_source_or_teacher` / `budget_mismatch` refusal intent.
+- BOUND (not blocked): `template-family-rule/v1` is an explicitly interim family derivation (registry family binding is MISSING at spine per §3a). Requirement recorded: M1 follow-up (F1) adds registry-bound family binding; the recipe already refuses if re-derivation changes block orderings.
+- BOUND (not blocked): exclusion set must EXTEND `SftExclusionCode` when it lands in `SftSignalFreezeV1` (F4 anticipated "closed set beyond capture-incomplete") — a parallel census-missingness enum would violate §5. `tool_sequence_sha256` (arm D) is a row signature owned by the recipe record, not a new identity scheme.
+- Honest prereg discipline confirmed: 0/164 strictly eligible, C/D orderings declared degenerate on the current corpus, provenance independence declared borderline — reported, not filled (charter stop conditions honored). No bundle may materialize before G2 per §8.
+
+No conflict with the integrated types; no second manifest family; docs-only file on the leased analyst path.

@@ -507,3 +507,58 @@ Conditions/refusals: M7-G2-01,M7-G2-02,M7-G2-03,M7-G2-04,M7-G2-05,M7-G2-06,M7-G2
 Reviewed at: 2026-09-04T19:17:52Z
 Signature digest: sha256:222f7dc3a41854a065cfe3641e7f40581d62e1800626b624b755f3f19d931b93
 ```
+
+## I. Signed revision-v2 re-review — M3 at `f3d6ee42`
+
+### Decision
+
+**MAINTAIN BLOCK G2**, narrowed from eight conditions to three:
+`M7-G2-02`, `M7-G2-04`, and `M7-G2-08`.
+
+Revision v2 is a material methodological correction. It honestly changes the
+current experiment to an **A-versus-B, one-seed, estimation-only
+recipe-instance pilot**, makes its SFT signal `UNAVAILABLE` by design, refuses
+degenerate C/D materialization, and files the charter stop conditions rather
+than treating them as caveats. Conditions 01, 03, 05, 06, and 07 pass at the
+Analyst-specification layer.
+
+### Condition-by-condition re-review
+
+| Condition | PASS / BLOCK | Exact-head finding |
+|---|---|---|
+| `M7-G2-01` — estimand and precision | **PASS, scoped pilot** | §12 adopts the family-specific paired estimand, identifies training-run and held-out-cluster units, limits inference to one checkpoint realization, prohibits “best recipe” claims, freezes sensitivity inputs, and pre-acknowledges the B3 refusal. The proposed `+0.10/-0.05` thresholds are not yet operative; their required lead sign-off is tracked under 04/08. The absent final component counts and widths cannot be invented before M2/held-out bytes, so the decision correctly remains `UNAVAILABLE`. |
+| `M7-G2-02` — provenance components | **BLOCK, execution pending** | §13 correctly demotes `family|task_name` to a design-cell label and specifies the transitive component, missing-lineage refusal, zero-intersection checks, near-duplicate audit, and path-removal probe. No component graph or leakage report exists because M2 source bytes and the held-out freeze are absent. A specification cannot establish cluster disjointness; G2 needs the recomputable audit output. |
+| `M7-G2-03` — multiplicity | **PASS** | §14 freezes the confirmatory inventory, excludes direct “best arm” claims at one seed, uses one-sided Holm FWER within improvement and protection families, requires simultaneous lower bounds, and permits max-T only with frozen implementation and defended exchangeability. C/D cells remain reported as unavailable rather than disappearing. |
+| `M7-G2-04` — all-protected rule | **BLOCK, lead freeze pending** | The rule itself passes: all eligible families are protected, minimum four complete pairs per cell, missing/incomplete evidence means `UNAVAILABLE`, and pooled gain cannot rescue failure. The `-0.05` margin and protected-set confirmation are explicitly only proposed. They must be signed into `SftSignalFreezeV1`; Analyst prose cannot substitute for that authority. |
+| `M7-G2-05` — degenerate C/D | **PASS** | §15 states the exact degeneracy, refuses C/D materialization, records both as `unavailable: degenerate support`, and narrows the present corpus to A versus B. Re-entry requires a new immutable preregistration with both quality-positive and quality-negative support. This is the correct refusal. |
+| `M7-G2-06` — source-quality falsification | **PASS, dormant until C/D re-entry** | §16 pins all seven requested probes and interpretation rules: within-block shuffle, selector ablation, leave-one-source-out, length proxy, blinded audit, missingness stress, and negative-outcome disclosure. Because C/D are refused, these probes license no current quality claim; they become required preconditions at any future C/D materialization head. |
+| `M7-G2-07` — stopping | **PASS** | §14.4 freezes the eligible-block denominator, retains every attempted block in capture accounting, limits stopping to administrative completion or predeclared information, marks failures unavailable, and forbids exclusion from redefining the target population. |
+| `M7-G2-08` — authority prerequisites | **BLOCK** | §17–18 correctly accepts and reports the binding stop. M1 is pinned, but M2 census/exclusion bytes, rehydration and authority reopen, license/use authority, demonstrated independent provenance strata or lead-approved re-scope, tokenizer budget, held-out identities, and `SftSignalFreezeV1` remain absent. Strict eligibility is still `0/164`; materialization remains prohibited. |
+
+### Unstop rule
+
+G2 may be re-reviewed only after one immutable integration head binds:
+
+1. the executed M2 transitive-component and leakage audit with zero unresolved
+   cross-domain transmission;
+2. Program Lead sign-off for the protected set, `delta_min`,
+   `delta_protect`, and the explicit single-provenance re-scope if independent
+   strata remain unavailable;
+3. source authority/rehydration and license evidence, exact tokenizer budgets,
+   frozen held-out identities, and the `SftSignalFreezeV1` digest.
+
+The present `UNAVAILABLE` pilot declaration is methodologically valid, but it
+does not itself open G2 or authorize bundle materialization.
+
+### Signature
+
+```text
+Reviewer: M7 Experimental Methodologist
+Review artifact base: 79220dd53252621ff1046835a0863f6defd6dc27
+Charter head: 6df601b1
+Analyst preregistration revision: f3d6ee42
+Decision: BLOCK
+Surviving conditions/refusals: M7-G2-02,M7-G2-04,M7-G2-08
+Reviewed at: 2026-09-04T19:27:42Z
+Signature digest: sha256:3242f40b78952f691d46cc30377b62ca12eeef42ddda349b7989e8ce50c4f111
+```

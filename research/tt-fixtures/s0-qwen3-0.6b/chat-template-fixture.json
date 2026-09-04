@@ -1,0 +1,23 @@
+{
+  "schema_version": "qwen3-chat-template-fixture/v1",
+  "scope": "message_and_tool_wire_contract_only",
+  "upstream_template_available": false,
+  "model_family": "Qwen3",
+  "enable_thinking": false,
+  "roles": [
+    "system",
+    "user",
+    "assistant",
+    "tool"
+  ],
+  "tool_call_contract": {
+    "arguments": "canonical_json_object_string",
+    "call_id_required": true,
+    "function_name_required": true,
+    "response_call_id_must_match": true,
+    "response_function_name_must_match": true
+  },
+  "semantic_truncation": "refuse",
+  "exact_token_masks_supported": false,
+  "reason": "Exact Qwen3-0.6B upstream chat-template bytes are unavailable in the offline fixture environment."
+}

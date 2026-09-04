@@ -1,0 +1,68 @@
+{
+  "schema_version": "s0-conversation-fixture/v1",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_record",
+        "description": "Read one public fixture record.",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "record_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "record_id"
+          ],
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "messages": [
+    {
+      "sequence": 0,
+      "role": "system",
+      "content": "You are a deterministic fixture assistant.",
+      "visibility": "public"
+    },
+    {
+      "sequence": 1,
+      "role": "user",
+      "content": "Read alpha and report its authoritative value.",
+      "visibility": "public"
+    },
+    {
+      "sequence": 2,
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_read_alpha",
+          "type": "function",
+          "function": {
+            "name": "read_record",
+            "arguments": "{\"record_id\":\"alpha\"}"
+          }
+        }
+      ],
+      "visibility": "public"
+    },
+    {
+      "sequence": 3,
+      "role": "tool",
+      "content": "{\"record_id\":\"alpha\",\"value\":\"blue\"}",
+      "name": "read_record",
+      "tool_call_id": "call_read_alpha",
+      "visibility": "public"
+    },
+    {
+      "sequence": 4,
+      "role": "assistant",
+      "content": "The authoritative value for alpha is blue.",
+      "visibility": "public"
+    }
+  ]
+}

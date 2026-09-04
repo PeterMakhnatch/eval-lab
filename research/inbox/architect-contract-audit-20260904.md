@@ -1,9 +1,8 @@
 ---
 type: architecture-review
 topic: trajectory-to-training contract-chain audit (charter Wave 0, Architect row)
-author: wS:p9 (Fable)
 date: 2026-09-04
-status: complete
+author: wK:p6 (Architect; executed via wS:p9 delegation)
 base: integrate/spine-batch1@6df601b1 (charter integrated from be777229)
 mission: M1 ARCH-CONTRACT-AUDIT (lease wH:p0)
 epistemic: read-only audit; no code change; no second manifest family

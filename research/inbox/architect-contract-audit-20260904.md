@@ -21,7 +21,7 @@ NormalizedTrainingEvidence (training_export.py:321)
 TrainingExampleRecord (:442) + TrainingExclusionRecord (:474)
   -- staged no-replace publish -->
 TrainingDatasetManifestV1 (:592)            [G0 lives here]
-  |                                          
+  |
   |   CapabilityDeficitArtifactReceipt (capability_deficits.py:463)
   |     -- live reverify_capability_deficit_artifact -->
   |   SyntheticTaskCandidate status=quarantined (curriculum_candidates.py:252)  [training-only pool; never registers]

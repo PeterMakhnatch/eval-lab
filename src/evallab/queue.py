@@ -2480,7 +2480,3 @@ def load_events(path: Path) -> list[QueueEvent]:
 
 def read_spec(path: Path) -> ExperimentSpec:
     return ExperimentSpec.model_validate_json(path.read_text())
-
-
-def write_spec(path: Path, spec: ExperimentSpec) -> None:
-    path.write_text(json.dumps(spec.model_dump(mode="json", exclude_none=True), indent=2) + "\n")

@@ -23,7 +23,6 @@ from evallab.contextpack import (
     repo_root,
 )
 
-DOCINDEX_VERSION = "docindex v1"
 GENERATED_BY_MARKER = "<!-- generated-by: docindex v1 -->"
 DEFAULT_INDEX_RELATIVE = "docs/INDEX.md"
 INDEX_TITLE = "Documentation index"

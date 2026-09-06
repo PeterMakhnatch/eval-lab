@@ -9,10 +9,8 @@ that alone mounts the file-backed secret.
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import replace
-from pathlib import Path
 from typing import Any
 
 from harbor.agents.installed.mini_swe_agent import (  # ty: ignore[unresolved-import]
@@ -28,60 +26,13 @@ from evallab.execution_contracts import (
     DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_TOKEN,
     DEEPSEEK_PROXY_URL,
-    REDACTED_SECRET_VALUE,
     collected_secret_values,
-    persist_private_bytes,
 )
-
-SENSITIVE_CONFIG_KEYS = frozenset(
-    {
-        "authorization",
-        "proxy-authorization",
-        "api-key",
-        "api_key",
-        "x-api-key",
-        "access_token",
-    }
+from evallab.harbor_common import (  # noqa: F401 - re-exported adapter API
+    SENSITIVE_CONFIG_KEYS,
+    _redact_sensitive_values,
+    sanitize_native_trajectory,
 )
-
-
-def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: (
-                REDACTED_SECRET_VALUE
-                if str(key).casefold() in SENSITIVE_CONFIG_KEYS
-                else _redact_sensitive_values(item, secrets)
-            )
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact_sensitive_values(item, secrets) for item in value]
-    if isinstance(value, str) and value in secrets:
-        return REDACTED_SECRET_VALUE
-    return value
-
-
-def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None) -> None:
-    """Rewrite a native trajectory on disk only after in-memory redaction."""
-    if not path.is_file():
-        return
-    try:
-        payload = json.loads(path.read_bytes().decode("utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        persist_private_bytes(
-            path,
-            (json.dumps({"redacted": "unparseable native trajectory removed"}) + "\n").encode(),
-            secrets=(),
-        )
-        return
-    known = secrets if secrets is not None else collected_secret_values()
-    sanitized = _redact_sensitive_values(payload, known)
-    persist_private_bytes(
-        path,
-        (json.dumps(sanitized, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
-        secrets=tuple(secret.encode() for secret in known),
-    )
 
 
 def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, str]:
@@ -134,14 +85,9 @@ class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
                 raise ValueError(
                     "DeepSeek provider credential cannot enter the task exec environment"
                 )
-        if any(
-            value and value in host_secrets
-            for value in runtime_env.values()
-        ):
-            raise ValueError(
-                "DeepSeek provider credential cannot enter the task exec environment"
-            )
-        if "cat /run/secrets/" in command or "DEEPSEEK_API_KEY=\"$(cat" in command:
+        if any(value and value in host_secrets for value in runtime_env.values()):
+            raise ValueError("DeepSeek provider credential cannot enter the task exec environment")
+        if "cat /run/secrets/" in command or 'DEEPSEEK_API_KEY="$(cat' in command:
             raise ValueError("DeepSeek provider credential cannot enter the task exec command")
         return await super().exec_as_agent(
             environment,

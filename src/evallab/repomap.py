@@ -23,19 +23,9 @@ from pathlib import Path
 from evallab.contextpack import VALID_AUDIENCES, parse_front_matter
 from evallab.lineage import compute_file_digest
 
-REPMAP_VERSION = "repomap v1"
 GENERATED_BY_MARKER = "<!-- generated-by: repomap v1 -->"
 DEFAULT_MAP_RELATIVE = "docs/repo-map.md"
 MAP_TITLE = "Repository map"
-FRONT_MATTER_BLOCK = """---
-status: living
-audience:
-  - builder
-  - analyst
-  - runner
-  - operator
-inputs:
-"""
 
 _CREATE_TABLE_RE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z0-9_]+)", re.IGNORECASE

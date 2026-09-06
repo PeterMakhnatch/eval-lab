@@ -49,7 +49,6 @@ CompletedJobIngester = Callable[[], IngestProjectionResult]
 DatabaseBackup = Callable[[date], Path]
 StatusUpdater = Callable[[date], Path]
 Compactor = Callable[[date], object]
-LessonsGenerator = Callable[[date], Path]
 
 OnFailPolicy = Literal["abort", "continue"]
 StepStatus = Literal["ran", "skipped", "failed"]

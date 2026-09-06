@@ -19,7 +19,7 @@ Historical branch inventories do not prove current ownership, activity, or closu
 - `research/inbox/board.md` — work intake, backlog, and the claim protocol.
 - `research/inbox/QUEUE.md` — the HARVEST source-intake checklist, not a competing
   work-assignment board.
-- `research/analysis/automated-trajectory-overnight-ledger.md` — dated program
+- `research/archive/2026-W36/automated-trajectory-overnight-ledger.md` — dated program
   decisions and settlements; consult exact refs before reusing availability claims.
 - `docs/archive/git-estate-inventory.md` — historical estate snapshot, not a prune list.
 

@@ -2761,7 +2761,6 @@ register_trajectory_feature(
 )
 
 
-
 def _register_memory_continuity_feature(
     column_name: str,
     *,
@@ -3007,39 +3006,6 @@ def compute_benchmark_feature_yield(
         "total_records": total_count,
         "family": family,
         "feature_stats": feature_stats,
-    }
-
-
-def verify_benchmark_feature_coverage(
-    records: list[dict[str, Any]],
-    family: str,
-) -> dict[str, Any]:
-    """Verify that all registered features for a family are present in records with expected nullity."""
-    yield_diag = compute_benchmark_feature_yield(records, family=family)
-    missing_features: list[str] = []
-    zero_yield_features: list[str] = []
-
-    family_feats = TRAJECTORY_FEATURE_REGISTRY.by_family(family)
-    stats = yield_diag["feature_stats"]
-
-    for col_name, feat in family_feats.items():
-        if col_name not in stats:
-            missing_features.append(col_name)
-        elif (
-            stats[col_name]["non_null"] == 0
-            and not feat.null_on_zero_denominator
-            and feat.category == "benchmark_l1_fact"
-        ):
-            # L1 facts should generally have non-zero yield in valid runs
-            zero_yield_features.append(col_name)
-
-    passed = len(missing_features) == 0 and len(zero_yield_features) == 0
-    return {
-        "family": family,
-        "passed": passed,
-        "missing_features": missing_features,
-        "zero_yield_features": zero_yield_features,
-        "diagnostics": yield_diag,
     }
 
 

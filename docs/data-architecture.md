@@ -49,6 +49,9 @@ External and local Parquet roots stay physically separate. Cross-zone analysis
 must name both roots and select a `zone`, preventing a broad glob from silently
 mixing published external runs with locally reproduced evidence.
 
+For daily partition consolidation and compaction lifecycle under `derived/parquet/compact/`, see [`docs/parquet-compaction.md`](parquet-compaction.md).
+For nearest-neighbour vector search over instructions and trajectory text in `derived/lance/`, see [`docs/lancedb.md`](lancedb.md).
+
 ## Provenance contract
 
 Every dataset-sized item has a JSON sidecar validated by
@@ -68,6 +71,8 @@ Every dataset-sized item has a JSON sidecar validated by
 The schema rejects unknown fields. That makes migrations explicit: extend the
 model and its tests, or increment `schema_version`; do not hide new semantics in
 an ad hoc sidecar key.
+
+For task origin taxonomy and classification rules across benchmark corpora, see [`docs/task-provenance.md`](task-provenance.md).
 
 ## Zone admission gates
 
@@ -139,6 +144,8 @@ under the local Parquet root does not make it Zone 02.
 - Raw prompts and observations may contain proprietary or personal data. Zone
   04 exporters must apply a declared redaction policy before wider release.
 
+For the unified DuckDB query interface across catalog, Parquet, and front-matter zones, see [`docs/attach-surface.md`](attach-surface.md).
+
 ## Rebuild and audit invariants
 
 For each sidecar, the material digest must match the current bytes. For each
@@ -153,6 +160,8 @@ dataset revision digest license bytes files parsed invalid projected
 Deleting `derived/` and rerunning pinned fetch/projection commands must recreate
 the same schemas, row counts, and content digests. Rebuildability is tested from
 fixtures in CI and from one public sample during mission acceptance.
+
+For the cross-zone entity join invariants and canonical `v_spine` contract, see [`docs/join-spine.md`](join-spine.md).
 
 ## Retention
 

@@ -92,6 +92,9 @@ timeouts, and expected controls.
 This plane answers, “What did we intend to test?” It must be reviewable before a
 run begins.
 
+For authoritative repository file placement rules across subsystems, see [`docs/WHERE-DOES-THIS-GO.md`](WHERE-DOES-THIS-GO.md).
+For deterministic context bundle compilation and audience targeting, see [`docs/context-packs.md`](context-packs.md).
+
 ### 2. Execution plane
 
 Harbor owns environment creation, agent invocation, verification, rewards,
@@ -173,6 +176,8 @@ high-concurrency queries across a corpus too large for the local
 Parquet/DuckDB workflow. The Parquet projection is still valuable then: it is a
 portable backfill and interchange format rather than a dead-end prototype.
 
+For methodology and metric designs calibrating LLM-based verifiers against execution ground truth, see [`docs/verifier-calibration.md`](verifier-calibration.md).
+
 ### 5. Analysis and decision plane
 
 Analysis has two deliberately separate stages:
@@ -191,6 +196,12 @@ but agreement between models is not a substitute for evidence or human review.
 
 See [analysis-loop.md](analysis-loop.md) for the concrete state machine and
 artifact contracts.
+
+For stored reasoning trajectories and failure classification contracts, see [`docs/agent-analysis.md`](agent-analysis.md).
+For trajectory behavioral metrics and efficiency analysis across trials, see [`docs/behavior-analysis.md`](behavior-analysis.md).
+For citable experimental result cards and purpose-based card schemas, see [`docs/eval-cards.md`](eval-cards.md).
+For the interactive Streamlit research overview interface, see [`docs/dashboard.md`](dashboard.md).
+For the append-only human verdict record and discovery adjudication workflow, see [`docs/verdicts.md`](verdicts.md).
 
 ## Data lifecycle and immutability
 
@@ -211,6 +222,8 @@ The database can be dropped and reconstructed from raw evidence and structured
 sidecars. If a fact exists only in PostgreSQL, the design has violated the
 rebuildability contract.
 
+For the taxonomy distinguishing active working assets from historical preserved records, see [`docs/ACTIVE-VS-HISTORICAL.md`](ACTIVE-VS-HISTORICAL.md).
+
 ## Target data model
 
 The current schema covers jobs, trials, rewards, artifacts, and file inventories.
@@ -230,6 +243,8 @@ Extend it incrementally as real workflows arrive:
 
 Do not add all tables speculatively. Add each idempotent schema change with the
 parser and fixture that prove how the source record is reconstructed.
+
+For catalog table schemas covering suites, suite members, and daily quota views, see [`docs/catalog-tables.md`](catalog-tables.md).
 
 ## The agent-assisted research loop
 

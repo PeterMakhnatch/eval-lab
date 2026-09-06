@@ -77,4 +77,4 @@ Historical mission branches without automated commit ancestry in `origin/main` o
 
 ## 5. Machine-Readable Cross-Reference
 
-Every entity cataloged in this handoff document corresponds to an exact row in [`research/analysis/git-estate-inventory-2026-08-27.json`](git-estate-inventory-2026-08-27.json).
+Every entity cataloged in this handoff document corresponds to an exact row in [`research/archive/2026-W36/git-estate-inventory-2026-08-27.json`](../archive/2026-W36/git-estate-inventory-2026-08-27.json).

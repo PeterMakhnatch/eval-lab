@@ -16,7 +16,13 @@ import pyarrow as pa
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
+from evallab.evidence.atif import (
+    ExportedTable,
+    ExportResult,
+    TrialTrajectoryProjection,
+    export_trajectories,
+    project_trial,
+)
 from evallab.evidence.parquet_io import write_table_atomic
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
@@ -411,8 +417,10 @@ def extract_trial_fact(
     job: JobRecord,
     trial: TrialRecord,
     state_journal: StateJournalRecord | None = None,
+    projection: TrialTrajectoryProjection | None = None,
 ) -> TrialFact:
-    projection = project_trial(job, trial)
+    if projection is None:
+        projection = project_trial(job, trial)
     journal = state_journal or load_state_journal(trial)
     result = trial.result
     raw_agent_info = result.get("agent_info")
@@ -554,7 +562,10 @@ def extract_trial_fact(
     )
 
 
-def extract_job_facts(job: JobRecord) -> JobFacts:
+def extract_job_facts(
+    job: JobRecord,
+    projections: dict[str, TrialTrajectoryProjection] | None = None,
+) -> JobFacts:
     trial_facts: list[TrialFact] = []
     reward_facts: list[RewardFact] = []
     artifact_facts: list[ArtifactFact] = []
@@ -563,9 +574,15 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
     state_event_facts: list[StateEventFact] = []
     association = experiment_id(job)
     for trial in sorted(job.trials, key=lambda item: item.id):
-        projection = project_trial(job, trial)
+        projection = (
+            projections[trial.id]
+            if projections is not None and trial.id in projections
+            else project_trial(job, trial)
+        )
+        if projections is not None:
+            projections[trial.id] = projection
         state_journal = load_state_journal(trial)
-        trial_facts.append(extract_trial_fact(job, trial, state_journal))
+        trial_facts.append(extract_trial_fact(job, trial, state_journal, projection=projection))
         try:
             state_event_facts.extend(
                 load_state_event_facts(
@@ -796,11 +813,18 @@ def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -
     )
 
 
-def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
+def export_facts(
+    jobs: list[JobRecord],
+    output_root: Path,
+    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
+) -> ExportResult:
     output_root = output_root.resolve()
     exported: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
-        facts = extract_job_facts(job)
+        job_projections = (
+            projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
+        )
+        facts = extract_job_facts(job, projections=job_projections)
         trial_by_id = {item.trial_id: item for item in facts.trials}
         for trial_id in sorted(trial_by_id):
             partition = output_root / f"job_id={job.id}" / f"trial_id={trial_id}"
@@ -832,10 +856,26 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
 def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
     from evallab.evidence.event_mart import export_event_mart
 
+    output_root = output_root.resolve()
+    trajectory_tables: list[ExportedTable] = []
+    fact_tables: list[ExportedTable] = []
+    event_tables: list[ExportedTable] = []
+    for job in sorted(jobs, key=lambda item: item.id):
+        # Release normalized source data after each job, not after the whole corpus.
+        projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] = {}
+        trajectory_tables.extend(
+            export_trajectories([job], output_root, projections_by_job=projections_by_job).tables
+        )
+        fact_tables.extend(
+            export_facts([job], output_root, projections_by_job=projections_by_job).tables
+        )
+        event_tables.extend(
+            export_event_mart([job], output_root, projections_by_job=projections_by_job).tables
+        )
     return RebuildResult(
-        trajectory_export=export_trajectories(jobs, output_root),
-        fact_export=export_facts(jobs, output_root),
-        event_mart_export=export_event_mart(jobs, output_root),
+        trajectory_export=ExportResult(root=output_root, tables=tuple(trajectory_tables)),
+        fact_export=ExportResult(root=output_root, tables=tuple(fact_tables)),
+        event_mart_export=ExportResult(root=output_root, tables=tuple(event_tables)),
     )
 
 
@@ -879,11 +919,12 @@ def ingest_catalog(
                     "UPDATE jobs SET experiment_id = %s WHERE id = %s",
                     (association, job.id),
                 )
-            facts = extract_job_facts(job)
+            job_projections: dict[str, TrialTrajectoryProjection] = {}
+            facts = extract_job_facts(job, projections=job_projections)
             for trial, trial_fact in zip(
                 sorted(job.trials, key=lambda item: item.id), facts.trials, strict=True
             ):
-                projection = project_trial(job, trial)
+                projection = job_projections.get(trial.id) or project_trial(job, trial)
                 connection.execute(
                     "DELETE FROM trajectory_documents WHERE trial_id = %s", (trial.id,)
                 )

@@ -904,12 +904,24 @@ def _write_parquet(path: Path, table_name: str, rows: list[dict[str, Any]]) -> E
     )
 
 
-def export_trajectories(jobs: list[JobRecord], output_root: Path) -> ExportResult:
+def export_trajectories(
+    jobs: list[JobRecord],
+    output_root: Path,
+    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
+) -> ExportResult:
     output_root = output_root.resolve()
     exported: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
+        job_projections = (
+            projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
+        )
         for trial in sorted(job.trials, key=lambda item: item.id):
-            projection = project_trial(job, trial)
+            if job_projections is not None and trial.id in job_projections:
+                projection = job_projections[trial.id]
+            else:
+                projection = project_trial(job, trial)
+                if job_projections is not None:
+                    job_projections[trial.id] = projection
             partition = output_root / f"job_id={job.id}" / f"trial_id={trial.id}"
             rows_by_table = {
                 "trajectories": [asdict(item) for item in projection.trajectories],

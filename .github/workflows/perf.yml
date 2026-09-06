@@ -1,13 +1,11 @@
 name: perf
 
-# Median-budget ratchet for the SPEED harness. Fails when a path exceeds
-# the committed budget by more than tolerance_pct. See docs/engineering.md.
-
+# Keep the profile check visible even when a proven documentation-only diff skips it.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "integrate/**"]
   push:
-    branches: [main]
+    branches: [main, "integrate/**"]
   workflow_dispatch:
 
 permissions:
@@ -18,12 +16,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.changes.outputs.profile }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Classify exact change set
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/profile/change_scope.py "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
   profile:
+    needs: scope
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:18.4-alpine3.24
+        # An empty image disables the service; docs-only runs do not start PostgreSQL.
+        image: ${{ needs.scope.outputs.profile == 'true' && 'postgres:18.4-alpine3.24' || '' }}
         env:
           POSTGRES_DB: evallab_speed_prof
           POSTGRES_USER: evallab
@@ -38,17 +53,28 @@ jobs:
     env:
       EVAL_LAB_PROFILE_DATABASE_URL: postgresql://evallab:profile-only@127.0.0.1:5432/evallab_speed_prof
     steps:
+      - name: Document safe profiling omission
+        if: needs.scope.outputs.profile == 'false'
+        run: |
+          echo "Documentation-only diff: no performance service or profiling run needed."
+          echo "Documentation and governance remain required in the quality workflow." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: needs.scope.outputs.profile == 'true'
       - name: Install uv 0.9.24 from PyPI
+        if: needs.scope.outputs.profile == 'true'
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Python 3.12
+        if: needs.scope.outputs.profile == 'true'
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
-      - run: uv sync --locked --no-default-groups
+      - name: Install profiling dependencies
+        if: needs.scope.outputs.profile == 'true'
+        run: uv sync --locked --no-default-groups
       - name: profile harness
+        if: needs.scope.outputs.profile == 'true'
         run: |
           chmod +x scripts/profile/gh_stub.sh
           uv run --no-sync python scripts/profile/harness.py \
@@ -56,9 +82,10 @@ jobs:
             --warmup 1 \
             --reps 5
       - name: budget ratchet
+        if: needs.scope.outputs.profile == 'true'
         run: uv run --no-sync python scripts/profile/check_budgets.py runs/_speed/profile-report.json
       - name: upload report
-        if: always()
+        if: always() && needs.scope.outputs.profile == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: speed-profile-report

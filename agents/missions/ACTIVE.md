@@ -1,30 +1,27 @@
 # Mission board
 
-The sole live mission board. Only the integrator edits this file. States: `ready` -> `active` -> `review` -> `merged`, with `blocked` possible anywhere.
+The live backlog and pull protocol is **`research/inbox/board.md`**; active
+claim files live in `research/inbox/claims/`. This page is navigation, not a
+second roster, dispatch authority, or current worktree inventory.
+
+Permanent path lanes: `agents/OWNERS.md`. Worktree and handoff protocol:
+`agents/WORKFLOW.md`. Verification: `agents/CHECKS.md`. Placement:
+`agents/STRUCTURE.md`.
 
 ## Now
 
-### Active Protected Role Lanes (ADR-031)
-
-Per ADR-031, long-lived role lanes isolate parallel workstreams. Current branch state, dirty handoffs, and working notes are recorded in `research/analysis/git-estate-handoffs-2026-08-27.md`:
-
-| Lane | Branch / Worktree | Role Scope | Current State & Handoff Authority |
-|---|---|---|---|
-| Architect | `lane/architect` / `.worktrees/lane-architect` | Controller, ledger maintenance, review authority, stabilization | `research/analysis/git-estate-handoffs-2026-08-27.md` |
-| Execution | `lane/execution` / `.worktrees/lane-execution` | Runner/queue immutable DTO contracts, execution watchdog | `research/analysis/git-estate-handoffs-2026-08-27.md` |
-| Storage | `lane/storage` / `.worktrees/lane-storage` | CAS/database management, partition discovery, backfill surface | `research/analysis/git-estate-handoffs-2026-08-27.md` |
-
-### Active Hygiene Sequence & Module Stability Contract
-
-- `Current module locations are stable for now; new work uses the current authoritative paths.`
-- `No further physical package migration is authorized without new explicit Peter approval. This does not freeze repository or feature work.`
+Read the board and pickup counter, then inspect current Git worktrees and PRs.
+`scripts/fleet-status.sh` reports those sources without granting cleanup permission.
+Historical branch inventories do not prove current ownership, activity, or closure.
 
 ## Missions
 
-- **Feature Work Status**: Feature development, task ingestion, analysis queries, verifier calibration, and bug fixes remain completely unblocked across all active lanes.
-- **Context-Supply Intake Queue**: `research/inbox/QUEUE.md` (authoritative intake queue for HARVEST / STANDARDS / VERIFIER loops).
-- **Overnight Program & Stabilization Ledger**: `research/analysis/automated-trajectory-overnight-ledger.md` (authoritative tracking for ADR-001 through ADR-035, model budget directives, and Track A–E milestone settlements).
-- **Estate & Lane Handoffs**: `research/analysis/git-estate-handoffs-2026-08-27.md` and `docs/git-estate-inventory.md` (authoritative records of branch estate, dirty working trees, and lane reconciliation status).
+- `research/inbox/board.md` — work intake, backlog, and the claim protocol.
+- `research/inbox/QUEUE.md` — the HARVEST source-intake checklist, not a competing
+  work-assignment board.
+- `research/analysis/automated-trajectory-overnight-ledger.md` — dated program
+  decisions and settlements; consult exact refs before reusing availability claims.
+- `docs/git-estate-inventory.md` — historical estate snapshot, not a prune list.
 
 ## Archive
 

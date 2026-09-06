@@ -13,6 +13,9 @@ Ten-minute orientation for incoming agents. Binding rules stay in `AGENTS.md`,
 `agents/CHECKS.md`, and `agents/WORKFLOW.md`. This file is the current-state
 map, not a second copy of those contracts.
 
+Orientation revised 2026-09-06. Live presence comes from the pickup counter and
+Git/PR metadata; scientific availability requires a named corpus and exact ref.
+
 ## What we are building
 
 Three product layers, in this order:
@@ -33,11 +36,17 @@ main as benchmark packages under `library/benchmarks/`:
 | B | MCP-FuncDAG tool composition | `library/benchmarks/mcp-funcdag-v1` (#263, shared substrate #268) |
 | C | MCP single-fault recovery | `library/benchmarks/mcp-recovery-v1` (#261) |
 
-**Later, not now:** synthetic *training* sets and SFT/RLVR
-(`docs/path-forward-2026-08.md` stages S3–S5). Do not start a trainer, a
-preference dataset, or an RL loop. The word "synthetic" in those PRs means
-Harbor task generators, not fine-tuning data.
+**Training scope & integration-spine distinction:** Offline trajectory-training *design*
+(selection recipes, held-out freeze specifications, quarantine design, deterministic S0
+fixtures) is authorized, but **no** paid API calls, GPU compute, model registration, or
+training runs are authorized. Do not start a trainer, submit training jobs, or launch
+unattended optimization loops.
 
+**Integration-spine vs. Main availability:** Work merged to the integration branch
+(`integrate/spine-batch1`) is NOT automatically available on `main`. Status reporting must
+distinguish between implemented, reviewed, merged-to-branch, merged-to-main, and
+scientifically available. Never assume missing `main` files mean spine work does not exist,
+and never claim integration-spine deliverables are landed on `main` before reviewed integration.
 **Reward Alignment & Verifier Validity Truth:** Hint-based minimax regret estimates
 task solvability/difficulty and guides curriculum selection; it does **not** certify
 verifier validity or eliminate reward hacking. Any claim of reward alignment strictly
@@ -47,18 +56,17 @@ requires:
 3. Strict prompt/environment contamination separation.
 
 **Benchmark Boundary Distinction (TB3 vs. Tau3):**
-- **Terminal-Bench v3 (TB3):** Tracked separately under `role/tbench3-screen@79dd74af`.
-- **Tau-Bench 3 (tau3):** In `.worktrees/tau-agentic-canary` on branch `feat/tau-agentic-canary@45484c4af` (8 `banking_knowledge` tasks digest-pinned, frozen pending `wH:p9` remote/provider reconciliation; no repo runs directory or local process).
-- **Never combine TB3 and Tau3 evidence, execution, or status reporting.**
+- Terminal-Bench v3 (TB3) and Tau-Bench 3 (tau3) are distinct benchmark families.
+- Never combine their evidence, execution, or status reporting. Resolve current
+  registrations and worktree/PR refs rather than reusing an old canary snapshot.
 
 ## Honest bottleneck
 
-The bottleneck is **runs and populated columns**, not more methods or more
-docs. The mechanical tables (`steps`, `tool_calls`, `observations`) have data.
-The semantic/capability tables (`capability_opportunities`,
-`paired_condition_facts`, and siblings) are empty schemas. Error-timing
-columns (`step_to_first_error` and siblings) are all-null on the current
-corpus because those trials predate state-journal instrumentation.
+The research bottleneck is trustworthy runs and populated, provenance-bound
+columns, not additional method catalogs. Earlier corpus snapshots had empty
+semantic/capability tables and all-null error-timing columns. Those are dated
+observations, not a current database census. State the corpus digest, query,
+timestamp, and unavailable sources before reporting present coverage.
 
 The usable analysis corpus is the `status = 'featured'` slice, not the full
 feature table. Do not add a feature without a named consumer and a
@@ -81,33 +89,36 @@ denominator. Do not report rates over rows with `status != 'featured'`.
   tour. The first two are generated inventories; STATUS is a catalog snapshot
   and goes stale.
 
-## Read these, in this order
+## Read only the route for the task
 
-1. `AGENTS.md` — rules.
-2. This file — current state.
-3. `agents/OWNERS.md` and `agents/WORKFLOW.md` — who may write where.
-4. `docs/architecture.md`, `docs/data-architecture.md`, `docs/analysis-loop.md`
-   — why it is built this way.
-5. The `AGENTS.md` next to the package you will touch — after the layout-truth
-   note in `src/evallab/AGENTS.md`.
+Start with `AGENTS.md` and this orientation, then the affected files—not a universal
+stack of architecture documents. These routes do not waive safety boundaries or
+the verification gates in `agents/CHECKS.md`.
 
-Skip `docs/research/` and `agents/archive/` (closed-mission notes) unless you
-were sent there. `research/inbox/` is a drop box, not a map.
+| Task | Read next, limited to the affected surface |
+|---|---|
+| Documentation or navigation | The document being changed and its direct references. Read `agents/STRUCTURE.md` only for placement changes; architecture only when the design claim changes. |
+| Worktree, ownership, or delivery | Relevant `agents/WORKFLOW.md` / `agents/OWNERS.md` sections; `agents/CHECKS.md` at the checkpoint. Use the existing board for a backlog claim. |
+| Platform, runner, queue, or CLI | `src/evallab/AGENTS.md`, the nearest scoped instructions, and the affected sections of `docs/architecture.md`. Read `docs/execution-tiers.md` before execution decisions. |
+| Storage, CAS, or projections | Storage/evidence scoped instructions and the relevant `docs/data-architecture.md` sections; follow their direct authority contracts. |
+| Analysis or interpretation | Analysis/interpretation scoped instructions and the relevant `docs/analysis-loop.md` sections; identify the actual corpus and consumer. |
+| Task authoring or registration | The task's own contract plus relevant `docs/task-workbench.md` / `docs/task-registry.md` sections; retain execution approval and immutable-version rules. |
+
+Use targeted lookup for a missing concept or symbol. Read `docs/research/` and
+`agents/archive/` only when historical evidence is needed, not as default context.
+`research/inbox/board.md` owns the pull/backlog protocol; `claims/` holds pickup
+records. `agents/missions/ACTIVE.md` is a navigation link to those sources.
 
 ## Live writers — do not collide
 
-One writer per worktree. Before editing, check `gh pr list` and
-`git worktree list` — they are the live inventory; this file does not repeat
-it. As of 2026-09-02 the open PRs other than this branch (#272) are #346,
-#350, and #351. Storage / execution / data lanes under `.worktrees/lane-*`
-remain active worktrees. Do not revive `hardening/repo-lean-v1` as a prune;
-it is old CI/type hardening that still touches live `src/` files.
-
-If a path is in someone else's open PR, stop.
+Use `agents/WORKFLOW.md` for disjoint ownership and integration rules. Before
+editing, inspect `gh pr list` and `git worktree list --porcelain`. Verify each
+PR's base and head; main-targeting and integration-targeting work are different
+review scopes. This orientation deliberately carries no live PR roster.
 
 ## What to add next
 
 Prefer a type, test, or governance check over a new markdown file. If a
 correction repeats, encode it in `tests/` or `src/evallab/governance.py`.
-Optional agent procedures go in scoped `.omp/skills/` after that root is on
-`main`, not in sticky prompt catalogs.
+Optional procedures belong in the existing scoped project skills, not sticky
+prompt catalogs or a second coordination board.

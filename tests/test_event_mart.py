@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
+from evallab.evidence.event_mart import export_event_mart
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_job
 from evallab.storage.parquet_compaction import deduplicate_and_sort
@@ -133,10 +134,9 @@ def test_event_mart_llm_calls_keep_matching_atif_source_digest(tmp_path: Path) -
     partition = derived / f"job_id={job.id}" / f"trial_id={job.trials[0].id}"
     llm_calls = pq.read_table(partition / "llm_calls.parquet").to_pylist()
     assert len(llm_calls) == 2
-    assert {
-        (row["source_path"], row["source_sha256"])
-        for row in llm_calls
-    } == {("agent/trajectory.json", expected_digest)}
+    assert {(row["source_path"], row["source_sha256"]) for row in llm_calls} == {
+        ("agent/trajectory.json", expected_digest)
+    }
 
 
 def test_event_mart_never_invents_an_action_effect_without_timestamps(tmp_path: Path) -> None:
@@ -159,7 +159,6 @@ def test_event_mart_never_invents_an_action_effect_without_timestamps(tmp_path: 
     effect = pq.read_table(partition / "action_effects.parquet").to_pylist()[0]
     assert effect["action_id"] is None
     assert effect["link_status"] == "unattributed"
-
 
 
 def test_event_flow_keeps_repeated_call_ids_distinct_through_compaction(
@@ -222,3 +221,39 @@ def test_event_flow_keeps_repeated_call_ids_distinct_through_compaction(
     assert effects[0]["action_id"] == actions[1]["action_id"]
     assert actions[0]["action_family"] == "other"
     assert phases[0]["source_path"] == "agent/trajectory.json"
+
+
+def test_event_mart_refreshes_temporal_effects_when_state_journal_modified(
+    tmp_path: Path,
+) -> None:
+    source = Path(__file__).parent / "fixtures/explorer/jobs/job-pass"
+    job_path = tmp_path / "runs/job-pass"
+    shutil.copytree(source, job_path)
+    trial_path = job_path / "t1"
+    job = load_job(job_path)
+    derived = tmp_path / "derived"
+
+    rebuild_from_raw([job], derived)
+    partition = derived / f"job_id={job.id}" / f"trial_id={job.trials[0].id}"
+    effects = pq.read_table(partition / "action_effects.parquet").to_pylist()
+    assert effects == []
+
+    _write_state_journal(
+        trial_path,
+        path="b.py",
+        content=b"created",
+        event_timestamp="2026-08-15T00:00:01.500Z",
+    )
+
+    rebuild_from_raw([job], derived)
+    refreshed_effects = pq.read_table(partition / "action_effects.parquet").to_pylist()
+    assert len(refreshed_effects) == 1
+    assert refreshed_effects[0]["link_status"] == "temporally_preceded"
+    changes = pq.read_table(partition / "state_changes.parquet").to_pylist()
+    assert [(row["path"], row["change_type"]) for row in changes] == [("b.py", "added")]
+
+    standalone_derived = tmp_path / "standalone_derived"
+    export_event_mart([job], standalone_derived)
+    standalone_partition = standalone_derived / f"job_id={job.id}" / f"trial_id={job.trials[0].id}"
+    standalone_effects = pq.read_table(standalone_partition / "action_effects.parquet").to_pylist()
+    assert standalone_effects == refreshed_effects

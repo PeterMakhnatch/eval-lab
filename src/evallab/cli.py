@@ -37,7 +37,7 @@ from evallab.calibrate import (
     write_calibration_record,
     write_catalog_record,
 )
-from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
+from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter, load_canary_suite
 from evallab.cohort import (
     clustered_minimum_detectable_effect,
     clustered_power_requirements,
@@ -490,13 +490,32 @@ def _tick_command(
         progress=print,
         capacity=capacity,
     )
+    canary_enqueuer = None
+    if getattr(args, "canary_suite", None) is not None:
+        suite_path = _resolve(root, args.canary_suite)
+        try:
+            suite = load_canary_suite(suite_path)
+        except (OSError, ValueError) as exc:
+            print(f"canary suite invalid: {exc}", file=sys.stderr)
+            return 1
+        canary_enqueuer = CanaryEnqueuer(
+            repo_root=root,
+            executor=executor,
+            suite=suite,
+        )
     result = GuardedTick(
         doctor=HeadlessDoctor(root, executor=executor),
         executor=executor,
+        canary_enqueuer=canary_enqueuer.enqueue_due if canary_enqueuer is not None else None,
     ).run()
+    is_quarantined = not result.report.healthy or result.quarantined
     print(f"dispatched {result.dispatched} experiment(s)")
-    print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
-    return 0 if result.report.healthy else 1
+    if result.enqueued:
+        print(f"enqueued {result.enqueued} canary experiment(s)")
+    print(f"quarantined: {'yes' if is_quarantined else 'no'}")
+    if result.quarantine_reason:
+        print(f"quarantine reason: {result.quarantine_reason}", file=sys.stderr)
+    return 1 if is_quarantined else 0
 
 
 def _approve_command(
@@ -691,11 +710,18 @@ def _positive_int(value: str) -> int:
 def _schedule_install_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    paths = ScheduleInstaller(
-        root,
-        interval_seconds=args.interval_seconds,
-        tick_only=args.tick_only,
-    ).install()
+    canary_suite = getattr(args, "canary_suite", None)
+    try:
+        installer = ScheduleInstaller(
+            root,
+            interval_seconds=args.interval_seconds,
+            tick_only=args.tick_only,
+            canary_suite=canary_suite,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"canary suite invalid: {exc}", file=sys.stderr)
+        return 1
+    paths = installer.install()
     for path in paths:
         print(f"installed: {path}")
     return 0
@@ -3570,6 +3596,13 @@ def parser() -> argparse.ArgumentParser:
         metavar="AGENT=N",
         help="Per-agent concurrent trial slots (repeatable)",
     )
+    tick.add_argument(
+        "--canary-suite",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Optional path to a CanarySuite YAML for opt-in replenishment before dispatch",
+    )
     tick.set_defaults(func=_tick_command)
 
     approve = commands.add_parser(
@@ -3668,6 +3701,13 @@ def parser() -> argparse.ArgumentParser:
         "--tick-only",
         action="store_true",
         help="Schedule queue dispatch only without the nightly research pipeline",
+    )
+    schedule_install.add_argument(
+        "--canary-suite",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Optional path to a CanarySuite YAML for opt-in continuous canary replenishment",
     )
     schedule_install.set_defaults(func=_schedule_install_command)
 

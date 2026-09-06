@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from evallab import credentials as credentials_module
 from evallab import database
+from evallab.canary import load_canary_suite
 from evallab.digest import DigestRenderer, commit_digest
 from evallab.evidence.atif import IngestProjectionResult
 from evallab.lessons import generate_lessons_file
@@ -639,12 +640,22 @@ def date_time_now() -> datetime:
 class GuardedTickResult:
     report: HeadlessDoctorReport
     dispatched: int
+    enqueued: int = 0
+    quarantined: bool = False
+    quarantine_reason: str | None = None
 
 
 class GuardedTick:
-    def __init__(self, *, doctor: HeadlessDoctor, executor: Executor) -> None:
+    def __init__(
+        self,
+        *,
+        doctor: HeadlessDoctor,
+        executor: Executor,
+        canary_enqueuer: Callable[[], int] | None = None,
+    ) -> None:
         self.doctor = doctor
         self.executor = executor
+        self.canary_enqueuer = canary_enqueuer
 
     def run(self, spec_ids: Sequence[str] | None = None) -> GuardedTickResult:
         report = self.doctor.run()
@@ -655,7 +666,36 @@ class GuardedTick:
                 report=report,
                 actor="scheduled-tick",
             )
-            return GuardedTickResult(report=report, dispatched=0)
+            return GuardedTickResult(
+                report=report,
+                dispatched=0,
+                enqueued=0,
+                quarantined=True,
+                quarantine_reason="unhealthy_preflight",
+            )
+        enqueued = 0
+        if self.canary_enqueuer is not None:
+            try:
+                enqueued = self.canary_enqueuer()
+            except (OSError, RuntimeError, ValueError) as exc:
+                reason = f"canary_enqueue_failed:{type(exc).__name__}"
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="tick_quarantined",
+                        actor="scheduled-tick",
+                        reason_code=reason,
+                    )
+                )
+                return GuardedTickResult(
+                    report=report,
+                    dispatched=0,
+                    enqueued=0,
+                    quarantined=True,
+                    quarantine_reason=f"{reason}: {exc}",
+                )
         dispatched = self.executor.tick(spec_ids=spec_ids)
         if dispatched:
             event = "tick_dispatched"
@@ -687,7 +727,13 @@ class GuardedTick:
                 reason_code=reason,
             )
         )
-        return GuardedTickResult(report=report, dispatched=dispatched)
+        return GuardedTickResult(
+            report=report,
+            dispatched=dispatched,
+            enqueued=enqueued,
+            quarantined=False,
+            quarantine_reason=None,
+        )
 
 
 @dataclass(frozen=True)
@@ -921,6 +967,7 @@ class ScheduleInstaller:
         launchctl: LaunchctlRunner = _launchctl,
         interval_seconds: int = DEFAULT_INTERVAL_SECONDS,
         tick_only: bool = False,
+        canary_suite: Path | str | None = None,
     ) -> None:
         if type(interval_seconds) is not int or interval_seconds <= 0:
             raise ValueError(f"interval_seconds must be a positive integer, got {interval_seconds}")
@@ -930,6 +977,14 @@ class ScheduleInstaller:
         self._launchctl = launchctl
         self.interval_seconds = interval_seconds
         self.tick_only = tick_only
+        self.canary_suite = Path(canary_suite) if canary_suite is not None else None
+        if self.canary_suite is not None:
+            resolved_suite = (
+                self.canary_suite
+                if self.canary_suite.is_absolute()
+                else (self.repo_root / self.canary_suite)
+            ).resolve()
+            load_canary_suite(resolved_suite)
 
     @property
     def launch_agents_dir(self) -> Path:
@@ -951,13 +1006,16 @@ class ScheduleInstaller:
                 ]
             ),
         }
+        tick_command = "tick"
+        if self.canary_suite is not None:
+            tick_command = f"tick --canary-suite {shlex.quote(str(self.canary_suite))}"
         defs: dict[str, dict[str, Any]] = {
             self.TICK_LABEL: {
                 "Label": self.TICK_LABEL,
                 "ProgramArguments": [
                     "/bin/zsh",
                     "-lc",
-                    self._shell_command("tick"),
+                    self._shell_command(tick_command),
                 ],
                 "StartInterval": self.interval_seconds,
                 "RunAtLoad": True,
@@ -1034,6 +1092,7 @@ class ScheduleInstaller:
                 "plist_path": str(path),
                 "target_checkout": None,
                 "cadence": None,
+                "canary_suite": None,
                 "state": None,
                 "runs": None,
                 "last_exit_code": None,
@@ -1067,6 +1126,10 @@ class ScheduleInstaller:
                     tokens = shlex.split(arguments[2])
                     if len(tokens) >= 3 and tokens[0] == "cd" and tokens[2] == "&&":
                         info["target_checkout"] = tokens[1]
+                    if "--canary-suite" in tokens:
+                        idx = tokens.index("--canary-suite")
+                        if idx + 1 < len(tokens):
+                            info["canary_suite"] = tokens[idx + 1]
             except FileNotFoundError:
                 info["installed"] = False
             except (OSError, ValueError, TypeError) as exc:

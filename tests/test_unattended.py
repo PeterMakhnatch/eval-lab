@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import yaml
 
 import evallab.cli as cli_module
 import evallab.digest as digest_module
@@ -16,6 +17,7 @@ from evallab.automation import (
     NightlyCycle,
     ScheduleInstaller,
 )
+from evallab.canary import CanaryEnqueuer, task_directory_digest
 from evallab.cli import run_cli
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.queue import DirectoryQueue, Executor, load_events
@@ -1221,3 +1223,136 @@ def test_fleet_reports_live_handoffs_and_never_a_retired_role(tmp_path: Path) ->
     assert "- No machine-readable `Status:` header: 1 (orchestrator-handoff.md)." in content
     assert "| unknown |" not in content
     assert "### Roles" not in content
+
+
+def _create_fixture_suite(
+    root: Path, *, name: str = "suite", agents: list[str] | None = None
+) -> Path:
+    members = []
+    for i in range(3):
+        task_dir = root / f"library/tasks/{name}-{i}"
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "task.toml").write_text(f'name = "{name}-{i}"\n')
+        members.append(
+            {
+                "name": f"member-{i}",
+                "task_path": f"library/tasks/{name}-{i}",
+                "task_version": "1.0.0",
+                "task_digest": task_directory_digest(task_dir),
+                "source_ref": f"test/{name}-{i}@1",
+                "est_cost_usd": 0,
+            }
+        )
+    suite_data = {
+        "version": 1,
+        "attempts": 3,
+        "agents": agents or ["oracle"],
+        "members": members,
+        "interval_seconds": 3600,
+        "max_cycles_per_day": 2,
+    }
+    path = root / f"{name}.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.dump(suite_data))
+    return path
+
+
+def test_schedule_installer_persists_quoted_canary_suite(tmp_path: Path) -> None:
+    _create_fixture_suite(tmp_path, name="custom suites/my-canary")
+    launchctl = FakeLaunchctl()
+    installer = ScheduleInstaller(
+        tmp_path,
+        home=tmp_path,
+        launchctl=launchctl,
+        canary_suite=Path("custom suites/my-canary.yaml"),
+    )
+    paths = installer.install()
+    raw = plistlib.loads(paths[0].read_bytes())
+    cmd = raw["ProgramArguments"][2]
+    assert "tick --canary-suite 'custom suites/my-canary.yaml'" in cmd
+    status = installer.status()
+    assert (
+        status["jobs"][ScheduleInstaller.TICK_LABEL]["canary_suite"]
+        == "custom suites/my-canary.yaml"
+    )
+
+
+def test_schedule_installer_validates_suite_before_mutations(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        ScheduleInstaller(tmp_path, home=tmp_path, canary_suite=Path("nonexistent.yaml"))
+    assert not (tmp_path / "Library").exists()
+
+
+def test_guarded_tick_with_opt_in_canary_suite(tmp_path: Path) -> None:
+    _create_fixture_suite(tmp_path, name="policy/canary-suite")
+    queue = DirectoryQueue(tmp_path / "queue")
+    dispatched_requests = []
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=StandingApprovalsPolicy(
+            daily_cost_ceiling_usd=20,
+            per_job_cost_ceiling_usd=3,
+            quiet_failure_rule=3,
+            auto_run=[
+                AutoRunRule(
+                    name="canary",
+                    tasks=["canary/*"],
+                    agents=["oracle"],
+                    max_attempts=3,
+                )
+            ],
+        ),
+        runner=lambda req: (dispatched_requests.append(req), tmp_path / "runs" / req.name)[1],
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    enqueuer = CanaryEnqueuer.from_repo(tmp_path, service)
+    guarded = GuardedTick(
+        doctor=StaticDoctor(health_report()),
+        executor=service,
+        canary_enqueuer=lambda: enqueuer.enqueue_due(datetime(2026, 9, 6, 14, 15, tzinfo=UTC)),
+    )
+
+    result = guarded.run()
+    assert result.enqueued == 3
+    assert result.dispatched == 3
+    assert result.quarantined is False
+
+    # Second run in same slot enqueues nothing and dispatches nothing
+    result2 = guarded.run()
+    assert result2.enqueued == 0
+    assert result2.dispatched == 0
+
+
+def test_guarded_tick_canary_digest_mismatch_quarantines_without_dispatch(tmp_path: Path) -> None:
+    _create_fixture_suite(tmp_path, name="policy/canary-suite")
+    queue = DirectoryQueue(tmp_path / "queue")
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        runner=lambda req: tmp_path / "runs" / req.name,
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    enqueuer = CanaryEnqueuer.from_repo(tmp_path, service)
+
+    # Mutate a task file
+    (tmp_path / "library/tasks/policy/canary-suite-0/task.toml").write_text("corrupted\n")
+
+    guarded = GuardedTick(
+        doctor=StaticDoctor(health_report()),
+        executor=service,
+        canary_enqueuer=lambda: enqueuer.enqueue_due(datetime(2026, 9, 6, 14, 15, tzinfo=UTC)),
+    )
+    result = guarded.run()
+    assert result.quarantined is True
+    assert result.dispatched == 0
+    events = load_events(service.queue.events_path)
+    assert any(
+        e.event == "tick_quarantined" and "canary_enqueue_failed" in (e.reason_code or "")
+        for e in events
+    )

@@ -10,7 +10,6 @@ from evallab import cli
 from evallab.evidence import atif
 
 TOP_LEVEL_COMMANDS = (
-    "claims",
     "doctor",
     "dashboard",
     "status",

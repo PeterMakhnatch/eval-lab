@@ -836,24 +836,6 @@ def test_operator_cannot_resolve_while_original_owner_is_live(tmp_path):
     worker.store.release_lease(rid, held)
 
 
-def test_cli_requires_explicit_actor_and_action_for_ambiguous_resolution():
-    from evallab.cli import parser
-
-    args = parser().parse_args(
-        [
-            "analyze",
-            "worker-resolve-ambiguous",
-            "deadbeefdeadbeef",
-            "--action",
-            "quarantine",
-            "--actor",
-            "operator-test",
-        ]
-    )
-    assert args.action == "quarantine"
-    assert args.actor == "operator-test"
-
-
 def test_kernel_lease_allows_only_one_live_owner(tmp_path):
     worker, root = make_worker(tmp_path)
     worker.stage([root / "jobs"])

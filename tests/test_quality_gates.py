@@ -277,9 +277,50 @@ def test_ci_workflow_lane_gating_and_wheelhouse_triggers() -> None:
 
 
 WORKFLOW_FILES = sorted((ROOT / ".github/workflows").glob("*.yml"))
-# Intentional exemptions mapped to documented reasons. There are currently none;
-# all workflows triggering on pull_request or push must declare concurrency cancellation.
+# Intentional exemptions mapped to documented reasons.
+# Workflows exempt from PR/push triggers (dispatch-only manual workflows) are explicitly tracked.
+DISPATCH_ONLY_WORKFLOW_EXEMPTIONS: dict[str, str] = {
+    "action-memory-dose-ladder": (
+        "24-cell Harbor dose-ladder certification runs on manual dispatch only; "
+        "unit coverage for dose ladder code paths is exercised in quality."
+    ),
+}
 WORKFLOW_CONCURRENCY_EXEMPTIONS: dict[str, str] = {}
+
+
+def test_dispatch_only_workflows_exemption_list() -> None:
+    """Validate that only explicitly exempted workflows are dispatch-only.
+
+    Workflows without pull_request or push triggers must belong to the explicit
+    dispatch-only exemption list, and every exempted workflow must actually exist
+    and be dispatch-only.
+    """
+    dispatch_only: list[str] = []
+    for workflow_path in WORKFLOW_FILES:
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        triggers = workflow.get("on") or workflow.get(True) or {}
+        if isinstance(triggers, str):
+            triggers = [triggers]
+        if isinstance(triggers, list):
+            trigger_names = set(triggers)
+        elif isinstance(triggers, dict):
+            trigger_names = set(triggers.keys())
+        else:
+            trigger_names = set()
+
+        if not (trigger_names & {"pull_request", "push"}):
+            # Workflow has no PR or push trigger; must be dispatch-only
+            assert trigger_names == {"workflow_dispatch"}, (
+                f"Workflow '{workflow_path.name}' has no PR/push triggers but triggers are {trigger_names}."
+            )
+            dispatch_only.append(workflow_path.stem)
+
+    assert (
+        sorted(dispatch_only)
+        == sorted(DISPATCH_ONLY_WORKFLOW_EXEMPTIONS.keys())
+        == ["action-memory-dose-ladder"]
+    )
+    assert list(DISPATCH_ONLY_WORKFLOW_EXEMPTIONS.keys()) == ["action-memory-dose-ladder"]
 
 
 @pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)

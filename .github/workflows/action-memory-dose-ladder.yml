@@ -1,18 +1,6 @@
 name: action-memory-dose-ladder
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "library/benchmarks/action-memory-v1/**"
-      - "tests/test_action_memory_dose_ladder.py"
-      - ".github/workflows/action-memory-dose-ladder.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "library/benchmarks/action-memory-v1/**"
-      - "tests/test_action_memory_dose_ladder.py"
-      - ".github/workflows/action-memory-dose-ladder.yml"
   workflow_dispatch:
 
 permissions:

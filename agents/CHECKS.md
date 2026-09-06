@@ -67,7 +67,9 @@ Benchmark and certification workflows declare `concurrency` groups with
 `cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy
 certification suites (such as Tau and FuncDAG workbench certification) run on a
 weekly schedule or manual dispatch rather than on every workbench edit, while
-core task workbench unit tests execute on every PR within `quality`.
+core task workbench unit tests execute on every PR within `quality`. Similarly,
+the dose-ladder workflow runs on manual dispatch only; unit coverage for its code
+paths stays in `quality`.
 
 ## Deterministic-test rule
 

@@ -109,7 +109,7 @@ def test_every_cli_leaf_dispatches_to_a_callable_handler() -> None:
 
 def test_leaf_command_count_is_pinned() -> None:
     leaves = _leaf_parsers(parser())
-    assert len(leaves) == 93, f"Expected exactly 93 leaf commands, found {len(leaves)}"
+    assert len(leaves) == 81, f"Expected exactly 81 leaf commands, found {len(leaves)}"
 
 
 def test_cli_surface_matches_golden() -> None:

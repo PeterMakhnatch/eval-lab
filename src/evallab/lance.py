@@ -51,8 +51,8 @@ def _require_lancedb() -> tuple[Any, Any]:
         ImportError: If lancedb is not installed, with remediation guidance.
     """
     try:
-        import lancedb
-        from lancedb.index import IvfPq
+        import lancedb  # ty: ignore[unresolved-import]
+        from lancedb.index import IvfPq  # ty: ignore[unresolved-import]
 
         return lancedb, IvfPq
     except ImportError as exc:

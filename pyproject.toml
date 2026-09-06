@@ -105,3 +105,9 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "library/tasks/query-optimize/**" = ["B011", "B905"]
+
+[tool.ty.rules]
+# Optional dependency groups (lance, observability) are absent in some checked
+# environments and present in others; their import ignores are used only where
+# the package is missing.
+unused-ignore-comment = "ignore"

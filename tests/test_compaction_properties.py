@@ -648,7 +648,7 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
     @classmethod
     def _ensure_corpus(cls) -> Path:
         if cls._corpus_path is None:
-            cls._corpus_dir = tempfile.TemporaryDirectory(dir="/private/tmp")
+            cls._corpus_dir = tempfile.TemporaryDirectory()
             cls._corpus_path = Path(cls._corpus_dir.name)
             clock_today = date(2026, 8, 20)
             for offset in range(-15, 1):
@@ -665,7 +665,7 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
 
     def __init__(self) -> None:
         super().__init__()
-        self.tempdir = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
         self.clock_today = date(2026, 8, 20)
         self.retention_days = 7

@@ -93,6 +93,9 @@ extend-exclude = [
     # digests are pinned in each bundle's PROMOTION.json, so linting or
     # reformatting it would falsify the record rather than improve it.
     "research/evidence/runs",
+    # Vendored upstream tools are pinned by commit in each vendor PIN file;
+    # linting or reformatting them would desync the copy from its source.
+    "research/external/harbor-ecosystem/vendor",
 ]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

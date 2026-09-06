@@ -244,7 +244,7 @@ def test_analyze_commands_registered_and_legacy_worker_plan_remains() -> None:
         for action in analyze_parser._actions
         if getattr(action, "dest", None) == "analyze_command"
     )
-    for name in ("trial", "batch", "inspect", "calibrate", "quality", "worker-plan"):
+    for name in ("trial", "batch", "calibrate", "quality", "worker-plan"):
         assert name in sub.choices
 
 

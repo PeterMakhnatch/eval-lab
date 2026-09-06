@@ -10,7 +10,6 @@ from evallab import cli
 from evallab.evidence import atif
 
 TOP_LEVEL_COMMANDS = (
-    "claims",
     "doctor",
     "dashboard",
     "status",
@@ -59,57 +58,7 @@ TOP_LEVEL_COMMANDS = (
     "verdict",
     "traj",
 )
-NESTED_COMMANDS = (
-    ("claims", "pack"),
-    ("campaign", "plan"),
-    ("campaign", "status"),
-    ("campaign", "run"),
-    ("campaign", "resume"),
-    ("schedule", "install"),
-    ("schedule", "status"),
-    ("schedule", "uninstall"),
-    ("canary", "import-terminal-bench"),
-    ("curve", "validate"),
-    ("curve", "build"),
-    ("curve", "report"),
-    ("registry", "list"),
-    ("registry", "audit"),
-    ("report", "family"),
-    ("report", "card"),
-    ("analyze", "plan"),
-    ("analyze", "trial"),
-    ("analyze", "batch"),
-    ("analyze", "inspect"),
-    ("analyze", "calibrate"),
-    ("analyze", "stub"),
-    ("analyze", "ingest-sidecar"),
-    ("analyze", "review"),
-    ("analyze", "agreement"),
-    ("db", "init"),
-    ("analyze", "worker-run-one"),
-    ("data", "backfill"),
-    ("db", "list"),
-    ("analyst", "run"),
-    ("analyst", "list"),
-    ("analyst", "show"),
-    ("card", "generate"),
-    ("semantics", "project"),
-    ("semantics", "coverage"),
-    ("evidence", "archive"),
-    ("evidence", "restore"),
-    ("tasks", "import"),
-    ("ladder", "generate"),
-    ("traj", "outline"),
-    ("traj", "queue"),
-    ("ladder", "validate"),
-    ("traj", "label"),
-    ("traj", "project"),
-    ("traj", "report"),
-    ("traj", "benchmark"),
-    ("semantic-facts", "project"),
-    ("semantic-facts", "query"),
-)
-HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
+
 
 
 def test_cli_inventory_matches_help_audit() -> None:
@@ -119,15 +68,27 @@ def test_cli_inventory_matches_help_audit() -> None:
     assert tuple(command_action.choices) == TOP_LEVEL_COMMANDS
 
 
-@pytest.mark.parametrize("command_path", HELP_PATHS)
-def test_every_cli_command_path_responds_to_help(
-    command_path: tuple[str, ...], capsys: pytest.CaptureFixture[str]
-) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        cli.parser().parse_args([*command_path, "--help"])
+def test_every_cli_command_path_responds_to_help() -> None:
+    def _collect_leaf_subparsers(
+        parser: argparse.ArgumentParser, prefix: tuple[str, ...] = ()
+    ) -> list[tuple[tuple[str, ...], argparse.ArgumentParser]]:
+        subparsers_actions = [
+            a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+        ]
+        if not subparsers_actions:
+            return [(prefix, parser)] if prefix else []
+        leaves: list[tuple[tuple[str, ...], argparse.ArgumentParser]] = []
+        for sp_action in subparsers_actions:
+            for name, subparser in sp_action.choices.items():
+                leaves.extend(_collect_leaf_subparsers(subparser, prefix + (name,)))
+        return leaves
 
-    assert exit_info.value.code == 0
-    assert "usage:" in capsys.readouterr().out
+    parser = cli.parser()
+    leaves = _collect_leaf_subparsers(parser)
+    assert len(leaves) >= 80
+    for path, subparser in leaves:
+        help_text = subparser.format_help()
+        assert "usage:" in help_text, f"Missing usage in leaf command {path}"
 
 
 def test_trajectories_default_action_is_read_only(tmp_path: Path, monkeypatch) -> None:

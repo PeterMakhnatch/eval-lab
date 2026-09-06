@@ -73,7 +73,7 @@ FACETS_SCHEMA_VERSION = "craft/1"
 #: Number of tasks processed per classification batch.
 #: Bounded at 10 to balance grouping efficiency against memory overhead and
 #: prompt context window limits when classify is extended to LLM passes
-#: (docs/platform-architecture.md §6).
+#: (docs/archive/platform-architecture.md §6).
 DEFAULT_BATCH_SIZE: int = 10
 
 #: Where the TB3 corpus lives on this workstation. Injectable (env var, then
@@ -317,7 +317,7 @@ LLM_ONLY_FACETS: dict[str, str] = {
 class CraftRecord(ContractModel):
     """One task's deterministic facets.
 
-    Fields follow `docs/build-plan.md` WS-A. Three columns are additions to that
+    Fields follow `docs/archive/build-plan.md` WS-A. Three columns are additions to that
     list, each forced by rule 1 or rule 2 above and marked here:
 
     - `verifier_signals` — the mechanism families actually observed. Without it,

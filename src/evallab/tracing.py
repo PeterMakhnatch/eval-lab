@@ -272,14 +272,6 @@ def convert_source(
     return resource_spans, payload, summary, path
 
 
-def convert_trial(
-    trial_dir: Path,
-    *,
-    service_name: str = DEFAULT_SERVICE_NAME,
-) -> tuple[Any, dict[str, Any], SpanSummary, Path]:
-    return convert_source(trajectory_path_for(trial_dir), service_name=service_name)
-
-
 def _append_converted(
     batch: TraceBatch,
     *,
@@ -397,7 +389,9 @@ def instrument_openinference(*, enabled: bool = True) -> dict[str, bool]:
         return wired
     try:
         importlib.import_module("litellm")
-        from openinference.instrumentation.litellm import LiteLLMInstrumentor
+        from openinference.instrumentation.litellm import (  # ty: ignore[unresolved-import]
+            LiteLLMInstrumentor,
+        )
 
         LiteLLMInstrumentor().instrument()
         wired["litellm"] = True
@@ -405,7 +399,9 @@ def instrument_openinference(*, enabled: bool = True) -> dict[str, bool]:
         pass
     try:
         importlib.import_module("dspy")
-        from openinference.instrumentation.dspy import DSPyInstrumentor
+        from openinference.instrumentation.dspy import (  # ty: ignore[unresolved-import]
+            DSPyInstrumentor,
+        )
 
         DSPyInstrumentor().instrument()
         wired["dspy"] = True

@@ -14,20 +14,17 @@ fi
 
 export UV_PYTHON="${PYTHON_FLOOR}"
 
-# CI test job syncs the benchmark dependency group (fastmcp, cryptography) so the
-# live fastmcp/cryptography contract tests run locally instead of skipping via
-# pytest.importorskip. Mirror that group to keep premerge a faithful reproduction
-# of the combined quality + typecheck workflows (see agents/CHECKS.md).
-uv sync --locked --group benchmarks
+# The CI test job syncs the benchmark (fastmcp, cryptography) and lance groups so
+# their contract tests run instead of skipping via pytest.importorskip. Mirror them
+# to keep premerge a faithful reproduction of the combined quality + typecheck
+# workflows (see agents/CHECKS.md). `observability` stays opt-in everywhere.
+uv sync --locked --group benchmarks --group lance
 uv run ruff check .
 uv run --no-sync python -m evallab.docindex check
 uv run --no-sync python -m evallab.repomap check
 uv run python -m evallab.governance check
 uv run --no-sync evallab registry audit --json
 uv run --no-sync python -m evallab.lessons
-uv run pytest
-uv run python -m evallab.smoke --docker-free
-
 mkdir -p "$(dirname "${TY_OUTPUT}")"
 set +e
 uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1
@@ -39,5 +36,7 @@ if [[ "${ty_exit}" -ne 0 ]]; then
   echo "error: ty check failed (exit ${ty_exit}); see output above" >&2
   exit "${ty_exit}"
 fi
+uv run pytest
+uv run python -m evallab.smoke --docker-free
 
 echo "premerge green: Python ${PYTHON_FLOOR}; ty 0 <= ${TY_BASELINE}"

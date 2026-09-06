@@ -565,6 +565,387 @@
       "new": "research/archive/2026-W36/system-architect-run-cas-harbor-rereview-f406bc06.md",
       "original_sha256": "98dc6d6d7573c6a6253845c77ffda8d2a886a132b7b40ec7634452673b64fee9",
       "archived_bytes_identical": true
+    },
+    {
+      "old": "docs/content-inventory.md",
+      "new": "research/archive/2026-W36/content-inventory.md",
+      "original_sha256": "c89f7611df273e51b24918678fb12bd14033aa7fd245e190663d5c395ecaeb0e",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Superseded by generated docs/repo-map.md and docs/INDEX.md"
+    },
+    {
+      "old": "research/analysis/content-inventory-2026-08-27.json",
+      "new": "research/archive/2026-W36/content-inventory-2026-08-27.json",
+      "original_sha256": "af606c733711d6fd706c61f86e80c1e348ef06000f3da5a723f8888beb113a33",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Superseded by generated docs/repo-map.md and docs/INDEX.md"
+    },
+    {
+      "old": "research/inbox/NEXT-BENCHMARK-PROGRAM-ANALYST-REPLY-2026-08-28.md",
+      "new": "research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-ANALYST-REPLY-2026-08-28.md",
+      "original_sha256": "fc373cceeaff099bfc208eea8462a4bcc206b57516054058088e9ffc18814bca",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Decided; benchmarks merged in PRs #261, #262, #263, #268"
+    },
+    {
+      "old": "research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md",
+      "new": "research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md",
+      "original_sha256": "57731dce63c200a7d2ab8271c67d04ba6bd79c85f5d9ad07df5940bddb160665",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Decided; benchmarks merged in PRs #261, #262, #263, #268"
+    },
+    {
+      "old": "research/inbox/NEXT-BENCHMARK-PROGRAM-CONTINUOUS-LOOP-ADDENDUM-2026-08-28.md",
+      "new": "research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-CONTINUOUS-LOOP-ADDENDUM-2026-08-28.md",
+      "original_sha256": "88a8364c31248281dc1bd7cbd59903a9d96a53880203f840576d65b69c8de4a1",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Decided; benchmarks merged in PRs #261, #262, #263, #268"
+    },
+    {
+      "old": "research/inbox/NEXT-BENCHMARK-PROGRAM-DECISION-2026-08-28.md",
+      "new": "research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-DECISION-2026-08-28.md",
+      "original_sha256": "6f652dc41b2d9f44b4e4906050196f1d010982ec1e1571448d05814532d99423",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Decided; benchmarks merged in PRs #261, #262, #263, #268"
+    },
+    {
+      "old": "research/inbox/NEXT-BENCHMARK-PROGRAM-TUTOR-REVIEW-2026-08-28.md",
+      "new": "research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-TUTOR-REVIEW-2026-08-28.md",
+      "original_sha256": "42e581e4b8c1b8a69640a1b496d5082e79d6b04caf80530088018c9df80a6341",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Decided; benchmarks merged in PRs #261, #262, #263, #268"
+    },
+    {
+      "old": "research/inbox/NEXT-BENCHMARK-TRAJECTORY-PROGRAM-BRIEF-2026-08-28.md",
+      "new": "research/archive/2026-W36/NEXT-BENCHMARK-TRAJECTORY-PROGRAM-BRIEF-2026-08-28.md",
+      "original_sha256": "18b2c482dcdcd08ed4e5600da0da7df4ecdf798165ddd83d756cdc1634c3057c",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Decided; benchmarks merged in PRs #261, #262, #263, #268"
+    },
+    {
+      "old": "research/inbox/TRAJECTORY-ANALYSIS-COMPENDIUM-2026-08-27.md",
+      "new": "research/archive/2026-W36/TRAJECTORY-ANALYSIS-COMPENDIUM-2026-08-27.md",
+      "original_sha256": "6cd6c3675caefe4be96f4424621e592269ff017c7ba6639f6e1d27019deb655e",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Status distilled; foundational concepts integrated into trajectory analysis pipeline"
+    },
+    {
+      "old": "research/inbox/drive-salvage-2026-08-18.md",
+      "new": "research/archive/2026-W36/drive-salvage-2026-08-18.md",
+      "original_sha256": "560374b6b774953845f566cb89bc6770e1c3a9ef7988ee75eae0492af8347f7d",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Extracted links triaged into research/inbox/QUEUE.md items 2 and 6"
+    },
+    {
+      "old": "research/inbox/drive-evals-benchmarks.md",
+      "new": "research/archive/2026-W36/drive-evals-benchmarks.md",
+      "original_sha256": "a113490194203c62300e0482cda2b091191d3f5dd8079446969eeae765ab1f3b",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Harvested into library/curated/standards/ instruction rules and verifier antipatterns"
+    },
+    {
+      "old": "research/inbox/feature-analysis-meta-brief.md",
+      "new": "research/archive/2026-W36/feature-analysis-meta-brief.md",
+      "original_sha256": "817eda8f1bcdafa9a13109e46f8ed1d052e802f1d068616f9087fa15d7806065",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Closed by analyst reply and integrated into features-and-derived-analysis-meta.md"
+    },
+    {
+      "old": "research/inbox/feature-analysis-meta-analyst-reply.md",
+      "new": "research/archive/2026-W36/feature-analysis-meta-analyst-reply.md",
+      "original_sha256": "923872761625bab7132a1e1a1c93ae30f62c5583a50411a203003dec86666496",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Closed; findings integrated into research/analysis/thematic-benchmark-portfolio.md"
+    },
+    {
+      "old": "research/inbox/C1-MATCHED-CAUSAL-AUDIT-AND-DECISION-SPEC-2026-08-29.md",
+      "new": "research/archive/2026-W36/C1-MATCHED-CAUSAL-AUDIT-AND-DECISION-SPEC-2026-08-29.md",
+      "original_sha256": "9eb77405c01f50fe1eab4fc055cd8f8b073e39fadaf36d0a9667c884a3ca9257",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Implemented in benchmark trajectory program and merged in PR #299"
+    },
+    {
+      "old": "research/inbox/C2-INTERVENTION-GRADE-PROMOTION-GATE-2026-08-29.md",
+      "new": "research/archive/2026-W36/C2-INTERVENTION-GRADE-PROMOTION-GATE-2026-08-29.md",
+      "original_sha256": "be01d8deab24322c41c616e7fcf117590d7258ab424f5b9989bb53677bbe5513",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Implemented in src/evallab/interpretation/c2_intervention_gate.py"
+    },
+    {
+      "old": "research/inbox/meta-task-B-dimensions.md",
+      "new": "research/archive/2026-W36/meta-task-B-dimensions.md",
+      "original_sha256": "ca37c382e179c70990029c04d4d0f0acee78e997b4a512955912b1fed6ea435c",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Harvested in QUEUE.md cycle 1 item 1 from arXiv 2607.27929"
+    },
+    {
+      "old": "research/inbox/meta-task-D-review-rubric.md",
+      "new": "research/archive/2026-W36/meta-task-D-review-rubric.md",
+      "original_sha256": "65eed9da234a7b467e4c9b5b2ea0a74b58b9983c2175b9aa3433198fa76f792a",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Harvested in QUEUE.md cycle 1 item 1 from arXiv 2607.27929"
+    },
+    {
+      "old": "research/inbox/meta-task-F1-instruction-template.md",
+      "new": "research/archive/2026-W36/meta-task-F1-instruction-template.md",
+      "original_sha256": "b425bbab93a04ce7bc63dd2a02642eb2df3c0387bba3ed4a05dd3440677c69d5",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Harvested in QUEUE.md cycle 1 item 1 from arXiv 2607.27929"
+    },
+    {
+      "old": "research/inbox/meta-task-F2-spec-design-prompt.md",
+      "new": "research/archive/2026-W36/meta-task-F2-spec-design-prompt.md",
+      "original_sha256": "fdd70ba2bf995a71416561e591735b2639f44044d8d8be3f44af1a5393cf3617",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Harvested in QUEUE.md cycle 1 item 1 from arXiv 2607.27929"
+    },
+    {
+      "old": "research/inbox/meta-task-F3-trajectory-judge.md",
+      "new": "research/archive/2026-W36/meta-task-F3-trajectory-judge.md",
+      "original_sha256": "4a41ba24d2be2330249a96a206d7091b2c44b5bb439a459bb2545b8a8442748e",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Harvested in QUEUE.md cycle 1 item 1 from arXiv 2607.27929"
+    },
+    {
+      "old": "research/inbox/RESEARCHER-TOOL-USE-LOOP-BRIEF-2026-09-03.md",
+      "new": "research/archive/2026-W36/RESEARCHER-TOOL-USE-LOOP-BRIEF-2026-09-03.md",
+      "original_sha256": "4001b337613097ab3e5ff1ceefc0b1d36f1b9eb1837ff628760fc930090864a4",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Explicitly superseded by RESEARCHER-SYSTEM-BLUEPRINT-2026-09-03.md"
+    },
+    {
+      "old": "research/analysis/git-estate-inventory-2026-08-27.json",
+      "new": "research/archive/2026-W36/git-estate-inventory-2026-08-27.json",
+      "original_sha256": "6baeed96fdc41474fa20dae3ef8ffb0ed0fcdc7de1e34bc4e1f1d39f332c3baf",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
+      "new": "research/archive/2026-W36/analyst-future-research-roadmap-2026-08-29.md",
+      "original_sha256": "1a6eb51db6d793fb826d0835ff14aca914b1218753fdf9a20408fbd9e121a6b7",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/automated-trajectory-overnight-ledger.md",
+      "new": "research/archive/2026-W36/automated-trajectory-overnight-ledger.md",
+      "original_sha256": "034aa08091fc1ad6593ba61ee327e1ab2b4da616023a1723ffd994b91153bb7b",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/memory-tool-evals-source-matrix-2026-08-31.md",
+      "new": "research/archive/2026-W36/memory-tool-evals-source-matrix-2026-08-31.md",
+      "original_sha256": "a042d190cfc258709e127eabd2e315d589cd0d2aa13e5d23c2fb46f80d656e53",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/pstack-mechanism-gap-2026-08-29.md",
+      "new": "research/archive/2026-W36/pstack-mechanism-gap-2026-08-29.md",
+      "original_sha256": "37520b183c42e0d8e4ad1e2b42dca94049d95f38aaa3403a496488d58b8d98ab",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/trajectory-data-trust-audit-2026-08-26.md",
+      "new": "research/archive/2026-W36/trajectory-data-trust-audit-2026-08-26.md",
+      "original_sha256": "a7d1c652facd4f9b9946693b58174ebcb0509170d5a1ac489cc90adf702ffee1",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/findings/behavior-review-2026-08-17.md",
+      "new": "research/archive/2026-W36/behavior-review-2026-08-17.md",
+      "original_sha256": "6a78e72be47a9cd0d7dae08c7116ca20c2c8184ab7902015d07a7aa50435e53a",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/attach/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/attach/audit.md",
+      "original_sha256": "ad3c0b1223c62e194b632331b8d86795a178689247765cccb528956bb51a6bd6",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/backups/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/backups/audit.md",
+      "original_sha256": "4a6e50d061f8ba6de5f291a39bee51857aa3d401d1290264127c2c08c551ef58",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/behavior/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/behavior/audit.md",
+      "original_sha256": "c8c218f8654d13624bc38afe247747942d50b70d9534a29cb9d6777fd375ccaf",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/canary_suite/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/canary_suite/audit.md",
+      "original_sha256": "c0c3237b0e533da1c4c3150f0a3cc580c1388c7f39682e894fef054b39e7b3c2",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/contextpack/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/contextpack/audit.md",
+      "original_sha256": "b521608d6b642c4767c103bdbfb8d83908f80ed1e6aaeabc84929bb2e1af7fb1",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/parquet-compaction/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/parquet-compaction/audit.md",
+      "original_sha256": "6c496c4f7d00628f38b901b3c5ecaff9b875898e7d07f992dfe2cc3b46a09c74",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/parquet-compaction/dry_run_compaction.txt",
+      "new": "research/archive/2026-W36/audits/evidence/parquet-compaction/dry_run_compaction.txt",
+      "original_sha256": "b0755754e5ae2a85666044e80c4c8b824ef8408ac2ca966a14936d6e2a882d95",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/parquet-compaction/pytest_parquet_compaction.txt",
+      "new": "research/archive/2026-W36/audits/evidence/parquet-compaction/pytest_parquet_compaction.txt",
+      "original_sha256": "da11eab271f7b6b5d5a9a7e2adabe5fb2d3824af0373c826aeb35527da663c9c",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/audit.md",
+      "original_sha256": "81605bcaa39c40d07e5b11ae6bfce3e10346852f0ab841b1582697e65d78eb9a",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/evallab_preflight.txt",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/evallab_preflight.txt",
+      "original_sha256": "b6de63b19fbffd3a59cc2d065e0ca04729f8fcb35254f428827f744f33451be1",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/pytest_preflight.txt",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/pytest_preflight.txt",
+      "original_sha256": "bc17ed87590edeb0231be8954125522e1b963da0ee7cc0d207816220eb15a032",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/ruff.txt",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/ruff.txt",
+      "original_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/provenance/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/provenance/audit.md",
+      "original_sha256": "322096a84f3b703884b9f4190a6eb0d84bf77d27dd706ed3167328419282329c",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/audit.md",
+      "original_sha256": "e5d3e714de7992b75e80e7b24dc58a28ef808991be544bc42741544d86784e4b",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/events_quota_comparison.txt",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/events_quota_comparison.txt",
+      "original_sha256": "928243eb7bc34ad6331ba35b92ccd053f6e73b0a781b8dbb348db5cdf5848607",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/pytest_quota_suite.txt",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/pytest_quota_suite.txt",
+      "original_sha256": "3dc1a8319000714edd2208e17ed15d31a583223883c41bd1617663f05640aa1b",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/quota_json_output.json",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/quota_json_output.json",
+      "original_sha256": "8b85568657dd667593274688e7398fc2a48d9788d2cbededfca55bb957377f52",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/quota_runs_summary.txt",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/quota_runs_summary.txt",
+      "original_sha256": "dec5e827c2c780361acbb562d41caa91091b375824aa4f9cc7dc3ccbbe3c5da3",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/audit.md",
+      "original_sha256": "ab0695bba06b35d84ccef43fcfaf43084a6c26526dff6892c2a659302036364a",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/backfill_spec_purpose.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/backfill_spec_purpose.txt",
+      "original_sha256": "7bd35e78a3545ba468a0163c9bb0334b71cd0f5a7712516808495dde138a51f8",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/evallab_submit_purposeless.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/evallab_submit_purposeless.txt",
+      "original_sha256": "d98a93dcb24b3ad25690cffb2b2e2a8dbde31aefbaa0dbbdea036b61cc5c1289",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/policy_gate_purposeless_refusal.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/policy_gate_purposeless_refusal.txt",
+      "original_sha256": "e4cc1aea120a5b5a5d7907da3d9e23380f31b45df6d8eab38db3b469600358f4",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/pytest_test_spec_purpose.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/pytest_test_spec_purpose.txt",
+      "original_sha256": "3206bfb39d1f783b96b69bdc9c65411017d2d3bbf3b8bb20795099a32eed606c",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/audit.md",
+      "original_sha256": "c15f8b16e34c71f52fd65e0e48262137c4aaf6d4dce7344ac5bc53651ead6cb0",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/correction_wiring_and_launchctl.txt",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/correction_wiring_and_launchctl.txt",
+      "original_sha256": "2862fd707fe66a363e125d138e410fb3278496dc841f3163441470bb66ca04fd",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/evallab_status_cli.txt",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/evallab_status_cli.txt",
+      "original_sha256": "bce8fe022309d0580dab4910778d4afa874540585f0589d80d98aa5b74144f97",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/generated_status.md",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/generated_status.md",
+      "original_sha256": "d943525f55831db741cf4baa5ec0ae5e6de52663e27d8e1b74e615cd90431f54",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/pytest_status_generator.txt",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/pytest_status_generator.txt",
+      "original_sha256": "4271b0d70d2afe45004c9a7514ebfc72f7f68dde0ab2ec96b5f19bb8243c6454",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/storm/audit.md",
+      "original_sha256": "3c62d810928449b9c7b69354ac4d4c5b5f97c9646eac841374616a76ebfc155d",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/correction_wiring.txt",
+      "new": "research/archive/2026-W36/audits/evidence/storm/correction_wiring.txt",
+      "original_sha256": "2e17a4478a3d44804bf8047f204a0f8529253d232a6b4c1ce16184b25559dfc2",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/pytest_storm.txt",
+      "new": "research/archive/2026-W36/audits/evidence/storm/pytest_storm.txt",
+      "original_sha256": "73568766c79d2428c7ba8911cc82a9588294497573ed2f582ac5bb56fe219d06",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/python_storm_live.txt",
+      "new": "research/archive/2026-W36/audits/evidence/storm/python_storm_live.txt",
+      "original_sha256": "a5a6a328c99a6bdda87730bb2d35ad975f85811f8a9fde1dfdda6725b9a49855",
+      "archived_bytes_identical": true
     }
   ]
 }

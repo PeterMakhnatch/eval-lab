@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import json
 import os
 from collections.abc import Mapping
 from dataclasses import replace
@@ -26,9 +25,10 @@ from harbor.agents.model_connection import (  # ty: ignore[unresolved-import]
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
-    REDACTED_SECRET_VALUE,
     collected_secret_values,
-    persist_private_bytes,
+)
+from evallab.harbor_common import (
+    sanitize_native_trajectory as _sanitize_native_trajectory,
 )
 
 ADAPTER_VERSION = "1.0.0"
@@ -48,14 +48,15 @@ AUTH_LINK_DIR = "/logs/agent/opencode/xdg-data/opencode"
 AUTH_LINK_PATH = f"{AUTH_LINK_DIR}/auth.json"
 
 #: The only commands the trusted-lane adapter executes for auth mounting.
-CREATE_AUTH_LINK_COMMAND = f"mkdir -p {AUTH_LINK_DIR} && ln -sfn {AUTH_SECRET_MOUNT} {AUTH_LINK_PATH}"
+CREATE_AUTH_LINK_COMMAND = (
+    f"mkdir -p {AUTH_LINK_DIR} && ln -sfn {AUTH_SECRET_MOUNT} {AUTH_LINK_PATH}"
+)
 REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 
 # --------------------------------------------------------------------------
 # Proxy lane constants
 # --------------------------------------------------------------------------
 
-ZAI_PROXY_HOST = "zai-secret-proxy"
 ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
 ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
 ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
@@ -69,19 +70,6 @@ ZAI_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
         "ZAI_KEY",
     }
 )
-ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
-
-SENSITIVE_CONFIG_KEYS = frozenset(
-    {
-        "authorization",
-        "proxy-authorization",
-        "api-key",
-        "api_key",
-        "x-api-key",
-        "access_token",
-        "apikey",
-    }
-)
 
 
 def validate_model_name(model_name: str | None) -> str:
@@ -91,10 +79,7 @@ def validate_model_name(model_name: str | None) -> str:
     selector, not a secret, so the offending value may appear in the message.
     """
     if not model_name or "/" not in model_name:
-        raise ValueError(
-            "ZaiOpenCodeAgent requires a provider/model selector, got "
-            f"{model_name!r}"
-        )
+        raise ValueError(f"ZaiOpenCodeAgent requires a provider/model selector, got {model_name!r}")
     provider, _, model = model_name.partition("/")
     if f"{provider}/" != REQUIRED_MODEL_PREFIX:
         raise ValueError(
@@ -138,42 +123,12 @@ def collected_zai_secret_values(
     return frozenset(values)
 
 
-def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: (
-                REDACTED_SECRET_VALUE
-                if str(key).casefold() in SENSITIVE_CONFIG_KEYS
-                else _redact_sensitive_values(item, secrets)
-            )
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact_sensitive_values(item, secrets) for item in value]
-    if isinstance(value, str) and (value in secrets or any(s and s in value for s in secrets)):
-        return REDACTED_SECRET_VALUE
-    return value
-
-
 def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None) -> None:
     """Rewrite a native trajectory on disk only after in-memory redaction."""
-    if not path.is_file():
-        return
-    try:
-        payload = json.loads(path.read_bytes().decode("utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        persist_private_bytes(
-            path,
-            (json.dumps({"redacted": "unparseable native trajectory removed"}) + "\n").encode(),
-            secrets=(),
-        )
-        return
-    known = secrets if secrets is not None else collected_zai_secret_values()
-    sanitized = _redact_sensitive_values(payload, known)
-    persist_private_bytes(
+    _sanitize_native_trajectory(
         path,
-        (json.dumps(sanitized, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
-        secrets=tuple(secret.encode() for secret in known),
+        secrets=secrets,
+        default_secrets_fn=collected_zai_secret_values,
     )
 
 
@@ -296,16 +251,9 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
         for name in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
             value = runtime_env.get(name)
             if value and value not in allowed_tokens:
-                raise ValueError(
-                    "Z.ai provider credential cannot enter the task exec environment"
-                )
-        if any(
-            value and value in host_secrets
-            for value in runtime_env.values()
-        ):
-            raise ValueError(
-                "Z.ai provider credential cannot enter the task exec environment"
-            )
+                raise ValueError("Z.ai provider credential cannot enter the task exec environment")
+        if any(value and value in host_secrets for value in runtime_env.values()):
+            raise ValueError("Z.ai provider credential cannot enter the task exec environment")
         if "cat /run/secrets/" in command or any(
             f'{key}="$(cat' in command for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         ):

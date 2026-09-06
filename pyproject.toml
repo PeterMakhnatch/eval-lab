@@ -47,10 +47,12 @@ dev = [
     "pip==26.1.2",
     "harbor-atif2otel>=0.1.0",
     "hypothesis>=6.100,<7",
-    "lancedb>=0.37,<1",
     "pytest>=8.4,<9",
     "pytest-xdist>=3.8,<4",
     "ruff>=0.12,<1",
+]
+lance = [
+    "lancedb>=0.37,<1",
 ]
 observability = [
     "harbor-atif2otel>=0.1.0",
@@ -63,13 +65,16 @@ observability = [
 ]
 
 [tool.uv]
-default-groups = ["dev", "observability"]
+default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
-addopts = "-q -n 4 --dist loadscope"
+addopts = "-q -n 4 --dist loadscope --strict-markers"
+markers = [
+    "docs_consumer: reads repository documents; runs in the documentation-only CI lane",
+]
 testpaths = [
     "tests",
     "dashboard/tests",
@@ -100,3 +105,9 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "library/tasks/query-optimize/**" = ["B011", "B905"]
+
+[tool.ty.rules]
+# Optional dependency groups (lance, observability) are absent in some checked
+# environments and present in others; their import ignores are used only where
+# the package is missing.
+unused-ignore-comment = "ignore"

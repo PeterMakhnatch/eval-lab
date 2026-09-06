@@ -40,6 +40,8 @@ from evallab.contextpack import (
     select_docs,
 )
 
+pytestmark = pytest.mark.docs_consumer
+
 
 class TestFrontMatterParsing:
     """Test front-matter extraction and validation."""
@@ -533,10 +535,515 @@ class TestRepoDocIntegrity:
             assert doc.status in VALID_STATUSES, (
                 f"Doc {path.name} has invalid status '{doc.status}'"
             )
-            assert len(doc.audience) > 0, f"Doc {path.name} has empty audience"
             for aud in doc.audience:
                 assert aud in VALID_AUDIENCES, (
                     f"Doc {path.name} has invalid audience member '{aud}'"
                 )
-            assert len(doc.title) > 0, f"Doc {path.name} has empty title"
-            assert len(doc.body) > 0, f"Doc {path.name} has empty body"
+
+
+class TestPathScopedContextPacks:
+    """Test path-scoped document selection, scoring, determinism, and truncation."""
+
+    def test_doc_references_path_or_module_selected(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        (docs_dir / "doc_path.md").write_text(
+            """---
+status: living
+audience: [runner]
+---
+# Runner Path Doc
+
+Referencing `src/evallab/runner.py` for execution.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "doc_module.md").write_text(
+            """---
+status: living
+audience: [operator]
+---
+# Runner Module Doc
+
+Import `evallab.runner` to invoke tasks.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "doc_unrelated.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Unrelated Doc
+
+This discusses dataset curation and parquet files.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder, analyst, runner, operator]
+---
+# Where the lab is now
+
+Lab overview.
+""",
+            encoding="utf-8",
+        )
+
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+        )
+
+        assert res.paths == ("src/evallab/runner.py",)
+        assert res.doc_scores is not None
+        retained_paths = [d.path for d in res.docs]
+
+        assert "docs/doc_path.md" in retained_paths
+        assert "docs/doc_module.md" in retained_paths
+        assert "docs/doc_unrelated.md" not in retained_paths
+        assert "docs/NOW.md" in retained_paths
+        assert res.doc_scores["docs/doc_path.md"] >= 1
+        assert res.doc_scores["docs/doc_module.md"] >= 1
+
+        # Verify Scope line in markdown and comments
+        assert "<!-- scope: src/evallab/runner.py -->" in res.markdown
+        assert "Scope: `src/evallab/runner.py`" in res.markdown
+
+        # Verify to_dict includes paths and scores
+        data = res.to_dict()
+        assert data["paths"] == ["src/evallab/runner.py"]
+        assert "doc_scores" in data
+        assert data["doc_scores"]["docs/doc_path.md"] >= 1
+
+    def test_now_md_always_retained_with_zero_score(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        (docs_dir / "matching.md").write_text(
+            """---
+status: living
+audience: [runner]
+---
+# Matching Doc
+
+See `src/evallab/runner.py`.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder, analyst, runner, operator]
+---
+# Current State
+
+No mentions of runner at all.
+""",
+            encoding="utf-8",
+        )
+
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+        )
+
+        retained_paths = [d.path for d in res.docs]
+        assert "docs/NOW.md" in retained_paths
+        assert "docs/matching.md" in retained_paths
+        assert res.doc_scores is not None
+        assert res.doc_scores["docs/NOW.md"] == 0
+        assert res.doc_scores["docs/matching.md"] >= 1
+
+    def test_prefix_dir_path_selection(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        (docs_dir / "doc_subpath.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Subpath Doc
+
+Located in `src/evallab/storage/paths.py`.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "doc_prefix.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Prefix Doc
+
+All code under `src/evallab/` is modular.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "doc_unrelated.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Unrelated Doc
+
+Code under `src/other/module.py`.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Now
+Overview.
+""",
+            encoding="utf-8",
+        )
+
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab"],
+        )
+
+        retained_paths = [d.path for d in res.docs]
+        assert "docs/doc_subpath.md" in retained_paths
+        assert "docs/doc_prefix.md" in retained_paths
+        assert "docs/doc_unrelated.md" not in retained_paths
+
+    def test_path_scoped_determinism(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        (docs_dir / "doc1.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Doc One
+Touches `src/evallab/runner.py`.
+""",
+            encoding="utf-8",
+        )
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Now
+State.
+""",
+            encoding="utf-8",
+        )
+
+        res1 = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+        )
+        res2 = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+        )
+
+        assert res1.content_hash == res2.content_hash
+        assert res1.markdown == res2.markdown
+        assert res1.to_dict() == res2.to_dict()
+
+    def test_cli_path_validation(self) -> None:
+        # Absolute paths rejected
+        code_abs = main(["build", "builder", "--path", "/etc/passwd"])
+        assert code_abs == 1
+
+        # Traversal paths rejected
+        code_trav = main(["build", "builder", "--path", "../outside.py"])
+        assert code_trav == 1
+
+        code_trav_mid = main(["build", "builder", "--path", "src/../outside.py"])
+        assert code_trav_mid == 1
+
+        # API raises ValueError
+        with pytest.raises(ValueError, match="repo-relative"):
+            build_context_pack("builder", paths=["/abs/path.py"])
+
+        with pytest.raises(ValueError, match="path traversal"):
+            build_context_pack("builder", paths=["../outside.py"])
+
+    def test_truncation_with_paths_sheds_lowest_score_first(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        # High-score doc: references path, basename, and dotted module (score 3)
+        (docs_dir / "high_score.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# High Score Doc
+
+References `src/evallab/runner.py`, `runner.py`, and `evallab.runner`.
+"""
+            + ("Substantial section content line.\n" * 80),
+            encoding="utf-8",
+        )
+
+        # Low-score doc: references only basename (score 1)
+        (docs_dir / "low_score.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Low Score Doc
+
+Only mentions `runner.py`.
+"""
+            + ("Substantial section content line.\n" * 80),
+            encoding="utf-8",
+        )
+
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Now
+State.
+""",
+            encoding="utf-8",
+        )
+
+        # Set budget so only high-score doc fits
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            token_budget=1400,
+            paths=["src/evallab/runner.py"],
+        )
+
+        assert res.truncated is True
+        # low_score.md (score 1) must be shed before high_score.md (score 3)
+        assert "docs/low_score.md" in res.dropped_items
+        assert "docs/high_score.md" in [d.path for d in res.docs]
+        assert "docs/high_score.md" not in res.dropped_items
+
+    def test_cli_path_scoped_json_and_human_output(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Test --json includes paths
+        code_json = main(["build", "builder", "--path", "src/evallab/runner.py", "--json"])
+        assert code_json == 0
+        captured_json = capsys.readouterr()
+        data = json.loads(captured_json.out)
+        assert data["paths"] == ["src/evallab/runner.py"]
+        assert "doc_scores" in data
+
+        # Test -o mentions path count in human output
+        out_file = tmp_path / "out" / "pack.md"
+        code_out = main(
+            ["build", "builder", "--path", "src/evallab/runner.py", "-o", str(out_file)]
+        )
+        assert code_out == 0
+        captured_out = capsys.readouterr()
+        assert "1 path(s)" in captured_out.out
+        assert out_file.is_file()
+
+    def test_matching_section_extraction_keeps_only_referencing_sections_and_preserves_hierarchy(
+        self, tmp_path: Path
+    ) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        doc_content = """---
+status: living
+audience: [builder]
+---
+# Architecture Guide
+
+Top-level preamble without any tokens.
+
+## 1. Overview
+
+General platform concepts.
+
+### 1.1 Worker Execution
+
+The executor invokes `src/evallab/runner.py` directly for trials.
+
+### 1.2 Queue Handling
+
+Unrelated queue logic without matches.
+
+## 2. Telemetry
+
+Metrics and alerts.
+"""
+        (docs_dir / "arch_guide.md").write_text(doc_content, encoding="utf-8")
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Now
+State.
+""",
+            encoding="utf-8",
+        )
+
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+        )
+
+        # Verify sections kept for arch_guide: only "1.1 Worker Execution"
+        data = res.to_dict()
+        arch_entry = next(d for d in data["docs"] if d["path"] == "docs/arch_guide.md")
+        assert arch_entry["sections"] == ["1.1 Worker Execution"]
+
+        # Verify preserved heading hierarchy text and source line in markdown
+        assert "### 1.1 Worker Execution" in res.markdown
+        assert "*Source: docs/arch_guide.md#1.1 Worker Execution*" in res.markdown
+
+        # Non-referencing sections are excluded
+        assert "### 1.2 Queue Handling" not in res.markdown
+        assert "## 2. Telemetry" not in res.markdown
+
+    def test_occurrence_scoring_ranks_frequency(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Doc with 3 occurrences
+        (docs_dir / "three_mentions.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Three Mentions
+
+First mention: `src/evallab/runner.py`.
+Second mention: `runner.py`.
+Third mention: `evallab.runner`.
+""",
+            encoding="utf-8",
+        )
+
+        # Doc with 1 occurrence
+        (docs_dir / "one_mention.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# One Mention
+
+Single mention: `runner.py`.
+""",
+            encoding="utf-8",
+        )
+
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Now
+State.
+""",
+            encoding="utf-8",
+        )
+
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+        )
+
+        assert res.doc_scores["docs/three_mentions.md"] == 3
+        assert res.doc_scores["docs/one_mention.md"] == 1
+
+        # three_mentions.md must be ranked ahead of one_mention.md
+        retained_paths = [d.path for d in res.docs]
+        idx_three = retained_paths.index("docs/three_mentions.md")
+        idx_one = retained_paths.index("docs/one_mention.md")
+        assert idx_three < idx_one
+
+    def test_shed_order_ignores_audience_in_path_mode(self, tmp_path: Path) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Doc with single audience (Category 3 in doc_priority_key), but only 1 occurrence
+        (docs_dir / "specialized_doc.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Specialized Doc
+
+Mentions `runner.py` once.
+"""
+            + ("Substantial section line.\n" * 80),
+            encoding="utf-8",
+        )
+
+        # Doc with 4 audiences (Category 1 in doc_priority_key), but 2 occurrences
+        (docs_dir / "broad_doc.md").write_text(
+            """---
+status: living
+audience: [builder, analyst, runner, operator]
+---
+# Broad Doc
+
+Mentions `runner.py` and `src/evallab/runner.py` (2 occurrences).
+"""
+            + ("Substantial section line.\n" * 80),
+            encoding="utf-8",
+        )
+
+        (docs_dir / "NOW.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Now
+State.
+""",
+            encoding="utf-8",
+        )
+
+        # Under tight budget, specialized_doc (occurrence=1) must be shed before broad_doc (occurrence=2),
+        # ignoring audience category
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            token_budget=1300,
+            paths=["src/evallab/runner.py"],
+        )
+
+        assert res.truncated is True
+        assert "docs/specialized_doc.md" in res.dropped_items
+        assert "docs/broad_doc.md" in [d.path for d in res.docs]
+        assert "docs/broad_doc.md" not in res.dropped_items

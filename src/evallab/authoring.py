@@ -105,13 +105,6 @@ Outcome = Literal["proposed", "battery_passed", "craft_reviewed", "registered", 
 BatteryCheck = Literal["oracle", "nop", "fair_oracle", "adversarial"]
 
 SEED_CLASSES: tuple[SeedClass, ...] = ("mutation", "scenario", "craft-gap", "inversion")
-OUTCOMES: tuple[Outcome, ...] = (
-    "proposed",
-    "battery_passed",
-    "craft_reviewed",
-    "registered",
-    "rejected",
-)
 BATTERY_CHECKS: tuple[BatteryCheck, ...] = (
     "oracle",
     "nop",

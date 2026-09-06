@@ -182,6 +182,6 @@ Package 1 (Storage & Evidence Layer) and Package 2 (Interpretation & Judgment En
 
 All work — human and agent — lives inside this one folder. Parallel agent
 worktrees are hidden under `.worktrees/` (gitignored). The multi-agent
-protocol is `agents/WORKFLOW.md`; the role registry with current status is
-`agents/ROLES.md`; per-role handoffs are `agents/handoffs/`. Fleet state at
-any moment: `scripts/fleet-status.sh`.
+protocol is `agents/WORKFLOW.md`; lane ownership is in `agents/OWNERS.md`,
+with live claims on `research/inbox/board.md`; per-role handoffs are
+`agents/handoffs/`. Fleet state at any moment: `scripts/fleet-status.sh`.

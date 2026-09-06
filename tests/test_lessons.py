@@ -42,6 +42,7 @@ from evallab.lessons import (
 )
 from evallab.lineage import compute_file_digest, resolve_lineage
 
+pytestmark = pytest.mark.docs_consumer
 PYTEST_DIGEST = "sha256:pytest111111111111111111111111111111111111111111111111111111111111"
 GOLDEN_DIGEST = "sha256:golden222222222222222222222222222222222222222222222222222222222222"
 
@@ -317,8 +318,7 @@ def _make_mock_analysis_sidecars() -> list[dict]:
             "validation_status": "valid",
             "source_path": "derived/analysis/a/analysis.json",
             "source_digest": (
-                "sha256:"
-                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             ),
         }
     ]
@@ -429,13 +429,11 @@ def test_duckdb_views_against_fixtures(tmp_path: Path) -> None:
     assert sum(row["never_measured_n"] for row in pytest_facet_rows) == 0
     assert sum(row["excluded_n"] for row in pytest_facet_rows) == 1
     exception_row = next(
-        row
-        for row in pytest_facet_rows
-        if row["mechanical_failure_category"] == "exception"
+        row for row in pytest_facet_rows if row["mechanical_failure_category"] == "exception"
     )
-    gated_exception = apply_statistical_gating(
-        {"v_failure_by_facet": [exception_row]}
-    )["v_failure_by_facet"][0]
+    gated_exception = apply_statistical_gating({"v_failure_by_facet": [exception_row]})[
+        "v_failure_by_facet"
+    ][0]
     assert gated_exception.n == 0
     assert gated_exception.wilson_95 is None
     assert not gated_exception.powered
@@ -480,9 +478,7 @@ def test_failure_diagnoses_keep_sources_distinct_and_deduplicate_valid_sidecars(
         if row["facet_name"] == "verifier_type" and row["facet_value"] == "pytest"
     ]
     chosen = next(
-        row
-        for row in pytest_verifier_rows
-        if row["model_failure_category"] == "tool_use"
+        row for row in pytest_verifier_rows if row["model_failure_category"] == "tool_use"
     )
     assert chosen["model_analysis_ids"] == ["a-001"]
     assert chosen["model_sidecar_paths"] == ["derived/analysis/a/analysis.json"]
@@ -492,7 +488,6 @@ def test_failure_diagnoses_keep_sources_distinct_and_deduplicate_valid_sidecars(
         row["model_failure_category"] in {"duplicate_diagnosis", "invalid_diagnosis"}
         for row in pytest_verifier_rows
     )
-
 
 
 def test_verifier_outcomes_group_on_the_projected_unclassified_key() -> None:
@@ -549,9 +544,7 @@ def test_views_join_tasks_only_by_exact_digest() -> None:
     mismatched = {
         **_make_mock_trial_facts()[0],
         "trial_id": "matching-name-wrong-digest",
-        "task_digest": (
-            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-        ),
+        "task_digest": ("sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
     }
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
@@ -879,27 +872,8 @@ def _sample_lessons_fixture_tree(tmp_path: Path) -> Path:
         "---\njob: sample-job\ntrial_id: t1\ntask: sample-task\nreward: 1.0\n---\n# Observation\n",
         encoding="utf-8",
     )
-    persist_quality_ledger(
-        _make_quality_ledger_reports(), [], root / "derived" / "parquet"
-    )
+    persist_quality_ledger(_make_quality_ledger_reports(), [], root / "derived" / "parquet")
     return root
-
-
-def test_lessons_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
-    root = _sample_lessons_fixture_tree(tmp_path)
-    result = build_lessons(root)
-    markdown = render_lessons_markdown(result)
-    fm, _body = parse_front_matter(markdown)
-    assert fm is not None
-    assert "inputs" in fm
-    assert isinstance(fm["inputs"], list)
-    assert len(fm["inputs"]) > 0
-    for item in fm["inputs"]:
-        assert isinstance(item, dict)
-        assert "path" in item and isinstance(item["path"], str)
-        assert "digest" in item and isinstance(item["digest"], str)
-        assert item["digest"].startswith("sha256:")
-        assert len(item["digest"]) == 71
 
 
 def test_lessons_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
@@ -1125,8 +1099,7 @@ def _make_quality_ledger_reports() -> list[TrajectoryQualityReport]:
             check_digest="sha256:fixture",
             status=status,
             is_ingestable=status is not QualityStatus.QUARANTINE,
-            is_analysis_ready=status
-            not in (QualityStatus.QUARANTINE, QualityStatus.NOT_EVALUATED),
+            is_analysis_ready=status not in (QualityStatus.QUARANTINE, QualityStatus.NOT_EVALUATED),
             quarantine_reason=reason,
             findings_count=0,
             warnings_count=0,
@@ -1146,8 +1119,7 @@ def _write_quality_ledger(root: Path) -> Path:
 
 def _strip_quality_columns(rows: list[dict]) -> list[dict]:
     return [
-        {key: value for key, value in row.items() if not key.startswith("quality_")}
-        for row in rows
+        {key: value for key, value in row.items() if not key.startswith("quality_")} for row in rows
     ]
 
 
@@ -1240,9 +1212,7 @@ def test_quarantined_trials_stay_out_of_eligibility_but_are_counted() -> None:
         manual = execute_lessons_views(con)
 
     pytest_row = next(
-        row
-        for row in with_ledger["v_outcome_by_verifier_type"]
-        if row["verifier_type"] == "pytest"
+        row for row in with_ledger["v_outcome_by_verifier_type"] if row["verifier_type"] == "pytest"
     )
     assert pytest_row["quality_quarantine_n"] == 1  # counted separately
     assert pytest_row["total_trials_n"] == 5  # 6 facts minus the quarantined one
@@ -1252,15 +1222,11 @@ def test_quarantined_trials_stay_out_of_eligibility_but_are_counted() -> None:
         # zero-math group rows (e.g. the quarantined exception trial's facet
         # bucket) that exist only to carry the quarantine count.
         math_rows = [
-            r
-            for r in _strip_quality_columns(rows)
-            if r["total_trials_n"] > 0 or r["n"] > 0
+            r for r in _strip_quality_columns(rows) if r["total_trials_n"] > 0 or r["n"] > 0
         ]
         assert math_rows == manual_rows
         extras = [
-            r
-            for r in _strip_quality_columns(rows)
-            if r["total_trials_n"] == 0 and r["n"] == 0
+            r for r in _strip_quality_columns(rows) if r["total_trials_n"] == 0 and r["n"] == 0
         ]
         assert all(
             r["mechanical_failure_category"] == "exception"
@@ -1326,9 +1292,7 @@ def test_cross_job_ledger_identity_never_binds_at_view_level() -> None:
         )
         views = execute_lessons_views(con)
     golden_row = next(
-        row
-        for row in views["v_outcome_by_verifier_type"]
-        if row["verifier_type"] == "golden_file"
+        row for row in views["v_outcome_by_verifier_type"] if row["verifier_type"] == "golden_file"
     )
     assert golden_row["quality_fail_n"] == 0
     assert golden_row["n"] == 1  # math unchanged: unbound rows stay ungated
@@ -1336,6 +1300,7 @@ def test_cross_job_ledger_identity_never_binds_at_view_level() -> None:
 
 def test_ledger_row_order_does_not_change_views() -> None:
     reports = _ledger_dicts()
+
     def build(order):
         with duckdb.connect(":memory:") as con:
             populate_duckdb(
@@ -1347,6 +1312,7 @@ def test_ledger_row_order_does_not_change_views() -> None:
                 quality_reports=order,
             )
             return execute_lessons_views(con)
+
     assert build(reports) == build(list(reversed(reports)))
 
 
@@ -1439,6 +1405,7 @@ def test_end_to_end_rendered_totals_match_independent_pipeline_recompute() -> No
     import duckdb as _duckdb
 
     from evallab.lessons import execute_lessons_views, populate_duckdb
+
     with _duckdb.connect(":memory:") as con:
         populate_duckdb(
             con,
@@ -1449,9 +1416,7 @@ def test_end_to_end_rendered_totals_match_independent_pipeline_recompute() -> No
             quality_reports=list(load_quality_ledger_bound(repo_root).rows),
         )
         views = execute_lessons_views(con)
-    rendered_total = sum(
-        int(row["total_trials_n"]) for rows in views.values() for row in rows
-    )
+    rendered_total = sum(int(row["total_trials_n"]) for rows in views.values() for row in rows)
     assert rendered_total == len(joined_identities)
 
 

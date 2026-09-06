@@ -101,11 +101,7 @@ def _scratch_with_sidecar(tmp_path: Path) -> Path:
 
 
 def _inserted(statements: list[tuple[str, Any]], table: str) -> list[Any]:
-    return [
-        parameters
-        for query, parameters in statements
-        if f"INSERT INTO {table}" in query
-    ]
+    return [parameters for query, parameters in statements if f"INSERT INTO {table}" in query]
 
 
 # ---- F-02: `analyze review` indexes its own output --------------------------
@@ -120,12 +116,18 @@ def test_analyze_review_index_populates_analysis_reviews(
     assert (
         run_cli(
             [
-                "analyze", "review", str(sidecar_path),
-                "--disposition", "accepted",
-                "--rationale", "the control did no work, as designed",
-                "--reviewer", "operator-fixes",
+                "analyze",
+                "review",
+                str(sidecar_path),
+                "--disposition",
+                "accepted",
+                "--rationale",
+                "the control did no work, as designed",
+                "--reviewer",
+                "operator-fixes",
                 "--index",
-                "--database-url", CATALOG_URL,
+                "--database-url",
+                CATALOG_URL,
             ],
             workspace=scratch,
         )
@@ -152,10 +154,15 @@ def test_analyze_review_without_index_names_the_command_that_indexes(
     assert (
         run_cli(
             [
-                "analyze", "review", str(sidecar_path),
-                "--disposition", "accepted",
-                "--rationale", "the control did no work, as designed",
-                "--reviewer", "operator-fixes",
+                "analyze",
+                "review",
+                str(sidecar_path),
+                "--disposition",
+                "accepted",
+                "--rationale",
+                "the control did no work, as designed",
+                "--reviewer",
+                "operator-fixes",
             ],
             workspace=scratch,
         )
@@ -165,7 +172,7 @@ def test_analyze_review_without_index_names_the_command_that_indexes(
     assert catalog_statements == []  # no --index means no catalog write
     out = capsys.readouterr().out
     assert "indexed: no" in out
-    assert f"next: uv run evallab analyze ingest-sidecar {sidecar_path}" in out
+    assert f"next: uv run evallab analyze review {sidecar_path} --index --database-url <url>" in out
 
 
 def test_analyze_review_on_a_missing_sidecar_says_what_to_pass(
@@ -176,10 +183,15 @@ def test_analyze_review_on_a_missing_sidecar_says_what_to_pass(
     assert (
         run_cli(
             [
-                "analyze", "review", "derived/analyses/nope",
-                "--disposition", "accepted",
-                "--rationale", "r",
-                "--reviewer", "operator-fixes",
+                "analyze",
+                "review",
+                "derived/analyses/nope",
+                "--disposition",
+                "accepted",
+                "--rationale",
+                "r",
+                "--reviewer",
+                "operator-fixes",
             ],
             workspace=tmp_path,
         )
@@ -264,8 +276,6 @@ def test_database_identity_never_returns_a_password() -> None:
     assert database.identity("=== not a connection string") == "unparsable connection string"
 
 
-
-
 # ---- F-09: `submit` prints the id the next command wants --------------------
 
 
@@ -284,9 +294,7 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     monkeypatch.setattr(queue_database, "daily_cost_usd", lambda url, day: 0.0)
     monkeypatch.setattr(queue_database, "consecutive_harness_failures", lambda url: 0)
     shutil.copytree(ROOT / "policy", tmp_path / "policy")
-    shutil.copytree(
-        ROOT / "library/tasks/event-summary", tmp_path / "library/tasks/event-summary"
-    )
+    shutil.copytree(ROOT / "library/tasks/event-summary", tmp_path / "library/tasks/event-summary")
     spec = tmp_path / "spec.json"
     spec.write_text(
         '{"name": "operator-fixes-control", "hypothesis": "the control runs",'
@@ -308,90 +316,3 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     assert spec_id == located.stem.rsplit("-", 1)[-1]
     assert "state: " in out
     assert "path: " in out
-
-
-# ---- F-12: `analyze stub --index` says what it indexed, and where -----------
-
-
-def test_analyze_stub_index_reports_what_it_indexed(
-    tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
-) -> None:
-    scratch = _scratch_repo(tmp_path)
-    response = scratch / "saved-response.json"
-    response.write_text(STUB.read_text())
-
-    assert (
-        run_cli(
-            [
-                "analyze", "stub", "jobs/operability-join/join-trial",
-                "--response", str(response),
-                "--index",
-                "--database-url", CATALOG_URL,
-            ],
-            workspace=scratch,
-        )
-        == 0
-    )
-
-    out = capsys.readouterr().out
-    analysis_id = next(
-        line.split("analysis: ")[1] for line in out.splitlines() if line.startswith("analysis: ")
-    )
-    analysis_id = Path(analysis_id).parent.name
-    assert f"indexed analysis: {analysis_id}" in out
-    assert "catalog: catalog.test:54329/evallab" in out
-
-
-def test_analyze_stub_without_index_says_it_did_not_index(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
-    scratch = _scratch_repo(tmp_path)
-    response = scratch / "saved-response.json"
-    response.write_text(STUB.read_text())
-
-    assert (
-        run_cli(
-            [
-                "analyze", "stub", "jobs/operability-join/join-trial",
-                "--response", str(response),
-            ],
-            workspace=scratch,
-        )
-        == 0
-    )
-
-    out = capsys.readouterr().out
-    assert "indexed: no" in out
-    assert "next: uv run evallab analyze ingest-sidecar " in out
-
-
-def test_ingest_sidecar_reports_the_reviews_it_swept_in(
-    tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
-) -> None:
-    from evallab.evidence.facts import write_analysis_review
-
-    sidecar_path = _scratch_with_sidecar(tmp_path)
-    scratch = sidecar_path.parents[2]
-    write_analysis_review(
-        sidecar_path,
-        disposition="accepted",
-        rationale="the control did no work, as designed",
-        reviewer="operator-fixes",
-    )
-
-    assert (
-        run_cli(
-            [
-                "analyze", "ingest-sidecar", str(sidecar_path),
-                "--database-url", CATALOG_URL,
-            ],
-            workspace=scratch,
-        )
-        == 0
-    )
-
-    out = capsys.readouterr().out
-    assert "indexed reviews: 1" in out
-    assert "catalog: catalog.test:54329/evallab" in out
-    assert len(_inserted(catalog_statements, "analysis_reviews")) == 1

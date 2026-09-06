@@ -7,7 +7,7 @@ audience:
 
 # Catalog Tables and Views: Suites, Suite Members, and Quota
 
-This document specifies the Z2 catalog entities added to fulfill `docs/platform-architecture.md` §2.2, §2.3, §3.1, and §4:
+This document specifies the Z2 catalog entities added to fulfill `docs/archive/platform-architecture.md` §2.2, §2.3, §3.1, and §4:
 1. `suites` — Named collections of task versions, freezable for immutable benchmark comparisons.
 2. `suite_members` — Membership relation linking suites to specific `TaskVersion` references (`task_ref`, `task_version`).
 3. `v_quota_today` — View aggregating provider consumption (runs and tokens) for the current UTC day.

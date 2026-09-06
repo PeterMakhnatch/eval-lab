@@ -272,10 +272,6 @@ def select_trial_sidecars(
     return dict(sorted(selected.items()))
 
 
-def discover_trial_ids(analyses_dir: Path) -> list[str]:
-    return sorted(_discover_sidecars(analyses_dir))
-
-
 def _row(finding: RecipeFinding | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(finding, Mapping):
         value: Any = dict(finding)
@@ -300,10 +296,6 @@ def _rows(findings: Sequence[RecipeFinding | Mapping[str, Any]]) -> list[dict[st
         )
     )
     return result
-
-
-def serialize_finding(finding: RecipeFinding | Mapping[str, Any]) -> str:
-    return json.dumps(_row(finding), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def _cell(value: Any) -> str:

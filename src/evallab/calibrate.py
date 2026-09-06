@@ -258,9 +258,7 @@ class CodexCalibrationReadiness:
 
 
 class DspyOptimizer(Protocol):
-    def compile(
-        self, program: Any, *, trainset: Sequence[Any], valset: Sequence[Any]
-    ) -> Any: ...
+    def compile(self, program: Any, *, trainset: Sequence[Any], valset: Sequence[Any]) -> Any: ...
 
 
 def _canonical_json(payload: Any) -> str:
@@ -335,10 +333,7 @@ def rubric_payload(family: str) -> dict[str, Any]:
 
 
 def _expected_names(family: str) -> dict[str, set[str]]:
-    return {
-        dimension: set(criteria)
-        for dimension, criteria in RUBRICS[family]["criteria"].items()
-    }
+    return {dimension: set(criteria) for dimension, criteria in RUBRICS[family]["criteria"].items()}
 
 
 def validate_prediction_bundle(
@@ -359,9 +354,7 @@ def validate_prediction_bundle(
             raise ValueError(f"{prediction.document_id} has wrong judge dimensions")
         for dimension, names in expected_names.items():
             if set(prediction.criteria[dimension]) != names:
-                raise ValueError(
-                    f"{prediction.document_id} has wrong criteria for {dimension}"
-                )
+                raise ValueError(f"{prediction.document_id} has wrong criteria for {dimension}")
     return documents
 
 
@@ -391,9 +384,7 @@ def evaluate_predictions(
     counts: dict[str, list[int]] = {}
     key_root = calibration_root(repo_root) / bundle.family / "answer-keys"
     for document, prediction in zip(documents, bundle.predictions, strict=True):
-        key = json.loads(
-            (key_root / f"{document.document_id}.json").read_text(encoding="utf-8")
-        )
+        key = json.loads((key_root / f"{document.document_id}.json").read_text(encoding="utf-8"))
         for dimension, names in _expected_names(bundle.family).items():
             for name in names:
                 expected = key["criteria"][dimension][name]["verdict"]
@@ -648,7 +639,7 @@ exactly once. Create no other file under `/app/output`.
 
 
 def _task_toml(family: str) -> str:
-    return f'''schema_version = "1.4"
+    return f"""schema_version = "1.4"
 artifacts = ["/app/output/judgments.json"]
 
 [task]
@@ -682,14 +673,12 @@ cpus = 2
 memory_mb = 2048
 storage_mb = 4096
 mcp_servers = []
-'''
+"""
 
 
 def _verifier_source(family: str, document_ids: list[str]) -> str:
-    criteria = {
-        dimension: list(names) for dimension, names in RUBRICS[family]["criteria"].items()
-    }
-    return f'''import json
+    criteria = {dimension: list(names) for dimension, names in RUBRICS[family]["criteria"].items()}
+    return f"""import json
 from pathlib import Path
 
 OUTPUT = Path("/app/output/judgments.json")
@@ -740,7 +729,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-'''
+"""
 
 
 def queued_calibration_spec(
@@ -806,10 +795,7 @@ def stage_queue_bundle(
     family_token = "checkout" if family == "checkout-pool-exhaustion" else "retry"
     model_token = re.sub(r"[^a-z0-9]+", "-", recorded_model.lower()).strip("-")
     auth_token = "-authjson" if backend == "codex" else ""
-    name = (
-        f"judge-{family_token}-{backend}-{model_token[:24]}"
-        f"{auth_token}-{target_date:%Y%m%d}"
-    )
+    name = f"judge-{family_token}-{backend}-{model_token[:24]}{auth_token}-{target_date:%Y%m%d}"
     task_relative = Path("queue/calibration-tasks") / name
     task_path = stage_agent_judge_task(
         repo_root,
@@ -880,9 +866,7 @@ def dispatch_approved_codex_calibration(
         )
     readiness = codex_calibration_readiness(repo_root, executor=executor)
     if not readiness.healthy:
-        failed = [
-            name for name, ok in readiness.__dict__.items() if not ok
-        ]
+        failed = [name for name, ok in readiness.__dict__.items() if not ok]
         raise RuntimeError("Codex calibration readiness failed: " + ",".join(failed))
     previous_force_auth = os.environ.get("CODEX_FORCE_AUTH_JSON")
     os.environ["CODEX_FORCE_AUTH_JSON"] = "1"
@@ -902,13 +886,9 @@ def load_dspy_examples(repo_root: Path, family: str) -> list[DspyExample]:
     rubric_json = _canonical_json(rubric_payload(family))
     examples = []
     for document in documents:
-        key = json.loads(
-            (key_root / f"{document.document_id}.json").read_text(encoding="utf-8")
-        )
+        key = json.loads((key_root / f"{document.document_id}.json").read_text(encoding="utf-8"))
         expected = {
-            dimension: {
-                name: cell["verdict"] for name, cell in block.items()
-            }
+            dimension: {name: cell["verdict"] for name, cell in block.items()}
             for dimension, block in key["criteria"].items()
         }
         examples.append(
@@ -979,48 +959,15 @@ def as_dspy_example(dspy: Any, example: DspyExample) -> Any:
     ).with_inputs("family", "rubric_json", "document")
 
 
-def compile_dspy_program(
-    repo_root: Path,
-    family: str,
-    *,
-    optimizer_factory: Callable[..., DspyOptimizer],
-    dspy_module: Any | None = None,
-) -> tuple[Any, tuple[Any, ...]]:
-    dspy = dspy_module or importlib.import_module("dspy")
-    split = split_dspy_examples(load_dspy_examples(repo_root, family))
-    program = build_dspy_program(dspy)
-    trainset = tuple(as_dspy_example(dspy, item) for item in split.train)
-    valset = tuple(as_dspy_example(dspy, item) for item in split.optimizer_validation)
-    heldout = tuple(as_dspy_example(dspy, item) for item in split.heldout)
-    optimizer = optimizer_factory(metric=dspy_metric)
-    compiled = optimizer.compile(program, trainset=trainset, valset=valset)
-    optimizer_ids = {
-        example.document_id for example in (*split.train, *split.optimizer_validation)
-    }
-    if optimizer_ids & {example.document_id for example in split.heldout}:
-        raise AssertionError("held-out controls reached the DSPy optimizer")
-    return compiled, heldout
-
-
 def dspy_split_summary(repo_root: Path, family: str) -> dict[str, Any]:
     split = split_dspy_examples(load_dspy_examples(repo_root, family))
     return {
         "family": family,
         "train_ids": [item.document_id for item in split.train],
-        "optimizer_validation_ids": [
-            item.document_id for item in split.optimizer_validation
-        ],
+        "optimizer_validation_ids": [item.document_id for item in split.optimizer_validation],
         "heldout_ids": [item.document_id for item in split.heldout],
         "optimizer_sees_heldout": False,
     }
-
-
-def remove_staged_task(task_root: Path) -> None:
-    """Remove only a generated queue calibration task after resolving its exact marker."""
-    marker = task_root / "task.toml"
-    if not marker.is_file() or "judge-calibration" not in marker.read_text(encoding="utf-8"):
-        raise ValueError(f"not a generated calibration task: {task_root}")
-    shutil.rmtree(task_root)
 
 
 # =========================================================================== #
@@ -1344,9 +1291,7 @@ def evaluate_selection_lift(
     n_tasks = len(pass_at_1_values)
     is_underpowered = n_tasks < 2
 
-    p1_interval = (
-        bootstrap_mean_interval(pass_at_1_values, seed=seed) if pass_at_1_values else None
-    )
+    p1_interval = bootstrap_mean_interval(pass_at_1_values, seed=seed) if pass_at_1_values else None
     sel_interval = (
         bootstrap_mean_interval(selected_at_k_values, seed=seed + 1)
         if selected_at_k_values

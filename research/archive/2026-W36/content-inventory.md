@@ -170,7 +170,6 @@ The following committed artifacts are deterministic build products managed by ca
 |---|---|---|---|---|---|---|
 | `agents/CHECKS.md` | `file` | `active-runtime` | `operational-state` | `Platform` | `standard` | `version-controlled` |
 | `agents/OWNERS.md` | `file` | `active-runtime` | `operational-state` | `Platform` | `standard` | `version-controlled` |
-| `agents/ROLES.md` | `file` | `active-runtime` | `operational-state` | `Platform` | `standard` | `version-controlled` |
 | `agents/STRUCTURE.md` | `file` | `active-runtime` | `operational-state` | `Platform` | `standard` | `version-controlled` |
 | `agents/WORKFLOW.md` | `file` | `active-runtime` | `operational-state` | `Platform` | `standard` | `version-controlled` |
 | `agents/archive/2026-08-15-handoffs/INDEX.md` | `file` | `active-runtime` | `operational-state` | `Platform` | `standard` | `version-controlled` |

@@ -28,7 +28,6 @@ import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
@@ -177,16 +176,6 @@ class AgentProfile(BaseModel):
     @property
     def digest(self) -> str:
         return "sha256:" + hashlib.sha256(self.canonical_json().encode()).hexdigest()
-
-
-class ProfileState(StrEnum):
-    """Qualification ladder. Each state is earned separately, never implied."""
-
-    DECLARED = "declared"
-    INSTALLED = "installed"
-    CREDENTIAL_READY = "credential-ready"
-    SMOKE_PASSED = "smoke-passed"
-    CANARY_QUALIFIED = "canary-qualified"
 
 
 @dataclass(frozen=True)

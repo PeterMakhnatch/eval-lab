@@ -1,5 +1,5 @@
 ---
-status: living
+status: historical
 audience:
   - operator
   - builder
@@ -10,6 +10,7 @@ audience:
 
 Projection of live catalog, queue state, and `PROGRAM.json`.
 Answers what happened yesterday and what is running now deterministically.
+Generated catalog snapshot; historical record, not a living contract.
 
 ## RECENT (Yesterday: 2026-08-15)
 

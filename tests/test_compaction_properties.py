@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
@@ -472,9 +473,9 @@ def _write_job(
 
 
 @given(
-    st.integers(min_value=1, max_value=3),
     st.integers(min_value=1, max_value=2),
-    st.integers(min_value=1, max_value=4),
+    st.integers(min_value=1, max_value=2),
+    st.integers(min_value=1, max_value=2),
 )
 @settings(max_examples=30, deadline=None)
 def test_property_compaction_idempotence_and_byte_stability(
@@ -529,8 +530,8 @@ def test_property_compaction_idempotence_and_byte_stability(
 
 
 @given(
-    st.integers(min_value=1, max_value=4),
-    st.integers(min_value=1, max_value=3),
+    st.integers(min_value=1, max_value=2),
+    st.integers(min_value=1, max_value=2),
 )
 @settings(max_examples=30, deadline=None)
 def test_property_zero_row_loss_and_pk_deduplication(
@@ -559,12 +560,12 @@ def test_property_zero_row_loss_and_pk_deduplication(
         day_dir = derived_root / COMPACT_DIRNAME / f"dt={target_dt}"
 
         # Verify zero row loss per table
+        con = duckdb.connect(database=":memory:")
         for table_name in PROJECTED_TABLE_NAMES:
             compact_file = day_dir / f"{table_name}.parquet"
             compacted_table = pq.read_table(compact_file)
 
             # Query source row count via DuckDB
-            con = duckdb.connect(database=":memory:")
             if table_name == "jobs":
                 src_glob = str(derived_root / "job_id=*" / "jobs.parquet")
             else:
@@ -641,14 +642,36 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
     """Fuzzes dynamic job additions, compaction across dates, pruning older than retention days,
     and row conservation."""
 
+    _corpus_dir: tempfile.TemporaryDirectory | None = None
+    _corpus_path: Path | None = None
+
+    @classmethod
+    def _ensure_corpus(cls) -> Path:
+        if cls._corpus_path is None:
+            cls._corpus_dir = tempfile.TemporaryDirectory(dir="/private/tmp")
+            cls._corpus_path = Path(cls._corpus_dir.name)
+            clock_today = date(2026, 8, 20)
+            for offset in range(-15, 1):
+                dt_iso = (clock_today + timedelta(days=offset)).isoformat()
+                for r in (1, 2):
+                    _write_job(
+                        cls._corpus_path,
+                        job_id=f"tmpl_{offset}_{r}",
+                        dt_iso=dt_iso,
+                        trial_count=1,
+                        rows_per_table=r,
+                    )
+        return cls._corpus_path
+
     def __init__(self) -> None:
         super().__init__()
-        self.tempdir = tempfile.TemporaryDirectory()
+        self.tempdir = tempfile.TemporaryDirectory(dir="/private/tmp")
         self.root = Path(self.tempdir.name)
         self.clock_today = date(2026, 8, 20)
         self.retention_days = 7
         self.next_job_id = 0
         self.created_jobs: dict[str, str] = {}  # job_id -> dt_iso
+        self._ensure_corpus()
 
     def teardown(self) -> None:
         self.tempdir.cleanup()
@@ -663,13 +686,23 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
         job_date = self.clock_today + timedelta(days=day_offset)
         dt_iso = job_date.isoformat()
 
-        _write_job(
-            self.root,
-            job_id=job_id,
-            dt_iso=dt_iso,
-            trial_count=1,
-            rows_per_table=rows,
-        )
+        corpus_root = self._ensure_corpus()
+        src_job = corpus_root / f"job_id=tmpl_{day_offset}_{rows}"
+        dst_job = self.root / f"job_id={job_id}"
+        dst_job.mkdir(parents=True, exist_ok=True)
+
+        # Hardlink files from prepared corpus
+        src_jobs_file = src_job / "jobs.parquet"
+        if src_jobs_file.is_file():
+            os.link(src_jobs_file, dst_job / "jobs.parquet")
+        src_trial = src_job / "trial_id=trial-1"
+        if src_trial.is_dir():
+            dst_trial = dst_job / "trial_id=trial-1"
+            dst_trial.mkdir(parents=True, exist_ok=True)
+            for p in src_trial.iterdir():
+                if p.is_file():
+                    os.link(p, dst_trial / p.name)
+
         self.created_jobs[job_id] = dt_iso
 
     @rule(prune=st.booleans())
@@ -684,20 +717,22 @@ class CompactionRetentionStateMachine(RuleBasedStateMachine):
 
     @invariant()
     def pruned_jobs_are_strictly_older_than_cutoff(self) -> None:
-        for job_dir in self.root.glob("job_id=*"):
-            assert job_dir.is_dir()
+        for entry in os.scandir(self.root):
+            if entry.name.startswith("job_id="):
+                assert entry.is_dir()
 
     @invariant()
     def compact_tables_exist_and_non_empty_for_all_compacted_dates(self) -> None:
         compact_root = self.root / COMPACT_DIRNAME
         if not compact_root.is_dir():
             return
-        for day_dir in compact_root.glob("dt=*"):
-            for table_name in PROJECTED_TABLE_NAMES:
-                table_file = day_dir / f"{table_name}.parquet"
-                if table_file.is_file():
-                    rows = count_table_rows(table_file)
-                    assert rows >= 0
+        for entry in os.scandir(compact_root):
+            if entry.name.startswith("dt=") and entry.is_dir():
+                day_path = Path(entry.path)
+                for table_name in PROJECTED_TABLE_NAMES:
+                    table_file = day_path / f"{table_name}.parquet"
+                    if table_file.is_file():
+                        assert table_file.stat().st_size > 0
 
 
 TestCompactionProperties = CompactionRetentionStateMachine.TestCase

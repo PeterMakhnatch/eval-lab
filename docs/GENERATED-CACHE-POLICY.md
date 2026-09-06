@@ -11,8 +11,8 @@ audience:
 
 `.gitignore` controls Git discovery, not retention or authority. Ignored files may
 be unique evidence. The counts and deletion suggestions in
-[content-inventory.md](content-inventory.md) and
-[git-estate-inventory.md](git-estate-inventory.md) are historical snapshots, not
+[content-inventory.md](../research/archive/2026-W36/content-inventory.md) and
+[git-estate-inventory.md](archive/git-estate-inventory.md) are historical snapshots, not
 current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.md`.
 
 ## Explicit generation before review

@@ -139,9 +139,7 @@ def test_schedule_install_writes_and_loads_two_launchagents(tmp_path: Path) -> N
     assert nightly["Label"] == "com.petermakhnatch.evallab.nightly"
     assert tick["StandardOutPath"].endswith("Library/Logs/evallab/tick.log")
     assert tick["EnvironmentVariables"]["PATH"].startswith(str(tmp_path / ".local/bin"))
-    assert tick["EnvironmentVariables"][DERIVED_ROOT_ENV] == str(
-        tmp_path / "derived/parquet"
-    )
+    assert tick["EnvironmentVariables"][DERIVED_ROOT_ENV] == str(tmp_path / "derived/parquet")
     assert nightly["EnvironmentVariables"] == tick["EnvironmentVariables"]
 
 
@@ -162,6 +160,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
         ingester=ingested.append,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     service.submit(
         ExperimentSpec(
@@ -213,8 +212,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert backups == [report_date]
     assert result.backup_path == backup_path
     assert any(
-        event.event == "postgres_backup_completed"
-        and event.reason_code == "nightly_pg_dump"
+        event.event == "postgres_backup_completed" and event.reason_code == "nightly_pg_dump"
         for event in load_events(queue.events_path)
     )
     content = result.digest_path.read_text()
@@ -232,6 +230,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert result.step_by_name("digest") is not None
     assert result.step_by_name("digest").status == "ran"
 
+
 def test_nightly_researcher_defers_while_running_job_is_unresolved(
     tmp_path: Path,
 ) -> None:
@@ -247,6 +246,7 @@ def test_nightly_researcher_defers_while_running_job_is_unresolved(
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     approved, _ = service.submit(
         ExperimentSpec(
@@ -328,6 +328,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     approved, _ = service.submit(
         ExperimentSpec(
@@ -359,8 +360,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
     assert approved.exists()
     assert calls == []
     assert any(
-        event.event == "postgres_backup_failed"
-        and event.reason_code == reason
+        event.event == "postgres_backup_failed" and event.reason_code == reason
         for event in load_events(queue.events_path)
     )
     content = result.digest_path.read_text()
@@ -385,6 +385,7 @@ def test_digest_enrichment_failure_rerenders_a_quarantined_digest(
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
 
     def partial_enrichment(path: Path, _day: date) -> None:
@@ -507,6 +508,7 @@ def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     tick = GuardedTick(
         doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
@@ -554,6 +556,7 @@ def test_locked_keychain_still_dispatches_credentialless_nightly_control(
         ingester=lambda path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset(),
     )
     approved, _ = service.submit(
         ExperimentSpec(
@@ -566,9 +569,7 @@ def test_locked_keychain_still_dispatches_credentialless_nightly_control(
         )
     )
     result = NightlyCycle(
-        doctor=StaticDoctor(
-            health_report(keychain_readable=False, codex_auth_present=False)
-        ),  # type: ignore[arg-type]
+        doctor=StaticDoctor(health_report(keychain_readable=False, codex_auth_present=False)),  # type: ignore[arg-type]
         executor=service,
         renderer=DigestRenderer(
             repo_root=tmp_path,
@@ -596,6 +597,7 @@ def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
         ingester=lambda path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     waiting, _ = service.submit(
         ExperimentSpec(
@@ -775,8 +777,7 @@ def test_commit_digest_bounds_every_noninteractive_git_command(
 
     assert len(calls) == 3
     assert all(
-        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS
-        for _, kwargs in calls
+        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS for _, kwargs in calls
     )
     assert all(kwargs["stdin"] is subprocess.DEVNULL for _, kwargs in calls)
     assert all(kwargs["capture_output"] is True for _, kwargs in calls)
@@ -833,8 +834,7 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
         repo_root=tmp_path,
         queue=queue,
         policy=tick_policy,
-        runner=lambda request: requests.append(request)
-        or (request.jobs_dir / request.name),
+        runner=lambda request: requests.append(request) or (request.jobs_dir / request.name),
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
@@ -864,21 +864,15 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
     )
     # Paid work reaches approved/ only through a recorded human authorisation.
     queue.approve(str(queue.load(codex_waiting).spec_id), actor="peter")
-    doctor = StaticDoctor(
-        health_report(keychain_readable=False, codex_auth_present=False)
-    )
+    doctor = StaticDoctor(health_report(keychain_readable=False, codex_auth_present=False))
 
     result = GuardedTick(doctor=doctor, executor=service).run()  # type: ignore[arg-type]
 
     assert result.dispatched == 1
     assert [request.name for request in requests] == ["credentialless-control"]
-    assert [spec.name for _, spec in queue.list_specs("approved")] == [
-        "credentialless-codex"
-    ]
+    assert [spec.name for _, spec in queue.list_specs("approved")] == ["credentialless-codex"]
     terminal = [
-        event
-        for event in load_events(queue.events_path)
-        if event.actor == "scheduled-tick"
+        event for event in load_events(queue.events_path) if event.actor == "scheduled-tick"
     ]
     assert terminal[-1].event == "tick_dispatched"
 
@@ -1012,12 +1006,8 @@ def test_digest_aggregates_repeated_trials_and_keeps_the_reward_spread(
 
     rows = _table_rows(text, "## Completed trials")
     assert len(rows) == 3
-    assert rows[0].startswith(
-        "| canary-mixed | local-lab/event-summary | codex | 3 | 0, 1, 1 |  |"
-    )
-    assert rows[1].startswith(
-        "| canary-clean | local-lab/event-summary | codex | 3 | 1 ×3 |  |"
-    )
+    assert rows[0].startswith("| canary-mixed | local-lab/event-summary | codex | 3 | 0, 1, 1 |  |")
+    assert rows[1].startswith("| canary-clean | local-lab/event-summary | codex | 3 | 1 ×3 |  |")
     assert rows[2].startswith(
         "| canary-raised | local-lab/event-summary | codex | 3 | 1, 1, +1 unscored "
         "| NonZeroAgentExitCodeError (1 of 3) |"
@@ -1061,7 +1051,8 @@ def test_digest_reports_the_measured_judge_calibration_state(tmp_path: Path) -> 
     text = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
 
     line = next(
-        row for row in _section_body(text, "## Evidence and calibration")
+        row
+        for row in _section_body(text, "## Evidence and calibration")
         if row.startswith("- Judge calibration:")
     )
     assert "brief 09" not in text
@@ -1097,9 +1088,7 @@ def test_fleet_reports_live_handoffs_and_never_a_retired_role(tmp_path: Path) ->
     (handoffs / "gate-auth.md").write_text(
         "Status: building\nLast: wired the gate\nNext: open the PR\nBlockers: none\n"
     )
-    (handoffs / "mender.md").write_text(
-        "Status: done\nLast: merged\nNext: none\nBlockers: none\n"
-    )
+    (handoffs / "mender.md").write_text("Status: done\nLast: merged\nNext: none\nBlockers: none\n")
     (handoffs / "orchestrator-handoff.md").write_text("# Replacement orchestrator\n\nProse.\n")
 
     append_fleet_section(

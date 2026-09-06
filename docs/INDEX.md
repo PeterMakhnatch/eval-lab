@@ -7,17 +7,13 @@ audience:
   - operator
 inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
-    digest: sha256:5aa795040fa3349f80fcb948c007aa4921774fcf537cc9306a0ce60072223e71
+    digest: sha256:be0eb686a7c6956c7c53fe435c5a7fbe1ef5d24e885102b174e4e53a0a7761ca
   - path: docs/GENERATED-CACHE-POLICY.md
-    digest: sha256:97df8d5121a89a866c2a1a392d7bdd372bb04bb5448d75bcbde3c12d80139fdd
-  - path: docs/GIANT-FILE-SPLIT-PROPOSALS.md
-    digest: sha256:f4e5e908877c3f5070fc9fb1cdc865930a515faca56825b075d944c3c26b7ffb
+    digest: sha256:4d70e54cef4c3ace6add3d1d8bf3eb1fc4faacc4c33dc1a18d73df847ea21b58
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
     digest: sha256:31a0d2af45c08183e43373769db59623eeb60889960f27ce5c6d00fff2170051
-  - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
-    digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
   - path: docs/WHERE-DOES-THIS-GO.md
@@ -30,76 +26,54 @@ inputs:
     digest: sha256:a9a2f6a7763621408c6964f4bdeace731375b496f051e4386b53b879cc0e32b5
   - path: docs/analysis-worker.md
     digest: sha256:9412a6ddfd7e1c416a94100951507afc58911017fd307f73ec551d97aa3c1b63
-  - path: docs/architecture-review-2026-08-16.md
-    digest: sha256:1850246dfdd7aacb0bfcb14436e120b06c046a857d1245c016bf06975fd47d26
   - path: docs/architecture.md
     digest: sha256:1744b4f5bba7567d52cff826ef4f5109afafd7339d261ada50d3f8cecc26c199
   - path: docs/attach-surface.md
     digest: sha256:24568c07fd8448f019f046f95811b1edd0913638f70bb35b6299f6f8c3d926b1
   - path: docs/authoring.md
-    digest: sha256:8f00e736868b836cc48d78855000a87ddf8f15ce3305922c690339c47002042d
-  - path: docs/automated-trajectory-interpretation-architecture-v1.md
-    digest: sha256:16b8597690f94bd5b3ea226b2ebf5f53faec1fe4c4fccb1ba3705dd6cefe7487
+    digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
     digest: sha256:105ecb8bfedc934b8a04c824f3a0383b3c2a3ea57530dd6fb1f49cbd5968f356
-  - path: docs/build-plan.md
-    digest: sha256:c5a554faa3add62b723aebb95a3d47c0d07e1de87ff5eb746cfe2942e10c7535
   - path: docs/canaries.md
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md
-    digest: sha256:ea8da71fe7a6ba15138c311b4649258dda8dbaa78e1674d1d2ced5ea8d7d2068
-  - path: docs/content-inventory.md
-    digest: sha256:c89f7611df273e51b24918678fb12bd14033aa7fd245e190663d5c395ecaeb0e
+    digest: sha256:0392155288dbabcf02852f4eb1625ec3fe0bd4954019d3591b4c83258cd4ef2c
   - path: docs/context-packs.md
-    digest: sha256:bbe4727cbbee6b40751a88f011a1e62807b5a02382a7aa868a521bdce97c6b25
+    digest: sha256:d509838f870be51f616190cd2bfa754b30cf0fc0d9882913d6c081f8e6b8cd6e
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
     digest: sha256:dea76c2aaf874341239d2c3518a5dac7eeb5fbafbf26c72a109a1f711e950fbe
   - path: docs/craft.md
-    digest: sha256:6775a2260238d5d1b8161bd1ebc30317faf0e7c9c4740ecf56f8c45c130a6876
+    digest: sha256:a12710352536de75cbe2a5c551b706c548f099fb1560328121b797e345b6fc3c
   - path: docs/dashboard.md
-    digest: sha256:75394bae07ac0b085b1385189c6b17d4764a30e31fc5fe086a5d9e215910de4c
+    digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
     digest: sha256:d90ec1143b9ffaa6f8db6402fb3b29ea9f48c80630bc795dbf2969b2f61dbd2c
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:e31ef372f624c59120da22d21ce45ae3ba75277e1981554e3b61720d8a301b8d
-  - path: docs/design-additions.md
-    digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
     digest: sha256:002c22f07e6ec24ecb02567abfb1cbba2e34975c1898730e91e11131f8794519
   - path: docs/eval-cards.md
-    digest: sha256:562c8c0fd75ff5265c7082cefc1699eff3670e875a1df02488e434272c3ef074
+    digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
     digest: sha256:0f4648452bd835e3ef7ccc4b381527af79aef39ae3ee5cf4fe0c9437e5fdee41
-  - path: docs/fleet-tracking.md
-    digest: sha256:614a535c283e61b43dafb4485ababb34e52dd09416919e738ba0054c0ca101a0
-  - path: docs/git-estate-inventory.md
-    digest: sha256:5bbae3f85105941c3f6fe3f607b2c0b2bfa753548c0ded6e8226071a2c4bd7fc
   - path: docs/join-spine.md
-    digest: sha256:7fece1309de2ae0464b09876dbb9979ddbdbd4e3f9ebd397ef848d377d36f95b
+    digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
-    digest: sha256:41c3f3e308c78ebd0f52a6bd192772017a0bb90d3d4a96f8c4d612a7e115003f
+    digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
-    digest: sha256:c88dcffef0f5f8a40b5cafd938a125a8c27fff8a32533289b1e2f6a041ef6782
+    digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
-  - path: docs/mentor-review-2026-08.md
-    digest: sha256:2da1ad796d23651e71db31b79fd6a49725e2b92d41548fbcf03039bee392d4c0
   - path: docs/observability.md
-    digest: sha256:3d353a40291554b56048ad0348e2d817339f4ae55ff8a67c5d98c67574db21e5
+    digest: sha256:33a3d815435eb7ea2af8f24793dd69529e7155b465f96ecea2aa00900bf31547
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
     digest: sha256:2ea898ffa7c1f2feb696dff9de6658e350ca06e76842c2a5d829541602bf3f33
-  - path: docs/operator-demo.md
-    digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parquet-compaction.md
-    digest: sha256:54a97a4bc750fb865aec8eec1a00590d523e90690a625c986670df981aa33f5b
-  - path: docs/path-forward-2026-08.md
-    digest: sha256:7d962f12c5de2135a0ebef6e656dac17938ed75e76f73a4f8d1fd9ea286e8b0e
-  - path: docs/platform-architecture.md
-    digest: sha256:4418dffccdf35a747c46a6a454241bceea5a1e65c9d8d7d4991933d457bbb0c9
+    digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -133,7 +107,7 @@ inputs:
   - path: docs/task-workbench.md
     digest: sha256:f77824bd91eaadead28d7495fbad0eefa5d7099905ac3adb5997e7dcf34bfbe8
   - path: docs/tidy.md
-    digest: sha256:c6a00e9c6e6e64eb4b2d5b1ad46ad7c973c044aefdd301dcae732a06181cef9a
+    digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
@@ -192,13 +166,6 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
-| `docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md` | Eval-Lab: Current System State, Architecture Audit & Career Portfolio Roadmap | `historical` | `builder, analyst` |
-| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
-| `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
-| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
-| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
-| `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `historical` | `builder, analyst, operator` |
 | `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `historical` | `builder, analyst` |
 | `docs/research/literature-survey.md` | Literature survey: scaffold effects, benchmark contracts, context degradation | `historical` | `builder, analyst` |
 
@@ -248,14 +215,6 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
-| `docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md` | Eval-Lab: Current System State, Architecture Audit & Career Portfolio Roadmap | `historical` | `builder, analyst` |
-| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
-| `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
-| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
-| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
-| `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
-| `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `historical` | `builder, analyst, operator` |
 | `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `historical` | `builder, analyst` |
 | `docs/research/literature-survey.md` | Literature survey: scaffold effects, benchmark contracts, context degradation | `historical` | `builder, analyst` |
 
@@ -294,8 +253,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
-| `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
+| — | _None._ | — | — |
 
 ## operator
 
@@ -347,18 +305,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
-| `docs/architecture-review-2026-08-16.md` | Architecture review — 2026-08-16 | `historical` | `operator` |
-| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
-| `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
-| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
-| `docs/design-additions.md` | Design additions: one repo, the tool stack, and the unattended research loop | `historical` | `operator` |
-| `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `historical` | `operator` |
-| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
-| `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
-| `docs/operator-demo.md` | Operator demo — one truthful analysis loop | `historical` | `operator` |
-| `docs/path-forward-2026-08.md` | The path forward — 2026-08 | `historical` | `operator` |
-| `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `historical` | `builder, analyst, operator` |
+| — | _None._ | — | — |
 
 ## Archive
 
@@ -366,18 +313,5 @@ Historical documents. These are archived records, not living contracts.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `historical` | `builder, analyst, runner, operator` |
-| `docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md` | Eval-Lab: Current System State, Architecture Audit & Career Portfolio Roadmap | `historical` | `builder, analyst` |
-| `docs/architecture-review-2026-08-16.md` | Architecture review — 2026-08-16 | `historical` | `operator` |
-| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `historical` | `builder, analyst, operator` |
-| `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
-| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
-| `docs/design-additions.md` | Design additions: one repo, the tool stack, and the unattended research loop | `historical` | `operator` |
-| `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `historical` | `operator` |
-| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
-| `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
-| `docs/operator-demo.md` | Operator demo — one truthful analysis loop | `historical` | `operator` |
-| `docs/path-forward-2026-08.md` | The path forward — 2026-08 | `historical` | `operator` |
-| `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `historical` | `builder, analyst, operator` |
 | `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `historical` | `builder, analyst` |
 | `docs/research/literature-survey.md` | Literature survey: scaffold effects, benchmark contracts, context degradation | `historical` | `builder, analyst` |

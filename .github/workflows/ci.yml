@@ -43,7 +43,7 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
-      - run: uv sync --locked --no-group observability
+      - run: uv sync --locked
       - run: uv run --no-sync ruff check .
       - name: Documentation front-matter and index freshness
         run: uv run --no-sync python -m evallab.docindex check
@@ -74,8 +74,8 @@ jobs:
         run: |
           uv python install ${{ matrix.python-version }}
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
-      - name: Sync with benchmark test dependencies (fastmcp, cryptography)
-        run: uv sync --locked --no-group observability --group benchmarks
+      - name: Sync with benchmark and lance test dependencies (fastmcp, cryptography, lancedb)
+        run: uv sync --locked --group benchmarks --group lance
       - name: Full test suite
         if: needs.scope.outputs.profile == 'true'
         run: |

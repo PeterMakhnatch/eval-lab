@@ -11,7 +11,7 @@ lint floor; CI also exercises Python 3.14.
 
 | Gate | Command | Version / interpreter |
 |---|---|---|
-| Locked install | `uv sync --locked` | uv 0.9.24; Python 3.12 and 3.14 |
+| Locked install | `uv sync --locked` (tests: `--group benchmarks --group lance`) | uv 0.9.24; Python 3.12 and 3.14; `observability` and `lance` are opt-in groups, not defaults |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Doc index freshness | `uv run python -m evallab.docindex check` | locked; Python 3.12 |
 | Repository map freshness | `uv run python -m evallab.repomap check` | locked; Python 3.12 |
@@ -56,6 +56,13 @@ workflows; GitHub remains the merge authority.
 
 During active local development loops, prefer focused checks for touched modules
 rather than running the entire project-wide test suite on every small edit.
+
+Benchmark and certification workflows declare `concurrency` groups with
+`cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy
+certification suites (such as Tau and FuncDAG workbench certification) run on a
+weekly schedule or manual dispatch rather than on every workbench edit, while
+core task workbench unit tests execute on every PR within `quality`.
+
 ## Deterministic-test rule
 
 Tests must inject every external-state probe or seam. They must never depend on a

@@ -14,11 +14,11 @@ fi
 
 export UV_PYTHON="${PYTHON_FLOOR}"
 
-# CI test job syncs the benchmark dependency group (fastmcp, cryptography) so the
-# live fastmcp/cryptography contract tests run locally instead of skipping via
-# pytest.importorskip. Mirror that group to keep premerge a faithful reproduction
-# of the combined quality + typecheck workflows (see agents/CHECKS.md).
-uv sync --locked --group benchmarks
+# The CI test job syncs the benchmark (fastmcp, cryptography) and lance groups so
+# their contract tests run instead of skipping via pytest.importorskip. Mirror them
+# to keep premerge a faithful reproduction of the combined quality + typecheck
+# workflows (see agents/CHECKS.md). `observability` stays opt-in everywhere.
+uv sync --locked --group benchmarks --group lance
 uv run ruff check .
 uv run --no-sync python -m evallab.docindex check
 uv run --no-sync python -m evallab.repomap check

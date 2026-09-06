@@ -1,23 +1,25 @@
 # Evidence Projection Subsystem (src/evallab/evidence/)
 
-## Responsibilities
-Owns the canonical ATIF projection, deterministic event mart, and trial-fact
-extraction modules named by the frozen migration map.
+## Purpose
+Canonical ATIF normalization, deterministic event marts, and trial-fact
+extraction for evaluation telemetry.
 
-Still **outside** this package (do not assume they moved):
-- CAS storage: `src/evallab/evidence_store.py`
-- State events helper: `src/evallab/state_events.py`
-- Semantic fact models: `src/evallab/semantic_facts.py`
-- Trajectory IR / interpretation, path discovery, and compaction
+## What lives here / entry points
+- `atif.py`: ATIF canonical normalization and event conversion.
+- `facts.py`: Deterministic trial fact extraction.
+- `event_mart.py`: Event mart aggregation and query surfaces.
+- `parquet_io.py`: High-performance columnar Parquet writing.
+- `capture_authority.py`, `llm_request.py`: Telemetry capture authority.
 
-## Core Invariants
-1. ATIF Conformance: telemetry must validate against the canonical ATIF schema.
-2. Projection Parity: exported rows, Parquet schemas, SQL-facing table names,
-   digests, and query results must not change during physical moves.
-3. Frozen layout: do not relocate remaining top-level evidence helpers without
-   Peter approval. This package is not a promise that every evidence module has
-   already moved.
+## Invariants or rules
+1. ATIF Conformance: Telemetry must validate against the canonical ATIF schema.
+2. Projection Parity: Exported rows, Parquet schemas, SQL-facing table names,
+   digests, and query results must remain deterministic across versions.
+3. Frozen Layout: Do not relocate remaining top-level evidence helpers without
+   explicit approval (`evidence_store.py` and `state_events.py` remain at root).
 
-## Testing & Verification
-- Targeted tests follow the moved modules: ATIF/fixture conformance, event mart,
-  facts/truth/state events, Parquet schema, and direct CLI consumers.
+## Tests or checks
+- Targeted unit tests: `pytest tests/test_atif.py tests/test_evidence_facts.py tests/test_event_mart.py`
+
+## What not to add here
+Do not place raw model execution or subjective evaluator logic here.

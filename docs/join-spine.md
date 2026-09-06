@@ -49,7 +49,7 @@ uv run python -m evallab.spine check
 uv run pytest tests/test_join_spine.py -q
 ```
 
-See `docs/platform-architecture.md` §2.1, §2.2, §10 for full context.
+See `docs/archive/platform-architecture.md` §2.1, §2.2, §10 for full context.
 
 ## v_quota_today / v_suite_leaderboard
 

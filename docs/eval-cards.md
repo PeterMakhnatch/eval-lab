@@ -8,7 +8,7 @@ audience:
 
 # Eval Cards (E11)
 
-Eval cards are the platform's citable, provenance-bearing experimental results (`docs/platform-architecture.md` v2 §4).
+Eval cards are the platform's citable, provenance-bearing experimental results (`docs/archive/platform-architecture.md` v2 §4).
 They represent the terminus of the experiment specification lifecycle:
 
 ```

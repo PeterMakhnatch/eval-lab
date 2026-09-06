@@ -68,62 +68,248 @@ fi
 echo "## branches$gh_note"
 now_epoch="$(date +%s)"
 active_branches=""
-worktree_inventory="$("$GIT" worktree list --porcelain 2>/dev/null)"
-for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/); do
-    case "$branch" in main|integrate/*) continue ;; esac
-    if ! ahead="$("$GIT" rev-list --count origin/main.."$branch" 2>/dev/null)"; then
-        echo "  $branch  UNKNOWN — cannot compare with origin/main; preserve"
-        continue
+worktree_inventory="$("$GIT" worktree list --porcelain 2>/dev/null || true)"
+
+# Check git capability for ahead-behind atom (git >= 2.41)
+has_ahead_behind=0
+git_ver="$("$GIT" --version 2>/dev/null || true)"
+if [[ "$git_ver" =~ ([0-9]+)\.([0-9]+) ]]; then
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    if [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 41 ]; }; then
+        has_ahead_behind=1
     fi
-    branch_oid="$("$GIT" rev-parse "$branch" 2>/dev/null || true)"
-    wt="$(printf '%s\n' "$worktree_inventory" | awk -v ref="refs/heads/$branch" '
-        /^worktree / { path=substr($0, 10) }
-        /^branch / && substr($0, 8)==ref { print path }
-    ')"
-    dirty="0"
-    if [ -n "$wt" ] && [ -d "$wt" ]; then
-        if ! changes="$("$GIT" -C "$wt" status --short 2>/dev/null)"; then
-            echo "  $branch  UNKNOWN — worktree status unavailable; preserve"
+fi
+
+if [ "$has_ahead_behind" -eq 0 ]; then
+    echo "  (git < 2.41 — %(ahead-behind) unsupported; falling back to per-branch git calls)"
+    for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/); do
+        case "$branch" in main|integrate/*) continue ;; esac
+        if ! ahead="$("$GIT" rev-list --count origin/main.."$branch" 2>/dev/null)"; then
+            echo "  $branch  UNKNOWN — cannot compare with origin/main; preserve"
             continue
         fi
-        [ -z "$changes" ] || dirty="$(printf '%s\n' "$changes" | wc -l | tr -d ' ')"
-    fi
-    state="active"
-    reason=""
-    # Dirty work wins over ancestry. A newly allocated mission often has zero
-    # commits while its writer is building; calling that worktree SPENT invites
-    # destructive cleanup of live changes.
-    if [ "$dirty" != "0" ]; then
-        state="active"; reason="uncommitted worktree changes"
-    elif [ "$ahead" = "0" ]; then
-        state="spent"; reason="0 ahead of origin/main"
-    elif "$GIT" diff --quiet origin/main "$branch" 2>/dev/null; then
-        state="spent"; reason="tree identical to origin/main"
-    elif [ -n "$branch_oid" ] && [ -n "$merged_oids" ] \
-        && printf '%s\n' "$merged_oids" | grep -qx "$branch_oid"; then
-        state="spent"; reason="head of a merged PR"
-    fi
-    if [ "$state" = "spent" ]; then
-        echo "  $branch  SPENT — $reason"
-        continue
-    fi
-    active_branches="$active_branches $branch"
-    last_epoch="$("$GIT" log -1 --format='%ct' "$branch" 2>/dev/null || echo 0)"
-    age_h=$(( (now_epoch - last_epoch) / 3600 ))
-    flags=""
-    [ "$age_h" -ge "$stale_hours" ] && flags="$flags STALE(${age_h}h-since-commit)"
-    echo "  $branch  active, +$ahead, last commit ${age_h}h ago${flags:+ —$flags}"
+        branch_oid="$("$GIT" rev-parse "$branch" 2>/dev/null || true)"
+        wt="$(printf '%s\n' "$worktree_inventory" | awk -v ref="refs/heads/$branch" '
+            /^worktree / { path=substr($0, 10) }
+            /^branch / && substr($0, 8)==ref { print path }
+        ')"
+        dirty="0"
+        if [ -n "$wt" ] && [ -d "$wt" ]; then
+            if ! changes="$("$GIT" -C "$wt" status --short 2>/dev/null)"; then
+                echo "  $branch  UNKNOWN — worktree status unavailable; preserve"
+                continue
+            fi
+            [ -z "$changes" ] || dirty="$(printf '%s\n' "$changes" | wc -l | tr -d ' ')"
+        fi
+        state="active"
+        reason=""
+        if [ "$dirty" != "0" ]; then
+            state="active"; reason="uncommitted worktree changes"
+        elif [ "$ahead" = "0" ]; then
+            state="spent"; reason="0 ahead of origin/main"
+        elif "$GIT" diff --quiet origin/main "$branch" 2>/dev/null; then
+            state="spent"; reason="tree identical to origin/main"
+        elif [ -n "$branch_oid" ] && [ -n "$merged_oids" ] \
+            && printf '%s\n' "$merged_oids" | grep -qx "$branch_oid"; then
+            state="spent"; reason="head of a merged PR"
+        fi
+        if [ "$state" = "spent" ]; then
+            echo "  $branch  SPENT — $reason"
+            continue
+        fi
+        active_branches="$active_branches $branch"
+        last_epoch="$("$GIT" log -1 --format='%ct' "$branch" 2>/dev/null || echo 0)"
+        age_h=$(( (now_epoch - last_epoch) / 3600 ))
+        flags=""
+        [ "$age_h" -ge "$stale_hours" ] && flags="$flags STALE(${age_h}h-since-commit)"
+        echo "  $branch  active, +$ahead, last commit ${age_h}h ago${flags:+ —$flags}"
 
-    if [ -n "$wt" ] && [ -d "$wt" ]; then
-        [ "$dirty" != "0" ] && echo "    uncommitted: $dirty file(s) in $wt"
-        echo "    worktree: $wt (intent comes from pickup-counter claims above)"
-    else
-        echo "    worktree: none attached"
-    fi
-done
-[ -z "$active_branches" ] && echo "  (no active topic branches)"
-bar
+        if [ -n "$wt" ] && [ -d "$wt" ]; then
+            [ "$dirty" != "0" ] && echo "    uncommitted: $dirty file(s) in $wt"
+            echo "    worktree: $wt (intent comes from pickup-counter claims above)"
+        else
+            echo "    worktree: none attached"
+        fi
+    done
+    [ -z "$active_branches" ] && echo "  (no active topic branches)"
+    bar
+else
+    wt_dirty_tmp="$(mktemp "${TMPDIR:-/tmp}/fleet_wt_dirty.XXXXXX")"
+    wt_pairs_tmp="$(mktemp "${TMPDIR:-/tmp}/fleet_wt_pairs.XXXXXX")"
+    need_diff_tmp="$(mktemp "${TMPDIR:-/tmp}/fleet_need_diff.XXXXXX")"
+    tree_spent_tmp="$(mktemp "${TMPDIR:-/tmp}/fleet_tree_spent.XXXXXX")"
+    branch_refs_tmp="$(mktemp "${TMPDIR:-/tmp}/fleet_branch_refs.XXXXXX")"
+    trap 'rm -f "$wt_dirty_tmp" "$wt_pairs_tmp" "$need_diff_tmp" "$tree_spent_tmp" "$branch_refs_tmp"' EXIT
 
+    # Extract topic branch worktrees
+    printf '%s\n' "$worktree_inventory" | awk '
+        /^worktree / { wt=substr($0, 10) }
+        /^branch refs\/heads\// {
+            br=substr($0, 19)
+            if (wt != "" && br != "" && br != "main" && br !~ /^integrate\//) {
+                print wt "\t" br
+            }
+        }
+    ' > "$wt_pairs_tmp"
+
+    if [ -s "$wt_pairs_tmp" ]; then
+        check_worktree() {
+            local wt="$1"
+            local branch="$2"
+            if [ ! -d "$wt" ]; then
+                printf '%s\t\t0\n' "$branch"
+                return
+            fi
+            local changes
+            if ! changes="$("$GIT" -C "$wt" status --porcelain 2>/dev/null)"; then
+                printf '%s\t%s\tERROR\n' "$branch" "$wt"
+                return
+            fi
+            local count=0
+            [ -n "$changes" ] && count="$(printf '%s\n' "$changes" | wc -l | tr -d ' ')"
+            printf '%s\t%s\t%s\n' "$branch" "$wt" "$count"
+        }
+        export -f check_worktree
+        export GIT
+
+        tr '\t\n' '\0\0' < "$wt_pairs_tmp" \
+            | xargs -0 -n 2 -P 4 bash -c 'check_worktree "$1" "$2"' dummy \
+            | sort -k1,1 > "$wt_dirty_tmp"
+    fi
+
+    # Branch metadata in a single git call
+    "$GIT" for-each-ref --format='%(refname:short)%09%(objectname)%09%(committerdate:unix)%09%(ahead-behind:origin/main)' refs/heads/ > "$branch_refs_tmp" 2>/dev/null || true
+
+    # Identify branches that need diff check (ahead > 0 and dirty == 0 and not in merged_oids)
+    export MERGED_OIDS="$merged_oids"
+    awk -F'\t' '
+        BEGIN {
+            split(ENVIRON["MERGED_OIDS"], m_lines, "\n")
+            for (i in m_lines) if (m_lines[i] != "") m_set[m_lines[i]] = 1
+        }
+        NR==FNR {
+            dirty_map[$1] = $3
+            next
+        }
+        {
+            branch = $1
+            if (branch == "main" || branch ~ /^integrate\//) next
+            oid = $2
+            ahead_behind = $4
+            split(ahead_behind, ab, " ")
+            ahead = ab[1]
+            dirty = (branch in dirty_map) ? dirty_map[branch] : "0"
+
+            if (ahead ~ /^[0-9]+$/ && ahead > 0 && dirty == "0") {
+                if (!(oid in m_set)) {
+                    print branch
+                }
+            }
+        }
+    ' "$wt_dirty_tmp" "$branch_refs_tmp" > "$need_diff_tmp"
+
+    if [ -s "$need_diff_tmp" ]; then
+        check_tree() {
+            local b="$1"
+            if "$GIT" diff --quiet --no-renames origin/main "$b" 2>/dev/null; then
+                printf '%s\n' "$b"
+            fi
+        }
+        export -f check_tree
+        xargs -P 8 -n 1 bash -c 'check_tree "$1"' dummy < "$need_diff_tmp" | sort > "$tree_spent_tmp"
+    fi
+
+    # Render branches deterministically using awk (O(1) in-memory formatting)
+    awk -F'\t' \
+        -v now_epoch="$now_epoch" \
+        -v stale_hours="$stale_hours" '
+    BEGIN {
+        split(ENVIRON["MERGED_OIDS"], m_lines, "\n")
+        for (i in m_lines) if (m_lines[i] != "") m_set[m_lines[i]] = 1
+        active_count = 0
+    }
+    FILENAME == ARGV[1] {
+        wt_map[$1] = $2
+        dirty_map[$1] = $3
+        next
+    }
+    FILENAME == ARGV[2] {
+        tree_spent[$1] = 1
+        next
+    }
+    {
+        branch = $1
+        if (branch == "" || branch == "main" || branch ~ /^integrate\//) next
+        branch_oid = $2
+        last_epoch = ($3 != "") ? $3 + 0 : 0
+        ahead_behind = $4
+        split(ahead_behind, ab, " ")
+        ahead = ab[1]
+
+        if (ahead == "" || ahead !~ /^[0-9]+$/) {
+            print "  " branch "  UNKNOWN — cannot compare with origin/main; preserve"
+            next
+        }
+
+        wt = ""
+        dirty = "0"
+        if (branch in wt_map) {
+            wt = wt_map[branch]
+            wt_status = dirty_map[branch]
+            if (wt_status == "ERROR") {
+                print "  " branch "  UNKNOWN — worktree status unavailable; preserve"
+                next
+            }
+            dirty = (wt_status != "") ? wt_status : "0"
+        }
+
+        state = "active"
+        reason = ""
+        if (dirty != "0") {
+            state = "active"
+            reason = "uncommitted worktree changes"
+        } else if (ahead == 0) {
+            state = "spent"
+            reason = "0 ahead of origin/main"
+        } else if (branch in tree_spent) {
+            state = "spent"
+            reason = "tree identical to origin/main"
+        } else if (branch_oid != "" && (branch_oid in m_set)) {
+            state = "spent"
+            reason = "head of a merged PR"
+        }
+
+        if (state == "spent") {
+            print "  " branch "  SPENT — " reason
+            next
+        }
+
+        active_count++
+        age_h = int((now_epoch - last_epoch) / 3600)
+        flags = ""
+        if (age_h >= stale_hours) {
+            flags = " — STALE(" age_h "h-since-commit)"
+        }
+        print "  " branch "  active, +" ahead ", last commit " age_h "h ago" flags
+
+        if (wt != "") {
+            if (dirty != "0") {
+                print "    uncommitted: " dirty " file(s) in " wt
+            }
+            print "    worktree: " wt " (intent comes from pickup-counter claims above)"
+        } else {
+            print "    worktree: none attached"
+        }
+    }
+    END {
+        if (active_count == 0) {
+            print "  (no active topic branches)"
+        }
+    }
+    ' "$wt_dirty_tmp" "$tree_spent_tmp" "$branch_refs_tmp"
+    bar
+fi
 
 # ---- open PRs ---------------------------------------------------------------
 echo "## open pull requests"

@@ -1,6 +1,6 @@
 """Immutable data contracts and canonical identity schemas for the Three-Vertical Harbor-Native Benchmark Program.
 
-Grounding: Architecture PR #265 (research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md)
+Grounding: Architecture PR #265 (research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md)
 """
 
 from __future__ import annotations

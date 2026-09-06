@@ -1,6 +1,6 @@
 """Shared FastMCP multi-container task-authoring substrate and runtime middleware.
 
-Grounding: Architecture PR #265 (research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md)
+Grounding: Architecture PR #265 (research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md)
 
 Provides:
 - Task authoring substrate API (`materialize_mcp_sidecar_package`) emitting:
@@ -1013,7 +1013,9 @@ def _stage_clean_package_directory(
             "event_schema_version": MCP_TOOL_EVENT_SCHEMA_VERSION,
             "tool_definitions_sha256": compute_tool_definitions_sha256(tools, op_registry_module),
             "tool_definitions": canonical_tool_definitions_payload(tools, op_registry_module),
-            "server_params": server_generation_params(server_name, port, op_registry_module, fault_record),
+            "server_params": server_generation_params(
+                server_name, port, op_registry_module, fault_record
+            ),
             "trusted_manifest_digest": trusted_wheel_manifest_digest(),
             "trusted_manifest_source": trusted_wheel_manifest_source(),
             "runtime_assets": asset_proof,
@@ -1055,7 +1057,9 @@ def _stage_clean_package_directory(
             "event_schema_version": MCP_TOOL_EVENT_SCHEMA_VERSION,
             "tool_definitions_sha256": compute_tool_definitions_sha256(tools, op_registry_module),
             "tool_definitions": canonical_tool_definitions_payload(tools, op_registry_module),
-            "server_params": server_generation_params(server_name, port, op_registry_module, fault_record),
+            "server_params": server_generation_params(
+                server_name, port, op_registry_module, fault_record
+            ),
             "trusted_manifest_digest": trusted_wheel_manifest_digest(),
             "trusted_manifest_source": trusted_wheel_manifest_source(),
             "runtime_assets": asset_proof,
@@ -1787,6 +1791,7 @@ def verify_proof_independently(
         fault_record = None
         if fault_json:
             from evallab.benchmark_program_contracts import FaultInjectionRecord
+
             fault_record = FaultInjectionRecord.model_validate_json(fault_json)
         regenerated_server = generate_fastmcp_server_script(
             tools=tools,
@@ -1822,9 +1827,7 @@ def verify_proof_independently(
             if isinstance(a, Mapping) and isinstance(a.get("path"), str):
                 # Only the destination is needed to regenerate the canonical
                 # Dockerfile COPY lines; supply inert content for the dataclass.
-                runtime_assets.append(
-                    RuntimeAsset(destination=a["path"], content=b"")
-                )
+                runtime_assets.append(RuntimeAsset(destination=a["path"], content=b""))
     try:
         regenerated_dockerfile = render_mcp_sidecar_dockerfile(
             base_image=base_image, runtime_assets=runtime_assets
@@ -1862,7 +1865,9 @@ def verify_proof_independently(
     else:
         actual_lock = req_path.read_bytes()
         if actual_lock != canonical_lock:
-            errors.append("requirements.txt does not byte-match the canonical trusted-manifest lock")
+            errors.append(
+                "requirements.txt does not byte-match the canonical trusted-manifest lock"
+            )
         if hashlib.sha256(actual_lock).hexdigest() != proof.get("requirements_sha256"):
             errors.append("requirements.txt digest does not match proof requirements_sha256")
 
@@ -1885,7 +1890,9 @@ def verify_proof_independently(
                 continue
             w_bytes = w_path.read_bytes()
             if len(w_bytes) != w_rec["size_bytes"]:
-                errors.append(f"wheel {w_name!r} size {len(w_bytes)} does not match manifest {w_rec['size_bytes']}")
+                errors.append(
+                    f"wheel {w_name!r} size {len(w_bytes)} does not match manifest {w_rec['size_bytes']}"
+                )
             if hashlib.sha256(w_bytes).hexdigest() != w_rec["sha256"]:
                 errors.append(f"wheel {w_name!r} sha256 does not match trusted manifest")
         proof_wheels = proof.get("wheels")

@@ -268,3 +268,76 @@ def test_ci_workflow_lane_gating_and_wheelhouse_triggers() -> None:
     concurrency = wheelhouse.get("concurrency", {})
     assert concurrency.get("cancel-in-progress") is True
     assert "github.workflow" in concurrency.get("group", "")
+
+
+WORKFLOW_FILES = sorted((ROOT / ".github/workflows").glob("*.yml"))
+# Intentional exemptions mapped to documented reasons. There are currently none;
+# all workflows triggering on pull_request or push must declare concurrency cancellation.
+WORKFLOW_CONCURRENCY_EXEMPTIONS: dict[str, str] = {}
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
+    workflow_path: Path,
+) -> None:
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    triggers = workflow.get("on") or workflow.get(True) or {}
+    if isinstance(triggers, str):
+        triggers = [triggers]
+    if isinstance(triggers, list):
+        trigger_names = set(triggers)
+    elif isinstance(triggers, dict):
+        trigger_names = set(triggers.keys())
+    else:
+        trigger_names = set()
+
+    if not (trigger_names & {"pull_request", "push"}):
+        return
+
+    if workflow_path.name in WORKFLOW_CONCURRENCY_EXEMPTIONS:
+        pytest.skip(
+            f"Workflow {workflow_path.name} is intentionally exempt from concurrency check: "
+            f"{WORKFLOW_CONCURRENCY_EXEMPTIONS[workflow_path.name]}"
+        )
+
+    concurrency = workflow.get("concurrency")
+    assert concurrency is not None, (
+        f"Workflow '{workflow_path.name}' triggers on pull_request/push but lacks a concurrency block."
+    )
+    assert isinstance(concurrency, dict), (
+        f"Workflow '{workflow_path.name}' concurrency block must be a mapping."
+    )
+    group = concurrency.get("group")
+    assert group and isinstance(group, str), (
+        f"Workflow '{workflow_path.name}' must declare a non-empty concurrency group."
+    )
+    assert concurrency.get("cancel-in-progress") is True, (
+        f"Workflow '{workflow_path.name}' concurrency must set cancel-in-progress: true."
+    )
+
+
+def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
+    cert_workflows = ["tau-knowledge.yml", "funcdag-workbench-certification.yml"]
+    for filename in cert_workflows:
+        workflow_path = ROOT / ".github/workflows" / filename
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        triggers = workflow.get("on") or workflow.get(True) or {}
+        assert isinstance(triggers, dict), f"{filename} triggers must be a mapping"
+
+        # Assert schedule trigger is declared (weekly cadence)
+        schedule = triggers.get("schedule")
+        assert schedule is not None and isinstance(schedule, list) and len(schedule) > 0, (
+            f"{filename} must declare a schedule trigger"
+        )
+        assert any(
+            isinstance(entry, dict) and entry.get("cron") == "17 4 * * 1" for entry in schedule
+        ), f"{filename} schedule must specify weekly cron '17 4 * * 1'"
+
+        # Assert task_workbench paths are not listed in any trigger path filters
+        for trigger_name, trigger_config in triggers.items():
+            if isinstance(trigger_config, dict):
+                paths = trigger_config.get("paths", [])
+                for path in paths:
+                    assert "task_workbench" not in path, (
+                        f"{filename} trigger '{trigger_name}' must not list task_workbench path: {path}"
+                    )

@@ -8,7 +8,7 @@ audience:
 # BUILDER authoring pipeline
 
 Status: living. Owner: Tasks lane. Date: 2026-08-17. Implements
-`docs/build-plan.md` WS-C, SG-1 (`docs/prompts/synthesis-build.md`), and SG-2.
+`docs/archive/build-plan.md` WS-C, SG-1 (`docs/prompts/synthesis-build.md`), and SG-2.
 
 `src/evallab/authoring.py` seeds quarantined task proposals, samples specifications
 coverage-first from decoupled axes data files, runs the four local control checks,

@@ -8,7 +8,9 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from evallab.automation import NightlyCycle
+from evallab.contextpack import parse_doc, select_docs
 from evallab.digest import DigestRenderer
+from evallab.docindex import generate_index
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
     AutoRunRule,
@@ -66,6 +68,8 @@ def _write_spec(
     dest = queue_dir / f"{spec_id}.json"
     dest.write_text(spec.model_dump_json())
     return dest
+
+
 def _write_mock_job(
     root: Path,
     job_name: str,
@@ -84,13 +88,15 @@ def _write_mock_job(
     )
     (job / "lock.json").write_text(json.dumps({"harbor": {"version": "0.21.0"}}))
     (job / "result.json").write_text(
-        json.dumps({
-            "id": f"job-id-{job_name}",
-            "started_at": finished_at,
-            "finished_at": finished_at,
-            "n_total_trials": 1,
-            "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
-        })
+        json.dumps(
+            {
+                "id": f"job-id-{job_name}",
+                "started_at": finished_at,
+                "finished_at": finished_at,
+                "n_total_trials": 1,
+                "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+            }
+        )
     )
     agent_info: dict[str, object] = {"name": agent_name, "version": "1.0.0"}
     if model_name:
@@ -101,19 +107,20 @@ def _write_mock_job(
     (trial / "config.json").write_text(json.dumps({"agent": {"name": agent_name}}))
     (trial / "lock.json").write_text(json.dumps({"schema_version": 2}))
     (trial / "result.json").write_text(
-        json.dumps({
-            "id": f"trial-id-{job_name}",
-            "trial_name": trial.name,
-            "task_name": task_name,
-            "started_at": finished_at,
-            "finished_at": finished_at,
-            "agent_info": agent_info,
-            "verifier_result": {"rewards": {"reward": reward}},
-            "exception_info": None,
-        })
+        json.dumps(
+            {
+                "id": f"trial-id-{job_name}",
+                "trial_name": trial.name,
+                "task_name": task_name,
+                "started_at": finished_at,
+                "finished_at": finished_at,
+                "agent_info": agent_info,
+                "verifier_result": {"rewards": {"reward": reward}},
+                "exception_info": None,
+            }
+        )
     )
     return job
-
 
 
 def test_idempotent_and_deterministic_status_generation(tmp_path: Path) -> None:
@@ -154,8 +161,31 @@ def test_status_update_file_default_path(tmp_path: Path) -> None:
 
     content = expected_path.read_text()
     assert "---" in content
-    assert "status: living" in content
+    assert "status: historical" in content
     assert f"# Research status — {TARGET_DATE.isoformat()}" in content
+    assert "Generated catalog snapshot; historical record, not a living contract." in content
+
+
+def test_status_excluded_from_all_mission_context_packs(tmp_path: Path) -> None:
+    """Prove STATUS.md is excluded from context packs for all 4 missions but listed in docindex."""
+    repo = _setup_mock_repo(tmp_path)
+    status_path = update_status_file(repo, target_date=TARGET_DATE)
+    assert status_path.is_file()
+
+    # 1. Prove contextpack.select_docs excludes STATUS.md for all four missions
+    for mission in ("builder", "analyst", "runner", "operator"):
+        selected = select_docs(repo / "docs", mission_type=mission, root=repo)
+        selected_paths = [d.path for d in selected]
+        assert "docs/STATUS.md" not in selected_paths, (
+            f"docs/STATUS.md must not be selected for mission {mission}"
+        )
+
+    # 2. Prove docindex accepts and lists it in archive and historical tables
+    index_text = generate_index(docs_dir=repo / "docs", root=repo)
+    assert "`docs/STATUS.md`" in index_text
+    assert "## Archive" in index_text
+    doc_meta = parse_doc(status_path, root=repo)
+    assert doc_meta.status == "historical"
 
 
 def test_status_generator_sha256_byte_identity(tmp_path: Path) -> None:
@@ -421,10 +451,11 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
     assert result.status_path is None
     events = load_events(queue.events_path)
     assert any(
-        e.event == "status_generation_failed"
-        and "RuntimeError" in (e.reason_code or "")
+        e.event == "status_generation_failed" and "RuntimeError" in (e.reason_code or "")
         for e in events
     )
+
+
 def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_path: Path) -> None:
     repo = _setup_mock_repo(tmp_path)
     # Seed both a yesterday job and a historical job on the filesystem
@@ -596,44 +627,60 @@ def test_status_filesystem_fallback_honors_date_filter_and_label(tmp_path: Path)
     # Old job: 2026-08-12 (3 days before REPORTING_DATE 2026-08-15)
     old_job = repo / "runs" / "old-job"
     old_job.mkdir(parents=True)
-    (old_job / "result.json").write_text(json.dumps({
-        "id": "old-001",
-        "finished_at": "2026-08-12T15:00:00Z",
-        "n_total_trials": 1,
-        "stats": {"n_completed_trials": 1},
-    }))
+    (old_job / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "old-001",
+                "finished_at": "2026-08-12T15:00:00Z",
+                "n_total_trials": 1,
+                "stats": {"n_completed_trials": 1},
+            }
+        )
+    )
     (old_job / "config.json").write_text(
         json.dumps({"agent": {"name": "oracle"}, "task": {"name": "task-old"}})
     )
     old_trial = old_job / "trial-1"
     old_trial.mkdir(parents=True)
-    (old_trial / "result.json").write_text(json.dumps({
-        "task_name": "task-old",
-        "trial_name": "trial-1",
-        "agent_info": {"name": "oracle"},
-        "verifier_result": {"rewards": {"reward": 1.0}},
-    }))
+    (old_trial / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": "task-old",
+                "trial_name": "trial-1",
+                "agent_info": {"name": "oracle"},
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
 
     # Yesterday job: 2026-08-15
     yest_job = repo / "runs" / "yest-job"
     yest_job.mkdir(parents=True)
-    (yest_job / "result.json").write_text(json.dumps({
-        "id": "yest-001",
-        "finished_at": "2026-08-15T15:00:00Z",
-        "n_total_trials": 1,
-        "stats": {"n_completed_trials": 1},
-    }))
+    (yest_job / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "yest-001",
+                "finished_at": "2026-08-15T15:00:00Z",
+                "n_total_trials": 1,
+                "stats": {"n_completed_trials": 1},
+            }
+        )
+    )
     (yest_job / "config.json").write_text(
         json.dumps({"agent": {"name": "codex"}, "task": {"name": "task-yesterday"}})
     )
     yest_trial = yest_job / "trial-1"
     yest_trial.mkdir(parents=True)
-    (yest_trial / "result.json").write_text(json.dumps({
-        "task_name": "task-yesterday",
-        "trial_name": "trial-1",
-        "agent_info": {"name": "codex", "model_info": {"name": "gpt-5.6-terra"}},
-        "verifier_result": {"rewards": {"reward": 1.0}},
-    }))
+    (yest_trial / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": "task-yesterday",
+                "trial_name": "trial-1",
+                "agent_info": {"name": "codex", "model_info": {"name": "gpt-5.6-terra"}},
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
 
     data = collect_status_data(repo, target_date=TARGET_DATE, database_url="")
     assert data.trials_source == "filesystem"

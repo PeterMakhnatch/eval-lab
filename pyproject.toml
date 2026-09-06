@@ -69,7 +69,10 @@ default-groups = ["dev", "observability"]
 packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
-addopts = "-q -n 4 --dist loadscope"
+addopts = "-q -n 4 --dist loadscope --strict-markers"
+markers = [
+    "docs_consumer: reads repository documents; runs in the documentation-only CI lane",
+]
 testpaths = [
     "tests",
     "dashboard/tests",

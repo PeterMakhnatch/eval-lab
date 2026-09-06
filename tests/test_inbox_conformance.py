@@ -30,6 +30,7 @@ import pytest
 
 from evallab.contextpack import parse_front_matter
 
+pytestmark = pytest.mark.docs_consumer
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INBOX = REPO_ROOT / "research" / "inbox"
 

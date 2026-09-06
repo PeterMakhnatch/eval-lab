@@ -387,6 +387,114 @@ def test_branch_sweep_gh_pr_checking(tmp_path: Path) -> None:
     assert "gh unavailable" in f_map_unavail["role/no-pr"].reason
 
 
+def test_branch_sweep_all_namespaces_and_exclusions(tmp_path: Path) -> None:
+    """Assert sweep_branches inspects all namespaces except main, integrate/*, and current checkout."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    # 1. Non-role branches merged into main with no PR -> actionable
+    subprocess.run(
+        ["git", "branch", "feat/merged-clean", "main"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "branch", "fix/bugfix-clean", "main"], cwd=root, check=True, capture_output=True
+    )
+
+    # 2. Non-role branch with an open PR -> preserved (non-actionable)
+    subprocess.run(
+        ["git", "branch", "research/open-pr", "main"], cwd=root, check=True, capture_output=True
+    )
+
+    # 3. Excluded branches: integrate/*, integrate, and main -> never listed
+    subprocess.run(
+        ["git", "branch", "integrate/pipeline-run", "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "branch", "integrate/batch-2", "main"], cwd=root, check=True, capture_output=True
+    )
+
+    # 4. Branch checked out in an active worktree -> preserved (active_worktree, non-actionable)
+    wt_dir = root / ".worktrees" / "active-feat-wt"
+    wt_dir.parent.mkdir(exist_ok=True)
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "feat/in-worktree", str(wt_dir), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+    # 5. Existing role/* expectations continue to hold
+    subprocess.run(
+        ["git", "branch", "role/merged-clean", "main"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "branch", "role/with-pr-branch", "main"], cwd=root, check=True, capture_output=True
+    )
+
+    def mock_gh_checker(branch: str, r: Path) -> tuple[bool, int | None, str | None]:
+        if branch in ("research/open-pr", "role/with-pr-branch"):
+            return (True, 99, None)
+        return (True, None, None)
+
+    findings = sweep_branches(root, gh_checker=mock_gh_checker)
+    f_map = {f.branch: f for f in findings}
+
+    # integrate/*, integrate, and main must NEVER be listed
+    assert "main" not in f_map
+    assert "integrate/pipeline-run" not in f_map
+    assert "integrate/batch-2" not in f_map
+
+    # Non-role merged branches with no PR are reported actionable
+    assert f_map["feat/merged-clean"].status == "merged_no_pr"
+    assert f_map["feat/merged-clean"].actionable is True
+    assert "merged into" in f_map["feat/merged-clean"].reason
+
+    assert f_map["fix/bugfix-clean"].status == "merged_no_pr"
+    assert f_map["fix/bugfix-clean"].actionable is True
+
+    # Non-role branch with open PR is preserved
+    assert f_map["research/open-pr"].status == "open_pr"
+    assert f_map["research/open-pr"].actionable is False
+    assert "open PR #99" in f_map["research/open-pr"].reason
+
+    # Branch checked out in a worktree is preserved
+    assert f_map["feat/in-worktree"].status == "active_worktree"
+    assert f_map["feat/in-worktree"].actionable is False
+    assert "preserved" in f_map["feat/in-worktree"].reason
+
+    # Existing role/* expectations continue to hold
+    assert f_map["role/merged-clean"].status == "merged_no_pr"
+    assert f_map["role/merged-clean"].actionable is True
+    assert f_map["role/with-pr-branch"].status == "open_pr"
+    assert f_map["role/with-pr-branch"].actionable is False
+
+    # 6. Verify primary checkout exclusion when checked out on a non-main branch
+    subprocess.run(
+        ["git", "checkout", "-b", "maintenance/current-checkout"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    findings_switched = sweep_branches(root, gh_checker=mock_gh_checker)
+    switched_map = {f.branch: f for f in findings_switched}
+    assert "maintenance/current-checkout" not in switched_map
+    assert "main" not in switched_map
+
+    # 7. Format report checks: actionable non-role branches appear under Merged local branches;
+    # worktree branches are excluded from Merged local branches.
+    report = collect_tidy_report(root, gh_checker=mock_gh_checker)
+    text = format_tidy_report(report, root)
+    assert "## 2. Merged local branches" in text
+    merged_section = text.split("## 2. Merged local branches")[1].split("## 3.")[0]
+    assert "feat/merged-clean" in merged_section
+    assert "[eligible for deletion]" in merged_section
+    assert "feat/in-worktree" not in merged_section
+
+
 def test_classify_junk() -> None:
     """Unit test for classify_junk signature recognition."""
     assert classify_junk(Path("foo.tmp")) is not None
@@ -905,14 +1013,16 @@ def test_broken_worktree_classifies_unproven(tmp_path: Path) -> None:
 
 @settings(max_examples=12, deadline=None)
 @given(
-    branch_type=st.sampled_from([
-        "ancestor_merged",
-        "squash_merged",
-        "unmerged_extra_commit",
-        "unmerged_divergent",
-        "detached",
-        "missing_branch",
-    ]),
+    branch_type=st.sampled_from(
+        [
+            "ancestor_merged",
+            "squash_merged",
+            "unmerged_extra_commit",
+            "unmerged_divergent",
+            "detached",
+            "missing_branch",
+        ]
+    ),
     is_dirty=st.booleans(),
 )
 def test_property_actionable_implies_provably_merged_and_clean(
@@ -1351,6 +1461,7 @@ def test_current_worktree_excluded_before_expensive_work(
     # Only the actionable worktree is measured; never the current one.
     assert len(size_calls) == 1
     assert size_calls[0].resolve() == merged_wt.resolve()
+
 
 def test_active_worktrees_not_recursively_sized(
     tmp_path: Path,

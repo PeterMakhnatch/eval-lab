@@ -4,16 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from evallab.contextpack import DocMetadata, parse_front_matter, repo_root
 from evallab.docindex import (
     GENERATED_BY_MARKER,
     check_index,
     generate_index,
+    is_generated_doc,
     main,
     render_index,
     write_index,
 )
 from evallab.lineage import compute_file_digest, resolve_lineage
+
+pytestmark = pytest.mark.docs_consumer
 
 
 def _write_doc(
@@ -139,8 +144,7 @@ def test_check_fails_on_invalid_status(tmp_path: Path) -> None:
 
     issues = check_index(docs_dir=docs, index_path=index_path, root=tmp_path)
     assert any(
-        issue.path == "docs/draft.md" and "status 'draft'" in issue.message
-        for issue in issues
+        issue.path == "docs/draft.md" and "status 'draft'" in issue.message for issue in issues
     )
 
 
@@ -157,6 +161,78 @@ def test_check_fails_on_stale_committed_index(tmp_path: Path) -> None:
     issues = check_index(docs_dir=docs, index_path=index_path, root=tmp_path)
     assert any("stale" in issue.message for issue in issues)
     assert main(["check", "--docs-dir", str(docs), "--index", str(index_path)]) == 1
+
+
+def test_generated_docs_excluded_from_inputs_but_present_in_tables(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    _write_doc(
+        docs,
+        "repo-map.md",
+        status="living",
+        audience=["builder", "operator"],
+        title="Repository map",
+        extra="AST-derived map of `src/evallab/`.\n",
+    )
+    _write_doc(
+        docs,
+        "STATUS.md",
+        status="historical",
+        audience=["operator"],
+        title="Research status",
+        extra="Catalog snapshot.\n",
+    )
+    text = generate_index(docs_dir=docs, root=tmp_path)
+    assert is_generated_doc("docs/repo-map.md")
+    assert is_generated_doc("docs/STATUS.md")
+    assert not is_generated_doc("docs/builder-live.md")
+    fm, _body = parse_front_matter(text)
+    assert fm is not None and "inputs" in fm
+    input_paths = [item["path"] for item in fm["inputs"]]
+    assert "docs/repo-map.md" not in input_paths
+    assert "docs/STATUS.md" not in input_paths
+    assert "docs/builder-live.md" in input_paths
+    assert "`docs/repo-map.md`" in text
+    assert "`docs/STATUS.md`" in text
+
+
+def test_repo_map_regeneration_does_not_fail_check(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    repo_map = _write_doc(
+        docs,
+        "repo-map.md",
+        status="living",
+        audience=["builder", "operator"],
+        title="Repository map",
+        extra="Initial generated content.\n",
+    )
+    index_path = docs / "INDEX.md"
+    write_index(output=index_path, docs_dir=docs, root=tmp_path)
+    assert check_index(docs_dir=docs, index_path=index_path, root=tmp_path) == []
+
+    # Simulate repo-map regeneration with different content body (different file digest)
+    repo_map.write_text(
+        "---\nstatus: living\naudience:\n  - builder\n  - operator\n---\n\n"
+        "# Repository map\n\nRegenerated with new symbol tables and different lines.\n",
+        encoding="utf-8",
+    )
+    issues = check_index(docs_dir=docs, index_path=index_path, root=tmp_path)
+    assert issues == [], f"Expected check_index to pass after repo-map regeneration, got {issues}"
+
+
+def test_hand_written_doc_change_fails_check_without_regeneration(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    index_path = docs / "INDEX.md"
+    write_index(output=index_path, docs_dir=docs, root=tmp_path)
+    assert check_index(docs_dir=docs, index_path=index_path, root=tmp_path) == []
+
+    # Modify a hand-written doc's content
+    builder_doc = docs / "builder-live.md"
+    builder_doc.write_text(
+        builder_doc.read_text(encoding="utf-8") + "\nAdded paragraph by human author.\n",
+        encoding="utf-8",
+    )
+    issues = check_index(docs_dir=docs, index_path=index_path, root=tmp_path)
+    assert any("stale" in issue.message for issue in issues)
 
 
 def test_check_passes_on_real_repo_docs_tree() -> None:
@@ -188,6 +264,7 @@ def test_render_index_includes_required_marker_and_front_matter() -> None:
     assert GENERATED_BY_MARKER in text
     assert text.endswith("\n")
 
+
 def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
     docs = _sample_tree(tmp_path)
     index_text = generate_index(docs_dir=docs, root=tmp_path)
@@ -202,6 +279,8 @@ def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
         assert "digest" in item and isinstance(item["digest"], str)
         assert item["digest"].startswith("sha256:")
         assert len(item["digest"]) == 71
+
+
 def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
     docs = _sample_tree(tmp_path)
     index_path = docs / "INDEX.md"

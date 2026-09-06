@@ -16,13 +16,15 @@ No Harbor runs. No paid models. One writer per worktree.
 `evallab context` is not a CLI command. The pack compiler is:
 
 ```bash
-uv run python -m evallab.contextpack build <mission_type> [-o out.md] [--task REF]
+uv run python -m evallab.contextpack build <mission_type> [--path REL] [-o out.md] [--task REF]
 ```
 
 `mission_type` is one of `builder`, `analyst`, `runner`, `operator`.
+Pass repeatable `--path` for the files or directories the mission will touch
+to scope the pack to relevant living docs. Without `--path`, the compiler
+selects docs by mission audience for general orientation.
 Two consecutive builds of the same tree must be byte-identical. Point
 the brief at the pack path; do not paste a docs crawl.
-
 ## 2. Brief
 
 For a substantial mission, state identity and worktree, owned paths, acceptance,

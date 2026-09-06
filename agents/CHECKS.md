@@ -18,18 +18,39 @@ lint floor; CI also exercises Python 3.14.
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
+| Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 | Tests | `uv run pytest` | locked pytest; Python 3.12 and 3.14 |
-| Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate |
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
+
+### Scope classification and test lanes
+
+The `quality` workflow runs a `scope` job before `test`, classifying the exact
+change set with `scripts/profile/change_scope.py` (fail-closed: an unavailable
+diff or any unrecognised path means `profile=true`):
+
+- **Documentation-only diffs (`profile=false`):** every changed file is
+  `AGENTS.md`, `README.md`, or a `.md` file under `docs/`, `agents/`,
+  `.omp/skills/`, or `.claude/skills/`. The `test` jobs run the
+  documentation-consumer lane, `uv run --no-sync pytest -m docs_consumer`:
+  every module that reads committed documents or scans the tree carries
+  `pytestmark = pytest.mark.docs_consumer` (registered in `pyproject.toml`,
+  `--strict-markers`). A test that starts reading repository documents must
+  take the marker in the same change.
+- **Everything else (`profile=true`):** the full suite, `uv run --no-sync pytest`.
+
+Both lanes report under the same check names (`test (3.12)`, `test (3.14)`)
+and write the lane taken to the job summary. The `lint` job's document,
+governance, registry, and lessons gates run unconditionally in either lane.
 
 Run `make premerge` before pushing. Before final review and doc freshness checks,
 run explicit `make docs` to regenerate `docs/INDEX.md` and `docs/repo-map.md`.
 `scripts/premerge.sh` pins Python 3.12, checks uv 0.9.24, performs the locked
 install (including the `benchmarks` dependency group so the live
 fastmcp/cryptography contract tests run locally instead of skipping via
-`pytest.importorskip`), runs every gate above, and applies the same ty 0.0.71
+`pytest.importorskip`), runs the static type check (`ty`) *before* pytest so type
+errors surface in seconds, runs every gate above, and applies the same ty 0.0.71
 ratchet. It is the local reproduction of the combined `quality` and `typecheck`
 workflows; GitHub remains the merge authority.
 

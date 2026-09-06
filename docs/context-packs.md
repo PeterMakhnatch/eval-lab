@@ -22,10 +22,17 @@ receives a compiled, deterministic context bundle tailored to its mission type.
 This solves context pollution structurally:
 1. **Living docs only**: Historical records (`docs/archive/`, dated reviews,
    retired proposals) are filtered out at compile time.
-2. **Audience-targeted**: Builder agents receive authoring and workbench
-   standards; analyst agents receive trajectory science and statistical guides;
-   runners receive execution and quota rules; operators receive infrastructure
-   and fleet manuals.
+2. **Audience-targeted vs. path-scoped selection**:
+   - **Default (audience) mode**: Builder agents receive authoring and workbench
+     standards; analyst agents receive trajectory science and statistical guides;
+     runners receive execution and quota rules; operators receive infrastructure
+     and fleet manuals. This mode provides mission-wide orientation.
+   - **Path-scoped mode (`--path <rel>`)**: When an agent knows the files or
+     directories it will touch, candidate docs are selected from all living docs
+     and ranked by content relevance score. Docs with score 0 are excluded
+     (except `docs/NOW.md`), ensuring the bundle contains the exact engineering,
+     architecture, or subsystem docs relevant to the changes rather than generic
+     role documentation.
 3. **Task-corpus facets**: When authoring or evaluating against a target task
    (`--task <ref>`), the compiler queries `derived/parquet/craft/craft.parquet`
    and attaches structural verifier patterns, anti-cheat techniques, and
@@ -81,9 +88,11 @@ The compiler is callable directly via Python module execution:
 # Build a context pack for a builder mission
 uv run python -m evallab.contextpack build builder -o /tmp/builder_pack.md
 
+# Build a path-scoped pack tailored to specific files the mission will touch
+uv run python -m evallab.contextpack build builder --path src/evallab/<module>.py -o /tmp/scoped_pack.md
+
 # Build a pack tailored to a specific target task
 uv run python -m evallab.contextpack build builder --task terminal-bench/atrx-vep-crispr -o /tmp/task_pack.md
-
 # Emit JSON metadata and content digest
 uv run python -m evallab.contextpack build analyst --json
 
@@ -97,6 +106,7 @@ uv run python -m evallab.contextpack list-docs
 |---|---|
 | `mission_type` | Positional argument: `builder`, `analyst`, `runner`, or `operator`. |
 | `--task <ref>` | Optional task reference from `craft.parquet` (e.g. `terminal-bench/atrx-vep-crispr`). |
+| `--path <rel>` | Optional repeatable repo-relative path or prefix (e.g. `src/evallab/<module>.py`, `src/evallab/`). Scopes living docs by content relevance to these paths. |
 | `-o`, `--out <file>` | Path to write the compiled markdown document. |
 | `--budget`, `--token-budget <tokens>` | Token budget ceiling (default `12000` per v2 §6; `0` for unlimited). |
 | `--docs-dir <dir>` | Path to docs directory (defaults to `docs/`). |
@@ -187,6 +197,40 @@ count descending, then document size descending (shedding larger documents first
 to minimize total documents lost), with alphabetical path as the deterministic
 tie-breaker.
 
+
+### Path-Scoped Selection & Relevance Scoring
+
+When `--path` is supplied (repeatable for multiple files or directories):
+
+1. **Candidate Corpus**: All living docs in `docs/` and `docs/research/`
+   regardless of audience tag (relevance is determined by doc content, not static
+   role tags). Historical docs remain excluded.
+2. **Reference Token Generation**: For each repo-relative path, the compiler
+   derives reference tokens:
+   - The exact path (`src/evallab/<module>.py`).
+   - Its basename (`<module>.py`).
+   - For `src/evallab/**/*.py`, the dotted module name (`evallab.<module>`,
+     `evallab.storage.paths`).
+   - For directories and prefixes, the path itself (`src/evallab`).
+3. **Whole-Word Matching**: Tokens are matched against doc bodies as whole
+   words/paths using boundary lookarounds (preventing partial false matches like
+   `module` matching `module-x` or `<module>.py` matching `<module>.py.bak`).
+4. **Relevance Scoring & Filtering**: Each doc receives a deterministic score
+   equal to the total occurrences of all reference tokens found in its body. Docs with
+   score `0` are excluded, except `docs/NOW.md`, which is always retained as the
+   current-state anchor.
+5. **Section Extraction**: In path mode, only the matching sections of each doc
+   are rendered (split at headings; pre-heading preamble counts as a section).
+   Each kept section is emitted under the doc title with a `*Source: path#heading*`
+   line. `docs/NOW.md` remains included in full.
+6. **Ordering & Truncation**: Retained docs are ordered by `(score desc, path)`.
+   When budget binds on a path-scoped pack, truncation sheds lowest occurrence
+   count first, then largest rendered section size descending, then path — never
+   the audience category in path mode.
+7. **Audit & Traceability**: The pack metadata header includes a `Scope` field
+   listing the target paths. In `--json` mode, the output records the `paths`
+   list, a `doc_scores` mapping of document paths to scores, and an individual
+   `score` and `sections` (headings kept) on each document descriptor.
 ### Truncation Audit Notice
 
 A truncated pack explicitly records its truncation in the markdown output and

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import re
 import sys
 from collections import defaultdict
@@ -169,6 +170,37 @@ class InputRecord:
     digest: str
 
 
+def compute_module_structural_digest(path: Path, commands: Sequence[str] = ()) -> str:
+    """Compute sha256 digest of module declarations and entries.
+
+    Replaces function and method bodies with `pass` so that editing a
+    function body without changing declarations/signatures does not alter
+    the digest, while adding/removing a function, class, parameter, or
+    CLI command produces a different digest.
+    """
+    source = path.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return compute_file_digest(path)
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            doc = ast.get_docstring(node)
+            body: list[ast.stmt] = []
+            if doc is not None:
+                body.append(ast.Expr(value=ast.Constant(value=doc)))
+            body.append(ast.Pass())
+            node.body = body
+
+    unparsed = ast.unparse(tree)
+    parts = [unparsed]
+    if commands:
+        parts.append("commands: " + ", ".join(sorted(commands)))
+    payload = "\n".join(parts).encode("utf-8")
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
 @dataclass(frozen=True)
 class RepoMap:
     """Fully derived snapshot used to render and check the committed map."""
@@ -219,13 +251,13 @@ def _first_definition_doc(tree: ast.AST, *, public_only: bool) -> str | None:
     return None
 
 
-def module_purpose(source: str, tree: ast.AST, *, module_name: str | None = None, is_package: bool = False) -> str | None:
+def module_purpose(
+    source: str, tree: ast.AST, *, module_name: str | None = None, is_package: bool = False
+) -> str | None:
     """Derive a one-line purpose from AST-available descriptions."""
     module_doc = (
         ast.get_docstring(tree)
-        if isinstance(
-            tree, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-        )
+        if isinstance(tree, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
         else None
     )
     if module_doc:
@@ -632,10 +664,15 @@ def parse_module_cli(path: Path, module: str) -> list[CommandRecord]:
 def _path_like_constant(text: str) -> bool:
     if not text or "\n" in text or " " in text or len(text) > 80:
         return False
-    return "/" in text or text.endswith((".parquet", ".jsonl", ".sql")) or text in {
-        "events.jsonl",
-        "STOP",
-    }
+    return (
+        "/" in text
+        or text.endswith((".parquet", ".jsonl", ".sql"))
+        or text
+        in {
+            "events.jsonl",
+            "STOP",
+        }
+    )
 
 
 def _string_constants(tree: ast.AST) -> list[str]:
@@ -824,7 +861,9 @@ def build_map(src_dir: Path, root: Path) -> RepoMap:
     inputs: list[InputRecord] = []
     for mod_path in discover_module_paths(src_dir):
         rel = _relative_path(mod_path, root)
-        digest = compute_file_digest(mod_path)
+        mod_name = module_name_for_path(mod_path, src_dir)
+        cmds = tuple(module_commands.get(mod_name, ()))
+        digest = compute_module_structural_digest(mod_path, cmds)
         inputs.append(InputRecord(path=rel, digest=digest))
     inputs.sort(key=lambda x: x.path)
 
@@ -842,6 +881,11 @@ def _command_cell(commands: Sequence[str]) -> str:
 
 def _writer_cell(writers: Sequence[str]) -> str:
     return ", ".join(f"`{name}`" for name in writers) if writers else "—"
+
+
+def _size_hint(line_count: int) -> int:
+    """Round to the nearest hundred: a size cue that body-only edits rarely move."""
+    return max(100, round(line_count / 100) * 100)
 
 
 def render_map(snapshot: RepoMap) -> str:
@@ -876,14 +920,14 @@ def render_map(snapshot: RepoMap) -> str:
             "",
             "## Modules",
             "",
-            "| Module | Lines | Purpose | CLI |",
+            "| Module | ~Lines | Purpose | CLI |",
             "|---|---:|---|---|",
         ]
     )
     for module in snapshot.modules:
         purpose = module.purpose or "_(missing docstring)_"
         lines.append(
-            f"| `{module.name}` | {module.line_count} | {purpose} | "
+            f"| `{module.name}` | {_size_hint(module.line_count)} | {purpose} | "
             f"{_command_cell(module.commands)} |"
         )
 
@@ -970,9 +1014,7 @@ def collect_check_issues(
 
     for module in snapshot.modules:
         if not module.purpose:
-            issues.append(
-                CheckIssue(module.path, "module has no docstring to describe it")
-            )
+            issues.append(CheckIssue(module.path, "module has no docstring to describe it"))
 
     expected = render_map(snapshot)
     map_rel = _relative_path(map_path, resolved_root)
@@ -983,9 +1025,7 @@ def collect_check_issues(
     actual = map_path.read_text(encoding="utf-8")
     fm, _body = parse_front_matter(actual)
     if fm is None:
-        issues.append(
-            CheckIssue(map_rel, "committed map must begin with valid front-matter")
-        )
+        issues.append(CheckIssue(map_rel, "committed map must begin with valid front-matter"))
     else:
         status_val = str(fm.get("status", "")).strip().lower()
         if status_val != "living":
@@ -1006,15 +1046,11 @@ def collect_check_issues(
                 )
             )
         if "inputs" not in fm or not isinstance(fm["inputs"], list):
-            issues.append(
-                CheckIssue(map_rel, "inputs field in front-matter must be a list")
-            )
+            issues.append(CheckIssue(map_rel, "inputs field in front-matter must be a list"))
     if GENERATED_BY_MARKER not in actual:
         issues.append(CheckIssue(map_rel, "committed map is missing the generated-by marker"))
     if actual != expected:
-        issues.append(
-            CheckIssue(map_rel, "committed map is stale relative to a fresh generation")
-        )
+        issues.append(CheckIssue(map_rel, "committed map is stale relative to a fresh generation"))
     return issues
 
 
@@ -1038,9 +1074,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to execute")
 
-    generate_cmd = subparsers.add_parser(
-        "generate", help="Write a deterministic repository map"
-    )
+    generate_cmd = subparsers.add_parser("generate", help="Write a deterministic repository map")
     generate_cmd.add_argument(
         "-o",
         "--out",

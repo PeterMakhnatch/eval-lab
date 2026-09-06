@@ -1,10 +1,16 @@
 ---
-status: living
+status: historical
 audience:
   - operator
 ---
 
 # Fleet tracking: how the human keeps up with many agents
+
+> Historical design and August 16 implementation receipt. It is not a live
+> dispatch instruction. Current protocol: `agents/WORKFLOW.md` and
+> `research/inbox/board.md`. Current `scripts/fleet-status.sh` reads actual
+> pickup-counter files and all topic-branch prefixes; its Git/PR observations
+> do not authorize worktree deletion.
 
 > Claude, 2026-08-13, at Peter's direction. Companion to
 > `docs/design-additions.md` (adds **brief 12**) and `docs/parallel-work.md`
@@ -182,9 +188,9 @@ What it reports now, and the reason for each choice:
   four-line header at its last stopping point, not a verified branch, PR, or
   CI state.
 - **The block does not restate `agents/OWNERS.md` or
-  `agents/missions/ACTIVE.md`.** It names them instead. The four lanes are
-  permanent and would be identical every day; the mission board is
-  human-edited and can be — and on 2026-08-16 was — behind `origin/main`.
+  the mission backlog in `research/inbox/board.md` (navigated via
+  `agents/missions/ACTIVE.md`).** It names them instead. The four lanes are
+  permanent and would be identical every day; the mission backlog is
   Copying either into a generated report would let their staleness arrive
   wearing the authority of a measurement.
 - **It does not call `gh`.** Open pull requests would be a genuinely useful

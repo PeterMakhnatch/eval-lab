@@ -1,6 +1,9 @@
 ---
 name: repository-health
-description: Audit and improve eval-lab repository health: local/CI parity, duplicated rules, stale generated state, mission and worktree hygiene, source-of-truth drift, slow maintenance commands, and recurring agent mistakes that should become deterministic checks.
+description: >-
+  Audit eval-lab repository health, local/CI parity, duplicated rules, generated
+  state, worktree hygiene, and source-of-truth drift. Prefer existing deterministic
+  checks over another maintenance layer.
 ---
 
 # Eval-lab repository health
@@ -29,9 +32,9 @@ Delete superseded prose after deterministic enforcement lands. Do not add anothe
 ## Check repository-specific drift
 
 - **Local versus CI:** compare `scripts/premerge.sh`, `agents/CHECKS.md`, and `.github/workflows/`. Local green must not permit a state CI rejects.
-- **Status truth:** trace fleet and mission displays back to `agents/missions/ACTIVE.md`, live handoffs, git state, and GitHub state. Fix the producer or contract rather than editing a derived report.
+- **Status truth:** trace fleet and mission displays back to Peter's authoritative backlog in `research/inbox/board.md`, navigated via `agents/missions/ACTIVE.md`, live handoffs, git state, and GitHub state. Fix the producer or contract rather than editing a derived report.
 - **Worktrees:** classify dirty work as active until proven otherwise. Cross-check branch ancestry, mission ownership, pull-request state, handoff state, and recent activity. Never delete a dirty or in-use worktree without the user's explicit decision.
-- **Generated state:** do not hand-edit `runs/`, `queue/`, `derived/`, backups, generated indexes, or immutable evidence. Fix the generator or regeneration path.
+- **Generated state:** do not hand-edit `runs/`, `queue/`, `derived/`, backups, generated indexes, or immutable evidence. Run explicit `make docs` for deterministic doc generation. Fix the generator or regeneration path when output drifts.
 - **Instruction weight:** keep `AGENTS.md` for durable facts and hard boundaries. Put optional procedures in `.omp/skills/`; do not introduce sticky mode catalogs.
 - **Root structure:** any new top-level entry must be registered in `agents/STRUCTURE.md` in the same change.
 

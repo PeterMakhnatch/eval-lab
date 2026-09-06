@@ -7,7 +7,9 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
 
 ## Working rules
 
-- Read this file, `docs/NOW.md`, and `docs/architecture.md` before substantial changes.
+- Read this file and `docs/NOW.md`, then follow the route for your task. For
+  substantial changes, read relevant architecture sections and scoped instructions;
+  a documentation-only edit does not require the full architecture stack.
 - Treat this as a Python repository. New application code, adapters, verifiers,
   and benchmark tasks must be Python. Shell, SQL, Dockerfiles, and data/config
   formats are allowed as supporting files. Do not add Java/JVM code or build
@@ -31,11 +33,15 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
   immutable source of truth and must remain interpretable without the database.
 - Add schema changes idempotently to `sql/schema.sql` and cover parsers with
   fixture-based tests.
-- Use `uv run pytest`, `uv run ruff check .`, and `uv run evallab doctor`
-  before a meaningful checkpoint.
+- Follow `agents/CHECKS.md` for the checkpoint and pre-push gates; use focused
+  checks during development. Worktree and review procedures live in `agents/WORKFLOW.md`.
 - Make meaningful changes on a named branch and open a pull request; do not push
   directly to `main` unless Peter explicitly asks. Treat every `quality` check
   as required even when the GitHub plan cannot enforce branch protection.
+- The main checkout (`~/Developer/eval-lab`) stays on `main`. Do ALL branch work
+  in `.worktrees/` or `/tmp` worktrees — never `git switch`/`checkout` branches in
+  the primary checkout. A watchdog (`eval-lab-main-watchdog`) auto-restores `main`
+  within ~10s whenever the tree is clean; dirty trees are left untouched and logged.
 - The authoring agent must run the repository checks before pushing. After CI,
   Peter or a different agent reviews the pull request before merge.
 
@@ -53,7 +59,8 @@ editing that file in the same PR. Buckets in one line each:
 - `policy/`: committed standing approvals; agents must never loosen this policy.
 - `src/evallab/`, `tests/`, `sql/`, `scripts/`: the lab software.
 - `digests/`: committed daily derived reports.
-- `queue/`, `runs/`, `derived/`, `backups/`: ignored runtime state;
+- `queue/`, `runs/`, `derived/`, `backups/`: local runtime and recovery state;
+  ignored does not mean disposable. `derived/evidence-cas/` is durable evidence.
   `queue/events.jsonl` drives unattended work.
 
 ## Safe run pattern

@@ -13,6 +13,7 @@ from pathlib import Path
 
 REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
     "agents/missions/ACTIVE.md": ("# Mission board", "## Now", "## Missions"),
+    "research/inbox/board.md": ("# Board — pull, don't push", "# house rules"),
     "agents/missions/TEMPLATE.md": ("# Mission template", "| Exclusive paths |", "| State |"),
     "agents/STRUCTURE.md": ("# Repository structure", "## The map", "## Placement guide"),
     "agents/WORKFLOW.md": (
@@ -25,55 +26,6 @@ REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
 HEADER_PREFIXES = ("Status: ", "Last: ", "Next: ", "Blockers: ")
 LIVE_STATUSES = frozenset({"ready", "building", "blocked", "review-wanted"})
 _ROOT_LINE = re.compile(r"^[├└]──\s+([^\s]+)")
-_TABLE_SEPARATOR = re.compile(r":?-{3,}:?")
-_BOARD_STATUS_TOKEN = re.compile(r"[a-z]+")
-_LIVE_BOARD_STATUSES = frozenset({"ready", "active", "review", "blocked"})
-_TERMINAL_BOARD_STATUSES = frozenset({"merged", "candidate"})
-_STATUS_MARKUP = "`*_~"
-_HANDOFF_PATH = re.compile(r"agents/(?:handoffs|archive/[^/]+)/[^/]+\.md")
-
-
-def _table_cells(line: str) -> tuple[str, ...]:
-    return tuple(cell.strip() for cell in line.strip().strip("|").split("|"))
-
-
-def _board_status_rows(board_text: str) -> tuple[tuple[int, str, tuple[str, ...]], ...]:
-    """Parse all State/Status rows from header-aware Markdown tables."""
-    lines = board_text.splitlines()
-    rows: list[tuple[int, str, tuple[str, ...]]] = []
-    for index in range(len(lines) - 1):
-        if not lines[index].startswith("|") or not lines[index + 1].startswith("|"):
-            continue
-        headers = tuple(cell.casefold() for cell in _table_cells(lines[index]))
-        separators = _table_cells(lines[index + 1])
-        if len(headers) != len(separators) or not all(
-            _TABLE_SEPARATOR.fullmatch(cell) for cell in separators
-        ):
-            continue
-        status_indexes = [
-            position for position, header in enumerate(headers) if header in {"state", "status"}
-        ]
-        if len(status_indexes) != 1:
-            continue
-        status_index = status_indexes[0]
-        row_index = index + 2
-        while row_index < len(lines) and lines[row_index].startswith("|"):
-            cells = _table_cells(lines[row_index])
-            if len(cells) == len(headers):
-                normalized = cells[status_index].lstrip(_STATUS_MARKUP).casefold()
-                match = _BOARD_STATUS_TOKEN.match(normalized)
-                rows.append((row_index + 1, match.group() if match else "", cells))
-            row_index += 1
-    return tuple(rows)
-
-
-def _row_handoff_paths(cells: tuple[str, ...]) -> tuple[str, ...]:
-    paths: list[str] = []
-    for cell in cells:
-        value = cell.strip("`")
-        if _HANDOFF_PATH.fullmatch(value):
-            paths.append(value)
-    return tuple(paths)
 
 
 def declared_roots(structure_text: str) -> frozenset[str]:
@@ -120,56 +72,50 @@ def _document_issues(root: Path) -> list[str]:
 
 
 def _handoff_issues(root: Path) -> list[str]:
+    """Check the canonical pickup counter and any explicitly linked live handoffs."""
     issues: list[str] = []
     handoffs = root / "agents/handoffs"
+    claims = root / "research/inbox/claims"
+    if not claims.is_dir():
+        issues.append("missing pickup counter: research/inbox/claims")
     if not handoffs.is_dir():
-        return ["missing live handoff directory: agents/handoffs"]
-    board_path = root / "agents/missions/ACTIVE.md"
-    board_text = board_path.read_text(encoding="utf-8") if board_path.is_file() else ""
-    board_rows = _board_status_rows(board_text)
-    rows_by_path: dict[str, list[tuple[int, str]]] = {}
-
-    for line_number, board_status, cells in board_rows:
-        if board_status not in _LIVE_BOARD_STATUSES | _TERMINAL_BOARD_STATUSES:
-            rendered = board_status or "<missing>"
-            issues.append(
-                f"agents/missions/ACTIVE.md:{line_number}: unknown board status "
-                f"{rendered!r}"
-            )
+        issues.append("missing live handoff directory: agents/handoffs")
+    claimants: dict[str, str] = {}
+    linked: dict[str, str] = {}
+    for claim in sorted(claims.glob("*.md")):
+        if claim.name == "README.md":
             continue
-        if board_status in _TERMINAL_BOARD_STATUSES:
-            continue
-        paths = _row_handoff_paths(cells)
-        live_paths = tuple(path for path in paths if path.startswith("agents/handoffs/"))
-        archive_paths = tuple(path for path in paths if path.startswith("agents/archive/"))
-        if archive_paths:
-            issues.append(
-                f"agents/missions/ACTIVE.md:{line_number}: live {board_status} row "
-                "references archived handoff: "
-                + ", ".join(archive_paths)
-            )
-        if len(live_paths) != 1:
-            issues.append(
-                f"agents/missions/ACTIVE.md:{line_number}: live {board_status} row "
-                f"must reference exactly one live handoff path; found {len(live_paths)}"
-            )
-            continue
-        live_path = live_paths[0]
-        rows_by_path.setdefault(live_path, []).append((line_number, board_status))
-        if not (root / live_path).is_file():
-            issues.append(
-                f"agents/missions/ACTIVE.md:{line_number}: live handoff does not exist: "
-                f"{live_path}"
-            )
-
+        relative = claim.relative_to(root).as_posix()
+        fields: dict[str, str] = {}
+        for line in claim.read_text(encoding="utf-8").splitlines():
+            key, separator, value = line.partition(":")
+            if separator:
+                key = key.strip()
+                if key in fields:
+                    issues.append(f"{relative}: duplicate claim field {key!r}")
+                fields[key] = value.strip()
+        for required in ("item", "role", "why-me"):
+            if not fields.get(required):
+                issues.append(f"{relative}: missing non-empty claim field {required!r}")
+        claimant = claim.stem.split("-", 1)[0]
+        if claimant in claimants:
+            issues.append(f"{relative}: multiple open claims for {claimant}: {claimants[claimant]}")
+        claimants[claimant] = relative
+        if "handoff" in fields:
+            handoff = fields["handoff"]
+            if not re.fullmatch(r"agents/handoffs/[^/]+\.md", handoff):
+                issues.append(f"{relative}: handoff must name a live agents/handoffs/*.md path")
+                continue
+            if handoff in linked:
+                issues.append(f"{relative}: handoff already claimed by {linked[handoff]}")
+            linked[handoff] = relative
+            if not (root / handoff).is_file():
+                issues.append(f"{relative}: live handoff does not exist: {handoff}")
     for path in sorted(handoffs.glob("*.md")):
-        lines = path.read_text(encoding="utf-8").splitlines()
         relative = path.relative_to(root).as_posix()
-        matching_rows = rows_by_path.get(relative, [])
-        if not matching_rows:
-            issues.append(f"{relative}: live handoff is not referenced by a mission board row")
-        elif len(matching_rows) > 1:
-            issues.append(f"{relative}: live handoff is referenced by multiple mission board rows")
+        if relative not in linked:
+            issues.append(f"{relative}: live handoff has no pickup-counter claim")
+        lines = path.read_text(encoding="utf-8").splitlines()
         if len(lines) < 4:
             issues.append(f"{relative}: fewer than four header lines")
             continue
@@ -183,19 +129,6 @@ def _handoff_issues(root: Path) -> list[str]:
                 issues.append(
                     f"{relative}: invalid live status {status!r}; expected one of {allowed}"
                 )
-            if status in LIVE_STATUSES and len(matching_rows) == 1:
-                board_status = matching_rows[0][1]
-                expected_board_status = {
-                    "ready": "ready",
-                    "building": "active",
-                    "blocked": "blocked",
-                    "review-wanted": "review",
-                }[status]
-                if board_status != expected_board_status:
-                    issues.append(
-                        f"{relative}: handoff status {status!r} contradicts "
-                        f"board status {board_status!r}"
-                    )
     return issues
 
 

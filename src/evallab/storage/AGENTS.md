@@ -13,9 +13,9 @@ and full-historical trial backfills (`evallab data backfill`).
    polluting analytical queries with storage dialect details.
 3. Fail-Closed Backfills: `data_backfill` assigns explicit reason-coded dispositions
    (`ANALYSIS_READY` vs `HOLD`) and never admits unverified or corrupted trials.
-4. Storage Separation: Raw durable evidence (`runs/trial_jobs/`, `derived/evidence-cas/`)
-   is immutable and protected from eviction; derived Parquet tables (`derived/parquet/`)
-   are strictly rebuildable projections.
+4. Storage Separation: Raw durable evidence in `runs/` and `derived/evidence-cas/`
+   is protected from cache cleanup. Parquet projections are rebuildable only when
+   the exact source evidence and regeneration contract remain available.
 
 ## Testing & Verification
-- Targeted unit tests: `pytest tests/test_paths.py tests/test_attach_surface.py tests/test_parquet_compaction.py tests/test_data_backfill.py`
+- Targeted unit tests: `pytest tests/test_paths.py tests/test_attach.py tests/test_attach_properties.py tests/test_parquet_compaction.py tests/test_data_backfill_command.py`

@@ -16,33 +16,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "fleet-status.sh"
 
-BOARD = """# Mission board
+BOARD = """# Board — pull, don't push
 
-## Now
+## status
+- Review awaiting Peter: exact-head gate.
 
-- M001 governance rewrite in flight.
+# What lives where
+# house rules
+1. No peer assignments.
 
-## Review
-
-- nothing open.
-
-## Next
-
-- M002 ty ratchet.
-
-## Needs Peter
-
-- M001 PR review.
-
----
-
-| ID | Outcome | Lane | Agent | Branch | Paths | Deps | Acceptance | PR | State | Owner |
-|---|---|---|---|---|---|---|---|---|---|---|
-| M001 | x | x | x | `role/m001-governance` | x | x | x | — | active | x |
-| LEGACY | x | x | x | `role/program` | x | x | x | — | active | x |
-| DIRTY | x | x | x | `role/dirty-zero` | x | x | x | — | active | x |
-| GHOST | x | x | x | `role/ghost` | x | x | x | — | active | x |
-| FUTURE | x | x | x | `role/future` | x | x | x | — | ready | x |
+## good-codebase
+backlog:
+  1. Review changes.
 """
 
 FAKE_GIT = r"""#!/bin/bash
@@ -52,18 +37,21 @@ case "$args" in
     "for-each-ref --format=%(refname:short) refs/heads/")
         printf 'role/m001-governance\nrole/program\nrole/spent-zero\n'
         printf 'role/spent-tree\nrole/renamed-spent\n'
-        printf 'role/dirty-zero\nrole/rogue\nmain\n' ;;
+        printf 'role/dirty-zero\nrole/rogue\nfeat/topic\nmain\n' ;;
     "rev-list --count origin/main..role/m001-governance") echo 3 ;;
-    "rev-list --count origin/main..role/program")         echo 2 ;;
+    "rev-list --count origin/main..role/program")
+        [ "${FLEET_TEST_GIT_FAILURE:-0}" = 1 ] && exit 128
+        echo 2 ;;
     "rev-list --count origin/main..role/spent-zero")      echo 0 ;;
     "rev-list --count origin/main..role/spent-tree")      echo 7 ;;
     "rev-list --count origin/main..role/renamed-spent")   echo 5 ;;
     "rev-list --count origin/main..role/dirty-zero")      echo 0 ;;
     "rev-list --count origin/main..role/rogue")           echo 1 ;;
+    "rev-list --count origin/main..feat/topic")           echo 1 ;;
     "rev-parse role/renamed-spent") echo deadbeef ;;
     "rev-parse "*) echo "oid-${args##* }" ;;
-    "diff --quiet origin/main...role/spent-tree") exit 0 ;;
-    "diff --quiet origin/main..."*)               exit 1 ;;
+    "diff --quiet origin/main role/spent-tree") exit 0 ;;
+    "diff --quiet origin/main "*)              exit 1 ;;
     "log -1 --format=%ct role/m001-governance") date +%s ;;
     "log -1 --format=%ct role/program")         echo $(( $(date +%s) - 60*60*100 )) ;;
     "log -1 --format=%ct role/rogue")           date +%s ;;
@@ -80,6 +68,7 @@ args="$*"
 case "$args" in
     *"--state merged"*)
         printf 'role/spent-tree\t11111111\n'
+        printf 'role/program\told-merged-head\n'
         printf 'role/original-name\tdeadbeef\n' ;;
     *"--state open"*)   printf '#41  Some open PR  role/program\n' ;;
     *) exit 0 ;;
@@ -88,9 +77,14 @@ esac
 
 
 def make_fixture(tmp_path: Path) -> dict[str, str]:
-    root = tmp_path / "repo"
-    (root / "agents" / "missions").mkdir(parents=True)
-    (root / "agents" / "missions" / "ACTIVE.md").write_text(BOARD)
+    root = tmp_path / "repo with spaces"
+    (root / "research" / "inbox").mkdir(parents=True)
+    (root / "research" / "inbox" / "board.md").write_text(BOARD)
+    claims = root / "research/inbox/claims"
+    claims.mkdir()
+    (claims / "pane-review-1.md").write_text(
+        "item: review #1 exact-head gate\nrole: verify behavior\nwhy-me: pane (model)\n"
+    )
     (root / ".worktrees" / "dirty-zero").mkdir(parents=True)
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -116,12 +110,12 @@ def run_fleet(tmp_path: Path, **env_overrides: str) -> str:
     return result.stdout
 
 
-def test_board_sections_are_shown(tmp_path):
+def test_board_and_actual_pickup_counter_are_shown(tmp_path):
     out = run_fleet(tmp_path)
-    for heading in ("## Now", "## Review", "## Next", "## Needs Peter"):
-        assert heading in out
-    # nothing after the --- separator (the mission table) is echoed here
-    assert "| LEGACY |" not in out.split("## branches")[0]
+    assert "Review awaiting Peter: exact-head gate." in out
+    assert "item: review #1 exact-head gate" in out
+    assert "why-me: pane (model)" in out
+    assert "No peer assignments." not in out
 
 
 def test_zero_ahead_branch_is_spent(tmp_path):
@@ -142,7 +136,6 @@ def test_dirty_zero_ahead_worktree_is_active(tmp_path):
 def test_squash_merged_tree_is_spent_not_active(tmp_path):
     out = run_fleet(tmp_path)
     assert "role/spent-tree  SPENT" in out
-    assert "squash-merged" in out
     assert "role/spent-tree  active" not in out
 
 
@@ -151,19 +144,20 @@ def test_renamed_local_branch_matching_merged_head_sha_is_spent(tmp_path):
     assert "role/renamed-spent  SPENT — head of a merged PR" in out
 
 
-def test_unregistered_branch_is_flagged(tmp_path):
+def test_all_topic_prefixes_are_inventoried(tmp_path):
     out = run_fleet(tmp_path)
-    assert "role/rogue" in out
-    assert "UNREGISTERED" in out.split("role/rogue", 1)[1].splitlines()[0]
+    assert "feat/topic  active" in out
 
 
-def test_registered_active_branch_not_flagged_unregistered(tmp_path):
+def test_old_merged_branch_name_does_not_hide_new_work(tmp_path):
     out = run_fleet(tmp_path)
-    m001_line = next(
-        line for line in out.splitlines() if line.strip().startswith("role/m001-governance")
-    )
-    assert "UNREGISTERED" not in m001_line
-    assert "active, +3" in m001_line
+    assert "role/program  active" in out
+
+
+def test_git_failure_reports_unknown_instead_of_spent(tmp_path):
+    out = run_fleet(tmp_path, FLEET_TEST_GIT_FAILURE="1")
+    assert "role/program  UNKNOWN" in out
+    assert "role/program  SPENT" not in out
 
 
 def test_stale_active_branch_is_flagged(tmp_path):
@@ -174,22 +168,9 @@ def test_stale_active_branch_is_flagged(tmp_path):
     assert "STALE" in program_line
 
 
-def test_board_hygiene_flags_missing_branch(tmp_path):
-    # role/ghost is on the board but exists as no branch in the fake git;
-    # the hygiene section must call out board/reality drift.
-    out = run_fleet(tmp_path)
-    assert "## board hygiene" in out
-    assert "board lists role/ghost but no such local branch" in out
-
-
-def test_board_hygiene_allows_unallocated_ready_branch(tmp_path):
-    out = run_fleet(tmp_path)
-    assert "board lists role/future" not in out
-
-
 def test_missing_board_is_loud(tmp_path):
     env = make_fixture(tmp_path)
-    board = Path(env["FLEET_ROOT"]) / "agents" / "missions" / "ACTIVE.md"
+    board = Path(env["FLEET_ROOT"]) / "research" / "inbox" / "board.md"
     board.unlink()
     result = subprocess.run(
         ["bash", str(SCRIPT)],

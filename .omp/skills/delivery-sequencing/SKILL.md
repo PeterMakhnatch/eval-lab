@@ -1,6 +1,9 @@
 ---
 name: delivery-sequencing
-description: Shape multi-step work and its delivery so a reviewer can verify it cheaply: verify each unit before the next when one serial writer owns the sweep, keep every commit green while still proving the bug was real, size and split pull requests that would land large or mixed, keep a decision trail for unattended runs, and commit the script that does or proves bulk work. Use for sweeps, migrations, long or unattended runs, and pull-request shaping. Concurrent fan-out is covered only to say delegates skip validation and the integration owner validates at a barrier.
+description: >-
+  Plan reviewable multi-step changes, bulk sweeps, and unattended work using
+  disjoint ownership, barrier validation, exact-head evidence, and reusable
+  automation only where it has a recurring consumer.
 ---
 
 # Delivery sequencing
@@ -19,8 +22,8 @@ proceed. Never batch the edits and verify once at the end — a break caught at 
 unit that caused it is cheap to localize, and a break caught after a batch is already
 built on.
 
-Rebase onto current `origin/main` before the first check so every result measures
-against the real baseline, not a stale one.
+Identify the intended base before the first check. Reconcile it in isolation;
+do not automatically rebase a preserved or already-reviewed history.
 
 **Concurrent fan-out inverts this.** Parallel workers do not validate. Each delegate
 skips formatters, linters, and test suites, because validating mid-flight blocks
@@ -31,18 +34,15 @@ dispatch, and give every delegate a non-overlapping write scope.
 
 ## Build the script that does or proves the work
 
-When the work is not trivial, write the codemod, generator, query, or rerunnable
-check instead of doing it by hand. The script is the artifact a reviewer can rerun;
-hand-done work can only be re-verified by redoing it.
+Prefer a reusable codemod, generator, or query for recurring mechanical work.
+A one-off investigation can use a disposable probe with a preserved result.
+Nontrivial work does not by itself justify another permanent script or test.
 
-- Do the first unit by hand to learn the recipe, then build the script and diff its
-  output against the hand-done unit.
+- For nontrivial sweeps: do the first unit by hand to learn the recipe, then
+  build the script and diff its output against the hand-done unit.
 - Make it safe to rerun, because a reviewer will rerun it.
-- Commit it when the work outlives the session, so the next run reruns it instead of
-  redoing it.
-- If you claim this and the diff contains no script, generator, or check, you did
-  not do it.
-
+- Commit automation only when it has a recurring consumer or is itself the
+  requested deliverable; otherwise preserve the result and remove the probe.
 Prefer one deterministic pass over fanning the same mechanical edit out to
 subagents. When you do fan out, put the recipe, the write-scope fences, and the
 do-not-touch list in one artifact every delegate reads, kept outside their write
@@ -81,9 +81,9 @@ A pull request nobody can finish reviewing is not faster than two that merge.
 
 ## Keep a decision trail for unattended work
 
-For long-running, overnight, or multi-phase work a human reviews after stepping
-away, append one row per decision to a tab-separated log: `ts`, `phase`,
-`decision`, `why`, `evidence`, `result`.
+For unattended work, retain material decisions and evidence in the existing
+claim, handoff, or result manifest. A TSV trail is optional when those sources
+cannot make the sequence reconstructible; do not duplicate them for compliance.
 
 - Evidence is a pointer — commit SHA, pull-request number, `file:line`, artifact
   path — never a paragraph.

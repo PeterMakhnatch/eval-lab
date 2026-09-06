@@ -17,9 +17,11 @@ cd "$repo_root"
 
 git config merge.regen.name "regenerate committed build products instead of merging them"
 git config merge.regen.driver "bash scripts/git-merge-regen.sh %O %A %B %P"
-git config core.hooksPath .githooks
-
 echo "configured merge.regen  -> scripts/git-merge-regen.sh"
-echo "configured hooksPath    -> .githooks (post-merge, post-rewrite)"
+
+# core.hooksPath is shared by linked worktrees. Enabling it here could activate
+# an older branch's mutating hooks, so leave all hook configuration untouched.
+echo "hook configuration unchanged; run make docs explicitly after merge/rebase"
+
 echo "covered paths:"
 git check-attr merge -- docs/repo-map.md docs/INDEX.md

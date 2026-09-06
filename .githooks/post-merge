@@ -1,38 +1,9 @@
 #!/usr/bin/env bash
-# Regenerate committed build products after a merge brings in source changes.
+# Read-only notice after a merge.
 #
-# The merge driver resolves the conflict on `docs/repo-map.md` / `docs/INDEX.md`,
-# but it runs per-file, before the merge as a whole has landed. This hook runs
-# afterwards, when the tree is final, and records the true generated output as a
-# follow-up commit. A merge commit is not amended: rewriting a merge you just
-# made is surprising, and a separate commit keeps the history honest about what
-# was generated versus what was merged.
+# Automatic commit/amend behavior has been removed so no hook mutates a reviewed
+# Git head. Generated documentation build products (docs/INDEX.md, docs/repo-map.md)
+# must be updated explicitly via `make docs` and verified with `make check`.
 set -uo pipefail
 
-# Git runs hooks and merge drivers with the invoking environment, which routinely
-# lacks `~/.local/bin` (where `uv` is installed). A silent `command not found`
-# here would leave a stale build product with no explanation, so the PATH is
-# bootstrapped and a missing `uv` is reported rather than swallowed.
-PATH="$HOME/.local/bin:$PATH"
-export PATH
-if ! command -v uv >/dev/null 2>&1; then
-  echo "$(basename "$0"): uv not found on PATH; left generated docs untouched" >&2
-  exit 0
-fi
-
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-cd "$repo_root" || exit 0
-
-# Do not commit on top of a conflicted or dirty index.
-git diff --cached --quiet || exit 0
-
-uv run python -m evallab.repomap generate -o docs/repo-map.md >/dev/null 2>&1 || exit 0
-uv run python -m evallab.docindex generate -o docs/INDEX.md >/dev/null 2>&1 || exit 0
-
-if git diff --quiet -- docs/repo-map.md docs/INDEX.md; then
-  exit 0
-fi
-
-git add -- docs/repo-map.md docs/INDEX.md
-git commit -q -m "docs: regenerate build products after merge"
-echo "post-merge: regenerated docs/repo-map.md and docs/INDEX.md"
+echo "post-merge notice: if merge brought in changes to documentation or repository structure, run 'make docs' to regenerate build products."

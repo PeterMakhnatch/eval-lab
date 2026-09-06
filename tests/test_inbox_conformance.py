@@ -1,10 +1,9 @@
-"""HARVEST: front-matter conformance for `research/inbox/` notes.
+"""HARVEST provenance checks for explicitly classified inbox records.
 
-Contract from `docs/prompts/context-supply-program.md` (LOOP-HARVEST, "Note
-format (enforced by the conformance test)"). The inbox is the single doorway for
-external source material, so provenance is the whole point: a note whose origin,
-licence, or downstream target is unrecorded is worse than no note, because a
-later corpus entry citing it inherits an unverifiable claim.
+External notes retain the full source/license/standards contract. Internal
+coordination records are marked `source_type: internal`; they are not imported
+sources and do not confer corpus admission or an external licensing claim.
+Unclassified or malformed records fail rather than silently disappearing.
 
 Enforced per note:
 
@@ -19,7 +18,7 @@ Enforced per note:
   note's `feeds` field names at least one STANDARDS target or explicitly
   `parked`" made executable.
 
-`QUEUE.md` is the queue itself, not a note, and is exempt by name.
+The queue, board, claim template, ledger, and README are control documents, not notes.
 """
 
 from __future__ import annotations
@@ -34,7 +33,7 @@ from evallab.contextpack import parse_front_matter
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INBOX = REPO_ROOT / "research" / "inbox"
 
-EXEMPT_NAMES = frozenset({"QUEUE.md", "README.md"})
+EXEMPT_NAMES = frozenset({"QUEUE.md", "README.md", "board.md", "claim-template.md", "ledger.md"})
 REQUIRED_FIELDS = ("source_url", "source_type", "retrieved", "license_note", "status", "feeds")
 VALID_SOURCE_TYPES = frozenset({"paper", "repo", "thread", "drive", "blog"})
 VALID_STATUSES = frozenset({"raw", "distilled", "superseded"})
@@ -47,8 +46,16 @@ def inbox_notes() -> list[Path]:
     return sorted(p for p in INBOX.glob("*.md") if p.name not in EXEMPT_NAMES)
 
 
-def note_ids() -> list[str]:
-    return [p.name for p in inbox_notes()]
+def note_ids(*, external_only: bool = False) -> list[str]:
+    notes = inbox_notes()
+    if external_only:
+        notes = [
+            path
+            for path in notes
+            if (parse_front_matter(path.read_text(encoding="utf-8"))[0] or {}).get("source_type")
+            != "internal"
+        ]
+    return [path.name for path in notes]
 
 
 def test_inbox_directory_exists_and_holds_notes() -> None:
@@ -63,19 +70,19 @@ def test_note_front_matter_is_conformant(name: str) -> None:
     front_matter, body = parse_front_matter(note.read_text(encoding="utf-8"))
 
     assert front_matter is not None, f"{name}: no parseable YAML front-matter"
+    source_type = front_matter.get("source_type")
+    assert source_type in VALID_SOURCE_TYPES | {"internal"}, (
+        f"{name}: unknown or missing source_type {source_type!r}"
+    )
+    assert body.strip(), f"{name}: front-matter present but body is empty"
+    if source_type == "internal":
+        return
 
     missing = [field for field in REQUIRED_FIELDS if not front_matter.get(field)]
     assert not missing, f"{name}: missing or empty front-matter fields: {missing}"
 
-    source_type = front_matter["source_type"]
-    assert source_type in VALID_SOURCE_TYPES, (
-        f"{name}: source_type {source_type!r} not in {sorted(VALID_SOURCE_TYPES)}"
-    )
-
     status = front_matter["status"]
-    assert status in VALID_STATUSES, (
-        f"{name}: status {status!r} not in {sorted(VALID_STATUSES)}"
-    )
+    assert status in VALID_STATUSES, f"{name}: status {status!r} not in {sorted(VALID_STATUSES)}"
 
     retrieved = str(front_matter["retrieved"])
     try:
@@ -83,10 +90,8 @@ def test_note_front_matter_is_conformant(name: str) -> None:
     except ValueError:
         pytest.fail(f"{name}: retrieved {retrieved!r} is not an ISO date (YYYY-MM-DD)")
 
-    assert body.strip(), f"{name}: front-matter present but body is empty"
 
-
-@pytest.mark.parametrize("name", note_ids())
+@pytest.mark.parametrize("name", note_ids(external_only=True))
 def test_note_feeds_names_a_standards_target_or_parked(name: str) -> None:
     """`feeds` must be actionable: a corpus target STANDARDS can pick up, or `parked`."""
     front_matter, _ = parse_front_matter((INBOX / name).read_text(encoding="utf-8"))

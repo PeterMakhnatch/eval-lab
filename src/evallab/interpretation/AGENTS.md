@@ -11,7 +11,7 @@ A second, lossless ATIF TrajectoryIR remains at
 or delete either file without a Peter-approved authority gate.
 
 Feature registry canonical path: `interpretation/feature_registry.py`.
-Top-level `src/evallab/feature_registry.py` is a re-export shim.
+There is no top-level `src/evallab/feature_registry.py` compatibility module.
 
 ## Core Invariants
 1. Bounded Model Inputs: `EvidencePack` enforces strict token budgets, verifiable
@@ -21,4 +21,4 @@ Top-level `src/evallab/feature_registry.py` is a re-export shim.
 3. Stable Subpackage Locations: No module renames or file moves out of this subpackage.
 
 ## Testing & Verification
-- Targeted unit tests: `pytest tests/test_trajectory_ir.py tests/test_evidence_pack.py tests/test_trajectory_acceptance.py tests/test_trajectory_judgment.py`
+- Targeted unit tests: `pytest tests/test_trajectory_ir.py tests/test_evidence_pack.py tests/test_trajectory_acceptance_contract.py tests/test_trajectory_judgment_contract.py`

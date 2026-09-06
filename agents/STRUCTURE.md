@@ -115,10 +115,10 @@ eval-lab/
 ├── authoring/                 versioned authoring templates and seed material
 ├── grids/                     declared experiment grid inputs
 ├── digests/                   the daily one-pager the human reads (committed)
-├── queue/                     generated queue state (gitignored, rebuildable)
-├── runs/                      generated run state (gitignored, rebuildable)
-├── derived/                   generated projections (gitignored, rebuildable)
-├── backups/                   nightly local PostgreSQL recovery snapshots
+├── queue/                     ignored leases, specs, and append-only event history
+├── runs/                      ignored Harbor evidence and operational scratch
+├── derived/                   mixed durable CAS evidence and derived projections
+├── backups/                   ignored database and repository recovery material
 └── .worktrees/                parallel working trees (gitignored, hidden)
 ```
 
@@ -137,7 +137,7 @@ Ask which question the thing answers:
 | "How do I *look* at what the lab produced?" | `dashboard/` (read-only presentation over committed evidence) |
 | "What did the integrator verify by hand, on what date?" | `docs/checkpoints/` (append-only history — correct by dated note, never rewrite) |
 | "What defines a repo-owned service container?" | `containers/` (Platform runtime definitions and entrypoints) |
-| "What happened?" (generated, rebuildable) | `runs/`, `queue/`, `derived/`, `backups/`, catalog — never committed |
+| "What is local runtime or recovery state?" | `runs/`, `queue/`, `derived/`, `backups/`, catalog — determine authority before cleanup |
 | "What happened?" (curated for humans) | `digests/`, `research/evidence/` |
 
 Rules that fall out of the buckets:
@@ -145,35 +145,18 @@ Rules that fall out of the buckets:
 - `library/` content is version-pinned and immutable once registered; changing
   a task means a new version, never an edit in place.
 - `research/` content states its provenance (which runs, which corpus digest).
-- Nothing in `agents/`, `docs/`, or `policy/` is generated; nothing in
-  `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
-- Ownership boundaries (`agents/OWNERS.md` lanes; `agents/missions/ACTIVE.md`
-  leases) follow these paths.
+- Most documentation in `docs/` is hand-authored design and policy; deterministic
+  indexes and maps (`docs/INDEX.md`, `docs/repo-map.md`) are explicitly generated
+  via `make docs` (the `evallab.docindex` and `evallab.repomap` `generate` commands),
+  and living status snapshot `docs/STATUS.md` is generated via `evallab status --update`.
+  Nothing in `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
+- Ownership boundaries (`agents/OWNERS.md` lanes and `research/inbox/board.md`
+  claims) follow these paths.
 
-## Migration ledger
+## Historical migrations and changes
 
-Done 2026-08-13 (this commit):
-
-| Move | Refs patched |
-|---|---|
-| `curated/` → `library/curated/` | docs, ROLES, handoffs |
-| `experiments/` → `research/experiments/` | `tests/test_runner.py`, README, docs |
-| `calibration/` → `research/calibration/` | docs, ROLES, handoffs |
-| `explorations/` → `research/explorations/` | docs, ROLES, handoffs |
-| `analysis/` → `research/analysis/` | README, docs |
-| `prompts/` → `docs/prompts/` | README, docs |
-
-Completed 2026-08-14: `tasks/` and `adapters/` → `library/`, `evidence/` →
-`research/`, `AGENTS.md` map refreshed. Patched: `policy/canary-suite.yaml`,
-`src/evallab/cli.py`, four test files, `research/experiments/
-local-controls.json`, ruff excludes in `pyproject.toml`, README, docs.
-
-Considered and kept at root: `policy/` (the human steering wheel — visibility
-beats purity), `digests/` (the human's daily surface), `queue/`+`runs/`
-(referenced throughout the fresh executor code; consolidating them under a
-`var/` is a candidate future iteration, not worth breaking a working nightly
-for today).
-
+Detailed legacy migration ledgers are preserved in this file's Git history.
+The change log below is historical, not a current inventory or work order.
 ## Change log
 
 - 2026-08-13 — created; buckets `library/` and `research/` introduced; six

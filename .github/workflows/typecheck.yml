@@ -5,9 +5,9 @@ name: typecheck
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "integrate/**"]
   push:
-    branches: [main]
+    branches: [main, "integrate/**"]
   workflow_dispatch:
 
 permissions:
@@ -40,28 +40,26 @@ jobs:
       - name: ty check
         run: |
           # ty is pre-1.0; pin it so a checker release cannot turn CI red on its own.
-          # ty exits non-zero whenever diagnostics exist, so its exit code is
-          # captured rather than propagated — the ratchet below is the gate.
-          uvx ty@0.0.71 check src/ --output-format=concise > ty.txt 2>&1 || true
-          count="$(grep -oE 'Found [0-9]+ diagnostic' ty.txt | grep -oE '[0-9]+' || echo 0)"
-          echo "count=$count" >> "$GITHUB_ENV"
+          # With TY_BASELINE=0, any diagnostic, startup failure, or missing executable
+          # fails the gate. Real checker exit is preserved for parity with premerge.sh.
+          set +e
+          uvx ty@0.0.71 check src/ --output-format=concise > ty.txt 2>&1
+          ty_exit=$?
+          set -e
+
+          cat ty.txt
 
           {
-            echo "## ty — $count diagnostic(s), baseline $TY_BASELINE"
+            echo "## ty — exit $ty_exit, baseline $TY_BASELINE"
             echo
             echo '```'
             cat ty.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$count" -gt "$TY_BASELINE" ]; then
-            echo "::error::ty reports $count diagnostics, above the baseline of $TY_BASELINE."
-            echo "New type errors were introduced. See the job summary for the full list."
-            exit 1
+          if [ "$ty_exit" -ne 0 ]; then
+            echo "::error::ty check failed with exit code $ty_exit."
+            exit "$ty_exit"
           fi
 
-          if [ "$count" -lt "$TY_BASELINE" ]; then
-            echo "::notice::ty is down to $count (baseline $TY_BASELINE) — lower TY_BASELINE in this workflow."
-          fi
-
-          echo "ty at or below baseline ($count <= $TY_BASELINE)."
+          echo "ty at or below baseline (0 <= $TY_BASELINE)."

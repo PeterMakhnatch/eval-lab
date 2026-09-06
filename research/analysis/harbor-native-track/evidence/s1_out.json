@@ -1,0 +1,248 @@
+{
+ "per_job": {
+  "canary-event-summary-codex-20260815": {
+   "n": 3,
+   "successes": 3,
+   "rate": 1.0,
+   "wilson95": [
+    0.43849391955098227,
+    1.0
+   ],
+   "cost_deep": 0.119646,
+   "cost_traj": 0.119646,
+   "prompt_deep": 245198,
+   "prompt_traj": 245198,
+   "fail_classes": {}
+  },
+  "canary-event-summary-codex-20260816": {
+   "n": 3,
+   "successes": 3,
+   "rate": 1.0,
+   "wilson95": [
+    0.43849391955098227,
+    1.0
+   ],
+   "cost_deep": 0.107879,
+   "cost_traj": 0.107879,
+   "prompt_deep": 215696,
+   "prompt_traj": 215696,
+   "fail_classes": {}
+  },
+  "canary-terminal-bench-html-js-filter-codex-20260814": {
+   "n": 3,
+   "successes": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.5615060804490177
+   ],
+   "cost_deep": 0.0,
+   "cost_traj": 0.0,
+   "prompt_deep": 0,
+   "prompt_traj": 0,
+   "fail_classes": {
+    "UNKNOWN": 3
+   }
+  },
+  "canary-terminal-bench-html-js-filter-codex-20260815": {
+   "n": 3,
+   "successes": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.5615060804490177
+   ],
+   "cost_deep": 0.747216,
+   "cost_traj": 0.747217,
+   "prompt_deep": 874859,
+   "prompt_traj": 874859,
+   "fail_classes": {
+    "CAPABILITY": 3
+   }
+  },
+  "canary-terminal-bench-html-js-filter-codex-20260816": {
+   "n": 3,
+   "successes": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.5615060804490177
+   ],
+   "cost_deep": 0.73557,
+   "cost_traj": 0.73557,
+   "prompt_deep": 862886,
+   "prompt_traj": 862886,
+   "fail_classes": {
+    "CAPABILITY": 3
+   }
+  },
+  "canary-transaction-reconciliation-codex-20260814": {
+   "n": 3,
+   "successes": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.5615060804490177
+   ],
+   "cost_deep": 0.0,
+   "cost_traj": 0.0,
+   "prompt_deep": 0,
+   "prompt_traj": 0,
+   "fail_classes": {
+    "UNKNOWN": 3
+   }
+  },
+  "canary-transaction-reconciliation-codex-20260815": {
+   "n": 3,
+   "successes": 3,
+   "rate": 1.0,
+   "wilson95": [
+    0.43849391955098227,
+    1.0
+   ],
+   "cost_deep": 0.079356,
+   "cost_traj": 0.079356,
+   "prompt_deep": 169951,
+   "prompt_traj": 169951,
+   "fail_classes": {}
+  },
+  "canary-transaction-reconciliation-codex-20260816": {
+   "n": 2,
+   "successes": 2,
+   "rate": 1.0,
+   "wilson95": [
+    0.34237195288961925,
+    1.0
+   ],
+   "cost_deep": 0.048133,
+   "cost_traj": 0.048134,
+   "prompt_deep": 113427,
+   "prompt_traj": 113427,
+   "fail_classes": {}
+  },
+  "funcdag-codex-canary": {
+   "n": 4,
+   "successes": 2,
+   "rate": 0.5,
+   "wilson95": [
+    0.15003570882017148,
+    0.8499642911798285
+   ],
+   "cost_deep": 0.175725,
+   "cost_traj": 0.175725,
+   "prompt_deep": 313519,
+   "prompt_traj": 313519,
+   "fail_classes": {
+    "UNKNOWN": 1,
+    "CAPABILITY": 1
+   }
+  }
+ },
+ "overall_success": {
+  "n": 27,
+  "successes": 13,
+  "rate": 0.48148148148148145,
+  "wilson95": [
+   0.30742950649709083,
+   0.6601467541378958
+  ]
+ },
+ "overall_cost": {
+  "final_metrics_sum": 2.013526,
+  "traj_sum": 2.013527,
+  "delta": -6e-07
+ },
+ "overall_prompt": {
+  "final_metrics_sum": 2795536,
+  "traj_sum": 2795536,
+  "delta": 0
+ },
+ "divergences": [
+  {
+   "trial": "canary-event-summary-codex-20260815/event-summary__h2D9f6f",
+   "kind": "cost",
+   "final_metrics": 0.0447304,
+   "traj": 0.04473
+  },
+  {
+   "trial": "canary-event-summary-codex-20260816/event-summary__PbjjFx9",
+   "kind": "cost",
+   "final_metrics": 0.038824399999999995,
+   "traj": 0.038824
+  },
+  {
+   "trial": "canary-event-summary-codex-20260816/event-summary__qDnf3Zr",
+   "kind": "cost",
+   "final_metrics": 0.0290508,
+   "traj": 0.029051
+  },
+  {
+   "trial": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__5rgjEEt",
+   "kind": "cost",
+   "final_metrics": 0.30472959999999993,
+   "traj": 0.30473
+  },
+  {
+   "trial": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__kzGxL7Q",
+   "kind": "cost",
+   "final_metrics": 0.1858428,
+   "traj": 0.185843
+  },
+  {
+   "trial": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__mBmCQGr",
+   "kind": "cost",
+   "final_metrics": 0.2179992,
+   "traj": 0.217999
+  },
+  {
+   "trial": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__wHWnhkY",
+   "kind": "cost",
+   "final_metrics": 0.2699771999999999,
+   "traj": 0.269977
+  },
+  {
+   "trial": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__ba8ovxZ",
+   "kind": "cost",
+   "final_metrics": 0.0239496,
+   "traj": 0.02395
+  },
+  {
+   "trial": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__6fPriZT",
+   "kind": "cost",
+   "final_metrics": 0.0240716,
+   "traj": 0.024072
+  },
+  {
+   "trial": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__Wy3yHhP",
+   "kind": "cost",
+   "final_metrics": 0.024061599999999995,
+   "traj": 0.024062
+  },
+  {
+   "trial": "funcdag-codex-canary/syn-funcdag-easy__Az2rApj",
+   "kind": "cost",
+   "final_metrics": 0.0389228,
+   "traj": 0.038923
+  },
+  {
+   "trial": "funcdag-codex-canary/trials-hard/adapted-syn-funcdag-hard__kziNARo",
+   "kind": "cost",
+   "final_metrics": 0.0630688,
+   "traj": 0.063069
+  },
+  {
+   "trial": "funcdag-codex-canary/trials-medium/adapted-syn-funcdag-medium__NoqKuag",
+   "kind": "cost",
+   "final_metrics": 0.0454292,
+   "traj": 0.045429
+  },
+  {
+   "trial": "funcdag-codex-canary/trials/adapted-task__PmTen2E",
+   "kind": "cost",
+   "final_metrics": 0.0283044,
+   "traj": 0.028304
+  }
+ ],
+ "min_detectable_effect_n27": 0.2667222164363905,
+ "completion_tokens_traj_sum": 81340
+}

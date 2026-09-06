@@ -7,7 +7,7 @@ audience:
 sources:
   - research/inbox/benchmark-themes-librarian-reply.md
   - research/archive/2026-W36/feature-analysis-meta-analyst-reply.md
-  - research/analysis/agentic-benchmark-feature-inventory-2026-08-31.json
+  - research/archive/2026-W36/agentic-benchmark-feature-inventory-2026-08-31.json
   - research/archive/2026-W36/memory-tool-evals-source-matrix-2026-08-31.md
 ---
 

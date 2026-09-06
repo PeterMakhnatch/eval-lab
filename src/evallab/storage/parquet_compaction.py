@@ -261,6 +261,7 @@ class JobPartition:
     path: Path
     dt: str
     table_counts: dict[str, int]
+    file_counts: dict[Path, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -328,13 +329,22 @@ class CompactionResult:
 # Discovery & Planning
 # --------------------------------------------------------------------------- #
 
+_ROW_COUNT_CACHE: dict[tuple[Path, int, int], int] = {}
+
 
 def count_table_rows(path: Path) -> int:
     """Read row count from a parquet file metadata without reading data."""
     if not path.is_file():
         return 0
     try:
-        return pq.ParquetFile(path).metadata.num_rows
+        st = path.stat()
+        cache_key = (path.resolve(), st.st_mtime_ns, st.st_size)
+        cached = _ROW_COUNT_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        num_rows = pq.ParquetFile(path).metadata.num_rows
+        _ROW_COUNT_CACHE[cache_key] = num_rows
+        return num_rows
     except Exception:
         return 0
 
@@ -365,24 +375,25 @@ def discover_uncompacted_jobs(
         ).isoformat()
 
         counts: dict[str, int] = {}
-        counts["jobs"] = sum(
-            count_table_rows(path)
-            for path in discovery.table_files(
-                "jobs",
-                layouts=("job",),
-                job_id=job_id,
-            )
+        file_counts: dict[Path, int] = {}
+        job_files = discovery.table_files(
+            "jobs",
+            layouts=("job",),
+            job_id=job_id,
         )
+        for path in job_files:
+            file_counts[path] = count_table_rows(path)
+        counts["jobs"] = sum(file_counts[path] for path in job_files)
 
         for table_name in TRIAL_TABLE_NAMES:
-            counts[table_name] = sum(
-                count_table_rows(path)
-                for path in discovery.table_files(
-                    table_name,
-                    layouts=("hot",),
-                    job_id=job_id,
-                )
+            hot_files = discovery.table_files(
+                table_name,
+                layouts=("hot",),
+                job_id=job_id,
             )
+            for path in hot_files:
+                file_counts[path] = count_table_rows(path)
+            counts[table_name] = sum(file_counts[path] for path in hot_files)
 
         partitions.append(
             JobPartition(
@@ -390,6 +401,7 @@ def discover_uncompacted_jobs(
                 path=job_dir,
                 dt=dt,
                 table_counts=counts,
+                file_counts=file_counts,
             )
         )
     return partitions
@@ -424,17 +436,18 @@ def plan_compaction(
     clock_today: date | None = None,
     runs_dir: Path | None = None,
     database_url: str | None = None,
+    partition_discovery: ParquetPartitionDiscovery | None = None,
 ) -> CompactionPlan:
     """Plan parquet compaction across uncompacted partitions."""
     derived_root = derived_root.resolve()
     today = clock_today or datetime.now(UTC).date()
     cutoff = today - timedelta(days=retention_days)
-    partition_discovery = discover_parquet_partitions(derived_root)
+    discovery = partition_discovery or discover_parquet_partitions(derived_root)
     uncompacted_jobs = discover_uncompacted_jobs(
         derived_root,
         runs_dir=runs_dir,
         database_url=database_url,
-        partition_discovery=partition_discovery,
+        partition_discovery=discovery,
     )
 
     jobs_by_date: dict[str, list[JobPartition]] = {}
@@ -462,7 +475,7 @@ def plan_compaction(
         existing_counts = discover_compacted_row_counts(
             derived_root,
             dt_str,
-            partition_discovery=partition_discovery,
+            partition_discovery=discovery,
         )
 
         day_plans.append(
@@ -515,12 +528,16 @@ def _coerce_table_to_schema(raw: pa.Table, table_name: str) -> pa.Table:
     return pa.Table.from_arrays(columns, schema=schema)
 
 
-def _read_table_or_empty(path: Path, table_name: str) -> pa.Table:
+def _read_table_or_empty(path: Path, table_name: str, *, row_count: int | None = None) -> pa.Table:
     schema = TABLE_SCHEMAS[table_name]
     if not path.is_file():
         return pa.Table.from_batches([], schema=schema)
-    if count_table_rows(path) == 0:
-        return pa.Table.from_batches([], schema=schema)
+    if row_count is not None:
+        if row_count == 0:
+            return pa.Table.from_batches([], schema=schema)
+    else:
+        if count_table_rows(path) == 0:
+            return pa.Table.from_batches([], schema=schema)
     return _coerce_table_to_schema(pq.read_table(path), table_name)
 
 
@@ -540,19 +557,28 @@ def _collect_table_batches(
         layouts=("cold-day",),
         dt=dt,
     ):
-        t = _read_table_or_empty(existing_compact, table_name)
-        if t.num_rows > 0:
-            collected.append(t)
+        cnt = count_table_rows(existing_compact)
+        if cnt > 0:
+            t = _read_table_or_empty(existing_compact, table_name, row_count=cnt)
+            if t.num_rows > 0:
+                collected.append(t)
 
     # 2. Uncompacted job partitions
     layout = ("job",) if table_name == "jobs" else ("hot",)
     for job in jobs:
+        if job.table_counts.get(table_name, 0) == 0:
+            continue
         for source_file in partition_discovery.table_files(
             table_name,
             layouts=layout,
             job_id=job.job_id,
         ):
-            t = _read_table_or_empty(source_file, table_name)
+            cnt = job.file_counts.get(source_file)
+            if cnt is None:
+                cnt = count_table_rows(source_file)
+            if cnt == 0:
+                continue
+            t = _read_table_or_empty(source_file, table_name, row_count=cnt)
             if t.num_rows > 0:
                 collected.append(t)
 
@@ -638,6 +664,11 @@ def write_compact_table(
                 f"Schema integrity mismatch for {table_name}: {pf.schema_arrow} != {schema}"
             )
         temp_path.replace(target_path)
+        try:
+            st = target_path.stat()
+            _ROW_COUNT_CACHE[(target_path.resolve(), st.st_mtime_ns, st.st_size)] = written_rows
+        except Exception:
+            pass
     except Exception as exc:
         temp_path.unlink(missing_ok=True)
         if isinstance(exc, CompactionValidationError):
@@ -659,19 +690,20 @@ def compact_day(
     day_plan: DayPlan,
     *,
     prune: bool = True,
+    partition_discovery: ParquetPartitionDiscovery | None = None,
 ) -> DayCompactionResult:
     """Compact all tables for a single day and optionally prune uncompacted jobs."""
     derived_root = derived_root.resolve()
     dt = day_plan.dt
     dest_dir = derived_root / COMPACT_DIRNAME / f"dt={dt}"
-    partition_discovery = discover_parquet_partitions(derived_root)
+    discovery = partition_discovery or discover_parquet_partitions(derived_root)
     table_row_counts: dict[str, int] = {}
     for table_name in PROJECTED_TABLE_NAMES:
         collected = _collect_table_batches(
             day_plan.jobs,
             dt,
             table_name,
-            partition_discovery,
+            discovery,
         )
         if len(collected) == 1:
             merged = collected[0]
@@ -717,6 +749,7 @@ def compact(
     """Main programmatic interface to execute deterministic Parquet compaction."""
     repo = runs_dir.parent if runs_dir else Path.cwd()
     root = derived_root or derived_root_from_environment(repo)
+    partition_discovery = discover_parquet_partitions(root)
     plan = plan_compaction(
         root,
         target_date=target_date,
@@ -724,8 +757,8 @@ def compact(
         clock_today=clock_today,
         runs_dir=runs_dir,
         database_url=database_url,
+        partition_discovery=partition_discovery,
     )
-
     if dry_run:
         day_results: list[DayCompactionResult] = []
         total_rows: dict[str, int] = {tbl: 0 for tbl in PROJECTED_TABLE_NAMES}
@@ -779,7 +812,12 @@ def compact(
         if not day.is_closed:
             continue
         try:
-            day_res = compact_day(root, day, prune=prune)
+            day_res = compact_day(
+                root,
+                day,
+                prune=prune,
+                partition_discovery=partition_discovery,
+            )
             day_results.append(day_res)
             for tbl, rows in day_res.table_row_counts.items():
                 total_rows[tbl] += rows

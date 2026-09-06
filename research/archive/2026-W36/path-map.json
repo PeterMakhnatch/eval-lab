@@ -946,6 +946,41 @@
       "new": "research/archive/2026-W36/audits/evidence/storm/python_storm_live.txt",
       "original_sha256": "a5a6a328c99a6bdda87730bb2d35ad975f85811f8a9fde1dfdda6725b9a49855",
       "archived_bytes_identical": true
+    },
+    {
+      "old": "sql/calibration.sql",
+      "new": "research/archive/2026-W36/calibration.sql",
+      "original_sha256": "f7e63ea5eaa8dde45f9162d0c369115045820acf8dd272f89f49624008a4c20a",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Unreferenced static SQL view file; superseded by duckdb calibration tables under research/calibration/"
+    },
+    {
+      "old": "research/analysis/control-oracle-vs-nop.json",
+      "new": "research/archive/2026-W36/control-oracle-vs-nop.json",
+      "original_sha256": "8d12b523830c40ebdefc4a70cb62ff3501df57c9570a4be9909b43650c25d96b",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Stale August 2026 point-in-time cohort comparison spec (event-summary-oracle-vs-nop); run evidence permanently preserved in research/evidence/"
+    },
+    {
+      "old": "research/analysis/zai-opencode-mcp-manifest.json",
+      "new": "research/archive/2026-W36/zai-opencode-mcp-manifest.json",
+      "original_sha256": "22d4d20e21aa29b1a31a1b67bb199e4a61fd4839b7e7c550b58296bebb44d9c0",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Stale point-in-time manifest for August 2026 Z.ai OpenCode MCP wave1-wave2 program run"
+    },
+    {
+      "old": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json",
+      "new": "research/archive/2026-W36/zai-opencode-mcp-wave1-wave2-summary.json",
+      "original_sha256": "99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Stale point-in-time contrast comparison summary for August 2026 Z.ai OpenCode MCP wave1-wave2 program run"
+    },
+    {
+      "old": "research/analysis/agentic-benchmark-feature-inventory-2026-08-31.json",
+      "new": "research/archive/2026-W36/agentic-benchmark-feature-inventory-2026-08-31.json",
+      "original_sha256": "27efed22ed63b2a669f041846ac5c6fd33b8080caf595700efb96cd8ba4582ea",
+      "archived_bytes_identical": true,
+      "closure_evidence": "Point-in-time benchmark feature inventory snapshot from 2026-08-31 with zero code references"
     }
   ]
 }

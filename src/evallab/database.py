@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Literal, LiteralString, cast
@@ -73,10 +73,17 @@ def count_consecutive_harness_failures(exception_types: Iterable[str | None]) ->
 
 
 def _executemany(
-    connection: psycopg.Connection[Any], query: LiteralString, parameters: list[tuple[Any, ...]]
+    connection: psycopg.Connection[Any],
+    query: LiteralString,
+    parameters: Sequence[Any],
 ) -> None:
-    with connection.cursor() as cursor:
-        cursor.executemany(query, parameters)
+    if not parameters:
+        return
+    if hasattr(connection, "cursor"):
+        with connection.cursor() as cursor:
+            cursor.executemany(query, parameters)
+    else:
+        connection.executemany(query, parameters)  # type: ignore[attr-defined]
 
 
 def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Path) -> None:
@@ -151,12 +158,42 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
             ],
         )
 
-    for trial in job.trials:
-        result = trial.result
-        agent_info = result.get("agent_info") or {}
-        model_info = agent_info.get("model_info") or {}
-        agent_result = result.get("agent_result") or {}
-        connection.execute(
+    if job.trials:
+        trial_rows = [
+            {
+                "id": trial.id,
+                "job_id": job.id,
+                "trial_name": trial.name,
+                "evidence_path": _relative_or_absolute(trial.path, root),
+                "task_name": trial.result.get("task_name"),
+                "task_checksum": trial.result.get("task_checksum"),
+                "agent_name": (trial.result.get("agent_info") or {}).get("name"),
+                "agent_version": (trial.result.get("agent_info") or {}).get("version"),
+                "model_name": (
+                    ((trial.result.get("agent_info") or {}).get("model_info") or {}).get("name")
+                    or ((trial.result.get("agent_info") or {}).get("model_info") or {}).get(
+                        "model_name"
+                    )
+                ),
+                "primary_reward": trial.primary_reward,
+                "exception_type": _exception_type(trial.result),
+                "started_at": trial.result.get("started_at"),
+                "finished_at": trial.result.get("finished_at"),
+                "duration_seconds": duration_seconds(
+                    trial.result.get("started_at"), trial.result.get("finished_at")
+                ),
+                "input_tokens": (trial.result.get("agent_result") or {}).get("n_input_tokens"),
+                "cache_tokens": (trial.result.get("agent_result") or {}).get("n_cache_tokens"),
+                "output_tokens": (trial.result.get("agent_result") or {}).get("n_output_tokens"),
+                "cost_usd": (trial.result.get("agent_result") or {}).get("cost_usd"),
+                "raw_config": Jsonb(trial.config),
+                "raw_lock": Jsonb(trial.lock),
+                "raw_result": Jsonb(trial.result),
+            }
+            for trial in job.trials
+        ]
+        _executemany(
+            connection,
             """
             INSERT INTO trials (
                 id, job_id, trial_name, evidence_path, task_name, task_checksum,
@@ -196,43 +233,41 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                 raw_result = EXCLUDED.raw_result,
                 updated_at = now()
             """,
-            {
-                "id": trial.id,
-                "job_id": job.id,
-                "trial_name": trial.name,
-                "evidence_path": _relative_or_absolute(trial.path, root),
-                "task_name": result.get("task_name"),
-                "task_checksum": result.get("task_checksum"),
-                "agent_name": agent_info.get("name"),
-                "agent_version": agent_info.get("version"),
-                "model_name": model_info.get("name") or model_info.get("model_name"),
-                "primary_reward": trial.primary_reward,
-                "exception_type": _exception_type(result),
-                "started_at": result.get("started_at"),
-                "finished_at": result.get("finished_at"),
-                "duration_seconds": duration_seconds(
-                    result.get("started_at"), result.get("finished_at")
-                ),
-                "input_tokens": agent_result.get("n_input_tokens"),
-                "cache_tokens": agent_result.get("n_cache_tokens"),
-                "output_tokens": agent_result.get("n_output_tokens"),
-                "cost_usd": agent_result.get("cost_usd"),
-                "raw_config": Jsonb(trial.config),
-                "raw_lock": Jsonb(trial.lock),
-                "raw_result": Jsonb(result),
-            },
+            trial_rows,
         )
 
-        connection.execute("DELETE FROM rewards WHERE trial_id = %s", (trial.id,))
-        if trial.rewards:
+        trial_ids = [(trial.id,) for trial in job.trials]
+        _executemany(connection, "DELETE FROM rewards WHERE trial_id = %s", trial_ids)
+
+        all_rewards = [
+            (trial.id, name, value) for trial in job.trials for name, value in trial.rewards.items()
+        ]
+        if all_rewards:
             _executemany(
                 connection,
                 "INSERT INTO rewards (trial_id, name, value) VALUES (%s, %s, %s)",
-                [(trial.id, name, value) for name, value in trial.rewards.items()],
+                all_rewards,
             )
 
-        connection.execute("DELETE FROM artifacts WHERE trial_id = %s", (trial.id,))
-        if trial.artifacts:
+        _executemany(connection, "DELETE FROM artifacts WHERE trial_id = %s", trial_ids)
+
+        all_artifacts = [
+            (
+                trial.id,
+                item.source,
+                item.destination,
+                item.artifact_type,
+                item.status,
+                item.service,
+                item.host_relative_path,
+                item.exists,
+                item.size_bytes,
+                item.sha256,
+            )
+            for trial in job.trials
+            for item in trial.artifacts
+        ]
+        if all_artifacts:
             _executemany(
                 connection,
                 """
@@ -241,21 +276,7 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                     host_relative_path, exists_on_disk, size_bytes, sha256
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                [
-                    (
-                        trial.id,
-                        item.source,
-                        item.destination,
-                        item.artifact_type,
-                        item.status,
-                        item.service,
-                        item.host_relative_path,
-                        item.exists,
-                        item.size_bytes,
-                        item.sha256,
-                    )
-                    for item in trial.artifacts
-                ],
+                all_artifacts,
             )
 
 

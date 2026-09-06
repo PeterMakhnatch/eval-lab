@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Any, Literal, Protocol, TypeGuard
 
 import pyarrow as pa
+import pyarrow.parquet as pq
 from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
-from evallab.evidence.parquet_io import write_table_atomic
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
@@ -895,12 +895,32 @@ PARQUET_SCHEMAS = {
 
 
 def _write_parquet(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    write_table_atomic(path, rows, PARQUET_SCHEMAS[table_name])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    schema = PARQUET_SCHEMAS[table_name]
+    if rows:
+        sink = pa.BufferOutputStream()
+        pq.write_table(
+            pa.Table.from_pylist(rows, schema=schema),
+            sink,
+            compression="zstd",
+            use_dictionary=False,
+            write_statistics=True,
+        )
+        payload = sink.getvalue().to_pybytes()
+    else:
+        from evallab.evidence.parquet_io import _empty_parquet_bytes
+
+        payload = _empty_parquet_bytes(schema)
+
+    sha256_digest = hashlib.sha256(payload).hexdigest()
+    temporary = path.with_suffix(".parquet.tmp")
+    temporary.write_bytes(payload)
+    temporary.replace(path)
     return ExportedTable(
         table=table_name,
         path=path,
         rows=len(rows),
-        sha256=f"sha256:{sha256_file(path)}",
+        sha256=f"sha256:{sha256_digest}",
     )
 
 
@@ -959,14 +979,28 @@ def ingest_and_project(
     # Index document-level and deterministic facts before touching Parquet. The
     # paths describe the deterministic target even when a later write is recorded
     # as a projection exception.
-    ingest_catalog(
-        database_url,
-        ordered_jobs,
-        root=root,
-        derived_root=derived_root,
-    )
+    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] = {}
+    try:
+        ingest_catalog(
+            database_url,
+            ordered_jobs,
+            root=root,
+            derived_root=derived_root,
+            projections_by_job=projections_by_job,
+        )
+    except TypeError:
+        ingest_catalog(
+            database_url,
+            ordered_jobs,
+            root=root,
+            derived_root=derived_root,
+        )
 
-    tables, failures = project_jobs(ordered_jobs, derived_root)
+    tables, failures = project_jobs(
+        ordered_jobs,
+        derived_root,
+        projections_by_job=projections_by_job,
+    )
     return IngestProjectionResult(
         cataloged_jobs=cataloged_jobs,
         tables=tables,
@@ -975,7 +1009,9 @@ def ingest_and_project(
 
 
 def project_jobs(
-    jobs: list[JobRecord], output_root: Path
+    jobs: list[JobRecord],
+    output_root: Path,
+    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
 ) -> tuple[tuple[ExportedTable, ...], tuple[ProjectionFailure, ...]]:
     """Project raw jobs without requiring the PostgreSQL catalog.
 
@@ -998,7 +1034,20 @@ def project_jobs(
                 [{"job_id": job.id, "job_name": job.name, "trial_count": len(job.trials)}],
             )
             tables.append(job_table)
-            rebuilt = rebuild_from_raw([job], derived_root)
+            job_projections = (
+                {job.id: projections_by_job[job.id]}
+                if projections_by_job is not None and job.id in projections_by_job
+                else None
+            )
+            if job_projections:
+                try:
+                    rebuilt = rebuild_from_raw(
+                        [job], derived_root, projections_by_job=job_projections
+                    )
+                except TypeError:
+                    rebuilt = rebuild_from_raw([job], derived_root)
+            else:
+                rebuilt = rebuild_from_raw([job], derived_root)
         except Exception as exc:  # Projection failure is data, not an agent result.
             failures.append(
                 ProjectionFailure(

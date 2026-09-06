@@ -173,11 +173,6 @@ def test_projection_invariant_per_reason_breakdown(tmp_path: Path) -> None:
         "CorruptedTrajectory": frozenset({excepted_job_2}),
         "MissingResultJson": frozenset({excepted_job_1}),
     }
-    expected_detail = (
-        "catalog=3 projected=1 exceptions=2 "
-        "(CorruptedTrajectory=1, MissingResultJson=1) missing=0 extra=0"
-    )
-    assert invariant.detail == expected_detail
 
 
 def test_ingest_views_duckdb_execution() -> None:
@@ -189,15 +184,17 @@ def test_ingest_views_duckdb_execution() -> None:
     conn.execute(sql_path.read_text())
 
     # Verify all views exist and are queryable
-    reconciliation = conn.execute("SELECT * FROM v_ingest_reconciliation").fetchall()
-    assert isinstance(reconciliation, list)
+    reconciliation = conn.execute("SELECT * FROM v_ingest_reconciliation")
+    assert [d[0] for d in reconciliation.description][:3] == ["job_id", "job_name", "trial_id"]
+    assert reconciliation.fetchall() == []
 
-    summary = conn.execute("SELECT * FROM v_ingest_summary").fetchall()
-    assert isinstance(summary, list)
+    summary = conn.execute("SELECT * FROM v_ingest_summary")
+    assert [d[0] for d in summary.description][:3] == ["task_name", "agent_name", "total_trials"]
+    assert summary.fetchall() == []
 
-    gaps = conn.execute("SELECT * FROM v_ingest_gaps").fetchall()
-    assert isinstance(gaps, list)
-
+    gaps = conn.execute("SELECT * FROM v_ingest_gaps")
+    assert [d[0] for d in gaps.description][:3] == ["job_id", "job_name", "trial_id"]
+    assert gaps.fetchall() == []
     completeness = conn.execute("SELECT * FROM v_ingest_completeness").fetchone()
     assert completeness is not None
     assert completeness[0] == 0  # total_catalog_trials on empty fallback

@@ -64,6 +64,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.14"]
+        shard: ["1/2", "2/2"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install uv 0.9.24 from PyPI
@@ -79,12 +80,12 @@ jobs:
       - name: Full test suite
         if: needs.scope.outputs.profile == 'true'
         run: |
-          echo "Test lane: full suite (classification: code/mixed change set; profile=true)" >> "$GITHUB_STEP_SUMMARY"
-          uv run --no-sync pytest
+          echo "Test lane: full suite (shard: ${{ matrix.shard }}; classification: code/mixed change set; profile=true)" >> "$GITHUB_STEP_SUMMARY"
+          uv run --no-sync pytest --shard ${{ matrix.shard }}
       - name: Documentation-consumer test suite
         if: needs.scope.outputs.profile == 'false'
         run: |
           echo "Test lane: docs_consumer (classification: documentation-only diff; profile=false)" >> "$GITHUB_STEP_SUMMARY"
           uv run --no-sync pytest -m docs_consumer
-      - if: matrix.python-version == '3.12'
+      - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
         run: uv run --no-sync python -m evallab.smoke --docker-free

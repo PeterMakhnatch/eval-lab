@@ -261,6 +261,12 @@ def test_ci_workflow_lane_gating_and_wheelhouse_triggers() -> None:
     assert "GITHUB_STEP_SUMMARY" in full_suite_steps[0].get("run", "")
     assert "GITHUB_STEP_SUMMARY" in docs_lane_steps[0].get("run", "")
 
+    test_matrix = ci["jobs"]["test"].get("strategy", {}).get("matrix", {})
+    assert test_matrix.get("shard") == ["1/2", "2/2"]
+    assert "--shard ${{ matrix.shard }}" in full_suite_steps[0].get("run", "")
+    smoke_steps = [s for s in test_steps if "evallab.smoke" in s.get("run", "")]
+    assert len(smoke_steps) == 1, "expected exactly one smoke step"
+    assert "matrix.shard == '1/2'" in smoke_steps[0].get("if", "")
     on_triggers = wheelhouse.get("on") or wheelhouse.get(True) or {}
     push_branches = on_triggers.get("push", {}).get("branches", [])
     assert push_branches == ["main", "integrate/**"]
@@ -341,3 +347,27 @@ def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
                     assert "task_workbench" not in path, (
                         f"{filename} trigger '{trigger_name}' must not list task_workbench path: {path}"
                     )
+
+
+def test_ci_workflow_test_matrix_shards_and_smoke_gating() -> None:
+    ci_path = ROOT / ".github/workflows/ci.yml"
+    ci = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+
+    test_job = ci["jobs"]["test"]
+    matrix = test_job.get("strategy", {}).get("matrix", {})
+    assert matrix.get("python-version") == ["3.12", "3.14"]
+    assert matrix.get("shard") == ["1/2", "2/2"]
+
+    test_steps = test_job["steps"]
+    full_suite_steps = [
+        s
+        for s in test_steps
+        if "uv run --no-sync pytest" in s.get("run", "")
+        and "-m docs_consumer" not in s.get("run", "")
+    ]
+    assert len(full_suite_steps) == 1
+    assert "--shard ${{ matrix.shard }}" in full_suite_steps[0].get("run", "")
+
+    smoke_steps = [s for s in test_steps if "evallab.smoke" in s.get("run", "")]
+    assert len(smoke_steps) == 1
+    assert "matrix.shard == '1/2'" in smoke_steps[0].get("if", "")

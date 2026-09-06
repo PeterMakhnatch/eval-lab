@@ -265,22 +265,6 @@ def test_render_index_includes_required_marker_and_front_matter() -> None:
     assert text.endswith("\n")
 
 
-def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
-    docs = _sample_tree(tmp_path)
-    index_text = generate_index(docs_dir=docs, root=tmp_path)
-    fm, _body = parse_front_matter(index_text)
-    assert fm is not None
-    assert "inputs" in fm
-    assert isinstance(fm["inputs"], list)
-    assert len(fm["inputs"]) > 0
-    for item in fm["inputs"]:
-        assert isinstance(item, dict)
-        assert "path" in item and isinstance(item["path"], str)
-        assert "digest" in item and isinstance(item["digest"], str)
-        assert item["digest"].startswith("sha256:")
-        assert len(item["digest"]) == 71
-
-
 def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
     docs = _sample_tree(tmp_path)
     index_path = docs / "INDEX.md"

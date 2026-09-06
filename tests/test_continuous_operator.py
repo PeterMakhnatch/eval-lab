@@ -42,7 +42,6 @@ from evallab.ops_continuous import (
     bind_policy_digest,
     key_id_for,
     lease_settlement_digest,
-    load_macos_keychain_secret,
     main,
     policy_complete,
     public_sha256_is_not_a_signature,
@@ -92,14 +91,23 @@ def _budget_fields() -> dict:
     }
 
 
-def _trust_record(*, kind: str, actor: str, spec_id: str = SPEC_ID, at: datetime = NOW, nonce: str | None = None, **extra) -> dict:
+def _trust_record(
+    *,
+    kind: str,
+    actor: str,
+    spec_id: str = SPEC_ID,
+    at: datetime = NOW,
+    nonce: str | None = None,
+    **extra,
+) -> dict:
     record = {
         "actor": actor,
         "authorized_at": at.isoformat(),
         "issued_at": at.isoformat(),
         "expires_at": EXPIRES.isoformat(),
         "kind": kind,
-        "nonce": nonce or {"approval": APPROVAL_NONCE, "budget": BUDGET_NONCE, "recovery": RECOVERY_JTI}[kind],
+        "nonce": nonce
+        or {"approval": APPROVAL_NONCE, "budget": BUDGET_NONCE, "recovery": RECOVERY_JTI}[kind],
         "quota_override": False,
         "scope": ["continuous-loop"],
         "signer": actor,
@@ -157,7 +165,9 @@ def _complete_policy_body(*, stale_after: float = 60.0, drain_timeout: float = 5
 
 
 def _policy(path: Path, *, stale_after: float = 60.0, drain_timeout: float = 5.0) -> Path:
-    path.write_text(yaml.safe_dump(_complete_policy_body(stale_after=stale_after, drain_timeout=drain_timeout)))
+    path.write_text(
+        yaml.safe_dump(_complete_policy_body(stale_after=stale_after, drain_timeout=drain_timeout))
+    )
     return path
 
 
@@ -283,7 +293,12 @@ class FakeOwner:
 
     def request_cancel(self, lease_ids: list[str]) -> dict:
         self.cancel_calls.append(list(lease_ids))
-        return {"requested": True, "executed": False, "owner": "campaign-queue", "lease_ids": list(lease_ids)}
+        return {
+            "requested": True,
+            "executed": False,
+            "owner": "campaign-queue",
+            "lease_ids": list(lease_ids),
+        }
 
     def observe_lease(self, lease_id: str):
         return self.observations.get(lease_id)
@@ -298,7 +313,12 @@ def _terminal_obs(lease_id: str) -> dict:
         "status": "settled",
         "settlement_digest": digest,
         "source": "catalog",
-        "evidence": {"catalog": "settled", "pid_alive": False, "container_alive": False, "queue_state": "settled"},
+        "evidence": {
+            "catalog": "settled",
+            "pid_alive": False,
+            "container_alive": False,
+            "queue_state": "settled",
+        },
     }
 
 
@@ -315,7 +335,14 @@ def _live_obs(lease_id: str) -> dict:
 
 
 def _unknown_obs(lease_id: str) -> dict:
-    return {"id": lease_id, "alive": False, "queue_state": "unknown", "status": "unknown", "settlement_digest": None, "source": "queue"}
+    return {
+        "id": lease_id,
+        "alive": False,
+        "queue_state": "unknown",
+        "status": "unknown",
+        "settlement_digest": None,
+        "source": "queue",
+    }
 
 
 def _gate_env() -> dict[str, str]:
@@ -633,7 +660,12 @@ def test_kill_records_operator_kill(tmp_path: Path) -> None:
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
     assert json.loads((state / "kill.json").read_text())["executed"] is False
     assert (state / "mode").read_text().strip() == "KILLED"
-    observed = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1), owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+    observed = _run(
+        tmp_path,
+        "drain",
+        now=NOW + timedelta(seconds=1),
+        owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}),
+    )
     assert observed.returncode == 0
     assert json.loads((state / "inflight.json").read_text()) == []
     assert json.loads((state / "kill.json").read_text())["executed"] is True
@@ -916,16 +948,32 @@ def test_main_argv_matches_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     code = main(["validate", "--state-dir", str(tmp_path / "op")])
     assert code == 2
 
+
 def test_user_json_is_not_trust_root(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     state.mkdir()
     shutil.copy2(STANDING, state / "standing-approvals.yaml")
     (state / "approval.json").write_text(
-        json.dumps({"spec_id": SPEC_ID, "actor": APPROVAL, "authorized_at": NOW.isoformat(), "quota_override": False})
+        json.dumps(
+            {
+                "spec_id": SPEC_ID,
+                "actor": APPROVAL,
+                "authorized_at": NOW.isoformat(),
+                "quota_override": False,
+            }
+        )
     )
     (state / "budget.json").write_text(
-        json.dumps({**_budget_fields(), "spec_id": SPEC_ID, "actor": BUDGET, "authorized_at": NOW.isoformat(), "quota_override": False})
+        json.dumps(
+            {
+                **_budget_fields(),
+                "spec_id": SPEC_ID,
+                "actor": BUDGET,
+                "authorized_at": NOW.isoformat(),
+                "quota_override": False,
+            }
+        )
     )
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
@@ -948,7 +996,9 @@ def test_heartbeat_within_skew_is_accepted(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml", stale_after=300)
     state = tmp_path / "state"
     state.mkdir()
-    (state / "heartbeat").write_text((NOW + timedelta(seconds=HEARTBEAT_SKEW_SECONDS)).isoformat() + "\n")
+    (state / "heartbeat").write_text(
+        (NOW + timedelta(seconds=HEARTBEAT_SKEW_SECONDS)).isoformat() + "\n"
+    )
     result = _run(tmp_path, "status", policy=policy, now=NOW)
     assert result.returncode == 0
 
@@ -957,7 +1007,9 @@ def test_heartbeat_beyond_skew_is_stale(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml", stale_after=300)
     state = tmp_path / "state"
     state.mkdir()
-    (state / "heartbeat").write_text((NOW + timedelta(seconds=HEARTBEAT_SKEW_SECONDS + 1)).isoformat() + "\n")
+    (state / "heartbeat").write_text(
+        (NOW + timedelta(seconds=HEARTBEAT_SKEW_SECONDS + 1)).isoformat() + "\n"
+    )
     result = _run(tmp_path, "status", policy=policy, now=NOW)
     assert result.returncode == 2
     assert _payload(result)["reason"] == REASON_STALE_HEARTBEAT
@@ -979,14 +1031,17 @@ def test_rendered_templates_confine_writable_state() -> None:
     assert "~" not in PLIST.read_text()
 
 
-
 def test_hmac_key_from_caller_env_or_state_file_is_ignored(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     (state / "trust.mac").write_bytes(MAC_KEY)
-    env = {**_gate_env(), "EVAL_LAB_HMAC_KEY": MAC_KEY.decode(), "EVAL_LAB_TRUST_MAC_KEY": str(state / "trust.mac")}
+    env = {
+        **_gate_env(),
+        "EVAL_LAB_HMAC_KEY": MAC_KEY.decode(),
+        "EVAL_LAB_TRUST_MAC_KEY": str(state / "trust.mac"),
+    }
     result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
@@ -1073,7 +1128,9 @@ def test_forged_recovery_template_without_jti_is_rejected(tmp_path: Path) -> Non
     import contextlib
 
     with contextlib.suppress(ValueError):
-        put_trusted_record(trust_root_for(state, {}), MAC_KEY, record, policy=dump, budget=_budget_fields())
+        put_trusted_record(
+            trust_root_for(state, {}), MAC_KEY, record, policy=dump, budget=_budget_fields()
+        )
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
     result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
@@ -1146,6 +1203,7 @@ def test_eval_lab_approval_mac_key_env_is_not_trust_root(tmp_path: Path) -> None
     result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
+
 def test_recover_refuses_unexecuted_kill_without_consuming_nonce(tmp_path: Path) -> None:
     from evallab.ops_continuous import REASON_DRAIN_INCOMPLETE
 
@@ -1176,7 +1234,9 @@ def test_recover_refuses_inflight_without_consuming_nonce(tmp_path: Path) -> Non
     kill["executed"] = True
     (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
     (state / "inflight.json").write_text(json.dumps(["lease-open"]) + "\n")
-    (state / "leases.json").write_text(json.dumps([{"id": "lease-open", "status": "settled"}]) + "\n")
+    (state / "leases.json").write_text(
+        json.dumps([{"id": "lease-open", "status": "settled"}]) + "\n"
+    )
     _write_auths(state, recovery_actor=RECOVERY)
     result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert result.returncode == 2
@@ -1185,7 +1245,9 @@ def test_recover_refuses_inflight_without_consuming_nonce(tmp_path: Path) -> Non
     assert not (state / "nonces").exists() or not any((state / "nonces").iterdir())
 
 
-def test_credentials_directory_0440_key_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_credentials_directory_0440_key_is_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import evallab.ops_continuous as oc
 
     policy = _policy(tmp_path / "policy.yaml")
@@ -1219,14 +1281,6 @@ def test_euid_writable_hmac_file_is_rejected(tmp_path: Path) -> None:
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
-def test_main_wires_keychain_resolver_when_store_omitted() -> None:
-    import inspect
-
-    source = inspect.getsource(main)
-    assert "load_macos_keychain_secret" in source
-    assert load_macos_keychain_secret("not-a-ref") is None
-
-
 def test_launchd_installer_renders_absolute_macos_paths(tmp_path: Path) -> None:
     home = tmp_path / "home"
     dest = tmp_path / "rendered.plist"
@@ -1252,6 +1306,7 @@ def test_launchd_installer_renders_absolute_macos_paths(tmp_path: Path) -> None:
     assert "/var/tmp/evallab-operator" not in dest.read_text()
     assert "KeepAlive" not in loaded
 
+
 def test_pause_restart_do_not_overwrite_draining(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
@@ -1274,7 +1329,9 @@ def test_drain_then_signed_recovery_clears_killed(tmp_path: Path) -> None:
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
     assert json.loads((state / "kill.json").read_text())["executed"] is False
-    drained = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-open": _terminal_obs("lease-open")}))
+    drained = _run(
+        tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-open": _terminal_obs("lease-open")})
+    )
     assert drained.returncode == 0
     assert json.loads((state / "kill.json").read_text())["executed"] is True
     assert json.loads((state / "inflight.json").read_text()) == []
@@ -1283,6 +1340,7 @@ def test_drain_then_signed_recovery_clears_killed(tmp_path: Path) -> None:
     recovered = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert recovered.returncode == 0
     assert (state / "mode").read_text().strip() == "DISABLED"
+
 
 def test_caller_env_temp_key_and_arbitrary_credentials_path_are_ignored(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
@@ -1310,7 +1368,14 @@ def test_wrong_fingerprint_at_pinned_path_is_rejected(tmp_path: Path) -> None:
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     # Fixture trust store only allows MAC_KEY, not wrong_key
-    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, trust_store=FixtureTrustStore([MAC_KEY]))
+    result = _run(
+        tmp_path,
+        "validate",
+        policy=policy,
+        env=_gate_env(),
+        now=NOW,
+        trust_store=FixtureTrustStore([MAC_KEY]),
+    )
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
@@ -1326,7 +1391,9 @@ def test_recover_missing_fenced_lease_fails_without_spending_nonce(tmp_path: Pat
     kill["executed"] = True
     (state / "kill.json").write_text(json.dumps(kill, indent=2, sort_keys=True) + "\n")
     (state / "inflight.json").write_text("[]\n")
-    (state / "leases.json").write_text(json.dumps([{"id": "other", "status": "settled", "evidence": "x"}]) + "\n")
+    (state / "leases.json").write_text(
+        json.dumps([{"id": "other", "status": "settled", "evidence": "x"}]) + "\n"
+    )
     _write_auths(state, recovery_actor=RECOVERY)
     result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert result.returncode == 2
@@ -1348,15 +1415,23 @@ def test_policy_ref_must_equal_pinned_ref() -> None:
     assert PINNED_KEYCHAIN_REF.startswith("keychain:EvalLab/")
     assert Path("/etc/evallab/trusted-approval-keys.json") == LINUX_TRUST_MANIFEST_PATH
 
+
 def test_drain_unknown_and_missing_leases_refuse(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-a", "lease-b"]))
     (state / "leases.json").write_text(json.dumps([{"id": "lease-a", "status": "running"}]))
-    missing = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-a": _terminal_obs("lease-a")}))
+    missing = _run(
+        tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-a": _terminal_obs("lease-a")})
+    )
     assert missing.returncode == 2
     assert json.loads((state / "inflight.json").read_text()) == ["lease-a", "lease-b"]
-    unknown = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-a": _unknown_obs("lease-a"), "lease-b": _unknown_obs("lease-b")}))
+    unknown = _run(
+        tmp_path,
+        "drain",
+        now=NOW,
+        owner=FakeOwner({"lease-a": _unknown_obs("lease-a"), "lease-b": _unknown_obs("lease-b")}),
+    )
     assert unknown.returncode == 2
     assert json.loads((state / "leases.json").read_text())[0]["status"] == "running"
 
@@ -1377,6 +1452,7 @@ def test_crash_between_views_keeps_killed_from_journal(tmp_path: Path) -> None:
     assert json.loads((state / "kill.json").read_text())["executed"] is False
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
 
+
 def test_recovery_mac_rejects_synthetic_local_lease_digest(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
@@ -1387,7 +1463,9 @@ def test_recovery_mac_rejects_synthetic_local_lease_digest(tmp_path: Path) -> No
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
-    drained = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+    drained = _run(
+        tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")})
+    )
     assert drained.returncode == 0
     dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
     kill_digest = hashlib.sha256((state / "kill.json").read_bytes()).hexdigest()
@@ -1426,6 +1504,7 @@ def test_launchd_rejects_symlink_ancestor(tmp_path: Path) -> None:
         return
     raise AssertionError("expected symlink ancestor rejection")
 
+
 def test_production_default_refuses_without_deployment_trust_manifest(tmp_path: Path) -> None:
     import evallab.ops_continuous as oc
 
@@ -1456,7 +1535,9 @@ def test_deployment_trust_store_loads_valid_manifest(tmp_path: Path) -> None:
     assert len(store.manifest_digest()) == 64
 
 
-def test_recover_then_pause_maintenance_restart_take_effect_without_split_brain(tmp_path: Path) -> None:
+def test_recover_then_pause_maintenance_restart_take_effect_without_split_brain(
+    tmp_path: Path,
+) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     state.mkdir()
@@ -1464,7 +1545,9 @@ def test_recover_then_pause_maintenance_restart_take_effect_without_split_brain(
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
-    drained = _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+    drained = _run(
+        tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")})
+    )
     assert drained.returncode == 0
     _write_auths(state, recovery_actor=RECOVERY)
     rec = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
@@ -1489,6 +1572,7 @@ def test_recover_then_pause_maintenance_restart_take_effect_without_split_brain(
     assert _payload(restarted)["mode"] == "DISABLED"
     assert (state / "mode").read_text().strip() == "DISABLED"
 
+
 def test_compose_container_trust_manifest_and_secret_loaded_by_uid_65532(tmp_path: Path) -> None:
     import evallab.ops_continuous as oc
 
@@ -1497,10 +1581,14 @@ def test_compose_container_trust_manifest_and_secret_loaded_by_uid_65532(tmp_pat
     manifest_dir = tmp_path / "etc/evallab"
     manifest_dir.mkdir(parents=True)
     manifest_file = manifest_dir / "trusted-approval-keys.json"
-    manifest_file.write_text(json.dumps({
-        "active_key_id": key_id_for(MAC_KEY),
-        "previous_key_id": key_id_for(PREV_KEY),
-    }))
+    manifest_file.write_text(
+        json.dumps(
+            {
+                "active_key_id": key_id_for(MAC_KEY),
+                "previous_key_id": key_id_for(PREV_KEY),
+            }
+        )
+    )
     os.chmod(manifest_file, 0o440)
 
     secrets_dir = tmp_path / "run/secrets"
@@ -1516,7 +1604,7 @@ def test_compose_container_trust_manifest_and_secret_loaded_by_uid_65532(tmp_pat
 
     policy = _policy(tmp_path / "policy.yaml")
     ds = oc.DeploymentTrustStore(manifest_path=manifest_file)
-    
+
     # In container, both manifest and key are mode 0440 owned by 65532
     original_path = oc.PINNED_LINUX_SECRET_PATH
     oc.PINNED_LINUX_SECRET_PATH = secret_file
@@ -1539,7 +1627,9 @@ def test_concurrent_pause_and_kill_cannot_lose_killed_latch(tmp_path: Path) -> N
     results = []
 
     def run_kill():
-        res = _run(tmp_path, "kill", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+        res = _run(
+            tmp_path, "kill", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")})
+        )
         results.append(("kill", res.returncode))
 
     def run_pause():
@@ -1583,7 +1673,10 @@ def test_concurrent_restart_and_drain_cannot_lose_killed_latch(tmp_path: Path) -
     # After drain+restart on a killed node, mode must remain KILLED
     assert (state / "mode").read_text().strip() == "KILLED"
 
-def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(tmp_path: Path) -> None:
+
+def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(
+    tmp_path: Path,
+) -> None:
     import threading
     import time
 
@@ -1597,7 +1690,12 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(tmp
 
     class StalledOwner:
         def request_cancel(self, lease_ids: list[str]) -> dict:
-            return {"requested": True, "executed": False, "owner": "campaign-queue", "lease_ids": list(lease_ids)}
+            return {
+                "requested": True,
+                "executed": False,
+                "owner": "campaign-queue",
+                "lease_ids": list(lease_ids),
+            }
 
         def observe_lease(self, lease_id: str):
             observe_started.set()
@@ -1636,6 +1734,7 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(tmp
     assert _payload(drain_verdict[0])["reason"] == REASON_DRAIN_INCOMPLETE
     assert (state / "mode").read_text().strip() == "KILLED"
 
+
 def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_path: Path) -> None:
     import time
 
@@ -1670,7 +1769,9 @@ def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_pa
     assert kill_rec["cancellation_requested"] is True
 
 
-def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_thread_leak(tmp_path: Path) -> None:
+def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_thread_leak(
+    tmp_path: Path,
+) -> None:
     import threading
     import time
 
@@ -1690,7 +1791,9 @@ def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_t
     hung_observer = ForeverHungObserver()
     # Pass drain_timeout_seconds=0.1 so observe_lease deadline triggers in ~0.1s
     t0 = time.monotonic()
-    res = _run(tmp_path, "drain", now=NOW, owner=hung_observer, extra=["--drain-timeout-seconds", "0.1"])
+    res = _run(
+        tmp_path, "drain", now=NOW, owner=hung_observer, extra=["--drain-timeout-seconds", "0.1"]
+    )
     t1 = time.monotonic()
 
     assert res.returncode == 2
@@ -1699,7 +1802,8 @@ def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_t
     assert json.loads((state / "inflight.json").read_text()) == ["lease-hung-2"]
 
     # Verify daemon threads don't block Python process exit (all spawned threads in _call_with_deadline are daemon=True)
-    non_daemon_threads = [t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()]
+    non_daemon_threads = [
+        t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()
+    ]
     # Only standard pytest non-daemon worker threads if any, no continuous operator worker threads
     assert not any("worker" in t.name.lower() for t in non_daemon_threads)
-

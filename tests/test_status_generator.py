@@ -381,7 +381,12 @@ def test_nightly_cycle_invokes_status_generator_idempotently(tmp_path: Path) -> 
         quiet_failure_rule=3,
         auto_run=[AutoRunRule(name="local-controls", agents=["oracle", "nop"])],
     )
-    executor = Executor(repo_root=repo, queue=queue, policy=policy)
+    executor = Executor(
+        repo_root=repo,
+        queue=queue,
+        policy=policy,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
+    )
     renderer = DigestRenderer(
         repo_root=repo,
         queue=queue,
@@ -423,7 +428,12 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
         quiet_failure_rule=3,
         auto_run=[AutoRunRule(name="local-controls", agents=["oracle", "nop"])],
     )
-    executor = Executor(repo_root=repo, queue=queue, policy=policy)
+    executor = Executor(
+        repo_root=repo,
+        queue=queue,
+        policy=policy,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
+    )
     renderer = DigestRenderer(
         repo_root=repo,
         queue=queue,

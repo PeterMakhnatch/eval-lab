@@ -21,7 +21,7 @@ Historical branch inventories do not prove current ownership, activity, or closu
   work-assignment board.
 - `research/analysis/automated-trajectory-overnight-ledger.md` — dated program
   decisions and settlements; consult exact refs before reusing availability claims.
-- `docs/git-estate-inventory.md` — historical estate snapshot, not a prune list.
+- `docs/archive/git-estate-inventory.md` — historical estate snapshot, not a prune list.
 
 ## Archive
 

@@ -128,7 +128,7 @@
         "Upstream provenance and license are not pinned."
       ],
       "evidence": [
-        "docs/automated-trajectory-interpretation-architecture-v1.md",
+        "docs/archive/automated-trajectory-interpretation-architecture-v1.md",
         "research/analysis/automated-trajectory-overnight-ledger.md",
         "docs/STATUS.md"
       ]

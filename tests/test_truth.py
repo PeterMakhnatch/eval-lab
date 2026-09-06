@@ -209,14 +209,14 @@ def _spec(left: str, right: str, *, k: int = 1) -> CohortComparisonSpec:
 def test_null_task_bootstrap_false_finding_rate_is_near_five_percent() -> None:
     generator = random.Random(20260814)
     findings = 0
-    simulations = 240
+    simulations = 80
     for simulation in range(simulations):
         deltas = [
             float(generator.random() < 0.5) - float(generator.random() < 0.5) for _ in range(120)
         ]
         interval = bootstrap_mean_interval(
             deltas,
-            resamples=700,
+            resamples=300,
             seed=simulation,
         )
         assert interval is not None

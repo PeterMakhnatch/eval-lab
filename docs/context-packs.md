@@ -10,7 +10,7 @@ audience:
 # Context Pack Compiler (WS-B)
 
 Status: living. Owner: Platform lane. Date: 2026-08-16. Implements
-`docs/build-plan.md` WS-B.
+`docs/archive/build-plan.md` WS-B.
 
 ## Purpose
 
@@ -183,7 +183,7 @@ deterministic order from **most expendable to most essential**:
      `docs/repo-map.md`).
    - **Category 1 (Medium-Low Priority)**: Cross-cutting architectural documents
      with 3 or 4 audiences (`len(audience) >= 3`, e.g. `docs/engineering.md`,
-     `docs/architecture.md`, `docs/platform-architecture.md`).
+     `docs/architecture.md`, `docs/archive/platform-architecture.md`).
    - **Category 2 (Medium-High Priority)**: Dual-audience technical
      specifications (`len(audience) == 2`, e.g. `docs/craft.md`,
      `docs/contracts.md`, `docs/authoring.md`).

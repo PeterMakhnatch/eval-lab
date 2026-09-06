@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   canary-controls:
     name: action-memory-dose-ladder-canary (${{ matrix.seed }}-${{ matrix.dose_bytes }}-${{ matrix.arm }})

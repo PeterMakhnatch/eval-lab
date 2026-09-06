@@ -283,6 +283,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
         ingester=ingested.append,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     service.submit(
         ExperimentSpec(
@@ -368,6 +369,7 @@ def test_nightly_researcher_defers_while_running_job_is_unresolved(
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     approved, _ = service.submit(
         ExperimentSpec(
@@ -449,6 +451,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     approved, _ = service.submit(
         ExperimentSpec(
@@ -505,6 +508,7 @@ def test_digest_enrichment_failure_rerenders_a_quarantined_digest(
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
 
     def partial_enrichment(path: Path, _day: date) -> None:
@@ -627,6 +631,7 @@ def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     tick = GuardedTick(
         doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
@@ -674,6 +679,7 @@ def test_locked_keychain_still_dispatches_credentialless_nightly_control(
         ingester=lambda path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset(),
     )
     approved, _ = service.submit(
         ExperimentSpec(
@@ -714,6 +720,7 @@ def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
         ingester=lambda path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
     )
     waiting, _ = service.submit(
         ExperimentSpec(

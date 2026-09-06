@@ -26,6 +26,36 @@ REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
 HEADER_PREFIXES = ("Status: ", "Last: ", "Next: ", "Blockers: ")
 LIVE_STATUSES = frozenset({"ready", "building", "blocked", "review-wanted"})
 _ROOT_LINE = re.compile(r"^[├└]──\s+([^\s]+)")
+FOLDER_DOC_EXEMPT_ROOTS = frozenset(
+    {"docs", "derived", "runs", "queue", "backups", "exports", "logs"}
+)
+FOLDER_DOC_MAX_LINES = 60
+
+
+def declared_directories(structure_text: str) -> frozenset[str]:
+    """Return top-level directory entries declared by the root tree in STRUCTURE.md."""
+    in_map = False
+    in_tree = False
+    dirs: set[str] = set()
+    for line in structure_text.splitlines():
+        if line == "## The map":
+            in_map = True
+            continue
+        if not in_map:
+            continue
+        if line == "```":
+            if not in_tree:
+                in_tree = True
+                continue
+            break
+        if not in_tree:
+            continue
+        match = _ROOT_LINE.match(line)
+        if match:
+            entry = match.group(1)
+            if entry.endswith("/"):
+                dirs.add(entry.rstrip("/"))
+    return frozenset(dirs)
 
 
 def declared_roots(structure_text: str) -> frozenset[str]:
@@ -55,6 +85,51 @@ def declared_roots(structure_text: str) -> frozenset[str]:
 def tracked_roots(paths: Iterable[str]) -> frozenset[str]:
     """Collapse tracked repository paths to their top-level entries."""
     return frozenset(path.split("/", 1)[0] for path in paths if path)
+
+
+def folder_documents(root: Path) -> list[str]:
+    """Check that declared root directories and evallab subpackages carry valid folder documents."""
+    issues: list[str] = []
+    structure = root / "agents/STRUCTURE.md"
+    if structure.is_file():
+        structure_text = structure.read_text(encoding="utf-8")
+        declared = declared_roots(structure_text)
+        declared_dirs = declared_directories(structure_text)
+        for name in sorted(declared):
+            if name.startswith(".") or name in FOLDER_DOC_EXEMPT_ROOTS:
+                continue
+            dir_path = root / name
+            if name not in declared_dirs and not dir_path.is_dir():
+                continue
+            doc_path = dir_path / "README.md"
+            relative = f"{name}/README.md"
+            if not doc_path.is_file():
+                issues.append(f"missing folder document: {relative}")
+            else:
+                line_count = len(doc_path.read_text(encoding="utf-8").splitlines())
+                if line_count > FOLDER_DOC_MAX_LINES:
+                    issues.append(
+                        f"{relative}: document exceeds {FOLDER_DOC_MAX_LINES} lines ({line_count})"
+                    )
+
+    evallab_dir = root / "src/evallab"
+    if evallab_dir.is_dir():
+        for subpkg in sorted(evallab_dir.iterdir()):
+            if not subpkg.is_dir() or subpkg.name.startswith(".") or subpkg.name == "__pycache__":
+                continue
+            has_py = any(p.suffix == ".py" for p in subpkg.iterdir() if p.is_file())
+            doc_path = subpkg / "AGENTS.md"
+            relative = f"src/evallab/{subpkg.name}/AGENTS.md"
+            if not doc_path.is_file():
+                if has_py:
+                    issues.append(f"missing folder document: {relative}")
+            else:
+                line_count = len(doc_path.read_text(encoding="utf-8").splitlines())
+                if line_count > FOLDER_DOC_MAX_LINES:
+                    issues.append(
+                        f"{relative}: document exceeds {FOLDER_DOC_MAX_LINES} lines ({line_count})"
+                    )
+    return issues
 
 
 def _document_issues(root: Path) -> list[str]:
@@ -142,6 +217,7 @@ def collect_issues(root: Path, tracked_paths: Iterable[str]) -> list[str]:
         if missing:
             issues.append("undeclared tracked root entries: " + ", ".join(missing))
     issues.extend(_handoff_issues(root))
+    issues.extend(folder_documents(root))
     return issues
 
 

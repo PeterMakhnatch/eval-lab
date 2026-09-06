@@ -1,24 +1,24 @@
 # Interpretation Subsystem (src/evallab/interpretation/)
 
-## Responsibilities
-Owns bounded evidence packing (`EvidencePack`), model and deterministic
-evaluators (`MachineJudgment`), data quality screening
-(`TrajectoryQualityReport`), platform governance gates (`AcceptanceDecision`),
-and the **runtime/citation** TrajectoryIR in this package.
+## Purpose
+Bounded evidence packing (`EvidencePack`), evaluators (`MachineJudgment`),
+data quality screening, and platform governance gates (`AcceptanceDecision`).
 
-A second, lossless ATIF TrajectoryIR remains at
-`src/evallab/trajectory_ir.py`. That is not a shim. Do not merge, re-export,
-or delete either file without a Peter-approved authority gate.
+## What lives here / entry points
+- `evidence_pack.py`: Bounded evidence packaging and token budget enforcement.
+- `trajectory_judgment.py`: Evaluator contracts and automated judgments.
+- `trajectory_acceptance.py`: Platform governance and acceptance decisions.
+- `trajectory_ir.py`: Runtime and citation TrajectoryIR (distinct from root `trajectory_ir.py`).
+- `feature_registry.py`: Canonical feature extraction registry.
 
-Feature registry canonical path: `interpretation/feature_registry.py`.
-There is no top-level `src/evallab/feature_registry.py` compatibility module.
-
-## Core Invariants
-1. Bounded Model Inputs: `EvidencePack` enforces strict token budgets, verifiable
-   citation spans, and explicit omission ranges before model evaluation.
+## Invariants or rules
+1. Bounded Model Inputs: `EvidencePack` enforces strict token budgets and citation spans.
 2. Separation of Judgment and Acceptance: Evaluator outputs (`MachineJudgment`) are
-   distinct from Platform governance policy outcomes (`AcceptanceDecision`).
-3. Stable Subpackage Locations: No module renames or file moves out of this subpackage.
+   strictly distinct from platform governance outcomes (`AcceptanceDecision`).
+3. Stable Locations: Do not merge or delete `trajectory_ir.py` across packages.
 
-## Testing & Verification
+## Tests or checks
 - Targeted unit tests: `pytest tests/test_trajectory_ir.py tests/test_evidence_pack.py tests/test_trajectory_acceptance_contract.py tests/test_trajectory_judgment_contract.py`
+
+## What not to add here
+Do not place raw physical storage drivers or direct execution queue runners here.

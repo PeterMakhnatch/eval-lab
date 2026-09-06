@@ -15,6 +15,7 @@ import argparse
 import json
 import shutil
 import sys
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -333,8 +334,7 @@ def count_table_rows(path: Path) -> int:
     if not path.is_file():
         return 0
     try:
-        parquet_file = pq.ParquetFile(path)
-        return parquet_file.metadata.num_rows
+        return pq.ParquetFile(path).metadata.num_rows
     except Exception:
         return 0
 
@@ -430,7 +430,6 @@ def plan_compaction(
     today = clock_today or datetime.now(UTC).date()
     cutoff = today - timedelta(days=retention_days)
     partition_discovery = discover_parquet_partitions(derived_root)
-
     uncompacted_jobs = discover_uncompacted_jobs(
         derived_root,
         runs_dir=runs_dir,
@@ -494,6 +493,8 @@ def plan_compaction(
 
 def _coerce_table_to_schema(raw: pa.Table, table_name: str) -> pa.Table:
     schema = TABLE_SCHEMAS[table_name]
+    if raw.schema.equals(schema):
+        return raw
     defaults = LEGACY_COLUMN_DEFAULTS.get(table_name, {})
     columns: list[pa.Array | pa.ChunkedArray] = []
     for schema_field in schema:
@@ -517,6 +518,8 @@ def _coerce_table_to_schema(raw: pa.Table, table_name: str) -> pa.Table:
 def _read_table_or_empty(path: Path, table_name: str) -> pa.Table:
     schema = TABLE_SCHEMAS[table_name]
     if not path.is_file():
+        return pa.Table.from_batches([], schema=schema)
+    if count_table_rows(path) == 0:
         return pa.Table.from_batches([], schema=schema)
     return _coerce_table_to_schema(pq.read_table(path), table_name)
 
@@ -558,11 +561,24 @@ def _collect_table_batches(
     return collected
 
 
+_DUCKDB_LOCAL = threading.local()
+
+
+def _get_duckdb_connection() -> duckdb.DuckDBPyConnection:
+    con = getattr(_DUCKDB_LOCAL, "connection", None)
+    if con is None:
+        con = duckdb.connect(database=":memory:")
+        _DUCKDB_LOCAL.connection = con
+    return con
+
+
 def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
     """Deduplicate and sort deterministically by primary keys using DuckDB."""
     schema = TABLE_SCHEMAS[table_name]
     if table.num_rows == 0:
         return pa.Table.from_batches([], schema=schema)
+    if table.num_rows == 1:
+        return table.cast(schema)
 
     primary_keys = PRIMARY_KEYS[table_name]
     pk_cols = ", ".join(primary_keys)
@@ -571,19 +587,22 @@ def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
     # first input row so retention is independent of batch collection order.
     canonical_cols = ", ".join(f'"{name}"' for name in schema.names)
 
-    con = duckdb.connect(database=":memory:")
+    con = _get_duckdb_connection()
     con.register("tbl", table)
-    query = f"""
-    SELECT *
-    FROM tbl
-    QUALIFY row_number() OVER (
-        PARTITION BY {pk_cols}
-        ORDER BY {canonical_cols}
-    ) = 1
-    ORDER BY {pk_cols}
-    """
-    res = con.execute(query).to_arrow_table()
-    return res.cast(schema)
+    try:
+        query = f"""
+        SELECT *
+        FROM tbl
+        QUALIFY row_number() OVER (
+            PARTITION BY {pk_cols}
+            ORDER BY {canonical_cols}
+        ) = 1
+        ORDER BY {pk_cols}
+        """
+        res = con.execute(query).to_arrow_table()
+        return res.cast(schema)
+    finally:
+        con.unregister("tbl")
 
 
 def write_compact_table(
@@ -595,7 +614,6 @@ def write_compact_table(
     schema = TABLE_SCHEMAS[table_name]
     target_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = target_path.with_suffix(".parquet.tmp")
-
     pq.write_table(
         table,
         temp_path,
@@ -606,17 +624,18 @@ def write_compact_table(
 
     # Post-write validation
     try:
-        written = pq.read_table(temp_path)
-        if written.num_rows != table.num_rows:
+        pf = pq.ParquetFile(temp_path)
+        written_rows = pf.metadata.num_rows
+        if written_rows != table.num_rows:
             temp_path.unlink(missing_ok=True)
             raise CompactionValidationError(
                 f"Row count mismatch for {table_name}: "
-                f"expected {table.num_rows}, got {written.num_rows}"
+                f"expected {table.num_rows}, got {written_rows}"
             )
-        if not written.schema.equals(schema):
+        if not pf.schema_arrow.equals(schema):
             temp_path.unlink(missing_ok=True)
             raise CompactionValidationError(
-                f"Schema integrity mismatch for {table_name}: {written.schema} != {schema}"
+                f"Schema integrity mismatch for {table_name}: {pf.schema_arrow} != {schema}"
             )
         temp_path.replace(target_path)
     except Exception as exc:
@@ -646,7 +665,6 @@ def compact_day(
     dt = day_plan.dt
     dest_dir = derived_root / COMPACT_DIRNAME / f"dt={dt}"
     partition_discovery = discover_parquet_partitions(derived_root)
-
     table_row_counts: dict[str, int] = {}
     for table_name in PROJECTED_TABLE_NAMES:
         collected = _collect_table_batches(
@@ -655,7 +673,10 @@ def compact_day(
             table_name,
             partition_discovery,
         )
-        merged = pa.concat_tables(collected, promote_options="default")
+        if len(collected) == 1:
+            merged = collected[0]
+        else:
+            merged = pa.concat_tables(collected, promote_options="default")
         deduped = deduplicate_and_sort(merged, table_name)
         target_file = dest_dir / f"{table_name}.parquet"
         rows = write_compact_table(deduped, target_file, table_name)

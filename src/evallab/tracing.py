@@ -397,7 +397,9 @@ def instrument_openinference(*, enabled: bool = True) -> dict[str, bool]:
         return wired
     try:
         importlib.import_module("litellm")
-        from openinference.instrumentation.litellm import LiteLLMInstrumentor
+        from openinference.instrumentation.litellm import (  # ty: ignore[unresolved-import]
+            LiteLLMInstrumentor,
+        )
 
         LiteLLMInstrumentor().instrument()
         wired["litellm"] = True
@@ -405,7 +407,9 @@ def instrument_openinference(*, enabled: bool = True) -> dict[str, bool]:
         pass
     try:
         importlib.import_module("dspy")
-        from openinference.instrumentation.dspy import DSPyInstrumentor
+        from openinference.instrumentation.dspy import (  # ty: ignore[unresolved-import]
+            DSPyInstrumentor,
+        )
 
         DSPyInstrumentor().instrument()
         wired["dspy"] = True

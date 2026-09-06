@@ -128,8 +128,8 @@ def canonical_grid_point_id(
 #: Why a spec exists. Required on every ``ExperimentSpec``, because until now
 #: nothing recorded *intent*: the queue could be listed but never grouped,
 #: budgeted, or reasoned about by what the lab was trying to learn
-#: (``docs/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
-#: ``docs/build-plan.md`` WS-E item 1, which fixes this exact value set).
+#: (``docs/archive/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
+#: ``docs/archive/build-plan.md`` WS-E item 1, which fixes this exact value set).
 #:
 #: The taxonomy is Peter's. Do not add a member to make a call site fit — an
 #: ill-fitting call site is a finding to report, because a purpose is read as

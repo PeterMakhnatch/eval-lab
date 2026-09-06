@@ -8,7 +8,7 @@ audience:
 # Working Tree Discipline and Tidy Sweeps (`evallab tidy`)
 
 The platform janitor enforcing tenet **T7** (*janitorial duty inside every contract*),
-specified in `docs/platform-architecture.md` (T7, §2.6, §8).
+specified in `docs/archive/platform-architecture.md` (T7, §2.6, §8).
 
 `evallab tidy` sweeps the repository and linked worktrees for working tree debt,
 untracked strays, stale worktrees, unindexed documentation, and retention violations.
@@ -94,7 +94,7 @@ either **recognized junk** or **unrecognized stray (possible draft)**.
 
 ### 5. Retention Violations
 Inspects storage zones for records that have exceeded their retention limits under
-`docs/platform-architecture.md` §2.6:
+`docs/archive/platform-architecture.md` §2.6:
 - **Z3 hot partitions:** Parquet files in `derived/parquet/` older than 7 days (compaction required).
 - **Z1 unpromoted jobs:** Completed job directories in `runs/` older than 14 days without promotion.
 - **Events log:** `queue/events.jsonl` entries older than the 30-day rolling retention window.

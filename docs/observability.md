@@ -146,5 +146,6 @@ markers replaced by plaintext put the plaintext on the span and fail the guard.
 ## Dependencies
 
 Group `observability` in `pyproject.toml`: `harbor-atif2otel`, OTel SDK /
-OTLP / proto, OpenInference LiteLLM + DSPy. Included in `uv` default-groups
-so `uv sync --frozen` is enough for fixture tests.
+OTLP / proto, OpenInference LiteLLM + DSPy. It is an opt-in dependency group;
+install via `uv sync --group observability` to enable live OTLP trace export
+to Phoenix and runtime instrumentation.

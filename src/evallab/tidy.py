@@ -1,6 +1,6 @@
 """E16: working tree tidy sweep reporting strays, stale worktrees, and retention violations.
 
-Authority: docs/platform-architecture.md (T7, §2.6, §8).
+Authority: docs/archive/platform-architecture.md (T7, §2.6, §8).
 
 Sweeps:
 1. Stale worktrees: registered linked worktrees (authoritative inventory from
@@ -974,7 +974,7 @@ def sweep_retention_violations(
     *,
     now: datetime | None = None,
 ) -> list[RetentionFinding]:
-    """Sweep for retention violations according to platform-architecture.md §2.6.
+    """Sweep for retention violations according to docs/archive/platform-architecture.md §2.6.
 
     Report only: evidence deletion is the job of evallab gc with tombstones.
     """

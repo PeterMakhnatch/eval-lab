@@ -7,7 +7,7 @@ audience:
 ---
 # LADDER: Evaluation Grid Generator
 
-`evallab.ladder` generates Cartesian evaluation grids for systematic agent elicitation and comparison (WS-E item 3, `docs/platform-architecture.md` v2 §4).
+`evallab.ladder` generates Cartesian evaluation grids for systematic agent elicitation and comparison (WS-E item 3, `docs/archive/platform-architecture.md` v2 §4).
 
 It expands a declared grid specification ($task\_refs \times agents \times preamble \times k$) minus exclusion constraints into validated, purpose-tagged `ExperimentSpec` files ready for submission to the evaluation queue (`queue/pending`), while strictly respecting per-provider subscription quotas, daily unit budgets, and batch ceilings.
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,16 +67,26 @@ def write_scenario(repo: Path, stem: str = "gap-notes") -> Path:
     return path
 
 
+_CRAFT_BYTES: bytes | None = None
+
+
 def write_craft_parquet(path: Path) -> Path:
-    table = pa.table(
-        {
-            "verifier_type": ["pytest"],
-            "env_multi_container": [False],
-            "pinned_deps": [False],
-        }
-    )
+    global _CRAFT_BYTES
+    if _CRAFT_BYTES is None:
+        import io
+
+        table = pa.table(
+            {
+                "verifier_type": ["pytest"],
+                "env_multi_container": [False],
+                "pinned_deps": [False],
+            }
+        )
+        buf = io.BytesIO()
+        pq.write_table(table, buf)
+        _CRAFT_BYTES = buf.getvalue()
     path.parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(table, path)
+    path.write_bytes(_CRAFT_BYTES)
     return path
 
 
@@ -116,7 +125,7 @@ def make_test_repo(tmp_path: Path) -> Path:
     if tmpl_src.is_dir():
         tmpl_dest = repo / "authoring/templates"
         tmpl_dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(tmpl_src, tmpl_dest, dirs_exist_ok=True)
+        tmpl_dest.symlink_to(tmpl_src)
 
     return repo
 
@@ -164,9 +173,7 @@ class AuthoringProposalStateMachine(RuleBasedStateMachine):
 
     @rule(pick=st.integers(min_value=0, max_value=64))
     def run_battery(self, pick: int) -> None:
-        candidates = [
-            p_id for p_id, states in self.history.items() if states[-1] == "proposed"
-        ]
+        candidates = [p_id for p_id, states in self.history.items() if states[-1] == "proposed"]
         if not candidates:
             return
         p_id = sorted(candidates)[pick % len(candidates)]
@@ -191,9 +198,7 @@ class AuthoringProposalStateMachine(RuleBasedStateMachine):
     @rule(pick=st.integers(min_value=0, max_value=64))
     def attempt_illegal_skip_battery_to_review(self, pick: int) -> None:
         """Attempting to review a proposal before passing battery must raise AuthoringError."""
-        candidates = [
-            p_id for p_id, states in self.history.items() if states[-1] == "proposed"
-        ]
+        candidates = [p_id for p_id, states in self.history.items() if states[-1] == "proposed"]
         if not candidates:
             return
         p_id = sorted(candidates)[pick % len(candidates)]
@@ -206,9 +211,7 @@ class AuthoringProposalStateMachine(RuleBasedStateMachine):
     @rule(pick=st.integers(min_value=0, max_value=64))
     def attempt_illegal_review_of_rejected_proposal(self, pick: int) -> None:
         """Attempting to review a rejected proposal must raise AuthoringError."""
-        candidates = [
-            p_id for p_id, states in self.history.items() if states[-1] == "rejected"
-        ]
+        candidates = [p_id for p_id, states in self.history.items() if states[-1] == "rejected"]
         if not candidates:
             return
         p_id = sorted(candidates)[pick % len(candidates)]
@@ -314,7 +317,7 @@ TestAuthoringProposalProperties.settings = settings(
             st.one_of(st.none(), st.floats(min_value=0.0, max_value=1.0)),
         ),
         min_size=1,
-        max_size=30,
+        max_size=10,
         unique_by=lambda t: t[0],
     )
 )

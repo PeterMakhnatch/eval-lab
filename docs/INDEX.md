@@ -93,7 +93,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:2ea898ffa7c1f2feb696dff9de6658e350ca06e76842c2a5d829541602bf3f33
+    digest: sha256:11c4ebfa9559283da4a55fb1e55442ccad08bc59e2e22359aea20f90731d4a56
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parallel-work.md

@@ -4563,6 +4563,100 @@
   "schedule install": {
     "options": [
       {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "canary_suite",
+        "flags": [
+          "--canary-suite"
+        ],
+        "help": "Optional path to a CanarySuite YAML for opt-in continuous canary replenishment",
+        "metavar": "PATH",
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 1800,
+        "dest": "interval_seconds",
+        "flags": [
+          "--interval-seconds"
+        ],
+        "help": "Cadence in seconds for tick schedule (default: 1800)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "_positive_int"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "tick_only",
+        "flags": [
+          "--tick-only"
+        ],
+        "help": "Schedule queue dispatch only without the nightly research pipeline",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "schedule status": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": true,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Output status as machine-readable JSON (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "schedule uninstall": {
+    "options": [
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -5083,6 +5177,20 @@
         "nargs": null,
         "required": false,
         "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "canary_suite",
+        "flags": [
+          "--canary-suite"
+        ],
+        "help": "Optional path to a CanarySuite YAML for opt-in replenishment before dispatch",
+        "metavar": "PATH",
+        "nargs": null,
+        "required": false,
+        "type": "Path"
       },
       {
         "action": "_HelpAction",

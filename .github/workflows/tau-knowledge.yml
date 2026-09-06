@@ -1,14 +1,15 @@
 name: tau-knowledge-lean
 
+# Workbench unit tests run in quality on every PR and full certification runs weekly or on dispatch.
 on:
+  schedule:
+    - cron: "17 4 * * 1"
   pull_request:
     branches: [main]
     paths:
       - "library/benchmarks/tau-knowledge/**"
       - "scripts/tau_knowledge/**"
       - "tests/test_tau_knowledge_lean.py"
-      - "tests/test_task_workbench.py"
-      - "src/evallab/task_workbench.py"
       - ".github/workflows/tau-knowledge.yml"
   workflow_dispatch:
 

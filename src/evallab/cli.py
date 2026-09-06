@@ -10,7 +10,6 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import UTC, date, datetime
-from importlib import import_module
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -51,11 +50,9 @@ from evallab.cohort import (
 from evallab.digest import DigestRenderer
 from evallab.evidence.atif import check_projection_invariant, ingest_and_project
 from evallab.evidence.facts import (
-    AnalyzerCallResult,
     analysis_plan,
     ingest_analysis_sidecar,
     load_analysis_source,
-    run_trial_analysis,
     write_analysis_review,
     write_failure_taxonomy_agreement,
 )
@@ -115,7 +112,6 @@ from evallab.runner import (
     request_from_matrix,
     subscription_environment,
 )
-from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.status_generator import generate_status_markdown, update_status_file
 from evallab.storage.attach import attach, attach_and_query, build_sql_preamble, print_zones
@@ -127,7 +123,7 @@ from evallab.tracing import (
     trace_completed_jobs,
     trace_path,
 )
-from evallab.traj import outline_trajectory, project_trajectory_features, render_outline
+from evallab.traj import outline_trajectory, render_outline
 
 
 def repo_root() -> Path:
@@ -1478,52 +1474,6 @@ def _analyze_plan_command(
     return 0
 
 
-def _analyze_stub_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    job, trial = load_analysis_source(_resolve(root, args.path))
-    prompt_path = root / "research/analysis/stage5-prompt.md"
-    rubric_path = root / "research/analysis/stage5-rubric.json"
-    output_root = _resolve(root, args.output_dir)
-    response = _resolve(root, args.response).read_text()
-
-    def saved_response(_prompt: str, _schema: dict[str, object]) -> AnalyzerCallResult:
-        return AnalyzerCallResult(
-            raw_output=response,
-            input_tokens=0,
-            output_tokens=0,
-            cost_usd=0.0,
-        )
-
-    sidecar_path, sidecar = run_trial_analysis(
-        job,
-        trial,
-        analyzer=saved_response,
-        repo_root=root,
-        destination_root=output_root,
-        prompt_path=prompt_path,
-        rubric_path=rubric_path,
-        agent="stub",
-        agent_version="1",
-        model="saved-response",
-    )
-    print(f"analysis: {sidecar_path}")
-    print(f"validation: {sidecar.validation_status}")
-    # `--index` used to be invisible: the output was byte-identical to
-    # the un-indexed form and the only way to confirm the row existed
-    # was to query `analysis_invocations` by hand (M009 F-12).
-    if args.index:
-        url = database_url_from_environment(args.database_url)
-        database.initialize(url)
-        ingest_analysis_sidecar(url, sidecar_path, root=root)
-        print(f"indexed analysis: {sidecar.analysis_id}")
-        print(f"catalog: {database.identity(url)}")
-    else:
-        print("indexed: no (the catalog is a derived index, written on request)")
-        print(f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))}")
-    return 0 if sidecar.validation_status == "valid" else 1
-
-
 def _analyze_worker_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1573,35 +1523,6 @@ def _analyze_worker_run_one_command(
     return 0 if transition.state == "completed" else 1
 
 
-def _analyze_worker_resolve_ambiguous_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.analysis_worker import default_worker
-
-    worker = default_worker(root)
-    transition = worker.resolve_ambiguous(
-        args.request_id,
-        action=args.action,
-        actor=args.actor,
-    )
-    print(json.dumps({"state": transition.state, "reason": transition.reason}))
-    return 0
-
-
-def _analyze_ingest_sidecar_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    sidecar_path = _resolve(root, args.path)
-    url = database_url_from_environment(args.database_url)
-    database.initialize(url)
-    sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
-    reviews = len(list((sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME).glob("*.json")))
-    print(f"indexed analysis: {sidecar.analysis_id}")
-    print(f"indexed reviews: {reviews}")
-    print(f"catalog: {database.identity(url)}")
-    return 0
-
-
 def _analyze_review_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1609,9 +1530,7 @@ def _analyze_review_command(
     if not sidecar_path.is_file():
         raise ValueError(
             f"no analysis sidecar at {sidecar_path}; pass the "
-            f"{ANALYSIS_SIDECAR_FILENAME} path printed by "
-            "`evallab analyze stub` "
-            "(derived/analyses/<analysis_id>/analysis.json)"
+            "derived/analyses/<analysis_id>/analysis.json path"
         )
     review_path, review = write_analysis_review(
         sidecar_path,
@@ -1633,7 +1552,9 @@ def _analyze_review_command(
         print(f"catalog: {database.identity(url)}")
     else:
         print("indexed: no (the catalog is a derived index, written on request)")
-        print(f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))}")
+        print(
+            f"next: uv run evallab analyze review {shlex.quote(str(sidecar_path))} --index --database-url <url>"
+        )
     return 0
 
 
@@ -1727,22 +1648,6 @@ def _analyze_batch_command(
         calibration_report=calibration_report,
     )
     print(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
-    return 0
-
-
-def _analyze_inspect_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    output_dir = _resolve(root, args.output_dir)
-    store_root = _resolve(root, args.store)
-    result = trajectory_runtime.analyze_inspect(
-        args.target,
-        output_dir=output_dir,
-        store_root=store_root,
-        repo_root=root,
-    )
-    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 
 
@@ -2097,20 +2002,6 @@ def _semantic_facts_project_command(
     return 0
 
 
-def _semantic_facts_query_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.semantic_facts import query_scorecard
-
-    rows = query_scorecard(
-        _resolve(root, args.output_dir),
-        benchmark=args.benchmark,
-        construct=args.construct,
-    )
-    print(json.dumps(rows, indent=2, sort_keys=True))
-    return 0
-
-
 def _semantics_bindings(values: Sequence[str]):
     from evallab.interpretation.trajectory_semantics import (
         TaskProfileBinding,
@@ -2164,33 +2055,6 @@ def _semantics_project_command(
                 f"{row.trial_id}: {row.coverage_fraction:.3f} "
                 f"at threshold {row.query_threshold:.3f} — {row.status}"
             )
-    return 0
-
-
-def _semantics_coverage_command(
-    args: argparse.Namespace,
-    root: Path,
-    *,
-    harbor: HarborBackend | None = None,
-) -> int:
-    del harbor
-    from evallab.interpretation.trajectory_semantics import query_semantic_coverage
-
-    derived = derived_root_from_environment(
-        root,
-        explicit=args.derived_dir,
-    )
-    rows = query_semantic_coverage(
-        derived,
-        query_threshold=args.threshold,
-    )
-    print(
-        json.dumps(
-            [row.model_dump(mode="json") for row in rows],
-            indent=2,
-            sort_keys=True,
-        )
-    )
     return 0
 
 
@@ -2472,76 +2336,6 @@ def _ladder_screen_analyze_command(
     return 0
 
 
-def _ladder_screen_stage2_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.ladder import (
-        analyze_screen_results,
-        generate_stage2_screen,
-        load_screen_spec,
-    )
-
-    spec_path = _resolve(root, args.spec)
-    screen_spec = load_screen_spec(spec_path)
-    jobs_dir = _resolve(root, args.jobs_dir) if args.jobs_dir else None
-
-    report = analyze_screen_results(
-        screen_spec.screen_id,
-        spec=screen_spec,
-        repo_root=root,
-        jobs_dir=jobs_dir,
-    )
-
-    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
-    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
-
-    result = generate_stage2_screen(
-        report,
-        screen_spec,
-        repo_root=root,
-        output_dir=output_dir,
-        submit=args.submit,
-        dry_run=dry_run,
-    )
-
-    if args.json:
-        out = {
-            "screen_id": result.grid_id,
-            "stage": 2,
-            "separating_tasks": report.separating_tasks,
-            "stopped_tasks": report.stopped_tasks,
-            "total_specs": result.total_specs,
-            "total_trials": result.total_trials,
-            "specs": [s.model_dump(mode="json") for s in result.specs],
-            "written_files": [str(p) for p in result.written_paths],
-        }
-        print(json.dumps(out, indent=2))
-    else:
-        print(f"LADDER Screen Stage 2 Follow-Up Generation: {result.grid_id}")
-        sep_str = ", ".join(report.separating_tasks) or "none"
-        stop_str = ", ".join(report.stopped_tasks) or "none"
-        print(
-            f"Separating tasks selected for follow-up ({len(report.separating_tasks)}): {sep_str}"
-        )
-        print(f"Stopped tasks ({len(report.stopped_tasks)}): {stop_str}")
-        print("Task decisions:")
-        for task_result in report.tasks:
-            action = "SELECTED for Stage 2" if task_result.selected_for_followup else "STOPPED"
-            print(f"  - {task_result.task_id}: {action} — {task_result.followup_reason}")
-        print(
-            f"Generated {result.total_specs} follow-up specs "
-            f"({result.total_trials} trials, k={screen_spec.followup_k})"
-        )
-        if result.written_paths:
-            print(
-                f"Written to: {result.written_paths[0].parent} ({len(result.written_paths)} files)"
-            )
-        elif dry_run:
-            print("Dry-run mode: no files written to disk.")
-        print("Human approval preserved (no automatic paid dispatch).")
-    return 0
-
-
 def _trace_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2754,6 +2548,15 @@ def _registry_audit_command(
     return 0 if report.passed else 1
 
 
+def _registry_devloop_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.devloop import run_devloop
+
+    return run_devloop(root, since=args.since, run=args.run, as_json=args.json)
+
+
 def _tidy_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2915,22 +2718,6 @@ def _traj_label_command(
             f"Recorded label: {label.trial_name} -> {label.label} "
             f"by {label.author} [{label.provenance}]{note_str}"
         )
-    return 0
-
-
-def _traj_project_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    runs_roots = [_resolve(root, r) for r in args.runs_dir] if args.runs_dir else None
-    out_dir = _resolve(root, args.output_dir) if args.output_dir else None
-    res = project_trajectory_features(runs_roots=runs_roots, output_root=out_dir, repo_root=root)
-    if args.json:
-        print(json.dumps(asdict(res), indent=2, default=str))
-    else:
-        print(f"Projected {res.table_rows} trajectory feature rows to {res.output_path}")
-        print(f"  Featured:    {res.featured_count}")
-        print(f"  Unavailable: {res.unavailable_count}")
-        print(f"  Digest:      {res.sha256[:16]}...")
     return 0
 
 
@@ -3117,320 +2904,9 @@ def _traj_pack_command(
         return 1
 
 
-def _traj_align_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.interpretation.trajectory_alignment import align_trajectory_pair
-    from evallab.interpretation.trajectory_ir import build_trajectory_ir
-
-    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
-
-    def _resolve_candidate(cand_str: str) -> Path | None:
-        if explicit_root:
-            return explicit_root
-        try:
-            tp = Path(cand_str).resolve()
-            rp = root.resolve()
-            if tp != rp and rp not in tp.parents:
-                return tp.parent if tp.is_file() else tp
-        except Exception:
-            pass
-        return None
-
-    try:
-        ir_a = build_trajectory_ir(
-            args.trial_a, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_a)
-        )
-        ir_b = build_trajectory_ir(
-            args.trial_b, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_b)
-        )
-        result = align_trajectory_pair(ir_a, ir_b)
-
-        output_str = json.dumps(result.to_dict(), indent=2)
-        if getattr(args, "output", None):
-            out_path = _resolve(root, args.output)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(output_str, encoding="utf-8")
-            print(f"Wrote PairedAlignment (id: {result.alignment_id}) -> {out_path}")
-        else:
-            print(output_str)
-        return 0
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-
-def _traj_benchmark_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.interpretation.benchmark_events import (
-        ingest_benchmark_trial,
-        project_c0_screening,
-    )
-    from evallab.interpretation.benchmark_projection import (
-        agent_readable_projection_provenance,
-        build_projection_dimensions,
-        load_compliance_report,
-    )
-    from evallab.interpretation.producers.action_memory import extract_action_memory_features
-    from evallab.interpretation.producers.mcp_funcdag import extract_mcp_funcdag_features
-    from evallab.interpretation.producers.mcp_recovery import extract_mcp_recovery_features
-    from evallab.interpretation.traj_baseline import compute_trace_baseline
-    from evallab.traj import outline_trajectory, resolve_trial_target
-
-    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
-    if explicit_root is None:
-        try:
-            target_path = Path(args.trial).resolve()
-            repo_resolved = root.resolve()
-            if target_path != repo_resolved and repo_resolved not in target_path.parents:
-                explicit_root = target_path.parent if target_path.is_file() else target_path
-        except Exception:
-            pass
-
-    try:
-        trial_dir, traj_path, result_path = resolve_trial_target(
-            args.trial, repo_root=root, explicit_runs_root=explicit_root
-        )
-        outline = outline_trajectory(
-            args.trial,
-            repo_root=root,
-            explicit_runs_root=explicit_root,
-        )
-        baseline = compute_trace_baseline(outline)
-        c0 = project_c0_screening(
-            trial_dir,
-            trial_id=baseline.trial_id,
-            task_name=baseline.task_name,
-            atif_tool_call_count=baseline.tool_call_count,
-            atif_tool_error_count=baseline.error_count,
-            atif_tool_error_rate=baseline.tool_error_rate_screening,
-        )
-        if not c0.benchmark_contract_present:
-            data = asdict(c0)
-            if getattr(args, "json", False):
-                print(json.dumps(data, indent=2, default=str))
-            else:
-                print("C0 MECHANICAL SCREENING:")
-                print(f"  Trial ID:       {c0.trial_id}")
-                print(f"  Task:           {c0.task_name}")
-                print(f"  Status:         {c0.projection_status}")
-                print(f"  Source:         {c0.mechanical_source}")
-                print("  Causal Claims:  PROHIBITED")
-                print("  Recipe Eligible: false")
-                print("  Refusals:       " + (", ".join(c0.projection_refusals) or "none"))
-                print(f"  tool_call_count (denominator): {c0.tool_call_count}")
-                print(f"  tool_error_count: {c0.tool_error_count}")
-                print(f"  tool_error_rate_screening: {c0.tool_error_rate_screening}")
-                print(f"  projection_digest: {c0.projection_digest}")
-            return 0
-        bundle = ingest_benchmark_trial(trial_dir)
-        step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
-        cached_tokens = [
-            s.cached_tokens if s.cached_tokens is not None else 0
-            for s in outline.steps
-            if s.prompt_tokens is not None
-        ]
-        report = (
-            load_compliance_report(_resolve(root, args.compliance_report))
-            if getattr(args, "compliance_report", None)
-            else None
-        )
-        metadata = (
-            json.loads(_resolve(root, args.projection_metadata).read_text(encoding="utf-8"))
-            if getattr(args, "projection_metadata", None)
-            else {}
-        )
-        if not isinstance(metadata, dict):
-            raise ValueError("projection metadata must be a JSON object")
-        dimensions = build_projection_dimensions(bundle, report, metadata=metadata)
-        if bundle.contract.family == "action-memory-v1":
-            feat_obj = extract_action_memory_features(
-                bundle,
-                step_tokens=step_tokens,
-                dimensions=dimensions,
-                cached_step_tokens=cached_tokens,
-            )
-        elif bundle.contract.family == "mcp-funcdag-v1":
-            feat_obj = extract_mcp_funcdag_features(
-                bundle,
-                step_tokens=step_tokens,
-                dimensions=dimensions,
-                cached_step_tokens=cached_tokens,
-            )
-        elif bundle.contract.family == "mcp-recovery-v1":
-            feat_obj = extract_mcp_recovery_features(
-                bundle,
-                step_tokens=step_tokens,
-                dimensions=dimensions,
-                cached_step_tokens=cached_tokens,
-            )
-        else:
-            raise ValueError(f"Unknown benchmark family: {bundle.contract.family}")
-
-        data = asdict(feat_obj)
-        data["projection_provenance"] = agent_readable_projection_provenance(report, dimensions)
-        if getattr(args, "json", False):
-            print(json.dumps(data, indent=2, default=str))
-        else:
-            print(f"BENCHMARK OBSERVABLES ({bundle.contract.family}):")
-            print(f"  Trial ID:       {data.get('trial_id')}")
-            print(f"  Task ID:        {data.get('task_id') or data.get('task_name')}")
-            print(
-                f"  Agent:          {data.get('agent') or data.get('agent_name') or outline.agent_name}"
-            )
-            print(f"  Construct:      {data.get('construct')}")
-            print(f"  Causal Grade:   {data.get('causal_grade')}")
-            if data.get("causal_grade") == "C0":
-                print("  Causal Claims:  PROHIBITED")
-            print(f"  Truth Digest:   {data.get('verifier_truth_digest')}")
-            print("\n  Metrics:")
-            for k, v in data.items():
-                if k not in (
-                    "trial_id",
-                    "job_id",
-                    "task_name",
-                    "agent_name",
-                    "construct",
-                    "causal_grade",
-                    "verifier_truth_digest",
-                    "created_at",
-                    "contract_family",
-                ):
-                    print(f"    {k}: {v}")
-        return 0
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-
-def _traj_c0_status_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    """Read-only deterministic C0 mechanical status over promoted trajectories."""
-    from evallab.interpretation.benchmark_events import (
-        project_promoted_trials_c0,
-        refuse_causal_promotion,
-    )
-    from evallab.interpretation.traj_baseline import compute_trace_baseline
-    from evallab.traj import outline_trajectory
-
-    runs_roots = [_resolve(root, r) for r in args.runs_dir] if args.runs_dir else []
-    if not runs_roots:
-        runs_roots = [_resolve(root, Path("research/evidence/runs"))]
-
-    def _atif_counts(trial_dir: Path, runs_root: Path) -> tuple[int, int, float | None] | None:
-        try:
-            outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=runs_root)
-            baseline = compute_trace_baseline(outline)
-            return (
-                baseline.tool_call_count,
-                baseline.error_count,
-                baseline.tool_error_rate_screening,
-            )
-        except Exception:
-            return None
-
-    projections = []
-    for rr in runs_roots:
-        rr_path = Path(rr)
-        projections.extend(
-            project_promoted_trials_c0(
-                rr,
-                promoted_only=args.promoted_only,
-                baseline_provider=lambda td, rr_path=rr_path: _atif_counts(td, rr_path),
-            )
-        )
-
-    # Deterministic ordering across all roots.
-    projections.sort(key=lambda p: (p.trial_id, p.task_name))
-
-    summary: dict[str, int] = {}
-    for p in projections:
-        summary[p.quality_disposition] = summary.get(p.quality_disposition, 0) + 1
-    summary["TOTAL"] = len(projections)
-    grades = sorted({p.causal_grade for p in projections})
-    promoted = [p for p in projections if p.causal_claim_allowed]
-
-    if getattr(args, "json", False):
-        payload = {
-            "projections": [asdict(p) for p in projections],
-            "summary": summary,
-            "causal_grades": grades,
-            "causal_claim_allowed_any": bool(promoted),
-            "promotion_refusal": (
-                asdict(refuse_causal_promotion(projections[0], "intervention"))
-                if projections
-                else None
-            ),
-        }
-        print(json.dumps(payload, indent=2, default=str))
-    else:
-        print("C0 MECHANICAL STATUS (promoted trajectories):")
-        print("| trial | task | grade | status | source | denominator | disposition | refusals |")
-        print("|---|---|---|---|---|---|---|---|")
-        for p in projections:
-            refs = ", ".join(p.projection_refusals) if p.projection_refusals else "-"
-            denom = (
-                f"{p.opportunity_count} ({p.opportunity_denominator})"
-                if p.opportunity_count is not None
-                else "-"
-            )
-            print(
-                f"| {p.trial_id} | {p.task_name} | {p.causal_grade} | "
-                f"{p.projection_status} | {p.mechanical_source} | {denom} | "
-                f"{p.quality_disposition} | {refs} |"
-            )
-        print("")
-        print(f"Total projected: {len(projections)}")
-        print(f"Disposition: {', '.join(f'{k}={v}' for k, v in sorted(summary.items()))}")
-        print(f"causal_grades: {', '.join(grades)}")
-        if promoted:
-            print("ERROR: a C0 projection reported causal_claim_allowed=True; never allowed.")
-            return 1
-        print("C0 facts are never promoted above C0; causal/matched/intervention claims refused.")
-    return 0
-
-
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
-
-
-def _load_claims_tokenizer(selector: str) -> Callable[[str], int] | object:
-    module_name, separator, attribute = selector.partition(":")
-    if not separator or not module_name or not attribute:
-        raise ValueError("tokenizer must be MODULE:ATTRIBUTE")
-    target: object = import_module(module_name)
-    for component in attribute.split("."):
-        target = getattr(target, component)
-    if callable(target) or callable(getattr(target, "encode", None)):
-        return target
-    raise TypeError("tokenizer target must be callable or provide encode()")
-
-
-def _claims_pack_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.interpretation.trajectory_context import build_durable_trajectory_context
-
-    output_format = "json" if args.json else "markdown"
-    tokenizer = _load_claims_tokenizer(args.tokenizer) if args.tokenizer is not None else None
-    pack = build_durable_trajectory_context(
-        trial_id=args.trial,
-        repo_root=root,
-        derived_root=args.derived_root,
-        database_url=args.database_url,
-        sidecar_roots=tuple(args.analysis_root or ()),
-        semantic_root=args.semantic_root,
-        max_bytes=args.max_bytes,
-        max_entries=args.max_entries,
-        max_tokens=args.max_tokens,
-        tokenizer=tokenizer,
-        output_format=output_format,
-    )
-    print(pack.render(output_format), end="")
-    return 0
 
 
 def parser() -> argparse.ArgumentParser:
@@ -3440,34 +2916,6 @@ def parser() -> argparse.ArgumentParser:
     )
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
-    claims = commands.add_parser("claims", help="Compile durable, provenance-backed claims context")
-    claims_commands = claims.add_subparsers(dest="claims_command", required=True)
-    claims_pack = claims_commands.add_parser(
-        "pack", help="Compile one trial's accepted/current claims"
-    )
-    claims_pack.add_argument("--trial", required=True, help="Trial identifier")
-    claims_pack.add_argument("--max-bytes", type=int, help="Exact UTF-8 output byte bound")
-    claims_pack.add_argument("--max-entries", type=int, help="Maximum complete claims")
-    claims_pack.add_argument(
-        "--max-tokens",
-        type=int,
-        help="Exact token bound; requires --tokenizer",
-    )
-    claims_pack.add_argument(
-        "--tokenizer",
-        help="Explicit tokenizer as MODULE:ATTRIBUTE callable or encode()-provider",
-    )
-    claims_pack.add_argument("--database-url", help="PostgreSQL catalog URL override")
-    claims_pack.add_argument("--derived-root", type=Path, help="Shared Parquet root override")
-    claims_pack.add_argument(
-        "--analysis-root",
-        type=Path,
-        action="append",
-        help="Analysis sidecar root (repeatable)",
-    )
-    claims_pack.add_argument("--semantic-root", type=Path, help="Semantic Parquet root")
-    claims_pack.add_argument("--json", action="store_true", help="Emit the typed pack as JSON")
-    claims_pack.set_defaults(func=_claims_pack_command)
 
     doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
     doctor.add_argument(
@@ -4006,32 +3454,6 @@ def parser() -> argparse.ArgumentParser:
     )
     analyze_worker_run.set_defaults(func=_analyze_worker_run_one_command)
 
-    analyze_worker_resolve = analyze_commands.add_parser(
-        "worker-resolve-ambiguous",
-        help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
-    )
-    analyze_worker_resolve.add_argument("request_id")
-    analyze_worker_resolve.add_argument("--action", choices=("retry", "quarantine"), required=True)
-    analyze_worker_resolve.add_argument("--actor", required=True)
-    analyze_worker_resolve.set_defaults(func=_analyze_worker_resolve_ambiguous_command)
-
-    analyze_stub = analyze_commands.add_parser(
-        "stub", help="Validate a saved response and write an immutable sidecar"
-    )
-    analyze_stub.add_argument("path", type=Path)
-    analyze_stub.add_argument("--response", type=Path, required=True)
-    analyze_stub.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
-    analyze_stub.add_argument("--index", action="store_true")
-    analyze_stub.add_argument("--database-url")
-    analyze_stub.set_defaults(func=_analyze_stub_command)
-
-    analyze_ingest = analyze_commands.add_parser(
-        "ingest-sidecar", help="Index one durable analysis sidecar"
-    )
-    analyze_ingest.add_argument("path", type=Path)
-    analyze_ingest.add_argument("--database-url")
-    analyze_ingest.set_defaults(func=_analyze_ingest_sidecar_command)
-
     analyze_review = analyze_commands.add_parser(
         "review", help="Append a human review without editing the analysis"
     )
@@ -4089,14 +3511,6 @@ def parser() -> argparse.ArgumentParser:
     analyze_batch.add_argument("--database-url")
     analyze_batch.add_argument("--calibration-report", type=Path)
     analyze_batch.set_defaults(func=_analyze_batch_command)
-
-    analyze_inspect = analyze_commands.add_parser(
-        "inspect", help="Reopen artifact lineage and exact citations for one decision"
-    )
-    analyze_inspect.add_argument("target")
-    analyze_inspect.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
-    analyze_inspect.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
-    analyze_inspect.set_defaults(func=_analyze_inspect_command)
 
     analyze_calibrate = analyze_commands.add_parser(
         "calibrate", help="Parse a committed CalibrationReport and report hold-only status"
@@ -4302,13 +3716,6 @@ def parser() -> argparse.ArgumentParser:
     semantic_facts_project.add_argument("--output-dir", type=Path, required=True)
     semantic_facts_project.add_argument("--json", action="store_true")
     semantic_facts_project.set_defaults(func=_semantic_facts_project_command)
-    semantic_facts_query = semantic_facts_commands.add_parser(
-        "query", help="Query benchmark×construct analysis-readiness scorecards"
-    )
-    semantic_facts_query.add_argument("output_dir", type=Path)
-    semantic_facts_query.add_argument("--benchmark")
-    semantic_facts_query.add_argument("--construct")
-    semantic_facts_query.set_defaults(func=_semantic_facts_query_command)
 
     semantics = commands.add_parser(
         "semantics",
@@ -4338,13 +3745,6 @@ def parser() -> argparse.ArgumentParser:
     semantics_project.add_argument("--permissive", action="store_true")
     semantics_project.add_argument("--json", action="store_true")
     semantics_project.set_defaults(func=_semantics_project_command)
-    semantics_coverage = semantics_commands.add_parser(
-        "coverage",
-        help="Query per-trial semantic coverage at an explicit threshold",
-    )
-    semantics_coverage.add_argument("--derived-dir", type=Path)
-    semantics_coverage.add_argument("--threshold", type=float, required=True)
-    semantics_coverage.set_defaults(func=_semantics_coverage_command)
 
     evidence_parser = commands.add_parser(
         "evidence", help="Archive and restore content-addressed raw evidence"
@@ -4477,39 +3877,6 @@ def parser() -> argparse.ArgumentParser:
         help="Print analysis report in JSON format",
     )
     sa_parser.set_defaults(func=_ladder_screen_analyze_command)
-
-    s2_parser = screen_commands.add_parser(
-        "stage2", help="Emit Stage 2 follow-up specs (k=3) for separating tasks only"
-    )
-    s2_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file")
-    s2_parser.add_argument(
-        "-o",
-        "--output",
-        dest="output_dir",
-        type=Path,
-        default=None,
-        help="Directory to write generated ExperimentSpec JSON files",
-    )
-    s2_parser.add_argument(
-        "--submit",
-        action="store_true",
-        help="Submit generated ExperimentSpecs directly to the queue",
-    )
-    s2_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Print expansion without writing to disk (default)",
-    )
-    s2_parser.add_argument(
-        "--jobs-dir", type=Path, default=None, help="Jobs directory to search for results"
-    )
-    s2_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print generation summary in JSON format",
-    )
-    s2_parser.set_defaults(func=_ladder_screen_stage2_command)
 
     trace = commands.add_parser(
         "trace",
@@ -4742,6 +4109,26 @@ def parser() -> argparse.ArgumentParser:
         help="Emit registered record as JSON",
     )
     registry_register.set_defaults(func=_registry_register_command)
+    registry_devloop = registry_commands.add_parser(
+        "devloop",
+        help="Map working tree changes to affected test modules and run targeted pytest",
+    )
+    registry_devloop.add_argument(
+        "--since",
+        default="working",
+        help="Revision or baseline to diff against (default: working)",
+    )
+    registry_devloop.add_argument(
+        "--run",
+        action="store_true",
+        help="Execute the computed pytest command",
+    )
+    registry_devloop.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit results as JSON",
+    )
+    registry_devloop.set_defaults(func=_registry_devloop_command)
     tidy = commands.add_parser(
         "tidy",
         help="Sweep working tree strays, stale worktrees, and retention violations",
@@ -4836,16 +4223,6 @@ def parser() -> argparse.ArgumentParser:
     traj_label.add_argument("--json", action="store_true", help="Emit label as JSON")
     traj_label.set_defaults(func=_traj_label_command)
 
-    traj_project = traj_commands.add_parser(
-        "project", help="Extract mechanical features to Parquet"
-    )
-    traj_project.add_argument("--output-dir", type=Path, help="Override output Parquet root")
-    traj_project.add_argument(
-        "--runs-dir", type=Path, action="append", help="Runs directory (repeatable)"
-    )
-    traj_project.add_argument("--json", action="store_true", help="Emit projection summary as JSON")
-    traj_project.set_defaults(func=_traj_project_command)
-
     traj_report = traj_commands.add_parser(
         "report", help="Precision report of heuristic labels vs human ground truth"
     )
@@ -4900,44 +4277,6 @@ def parser() -> argparse.ArgumentParser:
     )
     traj_pack.set_defaults(func=_traj_pack_command)
 
-    traj_align = traj_commands.add_parser(
-        "align", help="Align two counterfactual trajectory branches and detect divergence k*"
-    )
-    traj_align.add_argument("trial_a", help="First trial identifier, directory, or result.json")
-    traj_align.add_argument("trial_b", help="Second trial identifier, directory, or result.json")
-    traj_align.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
-    traj_align.add_argument("--output", "-o", type=Path, help="Write alignment JSON to file")
-    traj_align.set_defaults(func=_traj_align_command)
-    traj_bm = traj_commands.add_parser(
-        "benchmark", help="Extract and inspect benchmark trajectory observables for a trial"
-    )
-    traj_bm.add_argument("trial", help="Trial identifier, directory, or result.json")
-    traj_bm.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
-    traj_bm.add_argument("--json", action="store_true", help="Emit observables as JSON")
-    traj_bm.add_argument(
-        "--compliance-report",
-        type=Path,
-        help="Materialized Data ComplianceIngestReport JSON; never invokes the compliance hook",
-    )
-    traj_bm.add_argument(
-        "--projection-metadata",
-        type=Path,
-        help="Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
-    )
-    traj_bm.set_defaults(func=_traj_benchmark_command)
-
-    traj_c0 = traj_commands.add_parser(
-        "c0-status", help="Read-only deterministic C0 mechanical status over promoted trajectories"
-    )
-    traj_c0.add_argument("--runs-dir", action="append", type=Path, help="Runs root(s) to scan")
-    traj_c0.add_argument(
-        "--promoted-only",
-        action="store_true",
-        default=True,
-        help="Only project trials under jobs with a PROMOTION.json (default: True)",
-    )
-    traj_c0.add_argument("--json", action="store_true", help="Emit deterministic JSON status")
-    traj_c0.set_defaults(func=_traj_c0_status_command)
     return root
 
 

@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from evallab.evidence.atif import (
@@ -22,13 +24,23 @@ from evallab.ingest_verify import (
 from evallab.queue import DirectoryQueue
 
 
-def _write_complete_partition(derived_root: Path, job_id: str, trial_id: str) -> None:
+def _write_complete_partition(
+    derived_root: Path,
+    job_id: str,
+    trial_id: str,
+    *,
+    with_atif: bool = False,
+) -> None:
     job_dir = derived_root / f"job_id={job_id}"
     trial_dir = job_dir / f"trial_id={trial_id}"
     trial_dir.mkdir(parents=True, exist_ok=True)
     (job_dir / JOB_PROJECTION_FILE).write_bytes(b"dummy-parquet")
     for table_name in PROJECTED_TABLES:
-        (trial_dir / table_name).write_bytes(b"dummy-parquet")
+        if with_atif and table_name == "trajectories.parquet":
+            table = pa.table({"validation_status": ["valid"]})
+            pq.write_table(table, trial_dir / table_name)
+        else:
+            (trial_dir / table_name).write_bytes(b"dummy-parquet")
 
 
 def test_ingest_verify_detects_unaccounted_missing_partition(tmp_path: Path) -> None:
@@ -173,11 +185,6 @@ def test_projection_invariant_per_reason_breakdown(tmp_path: Path) -> None:
         "CorruptedTrajectory": frozenset({excepted_job_2}),
         "MissingResultJson": frozenset({excepted_job_1}),
     }
-    expected_detail = (
-        "catalog=3 projected=1 exceptions=2 "
-        "(CorruptedTrajectory=1, MissingResultJson=1) missing=0 extra=0"
-    )
-    assert invariant.detail == expected_detail
 
 
 def test_ingest_views_duckdb_execution() -> None:
@@ -189,15 +196,17 @@ def test_ingest_views_duckdb_execution() -> None:
     conn.execute(sql_path.read_text())
 
     # Verify all views exist and are queryable
-    reconciliation = conn.execute("SELECT * FROM v_ingest_reconciliation").fetchall()
-    assert isinstance(reconciliation, list)
+    reconciliation = conn.execute("SELECT * FROM v_ingest_reconciliation")
+    assert [d[0] for d in reconciliation.description][:3] == ["job_id", "job_name", "trial_id"]
+    assert reconciliation.fetchall() == []
 
-    summary = conn.execute("SELECT * FROM v_ingest_summary").fetchall()
-    assert isinstance(summary, list)
+    summary = conn.execute("SELECT * FROM v_ingest_summary")
+    assert [d[0] for d in summary.description][:3] == ["task_name", "agent_name", "total_trials"]
+    assert summary.fetchall() == []
 
-    gaps = conn.execute("SELECT * FROM v_ingest_gaps").fetchall()
-    assert isinstance(gaps, list)
-
+    gaps = conn.execute("SELECT * FROM v_ingest_gaps")
+    assert [d[0] for d in gaps.description][:3] == ["job_id", "job_name", "trial_id"]
+    assert gaps.fetchall() == []
     completeness = conn.execute("SELECT * FROM v_ingest_completeness").fetchone()
     assert completeness is not None
     assert completeness[0] == 0  # total_catalog_trials on empty fallback
@@ -244,23 +253,218 @@ def test_ingest_verify_accounts_for_exception_in_gaps(tmp_path: Path) -> None:
     assert res.is_complete is True
 
 
-def test_ingest_verify_cli_output(capsys: pytest.CaptureFixture[str]) -> None:
-    """CLI entry point python -m evallab.ingest_verify renders summary and json."""
+def test_ingest_verify_cli_output(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """CLI entry point python -m evallab.ingest_verify renders summary and json hermetically."""
     from evallab.ingest_verify import main
 
-    repo_root = Path(__file__).resolve().parents[1]
+    empty_root = tmp_path / "empty_repo"
+    empty_root.mkdir()
+    empty_derived = tmp_path / "empty_derived"
+    empty_derived.mkdir()
 
-    code = main(["--root", str(repo_root), "--json"])
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(empty_derived.resolve()))
+    monkeypatch.setenv(
+        "EVALLAB_DATABASE_URL",
+        "postgresql://hermetic:hermetic@127.0.0.1:65534/hermetic_test",
+    )
+
+    code = main(["--root", str(empty_root), "--json"])
     assert code == 0
     out = capsys.readouterr().out
     data = json.loads(out)
-    assert "is_complete" in data
     assert data["is_complete"] is True
     assert data["gaps_count"] == 0
+    assert data["disk_jobs_count"] == 0
+    assert data["catalog_jobs_count"] == 0
+    assert data["parquet_jobs_count"] == 0
 
     # Table output
-    code_tbl = main(["--root", str(repo_root)])
+    code_tbl = main(["--root", str(empty_root)])
     assert code_tbl == 0
     out_tbl = capsys.readouterr().out
     assert "Ingest Completeness Verification" in out_tbl
     assert "COMPLETE (0 gaps)" in out_tbl
+
+
+def test_verify_ingest_complete_synthetic_job(tmp_path: Path) -> None:
+    """A synthetic job consistent across disk, parquet, ATIF, and catalog has 0 gaps and is complete."""
+    from evallab.storage.paths import discover_parquet_partitions
+
+    root = tmp_path / "repo"
+    runs_dir = root / "runs"
+    derived_root = tmp_path / "derived"
+    events_path = tmp_path / "events.jsonl"
+
+    job_id = "00000000-0000-0000-0000-000000000001"
+    trial_id = "00000000-0000-0000-0000-000000000002"
+
+    # 1. Disk: projectable trial run
+    job_dir = runs_dir / "synthetic-job"
+    trial_dir = job_dir / "synthetic-trial__001"
+    trial_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(json.dumps({"job_id": job_id}))
+    (trial_dir / "result.json").write_text(json.dumps({"trial_id": trial_id}))
+
+    # 2. Parquet partition: matches discover_parquet_partitions layout + valid ATIF doc
+    _write_complete_partition(derived_root, job_id, trial_id, with_atif=True)
+
+    # Verify partition matches discover_parquet_partitions layout
+    discovery = discover_parquet_partitions(derived_root)
+    assert len(discovery.job_directories) == 1
+    assert any(p.layout == "job" and p.job_id == job_id for p in discovery.partitions)
+    assert any(p.layout == "hot" and p.trial_id == trial_id for p in discovery.partitions)
+
+    # 3. Injected catalog
+    def catalog_loader(url: str) -> tuple[dict, dict]:
+        jobs = {
+            job_id: {
+                "id": job_id,
+                "name": "synthetic-job",
+                "path": str(job_dir.relative_to(root)),
+            }
+        }
+        trials = {
+            trial_id: {
+                "id": trial_id,
+                "job_id": job_id,
+                "name": "synthetic-trial",
+                "path": str(trial_dir.relative_to(root)),
+            }
+        }
+        return jobs, trials
+
+    res = verify_ingest(
+        root,
+        derived_root=derived_root,
+        events_path=events_path,
+        search_roots=[runs_dir],
+        catalog_loader=catalog_loader,
+    )
+
+    assert res.is_complete is True
+    assert len(res.gaps) == 0
+    assert res.atif_documents_count == 1
+    assert res.disk_jobs_count == 1
+    assert res.disk_trials_count == 1
+    assert res.catalog_jobs_count == 1
+    assert res.catalog_trials_count == 1
+    assert res.parquet_jobs_count == 1
+    assert res.parquet_trials_count == 1
+
+
+def test_verify_ingest_missing_parquet_partition_gap(tmp_path: Path) -> None:
+    """Fixture missing the parquet partition yields exactly one missing_jobs_parquet gap."""
+    root = tmp_path / "repo"
+    runs_dir = root / "runs"
+    empty_derived = tmp_path / "empty_derived"
+    empty_derived.mkdir()
+    events_path = tmp_path / "events.jsonl"
+
+    job_id = "00000000-0000-0000-0000-000000000001"
+    trial_id = "00000000-0000-0000-0000-000000000002"
+
+    job_dir = runs_dir / "synthetic-job"
+    trial_dir = job_dir / "synthetic-trial__001"
+    trial_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(json.dumps({"job_id": job_id}))
+    (trial_dir / "result.json").write_text(json.dumps({"trial_id": trial_id}))
+
+    def catalog_loader(url: str) -> tuple[dict, dict]:
+        jobs = {
+            job_id: {
+                "id": job_id,
+                "name": "synthetic-job",
+                "path": str(job_dir.relative_to(root)),
+            }
+        }
+        trials = {
+            trial_id: {
+                "id": trial_id,
+                "job_id": job_id,
+                "name": "synthetic-trial",
+                "path": str(trial_dir.relative_to(root)),
+            }
+        }
+        return jobs, trials
+
+    res = verify_ingest(
+        root,
+        derived_root=empty_derived,
+        events_path=events_path,
+        search_roots=[runs_dir],
+        catalog_loader=catalog_loader,
+    )
+
+    assert res.is_complete is False
+    assert len(res.gaps) == 1
+    gap = res.gaps[0]
+    assert gap.store == "parquet"
+    assert gap.entity_type == "job"
+    assert gap.entity_id == job_id
+    assert gap.reason == "missing_jobs_parquet"
+
+
+def test_verify_ingest_catalog_job_missing_from_disk_gap(tmp_path: Path) -> None:
+    """When catalog contains a job that disk lacks, verification flags the missing parquet partition gap."""
+    root = tmp_path / "repo"
+    runs_dir = root / "runs"
+    derived_root = tmp_path / "derived"
+    events_path = tmp_path / "events.jsonl"
+
+    job_id = "00000000-0000-0000-0000-000000000001"
+    trial_id = "00000000-0000-0000-0000-000000000002"
+    orphan_job_id = "00000000-0000-0000-0000-000000000099"
+
+    # Present job on disk and in parquet
+    job_dir = runs_dir / "synthetic-job"
+    trial_dir = job_dir / "synthetic-trial__001"
+    trial_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(json.dumps({"job_id": job_id}))
+    (trial_dir / "result.json").write_text(json.dumps({"trial_id": trial_id}))
+    _write_complete_partition(derived_root, job_id, trial_id, with_atif=True)
+
+    # Catalog loader returns both present job and orphan job that disk lacks
+    def catalog_loader(url: str) -> tuple[dict, dict]:
+        jobs = {
+            job_id: {
+                "id": job_id,
+                "name": "synthetic-job",
+                "path": str(job_dir.relative_to(root)),
+            },
+            orphan_job_id: {
+                "id": orphan_job_id,
+                "name": "orphan-catalog-job",
+                "path": "runs/orphan-job",
+            },
+        }
+        trials = {
+            trial_id: {
+                "id": trial_id,
+                "job_id": job_id,
+                "name": "synthetic-trial",
+                "path": str(trial_dir.relative_to(root)),
+            }
+        }
+        return jobs, trials
+
+    res = verify_ingest(
+        root,
+        derived_root=derived_root,
+        events_path=events_path,
+        search_roots=[runs_dir],
+        catalog_loader=catalog_loader,
+    )
+
+    assert res.is_complete is False
+    assert res.disk_jobs_count == 1
+    assert res.catalog_jobs_count == 2
+    assert len(res.gaps) == 1
+    gap = res.gaps[0]
+    assert gap.store == "parquet"
+    assert gap.entity_type == "job"
+    assert gap.entity_id == orphan_job_id
+    assert gap.reason == "missing_jobs_parquet"

@@ -34,22 +34,6 @@ Disposition = Literal[
 Validity = Literal["supported", "contradicted", "insufficient_evidence"]
 SupportLevel = Literal["e0", "e1", "e2", "e3"]
 ClaimType = Literal["success", "partial", "failure", "refusal", "none"]
-AbstentionReason = Literal[
-    "source_missing",
-    "pack_incomplete",
-    "linkage_unresolved",
-    "profile_missing",
-    "opportunity_unknown",
-    "replay_oracle_unavailable",
-    "pair_unavailable",
-    "confounded",
-    "mandatory_window_overflow",
-    "ontology_gap",
-    "digest_mismatch",
-    "citation_unresolved",
-    "contradicts_verifier_or_state",
-    "quality_fail",
-]
 
 ABSTENTION_CODES: frozenset[str] = frozenset(
     {

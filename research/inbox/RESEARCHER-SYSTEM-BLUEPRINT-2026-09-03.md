@@ -4,7 +4,7 @@ source_type: internal
 
 # Recursive Tool-Use Self-Improvement: System Blueprint v1
 
-**Author:** researcher track · **Date:** 2026-09-03 · **Status:** opinionated proposal, supersedes the Harbor-tasks rendering in `RESEARCHER-TOOL-USE-LOOP-BRIEF-2026-09-03.md`
+**Author:** researcher track · **Date:** 2026-09-03 · **Status:** opinionated proposal, supersedes the Harbor-tasks rendering in `research/archive/2026-W36/RESEARCHER-TOOL-USE-LOOP-BRIEF-2026-09-03.md`
 **Thesis:** train RL agents *inside* self-generated tool worlds; Harbor measures, never trains. Lab owns the domain layer + measurement; all engines borrowed.
 
 ## 1. System top-down (six parts, one loop)

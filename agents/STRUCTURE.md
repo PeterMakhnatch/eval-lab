@@ -18,7 +18,6 @@ eval-lab/
 ├── agents/                    HOW WE WORK — coordination and governance
 │   ├── WORKFLOW.md            the work protocol (worktrees, merges, boundaries)
 │   ├── OWNERS.md              four stable lanes + Peter's reserved authority
-│   ├── ROLES.md               superseded — compatibility pointer (M001)
 │   ├── missions/              ACTIVE.md live board + TEMPLATE.md
 │   ├── archive/               dated closed-mission and registry records, plus
 │   │                          dated handoff subdirectories. Normalize the
@@ -34,26 +33,20 @@ eval-lab/
 │   ├── architecture.md        system boundaries and planes
 │   ├── analysis-loop.md       evidence → finding → proposal state machine
 │   ├── data-architecture.md   the four provenance zones
-│   ├── design-additions.md    decisions, tool stack, unattended loop, briefs
 │   ├── execution-tiers.md     what runs where, and what it costs
 │   ├── scaling.md             gates for object storage / k8s / ClickHouse
 │   ├── engineering.md         standards + measured performance baselines
 │   ├── observability.md       tracing and telemetry surfaces
 │   ├── operations.md          runbooks
 │   ├── operating-manual.md    Peter's manual for running an agent-built lab
-│   ├── operator-demo.md       one truthful analysis loop, end to end
-│   ├── fleet-tracking.md      how the human tracks the fleet
 │   ├── agent-profiles.md      subscription-only agent identity/qualification
 │   ├── canaries.md            canary suite and drift interpretation
 │   ├── task-registry.md       task admission trust boundary
 │   ├── run-explorer.md        run & analysis explorer
 │   ├── research-questions.md  what this lab studies
-│   ├── path-forward-2026-08.md    dated direction note
-│   ├── mentor-review-2026-08.md   dated external review
-│   ├── parallel-work.md       superseded — pointer to agents/WORKFLOW.md
 │   ├── prompts/               living mission-prompt sets + living README
-│   ├── archive/prompts/       superseded implementation briefs (01–09, 12)
-│   │                          + dated legacy mission sets (M001–M014)
+│   ├── archive/               historical documents (README.md indexes them) and
+│   │                          archive/prompts/: superseded briefs + legacy mission sets
 │   ├── checkpoints/           dated hands-on integrator verification records
 │   ├── research/              Research-lane docs (survey, external datasets,
 │   │                          synthetic tasks, trajectory intelligence)
@@ -109,6 +102,7 @@ eval-lab/
 ├── .githooks/                 checked-in repository hook implementations
 ├── .env.example               environment-variable template
 ├── .gitignore                 generated/local path exclusions
+├── .ignore                    search exclusions (archive directories)
 ├── .gitattributes             merge and path attributes
 ├── .python-version            development Python pin
 │
@@ -152,6 +146,35 @@ Rules that fall out of the buckets:
   Nothing in `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
 - Ownership boundaries (`agents/OWNERS.md` lanes and `research/inbox/board.md`
   claims) follow these paths.
+- Folder-doc convention: every top-level directory listed in this map and every
+  subpackage under `src/evallab/` carries exactly one folder document (`AGENTS.md`
+  under `src/evallab/`, `README.md` elsewhere) capped at 60 lines with standard
+  sections. Exemptions: dot-directories (`.github`, `.githooks`, `.omp`,
+  `.claude`), runtime/ignored roots (`derived`, `runs`, `queue`, `backups`,
+  `exports`, `logs`), and `docs/` (which has `INDEX.md`).
+
+## Folder documents
+
+Every declared top-level directory in this file's map and every subpackage under
+`src/evallab/` carries exactly one folder document:
+- `AGENTS.md` for subpackages under `src/evallab/`
+- `README.md` for top-level directories elsewhere
+
+Each folder document is capped at 60 lines and must contain these five sections
+in order:
+1. Purpose (2–3 lines)
+2. What lives here / entry points
+3. Invariants or rules
+4. Tests or checks
+5. What not to add here
+
+Exemptions from this requirement:
+- Dot-directories (`.github`, `.githooks`, `.omp`, `.claude`, and gitignored dot roots)
+- Runtime or ignored roots (`derived`, `runs`, `queue`, `backups`, `exports`, `logs`)
+- `docs/` (which carries `docs/INDEX.md` as its directory index)
+
+Presence and line-length limits are enforced deterministically by
+`python -m evallab.governance check`.
 
 ## Historical migrations and changes
 
@@ -215,3 +238,10 @@ The change log below is historical, not a current inventory or work order.
   agent coordination and engineering workflow; the first entries are scoped
   change-impact and repository-health skills that reference, rather than
   duplicate, the binding repository contracts.
+- 2026-09-06 — retired compatibility pointers `agents/ROLES.md` and
+  `docs/parallel-work.md` removed from the tree; `.ignore` declared at root
+  to exclude archive directories from default search (bucket rule: search exclusions,
+  companion to `.gitignore`).
+- 2026-09-06 — folder document convention established (AGENTS.md under
+  src/evallab/, README.md for top-level directories, 60-line cap, five
+  standard sections) and enforced via governance check.

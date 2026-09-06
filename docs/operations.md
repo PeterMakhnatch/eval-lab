@@ -81,6 +81,8 @@ prior day's budget across midnight.
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
 
+For Cartesian evaluation grid expansion and budget-bounded experiment generation, see [`docs/ladder.md`](ladder.md).
+
 ## Paid execution requires a recorded authorisation
 
 **Nothing billable runs unless Peter authorises that specific spec.** A spec is
@@ -96,6 +98,8 @@ Which classes need authorisation:
 |---|---|---|
 | `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
 | everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
+
+For the credential contract and runner configuration for DeepSeek models, see [`docs/deepseek-v4-flash-lane.md`](deepseek-v4-flash-lane.md).
 
 How it is enforced, in order:
 
@@ -454,6 +458,10 @@ Steps run in the exact order below:
 - **`continue`**: If the step fails, its failure is captured in its `StepOutcome` and logged as a
   queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
   **not** quarantined, and subsequent pipeline steps continue executing.
+
+For queue event burst detection and alarm generation rules, see [`docs/storm-alarms.md`](storm-alarms.md).
+For the section ordering and formatting contracts of nightly digests and status projections, see [`docs/surfaces.md`](surfaces.md).
+For telemetry surfaces, span tracing with Phoenix, and diagnostic entry points, see [`docs/observability.md`](observability.md).
 
 ### Idempotence
 

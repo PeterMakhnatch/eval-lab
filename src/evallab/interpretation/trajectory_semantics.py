@@ -990,10 +990,6 @@ SEMANTIC_ACTION_COVERAGE_SCHEMA = pa.schema(
         pa.field("status", pa.string(), nullable=False),
     ]
 )
-TRAJECTORY_SEMANTIC_SCHEMAS: dict[str, pa.Schema] = {
-    "semantic_action_facts": SEMANTIC_ACTION_FACT_SCHEMA,
-    "semantic_action_coverage": SEMANTIC_ACTION_COVERAGE_SCHEMA,
-}
 
 
 def extract_semantic_actions(

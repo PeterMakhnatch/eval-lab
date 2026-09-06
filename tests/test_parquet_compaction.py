@@ -1041,3 +1041,31 @@ def test_retrieval_facts_not_compacted_without_immutable_identity() -> None:
             "line_id",
         )
     )
+
+
+def test_compaction_row_count_cache_avoids_repeated_opens(tmp_path: Path) -> None:
+    """_ROW_COUNT_CACHE retains counts across count_table_rows calls for identical files."""
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-cache-test",
+        trial_ids=["t1"],
+        timestamp="2026-08-14T10:00:00Z",
+    )
+    from evallab.storage.parquet_compaction import (
+        _ROW_COUNT_CACHE,
+        count_table_rows,
+        discover_uncompacted_jobs,
+    )
+
+    table_file = derived_root / "job_id=job-cache-test" / "trial_id=t1" / "trial_facts.parquet"
+    assert table_file.is_file()
+    jobs = discover_uncompacted_jobs(derived_root)
+    assert len(jobs) == 1
+    assert jobs[0].file_counts[table_file] == 1
+
+    st = table_file.stat()
+    cache_key = (table_file.resolve(), st.st_mtime_ns, st.st_size)
+    assert cache_key in _ROW_COUNT_CACHE
+    assert _ROW_COUNT_CACHE[cache_key] == 1
+    assert count_table_rows(table_file) == 1

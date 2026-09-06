@@ -15,6 +15,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.changes.outputs.profile }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Classify exact change set
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/profile/change_scope.py "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -28,7 +43,7 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
-      - run: uv sync --locked --no-group observability
+      - run: uv sync --locked
       - run: uv run --no-sync ruff check .
       - name: Documentation front-matter and index freshness
         run: uv run --no-sync python -m evallab.docindex check
@@ -42,12 +57,14 @@ jobs:
         run: uv run --no-sync python -m evallab.lessons
 
   test:
+    needs: scope
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.14"]
+        shard: ["1/2", "2/2"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install uv 0.9.24 from PyPI
@@ -58,8 +75,17 @@ jobs:
         run: |
           uv python install ${{ matrix.python-version }}
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
-      - name: Sync with benchmark test dependencies (fastmcp, cryptography)
-        run: uv sync --locked --no-group observability --group benchmarks
-      - run: uv run --no-sync pytest
-      - if: matrix.python-version == '3.12'
+      - name: Sync with benchmark and lance test dependencies (fastmcp, cryptography, lancedb)
+        run: uv sync --locked --group benchmarks --group lance
+      - name: Full test suite
+        if: needs.scope.outputs.profile == 'true'
+        run: |
+          echo "Test lane: full suite (shard: ${{ matrix.shard }}; classification: code/mixed change set; profile=true)" >> "$GITHUB_STEP_SUMMARY"
+          uv run --no-sync pytest --shard ${{ matrix.shard }}
+      - name: Documentation-consumer test suite
+        if: needs.scope.outputs.profile == 'false'
+        run: |
+          echo "Test lane: docs_consumer (classification: documentation-only diff; profile=false)" >> "$GITHUB_STEP_SUMMARY"
+          uv run --no-sync pytest -m docs_consumer
+      - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
         run: uv run --no-sync python -m evallab.smoke --docker-free

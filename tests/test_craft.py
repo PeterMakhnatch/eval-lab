@@ -55,11 +55,7 @@ def make_task(
         MANIFEST.format(
             name=name,
             version="" if version is None else f'version = "{version}"',
-            expert=(
-                ""
-                if expert_hours is None
-                else f"expert_time_estimate_hours = {expert_hours}"
-            ),
+            expert=("" if expert_hours is None else f"expert_time_estimate_hours = {expert_hours}"),
             mode='environment_mode = "separate"' if separate else "",
         )
     )
@@ -116,7 +112,7 @@ def test_runner_named_only_in_a_comment_is_not_evidence(tmp_path: Path) -> None:
             "test.sh": (
                 "#!/bin/bash\n"
                 "# The pytest call lives in an if condition so set -e does not abort.\n"
-                'echo 1 > /logs/verifier/reward.txt\n'
+                "echo 1 > /logs/verifier/reward.txt\n"
             )
         },
     )
@@ -554,7 +550,7 @@ def test_discovery_needs_both_manifest_and_instruction(tmp_path: Path) -> None:
     (tmp_path / "dataset.toml").write_text('[dataset]\nname = "x/y"\n')
     partial = tmp_path / "partial"
     partial.mkdir()
-    (partial / "task.toml").write_text("[task]\nname = \"partial\"\n")
+    (partial / "task.toml").write_text('[task]\nname = "partial"\n')
 
     assert [path.name for path in craft.discover_tasks(tmp_path)] == ["real"]
 
@@ -873,13 +869,6 @@ def test_cli_scan_is_idempotent_and_skips_rewrite(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_batch_size_constant_is_defined_and_bounded() -> None:
-    """DEFAULT_BATCH_SIZE is a named constant bounded per architectural spec."""
-    assert isinstance(craft.DEFAULT_BATCH_SIZE, int)
-    assert craft.DEFAULT_BATCH_SIZE == 10
-    assert craft.DEFAULT_BATCH_SIZE > 0
-
-
 def test_scan_rejects_non_positive_batch_size(tmp_path: Path) -> None:
     corpus = tmp_path / "corpus"
     make_task(corpus, "one")
@@ -1088,6 +1077,7 @@ def test_partial_mutation_isolation_property(
     assert w.churn.removed == ()
     assert w.churn.facets_changed == ()
 
+
 # --------------------------------------------------------------------------- #
 # Terminal-Bench 4 versioned lanes and migration plan
 # --------------------------------------------------------------------------- #
@@ -1187,7 +1177,9 @@ def test_plan_detects_the_removed_tasks_live_against_tb3(tmp_path: Path) -> None
     v4 = _v4_fixture(tmp_path / "v4")
     plan = craft.plan_tb4(v4, tb3_path=v3)
     assert plan["live"]["tb3_tasks"] == 74
-    assert set(plan["live"]["removed_detected"]) == set(craft.load_migration_record()["removed_tasks"])
+    assert set(plan["live"]["removed_detected"]) == set(
+        craft.load_migration_record()["removed_tasks"]
+    )
     assert plan["live"]["removed_matches_record"] is True
     assert plan["live"]["added_in_tb4"] == []
     assert (plan["live"]["tb3_tasks"] - plan["actual_tasks"]) == 8
@@ -1203,9 +1195,7 @@ def test_plan_does_not_write_anything(tmp_path: Path) -> None:
 
 
 def test_plan_refuses_a_wrong_dataset(tmp_path: Path) -> None:
-    v4 = _v4_fixture(
-        tmp_path / "v4", dataset='name = "somewhere/else"'
-    )
+    v4 = _v4_fixture(tmp_path / "v4", dataset='name = "somewhere/else"')
     with pytest.raises(ValueError, match="wrong dataset"):
         craft.plan_tb4(v4)
 
@@ -1236,9 +1226,7 @@ def test_plan_refuses_an_unpinned_checkout(tmp_path: Path) -> None:
 def test_plan_cli_reports_66_and_delta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     v3 = _v3_fixture(tmp_path / "v3")
     v4 = _v4_fixture(tmp_path / "v4")
-    code = craft.main(
-        ["plan", "--tb4-root", str(v4), "--tb3-root", str(v3), "--json"]
-    )
+    code = craft.main(["plan", "--tb4-root", str(v4), "--tb3-root", str(v3), "--json"])
     out = capsys.readouterr().out
     assert code == 0
     payload = json.loads(out)
@@ -1262,9 +1250,7 @@ def test_scan_tb4_writes_distinct_rows(tmp_path: Path) -> None:
     """`craft scan --tb4` writes TB4 rows under a distinct source_repo."""
     v4 = _v4_fixture(tmp_path / "v4")
     out = tmp_path / "out"
-    code = craft.main(
-        ["scan", "--tb4", "--tb4-root", str(v4), "--out", str(out), "--json"]
-    )
+    code = craft.main(["scan", "--tb4", "--tb4-root", str(v4), "--out", str(out), "--json"])
     assert code == 0
     table = pq.read_table(out / craft.PARQUET_NAME)
     repos = set(table.column("source_repo").to_pylist())

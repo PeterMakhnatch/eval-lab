@@ -5,7 +5,11 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from evallab.execution_contracts import load_policy
+
+pytestmark = pytest.mark.docs_consumer
 
 ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "library/tasks/event-summary"

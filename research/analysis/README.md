@@ -76,10 +76,10 @@ Example DuckDB queries are in [queries.sql](queries.sql).
 ## Cohort comparison
 
 The checked-in control declaration is
-[control-oracle-vs-nop.json](control-oracle-vs-nop.json):
+[control-oracle-vs-nop.json](../archive/2026-W36/control-oracle-vs-nop.json):
 
 ```bash
-uv run evallab compare research/analysis/control-oracle-vs-nop.json
+uv run evallab compare research/archive/2026-W36/control-oracle-vs-nop.json
 ```
 
 Add `--index` only when the declared spec should become the durable association

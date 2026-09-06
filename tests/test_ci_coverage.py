@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,6 +16,7 @@ DECLARED_UNIT_TEST_DIRS = (
     "research/calibration/tests",
     "research/experiments/tests",
 )
+
 
 def committed_unit_test_modules(root: Path) -> list[Path]:
     completed = subprocess.run(
@@ -43,21 +45,6 @@ def modules_missing_from_collection(
     return missing
 
 
-def _collect_default_nodeids() -> list[str]:
-    completed = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-o", "addopts="],
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode not in {0}:
-        raise AssertionError(
-            f"pytest --collect-only failed:\n{completed.stdout}\n{completed.stderr}"
-        )
-    return [line for line in completed.stdout.splitlines() if "::" in line]
-
-
 def test_collection_contract_detects_an_omitted_module() -> None:
     required = [
         ROOT / "tests" / "test_ci_coverage.py",
@@ -71,10 +58,12 @@ def test_collection_contract_detects_an_omitted_module() -> None:
     assert missing == ["tests/test_does_not_exist.py"]
 
 
-def test_declared_unit_test_modules_are_collected() -> None:
+def test_declared_unit_test_modules_are_collected(
+    default_collection_session: bool, collected_module_paths: frozenset[str]
+) -> None:
+    if not default_collection_session:
+        pytest.skip("positional paths were given; only a bare `pytest` run exercises testpaths")
     required = committed_unit_test_modules(ROOT)
     assert required, "declared unit-test directories contained no test_*.py files"
-    missing = modules_missing_from_collection(
-        _collect_default_nodeids(), required, root=ROOT
-    )
+    missing = modules_missing_from_collection(sorted(collected_module_paths), required, root=ROOT)
     assert missing == [], f"default pytest omitted {missing}"

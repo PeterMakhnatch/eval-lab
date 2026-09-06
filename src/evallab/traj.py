@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from collections import Counter
 from collections.abc import Sequence
@@ -27,7 +26,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.results import sha256_file
-from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+from evallab.storage.paths import (
+    derived_root_from_environment,
+    resolve_runs_roots,
+)
 from evallab.trajectory_error_taxonomy import (
     classify_intervention_provenance,
     classify_step_error,
@@ -75,10 +77,6 @@ class PathJailError(TrajectoryError):
 
 class TrajectoryNotFoundError(TrajectoryError):
     """Raised when an expected trajectory cannot be located."""
-
-
-class TrajectoryParseError(TrajectoryError):
-    """Raised when a trajectory file contains invalid or unparseable JSON."""
 
 
 @dataclass(frozen=True)
@@ -410,31 +408,7 @@ def _check_path_jail(path: Path, roots: Sequence[Path]) -> Path:
     )
 
 
-def _resolve_candidate_roots(repo_root: Path, explicit_runs_root: Path | None = None) -> list[Path]:
-    if explicit_runs_root is not None:
-        return [explicit_runs_root.resolve()]
-    env = os.environ.get("EVALLAB_RUNS_ROOT")
-    if env:
-        return [Path(env).resolve()]
-    primary = shared_checkout_root(repo_root)
-    candidates = [
-        repo_root / "runs",
-        repo_root / "research/evidence/runs",
-        repo_root / "evidence/runs",
-        primary / "runs",
-        primary / "research/evidence/runs",
-        primary / "evidence/runs",
-    ]
-    seen: set[Path] = set()
-    roots: list[Path] = []
-    for c in candidates:
-        rc = c.resolve()
-        if rc not in seen and rc.exists():
-            seen.add(rc)
-            roots.append(c)
-    if not roots:
-        roots = [repo_root / "runs", primary / "runs"]
-    return roots
+_resolve_candidate_roots = resolve_runs_roots
 
 
 def _safe_str(val: Any, default: str = "") -> str:
@@ -589,6 +563,10 @@ def _compute_exit_code_cascade(steps: Sequence[StepOutline]) -> int:
             current_streak = 0
 
     return max_streak
+
+
+compute_cbv_slope = _compute_cbv_slope
+compute_exit_code_cascade = _compute_exit_code_cascade
 
 
 _PATH_TOKEN_PATTERN = re.compile(

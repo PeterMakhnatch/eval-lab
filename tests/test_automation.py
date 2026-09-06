@@ -63,6 +63,9 @@ def _setup_cycle(
         ingester=lambda path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset(
+            {"claude-oauth", "codex-auth", "cursor-session", "antigravity-session", "deepseek-api"}
+        ),
     )
     renderer = DigestRenderer(
         repo_root=tmp_path,
@@ -341,6 +344,7 @@ def test_step_outcomes_and_durations_and_skip_reasons(tmp_path: Path) -> None:
 
 def test_two_consecutive_cycles_over_unchanged_fixture_are_idempotent(tmp_path: Path) -> None:
     """Two consecutive cycles over unchanged fixture state produce identical artifacts."""
+
     def mock_status(day: date) -> Path:
         p = tmp_path / "STATUS.md"
         p.write_text(f"# Status for {day.isoformat()}\nDeterministic content\n", encoding="utf-8")

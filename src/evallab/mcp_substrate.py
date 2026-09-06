@@ -1,6 +1,6 @@
 """Shared FastMCP multi-container task-authoring substrate and runtime middleware.
 
-Grounding: Architecture PR #265 (research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md)
+Grounding: Architecture PR #265 (research/archive/2026-W36/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md)
 
 Provides:
 - Task authoring substrate API (`materialize_mcp_sidecar_package`) emitting:
@@ -25,7 +25,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import logging
 import os
 import re
 import shutil
@@ -45,10 +44,7 @@ from evallab.benchmark_program_contracts import (
     validate_safe_relative_path,
 )
 
-logger = logging.getLogger(__name__)
-
 MCP_SUBSTRATE_VERSION = "0.3.0"
-DEFAULT_PROTOCOL_VERSION = "2024-11-05"
 MCP_TOOL_EVENT_SCHEMA_VERSION = "mcp-tool-event-v1"
 DEFAULT_SIDECAR_SERVICE = "mcp-service"
 DEFAULT_VOLUME_NAME = "evidence-volume"
@@ -396,58 +392,6 @@ def parse_requirements_hashes(requirements_text: str) -> dict[str, set[str]]:
             raise SubstrateError(f"Requirement {pkg_name!r} has no --hash=sha256: declarations")
         req_hashes[pkg_name] = hashes
     return req_hashes
-
-
-def verify_wheelhouse_inventory(
-    wheelhouse_dir: Path, requirements_text: str
-) -> list[dict[str, Any]]:
-    """Mechanically verify that wheelhouse contains an exact matching wheel for every locked requirement."""
-    if not wheelhouse_dir.is_dir() or wheelhouse_dir.is_symlink():
-        raise SubstrateError(
-            f"Wheelhouse directory does not exist or is symlink: {wheelhouse_dir.as_posix()!r}"
-        )
-
-    locked = parse_requirements_hashes(requirements_text)
-    wheels = list(wheelhouse_dir.glob("*.whl"))
-    if not wheels:
-        raise SubstrateError(
-            f"Wheelhouse {wheelhouse_dir.as_posix()!r} is empty (contains 0 wheels)"
-        )
-
-    matched_packages: set[str] = set()
-    inventory: list[dict[str, Any]] = []
-
-    for w_file in sorted(wheels, key=lambda p: p.name):
-        w_bytes = _read_file_source(w_file)
-        w_hash = hashlib.sha256(w_bytes).hexdigest()
-        pkg_name = w_file.name.split("-")[0].lower().replace("_", "-")
-
-        if pkg_name not in locked:
-            raise SubstrateError(
-                f"Wheelhouse contains extra unapproved package {w_file.name!r} not in lockfile"
-            )
-
-        if w_hash not in locked[pkg_name]:
-            raise SubstrateError(
-                f"Wheel {w_file.name!r} SHA-256 hash {w_hash} does not match any locked hash for {pkg_name}"
-            )
-
-        matched_packages.add(pkg_name)
-        inventory.append(
-            {
-                "filename": w_file.name,
-                "size_bytes": len(w_bytes),
-                "sha256": w_hash,
-            }
-        )
-
-    missing_packages = set(locked.keys()) - matched_packages
-    if missing_packages:
-        raise SubstrateError(
-            f"Wheelhouse is missing required locked package(s): {sorted(missing_packages)}"
-        )
-
-    return inventory
 
 
 @dataclass(frozen=True)
@@ -1013,7 +957,9 @@ def _stage_clean_package_directory(
             "event_schema_version": MCP_TOOL_EVENT_SCHEMA_VERSION,
             "tool_definitions_sha256": compute_tool_definitions_sha256(tools, op_registry_module),
             "tool_definitions": canonical_tool_definitions_payload(tools, op_registry_module),
-            "server_params": server_generation_params(server_name, port, op_registry_module, fault_record),
+            "server_params": server_generation_params(
+                server_name, port, op_registry_module, fault_record
+            ),
             "trusted_manifest_digest": trusted_wheel_manifest_digest(),
             "trusted_manifest_source": trusted_wheel_manifest_source(),
             "runtime_assets": asset_proof,
@@ -1055,7 +1001,9 @@ def _stage_clean_package_directory(
             "event_schema_version": MCP_TOOL_EVENT_SCHEMA_VERSION,
             "tool_definitions_sha256": compute_tool_definitions_sha256(tools, op_registry_module),
             "tool_definitions": canonical_tool_definitions_payload(tools, op_registry_module),
-            "server_params": server_generation_params(server_name, port, op_registry_module, fault_record),
+            "server_params": server_generation_params(
+                server_name, port, op_registry_module, fault_record
+            ),
             "trusted_manifest_digest": trusted_wheel_manifest_digest(),
             "trusted_manifest_source": trusted_wheel_manifest_source(),
             "runtime_assets": asset_proof,
@@ -1787,6 +1735,7 @@ def verify_proof_independently(
         fault_record = None
         if fault_json:
             from evallab.benchmark_program_contracts import FaultInjectionRecord
+
             fault_record = FaultInjectionRecord.model_validate_json(fault_json)
         regenerated_server = generate_fastmcp_server_script(
             tools=tools,
@@ -1822,9 +1771,7 @@ def verify_proof_independently(
             if isinstance(a, Mapping) and isinstance(a.get("path"), str):
                 # Only the destination is needed to regenerate the canonical
                 # Dockerfile COPY lines; supply inert content for the dataclass.
-                runtime_assets.append(
-                    RuntimeAsset(destination=a["path"], content=b"")
-                )
+                runtime_assets.append(RuntimeAsset(destination=a["path"], content=b""))
     try:
         regenerated_dockerfile = render_mcp_sidecar_dockerfile(
             base_image=base_image, runtime_assets=runtime_assets
@@ -1862,7 +1809,9 @@ def verify_proof_independently(
     else:
         actual_lock = req_path.read_bytes()
         if actual_lock != canonical_lock:
-            errors.append("requirements.txt does not byte-match the canonical trusted-manifest lock")
+            errors.append(
+                "requirements.txt does not byte-match the canonical trusted-manifest lock"
+            )
         if hashlib.sha256(actual_lock).hexdigest() != proof.get("requirements_sha256"):
             errors.append("requirements.txt digest does not match proof requirements_sha256")
 
@@ -1885,7 +1834,9 @@ def verify_proof_independently(
                 continue
             w_bytes = w_path.read_bytes()
             if len(w_bytes) != w_rec["size_bytes"]:
-                errors.append(f"wheel {w_name!r} size {len(w_bytes)} does not match manifest {w_rec['size_bytes']}")
+                errors.append(
+                    f"wheel {w_name!r} size {len(w_bytes)} does not match manifest {w_rec['size_bytes']}"
+                )
             if hashlib.sha256(w_bytes).hexdigest() != w_rec["sha256"]:
                 errors.append(f"wheel {w_name!r} sha256 does not match trusted manifest")
         proof_wheels = proof.get("wheels")

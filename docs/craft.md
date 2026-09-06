@@ -8,7 +8,7 @@ audience:
 # CRAFT: the task-corpus scanner, and where determinism stops
 
 Status: living. Owner: Platform lane. Date: 2026-08-16. Implements the
-deterministic half of `docs/build-plan.md` WS-A.
+deterministic half of `docs/archive/build-plan.md` WS-A.
 
 `src/evallab/craft.py` reads task directories and writes one `CraftRecord` per
 task to `derived/parquet/craft/craft.parquet`; `sql/craft_views.sql` builds the

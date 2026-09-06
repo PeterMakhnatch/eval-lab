@@ -1,22 +1,14 @@
 name: action-memory-dose-ladder
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "library/benchmarks/action-memory-v1/**"
-      - "tests/test_action_memory_dose_ladder.py"
-      - ".github/workflows/action-memory-dose-ladder.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "library/benchmarks/action-memory-v1/**"
-      - "tests/test_action_memory_dose_ladder.py"
-      - ".github/workflows/action-memory-dose-ladder.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   canary-controls:

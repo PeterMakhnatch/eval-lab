@@ -11,17 +11,17 @@ audience:
 
 `.gitignore` controls Git discovery, not retention or authority. Ignored files may
 be unique evidence. The counts and deletion suggestions in
-[content-inventory.md](content-inventory.md) and
-[git-estate-inventory.md](git-estate-inventory.md) are historical snapshots, not
+[content-inventory.md](../research/archive/2026-W36/content-inventory.md) and
+[git-estate-inventory.md](archive/git-estate-inventory.md) are historical snapshots, not
 current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.md`.
 
 ## Explicit generation before review
 
 | Product | Writer | Read-only verification / scope |
 |---|---|---|
-| `docs/INDEX.md` | `python -m evallab.docindex generate -o docs/INDEX.md` | `python -m evallab.docindex check` |
-| `docs/repo-map.md` | `python -m evallab.repomap generate -o docs/repo-map.md` | `python -m evallab.repomap check`; recursive Python discovery |
-| `docs/STATUS.md` | `evallab status --update` | Runtime/catalog snapshot, not a clean-checkout byte-freshness invariant |
+| `docs/INDEX.md` | `python -m evallab.docindex generate -o docs/INDEX.md` | `python -m evallab.docindex check`; indexes front-matter and hand-written doc digests (excludes generated `repo-map.md` and `STATUS.md` from inputs digest list) |
+| `docs/repo-map.md` | `python -m evallab.repomap generate -o docs/repo-map.md` | `python -m evallab.repomap check`; recursive Python discovery with structural declaration digests (resilient to function body edits) |
+| `docs/STATUS.md` | `evallab status --update` | Generated catalog snapshot (`status: historical`, excluded from context packs); not a clean-checkout byte-freshness invariant |
 | `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 

@@ -4,7 +4,7 @@
 `agents/STRUCTURE.md` owns placement, and `agents/CHECKS.md` owns verification.
 The single backlog and pull protocol is `research/inbox/board.md`; its
 `claims/` directory is the pickup counter. `agents/missions/ACTIVE.md` is navigation,
-not a second roster. This workflow supersedes `docs/parallel-work.md`.
+not a second roster.
 
 ## Worktree isolation and repository boundaries
 
@@ -81,6 +81,8 @@ it does not grant ownership or authorize deletion.
    a merge to `main`.
 5. Leave the primary checkout and other workers' uncommitted files untouched during
    reconciliation. Never force-push `main` or silently resolve an ownership conflict.
+6. Update canonical topic documents in place instead of adding a new dated brief,
+   result, or handoff file for each iteration. Dated files are for closure records only.
 
 ## Integration and sunset
 

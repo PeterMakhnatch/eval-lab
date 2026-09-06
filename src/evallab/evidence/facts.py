@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 
 import psycopg
 import pyarrow as pa
+import pyarrow.parquet as pq
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
@@ -23,7 +24,6 @@ from evallab.evidence.atif import (
     export_trajectories,
     project_trial,
 )
-from evallab.evidence.parquet_io import write_table_atomic
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
@@ -804,12 +804,32 @@ FACT_SCHEMAS = {
 
 
 def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    write_table_atomic(path, rows, FACT_SCHEMAS[table_name])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    schema = FACT_SCHEMAS[table_name]
+    if rows:
+        sink = pa.BufferOutputStream()
+        pq.write_table(
+            pa.Table.from_pylist(rows, schema=schema),
+            sink,
+            compression="zstd",
+            use_dictionary=False,
+            write_statistics=True,
+        )
+        payload = sink.getvalue().to_pybytes()
+    else:
+        from evallab.evidence.parquet_io import _empty_parquet_bytes
+
+        payload = _empty_parquet_bytes(schema)
+
+    sha256_digest = hashlib.sha256(payload).hexdigest()
+    temporary = path.with_suffix(".parquet.tmp")
+    temporary.write_bytes(payload)
+    temporary.replace(path)
     return ExportedTable(
         table=table_name,
         path=path,
         rows=len(rows),
-        sha256=f"sha256:{sha256_file(path)}",
+        sha256=f"sha256:{sha256_digest}",
     )
 
 
@@ -860,11 +880,16 @@ def export_facts(
     return ExportResult(root=output_root, tables=tuple(exported))
 
 
-def rebuild_job_from_raw(job: JobRecord, output_root: Path) -> RebuildResult:
+def rebuild_job_from_raw(
+    job: JobRecord,
+    output_root: Path,
+    projections: dict[str, TrialTrajectoryProjection] | None = None,
+) -> RebuildResult:
     from evallab.evidence.event_mart import export_job_event_mart
 
     output_root = output_root.resolve()
-    projections: dict[str, TrialTrajectoryProjection] = {}
+    if projections is None:
+        projections = {}
     trajectory_export = export_trajectories(
         [job], output_root, projections_by_job={job.id: projections}
     )
@@ -883,14 +908,21 @@ def rebuild_job_from_raw(job: JobRecord, output_root: Path) -> RebuildResult:
     )
 
 
-def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
+def rebuild_from_raw(
+    jobs: list[JobRecord],
+    output_root: Path,
+    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
+) -> RebuildResult:
     output_root = output_root.resolve()
     trajectory_tables: list[ExportedTable] = []
     fact_tables: list[ExportedTable] = []
     event_tables: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
         # Release normalized source data after each job, not after the whole corpus.
-        job_result = rebuild_job_from_raw(job, output_root)
+        job_projections = (
+            projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
+        )
+        job_result = rebuild_job_from_raw(job, output_root, projections=job_projections)
         trajectory_tables.extend(job_result.trajectory_export.tables)
         fact_tables.extend(job_result.fact_export.tables)
         event_tables.extend(job_result.event_mart_export.tables)
@@ -915,6 +947,7 @@ def ingest_catalog(
     *,
     root: Path,
     derived_root: Path | None = None,
+    projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
 ) -> None:
     """Upsert deterministic document/fact records after the base job ingest."""
     with psycopg.connect(database_url) as connection:
@@ -941,7 +974,9 @@ def ingest_catalog(
                     "UPDATE jobs SET experiment_id = %s WHERE id = %s",
                     (association, job.id),
                 )
-            job_projections: dict[str, TrialTrajectoryProjection] = {}
+            job_projections: dict[str, TrialTrajectoryProjection] = (
+                projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else {}
+            )
             facts = extract_job_facts(job, projections=job_projections)
             for trial, trial_fact in zip(
                 sorted(job.trials, key=lambda item: item.id), facts.trials, strict=True

@@ -23,12 +23,21 @@ from evallab.contextpack import (
     repo_root,
 )
 
-DOCINDEX_VERSION = "docindex v1"
 GENERATED_BY_MARKER = "<!-- generated-by: docindex v1 -->"
 DEFAULT_INDEX_RELATIVE = "docs/INDEX.md"
 INDEX_TITLE = "Documentation index"
 AUDIENCE_ORDER = VALID_AUDIENCES
 STATUS_ORDER = VALID_STATUSES
+EXCLUDED_INPUT_DOC_NAMES = frozenset({"repo-map.md", "STATUS.md"})
+
+
+def is_generated_doc(path: str | Path) -> bool:
+    """Check if a documentation path is a generated product excluded from inputs."""
+    normalized = Path(path).as_posix()
+    return (
+        normalized in {"docs/repo-map.md", "docs/STATUS.md", "repo-map.md", "STATUS.md"}
+        or Path(normalized).name in EXCLUDED_INPUT_DOC_NAMES
+    )
 
 
 def default_docs_dir(root: Path | None = None) -> Path:
@@ -87,9 +96,7 @@ def _audience_cell(audience: Sequence[str]) -> str:
 
 
 def _table_row(doc: DocMetadata) -> str:
-    return (
-        f"| `{doc.path}` | {doc.title} | `{doc.status}` | `{_audience_cell(doc.audience)}` |"
-    )
+    return f"| `{doc.path}` | {doc.title} | `{doc.status}` | `{_audience_cell(doc.audience)}` |"
 
 
 def _table(docs: Sequence[DocMetadata]) -> list[str]:
@@ -107,11 +114,7 @@ def _table(docs: Sequence[DocMetadata]) -> list[str]:
 def _docs_for_audience_status(
     docs: Sequence[DocMetadata], audience: str, status: str
 ) -> list[DocMetadata]:
-    return [
-        doc
-        for doc in docs
-        if status == doc.status and audience in doc.audience
-    ]
+    return [doc for doc in docs if status == doc.status and audience in doc.audience]
 
 
 def _historical_docs(docs: Sequence[DocMetadata]) -> list[DocMetadata]:
@@ -130,9 +133,10 @@ def render_index(docs: Sequence[DocMetadata]) -> str:
         "  - runner",
         "  - operator",
     ]
-    if ordered:
+    input_docs = [doc for doc in ordered if not is_generated_doc(doc.path)]
+    if input_docs:
         lines.append("inputs:")
-        for doc in ordered:
+        for doc in input_docs:
             lines.append(f"  - path: {doc.path}")
             lines.append(f"    digest: {doc.content_digest}")
     else:
@@ -164,9 +168,7 @@ def render_index(docs: Sequence[DocMetadata]) -> str:
 
     lines.append("## Archive")
     lines.append("")
-    lines.append(
-        "Historical documents. These are archived records, not living contracts."
-    )
+    lines.append("Historical documents. These are archived records, not living contracts.")
     lines.append("")
     lines.extend(_table(_historical_docs(ordered)))
     lines.append("")
@@ -266,9 +268,7 @@ def collect_check_issues(
     else:
         index_status = str(index_fm.get("status", "")).strip().lower()
         if index_status != "living":
-            issues.append(
-                CheckIssue(index_rel, f"status must be 'living', got {index_status!r}")
-            )
+            issues.append(CheckIssue(index_rel, f"status must be 'living', got {index_status!r}"))
         raw_audience = index_fm.get("audience", [])
         if isinstance(raw_audience, str):
             index_audiences = {raw_audience.strip().lower()}

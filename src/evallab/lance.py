@@ -19,9 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-import lancedb
 import pyarrow.parquet as pq
-from lancedb.index import IvfPq
 from pydantic import ConfigDict, Field, model_validator
 
 from evallab.craft import (
@@ -44,6 +42,21 @@ tasks, trials, steps, analyses so policy is consistent.
 
 DEFAULT_REDACTION_POLICY: str = "default_redaction_v1"
 DEFAULT_REDACTION_POLICY_DIGEST: str = hashlib.sha256(DEFAULT_REDACTION_POLICY.encode()).hexdigest()
+
+
+def _require_lancedb() -> tuple[Any, Any]:
+    """Lazily import lancedb and IvfPq.
+
+    Raises:
+        ImportError: If lancedb is not installed, with remediation guidance.
+    """
+    try:
+        import lancedb  # ty: ignore[unresolved-import]
+        from lancedb.index import IvfPq  # ty: ignore[unresolved-import]
+
+        return lancedb, IvfPq
+    except ImportError as exc:
+        raise ImportError("lancedb is not installed; uv sync --group lance") from exc
 
 
 @dataclass(frozen=True)
@@ -706,6 +719,7 @@ def write_semantic_window_index(
                 "decision_eligible": False,
             }
         )
+    lancedb, IvfPq = _require_lancedb()
     db = lancedb.connect(str(target))
     table = db.create_table(table_name, data=data, mode="overwrite")
     if len(data) >= MIN_ROWS_FOR_ANN:
@@ -764,6 +778,7 @@ def search_semantic_windows(
     if f"sha256:{embedder_digest}" != manifest.model_digest:
         raise ValueError("embedder identity does not match semantic index manifest")
     target = root or _lance_root()
+    lancedb, _ = _require_lancedb()
     db = lancedb.connect(str(target))
     table = db.open_table(manifest.table_name)
     query_vector = embedder.embed([query])[0]
@@ -911,6 +926,7 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
         {"task_ref": tr, "instruction": instr, "vector": vec}
         for tr, instr, vec in zip(task_refs, instructions, vectors, strict=True)
     ]
+    lancedb, IvfPq = _require_lancedb()
     db = lancedb.connect(str(root))
     tbl = db.create_table("tasks", data=data, mode="overwrite")
     index_reason: str | None = None
@@ -1041,6 +1057,7 @@ def _build_trials(
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
+    lancedb, IvfPq = _require_lancedb()
     db = lancedb.connect(str(root))
     tbl = db.create_table("trials", data=rows, mode="overwrite")
     index_reason: str | None = None
@@ -1157,6 +1174,7 @@ def _build_steps(
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
+    lancedb, IvfPq = _require_lancedb()
     db = lancedb.connect(str(root))
     tbl = db.create_table("steps", data=rows, mode="overwrite")
     index_reason: str | None = None
@@ -1335,6 +1353,7 @@ def _build_analyses(
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
+    lancedb, IvfPq = _require_lancedb()
     db = lancedb.connect(str(root))
     tbl = db.create_table("analyses", data=rows, mode="overwrite")
     index_reason: str | None = None
@@ -1413,6 +1432,7 @@ def search_records(
     ):
         raise ValueError("Redaction policy digest mismatch: index invalidated")
 
+    lancedb, _ = _require_lancedb()
     db = lancedb.connect(str(root))
     tables_obj = db.list_tables()
     names = tables_obj.tables if hasattr(tables_obj, "tables") else list(tables_obj)
@@ -1529,6 +1549,7 @@ def search(query: str, table: str = "tasks", k: int = 5) -> None:
     embedder: Embedder = HashingEmbedder()
     vec = embedder.embed([query])[0]
     root = _lance_root()
+    lancedb, _ = _require_lancedb()
     db = lancedb.connect(str(root))
     tables_obj = db.list_tables()
     names = tables_obj.tables if hasattr(tables_obj, "tables") else list(tables_obj)

@@ -84,7 +84,6 @@ SCHEMA_AUTH_SHAPE = "zai-auth-shape/v1"
 
 #: The single allowed provider prefix. The Z.ai credential is scoped to it; a
 #: run can never point the credential at another vendor.
-PROVIDER_PREFIX = "zai-coding-plan/"
 
 #: The two Z.ai Coding Plan models admitted by the subscription (2026-08-29
 #: pilot: both ran successfully through the pinned adapter).
@@ -142,7 +141,6 @@ PHASE_A_TRIALS = PHASE_A_CELLS * PHASE_A_REPS  # 36
 PHASE_B_TRIALS = len(PHASE_B_DOSES) * 1 * 1 * PHASE_B_REPS  # 2 (neutral, s42)
 TOTAL_TRIALS = PHASE_A_TRIALS + PHASE_B_TRIALS  # 38
 
-PHASE_A_PROJECTED_INPUT_TOKENS = 6_291_672
 PHASE_A_CEILING_INPUT_TOKENS = 7_000_000
 PHASE_B_CEILING_INPUT_TOKENS = 2_500_000
 PHASE_B_PER_TRIAL_CEILING_INPUT_TOKENS = 1_250_000
@@ -233,7 +231,7 @@ def _safe_job_name(value: str) -> str:
         raise ValueError("cannot derive a safe job identity from an empty name")
     if len(cleaned) > SAFE_JOB_MAX_LENGTH:
         digest = hashlib.sha256(cleaned.encode()).hexdigest()[:8]
-        cleaned = f"{cleaned[:SAFE_JOB_MAX_LENGTH - 9]}-{digest}"
+        cleaned = f"{cleaned[: SAFE_JOB_MAX_LENGTH - 9]}-{digest}"
     return cleaned
 
 
@@ -340,8 +338,7 @@ class ZaiCampaignDefinition(_FrozenContract):
             raise ValueError("zai campaign design digest mismatch")
         if self.lane_model not in ALLOWED_MODELS:
             raise ZaiCampaignModelError(
-                f"lane model {self.lane_model!r} is outside the Z.ai Coding Plan "
-                "allowlist"
+                f"lane model {self.lane_model!r} is outside the Z.ai Coding Plan allowlist"
             )
         names = [phase.name for phase in self.phases]
         if names != ["a", "b"]:
@@ -510,17 +507,14 @@ def validate_model(model: str | None) -> str:
         raise ZaiCampaignModelError("a Z.ai trial requires a provider/model selector")
     if model not in ALLOWED_MODELS:
         raise ZaiCampaignModelError(
-            f"model {model!r} is outside the Z.ai Coding Plan allowlist "
-            f"{sorted(ALLOWED_MODELS)}"
+            f"model {model!r} is outside the Z.ai Coding Plan allowlist {sorted(ALLOWED_MODELS)}"
         )
     return model
 
 
 def model_access_kind(model: str | None) -> AttemptKind | None:
     """Classify an unsubscribed model as provider-access (never scored)."""
-    if model == HIGHSPEED_SELECTOR or (
-        model and model.rsplit("/", 1)[-1] == HIGHSPEED_MODEL_NAME
-    ):
+    if model == HIGHSPEED_SELECTOR or (model and model.rsplit("/", 1)[-1] == HIGHSPEED_MODEL_NAME):
         return "provider_access_refused"
     return None
 
@@ -538,21 +532,15 @@ def read_opencode_auth(path: Path) -> Mapping[str, Any]:
     """
     resolved = Path(path).expanduser()
     if not resolved.is_file():
-        raise ZaiCampaignAuthError(
-            f"OpenCode auth file is not a regular file: {resolved}"
-        )
+        raise ZaiCampaignAuthError(f"OpenCode auth file is not a regular file: {resolved}")
     try:
         raw = resolved.read_text(encoding="utf-8")
     except OSError as exc:
-        raise ZaiCampaignAuthError(
-            f"cannot read OpenCode auth file: {resolved}"
-        ) from exc
+        raise ZaiCampaignAuthError(f"cannot read OpenCode auth file: {resolved}") from exc
     try:
         doc = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ZaiCampaignAuthError(
-            f"OpenCode auth file is not valid JSON: {resolved}"
-        ) from exc
+        raise ZaiCampaignAuthError(f"OpenCode auth file is not valid JSON: {resolved}") from exc
     if not isinstance(doc, dict):
         raise ZaiCampaignAuthError("OpenCode auth document must be a JSON object")
     return doc
@@ -679,9 +667,7 @@ def build_campaign_definition(
     """Build and validate a ZaiCampaignDefinition with a canonical design digest."""
     validate_model(lane_model)
     resolved_phases = (
-        tuple(phases)
-        if phases is not None
-        else (default_phase_a_spec(), default_phase_b_spec())
+        tuple(phases) if phases is not None else (default_phase_a_spec(), default_phase_b_spec())
     )
     resolved_limits = limits if limits is not None else default_campaign_limits()
     raw: dict[str, Any] = {
@@ -723,11 +709,7 @@ def campaign_design_digest(
     if isinstance(definition, ZaiCampaignDefinition):
         payload = definition.model_dump(mode="json", exclude={"design_digest"})
     else:
-        payload = {
-            key: value
-            for key, value in dict(definition).items()
-            if key != "design_digest"
-        }
+        payload = {key: value for key, value in dict(definition).items() if key != "design_digest"}
     return _digest(payload)
 
 
@@ -760,9 +742,7 @@ def _compile_phase(
                 ceiling = trial_prompt_token_ceiling(phase, dose_bytes)
                 for rep in range(1, phase.reps + 1):
                     trial_id = f"{phase.name}-{cell}-r{rep}"
-                    job_identity = _safe_job_name(
-                        f"{SAFE_JOB_PREFIX}-{phase.name}-{cell}-r{rep}"
-                    )
+                    job_identity = _safe_job_name(f"{SAFE_JOB_PREFIX}-{phase.name}-{cell}-r{rep}")
                     trials.append(
                         ZaiTrial(
                             trial_id=trial_id,
@@ -782,29 +762,21 @@ def _compile_phase(
     return trials
 
 
-def compile_phase_a(
-    definition: ZaiCampaignDefinition, *, task_root: Path
-) -> list[ZaiTrial]:
+def compile_phase_a(definition: ZaiCampaignDefinition, *, task_root: Path) -> list[ZaiTrial]:
     trials = _compile_phase(
         definition.phase("a"), lane_model=definition.lane_model, task_root=task_root
     )
     if len(trials) != PHASE_A_TRIALS:
-        raise ZaiCampaignError(
-            f"phase A compiled {len(trials)} trials, expected {PHASE_A_TRIALS}"
-        )
+        raise ZaiCampaignError(f"phase A compiled {len(trials)} trials, expected {PHASE_A_TRIALS}")
     return trials
 
 
-def compile_phase_b(
-    definition: ZaiCampaignDefinition, *, task_root: Path
-) -> list[ZaiTrial]:
+def compile_phase_b(definition: ZaiCampaignDefinition, *, task_root: Path) -> list[ZaiTrial]:
     trials = _compile_phase(
         definition.phase("b"), lane_model=definition.lane_model, task_root=task_root
     )
     if len(trials) != PHASE_B_TRIALS:
-        raise ZaiCampaignError(
-            f"phase B compiled {len(trials)} trials, expected {PHASE_B_TRIALS}"
-        )
+        raise ZaiCampaignError(f"phase B compiled {len(trials)} trials, expected {PHASE_B_TRIALS}")
     return trials
 
 
@@ -841,11 +813,7 @@ def zai_manifest_digest(manifest: ZaiManifest | Mapping[str, Any]) -> str:
     if isinstance(manifest, ZaiManifest):
         payload = manifest.model_dump(mode="json", exclude={"manifest_digest"})
     else:
-        payload = {
-            key: value
-            for key, value in dict(manifest).items()
-            if key != "manifest_digest"
-        }
+        payload = {key: value for key, value in dict(manifest).items() if key != "manifest_digest"}
     return _digest(payload)
 
 
@@ -858,9 +826,7 @@ def project_phase_a_input_tokens(definition: ZaiCampaignDefinition) -> int:
     """Recompute the phase-A projection from the measured per-dose basis."""
     total = 0
     phase = definition.phase("a")
-    trials_at_dose = (
-        len(phase.arms) * len(phase.seeds) * phase.reps
-    )
+    trials_at_dose = len(phase.arms) * len(phase.seeds) * phase.reps
     for dose in phase.doses:
         measured = dose_measured_input_tokens(dose)
         if measured is None:
@@ -892,9 +858,7 @@ def check_budget_admission(definition: ZaiCampaignDefinition) -> None:
         phase_a.ceiling_input_tokens + phase_b.ceiling_input_tokens
         > definition.limits.prompt_token_budget
     ):
-        raise ZaiCampaignBudgetError(
-            "phase ceilings exceed the provider prompt-token budget"
-        )
+        raise ZaiCampaignBudgetError("phase ceilings exceed the provider prompt-token budget")
     # An unmeasured dose must never be admitted into a budgetable phase.
     for dose in phase_a.doses:
         if dose_measured_input_tokens(dose) is None:
@@ -983,13 +947,17 @@ def classify_attempt(outcome: Mapping[str, Any] | TrialOutcome) -> tuple[Attempt
         or model_access_kind(model) == "provider_access_refused"
     ):
         return "provider_access_refused", "provider subscription does not admit the model"
-    if exception in {
-        "AgentTimeoutError",
-        "EnvironmentBuildError",
-        "DockerComposeError",
-        "HarborError",
-        "NonZeroAgentExitCodeError",
-    } or marker == "harness_infra_exception":
+    if (
+        exception
+        in {
+            "AgentTimeoutError",
+            "EnvironmentBuildError",
+            "DockerComposeError",
+            "HarborError",
+            "NonZeroAgentExitCodeError",
+        }
+        or marker == "harness_infra_exception"
+    ):
         return "harness_infra_exception", f"harness infrastructure exception: {exception}"
     return "unresolved", "attempt did not settle into a scored or classified outcome"
 
@@ -1361,9 +1329,7 @@ class ZaiCampaignRunner:
             state="complete",
             attempts=all_attempts,
             phase_b_skipped=False,
-            prompt_tokens_used=sum(
-                attempt.prompt_tokens or 0 for attempt in all_attempts
-            ),
+            prompt_tokens_used=sum(attempt.prompt_tokens or 0 for attempt in all_attempts),
         )
         self.state.write(status)
         return status

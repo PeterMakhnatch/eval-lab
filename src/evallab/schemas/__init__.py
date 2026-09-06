@@ -128,8 +128,8 @@ def canonical_grid_point_id(
 #: Why a spec exists. Required on every ``ExperimentSpec``, because until now
 #: nothing recorded *intent*: the queue could be listed but never grouped,
 #: budgeted, or reasoned about by what the lab was trying to learn
-#: (``docs/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
-#: ``docs/build-plan.md`` WS-E item 1, which fixes this exact value set).
+#: (``docs/archive/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
+#: ``docs/archive/build-plan.md`` WS-E item 1, which fixes this exact value set).
 #:
 #: The taxonomy is Peter's. Do not add a member to make a call site fit — an
 #: ill-fitting call site is a finding to report, because a purpose is read as
@@ -584,19 +584,6 @@ class DigestJob(ContractModel):
     exception_type: str | None = None
     cost_usd: float | None = None
     policy_rule: str | None = None
-
-
-class DailyDigestData(ContractModel):
-    schema_version: Literal[1] = 1
-    date: str
-    quarantined: bool
-    quarantine_reasons: list[str] = Field(default_factory=list)
-    jobs: list[DigestJob] = Field(default_factory=list)
-    spend_usd: float = Field(default=0.0, ge=0)
-    daily_cost_ceiling_usd: float = Field(ge=0)
-    disk_bytes: int = Field(default=0, ge=0)
-    queue_depths: dict[str, int] = Field(default_factory=dict)
-    waiting_proposals: list[str] = Field(default_factory=list)
 
 
 class RunProvenance(ContractModel):
@@ -1470,7 +1457,6 @@ TaskAllowedUse = Literal[
 
 
 PretrainStatus = Literal["y", "n", "unknown"]
-PRETRAIN_STATUSES: tuple[PretrainStatus, ...] = get_args(PretrainStatus)
 
 
 class TaskContamination(ContractModel):
@@ -1492,9 +1478,6 @@ class TaskContamination(ContractModel):
         default="",
         description="evidentiary basis or rationale for contamination assessment",
     )
-
-
-ContaminationRecord = TaskContamination
 
 
 class TaskRegistryRecord(ContractModel):
@@ -2261,7 +2244,6 @@ LadderGridSpec = GridSpec
 # --------------------------------------------------------------------------- #
 
 AuthoringSeedClass = Literal["mutation", "scenario", "craft-gap", "inversion"]
-AUTHORING_SEED_CLASSES: tuple[AuthoringSeedClass, ...] = get_args(AuthoringSeedClass)
 
 
 class ProposalAxes(ContractModel):

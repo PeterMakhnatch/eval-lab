@@ -30,7 +30,7 @@
       "family": "mcp-funcdag-v1",
       "schema_version": "trajectory-calibration-case/v1",
       "truth_source_digest": "sha256:99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
-      "truth_source_path": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json"
+      "truth_source_path": "research/archive/2026-W36/zai-opencode-mcp-wave1-wave2-summary.json"
     },
     {
       "anchor_facts": {
@@ -46,7 +46,7 @@
       "family": "mcp-recovery-v1",
       "schema_version": "trajectory-calibration-case/v1",
       "truth_source_digest": "sha256:99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
-      "truth_source_path": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json"
+      "truth_source_path": "research/archive/2026-W36/zai-opencode-mcp-wave1-wave2-summary.json"
     },
     {
       "anchor_facts": {
@@ -62,7 +62,7 @@
       "family": "mcp-recovery-v1",
       "schema_version": "trajectory-calibration-case/v1",
       "truth_source_digest": "sha256:99fc43337a529a254da4aee994496249e7512223c70d96aab8e82881c624a8ed",
-      "truth_source_path": "research/analysis/zai-opencode-mcp-wave1-wave2-summary.json"
+      "truth_source_path": "research/archive/2026-W36/zai-opencode-mcp-wave1-wave2-summary.json"
     },
     {
       "anchor_facts": {

@@ -1082,7 +1082,7 @@ class CanaryMember(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
     source_task_name: str | None = None
-    est_cost_usd: float = Field(gt=0)
+    est_cost_usd: float = Field(ge=0)
 
     @field_validator("task_path")
     @classmethod
@@ -1103,14 +1103,34 @@ class CanaryMember(ContractModel):
 class CanarySuite(ContractModel):
     version: Literal[1] = 1
     attempts: Literal[3] = 3
-    agents: list[Literal["codex", "claude-code"]] = Field(min_length=1)
+    agents: list[Literal["codex", "claude-code", "oracle", "nop"]] = Field(min_length=1)
     members: list[CanaryMember] = Field(min_length=3, max_length=5)
+    interval_seconds: int = Field(default=86400, gt=0, le=86400)
+    max_cycles_per_day: int = Field(default=1, gt=0)
 
     @model_validator(mode="after")
     def member_names_are_unique(self) -> CanarySuite:
         names = [member.name for member in self.members]
         if len(names) != len(set(names)):
             raise ValueError("canary member names must be unique")
+        return self
+
+    @model_validator(mode="after")
+    def cadence_is_bounded(self) -> CanarySuite:
+        available_slots = (86400 + self.interval_seconds - 1) // self.interval_seconds
+        if self.max_cycles_per_day > available_slots:
+            raise ValueError(
+                f"max_cycles_per_day ({self.max_cycles_per_day}) exceeds available slots per day "
+                f"({available_slots}) for interval {self.interval_seconds}s"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def billable_costs_are_positive(self) -> CanarySuite:
+        if any(agent not in {"oracle", "nop"} for agent in self.agents) and any(
+            member.est_cost_usd == 0 for member in self.members
+        ):
+            raise ValueError("billable canary members require a positive cost estimate")
         return self
 
 

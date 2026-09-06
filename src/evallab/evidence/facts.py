@@ -813,6 +813,37 @@ def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -
     )
 
 
+def export_job_fact_tables(
+    job: JobRecord,
+    output_root: Path,
+    facts: JobFacts,
+) -> list[ExportedTable]:
+    output_root = output_root.resolve()
+    exported: list[ExportedTable] = []
+    trial_by_id = {item.trial_id: item for item in facts.trials}
+    for trial_id in sorted(trial_by_id):
+        partition = output_root / f"job_id={job.id}" / f"trial_id={trial_id}"
+        rows_by_table = {
+            "trial_facts": [asdict(trial_by_id[trial_id])],
+            "reward_facts": [asdict(item) for item in facts.rewards if item.trial_id == trial_id],
+            "artifact_facts": [
+                asdict(item) for item in facts.artifacts if item.trial_id == trial_id
+            ],
+            "tool_usage": [asdict(item) for item in facts.tool_usage if item.trial_id == trial_id],
+            "state_changes": [
+                asdict(item) for item in facts.state_changes if item.trial_id == trial_id
+            ],
+            "state_events": [
+                asdict(item) for item in facts.state_events if item.trial_id == trial_id
+            ],
+        }
+        for table_name, rows in rows_by_table.items():
+            exported.append(
+                _write_fact_table(partition / f"{table_name}.parquet", table_name, rows)
+            )
+    return exported
+
+
 def export_facts(
     jobs: list[JobRecord],
     output_root: Path,
@@ -825,53 +856,44 @@ def export_facts(
             projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
         )
         facts = extract_job_facts(job, projections=job_projections)
-        trial_by_id = {item.trial_id: item for item in facts.trials}
-        for trial_id in sorted(trial_by_id):
-            partition = output_root / f"job_id={job.id}" / f"trial_id={trial_id}"
-            rows_by_table = {
-                "trial_facts": [asdict(trial_by_id[trial_id])],
-                "reward_facts": [
-                    asdict(item) for item in facts.rewards if item.trial_id == trial_id
-                ],
-                "artifact_facts": [
-                    asdict(item) for item in facts.artifacts if item.trial_id == trial_id
-                ],
-                "tool_usage": [
-                    asdict(item) for item in facts.tool_usage if item.trial_id == trial_id
-                ],
-                "state_changes": [
-                    asdict(item) for item in facts.state_changes if item.trial_id == trial_id
-                ],
-                "state_events": [
-                    asdict(item) for item in facts.state_events if item.trial_id == trial_id
-                ],
-            }
-            for table_name, rows in rows_by_table.items():
-                exported.append(
-                    _write_fact_table(partition / f"{table_name}.parquet", table_name, rows)
-                )
+        exported.extend(export_job_fact_tables(job, output_root, facts))
     return ExportResult(root=output_root, tables=tuple(exported))
 
 
-def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
-    from evallab.evidence.event_mart import export_event_mart
+def rebuild_job_from_raw(job: JobRecord, output_root: Path) -> RebuildResult:
+    from evallab.evidence.event_mart import export_job_event_mart
 
+    output_root = output_root.resolve()
+    projections: dict[str, TrialTrajectoryProjection] = {}
+    trajectory_export = export_trajectories(
+        [job], output_root, projections_by_job={job.id: projections}
+    )
+    facts = extract_job_facts(job, projections=projections)
+    fact_tables = export_job_fact_tables(job, output_root, facts)
+    event_tables = export_job_event_mart(
+        job,
+        output_root,
+        projections=projections,
+        state_changes=facts.state_changes,
+    )
+    return RebuildResult(
+        trajectory_export=trajectory_export,
+        fact_export=ExportResult(root=output_root, tables=tuple(fact_tables)),
+        event_mart_export=ExportResult(root=output_root, tables=tuple(event_tables)),
+    )
+
+
+def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
     output_root = output_root.resolve()
     trajectory_tables: list[ExportedTable] = []
     fact_tables: list[ExportedTable] = []
     event_tables: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
         # Release normalized source data after each job, not after the whole corpus.
-        projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] = {}
-        trajectory_tables.extend(
-            export_trajectories([job], output_root, projections_by_job=projections_by_job).tables
-        )
-        fact_tables.extend(
-            export_facts([job], output_root, projections_by_job=projections_by_job).tables
-        )
-        event_tables.extend(
-            export_event_mart([job], output_root, projections_by_job=projections_by_job).tables
-        )
+        job_result = rebuild_job_from_raw(job, output_root)
+        trajectory_tables.extend(job_result.trajectory_export.tables)
+        fact_tables.extend(job_result.fact_export.tables)
+        event_tables.extend(job_result.event_mart_export.tables)
     return RebuildResult(
         trajectory_export=ExportResult(root=output_root, tables=tuple(trajectory_tables)),
         fact_export=ExportResult(root=output_root, tables=tuple(fact_tables)),

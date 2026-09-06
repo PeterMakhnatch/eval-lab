@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -449,6 +450,39 @@ def _write_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> Exp
     )
 
 
+def export_job_event_mart(
+    job: JobRecord,
+    output_root: Path,
+    *,
+    projections: dict[str, TrialTrajectoryProjection] | None = None,
+    state_changes: Sequence[StateChangeFact] | None = None,
+) -> list[ExportedTable]:
+    output_root = output_root.resolve()
+    exported: list[ExportedTable] = []
+    changes = (
+        state_changes
+        if state_changes is not None
+        else extract_job_facts(job, projections=projections).state_changes
+    )
+    for trial in sorted(job.trials, key=lambda item: item.id):
+        trial_proj = projections.get(trial.id) if projections is not None else None
+        projection = project_event_mart(
+            job,
+            trial,
+            state_changes=tuple(row for row in changes if row.trial_id == str(trial.id)),
+            repo_root=job.path.parent.parent,
+            projection=trial_proj,
+        )
+        partition = output_root / f"job_id={job.id}" / f"trial_id={trial.id}"
+        for table_name in EVENT_MART_TABLES:
+            rows = [
+                asdict(row) if not isinstance(row, dict) else row
+                for row in getattr(projection, table_name)
+            ]
+            exported.append(_write_table(partition / f"{table_name}.parquet", table_name, rows))
+    return exported
+
+
 def export_event_mart(
     jobs: list[JobRecord],
     output_root: Path,
@@ -461,21 +495,11 @@ def export_event_mart(
         job_projections = (
             projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
         )
-        all_changes = extract_job_facts(job, projections=job_projections).state_changes
-        for trial in sorted(job.trials, key=lambda item: item.id):
-            trial_proj = job_projections.get(trial.id) if job_projections is not None else None
-            projection = project_event_mart(
+        exported.extend(
+            export_job_event_mart(
                 job,
-                trial,
-                state_changes=tuple(row for row in all_changes if row.trial_id == str(trial.id)),
-                repo_root=job.path.parent.parent,
-                projection=trial_proj,
+                output_root,
+                projections=job_projections,
             )
-            partition = output_root / f"job_id={job.id}" / f"trial_id={trial.id}"
-            for table_name in EVENT_MART_TABLES:
-                rows = [
-                    asdict(row) if not isinstance(row, dict) else row
-                    for row in getattr(projection, table_name)
-                ]
-                exported.append(_write_table(partition / f"{table_name}.parquet", table_name, rows))
+        )
     return ExportResult(root=output_root, tables=tuple(exported))

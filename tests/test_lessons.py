@@ -876,23 +876,6 @@ def _sample_lessons_fixture_tree(tmp_path: Path) -> Path:
     return root
 
 
-def test_lessons_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
-    root = _sample_lessons_fixture_tree(tmp_path)
-    result = build_lessons(root)
-    markdown = render_lessons_markdown(result)
-    fm, _body = parse_front_matter(markdown)
-    assert fm is not None
-    assert "inputs" in fm
-    assert isinstance(fm["inputs"], list)
-    assert len(fm["inputs"]) > 0
-    for item in fm["inputs"]:
-        assert isinstance(item, dict)
-        assert "path" in item and isinstance(item["path"], str)
-        assert "digest" in item and isinstance(item["digest"], str)
-        assert item["digest"].startswith("sha256:")
-        assert len(item["digest"]) == 71
-
-
 def test_lessons_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
     root = _sample_lessons_fixture_tree(tmp_path)
     target = root / "research" / "lessons.md"

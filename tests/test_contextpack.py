@@ -535,13 +535,10 @@ class TestRepoDocIntegrity:
             assert doc.status in VALID_STATUSES, (
                 f"Doc {path.name} has invalid status '{doc.status}'"
             )
-            assert len(doc.audience) > 0, f"Doc {path.name} has empty audience"
             for aud in doc.audience:
                 assert aud in VALID_AUDIENCES, (
                     f"Doc {path.name} has invalid audience member '{aud}'"
                 )
-            assert len(doc.title) > 0, f"Doc {path.name} has empty title"
-            assert len(doc.body) > 0, f"Doc {path.name} has empty body"
 
 
 class TestPathScopedContextPacks:

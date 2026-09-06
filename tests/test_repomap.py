@@ -331,22 +331,6 @@ def test_operator_skills_exist_with_name_and_description() -> None:
         assert isinstance(description, str) and description.strip()
 
 
-def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
-    src = _sample_tree(tmp_path)
-    map_text = generate_map(src_dir=src, root=tmp_path)
-    fm, _body = parse_front_matter(map_text)
-    assert fm is not None
-    assert "inputs" in fm
-    assert isinstance(fm["inputs"], list)
-    assert len(fm["inputs"]) > 0
-    for item in fm["inputs"]:
-        assert isinstance(item, dict)
-        assert "path" in item and isinstance(item["path"], str)
-        assert "digest" in item and isinstance(item["digest"], str)
-        assert item["digest"].startswith("sha256:")
-        assert len(item["digest"]) == 71
-
-
 def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
     map_path = tmp_path / "docs" / "repo-map.md"

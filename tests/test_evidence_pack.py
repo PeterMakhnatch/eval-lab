@@ -24,13 +24,27 @@ def repo_root() -> Path:
 
 @pytest.fixture
 def canary_trial_dir(repo_root: Path) -> Path:
-    canary = repo_root / "research" / "evidence" / "runs" / "canary-transaction-reconciliation-codex-20260815" / "transaction-reconciliation__ba8ovxZ"
+    canary = (
+        repo_root
+        / "research"
+        / "evidence"
+        / "runs"
+        / "canary-transaction-reconciliation-codex-20260815"
+        / "transaction-reconciliation__ba8ovxZ"
+    )
     if not canary.exists():
-        canary = repo_root / "runs" / "canary-transaction-reconciliation-codex-20260815" / "transaction-reconciliation__ba8ovxZ"
+        canary = (
+            repo_root
+            / "runs"
+            / "canary-transaction-reconciliation-codex-20260815"
+            / "transaction-reconciliation__ba8ovxZ"
+        )
     return canary
 
 
-def test_build_evidence_pack_hierarchical_structure(canary_trial_dir: Path, repo_root: Path) -> None:
+def test_build_evidence_pack_hierarchical_structure(
+    canary_trial_dir: Path, repo_root: Path
+) -> None:
     """EvidencePack produces global outline, episode summaries, and prioritized windows."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
     pack = build_evidence_pack(ir, trial_dir=canary_trial_dir, budget_tokens=16000)
@@ -45,15 +59,14 @@ def test_build_evidence_pack_hierarchical_structure(canary_trial_dir: Path, repo
     assert "step_count" in pack.global_outline
     assert "tool_call_count" in pack.global_outline
 
-    # Episode summaries present
-    assert len(pack.episodes) > 0
+    # Episode summaries present for the 3 canary execution phases
+    assert len(pack.episodes) == 3
 
     # Selected windows and omitted ranges have valid citations
     for w in pack.selected_windows:
         assert w.reopening_citation.source_path is not None
         assert w.reopening_citation.step_index is not None
-        assert len(w.events) > 0
-
+        assert w.events and all(isinstance(e, dict) and e.get("event_id") for e in w.events)
     # Markdown rendering
     md = pack.render_markdown()
     assert "# Evidence Pack: transaction-reconciliation__ba8ovxZ" in md
@@ -63,6 +76,7 @@ def test_build_evidence_pack_hierarchical_structure(canary_trial_dir: Path, repo
     # Pack digest determinism
     pack2 = build_evidence_pack(ir, trial_dir=canary_trial_dir, budget_tokens=16000)
     assert pack.pack_digest == pack2.pack_digest
+
 
 def test_evidence_coverage_metrics_categories(canary_trial_dir: Path, repo_root: Path) -> None:
     """Verify complete category-wise coverage metrics computation."""
@@ -88,7 +102,9 @@ def test_evidence_coverage_metrics_categories(canary_trial_dir: Path, repo_root:
     assert "verifier_executed" in cov_dict
 
 
-def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, repo_root: Path) -> None:
+def test_omitted_range_digest_verification_and_tamper_rejection(
+    tmp_path: Path, repo_root: Path
+) -> None:
     """Mandatory test: omitted ranges carry canonical digest, reopen losslessly, and reject tampered digests."""
     import json
     from dataclasses import replace
@@ -102,17 +118,48 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     steps = [
         {"step_id": 1, "source": "user", "message": "initial task prompt"},
         {"step_id": 2, "source": "agent", "message": "planning"},
-        {"step_id": 3, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "pwd"}}]},
-        {"step_id": 4, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "ls -la"}}]},
-        {"step_id": 5, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "ls src/"}}]},
-        {"step_id": 6, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "cat README.md"}}]},
-        {"step_id": 7, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "cat config.json"}}]},
+        {
+            "step_id": 3,
+            "source": "agent",
+            "tool_calls": [{"name": "bash", "arguments": {"command": "pwd"}}],
+        },
+        {
+            "step_id": 4,
+            "source": "agent",
+            "tool_calls": [{"name": "bash", "arguments": {"command": "ls -la"}}],
+        },
+        {
+            "step_id": 5,
+            "source": "agent",
+            "tool_calls": [{"name": "bash", "arguments": {"command": "ls src/"}}],
+        },
+        {
+            "step_id": 6,
+            "source": "agent",
+            "tool_calls": [{"name": "bash", "arguments": {"command": "cat README.md"}}],
+        },
+        {
+            "step_id": 7,
+            "source": "agent",
+            "tool_calls": [{"name": "bash", "arguments": {"command": "cat config.json"}}],
+        },
         {"step_id": 8, "source": "agent", "message": "finishing up"},
         {"step_id": 9, "source": "agent", "message": "all done"},
         {"step_id": 10, "source": "verifier", "message": "verifier pass"},
     ]
-    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": steps}))
-    (trial_dir / "result.json").write_text(json.dumps({"id": "t_long", "trial_name": "t_long", "task_name": "synthetic/omitted-test", "verifier_result": {"rewards": {"reward": 1.0}}}))
+    (trial_dir / "agent" / "trajectory.json").write_text(
+        json.dumps({"schema_version": "ATIF-v1.4", "steps": steps})
+    )
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "t_long",
+                "trial_name": "t_long",
+                "task_name": "synthetic/omitted-test",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
 
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
     policy = RedactionPolicy(redact_secrets=False, max_display_bytes=5)
@@ -123,13 +170,17 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
         policy=policy,
     )
 
-    assert len(pack.omitted_ranges) > 0, "Omitted ranges must be non-empty for long routine sequence"
+    assert len(pack.omitted_ranges) > 0, (
+        "Omitted ranges must be non-empty for long routine sequence"
+    )
     om = pack.omitted_ranges[0]
     assert len(om.event_ids) > 0
     assert om.omitted_content_digest.startswith("sha256:")
 
     # 1. Lossless reopening succeeds with digest match
-    reopened = reopen_omitted_range(pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
+    reopened = reopen_omitted_range(
+        pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path
+    )
     assert reopened.event_count == om.event_count
     assert len(reopened.events) == om.event_count
     source_event = next(event for event in ir.events if event.event_id == om.event_ids[0])
@@ -156,7 +207,9 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     )
     tampered_pack = replace(pack, omitted_ranges=tuple(tampered_ranges))
     with pytest.raises(ValueError, match="Omitted content digest mismatch"):
-        reopen_omitted_range(tampered_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
+        reopen_omitted_range(
+            tampered_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path
+        )
 
     # 3. Missing stored event identity rejects rather than falling back to step range.
     missing_id_ranges = list(pack.omitted_ranges)
@@ -173,7 +226,11 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     )
     missing_id_pack = replace(pack, omitted_ranges=tuple(missing_id_ranges))
     with pytest.raises(ValueError, match="references missing event ids"):
-        reopen_omitted_range(missing_id_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
+        reopen_omitted_range(
+            missing_id_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path
+        )
+
+
 def test_budget_overflow_marks_pack_uncallable(canary_trial_dir: Path, repo_root: Path) -> None:
     """When mandatory windows exceed token budget, pack is marked uncallable with tiered_pack_required."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
@@ -185,7 +242,9 @@ def test_budget_overflow_marks_pack_uncallable(canary_trial_dir: Path, repo_root
     assert "mandatory_window_budget_overflow" in (pack.overflow_reason or "")
 
 
-def test_redaction_policy_digest_mints_distinct_pack_digest(canary_trial_dir: Path, repo_root: Path) -> None:
+def test_redaction_policy_digest_mints_distinct_pack_digest(
+    canary_trial_dir: Path, repo_root: Path
+) -> None:
     """Changing redaction policy produces a new deterministic pack digest."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
 
@@ -199,7 +258,9 @@ def test_redaction_policy_digest_mints_distinct_pack_digest(canary_trial_dir: Pa
     assert pack1.pack_digest != pack2.pack_digest
 
 
-def test_reopen_omitted_range_invalid_id_raises_value_error(canary_trial_dir: Path, repo_root: Path) -> None:
+def test_reopen_omitted_range_invalid_id_raises_value_error(
+    canary_trial_dir: Path, repo_root: Path
+) -> None:
     """Reopening a nonexistent omitted range id raises ValueError."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
     pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
@@ -224,7 +285,11 @@ def test_multi_call_citation_handle_hydration_identity(tmp_path: Path, repo_root
                 "step_id": 1,
                 "source": "agent",
                 "tool_calls": [
-                    {"name": "bash", "arguments": {"command": "cat foo.txt"}, "tool_call_id": "call_a"},
+                    {
+                        "name": "bash",
+                        "arguments": {"command": "cat foo.txt"},
+                        "tool_call_id": "call_a",
+                    },
                     {"name": "edit", "arguments": {"file": "bar.txt"}, "tool_call_id": "call_b"},
                 ],
                 "observations": [
@@ -285,9 +350,7 @@ def test_five_tb3_cas_packs_determinism_and_rebuild(repo_root: Path) -> None:
         "cas://sha256/0fec243197641545068cf6baf252639643e1216e44a760104d50a4423964a181",
         "cas://sha256/6615a273b10c8e2a152b1ace7e282059c1e53a623a06f506aba52d3f70633cb7",
     }
-    tb3_entries = [
-        entry for entry in manifest["entries"] if entry.get("cas_uri") in expected_uris
-    ]
+    tb3_entries = [entry for entry in manifest["entries"] if entry.get("cas_uri") in expected_uris]
     assert len(tb3_entries) == 5
     assert {entry["cas_uri"] for entry in tb3_entries} == expected_uris
 

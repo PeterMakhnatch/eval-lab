@@ -19,7 +19,7 @@ lint floor; CI also exercises Python 3.14.
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
-| Tests | `uv run pytest` | locked pytest; Python 3.12 and 3.14 |
+| Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; Python 3.12 and 3.14 across a two-shard matrix (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) |
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
@@ -40,8 +40,11 @@ diff or any unrecognised path means `profile=true`):
   take the marker in the same change.
 - **Everything else (`profile=true`):** the full suite, `uv run --no-sync pytest`.
 
-Both lanes report under the same check names (`test (3.12)`, `test (3.14)`)
-and write the lane taken to the job summary. The `lint` job's document,
+Both lanes report under the check names `test (<python-version>, <shard>)`
+(`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`)
+and write the lane taken to the job summary; a hash-sharded run still collects
+everything before deselecting unassigned modules so the declared-modules
+coverage check applies in every shard. The `lint` job's document,
 governance, registry, and lessons gates run unconditionally in either lane.
 
 Run `make premerge` before pushing. Before final review and doc freshness checks,

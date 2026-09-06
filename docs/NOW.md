@@ -99,7 +99,7 @@ the verification gates in `agents/CHECKS.md`.
 |---|---|
 | Documentation or navigation | The document being changed and its direct references. Read `agents/STRUCTURE.md` only for placement changes; architecture only when the design claim changes. |
 | Worktree, ownership, or delivery | Relevant `agents/WORKFLOW.md` / `agents/OWNERS.md` sections; `agents/CHECKS.md` at the checkpoint. Use the existing board for a backlog claim. |
-| Platform, runner, queue, or CLI | `src/evallab/AGENTS.md`, the nearest scoped instructions, and the affected sections of `docs/architecture.md`. Read `docs/execution-tiers.md` before execution decisions. |
+| Platform, runner, queue, devloop, or CLI | `src/evallab/AGENTS.md`, the nearest scoped instructions, and the affected sections of `docs/architecture.md`. Read `docs/execution-tiers.md` before execution decisions. |
 | Storage, CAS, or projections | Storage/evidence scoped instructions and the relevant `docs/data-architecture.md` sections; follow their direct authority contracts. |
 | Analysis or interpretation | Analysis/interpretation scoped instructions and the relevant `docs/analysis-loop.md` sections; identify the actual corpus and consumer. |
 | Task authoring or registration | The task's own contract plus relevant `docs/task-workbench.md` / `docs/task-registry.md` sections; retain execution approval and immutable-version rules. |

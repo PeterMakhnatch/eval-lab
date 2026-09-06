@@ -264,9 +264,6 @@ def select_docs(
     return selected
 
 
-discover_docs = select_docs
-
-
 def extract_tokens_for_path(path_str: str) -> list[str]:
     """Extract reference tokens for a repo-relative path.
 

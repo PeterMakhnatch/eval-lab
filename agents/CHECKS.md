@@ -59,6 +59,9 @@ workflows; GitHub remains the merge authority.
 
 During active local development loops, prefer focused checks for touched modules
 rather than running the entire project-wide test suite on every small edit.
+Use `make loop` or `uv run evallab registry devloop [--run]` to compute the exact
+affected test modules from working-tree changes and execute only the relevant subset
+(or select the `docs_consumer` lane for documentation-only changes).
 
 Benchmark and certification workflows declare `concurrency` groups with
 `cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy

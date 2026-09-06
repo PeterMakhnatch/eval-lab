@@ -2690,6 +2690,15 @@ def _registry_audit_command(
     return 0 if report.passed else 1
 
 
+def _registry_devloop_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.devloop import run_devloop
+
+    return run_devloop(root, since=args.since, run=args.run, as_json=args.json)
+
+
 def _tidy_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4637,6 +4646,26 @@ def parser() -> argparse.ArgumentParser:
         help="Emit registered record as JSON",
     )
     registry_register.set_defaults(func=_registry_register_command)
+    registry_devloop = registry_commands.add_parser(
+        "devloop",
+        help="Map working tree changes to affected test modules and run targeted pytest",
+    )
+    registry_devloop.add_argument(
+        "--since",
+        default="working",
+        help="Revision or baseline to diff against (default: working)",
+    )
+    registry_devloop.add_argument(
+        "--run",
+        action="store_true",
+        help="Execute the computed pytest command",
+    )
+    registry_devloop.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit results as JSON",
+    )
+    registry_devloop.set_defaults(func=_registry_devloop_command)
     tidy = commands.add_parser(
         "tidy",
         help="Sweep working tree strays, stale worktrees, and retention violations",

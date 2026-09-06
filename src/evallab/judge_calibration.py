@@ -29,7 +29,7 @@ from typing import Any, Final, Literal, Protocol
 
 from pydantic import Field, model_validator
 
-from evallab.analyst import ANALYST_CATEGORIES, TrajectoryJudgeRunV1
+from evallab.analyst import ANALYST_CATEGORIES
 from evallab.execution_contracts import PaidRunAuthorization
 from evallab.schemas import ContractModel
 
@@ -93,10 +93,6 @@ class E1IncompleteRepetitionsError(E1CalibrationError):
     """Raised when the model arm does not execute exact 3 repetitions (132 calls)."""
 
 
-class E1RefusalError(E1CalibrationError):
-    """Raised when grader instability on unambiguous classes violates deterministic baseline."""
-
-
 class E1TrajectoryLabelAccessError(E1CalibrationError):
     """Raised when trajectory labels are accessed, read, or auto-accepted in calibration."""
 
@@ -116,17 +112,6 @@ class KeyedItem:
     variant: str
     text: str
     answer_key: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class GraderCallRecord:
-    """One single grader evaluation call."""
-
-    document_id: str
-    family: str
-    true_variant: str
-    repetition_index: int
-    predicted_class: str
 
 
 @dataclass(frozen=True)
@@ -449,23 +434,6 @@ def adjudicate_pairwise_preferences(
             **body,
             "adjudication_digest": _trajectory_digest(body),
         }
-    )
-
-
-def observation_from_judge_run(
-    case: TrajectoryCalibrationCaseV1,
-    judge_id: str,
-    run: TrajectoryJudgeRunV1,
-) -> JudgeCalibrationObservationV1:
-    """Bind one repeated trajectory judge run to deterministic benchmark truth."""
-    return JudgeCalibrationObservationV1(
-        case_id=case.case_id,
-        judge_id=judge_id,
-        repeat_index=run.repeat_index,
-        predicted_category=run.final_category,
-        expected_category=case.expected_category,
-        confidence=run.stages[-1].confidence,
-        run_digest=run.run_digest,
     )
 
 

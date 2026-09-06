@@ -31,6 +31,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from evallab.registry import compute_subpath_digest
 from evallab.synthetic_contracts import (
     PerturbationFamily,
     SyntheticEvalSpec,
@@ -49,23 +50,7 @@ def _should_ignore_file(path: Path) -> bool:
 
 def compute_deterministic_dir_digest(path: Path) -> str:
     """Compute deterministic SHA-256 digest of a directory tree."""
-    if not path.exists():
-        return "sha256:" + hashlib.sha256(b"").hexdigest()
-    if path.is_file():
-        return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
-    if path.is_dir():
-        aggregate = hashlib.sha256()
-        files = sorted(
-            candidate
-            for candidate in path.rglob("*")
-            if candidate.is_file() and not _should_ignore_file(candidate)
-        )
-        for candidate in files:
-            relative = candidate.relative_to(path).as_posix()
-            file_digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
-            aggregate.update(f"{file_digest}  ./{relative}\n".encode())
-        return f"sha256:{aggregate.hexdigest()}"
-    return "sha256:" + hashlib.sha256(b"").hexdigest()
+    return compute_subpath_digest(path, should_ignore=_should_ignore_file)
 
 
 def estimate_token_count(text: str) -> int:

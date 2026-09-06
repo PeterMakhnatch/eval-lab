@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:31a0d2af45c08183e43373769db59623eeb60889960f27ce5c6d00fff2170051
+    digest: sha256:25d9127a8e0746e3cba0a8b61cc758740a6d2fcf58272c160b2267919e1a9e56
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
   - path: docs/WHERE-DOES-THIS-GO.md
@@ -27,7 +27,7 @@ inputs:
   - path: docs/analysis-worker.md
     digest: sha256:9412a6ddfd7e1c416a94100951507afc58911017fd307f73ec551d97aa3c1b63
   - path: docs/architecture.md
-    digest: sha256:1744b4f5bba7567d52cff826ef4f5109afafd7339d261ada50d3f8cecc26c199
+    digest: sha256:8e437f7f76b2147c8478d3ba17a31fd1a5a8bb07680c9b9ab02723d0a6f5632e
   - path: docs/attach-surface.md
     digest: sha256:24568c07fd8448f019f046f95811b1edd0913638f70bb35b6299f6f8c3d926b1
   - path: docs/authoring.md
@@ -49,7 +49,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:d90ec1143b9ffaa6f8db6402fb3b29ea9f48c80630bc795dbf2969b2f61dbd2c
+    digest: sha256:6f540c1b84582de2e8185c0a7b4b0d248f537df55eb8ffd3251da599376ccc37
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:e31ef372f624c59120da22d21ce45ae3ba75277e1981554e3b61720d8a301b8d
   - path: docs/engineering.md
@@ -71,7 +71,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:2ea898ffa7c1f2feb696dff9de6658e350ca06e76842c2a5d829541602bf3f33
+    digest: sha256:2bf91344cec4138d0d88e55d023959120878c756badd472a0eab0cfa81b601d0
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md

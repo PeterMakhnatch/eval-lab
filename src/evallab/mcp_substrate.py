@@ -25,7 +25,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import logging
 import os
 import re
 import shutil
@@ -45,10 +44,7 @@ from evallab.benchmark_program_contracts import (
     validate_safe_relative_path,
 )
 
-logger = logging.getLogger(__name__)
-
 MCP_SUBSTRATE_VERSION = "0.3.0"
-DEFAULT_PROTOCOL_VERSION = "2024-11-05"
 MCP_TOOL_EVENT_SCHEMA_VERSION = "mcp-tool-event-v1"
 DEFAULT_SIDECAR_SERVICE = "mcp-service"
 DEFAULT_VOLUME_NAME = "evidence-volume"
@@ -396,58 +392,6 @@ def parse_requirements_hashes(requirements_text: str) -> dict[str, set[str]]:
             raise SubstrateError(f"Requirement {pkg_name!r} has no --hash=sha256: declarations")
         req_hashes[pkg_name] = hashes
     return req_hashes
-
-
-def verify_wheelhouse_inventory(
-    wheelhouse_dir: Path, requirements_text: str
-) -> list[dict[str, Any]]:
-    """Mechanically verify that wheelhouse contains an exact matching wheel for every locked requirement."""
-    if not wheelhouse_dir.is_dir() or wheelhouse_dir.is_symlink():
-        raise SubstrateError(
-            f"Wheelhouse directory does not exist or is symlink: {wheelhouse_dir.as_posix()!r}"
-        )
-
-    locked = parse_requirements_hashes(requirements_text)
-    wheels = list(wheelhouse_dir.glob("*.whl"))
-    if not wheels:
-        raise SubstrateError(
-            f"Wheelhouse {wheelhouse_dir.as_posix()!r} is empty (contains 0 wheels)"
-        )
-
-    matched_packages: set[str] = set()
-    inventory: list[dict[str, Any]] = []
-
-    for w_file in sorted(wheels, key=lambda p: p.name):
-        w_bytes = _read_file_source(w_file)
-        w_hash = hashlib.sha256(w_bytes).hexdigest()
-        pkg_name = w_file.name.split("-")[0].lower().replace("_", "-")
-
-        if pkg_name not in locked:
-            raise SubstrateError(
-                f"Wheelhouse contains extra unapproved package {w_file.name!r} not in lockfile"
-            )
-
-        if w_hash not in locked[pkg_name]:
-            raise SubstrateError(
-                f"Wheel {w_file.name!r} SHA-256 hash {w_hash} does not match any locked hash for {pkg_name}"
-            )
-
-        matched_packages.add(pkg_name)
-        inventory.append(
-            {
-                "filename": w_file.name,
-                "size_bytes": len(w_bytes),
-                "sha256": w_hash,
-            }
-        )
-
-    missing_packages = set(locked.keys()) - matched_packages
-    if missing_packages:
-        raise SubstrateError(
-            f"Wheelhouse is missing required locked package(s): {sorted(missing_packages)}"
-        )
-
-    return inventory
 
 
 @dataclass(frozen=True)

@@ -712,6 +712,240 @@
       "original_sha256": "4001b337613097ab3e5ff1ceefc0b1d36f1b9eb1837ff628760fc930090864a4",
       "archived_bytes_identical": true,
       "closure_evidence": "Explicitly superseded by RESEARCHER-SYSTEM-BLUEPRINT-2026-09-03.md"
+    },
+    {
+      "old": "research/analysis/git-estate-inventory-2026-08-27.json",
+      "new": "research/archive/2026-W36/git-estate-inventory-2026-08-27.json",
+      "original_sha256": "6baeed96fdc41474fa20dae3ef8ffb0ed0fcdc7de1e34bc4e1f1d39f332c3baf",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/roadmap/analyst-future-research-roadmap-2026-08-29.md",
+      "new": "research/archive/2026-W36/analyst-future-research-roadmap-2026-08-29.md",
+      "original_sha256": "1a6eb51db6d793fb826d0835ff14aca914b1218753fdf9a20408fbd9e121a6b7",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/automated-trajectory-overnight-ledger.md",
+      "new": "research/archive/2026-W36/automated-trajectory-overnight-ledger.md",
+      "original_sha256": "034aa08091fc1ad6593ba61ee327e1ab2b4da616023a1723ffd994b91153bb7b",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/memory-tool-evals-source-matrix-2026-08-31.md",
+      "new": "research/archive/2026-W36/memory-tool-evals-source-matrix-2026-08-31.md",
+      "original_sha256": "a042d190cfc258709e127eabd2e315d589cd0d2aa13e5d23c2fb46f80d656e53",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/pstack-mechanism-gap-2026-08-29.md",
+      "new": "research/archive/2026-W36/pstack-mechanism-gap-2026-08-29.md",
+      "original_sha256": "37520b183c42e0d8e4ad1e2b42dca94049d95f38aaa3403a496488d58b8d98ab",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/analysis/trajectory-data-trust-audit-2026-08-26.md",
+      "new": "research/archive/2026-W36/trajectory-data-trust-audit-2026-08-26.md",
+      "original_sha256": "a7d1c652facd4f9b9946693b58174ebcb0509170d5a1ac489cc90adf702ffee1",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/findings/behavior-review-2026-08-17.md",
+      "new": "research/archive/2026-W36/behavior-review-2026-08-17.md",
+      "original_sha256": "6a78e72be47a9cd0d7dae08c7116ca20c2c8184ab7902015d07a7aa50435e53a",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/attach/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/attach/audit.md",
+      "original_sha256": "ad3c0b1223c62e194b632331b8d86795a178689247765cccb528956bb51a6bd6",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/backups/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/backups/audit.md",
+      "original_sha256": "4a6e50d061f8ba6de5f291a39bee51857aa3d401d1290264127c2c08c551ef58",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/behavior/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/behavior/audit.md",
+      "original_sha256": "c8c218f8654d13624bc38afe247747942d50b70d9534a29cb9d6777fd375ccaf",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/canary_suite/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/canary_suite/audit.md",
+      "original_sha256": "c0c3237b0e533da1c4c3150f0a3cc580c1388c7f39682e894fef054b39e7b3c2",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/contextpack/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/contextpack/audit.md",
+      "original_sha256": "b521608d6b642c4767c103bdbfb8d83908f80ed1e6aaeabc84929bb2e1af7fb1",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/parquet-compaction/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/parquet-compaction/audit.md",
+      "original_sha256": "6c496c4f7d00628f38b901b3c5ecaff9b875898e7d07f992dfe2cc3b46a09c74",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/parquet-compaction/dry_run_compaction.txt",
+      "new": "research/archive/2026-W36/audits/evidence/parquet-compaction/dry_run_compaction.txt",
+      "original_sha256": "b0755754e5ae2a85666044e80c4c8b824ef8408ac2ca966a14936d6e2a882d95",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/parquet-compaction/pytest_parquet_compaction.txt",
+      "new": "research/archive/2026-W36/audits/evidence/parquet-compaction/pytest_parquet_compaction.txt",
+      "original_sha256": "da11eab271f7b6b5d5a9a7e2adabe5fb2d3824af0373c826aeb35527da663c9c",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/audit.md",
+      "original_sha256": "81605bcaa39c40d07e5b11ae6bfce3e10346852f0ab841b1582697e65d78eb9a",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/evallab_preflight.txt",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/evallab_preflight.txt",
+      "original_sha256": "b6de63b19fbffd3a59cc2d065e0ca04729f8fcb35254f428827f744f33451be1",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/pytest_preflight.txt",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/pytest_preflight.txt",
+      "original_sha256": "bc17ed87590edeb0231be8954125522e1b963da0ee7cc0d207816220eb15a032",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/preflight/ruff.txt",
+      "new": "research/archive/2026-W36/audits/evidence/preflight/ruff.txt",
+      "original_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/provenance/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/provenance/audit.md",
+      "original_sha256": "322096a84f3b703884b9f4190a6eb0d84bf77d27dd706ed3167328419282329c",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/audit.md",
+      "original_sha256": "e5d3e714de7992b75e80e7b24dc58a28ef808991be544bc42741544d86784e4b",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/events_quota_comparison.txt",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/events_quota_comparison.txt",
+      "original_sha256": "928243eb7bc34ad6331ba35b92ccd053f6e73b0a781b8dbb348db5cdf5848607",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/pytest_quota_suite.txt",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/pytest_quota_suite.txt",
+      "original_sha256": "3dc1a8319000714edd2208e17ed15d31a583223883c41bd1617663f05640aa1b",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/quota_json_output.json",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/quota_json_output.json",
+      "original_sha256": "8b85568657dd667593274688e7398fc2a48d9788d2cbededfca55bb957377f52",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/quota_accounting/quota_runs_summary.txt",
+      "new": "research/archive/2026-W36/audits/evidence/quota_accounting/quota_runs_summary.txt",
+      "original_sha256": "dec5e827c2c780361acbb562d41caa91091b375824aa4f9cc7dc3ccbbe3c5da3",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/audit.md",
+      "original_sha256": "ab0695bba06b35d84ccef43fcfaf43084a6c26526dff6892c2a659302036364a",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/backfill_spec_purpose.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/backfill_spec_purpose.txt",
+      "original_sha256": "7bd35e78a3545ba468a0163c9bb0334b71cd0f5a7712516808495dde138a51f8",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/evallab_submit_purposeless.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/evallab_submit_purposeless.txt",
+      "original_sha256": "d98a93dcb24b3ad25690cffb2b2e2a8dbde31aefbaa0dbbdea036b61cc5c1289",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/policy_gate_purposeless_refusal.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/policy_gate_purposeless_refusal.txt",
+      "original_sha256": "e4cc1aea120a5b5a5d7907da3d9e23380f31b45df6d8eab38db3b469600358f4",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/spine_purpose_gate/pytest_test_spec_purpose.txt",
+      "new": "research/archive/2026-W36/audits/evidence/spine_purpose_gate/pytest_test_spec_purpose.txt",
+      "original_sha256": "3206bfb39d1f783b96b69bdc9c65411017d2d3bbf3b8bb20795099a32eed606c",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/audit.md",
+      "original_sha256": "c15f8b16e34c71f52fd65e0e48262137c4aaf6d4dce7344ac5bc53651ead6cb0",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/correction_wiring_and_launchctl.txt",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/correction_wiring_and_launchctl.txt",
+      "original_sha256": "2862fd707fe66a363e125d138e410fb3278496dc841f3163441470bb66ca04fd",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/evallab_status_cli.txt",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/evallab_status_cli.txt",
+      "original_sha256": "bce8fe022309d0580dab4910778d4afa874540585f0589d80d98aa5b74144f97",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/generated_status.md",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/generated_status.md",
+      "original_sha256": "d943525f55831db741cf4baa5ec0ae5e6de52663e27d8e1b74e615cd90431f54",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/status_generator/pytest_status_generator.txt",
+      "new": "research/archive/2026-W36/audits/evidence/status_generator/pytest_status_generator.txt",
+      "original_sha256": "4271b0d70d2afe45004c9a7514ebfc72f7f68dde0ab2ec96b5f19bb8243c6454",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/audit.md",
+      "new": "research/archive/2026-W36/audits/evidence/storm/audit.md",
+      "original_sha256": "3c62d810928449b9c7b69354ac4d4c5b5f97c9646eac841374616a76ebfc155d",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/correction_wiring.txt",
+      "new": "research/archive/2026-W36/audits/evidence/storm/correction_wiring.txt",
+      "original_sha256": "2e17a4478a3d44804bf8047f204a0f8529253d232a6b4c1ce16184b25559dfc2",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/pytest_storm.txt",
+      "new": "research/archive/2026-W36/audits/evidence/storm/pytest_storm.txt",
+      "original_sha256": "73568766c79d2428c7ba8911cc82a9588294497573ed2f582ac5bb56fe219d06",
+      "archived_bytes_identical": true
+    },
+    {
+      "old": "research/audits/evidence/storm/python_storm_live.txt",
+      "new": "research/archive/2026-W36/audits/evidence/storm/python_storm_live.txt",
+      "original_sha256": "a5a6a328c99a6bdda87730bb2d35ad975f85811f8a9fde1dfdda6725b9a49855",
+      "archived_bytes_identical": true
     }
   ]
 }

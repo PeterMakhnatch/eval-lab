@@ -272,14 +272,6 @@ def convert_source(
     return resource_spans, payload, summary, path
 
 
-def convert_trial(
-    trial_dir: Path,
-    *,
-    service_name: str = DEFAULT_SERVICE_NAME,
-) -> tuple[Any, dict[str, Any], SpanSummary, Path]:
-    return convert_source(trajectory_path_for(trial_dir), service_name=service_name)
-
-
 def _append_converted(
     batch: TraceBatch,
     *,

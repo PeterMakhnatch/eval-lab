@@ -12,6 +12,8 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+pytestmark = pytest.mark.docs_consumer
 BASH = shutil.which("bash")
 GIT = shutil.which("git")
 
@@ -205,3 +207,64 @@ def test_profile_scope_skips_only_proven_documentation_changes(tmp_path: Path) -
         subprocess.check_output([*command, "unavailable", "HEAD"], cwd=tmp_path, text=True).strip()
         == "profile=true"
     )
+
+
+def test_premerge_ty_failure_stops_before_running_pytest(tmp_path: Path) -> None:
+    env = _environment(tmp_path, 'echo "type mismatch" >&2\nexit 1\n')
+    bin_dir = tmp_path / "bin"
+    sentinel = tmp_path / "pytest_invoked"
+    uv_stub = f"""if [ "$1" = "--version" ]; then
+    echo "uv 0.9.24"
+    exit 0
+fi
+if [ "$1" = "run" ] && [ "$2" = "pytest" ]; then
+    touch "{sentinel}"
+    exit 0
+fi
+exit 0
+"""
+    _executable(bin_dir / "uv", uv_stub)
+    result = _gate(tmp_path, env, surface="local")
+    assert result.returncode == 1
+    assert "type mismatch" in result.stdout or "type mismatch" in result.stderr
+    assert not sentinel.exists(), "premerge must not invoke pytest when ty check fails"
+
+
+def test_ci_workflow_lane_gating_and_wheelhouse_triggers() -> None:
+    ci_path = ROOT / ".github/workflows/ci.yml"
+    wheelhouse_path = ROOT / ".github/workflows/mcp-wheelhouse-platform.yml"
+
+    ci = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+    wheelhouse = yaml.safe_load(wheelhouse_path.read_text(encoding="utf-8"))
+
+    assert "scope" in ci["jobs"]
+    assert ci["jobs"]["scope"]["outputs"]["profile"] == "${{ steps.changes.outputs.profile }}"
+    assert ci["jobs"]["test"]["needs"] == "scope"
+
+    test_steps = ci["jobs"]["test"]["steps"]
+    full_suite_steps = [
+        s
+        for s in test_steps
+        if "uv run --no-sync pytest" in s.get("run", "")
+        and "-m docs_consumer" not in s.get("run", "")
+    ]
+    docs_lane_steps = [
+        s for s in test_steps if "uv run --no-sync pytest -m docs_consumer" in s.get("run", "")
+    ]
+
+    assert len(full_suite_steps) == 1, "expected exactly one full test suite step"
+    assert len(docs_lane_steps) == 1, "expected exactly one docs_consumer test suite step"
+
+    assert "needs.scope.outputs.profile == 'true'" in full_suite_steps[0].get("if", "")
+    assert "needs.scope.outputs.profile == 'false'" in docs_lane_steps[0].get("if", "")
+
+    assert "GITHUB_STEP_SUMMARY" in full_suite_steps[0].get("run", "")
+    assert "GITHUB_STEP_SUMMARY" in docs_lane_steps[0].get("run", "")
+
+    on_triggers = wheelhouse.get("on") or wheelhouse.get(True) or {}
+    push_branches = on_triggers.get("push", {}).get("branches", [])
+    assert push_branches == ["main", "integrate/**"]
+
+    concurrency = wheelhouse.get("concurrency", {})
+    assert concurrency.get("cancel-in-progress") is True
+    assert "github.workflow" in concurrency.get("group", "")

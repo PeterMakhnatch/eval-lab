@@ -19,6 +19,8 @@ from evallab.cards import (
 from evallab.cohort import bootstrap_mean_interval
 from evallab.evidence.facts import digest_json
 
+pytestmark = pytest.mark.docs_consumer
+
 
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

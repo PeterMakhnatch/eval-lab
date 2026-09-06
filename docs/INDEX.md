@@ -9,7 +9,7 @@ inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
     digest: sha256:5aa795040fa3349f80fcb948c007aa4921774fcf537cc9306a0ce60072223e71
   - path: docs/GENERATED-CACHE-POLICY.md
-    digest: sha256:c406a958dfe2a0d7e424f969b82cc43718913a978c674fae6a8079fbf7e9975f
+    digest: sha256:97df8d5121a89a866c2a1a392d7bdd372bb04bb5448d75bcbde3c12d80139fdd
   - path: docs/GIANT-FILE-SPLIT-PROPOSALS.md
     digest: sha256:f4e5e908877c3f5070fc9fb1cdc865930a515faca56825b075d944c3c26b7ffb
   - path: docs/GLOSSARY.md
@@ -18,8 +18,6 @@ inputs:
     digest: sha256:31a0d2af45c08183e43373769db59623eeb60889960f27ce5c6d00fff2170051
   - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
     digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
-  - path: docs/STATUS.md
-    digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
   - path: docs/WHERE-DOES-THIS-GO.md
@@ -51,9 +49,9 @@ inputs:
   - path: docs/catalog-tables.md
     digest: sha256:ea8da71fe7a6ba15138c311b4649258dda8dbaa78e1674d1d2ced5ea8d7d2068
   - path: docs/content-inventory.md
-    digest: sha256:8805d7e8ff354126253600e522e70fa5f86b0ac8b54ce089b60ac2843d61b4cb
+    digest: sha256:c89f7611df273e51b24918678fb12bd14033aa7fd245e190663d5c395ecaeb0e
   - path: docs/context-packs.md
-    digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
+    digest: sha256:bbe4727cbbee6b40751a88f011a1e62807b5a02382a7aa868a521bdce97c6b25
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
@@ -96,8 +94,6 @@ inputs:
     digest: sha256:2ea898ffa7c1f2feb696dff9de6658e350ca06e76842c2a5d829541602bf3f33
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
-  - path: docs/parallel-work.md
-    digest: sha256:3e2a5e29972db85f7e392296b133f4e5ee4a2d3a5e63c14235d2b4e3ac09d348
   - path: docs/parquet-compaction.md
     digest: sha256:54a97a4bc750fb865aec8eec1a00590d523e90690a625c986670df981aa33f5b
   - path: docs/path-forward-2026-08.md
@@ -108,8 +104,6 @@ inputs:
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
-  - path: docs/repo-map.md
-    digest: sha256:d386304c9e5cd281872d226383caf580fb2fbc888bd21c510d70b123b99f8736
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -139,7 +133,7 @@ inputs:
   - path: docs/task-workbench.md
     digest: sha256:f77824bd91eaadead28d7495fbad0eefa5d7099905ac3adb5997e7dcf34bfbe8
   - path: docs/tidy.md
-    digest: sha256:10f5c271c1dd3e951a55242f3a9a44d110908ff30be7b870fc5522ffec468d92
+    digest: sha256:c6a00e9c6e6e64eb4b2d5b1ad46ad7c973c044aefdd301dcae732a06181cef9a
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
@@ -363,7 +357,6 @@ an operator can see what is archived.
 | `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
 | `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
 | `docs/operator-demo.md` | Operator demo — one truthful analysis loop | `historical` | `operator` |
-| `docs/parallel-work.md` | Moved | `historical` | `operator` |
 | `docs/path-forward-2026-08.md` | The path forward — 2026-08 | `historical` | `operator` |
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `historical` | `builder, analyst, operator` |
 
@@ -384,7 +377,6 @@ Historical documents. These are archived records, not living contracts.
 | `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
 | `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
 | `docs/operator-demo.md` | Operator demo — one truthful analysis loop | `historical` | `operator` |
-| `docs/parallel-work.md` | Moved | `historical` | `operator` |
 | `docs/path-forward-2026-08.md` | The path forward — 2026-08 | `historical` | `operator` |
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `historical` | `builder, analyst, operator` |
 | `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `historical` | `builder, analyst` |

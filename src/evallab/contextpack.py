@@ -21,7 +21,7 @@ import hashlib
 import json
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -124,10 +124,13 @@ class ContextPackResult:
     truncated: bool = False
     dropped_items: tuple[str, ...] = ()
     tokens_shed: int = 0
+    paths: tuple[str, ...] | None = None
+    doc_scores: dict[str, int] | None = None
+    doc_sections: dict[str, tuple[str, ...]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to a JSON-serializable dictionary."""
-        return {
+        payload: dict[str, Any] = {
             "generator": CONTEXTPACK_VERSION,
             "mission_type": self.mission_type,
             "task_ref": self.task_ref,
@@ -140,6 +143,16 @@ class ContextPackResult:
                     "status": d.status,
                     "audience": list(d.audience),
                     "digest": d.content_digest,
+                    **(
+                        {"score": self.doc_scores[d.path]}
+                        if self.doc_scores and d.path in self.doc_scores
+                        else {}
+                    ),
+                    **(
+                        {"sections": list(self.doc_sections[d.path])}
+                        if self.doc_sections and d.path in self.doc_sections
+                        else {}
+                    ),
                 }
                 for d in self.docs
             ],
@@ -150,6 +163,11 @@ class ContextPackResult:
             "dropped_items": list(self.dropped_items),
             "tokens_shed": self.tokens_shed,
         }
+        if self.paths is not None:
+            payload["paths"] = list(self.paths)
+        if self.doc_scores is not None:
+            payload["doc_scores"] = dict(self.doc_scores)
+        return payload
 
 
 def parse_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
@@ -247,6 +265,187 @@ def select_docs(
 
 
 discover_docs = select_docs
+
+
+def extract_tokens_for_path(path_str: str) -> list[str]:
+    """Extract reference tokens for a repo-relative path.
+
+    Tokens include:
+    - The exact path (cleaned, no trailing slash).
+    - The basename (if the path has a file suffix).
+    - For src/evallab/**/*.py, the dotted module name.
+    - For directories/prefixes, the path itself.
+    """
+    clean = path_str.strip().rstrip("/")
+    if not clean:
+        return []
+    tokens = [clean]
+    p = Path(clean)
+    if p.suffix:
+        base = p.name
+        if base and base != clean and base not in tokens:
+            tokens.append(base)
+        parts = p.parts
+        if len(parts) >= 3 and parts[0] == "src" and parts[1] == "evallab" and p.suffix == ".py":
+            sub_parts = list(parts[1:])
+            if sub_parts[-1] == "__init__.py":
+                dotted = ".".join(sub_parts[:-1])
+            else:
+                stem = p.stem
+                dotted = ".".join(sub_parts[:-1] + [stem])
+            if dotted and dotted not in tokens:
+                tokens.append(dotted)
+    return tokens
+
+
+def extract_matching_sections(
+    body: str, patterns: Sequence[re.Pattern]
+) -> list[tuple[str, str, str, int]]:
+    """Extract sections from a markdown body that contain at least one token match.
+
+    Returns a list of (heading_title, heading_line, section_content, occurrence_count).
+    Pre-heading preamble counts as a section with heading_title="(preamble)".
+    """
+    lines = body.splitlines(keepends=True)
+    if not lines:
+        return []
+
+    in_code_block = False
+    heading_re = re.compile(r"^(#{1,6})\s+(.*)$")
+    headings: list[tuple[int, int, str, str]] = []  # (line_idx, level, title, raw_line)
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if not in_code_block:
+            m = heading_re.match(line.rstrip())
+            if m:
+                headings.append((idx, len(m.group(1)), m.group(2).strip(), line.rstrip()))
+
+    if not headings:
+        occ = sum(len(pat.findall(body)) for pat in patterns)
+        if occ > 0:
+            return [("(preamble)", "", body.strip(), occ)]
+        return []
+
+    sections: list[tuple[str, str, str, int]] = []
+    first_heading_idx = headings[0][0]
+    if first_heading_idx > 0:
+        preamble = "".join(lines[:first_heading_idx]).strip()
+        if preamble:
+            occ = sum(len(pat.findall(preamble)) for pat in patterns)
+            if occ > 0:
+                sections.append(("(preamble)", "", preamble, occ))
+
+    for i, (idx, level, title, hline) in enumerate(headings):
+        end_idx = len(lines)
+        for j in range(i + 1, len(headings)):
+            if headings[j][1] <= level:
+                end_idx = headings[j][0]
+                break
+        sec_text = "".join(lines[idx:end_idx]).strip()
+        occ = sum(len(pat.findall(sec_text)) for pat in patterns)
+        if occ == 0:
+            continue
+        # Check if any child heading inside this section ALSO matches
+        child_matches = False
+        for j in range(i + 1, len(headings)):
+            if headings[j][0] >= end_idx:
+                break
+            child_end = len(lines)
+            for k in range(j + 1, len(headings)):
+                if headings[k][1] <= headings[j][1]:
+                    child_end = headings[k][0]
+                    break
+            child_text = "".join(lines[headings[j][0] : child_end]).strip()
+            if sum(len(pat.findall(child_text)) for pat in patterns) > 0:
+                child_matches = True
+                break
+        if not child_matches:
+            sections.append((title, hline, sec_text, occ))
+        else:
+            # Parent has direct text before first child; check if that direct text has matches
+            first_child_idx = (
+                headings[i + 1][0]
+                if i + 1 < len(headings) and headings[i + 1][0] < end_idx
+                else end_idx
+            )
+            direct_text = "".join(lines[idx:first_child_idx]).strip()
+            direct_occ = sum(len(pat.findall(direct_text)) for pat in patterns)
+            if direct_occ > 0:
+                sections.append((title, hline, direct_text, direct_occ))
+
+    return sections
+
+
+def select_docs_for_paths(
+    docs_dir: Path,
+    paths: Sequence[str],
+    root: Path | None = None,
+) -> tuple[
+    list[DocMetadata],
+    dict[str, int],
+    dict[str, list[tuple[str, str, str, int]]],
+]:
+    """Discover and filter living docs scored against path reference tokens.
+
+    Candidate corpus: all living docs in docs/ and docs/research/ regardless of audience.
+    Relevance score: total occurrences of all reference tokens found in doc body.
+    Docs with score 0 are excluded except docs/NOW.md, which is always retained.
+    Retained docs ordered by (score desc, path).
+    """
+    resolved_root = root if root is not None else repo_root()
+    if not docs_dir.is_dir():
+        return [], {}, {}
+
+    candidates: list[Path] = []
+    for path in sorted(docs_dir.glob("*.md")):
+        if path.is_file() and not path.name.startswith("."):
+            candidates.append(path)
+
+    research_dir = docs_dir / "research"
+    if research_dir.is_dir():
+        for path in sorted(research_dir.glob("*.md")):
+            if path.is_file() and not path.name.startswith("."):
+                candidates.append(path)
+
+    all_living_docs: list[DocMetadata] = []
+    for path in sorted(candidates, key=lambda p: p.as_posix()):
+        doc = parse_doc(path, root=resolved_root)
+        if doc.status == "living":
+            all_living_docs.append(doc)
+
+    # Collect all distinct reference tokens
+    distinct_tokens: list[str] = []
+    for p in paths:
+        for tok in extract_tokens_for_path(p):
+            if tok not in distinct_tokens:
+                distinct_tokens.append(tok)
+
+    token_patterns = [
+        re.compile(rf"(?<![A-Za-z0-9_./-]){re.escape(tok)}(?![A-Za-z0-9_-]|(\.[A-Za-z0-9_]))")
+        for tok in distinct_tokens
+    ]
+
+    scored_docs: list[tuple[int, DocMetadata]] = []
+    doc_scores: dict[str, int] = {}
+    doc_sections_map: dict[str, list[tuple[str, str, str, int]]] = {}
+
+    for doc in all_living_docs:
+        score = sum(len(pat.findall(doc.body)) for pat in token_patterns)
+        doc_scores[doc.path] = score
+        if doc.path == "docs/NOW.md":
+            doc_sections_map[doc.path] = [("(full)", "", doc.body, score)]
+            scored_docs.append((score, doc))
+        elif score > 0:
+            secs = extract_matching_sections(doc.body, token_patterns)
+            doc_sections_map[doc.path] = secs
+            scored_docs.append((score, doc))
+
+    scored_docs.sort(key=lambda item: (-item[0], item[1].path))
+    return [doc for _, doc in scored_docs], doc_scores, doc_sections_map
 
 
 def query_task_facets(
@@ -518,9 +717,7 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
             "3. **Subscription Authentication**: Use `oracle` / `nop` for testing; "
             "use subscription keys strictly under policy limits."
         )
-        lines.append(
-            "4. **Evidence Preservation**: Never alter raw job directories once written."
-        )
+        lines.append("4. **Evidence Preservation**: Never alter raw job directories once written.")
     elif mission_type == "operator":
         lines.append("### Objective: Platform Operations & Fleet Health")
         lines.append(
@@ -549,9 +746,7 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
     lines.append("")
     if task_ref:
         lines.append(f"### Target Task Reference: `{task_ref}`")
-        lines.append(
-            f"All operations in this mission should benchmark against task `{task_ref}`."
-        )
+        lines.append(f"All operations in this mission should benchmark against task `{task_ref}`.")
         lines.append("")
 
     return "\n".join(lines)
@@ -608,6 +803,8 @@ def _render_pack_body(
     untruncated_tokens: int,
     untruncated_chars: int,
     include_task_facets: bool = True,
+    paths: Sequence[str] | None = None,
+    doc_sections: Mapping[str, Sequence[tuple[str, str, str, int]]] | None = None,
 ) -> str:
     """Render canonical markdown body of the context pack."""
     body_sections: list[str] = []
@@ -615,8 +812,9 @@ def _render_pack_body(
     # Title & Metadata
     body_sections.append(f"# Context Pack: {mission_type.capitalize()} Mission")
     body_sections.append("")
+    scope_str = f" | Scope: `{', '.join(paths)}`" if paths else ""
     body_sections.append(
-        f"> Mission Type: `{mission_type}` | Target Task: `{task_ref or 'none'}` | "
+        f"> Mission Type: `{mission_type}` | Target Task: `{task_ref or 'none'}`{scope_str} | "
         f"Living Docs Included: {len(docs)}"
     )
     body_sections.append("")
@@ -668,16 +866,23 @@ def _render_pack_body(
         anchor = doc.path.replace("/", "-").replace(".", "-")
         body_sections.append(f'<a id="{anchor}"></a>')
         body_sections.append(f"## {doc.title}")
-        aud_list = ", ".join(doc.audience)
-        body_sections.append(
-            f"*Source: `{doc.path}` | Status: `{doc.status}` | Audience: `[{aud_list}]`*"
-        )
-        body_sections.append("")
-        body_sections.append(doc.body)
-        body_sections.append("")
+        if paths and doc_sections and doc.path in doc_sections and doc.path != "docs/NOW.md":
+            for sec_title, _sec_hline, sec_content, _occ in doc_sections[doc.path]:
+                heading_ref = sec_title if sec_title else "preamble"
+                body_sections.append(f"*Source: {doc.path}#{heading_ref}*")
+                body_sections.append("")
+                body_sections.append(sec_content)
+                body_sections.append("")
+        else:
+            aud_list = ", ".join(doc.audience)
+            body_sections.append(
+                f"*Source: `{doc.path}` | Status: `{doc.status}` | Audience: `[{aud_list}]`*"
+            )
+            body_sections.append("")
+            body_sections.append(doc.body)
+            body_sections.append("")
         body_sections.append("---")
         body_sections.append("")
-
     # Task Facets and CRAFT Patterns (if task ref provided and retained)
     if include_task_facets:
         if task_facets:
@@ -712,14 +917,17 @@ def _format_full_markdown(
     truncated: bool,
     token_budget: int | None,
     tokens_shed: int,
+    paths: Sequence[str] | None = None,
 ) -> str:
     """Format final compiled markdown with header comments and content digest."""
     header_lines = [
         HEADER_PREFIX,
         f"<!-- mission-type: {mission_type} -->",
         f"<!-- target-task: {task_ref or 'none'} -->",
-        f"<!-- doc-count: {doc_count} -->",
     ]
+    if paths:
+        header_lines.append(f"<!-- scope: {', '.join(paths)} -->")
+    header_lines.append(f"<!-- doc-count: {doc_count} -->")
     if truncated:
         header_lines.append("<!-- truncated: true -->")
         if token_budget is not None:
@@ -738,6 +946,7 @@ def build_context_pack(
     parquet_path: Path | None = None,
     root: Path | None = None,
     token_budget: int | None = DEFAULT_TOKEN_BUDGET,
+    paths: Sequence[str] | None = None,
 ) -> ContextPackResult:
     """Compile a deterministic context pack for the requested mission type.
 
@@ -753,9 +962,41 @@ def build_context_pack(
             f"Invalid mission type '{mission_type}'. Must be one of: {valid_types_str}"
         )
 
-    # 1. Select living docs matching the mission type
-    docs = select_docs(resolved_docs_dir, mission_type, root=resolved_root)
+    normalized_paths: tuple[str, ...] | None = None
+    if paths:
+        norm_list: list[str] = []
+        for p in paths:
+            clean = p.strip()
+            if not clean:
+                continue
+            if clean.startswith("/") or Path(clean).is_absolute():
+                raise ValueError(f"Invalid path '{p}': must be repo-relative (no leading '/')")
+            if ".." in Path(clean).parts:
+                raise ValueError(f"Invalid path '{p}': path traversal ('..') not allowed")
+            norm_list.append(clean)
+        if norm_list:
+            normalized_paths = tuple(norm_list)
 
+    # 1. Select living docs (path-scoped or mission-audience filtered)
+    doc_scores: dict[str, int] | None = None
+    doc_sections_map: dict[str, list[tuple[str, str, str, int]]] | None = None
+    doc_sections_summary: dict[str, tuple[str, ...]] | None = None
+    doc_rendered_sizes: dict[str, int] = {}
+    if normalized_paths:
+        docs, doc_scores, doc_sections_map = select_docs_for_paths(
+            resolved_docs_dir, normalized_paths, root=resolved_root
+        )
+        doc_sections_summary = {}
+        for d in docs:
+            if d.path == "docs/NOW.md":
+                doc_rendered_sizes[d.path] = len(d.body)
+                doc_sections_summary[d.path] = ("(full)",)
+            else:
+                secs = doc_sections_map.get(d.path, [])
+                doc_rendered_sizes[d.path] = sum(len(c) for _, _, c, _ in secs)
+                doc_sections_summary[d.path] = tuple(title for title, _, _, _ in secs)
+    else:
+        docs = select_docs(resolved_docs_dir, mission_type, root=resolved_root)
     # 2. Query task facets if task reference is provided
     task_facets: TaskFacetSummary | None = None
     if task_ref:
@@ -772,6 +1013,8 @@ def build_context_pack(
         untruncated_tokens=0,
         untruncated_chars=0,
         include_task_facets=True,
+        paths=normalized_paths,
+        doc_sections=doc_sections_map,
     )
     untruncated_hash = f"sha256:{hashlib.sha256(untruncated_body.encode('utf-8')).hexdigest()}"
     untruncated_md = _format_full_markdown(
@@ -783,6 +1026,7 @@ def build_context_pack(
         truncated=False,
         token_budget=None,
         tokens_shed=0,
+        paths=normalized_paths,
     )
     untruncated_tokens = estimate_tokens(untruncated_md)
     untruncated_chars = len(untruncated_md)
@@ -801,10 +1045,24 @@ def build_context_pack(
             truncated=False,
             dropped_items=(),
             tokens_shed=0,
+            paths=normalized_paths,
+            doc_scores=doc_scores,
+            doc_sections=doc_sections_summary,
         )
 
     # 5. Priority-ordered truncation
-    drop_order = sorted(docs, key=lambda d: doc_priority_key(d, mission_type))
+    if normalized_paths and doc_scores:
+        drop_order = sorted(
+            docs,
+            key=lambda d: (
+                doc_scores.get(d.path, 0),
+                -doc_rendered_sizes.get(d.path, 0),
+                d.path,
+            ),
+        )
+    else:
+        drop_order = sorted(docs, key=lambda d: doc_priority_key(d, mission_type))
+
     retained_docs = list(docs)
     dropped_items: list[tuple[str, int]] = []
     include_task_facets = True
@@ -818,9 +1076,17 @@ def build_context_pack(
         if estimate_tokens(curr_md) <= token_budget:
             break
         retained_docs.remove(doc_to_drop)
-        # Keep retained docs sorted alphabetically by path
-        retained_docs = sorted(retained_docs, key=lambda d: d.path)
-        doc_tok = estimate_tokens(doc_to_drop.body)
+        if normalized_paths and doc_scores:
+            retained_docs = sorted(
+                retained_docs,
+                key=lambda d: (-doc_scores.get(d.path, 0), d.path),
+            )
+        else:
+            retained_docs = sorted(retained_docs, key=lambda d: d.path)
+        if normalized_paths and doc_rendered_sizes:
+            doc_tok = (doc_rendered_sizes.get(doc_to_drop.path, 0) + 3) // CHARS_PER_TOKEN
+        else:
+            doc_tok = estimate_tokens(doc_to_drop.body)
         dropped_items.append((doc_to_drop.path, doc_tok))
         curr_body = _render_pack_body(
             mission_type,
@@ -832,6 +1098,8 @@ def build_context_pack(
             untruncated_tokens=untruncated_tokens,
             untruncated_chars=untruncated_chars,
             include_task_facets=include_task_facets,
+            paths=normalized_paths,
+            doc_sections=doc_sections_map,
         )
         curr_hash = f"sha256:{hashlib.sha256(curr_body.encode('utf-8')).hexdigest()}"
         tokens_shed = sum(tok for _, tok in dropped_items)
@@ -844,6 +1112,7 @@ def build_context_pack(
             truncated=True,
             token_budget=token_budget,
             tokens_shed=tokens_shed,
+            paths=normalized_paths,
         )
 
     # Phase 2: If all docs dropped and still over budget, drop task facets if present
@@ -861,6 +1130,8 @@ def build_context_pack(
             untruncated_tokens=untruncated_tokens,
             untruncated_chars=untruncated_chars,
             include_task_facets=False,
+            paths=normalized_paths,
+            doc_sections=doc_sections_map,
         )
         curr_hash = f"sha256:{hashlib.sha256(curr_body.encode('utf-8')).hexdigest()}"
         tokens_shed = sum(tok for _, tok in dropped_items)
@@ -873,6 +1144,7 @@ def build_context_pack(
             truncated=True,
             token_budget=token_budget,
             tokens_shed=tokens_shed,
+            paths=normalized_paths,
         )
 
     # Final result
@@ -891,6 +1163,9 @@ def build_context_pack(
         truncated=True,
         dropped_items=tuple(name for name, _ in dropped_items),
         tokens_shed=total_tokens_shed,
+        paths=normalized_paths,
+        doc_scores=doc_scores,
+        doc_sections=doc_sections_summary,
     )
 
 
@@ -944,6 +1219,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="TOKENS",
         default=DEFAULT_TOKEN_BUDGET,
         help=f"Token budget ceiling (default {DEFAULT_TOKEN_BUDGET} per v2 §6; 0 for unlimited)",
+    )
+    build_cmd.add_argument(
+        "--path",
+        dest="paths",
+        action="append",
+        metavar="REL",
+        default=None,
+        help="Repo-relative path or prefix to scope context pack documentation to (repeatable)",
     )
     build_cmd.add_argument(
         "--json",
@@ -1006,6 +1289,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "build":
         budget_val = args.budget if (args.budget is not None and args.budget > 0) else None
+        if args.paths:
+            for p in args.paths:
+                clean = p.strip()
+                if clean.startswith("/") or Path(clean).is_absolute():
+                    print(
+                        f"error: invalid path '{p}': must be repo-relative (no leading '/')",
+                        file=sys.stderr,
+                    )
+                    return 1
+                if ".." in Path(clean).parts:
+                    print(
+                        f"error: invalid path '{p}': path traversal ('..') not allowed",
+                        file=sys.stderr,
+                    )
+                    return 1
         try:
             result = build_context_pack(
                 args.mission_type,
@@ -1014,11 +1312,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parquet_path=args.parquet,
                 root=root,
                 token_budget=budget_val,
+                paths=args.paths,
             )
         except Exception as exc:
             print(f"error: failed to build context pack: {exc}", file=sys.stderr)
             return 1
-
         if args.out:
             out_path = args.out.expanduser().resolve()
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1028,9 +1326,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 payload["output_file"] = out_path.as_posix()
                 print(json.dumps(payload, indent=2, sort_keys=True))
             else:
+                scope_info = f", {len(result.paths)} path(s)" if result.paths else ""
                 print(
                     f"Compiled context pack for {args.mission_type} "
-                    f"({len(result.docs)} docs, {result.content_hash}) -> {out_path}"
+                    f"({len(result.docs)} docs{scope_info}, {result.content_hash}) -> {out_path}"
                 )
         else:
             if args.json:

@@ -1,6 +1,10 @@
 from pathlib import Path
 
+import pytest
+
 from evallab.governance import collect_issues, declared_roots
+
+pytestmark = pytest.mark.docs_consumer
 
 DOCUMENTS = {
     "agents/missions/ACTIVE.md": "# Mission board\n\n## Now\n\n## Missions\n",

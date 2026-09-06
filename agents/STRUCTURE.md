@@ -18,7 +18,6 @@ eval-lab/
 ├── agents/                    HOW WE WORK — coordination and governance
 │   ├── WORKFLOW.md            the work protocol (worktrees, merges, boundaries)
 │   ├── OWNERS.md              four stable lanes + Peter's reserved authority
-│   ├── ROLES.md               superseded — compatibility pointer (M001)
 │   ├── missions/              ACTIVE.md live board + TEMPLATE.md
 │   ├── archive/               dated closed-mission and registry records, plus
 │   │                          dated handoff subdirectories. Normalize the
@@ -50,7 +49,6 @@ eval-lab/
 │   ├── research-questions.md  what this lab studies
 │   ├── path-forward-2026-08.md    dated direction note
 │   ├── mentor-review-2026-08.md   dated external review
-│   ├── parallel-work.md       superseded — pointer to agents/WORKFLOW.md
 │   ├── prompts/               living mission-prompt sets + living README
 │   ├── archive/prompts/       superseded implementation briefs (01–09, 12)
 │   │                          + dated legacy mission sets (M001–M014)
@@ -109,6 +107,7 @@ eval-lab/
 ├── .githooks/                 checked-in repository hook implementations
 ├── .env.example               environment-variable template
 ├── .gitignore                 generated/local path exclusions
+├── .ignore                    search exclusions (archive directories)
 ├── .gitattributes             merge and path attributes
 ├── .python-version            development Python pin
 │
@@ -215,3 +214,7 @@ The change log below is historical, not a current inventory or work order.
   agent coordination and engineering workflow; the first entries are scoped
   change-impact and repository-health skills that reference, rather than
   duplicate, the binding repository contracts.
+- 2026-09-06 — retired compatibility pointers `agents/ROLES.md` and
+  `docs/parallel-work.md` removed from the tree; `.ignore` declared at root
+  to exclude archive directories from default search (bucket rule: search exclusions,
+  companion to `.gitignore`).

@@ -5,13 +5,16 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from evallab.contextpack import parse_front_matter, repo_root
-from evallab.lineage import compute_file_digest, resolve_lineage
+from evallab.lineage import resolve_lineage
 from evallab.repomap import (
     GENERATED_BY_MARKER,
     _function_map,
     build_map,
     check_map,
+    compute_module_structural_digest,
     discover_module_paths,
     generate_map,
     main,
@@ -19,6 +22,8 @@ from evallab.repomap import (
     module_purpose,
     write_map,
 )
+
+pytestmark = pytest.mark.docs_consumer
 
 SKILL_NAMES = ("lab-status", "mission-launch", "review")
 
@@ -352,16 +357,76 @@ def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
     assert map_path.read_text(encoding="utf-8") == first
 
 
-def test_recorded_digests_match_actual_file_digests(tmp_path: Path) -> None:
+def test_recorded_digests_match_structural_digests(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
     map_text = generate_map(src_dir=src, root=tmp_path)
     fm, _body = parse_front_matter(map_text)
     assert fm is not None and "inputs" in fm
+    snapshot = build_map(src_dir=src, root=tmp_path)
+    cmd_map = {m.name: m.commands for m in snapshot.modules}
     for item in fm["inputs"]:
         target_file = tmp_path / item["path"]
         assert target_file.is_file()
-        expected = compute_file_digest(target_file)
+        mod_name = module_name_for_path(target_file, src)
+        expected = compute_module_structural_digest(target_file, cmd_map.get(mod_name, ()))
         assert item["digest"] == expected
+
+
+def test_body_only_edit_preserves_map_output(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    before = generate_map(src_dir=src, root=tmp_path)
+    # Body-only edit that also changes the module's line count: the map must not move.
+    _write_module(
+        src,
+        "status",
+        '"""Read-only operator snapshot of completed Harbor evidence."""\n\n'
+        "def build_status_snapshot() -> str:\n"
+        "    parts = []\n"
+        "    for _ in range(3):\n"
+        '        parts.append("new_implementation_same_signature")\n'
+        '    return "".join(parts)\n',
+    )
+    after = generate_map(src_dir=src, root=tmp_path)
+    assert after == before, "Body-only edit should produce identical repo-map output"
+
+
+def test_structural_change_produces_different_map_output(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    before = generate_map(src_dir=src, root=tmp_path)
+    # Add a public function to status.py
+    _write_module(
+        src,
+        "status",
+        '"""Read-only operator snapshot of completed Harbor evidence."""\n\n'
+        "def build_status_snapshot() -> str:\n"
+        '    return "ok"\n\n\n'
+        "def extra_public_function() -> None:\n"
+        '    """Newly added public function."""\n'
+        "    pass\n",
+    )
+    after = generate_map(src_dir=src, root=tmp_path)
+    assert after != before, "Adding a public function must change repo-map output"
+
+
+def test_check_map_detects_stale_map_after_structural_change(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    map_path = tmp_path / "docs" / "repo-map.md"
+    write_map(output=map_path, src_dir=src, root=tmp_path)
+    assert check_map(src_dir=src, map_path=map_path, root=tmp_path) == []
+
+    # Introduce a structural declaration change
+    _write_module(
+        src,
+        "status",
+        '"""Read-only operator snapshot of completed Harbor evidence."""\n\n'
+        "class NewExportedClass:\n"
+        '    """New class."""\n'
+        "    pass\n\n\n"
+        "def build_status_snapshot() -> str:\n"
+        '    return "ok"\n',
+    )
+    issues = check_map(src_dir=src, map_path=map_path, root=tmp_path)
+    assert any("stale" in issue.message for issue in issues)
 
 
 def test_lineage_resolution_on_generated_map(tmp_path: Path) -> None:

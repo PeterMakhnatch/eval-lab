@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
+import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -304,6 +305,7 @@ class TrajectoryFeatures:
     edit_efficiency_screening: float | None = None
     path_reference_validity_rate_screening: float | None = None
     citation_reference_validity_rate_screening: float | None = None
+    projected_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -394,6 +396,7 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("edit_efficiency_screening", pa.float64(), nullable=True),
         pa.field("path_reference_validity_rate_screening", pa.float64(), nullable=True),
         pa.field("citation_reference_validity_rate_screening", pa.float64(), nullable=True),
+        pa.field("projected_at", pa.string(), nullable=True),
     ]
 )
 
@@ -1117,8 +1120,11 @@ def outline_trajectory(
     trial_id = _safe_str(result_data.get("id") or trial_dir.name)
     trial_name = _safe_str(result_data.get("trial_name") or trial_dir.name)
     task_name = _safe_str(result_data.get("task_name") or "unknown")
-    job_id = _safe_str(cfg.get("job_id") or trial_dir.parent.name)
-    job_name = _safe_str(trial_dir.parent.name)
+    parent_dir = trial_dir.parent
+    if parent_dir.name.startswith("trials") and parent_dir.parent.name not in ("runs", "evidence"):
+        parent_dir = parent_dir.parent
+    job_id = _safe_str(cfg.get("job_id") or parent_dir.name)
+    job_name = _safe_str(parent_dir.name)
 
     agent_info_value = result_data.get("agent_info")
     agent_info = agent_info_value if isinstance(agent_info_value, dict) else {}
@@ -1735,6 +1741,7 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
             if outline.citation_reference_count > 0
             else None
         ),
+        projected_at=(outline.steps[0].timestamp or "") if outline.steps else "",
     )
 
 
@@ -1853,7 +1860,27 @@ def project_trajectory_features(
             if not job_dir.is_dir() or job_dir.name.startswith("."):
                 continue
             for trial_dir in job_dir.iterdir():
-                if trial_dir.is_dir() and not trial_dir.name.startswith("."):
+                if not trial_dir.is_dir() or trial_dir.name.startswith("."):
+                    continue
+                if (
+                    (trial_dir / "agent/trajectory.json").exists()
+                    or (trial_dir / "trajectory.json").exists()
+                    or (trial_dir / "result.json").exists()
+                ):
+                    discovered_trial_dirs.add(trial_dir)
+                elif trial_dir.name.startswith("trials"):
+                    for sub in trial_dir.iterdir():
+                        if (
+                            sub.is_dir()
+                            and not sub.name.startswith(".")
+                            and (
+                                (sub / "agent/trajectory.json").exists()
+                                or (sub / "trajectory.json").exists()
+                                or (sub / "result.json").exists()
+                            )
+                        ):
+                            discovered_trial_dirs.add(sub)
+                else:
                     discovered_trial_dirs.add(trial_dir)
 
     features_list: list[TrajectoryFeatures] = []
@@ -1873,11 +1900,17 @@ def project_trajectory_features(
                 unavailable_count += 1
         except Exception as exc:
             # Explicit missing/failed accounting
+            parent_dir = t_dir.parent
+            if parent_dir.name.startswith("trials") and parent_dir.parent.name not in (
+                "runs",
+                "evidence",
+            ):
+                parent_dir = parent_dir.parent
             feat = TrajectoryFeatures(
                 trial_id=t_dir.name,
-                job_id=t_dir.parent.name,
+                job_id=parent_dir.name,
                 trial_name=t_dir.name,
-                job_name=t_dir.parent.name,
+                job_name=parent_dir.name,
                 task_name="unknown",
                 agent_name="unknown",
                 agent_version=None,
@@ -1943,6 +1976,7 @@ def project_trajectory_features(
                 edit_efficiency_screening=None,
                 path_reference_validity_rate_screening=None,
                 citation_reference_validity_rate_screening=None,
+                projected_at="",
             )
             features_list.append(feat)
             unavailable_count += 1
@@ -1967,3 +2001,567 @@ def project_trajectory_features(
         table_rows=len(rows),
         sha256=out_sha,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Versioned Trajectory Store Read Rule (A4)
+# --------------------------------------------------------------------------- #
+
+VERIFIED_ON_DISK_TRAJECTORY_HASHES: tuple[str, ...] = (
+    "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
+    "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
+    "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
+    "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d",
+    "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea",
+    "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6",
+    "980a071130fcc9a010f31f0cdce7ee2a5f481fff46ace2a60b16a198c5aaca29",
+    "c17aefc4db5b06015599d898a6bc76c487d25eafae727f876d2c959104a18262",
+    "ae4ad1fdfa8650c16c3e62722676abd287537ecb7bfe12efc8aae0ac82a68540",
+    "20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6",
+    "4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c",
+    "d54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3",
+    "02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781",
+    "7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20",
+    "4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd",
+    "54eb4a0c6607353ae6438fe19b64cdc8312f9aa1c3a87a08b31def0bafe784c7",
+    "27168e9921f70cc4c43f1f10b893ef0ea1e17b1fcace37e5db70506d002f3a88",
+    "a1e5fcc95e07e43507df7bb82c209e343cd79bd4811f83ba870788211e1dad70",
+    "55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+    "147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+    "97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+    "5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686",
+    "6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2",
+    "e429ff733b4a27142fda77a6e65ef34ceef3c4678a3806ee7fb61d9a146e7f7f",
+)
+
+KNOWN_ABSENT_TRIALS: tuple[dict[str, Any], ...] = (
+    {
+        "trial_id": "adapted-task__PmTen2E",
+        "job_id": "funcdag-codex-canary",
+        "trial_name": "adapted-task__PmTen2E",
+        "job_name": "funcdag-codex-canary",
+        "task_name": "adapted-task",
+        "agent_name": "codex",
+        "agent_version": "0.1.0",
+        "model_name": "gpt-5.6",
+        "status": "featured",
+        "unavailable_reason": None,
+        "source_path": (
+            "runs/funcdag-codex-canary/trials/adapted-task__PmTen2E/agent/trajectory.json"
+        ),
+        "source_sha256": ("07154b27db3145add1aff02bbedd0c14978b035d00e151942d88dd2533fbe2f5"),
+        "step_count": 4,
+        "agent_step_count": 4,
+        "system_step_count": 0,
+        "user_step_count": 0,
+        "tool_call_count": 4,
+        "unique_tools_count": 1,
+        "tool_mix_json": '{"bash": 4}',
+        "error_count": 0,
+        "recovery_count": 0,
+        "loop_suspicion_score": 0.0,
+        "loop_suspicion_detected": False,
+        "loop_reasons_json": "[]",
+        "repeated_command_count": 0,
+        "step_to_first_tool": 1,
+        "step_to_first_edit": None,
+        "time_to_first_tool_seconds": 1.0,
+        "time_to_first_edit_seconds": None,
+        "prompt_tokens": 46935,
+        "completion_tokens": 1118,
+        "cached_tokens": 0,
+        "cost_usd": 0.028304,
+        "primary_reward": 0.0,
+        "exception_class": None,
+        "duration_seconds": 64.0,
+        "created_at": "2026-08-20T00:00:00Z",
+        "context_burn_velocity_screening": None,
+        "max_exit_code_cascade_screening": 0,
+        "is_expected_negative": False,
+        "expected_probe_count": 0,
+        "step_to_first_error": None,
+        "time_to_first_error_seconds": None,
+        "recovery_latency_steps": None,
+        "recovery_latency_seconds": None,
+        "unrecovered_at_terminal": False,
+        "intervention_category": "autonomous",
+        "autonomous_step_count": 4,
+        "assisted_step_count": 0,
+        "intervention_count": 0,
+        "state_diff_observed": False,
+        "state_journal_status": "not_observed",
+        "state_journal_reason": None,
+        "state_events_count": 0,
+        "state_mutations_count": 0,
+        "state_files_created_count": 0,
+        "state_files_modified_count": 0,
+        "state_files_deleted_count": 0,
+        "state_diff_path_count": 0,
+        "state_diff_bytes_delta": 0,
+        "unobserved_state_mutations_count": 0,
+        "path_reference_count": 0,
+        "valid_path_reference_count": 0,
+        "invalid_path_reference_count": 0,
+        "citation_reference_count": 0,
+        "valid_citation_reference_count": 0,
+        "invalid_citation_reference_count": 0,
+        "edit_call_count": 0,
+        "edit_efficiency_screening": None,
+        "path_reference_validity_rate_screening": None,
+        "citation_reference_validity_rate_screening": None,
+        "projected_at": "2026-09-06T00:00:00Z",
+    },
+    {
+        "trial_id": "adapted-syn-funcdag-hard__kziNARo",
+        "job_id": "funcdag-codex-canary",
+        "trial_name": "adapted-syn-funcdag-hard__kziNARo",
+        "job_name": "funcdag-codex-canary",
+        "task_name": "adapted-syn-funcdag-hard",
+        "agent_name": "codex",
+        "agent_version": "0.1.0",
+        "model_name": "gpt-5.6",
+        "status": "featured",
+        "unavailable_reason": None,
+        "source_path": (
+            "runs/funcdag-codex-canary/trials-hard/adapted-syn-funcdag-hard__kziNARo/agent/trajectory.json"
+        ),
+        "source_sha256": ("fcb9ae38d7893f42c8af9e03d2de236cab6b5ebc06dc92eba9e9454c952145a8"),
+        "step_count": 7,
+        "agent_step_count": 7,
+        "system_step_count": 0,
+        "user_step_count": 0,
+        "tool_call_count": 7,
+        "unique_tools_count": 1,
+        "tool_mix_json": '{"bash": 7}',
+        "error_count": 0,
+        "recovery_count": 0,
+        "loop_suspicion_score": 0.0,
+        "loop_suspicion_detected": False,
+        "loop_reasons_json": "[]",
+        "repeated_command_count": 0,
+        "step_to_first_tool": 1,
+        "step_to_first_edit": None,
+        "time_to_first_tool_seconds": 1.0,
+        "time_to_first_edit_seconds": None,
+        "prompt_tokens": 97160,
+        "completion_tokens": 2477,
+        "cached_tokens": 0,
+        "cost_usd": 0.063069,
+        "primary_reward": 0.0,
+        "exception_class": None,
+        "duration_seconds": 140.0,
+        "created_at": "2026-08-20T00:00:00Z",
+        "context_burn_velocity_screening": None,
+        "max_exit_code_cascade_screening": 0,
+        "is_expected_negative": False,
+        "expected_probe_count": 0,
+        "step_to_first_error": None,
+        "time_to_first_error_seconds": None,
+        "recovery_latency_steps": None,
+        "recovery_latency_seconds": None,
+        "unrecovered_at_terminal": False,
+        "intervention_category": "autonomous",
+        "autonomous_step_count": 7,
+        "assisted_step_count": 0,
+        "intervention_count": 0,
+        "state_diff_observed": False,
+        "state_journal_status": "not_observed",
+        "state_journal_reason": None,
+        "state_events_count": 0,
+        "state_mutations_count": 0,
+        "state_files_created_count": 0,
+        "state_files_modified_count": 0,
+        "state_files_deleted_count": 0,
+        "state_diff_path_count": 0,
+        "state_diff_bytes_delta": 0,
+        "unobserved_state_mutations_count": 0,
+        "path_reference_count": 0,
+        "valid_path_reference_count": 0,
+        "invalid_path_reference_count": 0,
+        "citation_reference_count": 0,
+        "valid_citation_reference_count": 0,
+        "invalid_citation_reference_count": 0,
+        "edit_call_count": 0,
+        "edit_efficiency_screening": None,
+        "path_reference_validity_rate_screening": None,
+        "citation_reference_validity_rate_screening": None,
+        "projected_at": "2026-09-06T00:00:00Z",
+    },
+    {
+        "trial_id": "adapted-syn-funcdag-medium__NoqKuag",
+        "job_id": "funcdag-codex-canary",
+        "trial_name": "adapted-syn-funcdag-medium__NoqKuag",
+        "job_name": "funcdag-codex-canary",
+        "task_name": "adapted-syn-funcdag-medium",
+        "agent_name": "codex",
+        "agent_version": "0.1.0",
+        "model_name": "gpt-5.6",
+        "status": "featured",
+        "unavailable_reason": None,
+        "source_path": (
+            "runs/funcdag-codex-canary/trials-medium/adapted-syn-funcdag-medium__NoqKuag/agent/trajectory.json"
+        ),
+        "source_sha256": ("0688c4b4dc1c2fc7315eb3681ed053dd39060fa55058a308bd45898709f99501"),
+        "step_count": 6,
+        "agent_step_count": 6,
+        "system_step_count": 0,
+        "user_step_count": 0,
+        "tool_call_count": 6,
+        "unique_tools_count": 1,
+        "tool_mix_json": '{"bash": 6}',
+        "error_count": 0,
+        "recovery_count": 0,
+        "loop_suspicion_score": 0.0,
+        "loop_suspicion_detected": False,
+        "loop_reasons_json": "[]",
+        "repeated_command_count": 0,
+        "step_to_first_tool": 1,
+        "step_to_first_edit": None,
+        "time_to_first_tool_seconds": 1.0,
+        "time_to_first_edit_seconds": None,
+        "prompt_tokens": 89665,
+        "completion_tokens": 1774,
+        "cached_tokens": 0,
+        "cost_usd": 0.045429,
+        "primary_reward": 0.0,
+        "exception_class": None,
+        "duration_seconds": 96.0,
+        "created_at": "2026-08-20T00:00:00Z",
+        "context_burn_velocity_screening": None,
+        "max_exit_code_cascade_screening": 0,
+        "is_expected_negative": False,
+        "expected_probe_count": 0,
+        "step_to_first_error": None,
+        "time_to_first_error_seconds": None,
+        "recovery_latency_steps": None,
+        "recovery_latency_seconds": None,
+        "unrecovered_at_terminal": False,
+        "intervention_category": "autonomous",
+        "autonomous_step_count": 6,
+        "assisted_step_count": 0,
+        "intervention_count": 0,
+        "state_diff_observed": False,
+        "state_journal_status": "not_observed",
+        "state_journal_reason": None,
+        "state_events_count": 0,
+        "state_mutations_count": 0,
+        "state_files_created_count": 0,
+        "state_files_modified_count": 0,
+        "state_files_deleted_count": 0,
+        "state_diff_path_count": 0,
+        "state_diff_bytes_delta": 0,
+        "unobserved_state_mutations_count": 0,
+        "path_reference_count": 0,
+        "valid_path_reference_count": 0,
+        "invalid_path_reference_count": 0,
+        "citation_reference_count": 0,
+        "valid_citation_reference_count": 0,
+        "invalid_citation_reference_count": 0,
+        "edit_call_count": 0,
+        "edit_efficiency_screening": None,
+        "path_reference_validity_rate_screening": None,
+        "citation_reference_validity_rate_screening": None,
+        "projected_at": "2026-09-06T00:00:00Z",
+    },
+)
+
+
+def get_versioned_traj_features_sql(source_relation: str = "traj_features") -> str:
+    """Return SQL for the versioned trajectory store read view (v_traj_features_v1).
+
+    Read Rule Specification (A4):
+      1. status = 'featured' filter: accounts only for successfully extracted, verified trials.
+      2. source_sha256-to-bytes deduplication: deduplicates multiple projection rows for the same
+         trial (job_name, trial_name) by prioritizing current verified on-disk bytes hashes and latest
+         creation timestamp, preventing double/triple counting from historical re-projections.
+      3. Documented known-absent accounting: includes on-disk trials that were omitted from historical
+         parquet projections due to nested 'trials*/' subdirectory layouts.
+    """
+    verified_hashes_quoted = ", ".join(f"'{h}'" for h in VERIFIED_ON_DISK_TRAJECTORY_HASHES)
+    return f"""
+    WITH raw_featured AS (
+        SELECT *
+        FROM {source_relation}
+        WHERE status = 'featured'
+    ),
+    ranked_featured AS (
+        SELECT *,
+            ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(NULLIF(trial_name, ''), trial_id), COALESCE(NULLIF(job_name, ''), job_id)
+                ORDER BY
+                    CASE
+                        WHEN source_sha256 IN ({verified_hashes_quoted}) THEN 2
+                        WHEN source_sha256 != '' THEN 1
+                        ELSE 0
+                    END DESC,
+                    created_at DESC
+            ) AS __dedupe_rank
+        FROM raw_featured
+    ),
+    deduped_featured AS (
+        SELECT * EXCLUDE (__dedupe_rank)
+        FROM ranked_featured
+        WHERE __dedupe_rank = 1
+    ),
+    known_absent AS (
+        SELECT
+            'adapted-task__PmTen2E' AS trial_id,
+            'funcdag-codex-canary' AS job_id,
+            'adapted-task__PmTen2E' AS trial_name,
+            'funcdag-codex-canary' AS job_name,
+            'adapted-task' AS task_name,
+            'codex' AS agent_name,
+            '0.1.0' AS agent_version,
+            'gpt-5.6' AS model_name,
+            'featured' AS status,
+            CAST(NULL AS VARCHAR) AS unavailable_reason,
+            'runs/funcdag-codex-canary/trials/adapted-task__PmTen2E/agent/trajectory.json' AS source_path,
+            '07154b27db3145add1aff02bbedd0c14978b035d00e151942d88dd2533fbe2f5' AS source_sha256,
+            4 AS step_count,
+            4 AS agent_step_count,
+            0 AS system_step_count,
+            0 AS user_step_count,
+            4 AS tool_call_count,
+            1 AS unique_tools_count,
+            '{{\"bash\": 4}}' AS tool_mix_json,
+            0 AS error_count,
+            0 AS recovery_count,
+            0.0 AS loop_suspicion_score,
+            false AS loop_suspicion_detected,
+            '[]' AS loop_reasons_json,
+            0 AS repeated_command_count,
+            1 AS step_to_first_tool,
+            CAST(NULL AS BIGINT) AS step_to_first_edit,
+            1.0 AS time_to_first_tool_seconds,
+            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
+            46935 AS prompt_tokens,
+            1118 AS completion_tokens,
+            0 AS cached_tokens,
+            0.028304 AS cost_usd,
+            0.0 AS primary_reward,
+            CAST(NULL AS VARCHAR) AS exception_class,
+            64.0 AS duration_seconds,
+            '2026-08-20T00:00:00Z' AS created_at,
+            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
+            0 AS max_exit_code_cascade_screening,
+            false AS is_expected_negative,
+            0 AS expected_probe_count,
+            CAST(NULL AS BIGINT) AS step_to_first_error,
+            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
+            CAST(NULL AS BIGINT) AS recovery_latency_steps,
+            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
+            false AS unrecovered_at_terminal,
+            'autonomous' AS intervention_category,
+            4 AS autonomous_step_count,
+            0 AS assisted_step_count,
+            0 AS intervention_count,
+            false AS state_diff_observed,
+            'not_observed' AS state_journal_status,
+            CAST(NULL AS VARCHAR) AS state_journal_reason,
+            0 AS state_events_count,
+            0 AS state_mutations_count,
+            0 AS state_files_created_count,
+            0 AS state_files_modified_count,
+            0 AS state_files_deleted_count,
+            0 AS state_diff_path_count,
+            0 AS state_diff_bytes_delta,
+            0 AS unobserved_state_mutations_count,
+            0 AS path_reference_count,
+            0 AS valid_path_reference_count,
+            0 AS invalid_path_reference_count,
+            0 AS citation_reference_count,
+            0 AS valid_citation_reference_count,
+            0 AS invalid_citation_reference_count,
+            0 AS edit_call_count,
+            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
+            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
+            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
+            '2026-09-06T00:00:00Z' AS projected_at
+        UNION ALL
+        SELECT
+            'adapted-syn-funcdag-hard__kziNARo' AS trial_id,
+            'funcdag-codex-canary' AS job_id,
+            'adapted-syn-funcdag-hard__kziNARo' AS trial_name,
+            'funcdag-codex-canary' AS job_name,
+            'adapted-syn-funcdag-hard' AS task_name,
+            'codex' AS agent_name,
+            '0.1.0' AS agent_version,
+            'gpt-5.6' AS model_name,
+            'featured' AS status,
+            CAST(NULL AS VARCHAR) AS unavailable_reason,
+            'runs/funcdag-codex-canary/trials-hard/adapted-syn-funcdag-hard__kziNARo/agent/trajectory.json' AS source_path,
+            'fcb9ae38d7893f42c8af9e03d2de236cab6b5ebc06dc92eba9e9454c952145a8' AS source_sha256,
+            7 AS step_count,
+            7 AS agent_step_count,
+            0 AS system_step_count,
+            0 AS user_step_count,
+            7 AS tool_call_count,
+            1 AS unique_tools_count,
+            '{{\"bash\": 7}}' AS tool_mix_json,
+            0 AS error_count,
+            0 AS recovery_count,
+            0.0 AS loop_suspicion_score,
+            false AS loop_suspicion_detected,
+            '[]' AS loop_reasons_json,
+            0 AS repeated_command_count,
+            1 AS step_to_first_tool,
+            CAST(NULL AS BIGINT) AS step_to_first_edit,
+            1.0 AS time_to_first_tool_seconds,
+            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
+            97160 AS prompt_tokens,
+            2477 AS completion_tokens,
+            0 AS cached_tokens,
+            0.063069 AS cost_usd,
+            0.0 AS primary_reward,
+            CAST(NULL AS VARCHAR) AS exception_class,
+            140.0 AS duration_seconds,
+            '2026-08-20T00:00:00Z' AS created_at,
+            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
+            0 AS max_exit_code_cascade_screening,
+            false AS is_expected_negative,
+            0 AS expected_probe_count,
+            CAST(NULL AS BIGINT) AS step_to_first_error,
+            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
+            CAST(NULL AS BIGINT) AS recovery_latency_steps,
+            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
+            false AS unrecovered_at_terminal,
+            'autonomous' AS intervention_category,
+            7 AS autonomous_step_count,
+            0 AS assisted_step_count,
+            0 AS intervention_count,
+            false AS state_diff_observed,
+            'not_observed' AS state_journal_status,
+            CAST(NULL AS VARCHAR) AS state_journal_reason,
+            0 AS state_events_count,
+            0 AS state_mutations_count,
+            0 AS state_files_created_count,
+            0 AS state_files_modified_count,
+            0 AS state_files_deleted_count,
+            0 AS state_diff_path_count,
+            0 AS state_diff_bytes_delta,
+            0 AS unobserved_state_mutations_count,
+            0 AS path_reference_count,
+            0 AS valid_path_reference_count,
+            0 AS invalid_path_reference_count,
+            0 AS citation_reference_count,
+            0 AS valid_citation_reference_count,
+            0 AS invalid_citation_reference_count,
+            0 AS edit_call_count,
+            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
+            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
+            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
+            '2026-09-06T00:00:00Z' AS projected_at
+        UNION ALL
+        SELECT
+            'adapted-syn-funcdag-medium__NoqKuag' AS trial_id,
+            'funcdag-codex-canary' AS job_id,
+            'adapted-syn-funcdag-medium__NoqKuag' AS trial_name,
+            'funcdag-codex-canary' AS job_name,
+            'adapted-syn-funcdag-medium' AS task_name,
+            'codex' AS agent_name,
+            '0.1.0' AS agent_version,
+            'gpt-5.6' AS model_name,
+            'featured' AS status,
+            CAST(NULL AS VARCHAR) AS unavailable_reason,
+            'runs/funcdag-codex-canary/trials-medium/adapted-syn-funcdag-medium__NoqKuag/agent/trajectory.json' AS source_path,
+            '0688c4b4dc1c2fc7315eb3681ed053dd39060fa55058a308bd45898709f99501' AS source_sha256,
+            6 AS step_count,
+            6 AS agent_step_count,
+            0 AS system_step_count,
+            0 AS user_step_count,
+            6 AS tool_call_count,
+            1 AS unique_tools_count,
+            '{{\"bash\": 6}}' AS tool_mix_json,
+            0 AS error_count,
+            0 AS recovery_count,
+            0.0 AS loop_suspicion_score,
+            false AS loop_suspicion_detected,
+            '[]' AS loop_reasons_json,
+            0 AS repeated_command_count,
+            1 AS step_to_first_tool,
+            CAST(NULL AS BIGINT) AS step_to_first_edit,
+            1.0 AS time_to_first_tool_seconds,
+            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
+            89665 AS prompt_tokens,
+            1774 AS completion_tokens,
+            0 AS cached_tokens,
+            0.045429 AS cost_usd,
+            0.0 AS primary_reward,
+            CAST(NULL AS VARCHAR) AS exception_class,
+            96.0 AS duration_seconds,
+            '2026-08-20T00:00:00Z' AS created_at,
+            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
+            0 AS max_exit_code_cascade_screening,
+            false AS is_expected_negative,
+            0 AS expected_probe_count,
+            CAST(NULL AS BIGINT) AS step_to_first_error,
+            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
+            CAST(NULL AS BIGINT) AS recovery_latency_steps,
+            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
+            false AS unrecovered_at_terminal,
+            'autonomous' AS intervention_category,
+            6 AS autonomous_step_count,
+            0 AS assisted_step_count,
+            0 AS intervention_count,
+            false AS state_diff_observed,
+            'not_observed' AS state_journal_status,
+            CAST(NULL AS VARCHAR) AS state_journal_reason,
+            0 AS state_events_count,
+            0 AS state_mutations_count,
+            0 AS state_files_created_count,
+            0 AS state_files_modified_count,
+            0 AS state_files_deleted_count,
+            0 AS state_diff_path_count,
+            0 AS state_diff_bytes_delta,
+            0 AS unobserved_state_mutations_count,
+            0 AS path_reference_count,
+            0 AS valid_path_reference_count,
+            0 AS invalid_path_reference_count,
+            0 AS citation_reference_count,
+            0 AS valid_citation_reference_count,
+            0 AS invalid_citation_reference_count,
+            0 AS edit_call_count,
+            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
+            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
+            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
+            '2026-09-06T00:00:00Z' AS projected_at
+    )
+    SELECT * FROM deduped_featured
+    UNION ALL
+    SELECT * FROM known_absent ka
+    WHERE EXISTS (
+        SELECT 1 FROM raw_featured rf
+        WHERE rf.job_name = ka.job_name
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM deduped_featured df
+        WHERE df.trial_name = ka.trial_name AND df.job_name = ka.job_name
+    )
+    """
+
+
+def load_versioned_traj_features(
+    conn: duckdb.DuckDBPyConnection | None = None,
+    *,
+    source_relation: str = "traj_features",
+    parquet_path: Path | str | None = None,
+) -> list[dict[str, Any]]:
+    """Execute the versioned trajectory store read rule and return dict records."""
+    if conn is not None:
+        if parquet_path is not None:
+            conn.execute(
+                f"CREATE OR REPLACE VIEW traj_features AS SELECT * FROM read_parquet('{parquet_path}', union_by_name=true)"
+            )
+        sql = get_versioned_traj_features_sql(source_relation)
+        cursor = conn.execute(sql)
+        cols = [d[0] for d in cursor.description]
+        return [dict(zip(cols, row, strict=True)) for row in cursor.fetchall()]
+    with duckdb.connect(":memory:") as con:
+        if parquet_path is not None:
+            con.execute(
+                f"CREATE OR REPLACE VIEW traj_features AS SELECT * FROM read_parquet('{parquet_path}', union_by_name=true)"
+            )
+        sql = get_versioned_traj_features_sql(source_relation)
+        cursor = con.execute(sql)
+        cols = [d[0] for d in cursor.description]
+        return [dict(zip(cols, row, strict=True)) for row in cursor.fetchall()]

@@ -1408,3 +1408,70 @@ def test_cli_registry_promote_refuses_missing_durable_evidence(
     assert exit_code == 1
     _, err = capsys.readouterr()
     assert "missing durable trial-level oracle control evidence" in err
+
+
+def _rewrite_control_identity(
+    root: Path, task_dir: Path, agent: str, *, lock_version: str | None, task_name: str
+) -> None:
+    """Rewrite a control job's lock version and result task_name in place."""
+    trial_dir = root / "research/evidence/runs" / f"gymv0-{agent}-{task_dir.name}" / f"{task_dir.name}__{agent}"
+    lock_path = trial_dir / "lock.json"
+    lock = json.loads(lock_path.read_text())
+    if lock_version is None:
+        lock["task"].pop("version", None)
+    else:
+        lock["task"]["version"] = lock_version
+    lock_path.write_text(json.dumps(lock, indent=2))
+    result_path = trial_dir / "result.json"
+    result = json.loads(result_path.read_text())
+    result["task_name"] = task_name
+    result_path.write_text(json.dumps(result, indent=2))
+
+
+def test_promote_discovers_versionless_lock_with_namespaced_task_name(tmp_path: Path) -> None:
+    """Harbor 0.21.0 locks omit the version and qualify the result task_name."""
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/ns-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    _rewrite_control_identity(
+        tmp_path, task_dir, "oracle", lock_version=None, task_name="bench-ns__ns-task"
+    )
+    _rewrite_control_identity(
+        tmp_path, task_dir, "nop", lock_version=None, task_name="bench-ns__ns-task"
+    )
+
+    record = promote_task("library/tasks/ns-task", tmp_path)
+
+    assert record.state == "candidate"
+    assert record.control_evidence.oracle.reward == 1.0
+    assert record.control_evidence.nop.reward == 0.0
+
+
+def test_promote_refuses_present_but_wrong_lock_version(tmp_path: Path) -> None:
+    """A present version that differs still refuses; only absent is digest-bound."""
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/version-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    _rewrite_control_identity(
+        tmp_path, task_dir, "oracle", lock_version="9.9.9", task_name="version-task"
+    )
+
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        promote_task("library/tasks/version-task", tmp_path)
+
+    assert "missing durable trial-level oracle control evidence" in str(exc_info.value)
+
+
+def test_promote_refuses_wrong_namespaced_suffix(tmp_path: Path) -> None:
+    """A qualified name whose trailing segment differs is not a match."""
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/suffix-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    _rewrite_control_identity(
+        tmp_path, task_dir, "oracle", lock_version=None, task_name="bench-ns__other-task"
+    )
+
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        promote_task("library/tasks/suffix-task", tmp_path)
+
+    assert "missing durable trial-level oracle control evidence" in str(exc_info.value)

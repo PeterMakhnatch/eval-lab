@@ -1,0 +1,15 @@
+{
+    "job_name": "tau3-retail-1-nop",
+    "jobs_dir": "runs",
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "nop"
+        }
+    ],
+    "tasks": [
+        {
+            "path": "library/tasks/tau3-retail-1"
+        }
+    ]
+}

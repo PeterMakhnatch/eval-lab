@@ -11,12 +11,18 @@ import pytest
 
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.contextpack import parse_front_matter
+from evallab.interpretation.trajectory_quality import (
+    QualityStatus,
+    TrajectoryQualityReport,
+    persist_quality_ledger,
+)
 from evallab.lessons import (
     DEFAULT_POWER_THRESHOLD,
     GENERATED_HEADER,
     LessonRanking,
     LessonRow,
     LessonsResult,
+    _canonical_quality_rows,
     apply_statistical_gating,
     build_lessons,
     check_lessons_freshness,
@@ -25,6 +31,9 @@ from evallab.lessons import (
     execute_lessons_views,
     generate_lessons_file,
     load_analysis_sidecars,
+    load_craft_records,
+    load_observation_records,
+    load_quality_ledger_bound,
     load_trial_facts,
     parse_observation_markdown,
     populate_duckdb,
@@ -870,6 +879,9 @@ def _sample_lessons_fixture_tree(tmp_path: Path) -> Path:
         "---\njob: sample-job\ntrial_id: t1\ntask: sample-task\nreward: 1.0\n---\n# Observation\n",
         encoding="utf-8",
     )
+    persist_quality_ledger(
+        _make_quality_ledger_reports(), [], root / "derived" / "parquet"
+    )
     return root
 
 
@@ -1079,3 +1091,391 @@ def test_refuse_to_rank_propagates_from_cohort() -> None:
     # 5. rank_lesson_rows over collection
     all_rankings = rank_lesson_rows([row_high, row_low, row_zero_1])
     assert len(all_rankings) == 3
+
+
+# --------------------------------------------------------------------------- #
+# Evidence Quality Ledger join
+# --------------------------------------------------------------------------- #
+
+FIXED_EVALUATED_AT = "2026-08-17T12:00:00+00:00"
+
+
+def _make_quality_ledger_reports() -> list[TrajectoryQualityReport]:
+    """Ledger rows covering every quality state, an unevaluated trial, and an orphan."""
+    specs: list[tuple[str, str, QualityStatus, str | None]] = [
+        ("job-1", "t-pytest-pass-0", QualityStatus.PASS, None),
+        ("job-1", "t-pytest-pass-1", QualityStatus.PASS, None),
+        ("job-1", "t-pytest-pass-2", QualityStatus.PASS, None),
+        ("job-1", "t-pytest-pass-3", QualityStatus.PASS, None),
+        ("job-1", "t-pytest-fail-0", QualityStatus.WARN, None),
+        ("job-1", "t-pytest-exc-0", QualityStatus.QUARANTINE, "missing_trajectory_file"),
+        ("job-2", "t-golden-pass-0", QualityStatus.PASS, None),
+        ("job-2", "t-golden-pass-1", QualityStatus.NOT_EVALUATED, None),
+        ("job-2", "t-golden-fail-0", QualityStatus.FAIL, None),
+        ("job-ghost", "t-ghost", QualityStatus.PASS, None),
+    ]
+    return [
+        TrajectoryQualityReport(
+            job_id=job_id,
+            trial_id=trial_id,
+            document_id=f"doc:{trial_id}",
+            raw_atif_digest=None,
+            raw_result_digest=None,
+            check_version="v1.0.0",
+            check_digest="sha256:fixture",
+            status=status,
+            is_ingestable=status is not QualityStatus.QUARANTINE,
+            is_analysis_ready=status
+            not in (QualityStatus.QUARANTINE, QualityStatus.NOT_EVALUATED),
+            quarantine_reason=reason,
+            findings_count=0,
+            warnings_count=0,
+            errors_count=0,
+            evaluated_at=FIXED_EVALUATED_AT,
+        )
+        for job_id, trial_id, status, reason in specs
+    ]
+
+
+def _write_quality_ledger(root: Path) -> Path:
+    reports_path, _findings_path = persist_quality_ledger(
+        _make_quality_ledger_reports(), [], root / "derived" / "parquet"
+    )
+    return reports_path
+
+
+def _strip_quality_columns(rows: list[dict]) -> list[dict]:
+    return [
+        {key: value for key, value in row.items() if not key.startswith("quality_")}
+        for row in rows
+    ]
+
+
+def _ledger_dicts() -> list[dict]:
+    return [report.to_dict() for report in _make_quality_ledger_reports()]
+
+
+def test_canonical_quality_rows_dedupes_and_refuses_conflicts() -> None:
+    reports = [
+        {"job_id": "job-1", "trial_id": "t1", "status": "pass"},
+        {"job_id": "other", "trial_id": "t1", "status": "warn"},
+        {"job_id": "job-1", "trial_id": "t2", "status": "pass"},
+        {"job_id": "job-1", "trial_id": "t2", "status": "fail"},
+        {"job_id": "", "trial_id": "t3", "status": "fail"},
+        {"job_id": "", "trial_id": "t1", "status": "fail"},
+    ]
+    rows = _canonical_quality_rows(reports)
+    keyed = {(r["job_id"], r["trial_id"]): r["status"] for r in rows}
+    # exact pairs survive; the empty-identity shadow of an identified trial is dropped
+    assert keyed[("job-1", "t1")] == "pass"
+    assert ("job-1", "t2") not in keyed  # conflicting statuses refuse
+    assert keyed[("", "t3")] == "fail"  # empty-identity sole binding kept
+    assert ("", "t1") not in keyed
+    shuffled = _canonical_quality_rows(list(reversed(reports)))
+    assert rows == shuffled
+
+
+def test_canonical_quality_rows_empty_list() -> None:
+    assert _canonical_quality_rows([]) == []
+
+
+def test_quality_views_decompose_from_raw_ledger_rows() -> None:
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=_make_mock_trial_facts(),
+            analysis_sidecars=_make_mock_analysis_sidecars(),
+            observation_records=_make_mock_observation_records(),
+            quality_reports=_ledger_dicts(),
+        )
+        views = execute_lessons_views(con)
+
+    verifier = {row["verifier_type"]: row for row in views["v_outcome_by_verifier_type"]}
+    pytest_row = verifier["pytest"]
+    assert (pytest_row["n"], pytest_row["passed_n"]) == (5, 4)
+    assert pytest_row["total_trials_n"] == 5  # quarantined trial excluded in SQL
+    quality = (
+        pytest_row["quality_pass_n"],
+        pytest_row["quality_warn_n"],
+        pytest_row["quality_fail_n"],
+        pytest_row["quality_quarantine_n"],
+    )
+    assert quality == (4, 1, 0, 1)
+    golden_row = verifier["golden_file"]
+    assert (
+        golden_row["quality_pass_n"],
+        golden_row["quality_warn_n"],
+        golden_row["quality_fail_n"],
+        golden_row["quality_quarantine_n"],
+    ) == (1, 0, 1, 0)
+
+
+def test_quarantined_trials_stay_out_of_eligibility_but_are_counted() -> None:
+    craft = _make_mock_craft_records()
+    sidecars = _make_mock_analysis_sidecars()
+    observations = _make_mock_observation_records()
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=craft,
+            trial_facts=_make_mock_trial_facts(),
+            analysis_sidecars=sidecars,
+            observation_records=observations,
+            quality_reports=_ledger_dicts(),
+        )
+        with_ledger = execute_lessons_views(con)
+    # Ledger quarantine must equal manual exclusion of the same trial.
+    manually_excluded = [
+        row for row in _make_mock_trial_facts() if row["trial_id"] != "t-pytest-exc-0"
+    ]
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=craft,
+            trial_facts=manually_excluded,
+            analysis_sidecars=sidecars,
+            observation_records=observations,
+        )
+        manual = execute_lessons_views(con)
+
+    pytest_row = next(
+        row
+        for row in with_ledger["v_outcome_by_verifier_type"]
+        if row["verifier_type"] == "pytest"
+    )
+    assert pytest_row["quality_quarantine_n"] == 1  # counted separately
+    assert pytest_row["total_trials_n"] == 5  # 6 facts minus the quarantined one
+    for view_name, rows in with_ledger.items():
+        manual_rows = _strip_quality_columns(manual[view_name])
+        # Math rows must match exactly; quarantine counting may surface extra
+        # zero-math group rows (e.g. the quarantined exception trial's facet
+        # bucket) that exist only to carry the quarantine count.
+        math_rows = [
+            r
+            for r in _strip_quality_columns(rows)
+            if r["total_trials_n"] > 0 or r["n"] > 0
+        ]
+        assert math_rows == manual_rows
+        extras = [
+            r
+            for r in _strip_quality_columns(rows)
+            if r["total_trials_n"] == 0 and r["n"] == 0
+        ]
+        assert all(
+            r["mechanical_failure_category"] == "exception"
+            for r in extras
+            if "mechanical_failure_category" in r
+        )
+
+    gated_with = apply_statistical_gating(with_ledger)
+    gated_manual = apply_statistical_gating(manual)
+    for view_name, rows in gated_with.items():
+        # Compare measurable rows; zero-n quarantine-count rows carry no math.
+        with_math = [
+            (row.n, row.k, row.rate, row.wilson_95, row.powered, row.status)
+            for row in rows
+            if row.n > 0
+        ]
+        manual_math = [
+            (row.n, row.k, row.rate, row.wilson_95, row.powered, row.status)
+            for row in gated_manual[view_name]
+            if row.n > 0
+        ]
+        assert with_math == manual_math
+
+
+def test_all_quarantine_ledger_empties_math_but_keeps_counts() -> None:
+    facts = _make_mock_trial_facts()
+    reports = [
+        {"job_id": row["job_id"], "trial_id": row["trial_id"], "status": "quarantine"}
+        for row in facts
+    ]
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=facts,
+            analysis_sidecars=_make_mock_analysis_sidecars(),
+            observation_records=_make_mock_observation_records(),
+            quality_reports=reports,
+        )
+        views = execute_lessons_views(con)
+    for _view_name, rows in views.items():
+        for row in rows:
+            assert row["n"] == 0
+            assert row["total_trials_n"] == 0
+            assert row["quality_quarantine_n"] > 0
+            assert row["quality_pass_n"] == 0
+
+
+def test_cross_job_ledger_identity_never_binds_at_view_level() -> None:
+    # t-golden-fail-0 exists only under job-9 in this ledger while the fact
+    # row belongs to another job: the view must leave it ungated (quality
+    # columns zero for it) rather than bind a foreign identity.
+    facts = [row for row in _make_mock_trial_facts() if row["trial_id"] == "t-golden-fail-0"]
+    reports = [{"job_id": "job-9", "trial_id": "t-golden-fail-0", "status": "fail"}]
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=facts,
+            analysis_sidecars=_make_mock_analysis_sidecars(),
+            observation_records=_make_mock_observation_records(),
+            quality_reports=reports,
+        )
+        views = execute_lessons_views(con)
+    golden_row = next(
+        row
+        for row in views["v_outcome_by_verifier_type"]
+        if row["verifier_type"] == "golden_file"
+    )
+    assert golden_row["quality_fail_n"] == 0
+    assert golden_row["n"] == 1  # math unchanged: unbound rows stay ungated
+
+
+def test_ledger_row_order_does_not_change_views() -> None:
+    reports = _ledger_dicts()
+    def build(order):
+        with duckdb.connect(":memory:") as con:
+            populate_duckdb(
+                con,
+                craft_records=_make_mock_craft_records(),
+                trial_facts=_make_mock_trial_facts(),
+                analysis_sidecars=_make_mock_analysis_sidecars(),
+                observation_records=_make_mock_observation_records(),
+                quality_reports=order,
+            )
+            return execute_lessons_views(con)
+    assert build(reports) == build(list(reversed(reports)))
+
+
+def test_rendered_markdown_decomposes_ledger_counts() -> None:
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=_make_mock_trial_facts(),
+            analysis_sidecars=_make_mock_analysis_sidecars(),
+            observation_records=_make_mock_observation_records(),
+            quality_reports=_ledger_dicts(),
+        )
+        gated = apply_statistical_gating(execute_lessons_views(con))
+    all_lessons = [item for sublist in gated.values() for item in sublist]
+    result = LessonsResult(
+        generated_at=datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC),
+        power_threshold=DEFAULT_POWER_THRESHOLD,
+        total_lessons=len(all_lessons),
+        powered_lessons=sum(1 for item in all_lessons if item.powered),
+        underpowered_lessons=sum(1 for item in all_lessons if not item.powered),
+        lessons_by_view=gated,
+        records_summary={
+            "craft_records": 2,
+            "trial_facts": 9,
+            "quality_ledger_evaluated": 10,
+            "quality_ledger_pass": 6,
+            "quality_ledger_warn": 1,
+            "quality_ledger_fail": 1,
+            "quality_ledger_quarantine": 1,
+        },
+    )
+
+    markdown = render_lessons_markdown(result)
+    assert (
+        "- **Evidence Quality Ledger:** 10 evaluated trials "
+        "(pass 6, warn 1, fail 1, quarantine 1)" in markdown
+    )
+    assert (
+        "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
+        in markdown
+    )
+    assert "| 4 | 1 | 0 | 1 | `sufficient` |" in markdown
+
+
+def test_committed_snapshot_has_no_cross_partition_ghosts() -> None:
+    """Snapshot lint: loaded trial facts equal distinct (job_id, trial_id)."""
+    repo_root = Path(__file__).resolve().parents[1]
+    snapshots = sorted(repo_root.glob("derived/parquet/compact/dt=*/trial_facts.parquet"))
+    if not snapshots:
+        pytest.skip("no committed trial_facts snapshot in this checkout")
+    facts = load_trial_facts(repo_root)
+    identities = {(str(r["job_id"]), str(r["trial_id"])) for r in facts}
+    assert len(facts) == len(identities)
+
+
+def test_populate_duckdb_fails_loudly_on_schema_driven_row_loss() -> None:
+    malformed = _make_mock_trial_facts()
+    malformed[0] = {**malformed[0], "primary_reward": "not-a-number"}
+    with duckdb.connect(":memory:") as con:
+        try:
+            populate_duckdb(
+                con,
+                craft_records=_make_mock_craft_records(),
+                trial_facts=malformed,
+                analysis_sidecars=_make_mock_analysis_sidecars(),
+                observation_records=_make_mock_observation_records(),
+            )
+        except Exception:
+            return  # loud refusal is the required behavior
+    raise AssertionError("populate_duckdb silently accepted schema-invalid rows")
+
+
+def test_end_to_end_rendered_totals_match_independent_pipeline_recompute() -> None:
+    """Full pipeline: rendered view totals equal an independent recompute over
+    the same registered inputs — no rows may vanish between load and render."""
+    repo_root = Path(__file__).resolve().parents[1]
+    result = build_lessons(repo_root)
+    facts = load_trial_facts(repo_root)
+    {(str(r["job_id"]), str(r["trial_id"])) for r in facts}
+    assert result.records_summary["trial_facts"] == len(facts)
+
+    craft_records = load_craft_records(repo_root)
+    craft_by_digest = {c["task_digest"] for c in craft_records if c.get("task_digest")}
+    joined_identities = {
+        (str(r["job_id"]), str(r["trial_id"]))
+        for r in facts
+        if r.get("task_digest") in craft_by_digest
+    }
+    import duckdb as _duckdb
+
+    from evallab.lessons import execute_lessons_views, populate_duckdb
+    with _duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=craft_records,
+            trial_facts=facts,
+            analysis_sidecars=load_analysis_sidecars(repo_root),
+            observation_records=load_observation_records(repo_root),
+            quality_reports=list(load_quality_ledger_bound(repo_root).rows),
+        )
+        views = execute_lessons_views(con)
+    rendered_total = sum(
+        int(row["total_trials_n"]) for rows in views.values() for row in rows
+    )
+    assert rendered_total == len(joined_identities)
+
+
+def test_render_without_ledger_keeps_zero_columns_and_no_summary_line() -> None:
+    gated = apply_statistical_gating({})
+    result = LessonsResult(
+        generated_at=datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC),
+        power_threshold=DEFAULT_POWER_THRESHOLD,
+        total_lessons=3,
+        powered_lessons=0,
+        underpowered_lessons=3,
+        lessons_by_view=gated,
+        records_summary={"craft_records": 0, "trial_facts": 0},
+    )
+
+    markdown = render_lessons_markdown(result)
+    assert "Evidence Quality Ledger:" not in markdown
+    assert (
+        "| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | 0 | 0 | "
+        "`insufficient n` | insufficient n |" in markdown
+    )
+
+
+def test_collect_lessons_inputs_binds_quality_ledger(tmp_path: Path) -> None:
+    root = _sample_lessons_fixture_tree(tmp_path)
+    paths = {item["path"] for item in collect_lessons_inputs(root)}
+    assert "derived/parquet/trajectory_quality_reports.parquet" in paths

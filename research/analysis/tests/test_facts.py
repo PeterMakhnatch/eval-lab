@@ -107,3 +107,22 @@ def test_rebuild_from_raw_writes_joinable_fact_and_trajectory_tables(tmp_path: P
         """
     ).fetchone()
     assert joined == (job.trials[0].name, 4)
+
+
+def test_rebuild_from_raw_refreshes_when_input_modified_in_same_process(tmp_path: Path) -> None:
+    job = load_job(_make_job(tmp_path / "raw"))
+    output = tmp_path / "derived"
+    first = rebuild_from_raw([job], output)
+    steps_path = next(table.path for table in first.tables if table.table == "steps")
+    with duckdb.connect() as connection:
+        query = "SELECT source, step_id FROM read_parquet(?) WHERE step_id = 99"
+        assert connection.execute(query, [str(steps_path)]).fetchall() == []
+
+        trajectory = job.trials[0].path / "agent/trajectory.json"
+        data = json.loads(trajectory.read_text())
+        data["steps"].append({"step_id": 99, "source": "agent", "message": "new action"})
+        trajectory.write_text(json.dumps(data))
+
+        # Even reusing the same JobRecord must reopen changed trajectory bytes.
+        rebuild_from_raw([job], output)
+        assert connection.execute(query, [str(steps_path)]).fetchall() == [("agent", 99)]

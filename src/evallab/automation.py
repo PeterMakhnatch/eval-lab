@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import plistlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -38,7 +39,7 @@ MIN_FREE_DISK_FRACTION = 0.05
 KEYCHAIN_SERVICE = credentials_module.KEYCHAIN_SERVICE
 
 BooleanProbe = Callable[[], bool]
-LaunchctlRunner = Callable[[list[str], bool], int]
+LaunchctlRunner = Callable[[list[str], bool], subprocess.CompletedProcess[str]]
 DigestCommitter = Callable[[Path], bool]
 CanaryEnqueuer = Callable[[date], int]
 ResearcherPass = Callable[[date], int]
@@ -892,20 +893,24 @@ class NightlyCycle:
         )
 
 
-def _launchctl(command: list[str], check: bool) -> int:
+def _launchctl(command: list[str], check: bool) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
         command,
         check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
         env=subscription_environment(),
     )
     if check and completed.returncode != 0:
         raise RuntimeError(f"launchctl exited {completed.returncode}")
-    return completed.returncode
+    return completed
 
 
 class ScheduleInstaller:
     TICK_LABEL = "com.petermakhnatch.evallab.tick"
     NIGHTLY_LABEL = "com.petermakhnatch.evallab.nightly"
+    DEFAULT_INTERVAL_SECONDS = 1800
 
     def __init__(
         self,
@@ -914,11 +919,17 @@ class ScheduleInstaller:
         home: Path | None = None,
         uid: int | None = None,
         launchctl: LaunchctlRunner = _launchctl,
+        interval_seconds: int = DEFAULT_INTERVAL_SECONDS,
+        tick_only: bool = False,
     ) -> None:
+        if type(interval_seconds) is not int or interval_seconds <= 0:
+            raise ValueError(f"interval_seconds must be a positive integer, got {interval_seconds}")
         self.repo_root = repo_root.resolve()
         self.home = (home or Path.home()).resolve()
         self.uid = os.getuid() if uid is None else uid
         self._launchctl = launchctl
+        self.interval_seconds = interval_seconds
+        self.tick_only = tick_only
 
     @property
     def launch_agents_dir(self) -> Path:
@@ -940,7 +951,7 @@ class ScheduleInstaller:
                 ]
             ),
         }
-        return {
+        defs: dict[str, dict[str, Any]] = {
             self.TICK_LABEL: {
                 "Label": self.TICK_LABEL,
                 "ProgramArguments": [
@@ -948,14 +959,16 @@ class ScheduleInstaller:
                     "-lc",
                     self._shell_command("tick"),
                 ],
-                "StartInterval": 30 * 60,
+                "StartInterval": self.interval_seconds,
                 "RunAtLoad": True,
                 "ProcessType": "Background",
                 "EnvironmentVariables": environment,
                 "StandardOutPath": str(logs / "tick.log"),
                 "StandardErrorPath": str(logs / "tick.error.log"),
             },
-            self.NIGHTLY_LABEL: {
+        }
+        if not self.tick_only:
+            defs[self.NIGHTLY_LABEL] = {
                 "Label": self.NIGHTLY_LABEL,
                 "ProgramArguments": [
                     "/bin/zsh",
@@ -967,23 +980,127 @@ class ScheduleInstaller:
                 "EnvironmentVariables": environment,
                 "StandardOutPath": str(logs / "nightly.log"),
                 "StandardErrorPath": str(logs / "nightly.error.log"),
-            },
-        }
+            }
+        return defs
+
+    def _unload(self, label: str) -> None:
+        result = self._launchctl(["launchctl", "bootout", f"gui/{self.uid}/{label}"], False)
+        # ESRCH / launchd's service-not-found are the idempotent absent case.
+        if result.returncode not in (0, 3, 113):
+            raise RuntimeError(f"Cannot unload {label}: launchctl exited {result.returncode}")
+
+    def _remove(self, label: str) -> Path | None:
+        self._unload(label)
+        path = self.launch_agents_dir / f"{label}.plist"
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return None
+        return path
 
     def install(self) -> list[Path]:
+        if self.tick_only:
+            self._remove(self.NIGHTLY_LABEL)
         self.launch_agents_dir.mkdir(parents=True, exist_ok=True)
         (self.home / "Library/Logs/evallab").mkdir(parents=True, exist_ok=True)
         paths: list[Path] = []
         domain = f"gui/{self.uid}"
         for label, definition in self.definitions().items():
+            self._unload(label)
             path = self.launch_agents_dir / f"{label}.plist"
             temporary = path.with_name(f".{path.name}.{new_ulid()}.tmp")
             temporary.write_bytes(plistlib.dumps(definition, fmt=plistlib.FMT_XML, sort_keys=False))
             temporary.replace(path)
-            self._launchctl(["launchctl", "bootout", f"{domain}/{label}"], False)
             self._launchctl(["launchctl", "bootstrap", domain, str(path)], True)
             paths.append(path)
         return paths
+
+    def uninstall(self) -> list[Path]:
+        removed: list[Path] = []
+        for label in (self.TICK_LABEL, self.NIGHTLY_LABEL):
+            path = self._remove(label)
+            if path is not None:
+                removed.append(path)
+        return removed
+
+    def status(self) -> dict[str, Any]:
+        domain = f"gui/{self.uid}"
+        jobs: dict[str, dict[str, Any]] = {}
+        for label in (self.TICK_LABEL, self.NIGHTLY_LABEL):
+            path = self.launch_agents_dir / f"{label}.plist"
+            info: dict[str, Any] = {
+                "installed": None,
+                "loaded": None,
+                "plist_path": str(path),
+                "target_checkout": None,
+                "cadence": None,
+                "state": None,
+                "runs": None,
+                "last_exit_code": None,
+                "pid": None,
+            }
+            try:
+                raw = plistlib.loads(path.read_bytes())
+                if not isinstance(raw, dict) or raw.get("Label") != label:
+                    raise ValueError("Invalid scheduler plist")
+                info["installed"] = True
+                interval = raw.get("StartInterval")
+                calendar = raw.get("StartCalendarInterval")
+                if type(interval) is int and interval > 0:
+                    info["cadence"] = {"interval_seconds": interval}
+                elif isinstance(calendar, dict):
+                    info["cadence"] = {
+                        "calendar_interval": {
+                            key: value
+                            for key, value in calendar.items()
+                            if key in {"Month", "Day", "Weekday", "Hour", "Minute"}
+                            and type(value) is int
+                        }
+                    }
+                arguments = raw.get("ProgramArguments")
+                if (
+                    isinstance(arguments, list)
+                    and len(arguments) == 3
+                    and arguments[:2] == ["/bin/zsh", "-lc"]
+                    and isinstance(arguments[2], str)
+                ):
+                    tokens = shlex.split(arguments[2])
+                    if len(tokens) >= 3 and tokens[0] == "cd" and tokens[2] == "&&":
+                        info["target_checkout"] = tokens[1]
+            except FileNotFoundError:
+                info["installed"] = False
+            except (OSError, ValueError, TypeError) as exc:
+                info["config_error"] = type(exc).__name__
+
+            try:
+                result = self._launchctl(["launchctl", "print", f"{domain}/{label}"], False)
+                info["probe_code"] = result.returncode
+                if result.returncode == 0:
+                    info["loaded"] = True
+                    state = re.search(
+                        r"^\s*state = (running|not running|waiting|exited)\s*$",
+                        result.stdout,
+                        re.MULTILINE,
+                    )
+                    if state:
+                        info["state"] = state.group(1)
+                    for source_key, key in (
+                        ("runs", "runs"),
+                        ("last exit code", "last_exit_code"),
+                        ("pid", "pid"),
+                    ):
+                        match = re.search(
+                            rf"^\s*{source_key} = (-?\d+)\s*$", result.stdout, re.MULTILINE
+                        )
+                        if match:
+                            info[key] = int(match.group(1))
+                elif result.returncode in (3, 113):
+                    info["loaded"] = False
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                # Exception text can include subprocess output/environment; expose only its type.
+                info["probe_error"] = type(exc).__name__
+            jobs[label] = info
+        return {"domain": domain, "jobs": jobs}
 
     def _shell_command(self, command: str) -> str:
         return f"cd {shlex.quote(str(self.repo_root))} && uv run evallab {command}"

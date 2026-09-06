@@ -66,6 +66,8 @@ NESTED_COMMANDS = (
     ("campaign", "run"),
     ("campaign", "resume"),
     ("schedule", "install"),
+    ("schedule", "status"),
+    ("schedule", "uninstall"),
     ("canary", "import-terminal-bench"),
     ("curve", "validate"),
     ("curve", "build"),

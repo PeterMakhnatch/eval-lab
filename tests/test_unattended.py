@@ -8,8 +8,15 @@ from pathlib import Path
 
 import pytest
 
+import evallab.cli as cli_module
 import evallab.digest as digest_module
-from evallab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from evallab.automation import (
+    GuardedTick,
+    HeadlessDoctor,
+    NightlyCycle,
+    ScheduleInstaller,
+)
+from evallab.cli import run_cli
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.researchers import (
@@ -28,7 +35,6 @@ from evallab.schemas import (
     QueueEvent,
     StandingApprovalsPolicy,
 )
-from evallab.storage.paths import DERIVED_ROOT_ENV
 
 
 def policy() -> StandingApprovalsPolicy:
@@ -107,42 +113,155 @@ def test_headless_doctor_emits_boolean_contract_without_secret_values(tmp_path: 
     assert "must-not-escape" not in rendered
 
 
-def test_schedule_install_writes_and_loads_two_launchagents(tmp_path: Path) -> None:
-    calls: list[tuple[list[str], bool]] = []
-    installer = ScheduleInstaller(
-        tmp_path,
-        home=tmp_path,
-        uid=501,
-        launchctl=lambda command, check: calls.append((command, check)) or 0,
-    )
+class FakeLaunchctl:
+    """Model service registration without ever touching the host launchd domain."""
 
+    def __init__(self) -> None:
+        self.loaded: set[str] = set()
+        self.unload_error = 0
+        self.output = "state = waiting\nruns = 12\nlast exit code = 1\n"
+
+    def __call__(self, command: list[str], check: bool) -> subprocess.CompletedProcess[str]:
+        operation = command[1]
+        label = command[-1].rsplit("/", 1)[-1]
+        code = 0
+        if operation == "bootstrap":
+            label = plistlib.loads(Path(command[-1]).read_bytes())["Label"]
+            self.loaded.add(label)
+        elif operation == "bootout":
+            code = self.unload_error or (0 if label in self.loaded else 3)
+            if code == 0:
+                self.loaded.remove(label)
+        elif operation == "print":
+            code = 0 if label in self.loaded else 113
+        else:
+            raise AssertionError(command)
+        if check and code:
+            raise RuntimeError(f"launchctl exited {code}")
+        return subprocess.CompletedProcess(command, code, self.output, "")
+
+
+def test_schedule_transition_both_to_tick_only_unloads_and_removes_nightly(tmp_path: Path) -> None:
+    launchctl = FakeLaunchctl()
+    root = tmp_path / "repo with space's"
+    both = ScheduleInstaller(root, home=tmp_path, launchctl=launchctl)
+    both.install()
+    assert launchctl.loaded == {both.TICK_LABEL, both.NIGHTLY_LABEL}
+
+    tick_only = ScheduleInstaller(
+        root, home=tmp_path, launchctl=launchctl, interval_seconds=60, tick_only=True
+    )
+    tick_only.install()
+    status = tick_only.status()["jobs"]
+    assert launchctl.loaded == {both.TICK_LABEL}
+    assert status[both.TICK_LABEL]["cadence"] == {"interval_seconds": 60}
+    assert status[both.TICK_LABEL]["target_checkout"] == str(root)
+    assert status[both.NIGHTLY_LABEL]["installed"] is False
+    assert status[both.NIGHTLY_LABEL]["loaded"] is False
+
+
+def test_schedule_uninstall_is_idempotent_and_preserves_unrelated_launchagents(
+    tmp_path: Path,
+) -> None:
+    launchctl = FakeLaunchctl()
+    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
+    installer.install()
+    foreign = installer.launch_agents_dir / "com.other.developer.plist"
+    foreign.write_text("unrelated")
+    launchctl.loaded.add("com.other.developer")
+    installer.uninstall()
+    assert launchctl.loaded == {"com.other.developer"}
+    assert all(not job["installed"] for job in installer.status()["jobs"].values())
+    assert installer.uninstall() == []
+    assert foreign.read_text() == "unrelated"
+
+
+@pytest.mark.parametrize("tick_only", [False, True])
+def test_schedule_failed_unload_preserves_recoverable_definition(
+    tmp_path: Path, tick_only: bool
+) -> None:
+    launchctl = FakeLaunchctl()
+    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
     paths = installer.install()
+    originals = {path: path.read_bytes() for path in paths}
+    launchctl.unload_error = 1
+    action = (
+        ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl, tick_only=True).install
+        if tick_only
+        else installer.uninstall
+    )
+    with pytest.raises(RuntimeError, match="Cannot unload"):
+        action()
+    assert launchctl.loaded == {installer.TICK_LABEL, installer.NIGHTLY_LABEL}
+    assert {path: path.read_bytes() for path in paths} == originals
 
-    assert {path.name for path in paths} == {
-        f"{ScheduleInstaller.TICK_LABEL}.plist",
-        f"{ScheduleInstaller.NIGHTLY_LABEL}.plist",
-    }
-    assert [call[0][1] for call in calls] == ["bootout", "bootstrap", "bootout", "bootstrap"]
-    assert [call[1] for call in calls] == [False, True, False, True]
-    tick = plistlib.loads(
-        (installer.launch_agents_dir / f"{ScheduleInstaller.TICK_LABEL}.plist").read_bytes()
+
+def test_schedule_invalid_interval_rejected_before_mutation(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        ScheduleInstaller(tmp_path, home=tmp_path, interval_seconds=0)
+    assert not (tmp_path / "Library").exists()
+
+
+def test_schedule_status_reports_runtime_failure_without_exporting_environment(
+    tmp_path: Path,
+) -> None:
+    launchctl = FakeLaunchctl()
+    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
+    installer.install()
+    launchctl.output += "environment = {\n  PRIVATE_VALUE = must-not-escape\n}\n"
+    status = installer.status()
+    tick = status["jobs"][installer.TICK_LABEL]
+    assert tick["loaded"] is True
+    assert tick["state"] == "waiting"
+    assert tick["runs"] == 12
+    assert tick["last_exit_code"] == 1
+    assert "must-not-escape" not in json.dumps(status)
+
+
+def test_schedule_status_distinguishes_unreadable_config_and_failed_probe(tmp_path: Path) -> None:
+    launchctl = FakeLaunchctl()
+    installer = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=launchctl)
+    paths = installer.install()
+    paths[0].write_text("malformed plist")
+
+    def failed_probe(command: list[str], check: bool) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(command, 10, output="must-not-escape")
+
+    status = ScheduleInstaller(tmp_path, home=tmp_path, launchctl=failed_probe).status()
+    tick = status["jobs"][installer.TICK_LABEL]
+    assert tick["installed"] is None
+    assert tick["loaded"] is None
+    assert tick["config_error"] == "InvalidFileException"
+    assert tick["probe_error"] == "TimeoutExpired"
+    assert "must-not-escape" not in json.dumps(status)
+
+
+def test_schedule_cli_workflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    launchctl = FakeLaunchctl()
+
+    class IsolatedSchedule(ScheduleInstaller):
+        def __init__(self, root: Path, **kwargs: object) -> None:
+            super().__init__(root, home=tmp_path, launchctl=launchctl, **kwargs)
+
+    monkeypatch.setattr(cli_module, "ScheduleInstaller", IsolatedSchedule)
+    with pytest.raises(SystemExit) as invalid:
+        run_cli(["schedule", "install", "--interval-seconds", "0"], workspace=tmp_path)
+    assert invalid.value.code == 2
+    assert not launchctl.loaded
+    assert (
+        run_cli(
+            ["schedule", "install", "--interval-seconds", "60", "--tick-only"], workspace=tmp_path
+        )
+        == 0
     )
-    nightly = plistlib.loads(
-        (installer.launch_agents_dir / f"{ScheduleInstaller.NIGHTLY_LABEL}.plist").read_bytes()
-    )
-    assert tick["StartInterval"] == 1800
-    assert nightly["StartCalendarInterval"] == {"Hour": 2, "Minute": 30}
-    assert tick["ProgramArguments"][:2] == ["/bin/zsh", "-lc"]
-    assert tick["ProgramArguments"][2].endswith("uv run evallab tick")
-    assert nightly["ProgramArguments"][2].endswith("uv run evallab nightly")
-    assert tick["Label"] == "com.petermakhnatch.evallab.tick"
-    assert nightly["Label"] == "com.petermakhnatch.evallab.nightly"
-    assert tick["StandardOutPath"].endswith("Library/Logs/evallab/tick.log")
-    assert tick["EnvironmentVariables"]["PATH"].startswith(str(tmp_path / ".local/bin"))
-    assert tick["EnvironmentVariables"][DERIVED_ROOT_ENV] == str(
-        tmp_path / "derived/parquet"
-    )
-    assert nightly["EnvironmentVariables"] == tick["EnvironmentVariables"]
+    capsys.readouterr()
+    assert run_cli(["schedule", "status"], workspace=tmp_path) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["jobs"][ScheduleInstaller.TICK_LABEL]["cadence"] == {"interval_seconds": 60}
+    assert run_cli(["schedule", "uninstall"], workspace=tmp_path) == 0
+    assert not launchctl.loaded
 
 
 def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Path) -> None:
@@ -213,8 +332,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert backups == [report_date]
     assert result.backup_path == backup_path
     assert any(
-        event.event == "postgres_backup_completed"
-        and event.reason_code == "nightly_pg_dump"
+        event.event == "postgres_backup_completed" and event.reason_code == "nightly_pg_dump"
         for event in load_events(queue.events_path)
     )
     content = result.digest_path.read_text()
@@ -231,6 +349,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert result.step_by_name("dispatch").status == "ran"
     assert result.step_by_name("digest") is not None
     assert result.step_by_name("digest").status == "ran"
+
 
 def test_nightly_researcher_defers_while_running_job_is_unresolved(
     tmp_path: Path,
@@ -359,8 +478,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
     assert approved.exists()
     assert calls == []
     assert any(
-        event.event == "postgres_backup_failed"
-        and event.reason_code == reason
+        event.event == "postgres_backup_failed" and event.reason_code == reason
         for event in load_events(queue.events_path)
     )
     content = result.digest_path.read_text()
@@ -566,9 +684,7 @@ def test_locked_keychain_still_dispatches_credentialless_nightly_control(
         )
     )
     result = NightlyCycle(
-        doctor=StaticDoctor(
-            health_report(keychain_readable=False, codex_auth_present=False)
-        ),  # type: ignore[arg-type]
+        doctor=StaticDoctor(health_report(keychain_readable=False, codex_auth_present=False)),  # type: ignore[arg-type]
         executor=service,
         renderer=DigestRenderer(
             repo_root=tmp_path,
@@ -775,8 +891,7 @@ def test_commit_digest_bounds_every_noninteractive_git_command(
 
     assert len(calls) == 3
     assert all(
-        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS
-        for _, kwargs in calls
+        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS for _, kwargs in calls
     )
     assert all(kwargs["stdin"] is subprocess.DEVNULL for _, kwargs in calls)
     assert all(kwargs["capture_output"] is True for _, kwargs in calls)
@@ -833,8 +948,7 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
         repo_root=tmp_path,
         queue=queue,
         policy=tick_policy,
-        runner=lambda request: requests.append(request)
-        or (request.jobs_dir / request.name),
+        runner=lambda request: requests.append(request) or (request.jobs_dir / request.name),
         ingester=lambda _path: None,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
@@ -864,21 +978,15 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
     )
     # Paid work reaches approved/ only through a recorded human authorisation.
     queue.approve(str(queue.load(codex_waiting).spec_id), actor="peter")
-    doctor = StaticDoctor(
-        health_report(keychain_readable=False, codex_auth_present=False)
-    )
+    doctor = StaticDoctor(health_report(keychain_readable=False, codex_auth_present=False))
 
     result = GuardedTick(doctor=doctor, executor=service).run()  # type: ignore[arg-type]
 
     assert result.dispatched == 1
     assert [request.name for request in requests] == ["credentialless-control"]
-    assert [spec.name for _, spec in queue.list_specs("approved")] == [
-        "credentialless-codex"
-    ]
+    assert [spec.name for _, spec in queue.list_specs("approved")] == ["credentialless-codex"]
     terminal = [
-        event
-        for event in load_events(queue.events_path)
-        if event.actor == "scheduled-tick"
+        event for event in load_events(queue.events_path) if event.actor == "scheduled-tick"
     ]
     assert terminal[-1].event == "tick_dispatched"
 
@@ -1012,12 +1120,8 @@ def test_digest_aggregates_repeated_trials_and_keeps_the_reward_spread(
 
     rows = _table_rows(text, "## Completed trials")
     assert len(rows) == 3
-    assert rows[0].startswith(
-        "| canary-mixed | local-lab/event-summary | codex | 3 | 0, 1, 1 |  |"
-    )
-    assert rows[1].startswith(
-        "| canary-clean | local-lab/event-summary | codex | 3 | 1 ×3 |  |"
-    )
+    assert rows[0].startswith("| canary-mixed | local-lab/event-summary | codex | 3 | 0, 1, 1 |  |")
+    assert rows[1].startswith("| canary-clean | local-lab/event-summary | codex | 3 | 1 ×3 |  |")
     assert rows[2].startswith(
         "| canary-raised | local-lab/event-summary | codex | 3 | 1, 1, +1 unscored "
         "| NonZeroAgentExitCodeError (1 of 3) |"
@@ -1061,7 +1165,8 @@ def test_digest_reports_the_measured_judge_calibration_state(tmp_path: Path) -> 
     text = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
 
     line = next(
-        row for row in _section_body(text, "## Evidence and calibration")
+        row
+        for row in _section_body(text, "## Evidence and calibration")
         if row.startswith("- Judge calibration:")
     )
     assert "brief 09" not in text
@@ -1097,9 +1202,7 @@ def test_fleet_reports_live_handoffs_and_never_a_retired_role(tmp_path: Path) ->
     (handoffs / "gate-auth.md").write_text(
         "Status: building\nLast: wired the gate\nNext: open the PR\nBlockers: none\n"
     )
-    (handoffs / "mender.md").write_text(
-        "Status: done\nLast: merged\nNext: none\nBlockers: none\n"
-    )
+    (handoffs / "mender.md").write_text("Status: done\nLast: merged\nNext: none\nBlockers: none\n")
     (handoffs / "orchestrator-handoff.md").write_text("# Replacement orchestrator\n\nProse.\n")
 
     append_fleet_section(

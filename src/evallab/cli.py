@@ -678,12 +678,50 @@ def _resume_command(
     return 0
 
 
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Invalid integer: {value!r}") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"Interval must be a positive integer, got {parsed}")
+    return parsed
+
+
 def _schedule_install_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    paths = ScheduleInstaller(root).install()
+    paths = ScheduleInstaller(
+        root,
+        interval_seconds=args.interval_seconds,
+        tick_only=args.tick_only,
+    ).install()
     for path in paths:
         print(f"installed: {path}")
+    return 0
+
+
+def _schedule_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    status_data = ScheduleInstaller(root).status()
+    print(json.dumps(status_data, indent=2))
+    return (
+        2
+        if any(
+            job["loaded"] is None or "config_error" in job or "probe_error" in job
+            for job in status_data["jobs"].values()
+        )
+        else 0
+    )
+
+
+def _schedule_uninstall_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    paths = ScheduleInstaller(root).uninstall()
+    for path in paths:
+        print(f"uninstalled: {path}")
     return 0
 
 
@@ -3620,7 +3658,34 @@ def parser() -> argparse.ArgumentParser:
     schedule_install = schedule_commands.add_parser(
         "install", help="Install and load tick/nightly LaunchAgents"
     )
+    schedule_install.add_argument(
+        "--interval-seconds",
+        type=_positive_int,
+        default=ScheduleInstaller.DEFAULT_INTERVAL_SECONDS,
+        help="Cadence in seconds for tick schedule (default: 1800)",
+    )
+    schedule_install.add_argument(
+        "--tick-only",
+        action="store_true",
+        help="Schedule queue dispatch only without the nightly research pipeline",
+    )
     schedule_install.set_defaults(func=_schedule_install_command)
+
+    schedule_status = schedule_commands.add_parser(
+        "status", help="Inspect installed and loaded launchd schedule state"
+    )
+    schedule_status.add_argument(
+        "--json",
+        action="store_true",
+        default=True,
+        help="Output status as machine-readable JSON (default)",
+    )
+    schedule_status.set_defaults(func=_schedule_status_command)
+
+    schedule_uninstall = schedule_commands.add_parser(
+        "uninstall", help="Unload and remove installed evallab LaunchAgents"
+    )
+    schedule_uninstall.set_defaults(func=_schedule_uninstall_command)
 
     digest = commands.add_parser("digest", help="Render one daily digest from catalog and events")
     digest.add_argument("--date", dest="report_date", type=date.fromisoformat)

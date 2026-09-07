@@ -2221,6 +2221,41 @@ def _evidence_archive_command(
     return 0
 
 
+def _regrade_verifier_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.regrade import verifier_identity
+
+    identity = verifier_identity(_resolve(root, args.task))
+    if args.json:
+        print(json.dumps(identity.model_dump(mode="json"), indent=2, sort_keys=True))
+    else:
+        print(
+            f"{identity.task_name or identity.task_dir} "
+            f"mode={identity.environment_mode} "
+            f"files={identity.context_file_count} {identity.digest}"
+        )
+    return 0 if identity.environment_mode == "separate" else 1
+
+
+def _regrade_trial_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.regrade import regrade_trial, render_receipt
+
+    receipt = regrade_trial(
+        trial_dir=_resolve(root, args.trial),
+        task_dir=_resolve(root, args.task),
+        trials_dir=_resolve(root, args.trials_dir),
+        environment=args.environment,
+    )
+    if args.json:
+        print(json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True))
+    else:
+        print(render_receipt(receipt))
+    return 1 if receipt.refused else 0
+
+
 def _evidence_restore_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4938,6 +4973,33 @@ def parser() -> argparse.ArgumentParser:
     )
     traj_c0.add_argument("--json", action="store_true", help="Emit deterministic JSON status")
     traj_c0.set_defaults(func=_traj_c0_status_command)
+    regrade_parser = commands.add_parser(
+        "regrade",
+        help="Re-score recorded trials with a task's current verifier at zero model cost",
+    )
+    regrade_commands = regrade_parser.add_subparsers(dest="regrade_command", required=True)
+    regrade_verifier = regrade_commands.add_parser(
+        "verifier", help="Show a task's verifier content identity digest"
+    )
+    regrade_verifier.add_argument("--task", type=Path, required=True, help="Task directory")
+    regrade_verifier.add_argument("--json", action="store_true")
+    regrade_verifier.set_defaults(func=_regrade_verifier_command)
+    regrade_trial_parser = regrade_commands.add_parser(
+        "trial", help="Re-score one recorded trial and write a typed regrade receipt"
+    )
+    regrade_trial_parser.add_argument("trial", type=Path, help="Recorded trial directory")
+    regrade_trial_parser.add_argument(
+        "--task", type=Path, required=True, help="Task directory providing the verifier"
+    )
+    regrade_trial_parser.add_argument(
+        "--trials-dir",
+        type=Path,
+        default=Path("derived/regrades"),
+        help="Parent directory for the new regrade trial",
+    )
+    regrade_trial_parser.add_argument("--environment", default="docker")
+    regrade_trial_parser.add_argument("--json", action="store_true")
+    regrade_trial_parser.set_defaults(func=_regrade_trial_command)
     return root
 
 

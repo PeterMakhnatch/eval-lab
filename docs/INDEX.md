@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:5cb4cc78ad26ac98dab69231575599827ea5da47be63a9104360c3d2b160adae
+    digest: sha256:718b14936c745deb7b039c526e07e87c28646a215de4d28fe686f3c9410acabb
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -118,6 +118,8 @@ inputs:
     digest: sha256:f453a2f026c5b9240e90706d78030db1747af489df79a46b172ec85932a0dde8
   - path: docs/research/external-datasets.md
     digest: sha256:58d428f613cf5cab9258c4e5ce2f057b79d16d803251b62c556b3d18f24a88a3
+  - path: docs/research/harbor-ecosystem-architecture-perspective.md
+    digest: sha256:4611ea9127cb133c78a4b4c8508a3866b23ddc5759639e66faffcc9607759959
   - path: docs/research/literature-survey.md
     digest: sha256:8dd8e6aebe4aa36c02157da5519c9469308be13377bf67b564fc386bcc0bd27e
   - path: docs/research/synthetic-tasks.md
@@ -187,6 +189,7 @@ an operator can see what is archived.
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
+| `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
@@ -242,6 +245,7 @@ an operator can see what is archived.
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
+| `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |

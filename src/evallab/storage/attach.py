@@ -323,6 +323,18 @@ def _attach_semantic_comparison(
         conn.execute(f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {empty}")
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {empty}")
 
+def _attach_traj_views(conn: duckdb.DuckDBPyConnection) -> None:
+    try:
+        from evallab.traj import get_versioned_traj_features_sql
+        v1_sql = get_versioned_traj_features_sql("traj_features")
+        z3_v1_sql = get_versioned_traj_features_sql("z3.traj_features")
+        conn.execute(f"CREATE OR REPLACE VIEW v_traj_features_v1 AS {v1_sql}")
+        conn.execute(f"CREATE OR REPLACE VIEW z3.v_traj_features_v1 AS {z3_v1_sql}")
+        conn.execute("CREATE OR REPLACE VIEW v_traj_features AS SELECT * FROM v_traj_features_v1")
+        conn.execute("CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1")
+    except Exception:
+        pass
+
 
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     if not root.exists():
@@ -361,6 +373,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             )
             missing.append(table)
     _attach_semantic_comparison(conn, available_tables=available_tables)
+    _attach_traj_views(conn)
     detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
     if missing:
         detail += f"; missing: {', '.join(missing)} (intentionally shaped differently)"
@@ -458,6 +471,16 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
         + _semantic_comparison_sql("z3.agent_actions", "z3.semantic_action_facts")
         + ";"
     )
+    try:
+        from evallab.traj import get_versioned_traj_features_sql
+        v1_sql = get_versioned_traj_features_sql("traj_features")
+        z3_v1_sql = get_versioned_traj_features_sql("z3.traj_features")
+        lines.append(f"CREATE OR REPLACE VIEW v_traj_features_v1 AS {v1_sql};")
+        lines.append(f"CREATE OR REPLACE VIEW z3.v_traj_features_v1 AS {z3_v1_sql};")
+        lines.append("CREATE OR REPLACE VIEW v_traj_features AS SELECT * FROM v_traj_features_v1;")
+        lines.append("CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1;")
+    except Exception:
+        pass
     lines.append(
         "CREATE OR REPLACE TABLE z4.front_matter "
         "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"

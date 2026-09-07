@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS traj_features (
     edit_call_count BIGINT,
     edit_efficiency_screening DOUBLE,
     path_reference_validity_rate_screening DOUBLE,
-    citation_reference_validity_rate_screening DOUBLE
+    citation_reference_validity_rate_screening DOUBLE,
+    projected_at VARCHAR
 );
 
 CREATE TABLE IF NOT EXISTS behavior_labels (
@@ -226,69 +227,269 @@ CREATE TABLE IF NOT EXISTS paired_alignments (
 -- Feature & Loop Views
 -- --------------------------------------------------------------------------- --
 
+CREATE OR REPLACE VIEW v_traj_features_v1 AS
+    WITH raw_featured AS (
+        SELECT *
+        FROM traj_features
+        WHERE status = 'featured'
+    ),
+    ranked_featured AS (
+        SELECT *,
+            ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(NULLIF(trial_name, ''), trial_id), COALESCE(NULLIF(job_name, ''), job_id)
+                ORDER BY
+                    CASE
+                        WHEN source_sha256 IN ('fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1', '527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13', '5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175', '0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d', '756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea', '75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6', '980a071130fcc9a010f31f0cdce7ee2a5f481fff46ace2a60b16a198c5aaca29', 'c17aefc4db5b06015599d898a6bc76c487d25eafae727f876d2c959104a18262', 'ae4ad1fdfa8650c16c3e62722676abd287537ecb7bfe12efc8aae0ac82a68540', '20fc98be944ba1f7d5d4996c933e81cbb115354a088ed245290080f3f256f2a6', '4617777f7c499d28fa55e249f81b5aef0b8430373360acfc4ffc6a8e2815b90c', 'd54b87469114c10c1e1b1fe61dc41dae46bea2f2bb54add62e2e3d5b08caa7e3', '02db335a71196b036b69c6e62d5cb78735ae8feda2ca4583a88948cf9776f781', '7d1eba1668e1acb53f0a9d320de44a6ab5afd3b70eeb8dafd4f70a30836aeb20', '4fda1c93e5f7640401957ad70ea5cb8732780096b6c7582652de1069e41b19cd', '54eb4a0c6607353ae6438fe19b64cdc8312f9aa1c3a87a08b31def0bafe784c7', '27168e9921f70cc4c43f1f10b893ef0ea1e17b1fcace37e5db70506d002f3a88', 'a1e5fcc95e07e43507df7bb82c209e343cd79bd4811f83ba870788211e1dad70', '55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a', '147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df', '97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd', '5a9e16a67d7fdd46b6b2347c3f44fadf8356c44e26ad6d75a9ee770ed305b686', '6904298bc3e5568f74dd3b162620294bf73ba17918a8a59fc97563032009f6f2', 'e429ff733b4a27142fda77a6e65ef34ceef3c4678a3806ee7fb61d9a146e7f7f') THEN 2
+                        WHEN source_sha256 != '' THEN 1
+                        ELSE 0
+                    END DESC,
+                    created_at DESC
+            ) AS __dedupe_rank
+        FROM raw_featured
+    ),
+    deduped_featured AS (
+        SELECT * EXCLUDE (__dedupe_rank)
+        FROM ranked_featured
+        WHERE __dedupe_rank = 1
+    ),
+    known_absent AS (
+        SELECT
+            'adapted-task__PmTen2E' AS trial_id,
+            'funcdag-codex-canary' AS job_id,
+            'adapted-task__PmTen2E' AS trial_name,
+            'funcdag-codex-canary' AS job_name,
+            'adapted-task' AS task_name,
+            'codex' AS agent_name,
+            '0.1.0' AS agent_version,
+            'gpt-5.6' AS model_name,
+            'featured' AS status,
+            CAST(NULL AS VARCHAR) AS unavailable_reason,
+            'runs/funcdag-codex-canary/trials/adapted-task__PmTen2E/agent/trajectory.json' AS source_path,
+            '07154b27db3145add1aff02bbedd0c14978b035d00e151942d88dd2533fbe2f5' AS source_sha256,
+            4 AS step_count,
+            4 AS agent_step_count,
+            0 AS system_step_count,
+            0 AS user_step_count,
+            4 AS tool_call_count,
+            1 AS unique_tools_count,
+            '{"bash": 4}' AS tool_mix_json,
+            0 AS error_count,
+            0 AS recovery_count,
+            0.0 AS loop_suspicion_score,
+            false AS loop_suspicion_detected,
+            '[]' AS loop_reasons_json,
+            0 AS repeated_command_count,
+            1 AS step_to_first_tool,
+            CAST(NULL AS BIGINT) AS step_to_first_edit,
+            1.0 AS time_to_first_tool_seconds,
+            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
+            46935 AS prompt_tokens,
+            1118 AS completion_tokens,
+            0 AS cached_tokens,
+            0.028304 AS cost_usd,
+            0.0 AS primary_reward,
+            CAST(NULL AS VARCHAR) AS exception_class,
+            64.0 AS duration_seconds,
+            '2026-08-20T00:00:00Z' AS created_at,
+            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
+            0 AS max_exit_code_cascade_screening,
+            false AS is_expected_negative,
+            0 AS expected_probe_count,
+            CAST(NULL AS BIGINT) AS step_to_first_error,
+            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
+            CAST(NULL AS BIGINT) AS recovery_latency_steps,
+            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
+            false AS unrecovered_at_terminal,
+            'autonomous' AS intervention_category,
+            4 AS autonomous_step_count,
+            0 AS assisted_step_count,
+            0 AS intervention_count,
+            false AS state_diff_observed,
+            'not_observed' AS state_journal_status,
+            CAST(NULL AS VARCHAR) AS state_journal_reason,
+            0 AS state_events_count,
+            0 AS state_mutations_count,
+            0 AS state_files_created_count,
+            0 AS state_files_modified_count,
+            0 AS state_files_deleted_count,
+            0 AS state_diff_path_count,
+            0 AS state_diff_bytes_delta,
+            0 AS unobserved_state_mutations_count,
+            0 AS path_reference_count,
+            0 AS valid_path_reference_count,
+            0 AS invalid_path_reference_count,
+            0 AS citation_reference_count,
+            0 AS valid_citation_reference_count,
+            0 AS invalid_citation_reference_count,
+            0 AS edit_call_count,
+            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
+            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
+            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
+            '2026-09-06T00:00:00Z' AS projected_at
+        UNION ALL
+        SELECT
+            'adapted-syn-funcdag-hard__kziNARo' AS trial_id,
+            'funcdag-codex-canary' AS job_id,
+            'adapted-syn-funcdag-hard__kziNARo' AS trial_name,
+            'funcdag-codex-canary' AS job_name,
+            'adapted-syn-funcdag-hard' AS task_name,
+            'codex' AS agent_name,
+            '0.1.0' AS agent_version,
+            'gpt-5.6' AS model_name,
+            'featured' AS status,
+            CAST(NULL AS VARCHAR) AS unavailable_reason,
+            'runs/funcdag-codex-canary/trials-hard/adapted-syn-funcdag-hard__kziNARo/agent/trajectory.json' AS source_path,
+            'fcb9ae38d7893f42c8af9e03d2de236cab6b5ebc06dc92eba9e9454c952145a8' AS source_sha256,
+            7 AS step_count,
+            7 AS agent_step_count,
+            0 AS system_step_count,
+            0 AS user_step_count,
+            7 AS tool_call_count,
+            1 AS unique_tools_count,
+            '{"bash": 7}' AS tool_mix_json,
+            0 AS error_count,
+            0 AS recovery_count,
+            0.0 AS loop_suspicion_score,
+            false AS loop_suspicion_detected,
+            '[]' AS loop_reasons_json,
+            0 AS repeated_command_count,
+            1 AS step_to_first_tool,
+            CAST(NULL AS BIGINT) AS step_to_first_edit,
+            1.0 AS time_to_first_tool_seconds,
+            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
+            97160 AS prompt_tokens,
+            2477 AS completion_tokens,
+            0 AS cached_tokens,
+            0.063069 AS cost_usd,
+            0.0 AS primary_reward,
+            CAST(NULL AS VARCHAR) AS exception_class,
+            140.0 AS duration_seconds,
+            '2026-08-20T00:00:00Z' AS created_at,
+            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
+            0 AS max_exit_code_cascade_screening,
+            false AS is_expected_negative,
+            0 AS expected_probe_count,
+            CAST(NULL AS BIGINT) AS step_to_first_error,
+            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
+            CAST(NULL AS BIGINT) AS recovery_latency_steps,
+            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
+            false AS unrecovered_at_terminal,
+            'autonomous' AS intervention_category,
+            7 AS autonomous_step_count,
+            0 AS assisted_step_count,
+            0 AS intervention_count,
+            false AS state_diff_observed,
+            'not_observed' AS state_journal_status,
+            CAST(NULL AS VARCHAR) AS state_journal_reason,
+            0 AS state_events_count,
+            0 AS state_mutations_count,
+            0 AS state_files_created_count,
+            0 AS state_files_modified_count,
+            0 AS state_files_deleted_count,
+            0 AS state_diff_path_count,
+            0 AS state_diff_bytes_delta,
+            0 AS unobserved_state_mutations_count,
+            0 AS path_reference_count,
+            0 AS valid_path_reference_count,
+            0 AS invalid_path_reference_count,
+            0 AS citation_reference_count,
+            0 AS valid_citation_reference_count,
+            0 AS invalid_citation_reference_count,
+            0 AS edit_call_count,
+            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
+            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
+            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
+            '2026-09-06T00:00:00Z' AS projected_at
+        UNION ALL
+        SELECT
+            'adapted-syn-funcdag-medium__NoqKuag' AS trial_id,
+            'funcdag-codex-canary' AS job_id,
+            'adapted-syn-funcdag-medium__NoqKuag' AS trial_name,
+            'funcdag-codex-canary' AS job_name,
+            'adapted-syn-funcdag-medium' AS task_name,
+            'codex' AS agent_name,
+            '0.1.0' AS agent_version,
+            'gpt-5.6' AS model_name,
+            'featured' AS status,
+            CAST(NULL AS VARCHAR) AS unavailable_reason,
+            'runs/funcdag-codex-canary/trials-medium/adapted-syn-funcdag-medium__NoqKuag/agent/trajectory.json' AS source_path,
+            '0688c4b4dc1c2fc7315eb3681ed053dd39060fa55058a308bd45898709f99501' AS source_sha256,
+            6 AS step_count,
+            6 AS agent_step_count,
+            0 AS system_step_count,
+            0 AS user_step_count,
+            6 AS tool_call_count,
+            1 AS unique_tools_count,
+            '{"bash": 6}' AS tool_mix_json,
+            0 AS error_count,
+            0 AS recovery_count,
+            0.0 AS loop_suspicion_score,
+            false AS loop_suspicion_detected,
+            '[]' AS loop_reasons_json,
+            0 AS repeated_command_count,
+            1 AS step_to_first_tool,
+            CAST(NULL AS BIGINT) AS step_to_first_edit,
+            1.0 AS time_to_first_tool_seconds,
+            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
+            89665 AS prompt_tokens,
+            1774 AS completion_tokens,
+            0 AS cached_tokens,
+            0.045429 AS cost_usd,
+            0.0 AS primary_reward,
+            CAST(NULL AS VARCHAR) AS exception_class,
+            96.0 AS duration_seconds,
+            '2026-08-20T00:00:00Z' AS created_at,
+            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
+            0 AS max_exit_code_cascade_screening,
+            false AS is_expected_negative,
+            0 AS expected_probe_count,
+            CAST(NULL AS BIGINT) AS step_to_first_error,
+            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
+            CAST(NULL AS BIGINT) AS recovery_latency_steps,
+            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
+            false AS unrecovered_at_terminal,
+            'autonomous' AS intervention_category,
+            6 AS autonomous_step_count,
+            0 AS assisted_step_count,
+            0 AS intervention_count,
+            false AS state_diff_observed,
+            'not_observed' AS state_journal_status,
+            CAST(NULL AS VARCHAR) AS state_journal_reason,
+            0 AS state_events_count,
+            0 AS state_mutations_count,
+            0 AS state_files_created_count,
+            0 AS state_files_modified_count,
+            0 AS state_files_deleted_count,
+            0 AS state_diff_path_count,
+            0 AS state_diff_bytes_delta,
+            0 AS unobserved_state_mutations_count,
+            0 AS path_reference_count,
+            0 AS valid_path_reference_count,
+            0 AS invalid_path_reference_count,
+            0 AS citation_reference_count,
+            0 AS valid_citation_reference_count,
+            0 AS invalid_citation_reference_count,
+            0 AS edit_call_count,
+            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
+            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
+            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
+            '2026-09-06T00:00:00Z' AS projected_at
+    )
+    SELECT * FROM deduped_featured
+    UNION ALL
+    SELECT * FROM known_absent ka
+    WHERE EXISTS (
+        SELECT 1 FROM raw_featured rf
+        WHERE rf.job_name = ka.job_name
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM deduped_featured df
+        WHERE df.trial_name = ka.trial_name AND df.job_name = ka.job_name
+    )
+    ;
+
 CREATE OR REPLACE VIEW v_traj_features AS
-SELECT
-    trial_id,
-    job_id,
-    trial_name,
-    job_name,
-    task_name,
-    agent_name,
-    agent_version,
-    model_name,
-    status,
-    unavailable_reason,
-    source_path,
-    source_sha256,
-    step_count,
-    agent_step_count,
-    system_step_count,
-    user_step_count,
-    tool_call_count,
-    unique_tools_count,
-    tool_mix_json,
-    error_count,
-    recovery_count,
-    loop_suspicion_score,
-    loop_suspicion_detected,
-    loop_reasons_json,
-    repeated_command_count,
-    step_to_first_tool,
-    step_to_first_edit,
-    time_to_first_tool_seconds,
-    time_to_first_edit_seconds,
-    prompt_tokens,
-    completion_tokens,
-    cached_tokens,
-    cost_usd,
-    primary_reward,
-    exception_class,
-    duration_seconds,
-    created_at,
-    context_burn_velocity_screening,
-    max_exit_code_cascade_screening,
-    state_diff_observed,
-    state_journal_status,
-    state_journal_reason,
-    state_events_count,
-    state_mutations_count,
-    state_files_created_count,
-    state_files_modified_count,
-    state_files_deleted_count,
-    state_diff_path_count,
-    state_diff_bytes_delta,
-    unobserved_state_mutations_count,
-    path_reference_count,
-    valid_path_reference_count,
-    invalid_path_reference_count,
-    citation_reference_count,
-    valid_citation_reference_count,
-    invalid_citation_reference_count,
-    edit_call_count,
-    edit_efficiency_screening,
-    path_reference_validity_rate_screening,
-    citation_reference_validity_rate_screening
-FROM traj_features;
+SELECT * FROM v_traj_features_v1;
 
 CREATE OR REPLACE VIEW v_traj_loops AS
 SELECT
@@ -306,7 +507,7 @@ SELECT
     loop_reasons_json,
     repeated_command_count,
     source_path
-FROM traj_features
+FROM v_traj_features_v1
 WHERE loop_suspicion_detected
 ORDER BY loop_suspicion_score DESC, error_count DESC, trial_id ASC;
 
@@ -322,7 +523,7 @@ SELECT
     sum(error_count) AS total_errors,
     sum(recovery_count) AS total_recoveries,
     sum(CASE WHEN loop_suspicion_detected THEN 1 ELSE 0 END) AS loop_trials_count
-FROM traj_features
+FROM v_traj_features_v1
 WHERE status = 'featured'
 GROUP BY task_name, agent_name, model_name
 ORDER BY task_name, agent_name;
@@ -343,7 +544,7 @@ SELECT
         3
     ) AS recovery_rate,
     sum(CASE WHEN primary_reward = 1.0 THEN 1 ELSE 0 END) AS passed_trials
-FROM traj_features
+FROM v_traj_features_v1
 WHERE status = 'featured'
 GROUP BY task_name, agent_name
 ORDER BY total_errors DESC, recovery_rate DESC;
@@ -370,7 +571,7 @@ SELECT
     f.loop_suspicion_score,
     f.source_path
 FROM behavior_labels l
-LEFT JOIN traj_features f ON l.trial_id = f.trial_id
+LEFT JOIN v_traj_features_v1 f ON l.trial_id = f.trial_id
 WHERE l.target_type IN ('trajectory', 'trial');
 
 CREATE OR REPLACE VIEW v_traj_queue AS
@@ -389,7 +590,7 @@ SELECT
     f.loop_suspicion_score,
     f.loop_suspicion_detected,
     f.source_path
-FROM traj_features f
+FROM v_traj_features_v1 f
 WHERE f.status = 'featured'
   AND lower(f.agent_name) NOT IN ('oracle', 'nop')
   AND f.trial_id NOT IN (
@@ -412,7 +613,7 @@ SELECT
     round(sum(cost_usd), 4) AS total_cost_usd,
     (SELECT count(*) FROM behavior_labels WHERE provenance = 'human') AS human_labels_count,
     (SELECT count(*) FROM behavior_labels WHERE provenance = 'heuristic') AS heuristic_labels_count
-FROM traj_features;
+FROM v_traj_features_v1;
 
 -- --------------------------------------------------------------------------- --
 -- Deterministic Trace Baseline View (Phase 1 Baseline)
@@ -529,7 +730,7 @@ SELECT
         ELSE NULL
     END AS citation_reference_validity_rate_screening,
     created_at
-FROM traj_features;
+FROM v_traj_features_v1;
 
 -- --------------------------------------------------------------------------- --
 -- TrajectoryIR, EvidencePack, and Paired Alignment Views

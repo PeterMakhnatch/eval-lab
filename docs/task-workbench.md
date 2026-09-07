@@ -274,7 +274,8 @@ python -m evallab.task_workbench scan path/to/collection \
   --source-uri local/imported-pack \
   --source-ref local/imported-pack@1.0.0 \
   --license MIT \
-  --zone 01-external
+  --zone 01-external \
+  --format text
 ```
 
 `scan` recursively discovers directories containing `task.toml` and applies the
@@ -289,6 +290,16 @@ count affected tasks, not repeated findings within a task. An unreadable or
 malformed candidate does not prevent inspection of its siblings. Candidate
 symlinks are refused before content inspection; exception records expose the
 exception type rather than potentially sensitive exception text.
+
+The command supports `--format text|json`, defaulting to `json`. The default
+JSON report is unchanged byte-for-byte. With `--format text`, stdout carries a
+concise per-task review summary: source identity, candidate-only/no-controls
+scope warnings, status counts, diagnostic totals by affected task, and one entry
+per task with its `candidate_id`/`package_digest`, inspection error type, and
+every diagnostic prefixed with its severity (`[error]`/`[warning]`/`[info]`),
+code, classification, and path. Severity is rendered on passing candidates too,
+and failed candidates keep their package identity, so a static pass is never
+presented as certification. Exit codes are identical across formats.
 
 **This is screening against the workbench policy, not River's semantic audit or
 a measurement of RL usefulness.** Unsupported configuration and missing

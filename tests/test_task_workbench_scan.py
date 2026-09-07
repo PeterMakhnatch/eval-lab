@@ -37,6 +37,10 @@ def _args(root: Path) -> list[str]:
     ]
 
 
+def _format_args(root: Path, fmt: str) -> list[str]:
+    return _args(root) + ["--format", fmt]
+
+
 def test_scan_preserves_valid_siblings_and_distinguishes_inspection_errors(tmp_path: Path) -> None:
     valid = _candidate(tmp_path, "a-valid")
     refused = _candidate(tmp_path, "b-refused")
@@ -123,3 +127,63 @@ def test_scan_accepts_single_task_root_and_rejects_missing_root(tmp_path: Path) 
     assert [row["task_path"] for row in report["tasks"]] == ["single"]
     with pytest.raises(RuntimeError, match="candidate root is missing"):
         scan_candidates(repo_root=tmp_path, task_root=tmp_path / "missing", source=SOURCE)
+
+
+def test_scan_cli_text_preserves_severity_on_static_passed_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A static pass with warning diagnostics must not hide their severity."""
+    import evallab.task_workbench as tw
+
+    _candidate(tmp_path, "warned")
+    real_inspect = tw.inspect_candidate
+
+    def inspect_with_warning(*args, **kwargs) -> tw.Inspection:
+        inspection = real_inspect(*args, **kwargs)
+        warning = tw.Diagnostic(
+            severity="warning",
+            code="review_advisory",
+            classification="task_defect",
+            path="instruction.md",
+            message="Retain this advice",
+        )
+        return tw.Inspection(
+            candidate=inspection.candidate,
+            diagnostics=(warning,) + inspection.diagnostics,
+            control_plan=inspection.control_plan,
+        )
+
+    monkeypatch.setattr(tw, "inspect_candidate", inspect_with_warning)
+
+    assert run_cli(_format_args(tmp_path, "text")) == 0
+    text = capsys.readouterr().out
+    assert "warned: static_passed" in text
+    assert "[warning] review_advisory (task_defect; instruction.md): Retain this advice" in text
+    assert "review_advisory: 1" in text
+    assert "static_passed does not mean clean or certified" in text
+
+    assert run_cli(_format_args(tmp_path, "json")) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["tasks"][0]["status"] == "static_passed"
+    assert payload["tasks"][0]["diagnostics"][0]["severity"] == "warning"
+
+
+def test_scan_cli_text_reports_failed_candidate_identity_and_reasons(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Failed candidates keep provenance and diagnostics in text output."""
+    refused = _candidate(tmp_path, "b-refused")
+    (refused / "tests/Dockerfile").unlink()
+    (refused / "solution/solve.sh").unlink()
+
+    assert run_cli(_format_args(tmp_path, "text")) == 1
+    text = capsys.readouterr().out
+    assert "b-refused: static_failed" in text
+    assert text.count("[error] required_file_missing") == 2
+    assert "candidate_id: candidate-" in text
+    assert "package: sha256:" in text
+
+    assert run_cli(_format_args(tmp_path, "json")) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["tasks"][0]["status"] == "static_failed"
+    assert len(payload["tasks"][0]["diagnostics"]) == 2

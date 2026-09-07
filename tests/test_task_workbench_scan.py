@@ -187,3 +187,133 @@ def test_scan_cli_text_reports_failed_candidate_identity_and_reasons(
     payload = json.loads(capsys.readouterr().out)
     assert payload["tasks"][0]["status"] == "static_failed"
     assert len(payload["tasks"][0]["diagnostics"]) == 2
+
+
+def test_audit_evidence_consumes_synthetic_and_binds_provenance(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify audit-evidence loads runs, computes provenance binding, and reports arms."""
+    import hashlib
+
+    from evallab.task_workbench import load_quality_audit_evidence, run_cli
+
+    task_dir = tmp_path / "mock-task"
+    task_dir.mkdir()
+    test_file = task_dir / "test.py"
+    test_file.write_text("print('hello')\n")
+    test_sha = hashlib.sha256(test_file.read_bytes()).hexdigest()
+
+    audit_dir = tmp_path / "mock-audit"
+    audit_dir.mkdir()
+    (audit_dir / "run_meta.json").write_text(
+        json.dumps({
+            "run_id": "test-run-123",
+            "meta": {
+                "task_dir": str(task_dir),
+                "image": "test-image:latest",
+            },
+        })
+    )
+    (audit_dir / "audit-rollup.json").write_text(
+        json.dumps({
+            "hashes": {
+                "mock-task": {
+                    "test.py": test_sha,
+                }
+            }
+        })
+    )
+    (audit_dir / "summary.json").write_text(
+        json.dumps({
+            "run_id": "test-run-123",
+            "findings": {
+                "status": "pass",
+                "per_arm": {
+                    "oracle": {
+                        "label": "positive reference",
+                        "expected_reward": "1.0",
+                    }
+                },
+            },
+            "arms": {
+                "oracle": {
+                    "reward": "1.0",
+                    "ctrf_summary": {"passed": 5, "tests": 5},
+                }
+            },
+        })
+    )
+    oracle_arm = audit_dir / "oracle"
+    oracle_arm.mkdir()
+    (oracle_arm / "result.json").write_text(
+        json.dumps({
+            "reward": "1.0",
+            "action_exit": 0,
+            "verifier_exit": 0,
+            "ctrf_summary": {"passed": 5, "tests": 5},
+        })
+    )
+
+    evidence = load_quality_audit_evidence(audit_dir)
+    assert evidence["run_id"] == "test-run-123"
+    assert evidence["provenance_binding"]["status"] == "verified"
+    assert evidence["provenance_binding"]["matched_files"] == 1
+    assert evidence["arms"]["oracle"]["observed_reward"] == 1.0
+    assert evidence["arms"]["oracle"]["execution_status"] == "completed"
+
+    # Test text formatting via CLI
+    exit_code = run_cli(["audit-evidence", str(audit_dir), "--format", "text"])
+    assert exit_code == 0
+    text = capsys.readouterr().out
+    assert "Quality audit evidence:" in text
+    assert "Run ID: test-run-123" in text
+    assert "Provenance binding: verified (1 files matched)" in text
+    assert "- oracle: status=completed, reward=1.0 (tests: 5/5)" in text
+    assert "Declared label: positive reference (expected: 1.0)" in text
+
+    # Changed bytes must invalidate provenance binding
+    test_file.write_text("print('tampered')\n")
+    tampered = load_quality_audit_evidence(audit_dir)
+    assert tampered["provenance_binding"]["status"] == "mismatched"
+    assert "test.py" in tampered["provenance_binding"]["mismatches"]
+
+
+def test_audit_evidence_exercises_real_pipeline_record_and_dashboard_artifacts(
+    capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify real lane quality-audit directories parse correctly and preserve boundaries."""
+    from evallab.task_workbench import load_quality_audit_evidence, run_cli
+
+    p_audit = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/pipeline-record-quality-audit")
+    d_audit = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/facet-key-order-probe-run-audited-2")
+
+    if not p_audit.exists() or not d_audit.exists():
+        pytest.skip("real quality-audit artifacts not available on host")
+
+    # Pipeline record audit
+    p_ev = load_quality_audit_evidence(p_audit)
+    assert p_ev["run_id"] == "facet-probe-5299bacf-ed3"
+    assert p_ev["provenance_binding"]["status"] == "verified"
+    assert set(p_ev["arms"].keys()) == {"drop_event", "empty_values", "nop", "oracle", "reordered_json"}
+    # empty_values has observed reward 1.0 even though declared expected is 0.0
+    assert p_ev["arms"]["empty_values"]["observed_reward"] == 1.0
+    assert p_ev["arms"]["empty_values"]["declared_expected_reward"] == 0.0
+    assert p_ev["arms"]["reordered_json"]["observed_reward"] == 1.0
+
+    # Dashboard audit
+    d_ev = load_quality_audit_evidence(d_audit)
+    assert d_ev["run_id"] == "facet-probe-46b10b32-d10"
+    assert d_ev["provenance_binding"]["status"] == "verified"
+    assert set(d_ev["arms"].keys()) == {"nop", "oracle", "reordered_json", "wrong_value"}
+    # dashboard reordered_json has observed reward 0.0
+    assert d_ev["arms"]["reordered_json"]["observed_reward"] == 0.0
+
+    # CLI text rendering on real artifacts
+    assert run_cli(["audit-evidence", str(p_audit), "--format", "text"]) == 0
+    p_text = capsys.readouterr().out
+    assert "empty_values: status=completed, reward=1.0" in p_text
+    assert "reordered_json: status=completed, reward=1.0" in p_text
+
+    assert run_cli(["audit-evidence", str(d_audit), "--format", "text"]) == 0
+    d_text = capsys.readouterr().out
+    assert "reordered_json: status=completed, reward=0.0" in d_text

@@ -4326,6 +4326,263 @@ def render_scan_text(scan: Mapping[str, Any]) -> str:
     if not scan["tasks"]:
         lines.append("- (no task packages discovered)")
     return "\n".join(lines) + "\n"
+def _file_sha256_hex(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_quality_audit_evidence(
+    audit_dir: Path,
+    *,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Consume an external quality-audit evidence directory read-only.
+
+    Returns a normalized record of per-arm execution outcomes, verifierCTRFFacts,
+    and task/verifier provenance bindings without executing tasks or mutating admission state.
+    """
+    audit_path = audit_dir.resolve()
+    if not audit_path.is_dir():
+        raise WorkbenchError(f"audit directory does not exist: {audit_path}")
+
+    summary_file = audit_path / "summary.json"
+    if not summary_file.is_file():
+        raise WorkbenchError(f"audit directory missing summary.json: {audit_path}")
+
+    summary_data = json.loads(summary_file.read_text(encoding="utf-8"))
+    run_meta_file = audit_path / "run_meta.json"
+    run_meta_data = (
+        json.loads(run_meta_file.read_text(encoding="utf-8"))
+        if run_meta_file.is_file()
+        else {}
+    )
+    audit_rollup_file = audit_path / "audit-rollup.json"
+    if not audit_rollup_file.is_file():
+        sibling_rollup = audit_path.parent / "pipeline-record-quality-audit" / "audit-rollup.json"
+        if sibling_rollup.is_file():
+            audit_rollup_file = sibling_rollup
+    audit_rollup_data = (
+        json.loads(audit_rollup_file.read_text(encoding="utf-8"))
+        if audit_rollup_file.is_file()
+        else {}
+    )
+    run_id = summary_data.get("run_id") or run_meta_data.get("run_id") or audit_path.name
+    run_uuid = summary_data.get("run_uuid") or run_meta_data.get("run_uuid")
+    meta_block = run_meta_data.get("meta", {})
+    task_dir_raw = meta_block.get("task_dir")
+    task_dir = Path(task_dir_raw).resolve() if task_dir_raw else None
+    container_image = meta_block.get("image")
+
+
+    # Provenance binding check: verify task bytes against retained hashes if available
+    retained_hashes: dict[str, str] = {}
+    if audit_rollup_data and "hashes" in audit_rollup_data:
+        hashes_block = audit_rollup_data["hashes"]
+        # Look for matching task key or flat structure
+        for k, v in hashes_block.items():
+            if isinstance(v, dict):
+                retained_hashes.update({f"{k}/{sub_k}": sub_v for sub_k, sub_v in v.items()})
+            elif isinstance(v, str):
+                retained_hashes[k] = v
+
+    provenance_status = "unbound"
+    binding_details: dict[str, Any] = {}
+    if task_dir and task_dir.is_dir():
+        checked_files = 0
+        matched_files = 0
+        mismatched_files: list[str] = []
+        # Check known files if task_000008 or task_000010 in rollup
+        task_rollup: dict[str, Any] = {}
+        if audit_rollup_data and "hashes" in audit_rollup_data:
+            hashes_block = audit_rollup_data["hashes"]
+            dir_name = task_dir.name
+            matched_key = None
+            if "facet-dashboard" in dir_name or "000010" in dir_name:
+                matched_key = "task_000010"
+            elif "pipeline-record" in dir_name or "000008" in dir_name:
+                matched_key = "task_000008"
+            elif dir_name in hashes_block and isinstance(hashes_block[dir_name], dict):
+                matched_key = dir_name
+
+            if matched_key and matched_key in hashes_block and isinstance(hashes_block[matched_key], dict):
+                task_rollup = hashes_block[matched_key]
+
+        if task_rollup:
+            for rel_path, expected_hash in task_rollup.items():
+                if rel_path.startswith("image_") or not isinstance(expected_hash, str):
+                    continue
+                cand_file = task_dir / rel_path
+                if cand_file.is_file():
+                    checked_files += 1
+                    actual_hash = _file_sha256_hex(cand_file)
+                    if actual_hash == expected_hash.removeprefix("sha256:"):
+                        matched_files += 1
+                    else:
+                        mismatched_files.append(rel_path)
+
+        if checked_files > 0:
+            if mismatched_files:
+                provenance_status = "mismatched"
+                binding_details["mismatches"] = mismatched_files
+            elif matched_files == checked_files:
+                provenance_status = "verified"
+            binding_details["checked_files"] = checked_files
+            binding_details["matched_files"] = matched_files
+        else:
+            provenance_status = "unbound"
+    elif task_dir:
+        provenance_status = "missing_task_dir"
+
+    # Arms extraction
+    arms: dict[str, Any] = {}
+    raw_arms_summary = summary_data.get("arms", {})
+    findings_per_arm = summary_data.get("findings", {}).get("per_arm", {})
+
+    # Also scan directories on disk to find any arm not listed in summary
+    arm_dirs = sorted([p for p in audit_path.iterdir() if p.is_dir() and (p / "result.json").is_file()])
+    for arm_dir in arm_dirs:
+        arm_name = arm_dir.name
+        result_file = arm_dir / "result.json"
+        result_data = json.loads(result_file.read_text(encoding="utf-8"))
+        digests_file = arm_dir / "digests.json"
+        digests_data = json.loads(digests_file.read_text(encoding="utf-8")) if digests_file.is_file() else {}
+
+        arm_summary = raw_arms_summary.get(arm_name, {})
+        finding = findings_per_arm.get(arm_name, {})
+
+        observed_reward_raw = result_data.get("reward", arm_summary.get("reward"))
+        # float conversion if numeric string
+        try:
+            observed_reward = float(observed_reward_raw) if observed_reward_raw is not None else None
+        except (ValueError, TypeError):
+            observed_reward = None
+
+        ctrf_summary = result_data.get("ctrf_summary") or arm_summary.get("ctrf_summary") or {}
+        tests_passed = ctrf_summary.get("passed", 0)
+        tests_total = ctrf_summary.get("tests", 0)
+
+        # Arm execution status: completed vs missing/failed
+        action_exit = result_data.get("action_exit")
+        verifier_exit = result_data.get("verifier_exit")
+        if action_exit == 0 and verifier_exit == 0 and observed_reward is not None:
+            execution_status = "completed"
+        elif action_exit is None and verifier_exit is None and observed_reward is None:
+            execution_status = "unassessed"
+        else:
+            execution_status = "failed"
+
+        arms[arm_name] = {
+            "arm": arm_name,
+            "execution_status": execution_status,
+            "observed_reward": observed_reward,
+            "declared_label": finding.get("label"),
+            "declared_expected_reward": (
+                float(finding["expected_reward"])
+                if finding.get("expected_reward") is not None
+                else None
+            ),
+            "action_exit": action_exit,
+            "verifier_exit": verifier_exit,
+            "tests_passed": tests_passed,
+            "tests_total": tests_total,
+            "evidence_path": str(arm_dir),
+            "input_digests": digests_data.get("inputs", {}),
+            "output_digests": result_data.get("output_digests", digests_data.get("outputs", {})),
+        }
+
+    # Retain reviewer findings verbatim without conflating with execution
+    reviewer_findings = summary_data.get("findings", {})
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "quality_audit_evidence",
+        "workbench_version": WORKBENCH_VERSION,
+        "audit_path": str(audit_path),
+        "run_id": run_id,
+        "run_uuid": run_uuid,
+        "task_dir": str(task_dir) if task_dir else None,
+        "container_image": container_image,
+        "provenance_binding": {
+            "status": provenance_status,
+            **binding_details,
+        },
+        "execution_summary": {
+            "arms_discovered": len(arms),
+            "completed_arms": sum(1 for a in arms.values() if a["execution_status"] == "completed"),
+            "failed_arms": sum(1 for a in arms.values() if a["execution_status"] == "failed"),
+        },
+        "arms": arms,
+        "reviewer_findings": reviewer_findings,
+        "admission_authority": "candidate_evidence_only",
+        "notices": [
+            "Direct-Docker candidate evidence only; not Harbor certification.",
+            "Arm names and reviewer labels do not determine validity or admission.",
+            "No tasks admitted, registered, or published.",
+        ],
+    }
+
+
+def render_quality_audit_text(evidence: Mapping[str, Any]) -> str:
+    """Render a concise human-readable view of a quality-audit evidence directory."""
+    lines: list[str] = [
+        f"Quality audit evidence: {evidence.get('audit_path')}",
+        f"Run ID: {evidence.get('run_id')} (image: {evidence.get('container_image', 'unknown')})",
+        f"Task directory: {evidence.get('task_dir', 'none')}",
+    ]
+
+    binding = evidence.get("provenance_binding", {})
+    status = binding.get("status", "unknown")
+    if status == "verified":
+        lines.append(f"Provenance binding: verified ({binding.get('checked_files', 0)} files matched)")
+    elif status == "mismatched":
+        lines.append(f"Provenance binding: MISMATCHED (mismatches: {binding.get('mismatches')})")
+    else:
+        lines.append(f"Provenance binding: {status}")
+
+    lines.extend([
+        "",
+        "Notices:",
+        "- External direct-Docker candidate evidence only; not Harbor certification.",
+        "- Observed execution results are reported separately from declared/expected labels.",
+        "- No tasks admitted or registered.",
+        "",
+        "Arms:",
+    ])
+
+    arms = evidence.get("arms", {})
+    for arm_name, arm in sorted(arms.items()):
+        reward = arm.get("observed_reward")
+        reward_str = str(reward) if reward is not None else "none"
+        status = arm.get("execution_status", "unknown")
+        tests_p = arm.get("tests_passed", 0)
+        tests_t = arm.get("tests_total", 0)
+        lines.append(f"- {arm_name}: status={status}, reward={reward_str} (tests: {tests_p}/{tests_t})")
+        label = arm.get("declared_label")
+        exp = arm.get("declared_expected_reward")
+        if label is not None or exp is not None:
+            lines.append(f"    Declared label: {label or 'unspecified'} (expected: {exp if exp is not None else 'unknown'})")
+        ev_path = arm.get("evidence_path")
+        if ev_path:
+            lines.append(f"    Evidence: {ev_path}")
+
+    findings = evidence.get("reviewer_findings", {})
+    if findings:
+        lines.extend(["", "Reviewer annotations:"])
+        status_str = findings.get("status")
+        if status_str:
+            lines.append(f"- Status: {status_str}")
+        conclusion = findings.get("conclusion")
+        if conclusion:
+            lines.append(f"- Conclusion: {conclusion}")
+        note = findings.get("adjudication_note")
+        if note:
+            lines.append(f"- Note: {note}")
+
+    return "\n".join(lines) + "\n"
+
 
 
 def _materialize_command(command: Sequence[str], repo_root: Path) -> tuple[str, ...]:
@@ -5903,6 +6160,27 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_arguments(packet)
     packet.add_argument("--controls", type=Path)
     packet.add_argument("--output-root", type=Path)
+    audit_cmd = subparsers.add_parser(
+        "audit-evidence",
+        help="inspect external quality audit evidence directory read-only",
+    )
+    audit_cmd.add_argument(
+        "audit_dir",
+        type=Path,
+        help="path to quality audit evidence directory containing summary.json",
+    )
+    audit_cmd.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path.cwd(),
+        help="repository root for path relativity (default: %(default)s)",
+    )
+    audit_cmd.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="output format (default: %(default)s)",
+    )
     return parser
 
 
@@ -5914,8 +6192,18 @@ def run_cli(
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     repo_root = args.repo_root.resolve()
-    source = _source_from_args(args)
     try:
+        if args.command == "audit-evidence":
+            evidence = load_quality_audit_evidence(
+                audit_dir=args.audit_dir,
+                repo_root=repo_root,
+            )
+            if getattr(args, "format", "text") == "text":
+                sys.stdout.write(render_quality_audit_text(evidence))
+            else:
+                sys.stdout.buffer.write(_canonical_bytes(evidence))
+            return 0
+        source = _source_from_args(args)
         if args.command == "scan":
             scan = scan_candidates(repo_root=repo_root, task_root=args.task, source=source)
             if args.format == "text":

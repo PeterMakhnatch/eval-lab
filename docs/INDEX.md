@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:718b14936c745deb7b039c526e07e87c28646a215de4d28fe686f3c9410acabb
+    digest: sha256:27b2f9afaa707d2ff4f5abaef5d84b7181c75e237a9e3bb07a606fcdfc522eb0
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -139,7 +139,7 @@ inputs:
   - path: docs/task-registry.md
     digest: sha256:fc5cc3ceeca53378e23a249ebca3ce9365eacef65d99ed5b2fb97668010ae030
   - path: docs/task-workbench.md
-    digest: sha256:f77824bd91eaadead28d7495fbad0eefa5d7099905ac3adb5997e7dcf34bfbe8
+    digest: sha256:508b4a782fece3eacb653f11eb1989c62c8c5e35c7271233a1ebcc43bd9cba7e
   - path: docs/tidy.md
     digest: sha256:10f5c271c1dd3e951a55242f3a9a44d110908ff30be7b870fc5522ffec468d92
   - path: docs/verdicts.md

@@ -995,6 +995,124 @@ def test_existing_argv_order_is_unchanged_by_the_new_flag(tmp_path: Path) -> Non
     assert with_preamble[: len(base)] == base
 
 
+def test_skill_flag_is_forwarded_to_harbor(tmp_path: Path) -> None:
+    """C1: --skill flag must reach the harbor argv."""
+    skill_dir = tmp_path / "skills" / "my-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Skill\n")
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="sample-with-skill",
+        jobs_dir=tmp_path / "runs",
+        skill=skill_dir,
+    )
+
+    command = build_command(request)
+
+    assert "--skill" in command
+    assert command[command.index("--skill") + 1] == str(skill_dir)
+
+
+def test_multiple_skills_are_forwarded_to_harbor(tmp_path: Path) -> None:
+    """C1: multiple skills produce repeatable --skill flags."""
+    s1 = tmp_path / "skill1"
+    s2 = tmp_path / "skill2"
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="sample-multi-skill",
+        jobs_dir=tmp_path / "runs",
+        skills=[s1, s2],
+    )
+
+    command = build_command(request)
+
+    skill_indices = [i for i, val in enumerate(command) if val == "--skill"]
+    assert len(skill_indices) == 2
+    assert command[skill_indices[0] + 1] == str(s1)
+    assert command[skill_indices[1] + 1] == str(s2)
+
+
+def test_load_trajectory_flag_is_forwarded_to_harbor(tmp_path: Path) -> None:
+    """C1: --load-trajectory flag must reach the harbor argv."""
+    traj = tmp_path / "trajectory.json"
+    traj.write_text("{}\n")
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="sample-load-traj",
+        jobs_dir=tmp_path / "runs",
+        load_trajectory=traj,
+    )
+
+    command = build_command(request)
+
+    assert "--load-trajectory" in command
+    assert command[command.index("--load-trajectory") + 1] == str(traj)
+
+
+def test_export_traces_flag_is_forwarded_to_harbor(tmp_path: Path) -> None:
+    """C1: --export-traces boolean flag must reach the harbor argv."""
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="sample-export-traces",
+        jobs_dir=tmp_path / "runs",
+        export_traces=True,
+    )
+
+    command = build_command(request)
+
+    assert "--export-traces" in command
+
+
+def test_passthrough_flags_are_absent_when_unset(tmp_path: Path) -> None:
+    """When unset, no skill, load-trajectory, or export-traces flags appear."""
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="sample-clean-flags",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    command = build_command(request)
+
+    assert "--skill" not in command
+    assert "--load-trajectory" not in command
+    assert "--export-traces" not in command
+
+
+def test_existing_argv_order_is_preserved_with_passthrough_flags(tmp_path: Path) -> None:
+    """All new passthrough flags append without disturbing existing prefix argv order."""
+    task_dir = task(tmp_path)
+    base = build_command(
+        RunRequest(
+            task=task_dir,
+            agent="oracle",
+            name="order-check",
+            jobs_dir=tmp_path / "runs",
+        )
+    )
+    with_all = build_command(
+        RunRequest(
+            task=task_dir,
+            agent="oracle",
+            name="order-check",
+            jobs_dir=tmp_path / "runs",
+            extra_instruction_path=tmp_path / "pre.md",
+            skill=tmp_path / "skill",
+            load_trajectory=tmp_path / "traj.json",
+            export_traces=True,
+        )
+    )
+
+    assert with_all[: len(base)] == base
+    assert "--extra-instruction-path" in with_all
+    assert "--skill" in with_all
+    assert "--load-trajectory" in with_all
+    assert "--export-traces" in with_all
+
 def test_antigravity_model_translation_for_harbor(tmp_path: Path) -> None:
     """Harbor requires provider/model format (e.g. google/gemini-3.7-flash).
 

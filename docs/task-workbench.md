@@ -314,6 +314,23 @@ Exit codes: `0` when a nonempty collection passes every static inspection,
 collection or invalid invocation/root. A collection with no discoverable
 `task.toml` is not reported as clean.
 
+### Inspect external quality audit evidence
+
+```bash
+python -m evallab.task_workbench audit-evidence path/to/audit-dir \
+  --format text
+```
+
+`audit-evidence` inspects an external quality-audit evidence directory (such as
+Environment Quality direct-Docker probe receipts) read-only without executing
+tasks, manufacturing Harbor job records, or admitting tasks.
+
+The command supports `--format text|json`, defaulting to `text`. Output reports
+per-arm execution outcomes (observed reward, action and verifier exit codes, and
+CTRF test counts), provenance bindings verified against task bytes and retained
+hashes, evidence paths, and reviewer annotations (declared labels and expected
+rewards) kept strictly separate from observed execution.
+
 ### Inspect one candidate
 
 ```bash

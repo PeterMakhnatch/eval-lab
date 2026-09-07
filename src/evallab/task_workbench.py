@@ -4326,6 +4326,376 @@ def render_scan_text(scan: Mapping[str, Any]) -> str:
     if not scan["tasks"]:
         lines.append("- (no task packages discovered)")
     return "\n".join(lines) + "\n"
+def _file_sha256_hex(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_quality_audit_evidence(
+    audit_dir: Path,
+    *,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Consume an external quality-audit evidence directory read-only.
+
+    Returns a normalized record of per-arm execution outcomes, verifierCTRFFacts,
+    and task/verifier provenance bindings without executing tasks or mutating admission state.
+    """
+    audit_path = audit_dir.resolve()
+    if not audit_path.is_dir():
+        raise WorkbenchError(f"audit directory does not exist: {audit_path}")
+
+    summary_file = audit_path / "summary.json"
+    if not summary_file.is_file():
+        raise WorkbenchError(f"audit directory missing summary.json: {audit_path}")
+
+    summary_data = json.loads(summary_file.read_text(encoding="utf-8"))
+    run_meta_file = audit_path / "run_meta.json"
+    run_meta_data = (
+        json.loads(run_meta_file.read_text(encoding="utf-8"))
+        if run_meta_file.is_file()
+        else {}
+    )
+    audit_rollup_file = audit_path / "audit-rollup.json"
+    audit_rollup_data = (
+        json.loads(audit_rollup_file.read_text(encoding="utf-8"))
+        if audit_rollup_file.is_file()
+        else {}
+    )
+    task_manifest_file = audit_path / "task-manifest.json"
+    if not task_manifest_file.is_file() and (audit_path.parent / "task-manifest.json").is_file():
+        task_manifest_file = audit_path.parent / "task-manifest.json"
+    task_manifest_data = (
+        json.loads(task_manifest_file.read_text(encoding="utf-8"))
+        if task_manifest_file.is_file()
+        else {}
+    )
+
+    run_id = summary_data.get("run_id") or run_meta_data.get("run_id") or audit_path.name
+    run_uuid = summary_data.get("run_uuid") or run_meta_data.get("run_uuid")
+    meta_block = run_meta_data.get("meta", {})
+    task_dir_raw = meta_block.get("task_dir")
+    task_dir = Path(task_dir_raw).resolve() if task_dir_raw else None
+    container_image = meta_block.get("image")
+    input_digests = meta_block.get("input_digests", {})
+
+    # Provenance binding check:
+    # Look ONLY at explicit declarations/manifests belonging to this evidence directory.
+    # NEVER borrow hashes from sibling directories or guess based on task name patterns.
+    recorded_verifier_sha = (
+        meta_block.get("verifier_sha256")
+        or summary_data.get("verifier_sha256")
+        or summary_data.get("findings", {}).get("verifier_sha256")
+    )
+
+    provenance_status = "unbound"
+    binding_details: dict[str, Any] = {}
+
+    retained_hashes: dict[str, str] = {}
+    if audit_rollup_data and "hashes" in audit_rollup_data:
+        hashes_block = audit_rollup_data["hashes"]
+        if task_dir and task_dir.name in hashes_block and isinstance(hashes_block[task_dir.name], dict):
+            retained_hashes = hashes_block[task_dir.name]
+    elif task_manifest_data:
+        retained_hashes = task_manifest_data
+
+    # 1. Package snapshot check (does task_dir match retained manifest)
+    package_snapshot_status = "unbound"
+    if task_dir:
+        if not task_dir.is_dir():
+            package_snapshot_status = "missing_task_dir"
+        elif retained_hashes:
+            checked_files = 0
+            matched_files = 0
+            mismatched_files: list[str] = []
+            missing_files: list[str] = []
+            for rel_path, expected_hash in retained_hashes.items():
+                if rel_path.startswith("image_") or not isinstance(expected_hash, str):
+                    continue
+                cand_file = task_dir / rel_path
+                if not cand_file.is_file():
+                    missing_files.append(rel_path)
+                    continue
+                checked_files += 1
+                actual_hash = _file_sha256_hex(cand_file)
+                if actual_hash == expected_hash.removeprefix("sha256:"):
+                    matched_files += 1
+                else:
+                    mismatched_files.append(rel_path)
+
+            binding_details["expected_files"] = len(retained_hashes)
+            binding_details["checked_files"] = checked_files
+            binding_details["matched_files"] = matched_files
+            if missing_files:
+                binding_details["missing_files"] = missing_files
+            if mismatched_files:
+                binding_details["mismatched_files"] = mismatched_files
+
+            # Check input_digests from run_meta if present
+            input_mismatches: list[str] = []
+            input_missing: list[str] = []
+            if input_digests:
+                for input_rel, expected_hash in input_digests.items():
+                    cand_input = task_dir / "environment/task_file/input" / input_rel
+                    if not cand_input.is_file():
+                        cand_input = task_dir / "input" / input_rel
+                    if not cand_input.is_file():
+                        input_missing.append(input_rel)
+                        continue
+                    actual_hash = _file_sha256_hex(cand_input)
+                    if actual_hash != expected_hash.removeprefix("sha256:"):
+                        input_mismatches.append(input_rel)
+
+                if input_missing:
+                    binding_details["input_missing"] = input_missing
+                if input_mismatches:
+                    binding_details["input_mismatches"] = input_mismatches
+
+            if missing_files or mismatched_files or input_mismatches or input_missing:
+                package_snapshot_status = "mismatched"
+            elif checked_files == len(retained_hashes) and checked_files > 0:
+                package_snapshot_status = "verified"
+            else:
+                package_snapshot_status = "partial"
+
+    binding_details["package_snapshot_status"] = package_snapshot_status
+
+    # 2. Executed-verifier binding check
+    # Locate actual verifier bytes executed by this run
+    executed_verifier_status = "unbound"
+    retained_verifier_candidates = [
+        audit_path / "tests/test_state.py",
+        audit_path / "original-tests/test_state.py",
+        audit_path.parent / "original-tests/test_state.py",
+    ]
+    if task_dir and task_dir.is_dir():
+        retained_verifier_candidates.append(task_dir / "tests/test_state.py")
+
+    for cand_v in retained_verifier_candidates:
+        if cand_v.is_file():
+            v_hash = _file_sha256_hex(cand_v)
+            if recorded_verifier_sha and v_hash == recorded_verifier_sha.removeprefix("sha256:"):
+                executed_verifier_status = "verified"
+                binding_details["executed_verifier_sha256"] = v_hash
+                binding_details["executed_verifier_path"] = str(cand_v)
+                break
+
+    if recorded_verifier_sha:
+        binding_details["recorded_verifier_sha256"] = recorded_verifier_sha.removeprefix("sha256:")
+        if executed_verifier_status != "verified":
+            # If snapshot has a verifier but its hash doesn't match recorded_verifier_sha
+            if task_dir and (task_dir / "tests/test_state.py").is_file():
+                snap_v_hash = _file_sha256_hex(task_dir / "tests/test_state.py")
+                binding_details["snapshot_verifier_sha256"] = snap_v_hash
+            executed_verifier_status = "mismatched"
+
+    binding_details["executed_verifier_status"] = executed_verifier_status
+
+    # Composite provenance status composition rule:
+    # - "verified" ONLY when BOTH package_snapshot_status and executed_verifier_status are "verified".
+    # - "mismatched" if either status is "mismatched".
+    # - "partial" if one is verified and the other is unbound/partial/missing.
+    # - "unbound" if neither has positive verification.
+    if package_snapshot_status == "mismatched" or executed_verifier_status == "mismatched":
+        provenance_status = "mismatched"
+    elif package_snapshot_status == "verified" and executed_verifier_status == "verified":
+        provenance_status = "verified"
+    elif (
+        package_snapshot_status in ("verified", "partial")
+        or executed_verifier_status in ("verified", "partial")
+    ):
+        provenance_status = "partial"
+    else:
+        provenance_status = "unbound"
+    # Arms extraction
+    arms: dict[str, Any] = {}
+    raw_arms_summary = summary_data.get("arms", {})
+    findings_per_arm = summary_data.get("findings", {}).get("per_arm", {})
+
+    disk_arm_dirs = {p.name: p for p in audit_path.iterdir() if p.is_dir() and not p.name.startswith(".")}
+    all_arm_names = sorted(set(raw_arms_summary.keys()) | set(findings_per_arm.keys()) | set(disk_arm_dirs.keys()))
+
+    for arm_name in all_arm_names:
+        arm_dir = disk_arm_dirs.get(arm_name)
+        result_file = arm_dir / "result.json" if arm_dir else None
+        result_data = (
+            json.loads(result_file.read_text(encoding="utf-8"))
+            if result_file and result_file.is_file()
+            else {}
+        )
+        digests_file = arm_dir / "digests.json" if arm_dir else None
+        digests_data = (
+            json.loads(digests_file.read_text(encoding="utf-8"))
+            if digests_file and digests_file.is_file()
+            else {}
+        )
+        task_manifest_file = arm_dir / "task-file-manifest.json" if arm_dir else None
+        task_manifest = (
+            json.loads(task_manifest_file.read_text(encoding="utf-8"))
+            if task_manifest_file and task_manifest_file.is_file()
+            else {}
+        )
+
+        arm_summary = raw_arms_summary.get(arm_name, {})
+        finding = findings_per_arm.get(arm_name, {})
+
+        observed_reward_raw = result_data.get("reward", arm_summary.get("reward"))
+        # float conversion if numeric string
+        try:
+            observed_reward = float(observed_reward_raw) if observed_reward_raw is not None else None
+        except (ValueError, TypeError):
+            observed_reward = None
+
+        ctrf_summary = result_data.get("ctrf_summary") or arm_summary.get("ctrf_summary") or {}
+        tests_passed = ctrf_summary.get("passed", 0)
+        tests_total = ctrf_summary.get("tests", 0)
+
+        # Arm execution status: completed vs missing/failed vs unassessed
+        action_exit = result_data.get("action_exit")
+        verifier_exit = result_data.get("verifier_exit")
+        if not result_file or not result_file.is_file():
+            execution_status = "missing"
+        elif action_exit == 0 and verifier_exit == 0 and observed_reward is not None:
+            execution_status = "completed"
+        elif action_exit is None and verifier_exit is None and observed_reward is None:
+            execution_status = "unassessed"
+        else:
+            execution_status = "failed"
+        arms[arm_name] = {
+            "arm": arm_name,
+            "execution_status": execution_status,
+            "observed_reward": observed_reward,
+            "declared_label": finding.get("label"),
+            "declared_expected_reward": (
+                float(finding["expected_reward"])
+                if finding.get("expected_reward") is not None
+                else None
+            ),
+            "action_exit": action_exit,
+            "verifier_exit": verifier_exit,
+            "tests_passed": tests_passed,
+            "tests_total": tests_total,
+            "evidence_path": str(arm_dir) if arm_dir and arm_dir.is_dir() else None,
+            "input_digests": digests_data.get("inputs", {}),
+            "output_digests": result_data.get("output_digests", digests_data.get("outputs", {})),
+            "task_file_manifest": task_manifest if task_manifest else None,
+        }
+
+    # Retain reviewer findings verbatim without conflating with execution
+    reviewer_findings = summary_data.get("findings", {})
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "quality_audit_evidence",
+        "workbench_version": WORKBENCH_VERSION,
+        "audit_path": str(audit_path),
+        "run_id": run_id,
+        "run_uuid": run_uuid,
+        "task_dir": str(task_dir) if task_dir else None,
+        "container_image": container_image,
+        "provenance_binding": {
+            "status": provenance_status,
+            **binding_details,
+        },
+        "execution_summary": {
+            "arms_discovered": len(arms),
+            "completed_arms": sum(1 for a in arms.values() if a["execution_status"] == "completed"),
+            "failed_arms": sum(1 for a in arms.values() if a["execution_status"] == "failed"),
+        },
+        "arms": arms,
+        "reviewer_findings": reviewer_findings,
+        "admission_authority": "candidate_evidence_only",
+        "notices": [
+            "Direct-Docker candidate evidence only; not Harbor certification.",
+            "Arm names and reviewer labels do not determine validity or admission.",
+            "No tasks admitted, registered, or published.",
+        ],
+    }
+
+
+def render_quality_audit_text(evidence: Mapping[str, Any]) -> str:
+    """Render a concise human-readable view of a quality-audit evidence directory."""
+    lines: list[str] = [
+        f"Quality audit evidence: {evidence.get('audit_path')}",
+        f"Run ID: {evidence.get('run_id')} (image: {evidence.get('container_image', 'unknown')})",
+        f"Task directory: {evidence.get('task_dir', 'none')}",
+    ]
+
+    binding = evidence.get("provenance_binding", {})
+    status = binding.get("status", "unknown")
+    if status == "verified":
+        v_info = f", verifier={binding.get('executed_verifier_sha256', '')[:12]}..." if binding.get('executed_verifier_sha256') else ""
+        lines.append(f"Provenance binding: verified ({binding.get('checked_files', 0)} files matched{v_info})")
+    elif status == "mismatched":
+        details = []
+        if binding.get("missing_files"):
+            details.append(f"missing: {binding['missing_files']}")
+        if binding.get("mismatched_files"):
+            details.append(f"tampered: {binding['mismatched_files']}")
+        if binding.get("executed_verifier_status") == "mismatched":
+            details.append(f"verifier mismatch (recorded={binding.get('recorded_verifier_sha256', '')[:12]}..., snapshot={binding.get('snapshot_verifier_sha256', '')[:12]}...)")
+        if binding.get("input_missing"):
+            details.append(f"input missing: {binding['input_missing']}")
+        if binding.get("input_mismatches"):
+            details.append(f"input tampered: {binding['input_mismatches']}")
+        lines.append(f"Provenance binding: MISMATCHED ({'; '.join(details)})")
+    elif status == "partial":
+        reasons = []
+        if binding.get("package_snapshot_status") == "verified":
+            reasons.append("package snapshot verified")
+        else:
+            reasons.append(f"package snapshot {binding.get('package_snapshot_status')}")
+        if binding.get("executed_verifier_status") == "verified":
+            reasons.append("verifier verified")
+        else:
+            reasons.append(f"verifier {binding.get('executed_verifier_status')}")
+        lines.append(f"Provenance binding: partial ({', '.join(reasons)})")
+    else:
+        lines.append(f"Provenance binding: {status}")
+    lines.extend([
+        "",
+        "Notices:",
+        "- External direct-Docker candidate evidence only; not Harbor certification.",
+        "- Observed execution results are reported separately from declared/expected labels.",
+        "- No tasks admitted or registered.",
+        "",
+        "Arms:",
+    ])
+
+    arms = evidence.get("arms", {})
+    for arm_name, arm in sorted(arms.items()):
+        reward = arm.get("observed_reward")
+        reward_str = str(reward) if reward is not None else "none"
+        status = arm.get("execution_status", "unknown")
+        tests_p = arm.get("tests_passed", 0)
+        tests_t = arm.get("tests_total", 0)
+        lines.append(f"- {arm_name}: status={status}, reward={reward_str} (tests: {tests_p}/{tests_t})")
+        label = arm.get("declared_label")
+        exp = arm.get("declared_expected_reward")
+        if label is not None or exp is not None:
+            lines.append(f"    Declared label: {label or 'unspecified'} (expected: {exp if exp is not None else 'unknown'})")
+        ev_path = arm.get("evidence_path")
+        if ev_path:
+            lines.append(f"    Evidence: {ev_path}")
+
+    findings = evidence.get("reviewer_findings", {})
+    if findings:
+        lines.extend(["", "Reviewer annotations:"])
+        status_str = findings.get("status")
+        if status_str:
+            lines.append(f"- Status: {status_str}")
+        conclusion = findings.get("conclusion")
+        if conclusion:
+            lines.append(f"- Conclusion: {conclusion}")
+        note = findings.get("adjudication_note")
+        if note:
+            lines.append(f"- Note: {note}")
+
+    return "\n".join(lines) + "\n"
+
 
 
 def _materialize_command(command: Sequence[str], repo_root: Path) -> tuple[str, ...]:
@@ -5903,6 +6273,27 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_arguments(packet)
     packet.add_argument("--controls", type=Path)
     packet.add_argument("--output-root", type=Path)
+    audit_cmd = subparsers.add_parser(
+        "audit-evidence",
+        help="inspect external quality audit evidence directory read-only",
+    )
+    audit_cmd.add_argument(
+        "audit_dir",
+        type=Path,
+        help="path to quality audit evidence directory containing summary.json",
+    )
+    audit_cmd.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path.cwd(),
+        help="repository root for path relativity (default: %(default)s)",
+    )
+    audit_cmd.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="output format (default: %(default)s)",
+    )
     return parser
 
 
@@ -5914,8 +6305,18 @@ def run_cli(
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     repo_root = args.repo_root.resolve()
-    source = _source_from_args(args)
     try:
+        if args.command == "audit-evidence":
+            evidence = load_quality_audit_evidence(
+                audit_dir=args.audit_dir,
+                repo_root=repo_root,
+            )
+            if getattr(args, "format", "text") == "text":
+                sys.stdout.write(render_quality_audit_text(evidence))
+            else:
+                sys.stdout.buffer.write(_canonical_bytes(evidence))
+            return 0
+        source = _source_from_args(args)
         if args.command == "scan":
             scan = scan_candidates(repo_root=repo_root, task_root=args.task, source=source)
             if args.format == "text":

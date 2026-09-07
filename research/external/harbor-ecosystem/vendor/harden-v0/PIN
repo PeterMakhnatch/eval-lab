@@ -1,0 +1,3 @@
+few-sh/harden-v0 @ 342b8474e0c0cf96e4a8313fd2e26c7a11d51193 (Apache-2.0)
+vendored: harden/ (core loop, trajectory parser, hacker/fixer/solver prompts, common utils), harden.py, batch_stats.py, dedup_hacks.py, merge_defenses.py, monitor.py, probe_hints.py, prompts/, requirements.txt, LICENSE, README.md
+note: public repository (arXiv:2606.08960); provides the hacker-fixer loop and trajectory summarization for adversarial verifier hardening

@@ -202,6 +202,10 @@ def test_audit_evidence_consumes_synthetic_and_binds_provenance(
     test_file = task_dir / "test.py"
     test_file.write_text("print('hello')\n")
     test_sha = hashlib.sha256(test_file.read_bytes()).hexdigest()
+    test_verifier = task_dir / "tests/test_state.py"
+    test_verifier.parent.mkdir(parents=True)
+    test_verifier.write_text("def test_v(): pass\n")
+    v_sha = hashlib.sha256(test_verifier.read_bytes()).hexdigest()
 
     audit_dir = tmp_path / "mock-audit"
     audit_dir.mkdir()
@@ -211,6 +215,7 @@ def test_audit_evidence_consumes_synthetic_and_binds_provenance(
             "meta": {
                 "task_dir": str(task_dir),
                 "image": "test-image:latest",
+                "verifier_sha256": v_sha,
             },
         })
     )
@@ -219,6 +224,7 @@ def test_audit_evidence_consumes_synthetic_and_binds_provenance(
             "hashes": {
                 "mock-task": {
                     "test.py": test_sha,
+                    "tests/test_state.py": v_sha,
                 }
             }
         })
@@ -257,7 +263,8 @@ def test_audit_evidence_consumes_synthetic_and_binds_provenance(
     evidence = load_quality_audit_evidence(audit_dir)
     assert evidence["run_id"] == "test-run-123"
     assert evidence["provenance_binding"]["status"] == "verified"
-    assert evidence["provenance_binding"]["matched_files"] == 1
+    assert evidence["provenance_binding"]["matched_files"] == 2
+    assert evidence["provenance_binding"]["executed_verifier_status"] == "verified"
     assert evidence["arms"]["oracle"]["observed_reward"] == 1.0
     assert evidence["arms"]["oracle"]["execution_status"] == "completed"
 
@@ -267,7 +274,7 @@ def test_audit_evidence_consumes_synthetic_and_binds_provenance(
     text = capsys.readouterr().out
     assert "Quality audit evidence:" in text
     assert "Run ID: test-run-123" in text
-    assert "Provenance binding: verified (1 files matched)" in text
+    assert "Provenance binding: verified (2 files matched" in text
     assert "- oracle: status=completed, reward=1.0 (tests: 5/5)" in text
     assert "Declared label: positive reference (expected: 1.0)" in text
 
@@ -359,8 +366,9 @@ def test_audit_evidence_requires_complete_coverage_and_checks_inputs(tmp_path: P
         })
     )
     ev_ok = load_quality_audit_evidence(audit_dir)
-    assert ev_ok["provenance_binding"]["status"] == "verified"
-    assert ev_ok["provenance_binding"]["matched_files"] == 2
+    assert ev_ok["provenance_binding"]["package_snapshot_status"] == "verified"
+    assert ev_ok["provenance_binding"]["executed_verifier_status"] == "unbound"
+    assert ev_ok["provenance_binding"]["status"] == "partial"
 
     # Tamper with input file
     (task_dir / "input" / "in.json").write_text("corrupted_input\n")
@@ -368,6 +376,40 @@ def test_audit_evidence_requires_complete_coverage_and_checks_inputs(tmp_path: P
     assert ev_tampered_input["provenance_binding"]["status"] == "mismatched"
     assert "in.json" in ev_tampered_input["provenance_binding"]["input_mismatches"]
 
+
+
+def test_audit_evidence_omitted_verifier_identity_stays_partial_not_verified(tmp_path: Path) -> None:
+    """When package snapshot is verified but recorded verifier identity is absent, overall status is partial, not verified."""
+    import hashlib
+
+    from evallab.task_workbench import load_quality_audit_evidence, render_quality_audit_text
+
+    task_dir = tmp_path / "pkg-only-task"
+    task_dir.mkdir()
+    (task_dir / "code.py").write_text("print('ok')\n")
+    c_sha = hashlib.sha256(b"print('ok')\n").hexdigest()
+
+    audit_dir = tmp_path / "pkg-only-audit"
+    audit_dir.mkdir()
+    (audit_dir / "summary.json").write_text(json.dumps({"run_id": "pkg-only-1"}))
+    (audit_dir / "task-manifest.json").write_text(json.dumps({"code.py": c_sha}))
+    # run_meta has NO verifier_sha256
+    (audit_dir / "run_meta.json").write_text(
+        json.dumps({
+            "run_id": "pkg-only-1",
+            "meta": {
+                "task_dir": str(task_dir),
+            },
+        })
+    )
+
+    ev = load_quality_audit_evidence(audit_dir)
+    assert ev["provenance_binding"]["package_snapshot_status"] == "verified"
+    assert ev["provenance_binding"]["executed_verifier_status"] == "unbound"
+    assert ev["provenance_binding"]["status"] == "partial"
+
+    text = render_quality_audit_text(ev)
+    assert "Provenance binding: partial (package snapshot verified, verifier unbound)" in text
 
 def test_audit_evidence_separates_package_snapshot_from_executed_verifier(tmp_path: Path) -> None:
     """Two conditions sharing a task snapshot but executing different verifiers must not borrow or falsely verify."""

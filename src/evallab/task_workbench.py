@@ -4494,18 +4494,22 @@ def load_quality_audit_evidence(
 
     binding_details["executed_verifier_status"] = executed_verifier_status
 
-    # Composite provenance status:
-    # If recorded verifier is present and mismatched, whole provenance cannot be verified
-    if recorded_verifier_sha:
-        if executed_verifier_status == "verified" and package_snapshot_status == "verified":
-            provenance_status = "verified"
-        elif executed_verifier_status == "mismatched" or package_snapshot_status == "mismatched":
-            provenance_status = "mismatched"
-        else:
-            provenance_status = "partial"
+    # Composite provenance status composition rule:
+    # - "verified" ONLY when BOTH package_snapshot_status and executed_verifier_status are "verified".
+    # - "mismatched" if either status is "mismatched".
+    # - "partial" if one is verified and the other is unbound/partial/missing.
+    # - "unbound" if neither has positive verification.
+    if package_snapshot_status == "mismatched" or executed_verifier_status == "mismatched":
+        provenance_status = "mismatched"
+    elif package_snapshot_status == "verified" and executed_verifier_status == "verified":
+        provenance_status = "verified"
+    elif (
+        package_snapshot_status in ("verified", "partial")
+        or executed_verifier_status in ("verified", "partial")
+    ):
+        provenance_status = "partial"
     else:
-        provenance_status = package_snapshot_status
-
+        provenance_status = "unbound"
     # Arms extraction
     arms: dict[str, Any] = {}
     raw_arms_summary = summary_data.get("arms", {})
@@ -4638,6 +4642,17 @@ def render_quality_audit_text(evidence: Mapping[str, Any]) -> str:
         if binding.get("input_mismatches"):
             details.append(f"input tampered: {binding['input_mismatches']}")
         lines.append(f"Provenance binding: MISMATCHED ({'; '.join(details)})")
+    elif status == "partial":
+        reasons = []
+        if binding.get("package_snapshot_status") == "verified":
+            reasons.append("package snapshot verified")
+        else:
+            reasons.append(f"package snapshot {binding.get('package_snapshot_status')}")
+        if binding.get("executed_verifier_status") == "verified":
+            reasons.append("verifier verified")
+        else:
+            reasons.append(f"verifier {binding.get('executed_verifier_status')}")
+        lines.append(f"Provenance binding: partial ({', '.join(reasons)})")
     else:
         lines.append(f"Provenance binding: {status}")
     lines.extend([

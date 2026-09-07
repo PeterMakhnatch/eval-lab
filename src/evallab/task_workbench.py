@@ -4283,6 +4283,51 @@ def scan_candidates(*, repo_root: Path, task_root: Path, source: CandidateSource
     }
 
 
+def render_scan_text(scan: Mapping[str, Any]) -> str:
+    """Render a scan_candidates report without changing its screening authority."""
+    source = scan["source"]
+    summary = scan["summary"]
+    lines = [
+        f"Task collection scan: {scan['task_root']}",
+        f"Source: {source['source_uri']}",
+        f"Reference: {source['source_ref']}",
+        f"License: {source['license']}; zone: {source['provenance_zone']}",
+        "",
+        "Candidate-only screening against static workbench policy; not task admission.",
+        "No controls executed; static_passed does not mean clean or certified.",
+        f"Not assessed: {', '.join(scan['not_assessed'])}.",
+        "",
+        "Summary:",
+        f"- Tasks discovered: {summary['discovered']}",
+    ]
+    for status in ("static_passed", "static_failed", "inspection_error"):
+        lines.append(f"- {status}: {summary[status]}")
+    lines.extend(("", "Diagnostics by affected task:"))
+    for code, count in summary["tasks_by_diagnostic"].items():
+        lines.append(f"- {code}: {count}")
+    if not summary["tasks_by_diagnostic"]:
+        lines.append("- (none)")
+
+    lines.extend(("", "Tasks:"))
+    for row in scan["tasks"]:
+        lines.append(f"- {row['task_path']}: {row['status']}")
+        if row["candidate_id"] is not None:
+            lines.append(f"    candidate_id: {row['candidate_id']}")
+        if row["package_digest"] is not None:
+            lines.append(f"    package: {row['package_digest']}")
+        if row["status"] == "inspection_error":
+            lines.append(f"    Reason: {row['error_type']}")
+        for diagnostic in row["diagnostics"]:
+            lines.append(
+                f"    [{diagnostic['severity']}] {diagnostic['code']} "
+                f"({diagnostic['classification']}; {diagnostic['path']}): "
+                f"{diagnostic['message']}"
+            )
+    if not scan["tasks"]:
+        lines.append("- (no task packages discovered)")
+    return "\n".join(lines) + "\n"
+
+
 def _materialize_command(command: Sequence[str], repo_root: Path) -> tuple[str, ...]:
     prefix = "$REPO/"
     return tuple(
@@ -5843,6 +5888,12 @@ def build_parser() -> argparse.ArgumentParser:
         "scan", help="screen a collection read-only; no controls or admission"
     )
     _add_common_arguments(scan)
+    scan.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="json",
+        help="output format (default: %(default)s)",
+    )
     check = subparsers.add_parser("check", help="run static checks and assess/run controls")
     _add_common_arguments(check)
     controls = check.add_mutually_exclusive_group()
@@ -5867,7 +5918,10 @@ def run_cli(
     try:
         if args.command == "scan":
             scan = scan_candidates(repo_root=repo_root, task_root=args.task, source=source)
-            sys.stdout.buffer.write(_canonical_bytes(scan))
+            if args.format == "text":
+                sys.stdout.write(render_scan_text(scan))
+            else:
+                sys.stdout.buffer.write(_canonical_bytes(scan))
             summary = scan["summary"]
             if summary["discovered"] == 0:
                 return 2

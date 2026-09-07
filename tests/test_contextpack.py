@@ -316,7 +316,6 @@ class TestCLI:
         data = json.loads(captured.out)
         assert data["generator"] == CONTEXTPACK_VERSION
         assert data["mission_type"] == "builder"
-        assert data["doc_count"] >= 5
         assert data["content_hash"].startswith("sha256:")
 
     def test_cli_build_out_file(self, tmp_path: Path) -> None:

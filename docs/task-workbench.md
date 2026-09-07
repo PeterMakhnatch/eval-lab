@@ -266,6 +266,45 @@ them.
 Run the module from the repository root. These examples use synthetic local
 source identity; use the candidate's real immutable reference and license.
 
+### Screen a collection before importing it
+
+```bash
+python -m evallab.task_workbench scan path/to/collection \
+  --repo-root . \
+  --source-uri local/imported-pack \
+  --source-ref local/imported-pack@1.0.0 \
+  --license MIT \
+  --zone 01-external
+```
+
+`scan` recursively discovers directories containing `task.toml` and applies the
+existing single-candidate static checks independently to each package. It also
+accepts a single task directory. For a collection outside the lab, set
+`--repo-root` to that collection's containing directory: this is a read boundary,
+not an import or registry operation.
+
+The JSON report contains per-task diagnostics and package digests, plus counts
+of `static_passed`, `static_failed`, and `inspection_error`. Diagnostic totals
+count affected tasks, not repeated findings within a task. An unreadable or
+malformed candidate does not prevent inspection of its siblings. Candidate
+symlinks are refused before content inspection; exception records expose the
+exception type rather than potentially sensitive exception text.
+
+**This is screening against the workbench policy, not River's semantic audit or
+a measurement of RL usefulness.** Unsupported configuration and missing
+lab-specific controls can fail the screen even when Harbor can run the package.
+A static pass does not establish solvability, verifier alignment, or training
+utility; these remain explicitly `not_assessed`. The command never executes
+controls, changes task bytes, writes a database or certification packet, or
+admits tasks. Use the single-candidate workflow below for control evidence.
+
+Exit codes: `0` when a nonempty collection passes every static inspection,
+`1` when any candidate fails or cannot be inspected, and `2` for an empty
+collection or invalid invocation/root. A collection with no discoverable
+`task.toml` is not reported as clean.
+
+### Inspect one candidate
+
 ```bash
 python -m evallab.task_workbench plan path/to/candidate \
   --repo-root . \

@@ -275,7 +275,98 @@ def test_audit_evidence_consumes_synthetic_and_binds_provenance(
     test_file.write_text("print('tampered')\n")
     tampered = load_quality_audit_evidence(audit_dir)
     assert tampered["provenance_binding"]["status"] == "mismatched"
-    assert "test.py" in tampered["provenance_binding"]["mismatches"]
+    assert "test.py" in tampered["provenance_binding"]["mismatched_files"]
+
+
+def test_audit_evidence_retains_declared_arms_without_result_json(tmp_path: Path) -> None:
+    """Declared arms missing result.json must be retained as missing/unassessed, never dropped."""
+    from evallab.task_workbench import load_quality_audit_evidence
+
+    audit_dir = tmp_path / "mock-missing-arm"
+    audit_dir.mkdir()
+    (audit_dir / "summary.json").write_text(
+        json.dumps({
+            "run_id": "test-missing-1",
+            "arms": {
+                "declared_missing": {
+                    "reward": "1.0",
+                }
+            },
+            "findings": {
+                "per_arm": {
+                    "declared_missing": {
+                        "label": "should be preserved",
+                        "expected_reward": "1.0",
+                    }
+                }
+            }
+        })
+    )
+
+    ev = load_quality_audit_evidence(audit_dir)
+    assert "declared_missing" in ev["arms"]
+    assert ev["arms"]["declared_missing"]["execution_status"] == "missing"
+    assert ev["arms"]["declared_missing"]["observed_reward"] == 1.0
+    assert ev["arms"]["declared_missing"]["declared_label"] == "should be preserved"
+    assert ev["execution_summary"]["arms_discovered"] == 1
+    assert ev["execution_summary"]["completed_arms"] == 0
+
+
+def test_audit_evidence_requires_complete_coverage_and_checks_inputs(tmp_path: Path) -> None:
+    """Missing manifest files or input digest mismatch must prevent verified provenance."""
+    import hashlib
+
+    from evallab.task_workbench import load_quality_audit_evidence
+
+    task_dir = tmp_path / "coverage-task"
+    task_dir.mkdir()
+    (task_dir / "f1.txt").write_text("one\n")
+    (task_dir / "input").mkdir()
+    (task_dir / "input" / "in.json").write_text("input_data\n")
+
+    audit_dir = tmp_path / "coverage-audit"
+    audit_dir.mkdir()
+    (audit_dir / "summary.json").write_text(json.dumps({"run_id": "cov-1"}))
+    (audit_dir / "run_meta.json").write_text(
+        json.dumps({
+            "run_id": "cov-1",
+            "meta": {
+                "task_dir": str(task_dir),
+                "input_digests": {
+                    "in.json": hashlib.sha256(b"input_data\n").hexdigest(),
+                },
+            },
+        })
+    )
+    # Manifest requires f1.txt AND f2.txt, but f2.txt is missing on disk
+    (audit_dir / "task-manifest.json").write_text(
+        json.dumps({
+            "f1.txt": hashlib.sha256(b"one\n").hexdigest(),
+            "f2.txt": "deadbeef" * 8,
+        })
+    )
+
+    ev = load_quality_audit_evidence(audit_dir)
+    assert ev["provenance_binding"]["status"] == "mismatched"
+    assert "f2.txt" in ev["provenance_binding"]["missing_files"]
+
+    # Add f2.txt with correct hash
+    (task_dir / "f2.txt").write_text("two\n")
+    (audit_dir / "task-manifest.json").write_text(
+        json.dumps({
+            "f1.txt": hashlib.sha256(b"one\n").hexdigest(),
+            "f2.txt": hashlib.sha256(b"two\n").hexdigest(),
+        })
+    )
+    ev_ok = load_quality_audit_evidence(audit_dir)
+    assert ev_ok["provenance_binding"]["status"] == "verified"
+    assert ev_ok["provenance_binding"]["matched_files"] == 2
+
+    # Tamper with input file
+    (task_dir / "input" / "in.json").write_text("corrupted_input\n")
+    ev_tampered_input = load_quality_audit_evidence(audit_dir)
+    assert ev_tampered_input["provenance_binding"]["status"] == "mismatched"
+    assert "in.json" in ev_tampered_input["provenance_binding"]["input_mismatches"]
 
 
 def test_audit_evidence_exercises_real_pipeline_record_and_dashboard_artifacts(
@@ -286,27 +377,43 @@ def test_audit_evidence_exercises_real_pipeline_record_and_dashboard_artifacts(
 
     p_audit = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/pipeline-record-quality-audit")
     d_audit = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/facet-key-order-probe-run-audited-2")
+    repair_dir = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/task000008-content-repair-20260907")
 
     if not p_audit.exists() or not d_audit.exists():
         pytest.skip("real quality-audit artifacts not available on host")
 
-    # Pipeline record audit
+    # Pipeline record audit (unbound because task_dir does not match hashes key task_000008)
     p_ev = load_quality_audit_evidence(p_audit)
     assert p_ev["run_id"] == "facet-probe-5299bacf-ed3"
-    assert p_ev["provenance_binding"]["status"] == "verified"
+    assert p_ev["provenance_binding"]["status"] == "unbound"
     assert set(p_ev["arms"].keys()) == {"drop_event", "empty_values", "nop", "oracle", "reordered_json"}
     # empty_values has observed reward 1.0 even though declared expected is 0.0
     assert p_ev["arms"]["empty_values"]["observed_reward"] == 1.0
     assert p_ev["arms"]["empty_values"]["declared_expected_reward"] == 0.0
     assert p_ev["arms"]["reordered_json"]["observed_reward"] == 1.0
 
-    # Dashboard audit
+    # Dashboard audit (unbound because no manifest exists in this directory; never borrowed)
     d_ev = load_quality_audit_evidence(d_audit)
     assert d_ev["run_id"] == "facet-probe-46b10b32-d10"
-    assert d_ev["provenance_binding"]["status"] == "verified"
+    assert d_ev["provenance_binding"]["status"] == "unbound"
     assert set(d_ev["arms"].keys()) == {"nop", "oracle", "reordered_json", "wrong_value"}
     # dashboard reordered_json has observed reward 0.0
     assert d_ev["arms"]["reordered_json"]["observed_reward"] == 0.0
+
+    # Quality repair before/after evidence (has task-manifest.json binding task-snapshot)
+    if repair_dir.exists():
+        before_ev = load_quality_audit_evidence(repair_dir / "before")
+        assert before_ev["provenance_binding"]["status"] == "verified"
+        assert before_ev["provenance_binding"]["matched_files"] == 13
+        assert before_ev["arms"]["empty_values"]["observed_reward"] == 1.0
+        assert before_ev["arms"]["nested_corruption"]["observed_reward"] == 1.0
+
+        after_ev = load_quality_audit_evidence(repair_dir / "after")
+        assert after_ev["provenance_binding"]["status"] == "verified"
+        assert after_ev["provenance_binding"]["matched_files"] == 13
+        assert after_ev["arms"]["empty_values"]["observed_reward"] == 0.0
+        assert after_ev["arms"]["nested_corruption"]["observed_reward"] == 0.0
+        assert after_ev["arms"]["oracle"]["observed_reward"] == 1.0
 
     # CLI text rendering on real artifacts
     assert run_cli(["audit-evidence", str(p_audit), "--format", "text"]) == 0

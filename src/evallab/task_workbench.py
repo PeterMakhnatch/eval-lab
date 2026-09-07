@@ -4360,95 +4360,132 @@ def load_quality_audit_evidence(
         else {}
     )
     audit_rollup_file = audit_path / "audit-rollup.json"
-    if not audit_rollup_file.is_file():
-        sibling_rollup = audit_path.parent / "pipeline-record-quality-audit" / "audit-rollup.json"
-        if sibling_rollup.is_file():
-            audit_rollup_file = sibling_rollup
     audit_rollup_data = (
         json.loads(audit_rollup_file.read_text(encoding="utf-8"))
         if audit_rollup_file.is_file()
         else {}
     )
+    task_manifest_file = audit_path / "task-manifest.json"
+    if not task_manifest_file.is_file() and (audit_path.parent / "task-manifest.json").is_file():
+        task_manifest_file = audit_path.parent / "task-manifest.json"
+    task_manifest_data = (
+        json.loads(task_manifest_file.read_text(encoding="utf-8"))
+        if task_manifest_file.is_file()
+        else {}
+    )
+
     run_id = summary_data.get("run_id") or run_meta_data.get("run_id") or audit_path.name
     run_uuid = summary_data.get("run_uuid") or run_meta_data.get("run_uuid")
     meta_block = run_meta_data.get("meta", {})
     task_dir_raw = meta_block.get("task_dir")
     task_dir = Path(task_dir_raw).resolve() if task_dir_raw else None
     container_image = meta_block.get("image")
+    input_digests = meta_block.get("input_digests", {})
 
+    # Provenance binding check:
+    # Look ONLY at explicit declarations/manifests belonging to this evidence directory.
+    # NEVER borrow hashes from sibling directories or guess based on task name patterns.
+    provenance_status = "unbound"
+    binding_details: dict[str, Any] = {}
 
-    # Provenance binding check: verify task bytes against retained hashes if available
     retained_hashes: dict[str, str] = {}
     if audit_rollup_data and "hashes" in audit_rollup_data:
         hashes_block = audit_rollup_data["hashes"]
-        # Look for matching task key or flat structure
-        for k, v in hashes_block.items():
-            if isinstance(v, dict):
-                retained_hashes.update({f"{k}/{sub_k}": sub_v for sub_k, sub_v in v.items()})
-            elif isinstance(v, str):
-                retained_hashes[k] = v
+        # Only bind if a manifest matches the task directory or explicit key
+        if task_dir and task_dir.name in hashes_block and isinstance(hashes_block[task_dir.name], dict):
+            retained_hashes = hashes_block[task_dir.name]
+    elif task_manifest_data:
+        retained_hashes = task_manifest_data
 
-    provenance_status = "unbound"
-    binding_details: dict[str, Any] = {}
-    if task_dir and task_dir.is_dir():
-        checked_files = 0
-        matched_files = 0
-        mismatched_files: list[str] = []
-        # Check known files if task_000008 or task_000010 in rollup
-        task_rollup: dict[str, Any] = {}
-        if audit_rollup_data and "hashes" in audit_rollup_data:
-            hashes_block = audit_rollup_data["hashes"]
-            dir_name = task_dir.name
-            matched_key = None
-            if "facet-dashboard" in dir_name or "000010" in dir_name:
-                matched_key = "task_000010"
-            elif "pipeline-record" in dir_name or "000008" in dir_name:
-                matched_key = "task_000008"
-            elif dir_name in hashes_block and isinstance(hashes_block[dir_name], dict):
-                matched_key = dir_name
-
-            if matched_key and matched_key in hashes_block and isinstance(hashes_block[matched_key], dict):
-                task_rollup = hashes_block[matched_key]
-
-        if task_rollup:
-            for rel_path, expected_hash in task_rollup.items():
+    if task_dir:
+        if not task_dir.is_dir():
+            provenance_status = "missing_task_dir"
+        elif retained_hashes:
+            checked_files = 0
+            matched_files = 0
+            mismatched_files: list[str] = []
+            missing_files: list[str] = []
+            for rel_path, expected_hash in retained_hashes.items():
                 if rel_path.startswith("image_") or not isinstance(expected_hash, str):
                     continue
                 cand_file = task_dir / rel_path
-                if cand_file.is_file():
-                    checked_files += 1
-                    actual_hash = _file_sha256_hex(cand_file)
-                    if actual_hash == expected_hash.removeprefix("sha256:"):
-                        matched_files += 1
-                    else:
-                        mismatched_files.append(rel_path)
+                if not cand_file.is_file():
+                    missing_files.append(rel_path)
+                    continue
+                checked_files += 1
+                actual_hash = _file_sha256_hex(cand_file)
+                if actual_hash == expected_hash.removeprefix("sha256:"):
+                    matched_files += 1
+                else:
+                    mismatched_files.append(rel_path)
 
-        if checked_files > 0:
-            if mismatched_files:
-                provenance_status = "mismatched"
-                binding_details["mismatches"] = mismatched_files
-            elif matched_files == checked_files:
-                provenance_status = "verified"
+            binding_details["expected_files"] = len(retained_hashes)
             binding_details["checked_files"] = checked_files
             binding_details["matched_files"] = matched_files
+            if missing_files:
+                binding_details["missing_files"] = missing_files
+            if mismatched_files:
+                binding_details["mismatched_files"] = mismatched_files
+
+            # Check input_digests from run_meta if present
+            input_mismatches: list[str] = []
+            input_missing: list[str] = []
+            if input_digests:
+                for input_rel, expected_hash in input_digests.items():
+                    # Search common input locations in task_dir
+                    cand_input = task_dir / "environment/task_file/input" / input_rel
+                    if not cand_input.is_file():
+                        cand_input = task_dir / "input" / input_rel
+                    if not cand_input.is_file():
+                        input_missing.append(input_rel)
+                        continue
+                    actual_hash = _file_sha256_hex(cand_input)
+                    if actual_hash != expected_hash.removeprefix("sha256:"):
+                        input_mismatches.append(input_rel)
+
+                if input_missing:
+                    binding_details["input_missing"] = input_missing
+                if input_mismatches:
+                    binding_details["input_mismatches"] = input_mismatches
+
+            if missing_files or mismatched_files or input_mismatches or input_missing:
+                provenance_status = "mismatched"
+            elif checked_files == len(retained_hashes) and checked_files > 0:
+                provenance_status = "verified"
+            else:
+                provenance_status = "partial"
         else:
             provenance_status = "unbound"
-    elif task_dir:
-        provenance_status = "missing_task_dir"
 
     # Arms extraction
     arms: dict[str, Any] = {}
     raw_arms_summary = summary_data.get("arms", {})
     findings_per_arm = summary_data.get("findings", {}).get("per_arm", {})
 
-    # Also scan directories on disk to find any arm not listed in summary
-    arm_dirs = sorted([p for p in audit_path.iterdir() if p.is_dir() and (p / "result.json").is_file()])
-    for arm_dir in arm_dirs:
-        arm_name = arm_dir.name
-        result_file = arm_dir / "result.json"
-        result_data = json.loads(result_file.read_text(encoding="utf-8"))
-        digests_file = arm_dir / "digests.json"
-        digests_data = json.loads(digests_file.read_text(encoding="utf-8")) if digests_file.is_file() else {}
+    # Collect all arm names from disk AND from summary declarations so missing arms are never dropped
+    disk_arm_dirs = {p.name: p for p in audit_path.iterdir() if p.is_dir() and not p.name.startswith(".")}
+    all_arm_names = sorted(set(raw_arms_summary.keys()) | set(findings_per_arm.keys()) | set(disk_arm_dirs.keys()))
+
+    for arm_name in all_arm_names:
+        arm_dir = disk_arm_dirs.get(arm_name)
+        result_file = arm_dir / "result.json" if arm_dir else None
+        result_data = (
+            json.loads(result_file.read_text(encoding="utf-8"))
+            if result_file and result_file.is_file()
+            else {}
+        )
+        digests_file = arm_dir / "digests.json" if arm_dir else None
+        digests_data = (
+            json.loads(digests_file.read_text(encoding="utf-8"))
+            if digests_file and digests_file.is_file()
+            else {}
+        )
+        task_manifest_file = arm_dir / "task-file-manifest.json" if arm_dir else None
+        task_manifest = (
+            json.loads(task_manifest_file.read_text(encoding="utf-8"))
+            if task_manifest_file and task_manifest_file.is_file()
+            else {}
+        )
 
         arm_summary = raw_arms_summary.get(arm_name, {})
         finding = findings_per_arm.get(arm_name, {})
@@ -4464,16 +4501,17 @@ def load_quality_audit_evidence(
         tests_passed = ctrf_summary.get("passed", 0)
         tests_total = ctrf_summary.get("tests", 0)
 
-        # Arm execution status: completed vs missing/failed
+        # Arm execution status: completed vs missing/failed vs unassessed
         action_exit = result_data.get("action_exit")
         verifier_exit = result_data.get("verifier_exit")
-        if action_exit == 0 and verifier_exit == 0 and observed_reward is not None:
+        if not result_file or not result_file.is_file():
+            execution_status = "missing"
+        elif action_exit == 0 and verifier_exit == 0 and observed_reward is not None:
             execution_status = "completed"
         elif action_exit is None and verifier_exit is None and observed_reward is None:
             execution_status = "unassessed"
         else:
             execution_status = "failed"
-
         arms[arm_name] = {
             "arm": arm_name,
             "execution_status": execution_status,
@@ -4488,9 +4526,10 @@ def load_quality_audit_evidence(
             "verifier_exit": verifier_exit,
             "tests_passed": tests_passed,
             "tests_total": tests_total,
-            "evidence_path": str(arm_dir),
+            "evidence_path": str(arm_dir) if arm_dir and arm_dir.is_dir() else None,
             "input_digests": digests_data.get("inputs", {}),
             "output_digests": result_data.get("output_digests", digests_data.get("outputs", {})),
+            "task_file_manifest": task_manifest if task_manifest else None,
         }
 
     # Retain reviewer findings verbatim without conflating with execution

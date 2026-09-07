@@ -4385,21 +4385,28 @@ def load_quality_audit_evidence(
     # Provenance binding check:
     # Look ONLY at explicit declarations/manifests belonging to this evidence directory.
     # NEVER borrow hashes from sibling directories or guess based on task name patterns.
+    recorded_verifier_sha = (
+        meta_block.get("verifier_sha256")
+        or summary_data.get("verifier_sha256")
+        or summary_data.get("findings", {}).get("verifier_sha256")
+    )
+
     provenance_status = "unbound"
     binding_details: dict[str, Any] = {}
 
     retained_hashes: dict[str, str] = {}
     if audit_rollup_data and "hashes" in audit_rollup_data:
         hashes_block = audit_rollup_data["hashes"]
-        # Only bind if a manifest matches the task directory or explicit key
         if task_dir and task_dir.name in hashes_block and isinstance(hashes_block[task_dir.name], dict):
             retained_hashes = hashes_block[task_dir.name]
     elif task_manifest_data:
         retained_hashes = task_manifest_data
 
+    # 1. Package snapshot check (does task_dir match retained manifest)
+    package_snapshot_status = "unbound"
     if task_dir:
         if not task_dir.is_dir():
-            provenance_status = "missing_task_dir"
+            package_snapshot_status = "missing_task_dir"
         elif retained_hashes:
             checked_files = 0
             matched_files = 0
@@ -4432,7 +4439,6 @@ def load_quality_audit_evidence(
             input_missing: list[str] = []
             if input_digests:
                 for input_rel, expected_hash in input_digests.items():
-                    # Search common input locations in task_dir
                     cand_input = task_dir / "environment/task_file/input" / input_rel
                     if not cand_input.is_file():
                         cand_input = task_dir / "input" / input_rel
@@ -4449,20 +4455,62 @@ def load_quality_audit_evidence(
                     binding_details["input_mismatches"] = input_mismatches
 
             if missing_files or mismatched_files or input_mismatches or input_missing:
-                provenance_status = "mismatched"
+                package_snapshot_status = "mismatched"
             elif checked_files == len(retained_hashes) and checked_files > 0:
-                provenance_status = "verified"
+                package_snapshot_status = "verified"
             else:
-                provenance_status = "partial"
+                package_snapshot_status = "partial"
+
+    binding_details["package_snapshot_status"] = package_snapshot_status
+
+    # 2. Executed-verifier binding check
+    # Locate actual verifier bytes executed by this run
+    executed_verifier_status = "unbound"
+    retained_verifier_candidates = [
+        audit_path / "tests/test_state.py",
+        audit_path / "original-tests/test_state.py",
+        audit_path.parent / "original-tests/test_state.py",
+    ]
+    if task_dir and task_dir.is_dir():
+        retained_verifier_candidates.append(task_dir / "tests/test_state.py")
+
+    for cand_v in retained_verifier_candidates:
+        if cand_v.is_file():
+            v_hash = _file_sha256_hex(cand_v)
+            if recorded_verifier_sha and v_hash == recorded_verifier_sha.removeprefix("sha256:"):
+                executed_verifier_status = "verified"
+                binding_details["executed_verifier_sha256"] = v_hash
+                binding_details["executed_verifier_path"] = str(cand_v)
+                break
+
+    if recorded_verifier_sha:
+        binding_details["recorded_verifier_sha256"] = recorded_verifier_sha.removeprefix("sha256:")
+        if executed_verifier_status != "verified":
+            # If snapshot has a verifier but its hash doesn't match recorded_verifier_sha
+            if task_dir and (task_dir / "tests/test_state.py").is_file():
+                snap_v_hash = _file_sha256_hex(task_dir / "tests/test_state.py")
+                binding_details["snapshot_verifier_sha256"] = snap_v_hash
+            executed_verifier_status = "mismatched"
+
+    binding_details["executed_verifier_status"] = executed_verifier_status
+
+    # Composite provenance status:
+    # If recorded verifier is present and mismatched, whole provenance cannot be verified
+    if recorded_verifier_sha:
+        if executed_verifier_status == "verified" and package_snapshot_status == "verified":
+            provenance_status = "verified"
+        elif executed_verifier_status == "mismatched" or package_snapshot_status == "mismatched":
+            provenance_status = "mismatched"
         else:
-            provenance_status = "unbound"
+            provenance_status = "partial"
+    else:
+        provenance_status = package_snapshot_status
 
     # Arms extraction
     arms: dict[str, Any] = {}
     raw_arms_summary = summary_data.get("arms", {})
     findings_per_arm = summary_data.get("findings", {}).get("per_arm", {})
 
-    # Collect all arm names from disk AND from summary declarations so missing arms are never dropped
     disk_arm_dirs = {p.name: p for p in audit_path.iterdir() if p.is_dir() and not p.name.startswith(".")}
     all_arm_names = sorted(set(raw_arms_summary.keys()) | set(findings_per_arm.keys()) | set(disk_arm_dirs.keys()))
 
@@ -4575,12 +4623,23 @@ def render_quality_audit_text(evidence: Mapping[str, Any]) -> str:
     binding = evidence.get("provenance_binding", {})
     status = binding.get("status", "unknown")
     if status == "verified":
-        lines.append(f"Provenance binding: verified ({binding.get('checked_files', 0)} files matched)")
+        v_info = f", verifier={binding.get('executed_verifier_sha256', '')[:12]}..." if binding.get('executed_verifier_sha256') else ""
+        lines.append(f"Provenance binding: verified ({binding.get('checked_files', 0)} files matched{v_info})")
     elif status == "mismatched":
-        lines.append(f"Provenance binding: MISMATCHED (mismatches: {binding.get('mismatches')})")
+        details = []
+        if binding.get("missing_files"):
+            details.append(f"missing: {binding['missing_files']}")
+        if binding.get("mismatched_files"):
+            details.append(f"tampered: {binding['mismatched_files']}")
+        if binding.get("executed_verifier_status") == "mismatched":
+            details.append(f"verifier mismatch (recorded={binding.get('recorded_verifier_sha256', '')[:12]}..., snapshot={binding.get('snapshot_verifier_sha256', '')[:12]}...)")
+        if binding.get("input_missing"):
+            details.append(f"input missing: {binding['input_missing']}")
+        if binding.get("input_mismatches"):
+            details.append(f"input tampered: {binding['input_mismatches']}")
+        lines.append(f"Provenance binding: MISMATCHED ({'; '.join(details)})")
     else:
         lines.append(f"Provenance binding: {status}")
-
     lines.extend([
         "",
         "Notices:",

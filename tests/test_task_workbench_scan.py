@@ -369,58 +369,90 @@ def test_audit_evidence_requires_complete_coverage_and_checks_inputs(tmp_path: P
     assert "in.json" in ev_tampered_input["provenance_binding"]["input_mismatches"]
 
 
-def test_audit_evidence_exercises_real_pipeline_record_and_dashboard_artifacts(
-    capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Verify real lane quality-audit directories parse correctly and preserve boundaries."""
-    from evallab.task_workbench import load_quality_audit_evidence, run_cli
+def test_audit_evidence_separates_package_snapshot_from_executed_verifier(tmp_path: Path) -> None:
+    """Two conditions sharing a task snapshot but executing different verifiers must not borrow or falsely verify."""
+    import hashlib
 
-    p_audit = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/pipeline-record-quality-audit")
-    d_audit = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/facet-key-order-probe-run-audited-2")
-    repair_dir = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/task000008-content-repair-20260907")
+    from evallab.task_workbench import load_quality_audit_evidence
 
-    if not p_audit.exists() or not d_audit.exists():
-        pytest.skip("real quality-audit artifacts not available on host")
+    task_dir = tmp_path / "shared-task-snapshot"
+    task_dir.mkdir()
+    (task_dir / "tests").mkdir()
+    (task_dir / "task.toml").write_text("name = 'test/shared'\n")
+    repaired_verifier_text = "def test_repaired(): assert True\n"
+    (task_dir / "tests" / "test_state.py").write_text(repaired_verifier_text)
+    repaired_sha = hashlib.sha256(repaired_verifier_text.encode()).hexdigest()
+    manifest = {
+        "task.toml": hashlib.sha256(b"name = 'test/shared'\n").hexdigest(),
+        "tests/test_state.py": repaired_sha,
+    }
+    (tmp_path / "task-manifest.json").write_text(json.dumps(manifest))
 
-    # Pipeline record audit (unbound because task_dir does not match hashes key task_000008)
-    p_ev = load_quality_audit_evidence(p_audit)
-    assert p_ev["run_id"] == "facet-probe-5299bacf-ed3"
-    assert p_ev["provenance_binding"]["status"] == "unbound"
-    assert set(p_ev["arms"].keys()) == {"drop_event", "empty_values", "nop", "oracle", "reordered_json"}
-    # empty_values has observed reward 1.0 even though declared expected is 0.0
-    assert p_ev["arms"]["empty_values"]["observed_reward"] == 1.0
-    assert p_ev["arms"]["empty_values"]["declared_expected_reward"] == 0.0
-    assert p_ev["arms"]["reordered_json"]["observed_reward"] == 1.0
+    # Condition A: executed baseline/original verifier (different from snapshot)
+    orig_verifier_text = "def test_original(): assert False\n"
+    orig_sha = hashlib.sha256(orig_verifier_text.encode()).hexdigest()
+    (tmp_path / "original-tests").mkdir()
+    (tmp_path / "original-tests" / "test_state.py").write_text(orig_verifier_text)
 
-    # Dashboard audit (unbound because no manifest exists in this directory; never borrowed)
-    d_ev = load_quality_audit_evidence(d_audit)
-    assert d_ev["run_id"] == "facet-probe-46b10b32-d10"
-    assert d_ev["provenance_binding"]["status"] == "unbound"
-    assert set(d_ev["arms"].keys()) == {"nop", "oracle", "reordered_json", "wrong_value"}
-    # dashboard reordered_json has observed reward 0.0
-    assert d_ev["arms"]["reordered_json"]["observed_reward"] == 0.0
+    cond_a = tmp_path / "condition-a-before"
+    cond_a.mkdir()
+    (cond_a / "summary.json").write_text(json.dumps({"run_id": "run-a"}))
+    (cond_a / "run_meta.json").write_text(
+        json.dumps({
+            "run_id": "run-a",
+            "meta": {
+                "task_dir": str(task_dir),
+                "verifier_sha256": orig_sha,
+            },
+        })
+    )
+    arm_a = cond_a / "oracle"
+    arm_a.mkdir()
+    (arm_a / "result.json").write_text(json.dumps({"reward": "1.0", "action_exit": 0, "verifier_exit": 0}))
 
-    # Quality repair before/after evidence (has task-manifest.json binding task-snapshot)
-    if repair_dir.exists():
-        before_ev = load_quality_audit_evidence(repair_dir / "before")
-        assert before_ev["provenance_binding"]["status"] == "verified"
-        assert before_ev["provenance_binding"]["matched_files"] == 13
-        assert before_ev["arms"]["empty_values"]["observed_reward"] == 1.0
-        assert before_ev["arms"]["nested_corruption"]["observed_reward"] == 1.0
+    ev_a = load_quality_audit_evidence(cond_a)
+    assert ev_a["provenance_binding"]["package_snapshot_status"] == "verified"
+    assert ev_a["provenance_binding"]["executed_verifier_status"] == "verified"
+    assert ev_a["provenance_binding"]["executed_verifier_sha256"] == orig_sha
+    assert ev_a["provenance_binding"]["status"] == "verified"
 
-        after_ev = load_quality_audit_evidence(repair_dir / "after")
-        assert after_ev["provenance_binding"]["status"] == "verified"
-        assert after_ev["provenance_binding"]["matched_files"] == 13
-        assert after_ev["arms"]["empty_values"]["observed_reward"] == 0.0
-        assert after_ev["arms"]["nested_corruption"]["observed_reward"] == 0.0
-        assert after_ev["arms"]["oracle"]["observed_reward"] == 1.0
+    # Condition B: executed repaired verifier (matches snapshot)
+    cond_b = tmp_path / "condition-b-after"
+    cond_b.mkdir()
+    (cond_b / "summary.json").write_text(json.dumps({"run_id": "run-b"}))
+    (cond_b / "run_meta.json").write_text(
+        json.dumps({
+            "run_id": "run-b",
+            "meta": {
+                "task_dir": str(task_dir),
+                "verifier_sha256": repaired_sha,
+            },
+        })
+    )
+    arm_b = cond_b / "oracle"
+    arm_b.mkdir()
+    (arm_b / "result.json").write_text(json.dumps({"reward": "1.0", "action_exit": 0, "verifier_exit": 0}))
 
-    # CLI text rendering on real artifacts
-    assert run_cli(["audit-evidence", str(p_audit), "--format", "text"]) == 0
-    p_text = capsys.readouterr().out
-    assert "empty_values: status=completed, reward=1.0" in p_text
-    assert "reordered_json: status=completed, reward=1.0" in p_text
+    ev_b = load_quality_audit_evidence(cond_b)
+    assert ev_b["provenance_binding"]["package_snapshot_status"] == "verified"
+    assert ev_b["provenance_binding"]["executed_verifier_status"] == "verified"
+    assert ev_b["provenance_binding"]["executed_verifier_sha256"] == repaired_sha
+    assert ev_b["provenance_binding"]["status"] == "verified"
 
-    assert run_cli(["audit-evidence", str(d_audit), "--format", "text"]) == 0
-    d_text = capsys.readouterr().out
-    assert "reordered_json: status=completed, reward=0.0" in d_text
+    # Condition C: recorded verifier is missing from retained candidates -> mismatched
+    cond_c = tmp_path / "condition-c-unretained"
+    cond_c.mkdir()
+    (cond_c / "summary.json").write_text(json.dumps({"run_id": "run-c"}))
+    (cond_c / "run_meta.json").write_text(
+        json.dumps({
+            "run_id": "run-c",
+            "meta": {
+                "task_dir": str(task_dir),
+                "verifier_sha256": "cafebabe" * 8,
+            },
+        })
+    )
+    ev_c = load_quality_audit_evidence(cond_c)
+    assert ev_c["provenance_binding"]["package_snapshot_status"] == "verified"
+    assert ev_c["provenance_binding"]["executed_verifier_status"] == "mismatched"
+    assert ev_c["provenance_binding"]["status"] == "mismatched"

@@ -1949,10 +1949,10 @@ def inspect_experiment(
             "file presence is evidence availability, never a validity claim: "
             "a present trajectory file is reported observed, not certified"
         )
-        light_by_path = {row["path"]: row for row in light_rows}
-        if full["path"] not in light_by_path:
+        selected_path = Path(full["path"])
+        if not any(selected_path.is_relative_to(scan_root.resolve()) for scan_root in roots):
             notices.append(
-                f"selected job {Path(full['path']).name} is outside the scanned jobs "
+                f"selected job {selected_path.name} is outside the scanned jobs "
                 "roots: shown as supplied-path evidence"
             )
     else:

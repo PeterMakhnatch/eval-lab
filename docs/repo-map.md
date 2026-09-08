@@ -93,7 +93,7 @@ inputs:
   - path: src/evallab/execution_contracts.py
     digest: sha256:59284c87feaa36a8568a66c010ce76b6c79310ea3dca290abb0e95e8f19bf362
   - path: src/evallab/explorer.py
-    digest: sha256:26af918f5b15df805dd5e7d4ce9fc072dd6907a12ea1fc288b2fef1be03fa72d
+    digest: sha256:074e13ad5f52068fceb5b612a8eaf14f719cfa36af33fa22c876fb849357fd0a
   - path: src/evallab/fetch.py
     digest: sha256:fb1215eddcc515fd26ae9c20c0b5b5372ea4fa5d113ed945cb675a4bcf935933
   - path: src/evallab/gc.py
@@ -293,7 +293,7 @@ inputs:
   - path: src/evallab/task_import.py
     digest: sha256:c7f7dbabcadb1f8801ed68b7425c8c02659e9650ff5741a44ed4babb83295c23
   - path: src/evallab/task_workbench.py
-    digest: sha256:6a35c816a53b5cefa155bb05f02347da0e8cf58287801c5d6593c06cc7d08aea
+    digest: sha256:108441c68b8448363a069c74377eb1bde1c31ed21183294102c83366c1ccba5e
   - path: src/evallab/tidy.py
     digest: sha256:daa635684233957c482af9c767cf46050339c948414a04e601cc0e26e3db6477
   - path: src/evallab/tracing.py

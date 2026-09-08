@@ -197,6 +197,21 @@ def test_matched_archive_ownership_survives_host_uid_difference(tmp_path: Path) 
     assert identity["transport"]["status"] == "verified"
 
 
+def test_directory_cannot_cover_a_manifested_file(tmp_path: Path) -> None:
+    replacement = {
+        "link_paths": {"config/credentials.conf": ""},
+        "link_type": tarfile.DIRTYPE,
+    }
+    arm = _build_arm(tmp_path, action_kwargs=replacement, verifier_kwargs=replacement)
+    retained = arm / "task_file/config/credentials.conf"
+    retained.unlink()
+    retained.mkdir()
+
+    identity = _identity(arm)
+    assert identity["ownership"]["status"] == "mismatched"
+    assert identity["transport"]["status"] == "mismatched"
+
+
 @pytest.mark.parametrize("drift", ["uid", "mode"])
 def test_transport_uid_and_mode_drift_is_mismatched(tmp_path: Path, drift: str) -> None:
     verifier_kwargs = (

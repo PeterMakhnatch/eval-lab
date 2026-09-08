@@ -5636,7 +5636,7 @@ def _audit_archive_identity(arm_path: Path, kind: str) -> dict[str, Any]:
         issues.extend(
             f"{kind}_archive_manifest_uncovered:{name}"
             for name in sorted(manifest)
-            if name not in seen
+            if name not in files
         )
     status = "mismatched" if issues else "verified"
     return {

@@ -331,6 +331,57 @@ CTRF test counts), provenance bindings verified against task bytes and retained
 hashes, evidence paths, and reviewer annotations (declared labels and expected
 rewards) kept strictly separate from observed execution.
 
+### Compare retained audit conditions
+
+```bash
+python -m evallab.task_workbench audit-compare path/to/before path/to/after \
+  --declaration path/to/declaration.json --format text
+```
+
+`audit-compare` and the Python API
+`compare_quality_audits(before_dir, after_dir, *, declaration_path=None, repo_root=None)`
+reuse the audit reader. They show the union of observed and explicitly declared
+arms, each side's execution status/reward, and a neutral `after - before` delta.
+Missing arms or incomplete execution retain their coverage row but have no delta.
+An observed reward decrease is **not** automatically an improvement.
+
+Text is the default; `--format json` returns the same evidence and qualifications
+as a `quality_audit_comparison` record. Successful inspection exits zero even
+when every pairing is unqualified. Neither format grants admission or certifies
+reward validity.
+
+The declaration is explicit, never discovered from a directory-name convention.
+Its `upstream_verifier_sha256` and `repaired_verifier_sha256` fields identify the
+intended change; `arms` contains action commands, expected rewards, and reviewer
+labels. Those declarations and each run's reviewer findings remain separate from
+measurement. Package snapshot binding and executed-verifier binding are reported
+independently. A shared task snapshot is not evidence of shared runtime inputs.
+
+Per-arm `task-file-manifest.json` maps relative paths to SHA-256 digests of
+retained `task_file/` bytes. The reader checks every listed file and refuses
+omitted files or escaping paths. `input/` paths are compared as inputs; all other
+files are compared as outputs, including root-level output files missed by older
+runner digest summaries. An intact empty output set is known absence, not missing
+evidence. `same` and `changed` mean both retained manifests verified; `mismatched`
+means bytes/coverage disagree with a manifest; `unbound` means identity is absent.
+Changed runtime inputs or outputs make a verifier-only pairing unqualified.
+
+`pairing.status = matched` means the retained evidence agrees outside the
+declared verifier axis: both package/verifier bindings, package files other than
+`tests/test_state.py`, exact image IDs, declared retained `runner.py` digest,
+per-arm action command/image receipts, arm identities, and runtime bytes.
+Missing or conflicting identity produces explicit reason codes, not a fallback
+to task or arm names. Optional declared instruction/image/action identities are
+checked when supplied. Legacy receipts without runtime manifests remain readable
+but unqualified.
+
+This is a retained-evidence comparison, not a causal guarantee: the runner hash
+is a checked declaration, and runtime manifests cover extracted **post-action**
+files, not proof of unchanged pre-action inputs. Semantic validity, task-wide
+correctness, and training utility require separate adjudication. The existing
+task000008 repair bundle demonstrates two observed 1→0 corruption contrasts and
+four preserved rewards; it does not establish general verifier improvement.
+
 ### Inspect one candidate
 
 ```bash

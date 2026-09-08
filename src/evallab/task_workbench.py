@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
@@ -4548,6 +4549,8 @@ def load_quality_audit_evidence(
             observed_reward = float(observed_reward_raw) if observed_reward_raw is not None else None
         except (ValueError, TypeError):
             observed_reward = None
+        if observed_reward is not None and not math.isfinite(observed_reward):
+            observed_reward = None
 
         ctrf_summary = result_data.get("ctrf_summary") or arm_summary.get("ctrf_summary") or {}
         tests_passed = ctrf_summary.get("passed", 0)
@@ -4696,6 +4699,377 @@ def render_quality_audit_text(evidence: Mapping[str, Any]) -> str:
 
     return "\n".join(lines) + "\n"
 
+
+
+def _audit_json_object(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise WorkbenchError(f"expected a JSON object: {path}")
+    return value
+
+
+def _audit_runtime_identity(arm: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Check complete retained runtime bytes, never the shared package snapshot."""
+    result: dict[str, Any] = {"status": "unbound", "inputs": {}, "outputs": {}, "issues": []}
+    if not arm or not arm.get("evidence_path"):
+        return result
+    arm_path = Path(arm["evidence_path"])
+    manifest_path = arm_path / "task-file-manifest.json"
+    runtime_path = arm_path / "task_file"
+    if arm_path.is_symlink() or runtime_path.is_symlink() or manifest_path.is_symlink():
+        return {**result, "status": "mismatched", "issues": ["symlinked_runtime_retention"]}
+    if not manifest_path.is_file() or not runtime_path.is_dir():
+        return result
+    manifest = _audit_json_object(manifest_path)
+    issues: list[str] = []
+    inputs: dict[str, str] = {}
+    outputs: dict[str, str] = {}
+    for rel, expected in sorted(manifest.items()):
+        relative = PurePosixPath(rel)
+        target = runtime_path / rel
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or str(relative) != rel
+            or not target.resolve().is_relative_to(runtime_path.resolve())
+            or not _is_sha256_hex(expected)
+        ):
+            issues.append(rel)
+            continue
+        digest = expected.lower().removeprefix("sha256:")
+        (inputs if rel.startswith("input/") else outputs)[rel] = digest
+        if target.is_symlink() or not target.is_file() or _file_sha256_hex(target) != digest:
+            issues.append(rel)
+    # Omitted files are missing coverage, not permission to compare a partial manifest.
+    disk_files = {
+        path.relative_to(runtime_path).as_posix()
+        for path in runtime_path.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+    issues.extend(sorted(disk_files - manifest.keys()))
+    return {
+        "status": "mismatched" if issues else "verified",
+        "inputs": inputs,
+        "outputs": outputs,
+        "issues": sorted(set(issues)),
+        "manifest_path": str(manifest_path),
+    }
+
+
+def _audit_pair_identity(
+    before: Mapping[str, Any], after: Mapping[str, Any], field: str
+) -> dict[str, Any]:
+    left, right = before[field], after[field]
+    changed = (
+        sorted(key for key in left.keys() | right.keys() if left.get(key) != right.get(key))
+        if before["status"] == after["status"] == "verified"
+        else []
+    )
+    statuses = (before["status"], after["status"])
+    status = (
+        "mismatched"
+        if "mismatched" in statuses
+        else "unbound"
+        if statuses != ("verified", "verified")
+        else "changed"
+        if changed
+        else "same"
+    )
+    return {
+        "status": status,
+        "before_status": before["status"],
+        "after_status": after["status"],
+        "changed_paths": changed,
+        "before_issues": before["issues"],
+        "after_issues": after["issues"],
+    }
+
+
+def _audit_snapshot_identity(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Compare retained package bytes outside the explicitly varied verifier file."""
+    task_dir = evidence.get("task_dir")
+    status = evidence["provenance_binding"]["package_snapshot_status"]
+    if not task_dir or status != "verified":
+        return {"status": status, "files": {}, "issues": []}
+    files = {
+        entry["path"]: entry["digest"]
+        for entry in _manifest(Path(task_dir))
+        if entry["path"] != "tests/test_state.py"
+    }
+    return {"status": "verified", "files": files, "issues": []}
+
+
+def compare_quality_audits(
+    before_dir: Path,
+    after_dir: Path,
+    *,
+    declaration_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Compare retained audit conditions without inferring semantic improvement."""
+    before = load_quality_audit_evidence(before_dir, repo_root=repo_root)
+    after = load_quality_audit_evidence(after_dir, repo_root=repo_root)
+    if declaration_path is not None and not declaration_path.is_file():
+        raise WorkbenchError(f"comparison declaration does not exist: {declaration_path}")
+    declaration = _audit_json_object(declaration_path) if declaration_path else {}
+    declared_arms = declaration.get("arms", {})
+    if not isinstance(declared_arms, dict):
+        raise WorkbenchError("comparison declaration arms must be an object")
+    bindings = [run["provenance_binding"] for run in (before, after)]
+    verifier_ids = [binding.get("executed_verifier_sha256") for binding in bindings]
+    declared_ids = [
+        declaration.get("upstream_verifier_sha256"),
+        declaration.get("repaired_verifier_sha256"),
+    ]
+    declared_ids = [
+        value.lower().removeprefix("sha256:")
+        if isinstance(value, str) and _is_sha256_hex(value)
+        else None
+        for value in declared_ids
+    ]
+    verifiers_bound = all(binding["executed_verifier_status"] == "verified" for binding in bindings)
+    axis_status = (
+        "unbound"
+        if not verifiers_bound
+        else "unchanged"
+        if verifier_ids[0] == verifier_ids[1]
+        else "declared_verifier_change"
+        if verifier_ids == declared_ids
+        else "undeclared_verifier_change"
+    )
+    reasons: list[str] = []
+    for side, binding in zip(("before", "after"), bindings, strict=True):
+        for identity in ("package_snapshot", "executed_verifier"):
+            if binding[f"{identity}_status"] != "verified":
+                reasons.append(f"{side}_{identity}_{binding[f'{identity}_status']}")
+    if axis_status not in ("unchanged", "declared_verifier_change"):
+        reasons.append("verifier_axis_unbound" if axis_status == "unbound" else axis_status)
+    if declaration_path and not all(declared_ids):
+        reasons.append("declared_verifier_identity_unbound")
+    elif any(declared_ids) and verifier_ids != declared_ids:
+        reasons.append("declared_verifier_identity_mismatch")
+    package_identity = _audit_pair_identity(
+        _audit_snapshot_identity(before), _audit_snapshot_identity(after), "files"
+    )
+    if package_identity["status"] != "same":
+        reasons.append(f"package_{package_identity['status']}")
+    images = [run["container_image"] for run in (before, after)]
+    if not all(_is_sha256_hex(image) for image in images):
+        reasons.append("image_identity_unbound")
+    elif images[0] != images[1]:
+        reasons.append("image_identity_changed")
+    if declaration.get("image_id") and any(image != declaration["image_id"] for image in images):
+        reasons.append("declared_image_mismatch")
+    # A declaration is an annotation, not proof of execution. Verify its retained
+    # runner/instruction bytes when supplied, and keep missing coverage explicit.
+    runner_status = "unbound"
+    if declaration_path and _is_sha256_hex(declaration.get("runner_sha256")):
+        runner_path = declaration_path.parent / "runner.py"
+        runner_status = (
+            "verified"
+            if runner_path.is_file()
+            and _file_sha256_hex(runner_path)
+            == declaration["runner_sha256"].lower().removeprefix("sha256:")
+            else "mismatched"
+        )
+    if runner_status != "verified":
+        reasons.append(f"runner_identity_{runner_status}")
+    instruction_sha = declaration.get("source_instruction_sha256")
+    if instruction_sha:
+        for side, run in (("before", before), ("after", after)):
+            instruction = Path(run["task_dir"]) / "instruction.md" if run["task_dir"] else None
+            if (
+                not _is_sha256_hex(instruction_sha)
+                or not instruction
+                or not instruction.is_file()
+                or _file_sha256_hex(instruction) != instruction_sha.lower().removeprefix("sha256:")
+            ):
+                reasons.append(f"{side}_declared_instruction_mismatch")
+    arms: dict[str, Any] = {}
+    names = before["arms"].keys() | after["arms"].keys() | declared_arms.keys()
+    for name in sorted(names):
+        left, right = before["arms"].get(name), after["arms"].get(name)
+        runtime_before, runtime_after = (
+            _audit_runtime_identity(left),
+            _audit_runtime_identity(right),
+        )
+        input_identity = _audit_pair_identity(runtime_before, runtime_after, "inputs")
+        output_identity = _audit_pair_identity(runtime_before, runtime_after, "outputs")
+        arm_reasons = list(reasons)
+        for side, arm in (("before", left), ("after", right)):
+            if arm is None or arm["execution_status"] != "completed":
+                arm_reasons.append(
+                    f"{side}_execution_missing"
+                    if arm is None
+                    else f"{side}_execution_{arm['execution_status']}"
+                )
+        for field, identity in (("input", input_identity), ("output", output_identity)):
+            if identity["status"] != "same":
+                arm_reasons.append(f"runtime_{field}_{identity['status']}")
+        # Docker inspect is retained evidence of the command/image used, unlike
+        # names such as 'oracle'. No Docker access is performed here.
+        actions = []
+        for (side, arm), run in zip(
+            (("before", left), ("after", right)), (before, after), strict=True
+        ):
+            inspect_path = (
+                Path(arm["evidence_path"]) / "action-inspect.json"
+                if arm and arm["evidence_path"]
+                else None
+            )
+            inspect_rows = (
+                json.loads(inspect_path.read_text())
+                if inspect_path and inspect_path.is_file()
+                else []
+            )
+            action = (
+                inspect_rows[0] if isinstance(inspect_rows, list) and len(inspect_rows) == 1 else {}
+            )
+            if not isinstance(action, dict):
+                raise WorkbenchError(f"invalid action inspection: {inspect_path}")
+            args = action.get("Args")
+            if args is None:
+                args = []
+            if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
+                raise WorkbenchError(f"invalid action argument vector: {inspect_path}")
+            command = (
+                [action["Path"], *args]
+                if isinstance(action.get("Path"), str) and action["Path"]
+                else None
+            )
+            actions.append(command)
+            if command is None:
+                arm_reasons.append(f"{side}_action_identity_unbound")
+            action_image = action.get("Image")
+            run_image = run["container_image"]
+            if (
+                not isinstance(action_image, str)
+                or not _is_sha256_hex(action_image)
+                or not _is_sha256_hex(run_image)
+            ):
+                arm_reasons.append(f"{side}_action_image_unbound")
+            elif action_image.lower().removeprefix("sha256:") != run_image.lower().removeprefix(
+                "sha256:"
+            ):
+                arm_reasons.append(f"{side}_action_image_mismatched")
+            result = (
+                _audit_json_object(Path(arm["evidence_path"]) / "result.json")
+                if arm and arm["evidence_path"]
+                else {}
+            )
+            if result.get("arm") != name:
+                arm_reasons.append(f"{side}_arm_identity_unbound")
+        if all(action is not None for action in actions) and actions[0] != actions[1]:
+            arm_reasons.append("action_identity_changed")
+        arm_declaration = declared_arms.get(name, {})
+        if not isinstance(arm_declaration, dict):
+            raise WorkbenchError(f"comparison declaration arm must be an object: {name}")
+        expected_action = arm_declaration.get("action_command")
+        if expected_action is not None and any(
+            action != expected_action for action in actions if action is not None
+        ):
+            arm_reasons.append("declared_action_mismatch")
+        rewards = [arm.get("observed_reward") if arm else None for arm in (left, right)]
+        numeric_rewards = all(
+            isinstance(reward, (int, float)) and math.isfinite(reward) for reward in rewards
+        )
+        completed = all(arm and arm["execution_status"] == "completed" for arm in (left, right))
+        if not numeric_rewards:
+            arm_reasons.append("reward_unavailable")
+        delta = (
+            cast(float, rewards[1]) - cast(float, rewards[0])
+            if completed and numeric_rewards
+            else None
+        )
+        arms[name] = {
+            "before": left,
+            "after": right,
+            "observed_reward_delta": delta,
+            "input_identity": input_identity,
+            "output_identity": output_identity,
+            "action_commands": {"before": actions[0], "after": actions[1]},
+            "pairing": {
+                "status": "unqualified" if arm_reasons else "matched",
+                "reasons": arm_reasons,
+            },
+            "declaration": arm_declaration,
+        }
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "quality_audit_comparison",
+        "before": before,
+        "after": after,
+        "experiment_axis": {
+            "status": axis_status,
+            "before_verifier_sha256": verifier_ids[0],
+            "after_verifier_sha256": verifier_ids[1],
+        },
+        "package_identity": package_identity,
+        "runner_identity": runner_status,
+        "condition_reasons": reasons,
+        "declaration": declaration,
+        "declaration_path": str(declaration_path.resolve()) if declaration_path else None,
+        "arms": arms,
+        "admission_authority": "candidate_evidence_only",
+        "notices": [
+            "Read-only retained-evidence comparison; no admission, certification, or publication.",
+            "Matched means retained conditions match outside the declared verifier axis, not a causal or semantic guarantee.",
+            "Runtime manifests describe extracted post-action bytes, not proof of unchanged pre-action inputs.",
+            "A reward decrease is an observation, not automatic improvement; declarations and reviewer judgments are separate.",
+        ],
+    }
+
+
+def render_quality_audit_comparison_text(comparison: Mapping[str, Any]) -> str:
+    lines = ["Quality audit comparison (read-only)"]
+    for side in ("before", "after"):
+        run = comparison[side]
+        binding = run["provenance_binding"]
+        lines.append(f"{side}: {run['audit_path']} (run={run['run_id']})")
+        lines.append(f"  image={run['container_image'] or 'missing'}")
+        lines.append(
+            f"  package={binding['package_snapshot_status']}; "
+            f"executed verifier={binding['executed_verifier_status']} "
+            f"recorded sha256={binding.get('recorded_verifier_sha256', 'missing')}; "
+            f"retained sha256={binding.get('executed_verifier_sha256', 'unbound')}"
+        )
+    lines.append(f"Experiment axis: {comparison['experiment_axis']['status']}")
+    lines.append(
+        f"Package outside verifier: {comparison['package_identity']['status']}; runner={comparison['runner_identity']}"
+    )
+    for name, row in comparison["arms"].items():
+        sides = []
+        for side in ("before", "after"):
+            arm = row[side]
+            sides.append(
+                f"{side}={arm['execution_status']} reward={arm['observed_reward']}"
+                if arm
+                else f"{side}=missing reward=None"
+            )
+        lines.append(f"- {name}: {'; '.join(sides)}; delta={row['observed_reward_delta']}")
+        lines.append(
+            f"  pairing={row['pairing']['status']}; inputs={row['input_identity']['status']}; "
+            f"outputs={row['output_identity']['status']}"
+        )
+        if row["pairing"]["reasons"]:
+            lines.append(f"  Unqualified: {', '.join(row['pairing']['reasons'])}")
+        for field in ("input_identity", "output_identity"):
+            identity = row[field]
+            if identity["changed_paths"] or identity["before_issues"] or identity["after_issues"]:
+                lines.append(
+                    f"  {field}: changed={identity['changed_paths']}; "
+                    f"before issues={identity['before_issues']}; after issues={identity['after_issues']}"
+                )
+        if row["declaration"]:
+            lines.append(
+                f"  Declared (not adjudicated): {json.dumps(row['declaration'], sort_keys=True)}"
+            )
+    if comparison["declaration"].get("scope_qualification"):
+        lines.append(f"Declared scope: {comparison['declaration']['scope_qualification']}")
+    lines.extend(comparison["notices"])
+    return "\n".join(lines) + "\n"
 
 
 def _materialize_command(command: Sequence[str], repo_root: Path) -> tuple[str, ...]:
@@ -6294,6 +6668,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="output format (default: %(default)s)",
     )
+    compare_cmd = subparsers.add_parser(
+        "audit-compare", help="compare retained quality audit conditions read-only"
+    )
+    compare_cmd.add_argument("before_dir", type=Path)
+    compare_cmd.add_argument("after_dir", type=Path)
+    compare_cmd.add_argument("--declaration", type=Path, help="explicit comparison declaration JSON")
+    compare_cmd.add_argument("--repo-root", type=Path, default=Path.cwd())
+    compare_cmd.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
 
@@ -6306,6 +6688,16 @@ def run_cli(
     args = parser.parse_args(list(argv) if argv is not None else None)
     repo_root = args.repo_root.resolve()
     try:
+        if args.command == "audit-compare":
+            comparison = compare_quality_audits(
+                args.before_dir, args.after_dir,
+                declaration_path=args.declaration, repo_root=repo_root,
+            )
+            if args.format == "text":
+                sys.stdout.write(render_quality_audit_comparison_text(comparison))
+            else:
+                sys.stdout.buffer.write(_canonical_bytes(comparison))
+            return 0
         if args.command == "audit-evidence":
             evidence = load_quality_audit_evidence(
                 audit_dir=args.audit_dir,

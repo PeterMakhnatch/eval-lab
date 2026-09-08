@@ -35,11 +35,10 @@ a task; registration is human-only and separate.
 | Staged | `tasks/` (15 task dirs `task_0000NN`), unzipped from the pinned archive |
 | License | Apache-2.0 (`LICENSE` in this dir) |
 | Sample rule | first 15 task dirs in archive order (`task_000001`–`task_000017`, skipping the two ids the upstream release does not ship: `task_000007`, `task_000015`) — deterministic, no lab-side quality filtering |
-| Loader incompatibility | every `task.toml` sets `[task] name = "FACET-Terminal"`, which harbor 0.21.0 rejects (`TaskConfig` requires `org/name`; `TaskModel.is_valid_dir` False; `harbor run -p …` fails "Either datasets or tasks must be provided"). Decision: `research/external/harbor-ecosystem/FACET-LOADER-DECISION.md` — the pack is NOT rewritten |
+| Loader incompatibility | every `task.toml` sets `[task] name = "FACET-Terminal"`, which harbor 0.21.0 rejects (`TaskConfig` requires `org/name`; `TaskModel.is_valid_dir` False; `harbor run -p …` fails "Either datasets or tasks must be provided"). Decision: `~/Developer/research-context/harbor/corpus/FACET-LOADER-DECISION.md` — the pack is NOT rewritten |
 | Contamination class | synthetic tasks distilled from public Agent Skills via FACET's pipeline; behavior-study only, external-flagged outcomes |
 
 ## Regeneration
-
 Commands to re-derive both packs live with the acquisition notes in
 `research/external/harbor-ecosystem/`. Re-fetch must verify the archive digest
 above before replacing anything under `tasks/`.

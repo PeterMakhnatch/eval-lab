@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE UNIQUE INDEX IF NOT EXISTS jobs_evidence_path_idx ON jobs (evidence_path);
 CREATE INDEX IF NOT EXISTS jobs_started_at_idx ON jobs (started_at);
+CREATE INDEX IF NOT EXISTS jobs_ingested_at_idx ON jobs (ingested_at);
 
 CREATE TABLE IF NOT EXISTS experiments (
     id text PRIMARY KEY,
@@ -76,6 +77,9 @@ CREATE INDEX IF NOT EXISTS trials_task_idx ON trials (task_name);
 CREATE INDEX IF NOT EXISTS trials_agent_model_idx ON trials (agent_name, model_name);
 CREATE INDEX IF NOT EXISTS trials_reward_idx ON trials (primary_reward);
 CREATE INDEX IF NOT EXISTS trials_exception_idx ON trials (exception_type);
+-- daily_cost_usd / consecutive_harness_failures / digest_trials filter and
+-- order by finished_at; list_trials orders by jobs.ingested_at.
+CREATE INDEX IF NOT EXISTS trials_finished_at_idx ON trials (finished_at);
 
 CREATE TABLE IF NOT EXISTS rewards (
     trial_id uuid NOT NULL REFERENCES trials(id) ON DELETE CASCADE,

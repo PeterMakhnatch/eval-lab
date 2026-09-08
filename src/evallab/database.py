@@ -38,10 +38,23 @@ def views_path() -> Path:
     return Path(__file__).resolve().parents[2] / "sql" / "views.sql"
 
 
-def initialize(database_url: str) -> None:
+_INITIALIZED_URLS: set[str] = set()
+
+
+def initialize(database_url: str, *, force: bool = False) -> None:
+    """Apply the idempotent schema, once per URL per process.
+
+    ``ingest_and_project`` calls this on every ingest. Re-running the full DDL
+    per job costs measurable latency and makes concurrent ingesters contend on
+    PostgreSQL catalog locks, so repeat applications inside one process are
+    skipped. ``force=True`` (used by ``evallab db init``) always applies.
+    """
+    if not force and database_url in _INITIALIZED_URLS:
+        return
     schema = cast(LiteralString, schema_path().read_text())
     with psycopg.connect(database_url) as connection:
         connection.execute(schema)
+    _INITIALIZED_URLS.add(database_url)
 
 
 def _relative_or_absolute(path: Path, root: Path) -> str:

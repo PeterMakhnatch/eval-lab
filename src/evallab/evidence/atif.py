@@ -4,7 +4,7 @@ import hashlib
 import importlib
 import json
 from collections import defaultdict, deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, TypeGuard
@@ -13,7 +13,7 @@ import pyarrow as pa
 from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
-from evallab.evidence.parquet_io import write_table_atomic
+from evallab.evidence.parquet_io import empty_table_sha256, write_table_atomic
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
@@ -205,6 +205,70 @@ PROJECTED_TABLES = frozenset(
         "action_effects.parquet",
     }
 )
+PARTITION_MANIFEST_FILE = "_partition.json"
+PARTITION_MANIFEST_VERSION = 1
+
+
+def write_partition_manifests(tables: Iterable[ExportedTable]) -> tuple[Path, ...]:
+    """Record every projected table and its row count per trial partition.
+
+    Empty tables are pruned from disk, so presence alone can no longer
+    distinguish "this table has no rows" from "the writer never ran". The
+    manifest carries that distinction. It is deterministic by construction
+    (sorted keys, no timestamps) to preserve byte-identical rebuilds.
+    """
+    by_partition: dict[Path, dict[str, int]] = {}
+    for table in tables:
+        if f"{table.table}.parquet" not in PROJECTED_TABLES:
+            continue
+        partition = table.path.parent
+        if not partition.name.startswith("trial_id="):
+            continue
+        by_partition.setdefault(partition, {})[table.table] = table.rows
+    written: list[Path] = []
+    for partition, row_counts in sorted(by_partition.items()):
+        payload = {
+            "schema_version": PARTITION_MANIFEST_VERSION,
+            "tables": dict(sorted(row_counts.items())),
+        }
+        path = partition / PARTITION_MANIFEST_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        temporary.replace(path)
+        written.append(path)
+    return tuple(written)
+
+
+def read_partition_manifest(partition: Path) -> dict[str, int] | None:
+    """Return recorded table row counts, or None when no manifest exists."""
+    path = partition / PARTITION_MANIFEST_FILE
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    tables = payload.get("tables")
+    if not isinstance(tables, dict):
+        return None
+    return {str(name): int(rows) for name, rows in tables.items() if isinstance(rows, int)}
+
+
+def partition_missing_tables(partition: Path) -> frozenset[str]:
+    """Return projected tables that are neither materialized nor accounted empty.
+
+    Partitions written before manifests existed fall back to requiring every
+    file, which is exactly the rule they were built under.
+    """
+    present = {child.name for child in partition.glob("*.parquet") if child.is_file()}
+    manifest = read_partition_manifest(partition)
+    if manifest is None:
+        return frozenset(PROJECTED_TABLES - present)
+    accounted = present | {
+        f"{name}.parquet" for name, rows in manifest.items() if rows == 0
+    }
+    return frozenset(PROJECTED_TABLES - accounted)
 
 
 @dataclass(frozen=True)
@@ -895,12 +959,14 @@ PARQUET_SCHEMAS = {
 
 
 def _write_parquet(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    write_table_atomic(path, rows, PARQUET_SCHEMAS[table_name])
+    schema = PARQUET_SCHEMAS[table_name]
+    written = write_table_atomic(path, rows, schema, keep_empty=False)
+    digest = sha256_file(path) if written else empty_table_sha256(schema)
     return ExportedTable(
         table=table_name,
         path=path,
         rows=len(rows),
-        sha256=f"sha256:{sha256_file(path)}",
+        sha256=f"sha256:{digest}",
     )
 
 
@@ -1072,12 +1138,7 @@ def check_projection_invariant(
             projected_job_ids.add(job_id)
             continue
         if all(
-            {
-                child.name
-                for child in (job_root / f"trial_id={trial_id}").glob("*.parquet")
-                if child.is_file()
-            }
-            >= PROJECTED_TABLES
+            not partition_missing_tables(job_root / f"trial_id={trial_id}")
             for trial_id in trial_ids
         ):
             projected_job_ids.add(job_id)

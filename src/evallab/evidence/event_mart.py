@@ -19,7 +19,7 @@ import pyarrow as pa
 
 from evallab.evidence.atif import ExportedTable, ExportResult, project_trial
 from evallab.evidence.facts import StateChangeFact, extract_job_facts, sha256_file
-from evallab.evidence.parquet_io import write_table_atomic
+from evallab.evidence.parquet_io import empty_table_sha256, write_table_atomic
 from evallab.results import JobRecord, TrialRecord
 from evallab.traj import outline_trajectory
 
@@ -349,9 +349,11 @@ def project_event_mart(
 
 
 def _write_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    write_table_atomic(path, rows, EVENT_MART_SCHEMAS[table_name])
+    schema = EVENT_MART_SCHEMAS[table_name]
+    written = write_table_atomic(path, rows, schema, keep_empty=False)
+    digest = sha256_file(path) if written else empty_table_sha256(schema)
     return ExportedTable(
-        table=table_name, path=path, rows=len(rows), sha256=f"sha256:{sha256_file(path)}"
+        table=table_name, path=path, rows=len(rows), sha256=f"sha256:{digest}"
     )
 
 

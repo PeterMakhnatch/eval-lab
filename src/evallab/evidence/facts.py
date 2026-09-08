@@ -17,7 +17,7 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
-from evallab.evidence.parquet_io import write_table_atomic
+from evallab.evidence.parquet_io import empty_table_sha256, write_table_atomic
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
@@ -787,12 +787,14 @@ FACT_SCHEMAS = {
 
 
 def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    write_table_atomic(path, rows, FACT_SCHEMAS[table_name])
+    schema = FACT_SCHEMAS[table_name]
+    written = write_table_atomic(path, rows, schema, keep_empty=False)
+    digest = sha256_file(path) if written else empty_table_sha256(schema)
     return ExportedTable(
         table=table_name,
         path=path,
         rows=len(rows),
-        sha256=f"sha256:{sha256_file(path)}",
+        sha256=f"sha256:{digest}",
     )
 
 
@@ -830,13 +832,24 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
 
 
 def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
+    from evallab.evidence.atif import write_partition_manifests
     from evallab.evidence.event_mart import export_event_mart
 
-    return RebuildResult(
+    result = RebuildResult(
         trajectory_export=export_trajectories(jobs, output_root),
         fact_export=export_facts(jobs, output_root),
         event_mart_export=export_event_mart(jobs, output_root),
     )
+    # Empty tables are pruned from disk; the manifest is what keeps a partition
+    # provably complete, so it must be written after every table is projected.
+    write_partition_manifests(
+        (
+            *result.trajectory_export.tables,
+            *result.fact_export.tables,
+            *result.event_mart_export.tables,
+        )
+    )
+    return result
 
 
 def _relative_or_absolute(path: Path, root: Path) -> str:

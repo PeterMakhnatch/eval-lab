@@ -117,6 +117,7 @@ class IngestVerificationResult:
     excluded_jobs_by_reason: dict[str, int] = field(default_factory=dict)
     excluded_jobs: tuple[ExcludedJob, ...] = field(default_factory=tuple)
     unfinished_jobs: tuple[ExcludedJob, ...] = field(default_factory=tuple)
+    partial_jobs: tuple[ExcludedJob, ...] = field(default_factory=tuple)
     gaps: tuple[IngestGap, ...] = field(default_factory=tuple)
 
     @property
@@ -148,6 +149,8 @@ class IngestVerificationResult:
             f"(owned by another checkout or evidence absent here)",
             f"Cataloged but unfinished:     {len(self.unfinished_jobs)} "
             f"(no finished_at; nothing to project)",
+            f"Cataloged but partial:        {len(self.partial_jobs)} "
+            f"(intake partial; _partial.json marker present)",
         ]
         if self.accounted_exceptions_by_reason:
             for r, c in sorted(self.accounted_exceptions_by_reason.items()):
@@ -405,7 +408,7 @@ def verify_ingest(
 
     for job_id, _job_info in catalog_jobs.items():
         job_dir = d_root / f"job_id={job_id}"
-        if not (job_dir / JOB_PROJECTION_FILE).is_file():
+        if not (job_dir / JOB_PROJECTION_FILE).is_file() or (job_dir / "_partial.json").is_file():
             continue
         parquet_jobs.add(job_id)
 
@@ -446,12 +449,24 @@ def verify_ingest(
     # 6. Reconcile and detect gaps
     gaps: list[IngestGap] = []
     unfinished_jobs: list[ExcludedJob] = []
+    partial_jobs: list[ExcludedJob] = []
 
     # Check for cataloged jobs missing from Parquet. A job whose result.json has
     # no finished_at never completed, so there is nothing to project: account for
     # it by reason instead of reporting a gap no re-ingest can ever close.
     for job_id, j_info in catalog_jobs.items():
         if job_id in parquet_jobs or job_id in recorded_exceptions:
+            continue
+        job_dir = d_root / f"job_id={job_id}"
+        if (job_dir / "_partial.json").is_file():
+            partial_jobs.append(
+                ExcludedJob(
+                    job_id=job_id,
+                    name=str(j_info.get("name") or job_id),
+                    path=str(j_info.get("path") or ""),
+                    reason="partial_intake",
+                )
+            )
             continue
         if _job_is_unfinished(root, j_info):
             unfinished_jobs.append(
@@ -510,6 +525,7 @@ def verify_ingest(
         excluded_jobs_by_reason=dict(Counter(item.reason for item in excluded)),
         excluded_jobs=tuple(excluded),
         unfinished_jobs=tuple(unfinished_jobs),
+        partial_jobs=tuple(partial_jobs),
         gaps=tuple(gaps),
     )
 
@@ -600,6 +616,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "path": e.path,
                 }
                 for e in result.unfinished_jobs
+            ],
+            "partial_jobs_count": len(result.partial_jobs),
+            "partial_jobs": [
+                {
+                    "job_id": e.job_id,
+                    "name": e.name,
+                    "path": e.path,
+                }
+                for e in result.partial_jobs
             ],
             "gaps_count": len(result.gaps),
             "gaps": [

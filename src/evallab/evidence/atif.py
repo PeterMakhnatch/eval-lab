@@ -264,11 +264,34 @@ def partition_missing_tables(partition: Path) -> frozenset[str]:
     present = {child.name for child in partition.glob("*.parquet") if child.is_file()}
     manifest = read_partition_manifest(partition)
     if manifest is None:
-        return frozenset(PROJECTED_TABLES - present)
-    accounted = present | {
-        f"{name}.parquet" for name, rows in manifest.items() if rows == 0
-    }
-    return frozenset(PROJECTED_TABLES - accounted)
+        missing = PROJECTED_TABLES - present
+    else:
+        accounted = present | {
+            f"{name}.parquet" for name, rows in manifest.items() if rows == 0
+        }
+        missing = PROJECTED_TABLES - accounted
+    if not missing:
+        return frozenset()
+    # Partial-job intake: a valid _partial.json marker accounts for tables that
+    # must never exist. Delegate to its predicate (lazy import: that module
+    # imports names from here).
+    from evallab.partial_intake import (
+        PARTIAL_MARKER_FILE,
+        partial_partition_missing_tables,
+    )
+
+    job_root = partition.parent if partition.name.startswith("trial_id=") else partition
+    if not ((job_root / PARTIAL_MARKER_FILE).is_file() or (partition / PARTIAL_MARKER_FILE).is_file()):
+        return frozenset(missing)
+    partial_missing = partial_partition_missing_tables(job_root)
+    mine: set[str] = set()
+    prefix = partition.name + "/"
+    for entry in partial_missing:
+        if entry.startswith(prefix):
+            mine.add(entry[len(prefix):])
+        elif "/" not in entry:
+            mine.add(entry)
+    return frozenset(mine)
 
 
 @dataclass(frozen=True)

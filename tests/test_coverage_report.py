@@ -313,3 +313,51 @@ def test_scope_bound_product_wrong_root_excludes(tmp_path: Path) -> None:
     assert "job-b" in payload["coverage"]["excepted"]["jobs"]
     repairs = {e["job_name"]: e for e in payload["coverage"]["repair_path"]}
     assert repairs["job-b"]["reason"] == "evidence_absent"
+
+
+def test_section_counts_agree_with_listed_names(tmp_path: Path) -> None:
+    """Regression: count=78 with 20 names and truncated=false must be impossible.
+
+    Every section's count and names describe the same population: an
+    untruncated section lists exactly count names; a truncated one lists
+    exactly LIST_CAP.
+    """
+    from evallab.coverage_report import LIST_CAP, build_coverage_report
+
+    _, fake_loader = _scoped_fixture(tmp_path)
+    report = build_coverage_report(
+        root=tmp_path,
+        derived_root=tmp_path / "derived",
+        database_url="postgresql://invalid:5432/none",
+        catalog_loader=fake_loader,
+    )
+    for section in (
+        report.native_jobs_present,
+        report.catalogued,
+        report.projected,
+        report.excepted,
+        report.failed,
+    ):
+        if section.truncated:
+            assert len(section.jobs) == LIST_CAP
+            assert section.count > len(section.jobs)
+        else:
+            assert section.count == len(section.jobs)
+
+
+def test_catalogued_lists_only_retained_scope(tmp_path: Path) -> None:
+    """Scoped-out jobs never inflate the catalogued section: count and names agree."""
+    from evallab.coverage_report import build_coverage_report
+
+    _, fake_loader = _scoped_fixture(tmp_path)
+    report = build_coverage_report(
+        root=tmp_path,
+        derived_root=tmp_path / "derived",
+        database_url="postgresql://invalid:5432/none",
+        catalog_loader=fake_loader,
+    )
+    # job-b has no evidence and no parquet: excluded with a reason, while the
+    # catalogued section describes exactly the retained set.
+    assert report.catalogued.count == len(report.catalogued.jobs)
+    assert "job-b" not in report.catalogued.jobs
+    assert "job-b" in report.excepted.jobs

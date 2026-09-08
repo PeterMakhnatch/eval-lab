@@ -360,11 +360,13 @@ def build_coverage_report(
     retained_catalog_names = sorted(
         {str(info.get("name") or job_id) for job_id, info in retained_catalog_jobs.items()}
     )
-    catalogued_count = verification.catalog_jobs_count
-    if catalogued_count == 0 and retained_catalog_names:
-        catalogued_count = len(retained_catalog_names)
+    # Distinction, not omission: `catalogued` describes the retained in-scope
+    # set, so count and names always agree; jobs excluded with reasons live
+    # under `excepted`, never silently dropped. (Previously count came from the
+    # unfiltered verification total while names were retained-only, reporting
+    # e.g. count=78 with 20 names and truncated=false.)
     catalogued_summary = JobCategorySummary(
-        count=catalogued_count,
+        count=len(retained_catalog_names),
         jobs=tuple(retained_catalog_names[:LIST_CAP]),
         truncated=len(retained_catalog_names) > LIST_CAP,
     )

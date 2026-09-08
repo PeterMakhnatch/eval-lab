@@ -4813,9 +4813,11 @@ def _owned_arm_record(
     """
     record: dict[str, Any] = dict(summary_entry) if isinstance(summary_entry, Mapping) else {}
     result_file = arm_dir / "result.json" if arm_dir is not None else None
+    execution_record: dict[str, Any] = {}
     if arm_dir is not None and arm_dir.is_dir():
         record.update(_audit_json_object(arm_dir / "observed.json"))
-        record.update(_audit_json_object(arm_dir / "result.json"))
+        execution_record = _audit_json_object(arm_dir / "result.json")
+        record.update(execution_record)
     # Cached summaries/annotations cannot replace the original execution receipt.
     has_record = result_file is not None and result_file.is_file()
     digests: dict[str, Any] = {}
@@ -4824,12 +4826,12 @@ def _owned_arm_record(
         digests = _audit_json_object(arm_dir / "digests.json")
         raw_manifest = _audit_json_object(arm_dir / "task-file-manifest.json")
         task_manifest = dict(raw_manifest) if raw_manifest else None
-    observed_reward = _owned_float(record.get("reward"))
-    ctrf_summary = record.get("ctrf_summary")
+    observed_reward = _owned_float(execution_record.get("reward"))
+    ctrf_summary = execution_record.get("ctrf_summary")
     if not isinstance(ctrf_summary, Mapping):
         ctrf_summary = {}
-    action_exit = record.get("action_exit")
-    verifier_exit = record.get("verifier_exit")
+    action_exit = execution_record.get("action_exit")
+    verifier_exit = execution_record.get("verifier_exit")
     if not has_record:
         execution_status = "missing"
     elif action_exit == 0 and verifier_exit == 0 and observed_reward is not None:
@@ -5892,6 +5894,15 @@ def _audit_snapshot_identity(evidence: Mapping[str, Any]) -> dict[str, Any]:
     status = evidence["provenance_binding"]["package_snapshot_status"]
     if not task_dir or status != "verified":
         return {"status": status, "files": {}, "issues": []}
+    if evidence.get("evidence_format") == "quality_owned":
+        # This exact manifest was checked by the reader. Do not re-read the
+        # shared source directory as a second, potentially changed snapshot.
+        recorded = evidence["provenance_binding"]["recorded_source_task_manifest"]
+        return {
+            "status": "verified",
+            "files": {path: entry["sha256"] for path, entry in recorded.items()},
+            "issues": [],
+        }
     files = {
         entry["path"]: entry["digest"]
         for entry in _manifest(Path(task_dir))
@@ -6142,7 +6153,12 @@ def compare_quality_audits(
             "before": runtime_before.get("transport", {"status": "unbound", "issues": []}),
             "after": runtime_after.get("transport", {"status": "unbound", "issues": []}),
         }
-        if owned or filesystem_identity["status"] != "unbound":
+        archive_evidence_present = any(
+            runtime.get(field, empty_ownership)["status"] != "unbound"
+            for runtime in (runtime_before, runtime_after)
+            for field in ("ownership", "transport")
+        )
+        if owned or archive_evidence_present:
             if filesystem_identity["status"] != "same":
                 arm_reasons.append(f"runtime_filesystem_{filesystem_identity['status']}")
             for side, transfer in transports.items():
@@ -7845,7 +7861,7 @@ def build_parser() -> argparse.ArgumentParser:
     audit_cmd.add_argument(
         "audit_dir",
         type=Path,
-        help="path to quality audit evidence directory containing summary.json",
+        help="path to retained quality audit evidence (summary or owned metadata format)",
     )
     audit_cmd.add_argument(
         "--repo-root",

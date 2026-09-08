@@ -1476,7 +1476,7 @@ _COVERAGE_SECTIONS = (
     "excepted",
     "failed",
 )
-_COVERAGE_JOB_NAME_LIMIT = 25
+_COVERAGE_JOB_NAME_LIMIT = 5
 
 
 def _view_json_dict(path: Path) -> tuple[dict[str, Any] | None, str | None]:
@@ -1522,8 +1522,10 @@ def _reasons_for(queue: Any, spec_id: str | None) -> list[dict[str, Any]]:
     return receipts
 
 
-def _queue_rows(queue: Any) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[str]]:
-    """Every queued spec across QUEUE_STATES, plus specs keyed by spec_id."""
+def _queue_rows(
+    queue: Any, *, selected_spec_id: str | None = None
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[str]]:
+    """Read inventory, or validate only queue specs matching the selected identity."""
     from evallab.queue import QUEUE_STATES
 
     rows: list[dict[str, Any]] = []
@@ -1534,10 +1536,26 @@ def _queue_rows(queue: Any) -> tuple[list[dict[str, Any]], dict[str, dict[str, A
         if not state_dir.is_dir():
             continue
         for path in sorted(state_dir.glob("*.json")):
+            if selected_spec_id is not None:
+                header, error = _view_json_dict(path)
+                if header is None:
+                    issues.append(error or f"queued header unreadable: {path}")
+                    continue
+                if header.get("spec_id") != selected_spec_id:
+                    continue
             try:
                 spec = queue.load(path)
             except ValueError as exc:
-                issues.append(f"queued spec unreadable: {exc}")
+                cause = exc.__cause__
+                detail = (
+                    "; ".join(
+                        f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
+                        for error in cause.errors(include_input=False, include_url=False)
+                    )
+                    if isinstance(cause, ValidationError)
+                    else type(exc).__name__
+                )
+                issues.append(f"queued spec unreadable: {path} ({detail})")
                 continue
             spec_id = str(spec.spec_id) if spec.spec_id else _HARBOR_UNBOUND
             row = {
@@ -1647,41 +1665,34 @@ def _trial_row(job: Any, trial: Any) -> dict[str, Any]:
     reward_value = fact.primary_reward
     usage_values = (fact.input_tokens, fact.output_tokens, fact.cost_usd)
     trajectory_present = (trial.path / "agent" / "trajectory.json").is_file()
-    if agent_name in CONTROL_AGENTS:
+    present_usage = sum(value is not None for value in usage_values)
+    if present_usage == len(usage_values):
+        usage_state = "complete"
+    elif present_usage:
+        usage_state = "partial"
+    else:
+        usage_state = "not_applicable" if agent_name in CONTROL_AGENTS else "missing"
+    if fact.invalid_trajectory_count > 0:
         capture = {
-            "state": "not_applicable",
-            "reason": (
-                f"{agent_name} is a free control: absent trajectory/usage is "
-                "expected, not a capture failure"
-            ),
+            "state": "partial",
+            "reason": f"{fact.invalid_trajectory_count} invalid trajectories",
         }
-        usage_state = "not_applicable"
     elif fact.trajectory_count == 0:
         capture = {
-            "state": "missing",
-            "reason": "model trial recorded no trajectories",
+            "state": "not_applicable" if agent_name in CONTROL_AGENTS else "missing",
+            "reason": (
+                f"{agent_name} control has no recorded trajectory; expected absence"
+                if agent_name in CONTROL_AGENTS
+                else "no retained trajectories"
+            ),
         }
-        if all(value is not None for value in usage_values):
-            usage_state = "complete"
-        elif all(value is None for value in usage_values):
-            usage_state = "missing"
-        else:
-            usage_state = "partial"
-    elif fact.invalid_trajectory_count > 0 or any(value is None for value in usage_values):
-        if fact.invalid_trajectory_count > 0 and any(value is None for value in usage_values):
-            reason = f"{fact.invalid_trajectory_count} invalid trajectories; usage incomplete"
-        elif fact.invalid_trajectory_count > 0:
-            reason = f"{fact.invalid_trajectory_count} invalid trajectories"
-        else:
-            reason = "usage incomplete"
-        capture = {"state": "partial", "reason": reason}
-        usage_state = "partial"
+    elif usage_state in ("missing", "partial"):
+        capture = {"state": "partial", "reason": "trajectory observed; usage incomplete"}
     else:
         capture = {
             "state": "observed",
-            "reason": "trajectory and usage observed; presence is not a validity claim",
+            "reason": "trajectory observed; presence is not a validity claim",
         }
-        usage_state = "complete"
     reward: dict[str, Any] = {
         "value": reward_value,
         "state": "observed" if reward_value is not None else "unavailable",
@@ -1861,15 +1872,6 @@ def inspect_experiment(
     notices: list[str] = []
     issues: list[str] = []
 
-    queue = DirectoryQueue(root / "queue", create=False)
-    queue_rows: list[dict[str, Any]] = []
-    specs_by_id: dict[str, dict[str, Any]] = {}
-    if (root / "queue").is_dir():
-        queue_rows, specs_by_id, queue_issues = _queue_rows(queue)
-        issues.extend(queue_issues)
-    else:
-        notices.append(f"queue absent at {root / 'queue'}: experiment inventory from jobs only")
-
     if experiment_id is not None:
         selection: dict[str, Any] = {
             "mode": "by_spec",
@@ -1883,6 +1885,26 @@ def inspect_experiment(
         selection = {"mode": "by_job", "experiment_id": None, "job_dir": str(resolved)}
     else:
         selection = {"mode": "inventory", "experiment_id": None, "job_dir": None}
+    queue = DirectoryQueue(root / "queue", create=False)
+    queue_rows: list[dict[str, Any]] = []
+    specs_by_id: dict[str, dict[str, Any]] = {}
+    selected_spec_id = experiment_id
+    read_queue = job_dir is None
+    if job_dir is not None:
+        metadata, _ = _view_json_dict(Path(job_dir) / "lab-metadata.json")
+        association = (metadata or {}).get("experiment")
+        if isinstance(association, dict):
+            recorded_spec = association.get("spec_id")
+            if isinstance(recorded_spec, str) and recorded_spec:
+                selected_spec_id, read_queue = recorded_spec, True
+    if (root / "queue").is_dir():
+        if read_queue:
+            queue_rows, specs_by_id, queue_issues = _queue_rows(
+                queue, selected_spec_id=selected_spec_id
+            )
+            issues.extend(queue_issues)
+    else:
+        notices.append(f"queue absent at {root / 'queue'}: experiment inventory from jobs only")
 
     roots, root_notices = _jobs_roots(root, queue_rows)
     notices.extend(root_notices)
@@ -1904,6 +1926,7 @@ def inspect_experiment(
     light_rows = [_light_job_row(path) for path in sorted(discovered)]
     if selection["mode"] == "by_spec":
         matched = [row for row in light_rows if row["experiment_id"] == experiment_id]
+        light_rows = matched
         if experiment_id not in specs_by_id:
             notices.append(f"spec {experiment_id} not in queue: matching jobs by lab-metadata only")
         if not matched:
@@ -2116,9 +2139,26 @@ def render_experiment_text(report: dict[str, Any]) -> str:
         lines.append(f"  capture reasons: {summary['reasons']}")
     if summary.get("trajectory_availability_by_agent") is not None:
         clean_availability = redact_mapping(summary["trajectory_availability_by_agent"])
-        lines.append(f"  availability by agent: {clean_availability}")
-    if summary.get("repair_path"):
-        lines.append(f"  repair (copy, do not auto-run): {summary['repair_path']}")
+        lines.append("  availability by agent:")
+        for name, availability in clean_availability.items():
+            lines.append(f"    {name}: {availability}")
+    repairs = summary.get("repair_path")
+    if isinstance(repairs, list):
+        lines.append("  supplied repair advice (not execution authorization):")
+        for repair in repairs[:_COVERAGE_JOB_NAME_LIMIT]:
+            if isinstance(repair, dict):
+                lines.append(
+                    f"    {repair.get('job_name')}: {repair.get('reason')} [{repair.get('origin')}]"
+                )
+                lines.append(
+                    f"      {repair.get('resumable_command') or 'No resumable command supplied'}"
+                )
+        if len(repairs) > _COVERAGE_JOB_NAME_LIMIT:
+            lines.append(
+                f"    {len(repairs) - _COVERAGE_JOB_NAME_LIMIT} further entries in {capture_report.get('path')}"
+            )
+    elif repairs:
+        lines.append(f"  supplied repair context: {repairs}")
     lines.append("")
     if report.get("notices"):
         lines.append("notices:")

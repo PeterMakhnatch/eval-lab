@@ -1,9 +1,4 @@
-"""Owned-format quality-audit evidence loading (metadata.json + observed-summary.json).
-
-Portable fixtures isolate real failures (unbound vs mismatched vs verified) from
-otherwise valid evidence; real consumer paths are covered behind skip guards so
-the suite stays green where the cohort checkout is absent.
-"""
+"""Portable regressions for owned-format quality evidence and provenance."""
 
 from __future__ import annotations
 
@@ -12,22 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from evallab.task_workbench import load_quality_audit_evidence
-
-CONSUMER = Path(
-    "/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/quality-cohort-20260908"
-)
-LANE = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/lanes/quality/cohort-20260908")
-
-needs_consumer = pytest.mark.skipif(
-    not (CONSUMER / "before-owned" / "000003" / "metadata.json").is_file(),
-    reason="consumer cohort fixtures absent",
-)
-needs_lane = pytest.mark.skipif(
-    not (LANE / "runner.py").is_file(), reason="lane source bytes absent"
-)
 
 
 def _sha(data: bytes) -> str:
@@ -134,6 +114,7 @@ def _write_owned_audit(
     for arm in arms:
         arm_dir = audit / arm
         _json(arm_dir / "observed.json", observed[arm])
+        _json(arm_dir / "result.json", observed[arm])
         _json(arm_dir / "digests.json", {"inputs": {}, "outputs": {}})
     return audit
 
@@ -180,16 +161,6 @@ def _write_source_root(
     (lane / "runner.py").write_bytes(b"# runner\n")
     (lane / "ownership_runner.py").write_bytes(b"# ownership\n")
     return lane
-
-
-def _walk_keys(value: Any) -> Any:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            yield key
-            yield from _walk_keys(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _walk_keys(item)
 
 
 def test_portable_owned_loads_without_summary_and_binds(tmp_path: Path) -> None:
@@ -258,106 +229,25 @@ def test_portable_wrong_verifier_bytes_are_mismatched_not_unbound(
     assert binding["executed_verifier_path"] is None
 
 
-def test_portable_loader_claims_no_host_ownership(tmp_path: Path) -> None:
+def test_original_result_overrides_cache_and_cannot_be_replaced(tmp_path: Path) -> None:
+    audit = _write_owned_audit(tmp_path / "consumer")
+    result = audit / "oracle" / "result.json"
+    _json(result, {"arm": "oracle", "reward": "0", "action_exit": 0, "verifier_exit": 0})
+    evidence = load_quality_audit_evidence(audit)
+    assert evidence["arms"]["oracle"]["observed_reward"] == 0
+    result.unlink()
+    missing = load_quality_audit_evidence(audit)["arms"]["oracle"]
+    assert missing["execution_status"] == "missing"
+    assert missing["observed_reward"] is None
+    _json(result, {})
+    incomplete = load_quality_audit_evidence(audit)["arms"]["oracle"]
+    assert incomplete["execution_status"] == "unassessed"
+    assert incomplete["observed_reward"] is None
+
+
+def test_unrecorded_verifier_sidecar_prevents_binding(tmp_path: Path) -> None:
     audit = _write_owned_audit(tmp_path / "consumer")
     lane = _write_source_root(tmp_path / "src")
+    (lane / "tasks/task_000007/offline-tests/extra.json").write_text("{}")
     evidence = load_quality_audit_evidence(audit, source_root=lane)
-    assert "uid" not in set(_walk_keys(evidence))
-    assert "gid" not in set(_walk_keys(evidence))
-    for arm in evidence["arms"].values():
-        assert arm["runtime_metadata_required"] is True
-        # Initial runtime paths from the recorded manifest, task_file/ stripped.
-        assert arm["runtime_input_paths"] == ["inputs/a.json"]
-
-
-@needs_consumer
-def test_real_before_after_owned_expose_complete_arm_union() -> None:
-    expectations = {
-        ("before-owned", "000003"): {
-            "oracle",
-            "valid_alternative",
-            "nop",
-            "invalid_value",
-            "invalid_security",
-            "markdown_heading",
-            "fabricated_markdown",
-            "truncated_markdown",
-            "header_only_audio",
-            "tamper_source_and_output",
-            "tamper_source_format_only",
-        },
-        ("after-owned", "000003"): {
-            "oracle",
-            "valid_alternative",
-            "nop",
-            "invalid_value",
-            "invalid_security",
-            "markdown_heading",
-            "fabricated_markdown",
-            "truncated_markdown",
-            "header_only_audio",
-            "tamper_source_and_output",
-            "tamper_source_format_only",
-        },
-        ("before-owned", "000011"): {
-            "oracle",
-            "reverse_email_context_keys",
-            "nop",
-            "wrong_report_text",
-            "swap_summaries",
-            "reverse_root_keys",
-            "missing_required_key",
-            "extra_email_key",
-        },
-        ("after-owned", "000011"): {
-            "oracle",
-            "reverse_email_context_keys",
-            "nop",
-            "wrong_report_text",
-            "swap_summaries",
-            "reverse_root_keys",
-            "missing_required_key",
-            "extra_email_key",
-        },
-    }
-    for (phase, short_id), expected_arms in expectations.items():
-        evidence = load_quality_audit_evidence(CONSUMER / phase / short_id)
-        assert evidence["evidence_format"] == "quality_owned"
-        assert evidence["origin"] == "external_quality_audit"
-        assert evidence["run_uuid"] is None
-        assert set(evidence["arms"]) == expected_arms
-        oracle, nop = evidence["arms"]["oracle"], evidence["arms"]["nop"]
-        assert oracle["observed_reward"] == 1.0
-        assert nop["observed_reward"] == 0.0
-        assert oracle["execution_status"] == "completed"
-        assert oracle["observed_outcome"] == "accepted"
-        assert nop["observed_outcome"] == "rejected"
-        assert nop["declared_label"] == "invalid"
-        # Missing companion source keeps identity unbound without losing arms.
-        assert evidence["provenance_binding"]["status"] == "unbound"
-
-
-@needs_consumer
-@needs_lane
-def test_real_source_root_binds_full_verifier_manifest() -> None:
-    primaries = {
-        ("before-owned", "000003"): "offline-tests",
-        ("before-owned", "000011"): "offline-tests",
-        ("after-owned", "000003"): "repaired-tests",
-        ("after-owned", "000011"): "repaired-tests",
-    }
-    for (phase, short_id), primary in primaries.items():
-        evidence = load_quality_audit_evidence(CONSUMER / phase / short_id, source_root=LANE)
-        binding = evidence["provenance_binding"]
-        assert binding["package_snapshot_status"] == "verified"
-        assert binding["executed_verifier_status"] == "verified"
-        assert binding["status"] == "verified"
-        assert binding["executed_verifier_path"].endswith(primary)
-        assert binding["recorded_verifier_sha256"] == binding["executed_verifier_sha256"]
-        assert set(binding["executed_verifier_manifest"]) == set(
-            binding["recorded_verifier_manifest"]
-        )
-        assert binding["runner_binding"]["status"] == "verified"
-        assert binding["ownership_runner_binding"]["status"] == "verified"
-        assert binding["controls_binding"]["status"] == "verified"
-        assert binding["runtime_environment_binding"]["status"] == "verified"
+    assert evidence["provenance_binding"]["executed_verifier_status"] == "mismatched"

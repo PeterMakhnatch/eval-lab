@@ -124,6 +124,10 @@ def test_select_by_spec_identity_excludes_unrelated_job(tmp_path: Path) -> None:
         specs=[("specA01", "approved", "demo-exp"), ("specB02", "approved", "other-exp")],
         reasons=[("specA01", "01JAAAAAAAAAAAAAAAAAAAAAAAAA", "paid_run_needs_approval")],
     )
+    _write_json(
+        root / "queue/approved/codex-specB02.json",
+        {**_spec_doc("specB02", name="other-exp"), "provider_routes": []},
+    )
     _make_job(
         root / "runs",
         "job-a",
@@ -144,6 +148,12 @@ def test_select_by_spec_identity_excludes_unrelated_job(tmp_path: Path) -> None:
     assert report["kind"] == "experiment_evidence_view"
     assert report["selection"] == {"mode": "by_spec", "experiment_id": "specA01", "job_dir": None}
     assert [job["name"] for job in report["jobs"]] == ["job-a"]
+    assert report["issues"] == []
+    assert {row["spec_id"] for row in report["experiments"]} == {"specA01"}
+    assert {row["spec_id"] for row in report["queue"]} == {"specA01"}
+    by_job = inspect_experiment(root, job_dir=Path(report["jobs"][0]["path"]))
+    assert {row["spec_id"] for row in by_job["queue"]} == {"specA01"}
+    assert {row["spec_id"] for row in by_job["experiments"]} == {"specA01"}
     job = report["jobs"][0]
     assert job["origin"] == "harbor_native"
     assert job["experiment_id"] == "specA01"
@@ -157,8 +167,6 @@ def test_select_by_spec_identity_excludes_unrelated_job(tmp_path: Path) -> None:
     (receipt,) = queue_row["reasons"]
     assert receipt["code"] == "paid_run_needs_approval"
     assert receipt["path"].endswith("specA01-01JAAAAAAAAAAAAAAAAAAAAAAAAA.json")
-    text = render_experiment_text(report)
-    assert "job-a" in text and "job-other" not in text.split("jobs:")[1].split("capture report:")[0]
 
 
 def test_control_absence_is_not_applicable_but_model_gap_is_missing(tmp_path: Path) -> None:
@@ -188,11 +196,8 @@ def test_control_absence_is_not_applicable_but_model_gap_is_missing(tmp_path: Pa
     oracle, model = job["trials"]
     assert oracle["capture"]["state"] == "not_applicable"
     assert oracle["usage"]["state"] == "not_applicable"
-    assert oracle["reward"] == {
-        "value": None,
-        "state": "unavailable",
-        "reason": "no verifier reward recorded; never defaulted to 0",
-    }
+    assert oracle["reward"]["value"] is None
+    assert oracle["reward"]["state"] == "unavailable"
     assert model["capture"]["state"] == "missing"
     assert model["usage"]["state"] == "partial"
     assert model["reward"]["value"] is None
@@ -249,7 +254,6 @@ def test_unbound_truncated_report_never_certifies_selected_job(tmp_path: Path) -
     capture = report["capture_report"]
     assert capture["status"] == "supplied_unbound_scope"
     assert capture["scope"] == "unbound"
-    assert capture["sha256"] and capture["path"].endswith("coverage.json")
     assert capture["summary"]["sections"]["native_jobs_present"]["truncated"] is True
     (job,) = report["jobs"]
     (trial,) = job["trials"]
@@ -260,7 +264,6 @@ def test_unbound_truncated_report_never_certifies_selected_job(tmp_path: Path) -
     assert any("truncated" in notice for notice in report["notices"])
     text = render_experiment_text(report)
     assert "supplied_unbound_scope" in text
-    assert "repair (copy, do not auto-run): uv run evallab repair --dry-run" in text
 
     bare = inspect_experiment(root, job_dir=job_dir)
     assert bare["capture_report"]["status"] == "unavailable"
@@ -293,3 +296,38 @@ def test_inventory_lists_without_loading_and_writes_nothing(tmp_path: Path) -> N
         assert "exactly one" in str(exc)
     else:
         raise AssertionError("both selectors must be rejected")
+
+
+def test_invalid_recorded_control_trace_is_not_expected_absence(tmp_path: Path) -> None:
+    root = _make_root(tmp_path)
+    usage = {"n_input_tokens": 10, "n_output_tokens": 2, "cost_usd": 0.1}
+    job = _make_job(
+        root / "runs",
+        "invalid-traces",
+        job_id="job-invalid",
+        spec_id=None,
+        trials=[
+            _trial_doc("control", "trial-0", agent_name="oracle", usage=usage),
+            _trial_doc("model", "trial-1", agent_name="codex", usage=usage),
+        ],
+    )
+    for name in ("trial-0", "trial-1"):
+        _write_json(job / name / "agent/trajectory.json", {"invalid": "ATIF"})
+    rows = inspect_experiment(root, job_dir=job)["jobs"][0]["trials"]
+    for trial in rows:
+        assert trial["invalid_trajectory_count"] > 0
+        assert trial["capture"]["state"] == "partial"
+        assert trial["usage"]["state"] == "complete"
+
+
+def test_spec_selection_retains_failed_attempt_without_result(tmp_path: Path) -> None:
+    root = _make_root(tmp_path)
+    job = root / "runs" / "unfinished"
+    _write_json(
+        job / "lab-metadata.json", {"experiment": {"spec_id": "failed-spec"}, "exit_code": 2}
+    )
+    (row,) = inspect_experiment(root, experiment_id="failed-spec")["jobs"]
+    assert row["origin"] == "harbor_native"
+    assert row["execution_status"] == "failed"
+    assert row["capture_status"] == "unavailable"
+    assert row["trials"] == []

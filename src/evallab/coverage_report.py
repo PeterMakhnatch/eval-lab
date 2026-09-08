@@ -237,12 +237,18 @@ def build_coverage_report(
         catalog_loader=catalog_loader,
     )
 
-    # 2. Disk scan for native jobs
+    # 2. Disk scan for native jobs (root-wide inventory by default)
     projectable_trials, unprojectable_runs = scan_disk_trials(resolved_root)
+    selected_dirs: set[Path] | None = None
+    if selected_job_ids is not None:
+        # Closed-world product: restrict disk-derived populations to the
+        # selected jobs' evidence dirs, so unrelated root jobs never leak
+        # into a selected-job completeness claim. Dirs resolve lazily below
+        # once the scoped catalog is loaded.
+        selected_dirs = set()
     disk_job_names = sorted({pt.parent.name for pt in projectable_trials})
-    native_jobs_count = verification.disk_jobs_count or len(disk_job_names)
     native_jobs_summary = JobCategorySummary(
-        count=native_jobs_count,
+        count=verification.disk_jobs_count or len(disk_job_names),
         jobs=tuple(disk_job_names[:LIST_CAP]),
         truncated=len(disk_job_names) > LIST_CAP,
     )
@@ -286,6 +292,78 @@ def build_coverage_report(
             except Exception:
                 pass
 
+    # Closed-world scoping: restrict disk-derived populations to the selected
+    # jobs' evidence dirs, and surface finished on-disk jobs that have no
+    # catalog row at all (e.g. rows deleted after projection). Both stay off
+    # on the default root-wide path.
+    not_cataloged: list[ExcludedJob] = []
+    if selected_job_ids is not None and selected_dirs is not None:
+        for info in all_catalog_jobs.values():
+            raw = Path(str(info.get("path") or ""))
+            candidate = raw if raw.is_absolute() else resolved_root / raw
+            try:
+                selected_dirs.add(candidate.resolve())
+            except OSError:
+                continue
+
+        def _under_selected(path: Path) -> bool:
+            try:
+                resolved = path.resolve()
+            except OSError:
+                return False
+            return any(
+                resolved == selected or selected in resolved.parents
+                for selected in selected_dirs
+            )
+
+        projectable_trials = [pt for pt in projectable_trials if _under_selected(pt)]
+        unprojectable_runs = [u for u in unprojectable_runs if _under_selected(u.path)]
+        selected_names = sorted(
+            {pt.parent.name for pt in projectable_trials}
+            | {
+                u.path.parent.name
+                if (u.path.parent / "result.json").is_file()
+                else u.path.name
+                for u in unprojectable_runs
+            }
+        )
+        native_jobs_summary = JobCategorySummary(
+            count=len(selected_names),
+            jobs=tuple(selected_names[:LIST_CAP]),
+            truncated=len(selected_names) > LIST_CAP,
+        )
+        catalog_ids = set(all_catalog_jobs)
+        for base in (resolved_root / "runs",):
+            if not base.is_dir():
+                continue
+            for child in sorted(base.iterdir()):
+                if not child.is_dir():
+                    continue
+                res_file = child / "result.json"
+                if not res_file.is_file():
+                    continue
+                try:
+                    payload = json.loads(res_file.read_text())
+                except (OSError, ValueError):
+                    continue
+                if (
+                    isinstance(payload, dict)
+                    and payload.get("finished_at")
+                    and "n_total_trials" in payload
+                    and str(payload.get("id") or "") not in catalog_ids
+                    and _under_selected(child)
+                ):
+                    not_cataloged.append(
+                        ExcludedJob(
+                            job_id=str(payload.get("id") or child.name),
+                            name=child.name,
+                            path=child.relative_to(resolved_root).as_posix()
+                            if child.is_relative_to(resolved_root)
+                            else str(child),
+                            reason="not_cataloged",
+                        )
+                    )
+
     excluded_jobs_list: list[ExcludedJob] = list(verification.excluded_jobs)
     if catalog_loader is not None:
         def scope_reason(info: dict[str, Any]) -> str | None:
@@ -319,7 +397,6 @@ def build_coverage_report(
     # double-report them as unfinished.
     partial_jobs_list: list[ExcludedJob] = list(verification.partial_jobs)
     partial_names = {p.name for p in partial_jobs_list}
-    partial_ids = {p.job_id for p in partial_jobs_list}
     known_unfinished_names = {u.name for u in unfinished_jobs_list}
     for base in [resolved_root / "runs", resolved_root / "research/evidence/runs"]:
         if not base.is_dir():
@@ -426,6 +503,8 @@ def build_coverage_report(
         excepted_names_set.add(p.name)
     for job_id in recorded_exceptions:
         excepted_names_set.add(job_name_lookup.get(job_id, job_id))
+    for n in not_cataloged:
+        excepted_names_set.add(n.name)
     excepted_names = sorted(excepted_names_set)
     excepted_summary = JobCategorySummary(
         count=len(excepted_names),
@@ -444,8 +523,6 @@ def build_coverage_report(
 
     # 7. Failed jobs (active gaps + crashed executions)
     failed_names_set: set[str] = set()
-    for gap in real_gaps:
-        failed_names_set.add(gap.name)
     for u in unprojectable_runs:
         if u.reason == "crashed_execution":
             name = u.path.parent.name if (u.path.parent / "result.json").is_file() else u.path.name
@@ -472,6 +549,8 @@ def build_coverage_report(
         reasons["job_unfinished"] = len(unfinished_jobs_list)
     if partial_jobs_list:
         reasons["partial_intake"] = len(partial_jobs_list)
+    if not_cataloged:
+        reasons["not_cataloged"] = len(not_cataloged)
 
     # verification.accounted_exceptions_by_reason is global to the events file;
     # under a selection, count the filtered map instead so the product borrows
@@ -529,6 +608,10 @@ def build_coverage_report(
         )
         origin = "catalog" if u.name in catalog_unfinished_names else "disk-only"
         add_repair_entry(u.name, u.reason, cmd, origin=origin)
+    # 2c. Finished on-disk jobs with no catalog row (closed-world only)
+    for n in not_cataloged:
+        cmd = f"evallab ingest {n.path}"
+        add_repair_entry(n.name, "not_cataloged", cmd, origin="disk-only")
     # 2b. Partial-intake jobs (accounted, queryable subset only)
     for p in partial_jobs_list:
         cmd = (

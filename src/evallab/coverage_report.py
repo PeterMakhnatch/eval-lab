@@ -297,6 +297,11 @@ def build_coverage_report(
     # catalog row at all (e.g. rows deleted after projection). Both stay off
     # on the default root-wide path.
     not_cataloged: list[ExcludedJob] = []
+    selected_ids: frozenset[str] = (
+        frozenset(str(jid) for jid in selected_job_ids)
+        if selected_job_ids is not None
+        else frozenset()
+    )
     if selected_job_ids is not None and selected_dirs is not None:
         for info in all_catalog_jobs.values():
             raw = Path(str(info.get("path") or ""))
@@ -351,7 +356,7 @@ def build_coverage_report(
                     and payload.get("finished_at")
                     and "n_total_trials" in payload
                     and str(payload.get("id") or "") not in catalog_ids
-                    and _under_selected(child)
+                    and str(payload.get("id") or "") in selected_ids
                 ):
                     not_cataloged.append(
                         ExcludedJob(
@@ -404,6 +409,8 @@ def build_coverage_report(
         for child in sorted(base.iterdir()):
             if not child.is_dir() or child.name in IGNORED_DIR_NAMES:
                 continue
+            if selected_dirs is not None and not _under_selected(child):
+                continue
             res_file = child / "result.json"
             if child.name in partial_names:
                 continue
@@ -453,7 +460,17 @@ def build_coverage_report(
     available_tables = frozenset(p.table for p in discovery.partitions if p.table in TABLES)
 
     projected_names_set: set[str] = set()
-    if retained_catalog_jobs:
+    if selected_job_ids is not None:
+        # Closed world: project exactly the selected IDs, never the root-wide
+        # discovery fallback (which previously listed all 175 partitions for a
+        # singleton scope).
+        for jid in frozenset(str(j) for j in selected_job_ids):
+            jd = d_root / f"job_id={jid}"
+            if (jd / JOB_PROJECTION_FILE).is_file():
+                name = _read_job_name_from_parquet(jd) or all_catalog_jobs.get(jid, {}).get("name") or jid
+                if name:
+                    projected_names_set.add(str(name))
+    elif retained_catalog_jobs:
         for job_id, info in retained_catalog_jobs.items():
             if (d_root / f"job_id={job_id}" / JOB_PROJECTION_FILE).is_file():
                 projected_names_set.add(str(info.get("name") or job_id))

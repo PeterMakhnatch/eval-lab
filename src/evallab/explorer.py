@@ -1454,6 +1454,7 @@ def next_actions_for_queue() -> tuple[NextAction, ...]:
         ),
     )
 
+
 # ---------------------------------------------------------------------------
 # Native experiment evidence view (Standing Harbor Integration consumer).
 # ---------------------------------------------------------------------------
@@ -1582,7 +1583,12 @@ def _light_job_row(job_dir: Path) -> dict[str, Any]:
     experiment = experiment if isinstance(experiment, dict) else {}
     spec_id = experiment.get("spec_id")
     bound = spec_id if isinstance(spec_id, str) and spec_id else _HARBOR_UNBOUND
-    native = metadata is not None or isinstance(result, dict) and "n_total_trials" in result and "stats" in result
+    native = (
+        metadata is not None
+        or isinstance(result, dict)
+        and "n_total_trials" in result
+        and "stats" in result
+    )
     finished = isinstance(result, dict) and bool(result.get("finished_at"))
     expected = result.get("n_total_trials") if isinstance(result, dict) else None
     return {
@@ -1592,7 +1598,9 @@ def _light_job_row(job_dir: Path) -> dict[str, Any]:
         "origin": "harbor_native" if native else "unrecognized",
         "experiment_id": bound,
         "execution_status": "finished" if finished else "unknown",
-        "trial_count": expected if isinstance(expected, int) and not isinstance(expected, bool) else None,
+        "trial_count": expected
+        if isinstance(expected, int) and not isinstance(expected, bool)
+        else None,
         "trials": [],
     }
 
@@ -1661,9 +1669,7 @@ def _trial_row(job: Any, trial: Any) -> dict[str, Any]:
             usage_state = "partial"
     elif fact.invalid_trajectory_count > 0 or any(value is None for value in usage_values):
         if fact.invalid_trajectory_count > 0 and any(value is None for value in usage_values):
-            reason = (
-                f"{fact.invalid_trajectory_count} invalid trajectories; usage incomplete"
-            )
+            reason = f"{fact.invalid_trajectory_count} invalid trajectories; usage incomplete"
         elif fact.invalid_trajectory_count > 0:
             reason = f"{fact.invalid_trajectory_count} invalid trajectories"
         else:
@@ -1807,7 +1813,9 @@ def _capture_report_view(coverage_report_path: Path | None) -> tuple[dict[str, A
     availability = payload.get("trajectory_availability_by_agent")
     summary = {
         "sections": summary_sections,
-        "trajectory_availability_by_agent": availability if isinstance(availability, dict) else None,
+        "trajectory_availability_by_agent": availability
+        if isinstance(availability, dict)
+        else None,
         "reasons": payload.get("reasons"),
         "repair_path": payload.get("repair_path"),
     }
@@ -1863,7 +1871,11 @@ def inspect_experiment(
         notices.append(f"queue absent at {root / 'queue'}: experiment inventory from jobs only")
 
     if experiment_id is not None:
-        selection: dict[str, Any] = {"mode": "by_spec", "experiment_id": experiment_id, "job_dir": None}
+        selection: dict[str, Any] = {
+            "mode": "by_spec",
+            "experiment_id": experiment_id,
+            "job_dir": None,
+        }
     elif job_dir is not None:
         resolved = Path(job_dir).resolve()
         if resolved != root and root not in resolved.parents:
@@ -1874,8 +1886,8 @@ def inspect_experiment(
 
     roots, root_notices = _jobs_roots(root, queue_rows)
     notices.extend(root_notices)
-    if selection["mode"] == "by_job":
-        discovered = [Path(selection["job_dir"])]
+    if job_dir is not None:
+        discovered = [Path(job_dir).resolve()]
     else:
         discovered = discover_job_dirs(roots) if roots else []
         # Completed-result discovery intentionally skips unfinished attempts.
@@ -1906,8 +1918,8 @@ def inspect_experiment(
                 "file presence is evidence availability, never a validity claim: "
                 "a present trajectory file is reported observed, not certified"
             )
-    elif selection["mode"] == "by_job":
-        full, job_issues = _selected_job_row(Path(selection["job_dir"]))
+    elif job_dir is not None:
+        full, job_issues = _selected_job_row(Path(job_dir).resolve())
         issues.extend(job_issues)
         jobs = [full]
         notices.append(
@@ -2076,7 +2088,9 @@ def render_experiment_text(report: dict[str, Any]) -> str:
                 f"({usage.get('state')}); capture note: {capture.get('reason')}"
             )
         if job.get("origin") == "harbor_native":
-            lines.append(f"      next (copy, do not auto-run): harbor view {shlex.quote(str(job.get('path')))}")
+            lines.append(
+                f"      next (copy, do not auto-run): harbor view {shlex.quote(str(job.get('path')))}"
+            )
     if not (report.get("jobs") or ()):
         lines.append("  (none)")
     lines.append("")
@@ -2089,7 +2103,11 @@ def render_experiment_text(report: dict[str, Any]) -> str:
     for section, value in (summary.get("sections") or {}).items():
         names = value.get("jobs") or []
         shown = ", ".join(str(name) for name in names[:_COVERAGE_JOB_NAME_LIMIT])
-        extra = f" +{len(names) - _COVERAGE_JOB_NAME_LIMIT} more" if len(names) > _COVERAGE_JOB_NAME_LIMIT else ""
+        extra = (
+            f" +{len(names) - _COVERAGE_JOB_NAME_LIMIT} more"
+            if len(names) > _COVERAGE_JOB_NAME_LIMIT
+            else ""
+        )
         lines.append(
             f"  - {section}: count={value.get('count')} "
             f"truncated={value.get('truncated')} jobs=[{shown}{extra}]"

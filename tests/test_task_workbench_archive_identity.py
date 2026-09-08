@@ -118,7 +118,7 @@ def _write_trio(
     (arm / f"{kind}-task-file.tar").write_bytes(tar)
     (arm / f"{kind}-task-file.manifest.json").write_text(json.dumps(entries))
     receipt = {
-        "args": ["docker", "cp", f"cid:/task_file/.", "-"],
+        "args": ["docker", "cp", "cid:/task_file/.", "-"],
         "exit": exit_code,
         "archive_sha256": digest if digest is not None else _digest(tar),
     }
@@ -198,9 +198,7 @@ def test_matched_archive_ownership_survives_host_uid_difference(tmp_path: Path) 
 
 
 @pytest.mark.parametrize("drift", ["uid", "mode"])
-def test_transport_uid_and_mode_drift_is_mismatched(
-    tmp_path: Path, drift: str
-) -> None:
+def test_transport_uid_and_mode_drift_is_mismatched(tmp_path: Path, drift: str) -> None:
     verifier_kwargs = (
         {"uid": CONTAINER_UID + 1}
         if drift == "uid"
@@ -251,9 +249,7 @@ def test_archive_digest_mismatch_cannot_verify(tmp_path: Path, variant: str) -> 
 
 
 @pytest.mark.parametrize("link_type", [tarfile.SYMTYPE, tarfile.LNKTYPE])
-def test_link_member_at_manifest_path_cannot_verify(
-    tmp_path: Path, link_type: bytes
-) -> None:
+def test_link_member_at_manifest_path_cannot_verify(tmp_path: Path, link_type: bytes) -> None:
     identity = _identity(
         _build_arm(
             tmp_path,
@@ -308,9 +304,7 @@ def test_rich_manifest_validates_size_and_copied_mode(tmp_path: Path, drift: str
 
 
 def test_runtime_input_paths_classify_exact_values(tmp_path: Path) -> None:
-    identity = _identity(
-        _build_arm(tmp_path), runtime_input_paths=["config/credentials.conf"]
-    )
+    identity = _identity(_build_arm(tmp_path), runtime_input_paths=["config/credentials.conf"])
     assert sorted(identity["inputs"]) == [
         "config/credentials.conf",
         "input/data.json",

@@ -100,7 +100,9 @@ def _make_root(
     root = tmp_path / "lab"
     for spec_id, state, name in specs:
         agent = _spec_doc(spec_id)["agent"]
-        _write_json(root / "queue" / state / f"{agent}-{spec_id}.json", _spec_doc(spec_id, name=name))
+        _write_json(
+            root / "queue" / state / f"{agent}-{spec_id}.json", _spec_doc(spec_id, name=name)
+        )
     for spec_id, ulid, code in reasons:
         _write_json(
             root / "queue" / "reasons" / f"{spec_id}-{ulid}.json",
@@ -114,6 +116,7 @@ def _make_root(
         )
     (root / "runs").mkdir(parents=True, exist_ok=True)
     return root
+
 
 def test_select_by_spec_identity_excludes_unrelated_job(tmp_path: Path) -> None:
     root = _make_root(
@@ -209,7 +212,8 @@ def test_malformed_selected_job_stays_visible_with_reason(tmp_path: Path) -> Non
 
     (job,) = report["jobs"]
     assert job["name"] == "broken-job"
-    assert job["execution_status"] == "unavailable"
+    assert job["execution_status"] == "failed"
+    assert job["capture_status"] == "unavailable"
     assert job["trials"] == []
     assert "load_issue" in job and job["load_issue"]
     assert report["issues"]

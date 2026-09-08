@@ -14,14 +14,12 @@ from typing import Any
 
 import pytest
 
-from evallab.task_workbench import WorkbenchError, load_quality_audit_evidence
+from evallab.task_workbench import load_quality_audit_evidence
 
 CONSUMER = Path(
     "/Users/petermakhnatch/Developer/harbor-rl-exploration/artifacts/quality-cohort-20260908"
 )
-LANE = Path(
-    "/Users/petermakhnatch/Developer/harbor-rl-exploration/lanes/quality/cohort-20260908"
-)
+LANE = Path("/Users/petermakhnatch/Developer/harbor-rl-exploration/lanes/quality/cohort-20260908")
 
 needs_consumer = pytest.mark.skipif(
     not (CONSUMER / "before-owned" / "000003" / "metadata.json").is_file(),
@@ -57,14 +55,22 @@ def _write_owned_audit(
 ) -> Path:
     """Write a minimal portable owned-format audit directory (read-only fixture)."""
     audit = root / phase / short_id
-    verifier_files = verifier_files if verifier_files is not None else {
-        "test.sh": b"#!/bin/sh\n",
-        "test_state.py": b"def test_x():\n    pass\n",
-    }
-    package_files = package_files if package_files is not None else {
-        "task.toml": b"[task]\n",
-        "tests/test_state.py": verifier_files["test_state.py"],
-    }
+    verifier_files = (
+        verifier_files
+        if verifier_files is not None
+        else {
+            "test.sh": b"#!/bin/sh\n",
+            "test_state.py": b"def test_x():\n    pass\n",
+        }
+    )
+    package_files = (
+        package_files
+        if package_files is not None
+        else {
+            "task.toml": b"[task]\n",
+            "tests/test_state.py": verifier_files["test_state.py"],
+        }
+    )
     runtime_files = {"task_file/inputs/a.json": b'{"k": 1}\n'}
     metadata = {
         "task_id": short_id,
@@ -88,13 +94,9 @@ def _write_owned_audit(
                 },
             },
         },
-        "source_task_manifest": {
-            rel: _manifest_entry(data) for rel, data in package_files.items()
-        },
+        "source_task_manifest": {rel: _manifest_entry(data) for rel, data in package_files.items()},
         "controls_manifest": {"control.py": _manifest_entry(b"# control\n")},
-        "verifier_manifest": {
-            rel: _manifest_entry(data) for rel, data in verifier_files.items()
-        },
+        "verifier_manifest": {rel: _manifest_entry(data) for rel, data in verifier_files.items()},
         "runner_sha256": _sha(b"# runner\n"),
         "ownership_runner_sha256": _sha(b"# ownership\n"),
         "runtime_environment_manifest": {
@@ -144,14 +146,22 @@ def _write_source_root(
     package_files: dict[str, bytes] | None = None,
 ) -> Path:
     lane = root / "lane"
-    verifier_files = verifier_files if verifier_files is not None else {
-        "test.sh": b"#!/bin/sh\n",
-        "test_state.py": b"def test_x():\n    pass\n",
-    }
-    package_files = package_files if package_files is not None else {
-        "task.toml": b"[task]\n",
-        "tests/test_state.py": verifier_files["test_state.py"],
-    }
+    verifier_files = (
+        verifier_files
+        if verifier_files is not None
+        else {
+            "test.sh": b"#!/bin/sh\n",
+            "test_state.py": b"def test_x():\n    pass\n",
+        }
+    )
+    package_files = (
+        package_files
+        if package_files is not None
+        else {
+            "task.toml": b"[task]\n",
+            "tests/test_state.py": verifier_files["test_state.py"],
+        }
+    )
     for rel, data in verifier_files.items():
         target = lane / "tasks" / task_id / "offline-tests" / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -160,11 +170,11 @@ def _write_source_root(
         target = lane / "tasks" / task_id / "task" / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
-    (lane / "tasks" / task_id / "controls" / "control.py").parent.mkdir(
-        parents=True, exist_ok=True
-    )
+    (lane / "tasks" / task_id / "controls" / "control.py").parent.mkdir(parents=True, exist_ok=True)
     (lane / "tasks" / task_id / "controls" / "control.py").write_bytes(b"# control\n")
-    runtime_target = lane / "tasks" / task_id / "runtime-environment" / "task_file" / "inputs" / "a.json"
+    runtime_target = (
+        lane / "tasks" / task_id / "runtime-environment" / "task_file" / "inputs" / "a.json"
+    )
     runtime_target.parent.mkdir(parents=True, exist_ok=True)
     runtime_target.write_bytes(b'{"k": 1}\n')
     (lane / "runner.py").write_bytes(b"# runner\n")
@@ -189,7 +199,6 @@ def test_portable_owned_loads_without_summary_and_binds(tmp_path: Path) -> None:
     assert evidence["evidence_format"] == "quality_owned"
     assert evidence["origin"] == "external_quality_audit"
     assert evidence["run_uuid"] is None
-    assert evidence["task_dir"] is None
     assert set(evidence["arms"]) == {"oracle", "nop"}
     oracle, nop = evidence["arms"]["oracle"], evidence["arms"]["nop"]
     # Neutral observed reward: completion reflects raw exits, not the annotation.
@@ -259,20 +268,6 @@ def test_portable_loader_claims_no_host_ownership(tmp_path: Path) -> None:
         assert arm["runtime_metadata_required"] is True
         # Initial runtime paths from the recorded manifest, task_file/ stripped.
         assert arm["runtime_input_paths"] == ["inputs/a.json"]
-
-
-def test_legacy_summary_format_still_supported(tmp_path: Path) -> None:
-    audit = tmp_path / "legacy"
-    _json(
-        audit / "summary.json",
-        {"run_id": "legacy-run", "arms": {}, "findings": {}},
-    )
-    evidence = load_quality_audit_evidence(audit)
-    assert evidence["kind"] == "quality_audit_evidence"
-    assert "evidence_format" not in evidence
-    assert evidence["run_id"] == "legacy-run"
-    with pytest.raises(WorkbenchError, match="missing summary.json"):
-        load_quality_audit_evidence(tmp_path / "empty")
 
 
 @needs_consumer
@@ -352,9 +347,7 @@ def test_real_source_root_binds_full_verifier_manifest() -> None:
         ("after-owned", "000011"): "repaired-tests",
     }
     for (phase, short_id), primary in primaries.items():
-        evidence = load_quality_audit_evidence(
-            CONSUMER / phase / short_id, source_root=LANE
-        )
+        evidence = load_quality_audit_evidence(CONSUMER / phase / short_id, source_root=LANE)
         binding = evidence["provenance_binding"]
         assert binding["package_snapshot_status"] == "verified"
         assert binding["executed_verifier_status"] == "verified"

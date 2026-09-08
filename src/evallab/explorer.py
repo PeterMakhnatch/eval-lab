@@ -1582,14 +1582,14 @@ def _light_job_row(job_dir: Path) -> dict[str, Any]:
     experiment = experiment if isinstance(experiment, dict) else {}
     spec_id = experiment.get("spec_id")
     bound = spec_id if isinstance(spec_id, str) and spec_id else _HARBOR_UNBOUND
-    native = isinstance(result, dict) and "n_total_trials" in result and "stats" in result
+    native = metadata is not None or isinstance(result, dict) and "n_total_trials" in result and "stats" in result
     finished = isinstance(result, dict) and bool(result.get("finished_at"))
     expected = result.get("n_total_trials") if isinstance(result, dict) else None
     return {
         "job_id": result.get("id") if isinstance(result, dict) else None,
         "name": job_dir.name,
         "path": str(job_dir),
-        "origin": "harbor_native" if native else "external_diagnostics",
+        "origin": "harbor_native" if native else "unrecognized",
         "experiment_id": bound,
         "execution_status": "finished" if finished else "unknown",
         "trial_count": expected if isinstance(expected, int) and not isinstance(expected, bool) else None,
@@ -1617,6 +1617,7 @@ def _trial_row(job: Any, trial: Any) -> dict[str, Any]:
             "trial_state": "unavailable",
             "reason": f"trial fact extraction failed: {type(exc).__name__}: {exc}",
             "task": None,
+            "execution_status": "unavailable",
             "agent": {"name": None, "version": None, "model": None},
             "reward": {"value": None, "state": "unavailable", "reason": "fact unavailable"},
             "exception": {"class": None, "phase": None},
@@ -1685,6 +1686,7 @@ def _trial_row(job: Any, trial: Any) -> dict[str, Any]:
         "trial_id": fact.trial_id,
         "trial_name": fact.trial_name,
         "trial_state": "observed",
+        "execution_status": "failed" if fact.exception_class else "finished",
         "task": fact.task_name,
         "agent": {"name": fact.agent_name, "version": fact.agent_version, "model": fact.model_name},
         "reward": reward,
@@ -1699,10 +1701,12 @@ def _trial_row(job: Any, trial: Any) -> dict[str, Any]:
         "invalid_trajectory_count": fact.invalid_trajectory_count,
         "usage": {
             "input_tokens": fact.input_tokens,
+            "cache_tokens": fact.cache_tokens,
             "output_tokens": fact.output_tokens,
             "cost_usd": fact.cost_usd,
             "state": usage_state,
         },
+        "duration_seconds": fact.duration_seconds,
         "capture": capture,
     }
 
@@ -1716,7 +1720,8 @@ def _selected_job_row(job_dir: Path) -> tuple[dict[str, Any], list[str]]:
     try:
         job = load_job(job_dir)
     except Exception as exc:
-        row["execution_status"] = "unavailable"
+        row["capture_status"] = "unavailable"
+        _refine_status_from_metadata(row, job_dir)
         row["load_issue"] = f"selected job payload unavailable ({type(exc).__name__}): {exc}"
         issues.append(f"selected job {job_dir.name} unavailable: {row['load_issue']}")
         return row, issues
@@ -1813,8 +1818,8 @@ def _capture_report_view(coverage_report_path: Path | None) -> tuple[dict[str, A
     )
     if truncated_any:
         notices.append(
-            "coverage report sections are truncated: counts are lower bounds, "
-            "never evidence that a missing job was covered"
+            "coverage report job-name samples are truncated; totals are retained, "
+            "but omission from a sample cannot establish whether a job was covered"
         )
     return {
         "status": "supplied_unbound_scope",
@@ -1869,7 +1874,20 @@ def inspect_experiment(
 
     roots, root_notices = _jobs_roots(root, queue_rows)
     notices.extend(root_notices)
-    discovered = discover_job_dirs(roots) if roots else []
+    if selection["mode"] == "by_job":
+        discovered = [Path(selection["job_dir"])]
+    else:
+        discovered = discover_job_dirs(roots) if roots else []
+        # Completed-result discovery intentionally skips unfinished attempts.
+        # Retained Lab metadata keeps those bound attempts visible to selection.
+        for jobs_root in roots:
+            for metadata_path in jobs_root.rglob("lab-metadata.json"):
+                relative = metadata_path.relative_to(jobs_root)
+                if not any(part.startswith(".") for part in relative.parts):
+                    candidate = metadata_path.parent.resolve()
+                    if candidate.is_relative_to(root):
+                        discovered.append(candidate)
+        discovered = sorted(set(discovered))
 
     light_rows = [_light_job_row(path) for path in sorted(discovered)]
     if selection["mode"] == "by_spec":
@@ -2057,7 +2075,8 @@ def render_experiment_text(report: dict[str, Any]) -> str:
                 f"out={usage.get('output_tokens')} usd={usage.get('cost_usd')} "
                 f"({usage.get('state')}); capture note: {capture.get('reason')}"
             )
-        lines.append(f"      next (copy, do not auto-run): harbor view {job.get('path')}")
+        if job.get("origin") == "harbor_native":
+            lines.append(f"      next (copy, do not auto-run): harbor view {shlex.quote(str(job.get('path')))}")
     if not (report.get("jobs") or ()):
         lines.append("  (none)")
     lines.append("")
@@ -2075,6 +2094,8 @@ def render_experiment_text(report: dict[str, Any]) -> str:
             f"  - {section}: count={value.get('count')} "
             f"truncated={value.get('truncated')} jobs=[{shown}{extra}]"
         )
+    if summary.get("reasons"):
+        lines.append(f"  capture reasons: {summary['reasons']}")
     if summary.get("trajectory_availability_by_agent") is not None:
         clean_availability = redact_mapping(summary["trajectory_availability_by_agent"])
         lines.append(f"  availability by agent: {clean_availability}")
@@ -2091,4 +2112,4 @@ def render_experiment_text(report: dict[str, Any]) -> str:
         for issue in report["issues"]:
             lines.append(f"  - {redact_text(issue)}")
         lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
+    return redact_text("\n".join(lines).rstrip() + "\n")

@@ -4392,6 +4392,8 @@ def _owned_manifest_check(manifest: Mapping[str, Any], root: Path) -> dict[str, 
         if (
             recorded is None
             or not isinstance(expected_size, int)
+            or isinstance(expected_size, bool)
+            or expected_size < 0
             or relative.is_absolute()
             or ".." in relative.parts
             or str(relative) != rel
@@ -4419,6 +4421,12 @@ def _owned_manifest_check(manifest: Mapping[str, Any], root: Path) -> dict[str, 
             executed[rel] = {"sha256": actual_sha, "size": actual_size}
         else:
             mismatched.append(rel)
+    retained_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+    mismatched.extend(sorted(retained_files - entries.keys()))
     detail["checked_files"] = checked
     detail["matched_files"] = matched
     detail["missing_files"] = missing
@@ -4475,22 +4483,12 @@ def _owned_arm_record(
     from ordinary result execution status. No task scripts are executed.
     """
     record: dict[str, Any] = dict(summary_entry) if isinstance(summary_entry, Mapping) else {}
-    disk_record: dict[str, Any] = {}
+    result_file = arm_dir / "result.json" if arm_dir is not None else None
     if arm_dir is not None and arm_dir.is_dir():
-        for candidate in ("observed.json", "result.json"):
-            candidate_file = arm_dir / candidate
-            if candidate_file.is_file():
-                try:
-                    value = json.loads(candidate_file.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    value = {}
-                if isinstance(value, Mapping):
-                    disk_record = dict(value)
-                break
-        for key, value in disk_record.items():
-            if key not in record or record[key] is None:
-                record[key] = value
-    has_record = bool(record) or bool(disk_record)
+        record.update(_audit_json_object(arm_dir / "observed.json"))
+        record.update(_audit_json_object(arm_dir / "result.json"))
+    # Cached summaries/annotations cannot replace the original execution receipt.
+    has_record = result_file is not None and result_file.is_file()
     digests: dict[str, Any] = {}
     task_manifest: dict[str, Any] | None = None
     if arm_dir is not None and arm_dir.is_dir():
@@ -4557,10 +4555,7 @@ def _load_owned_quality_audit_evidence(
     declared_source_path = declaration.get("source_path")
     phase = metadata.get("phase")
     task_id = metadata.get("task_id")
-    if isinstance(phase, str) and isinstance(task_id, str) and phase and task_id:
-        run_id: Any = f"{phase}/{task_id}"
-    else:
-        run_id = audit_path.name
+    condition_id = f"{phase}/{task_id}" if isinstance(phase, str) and isinstance(task_id, str) else None
 
     def _recorded_manifest(key: str) -> dict[str, Any]:
         raw = metadata.get(key)
@@ -4590,7 +4585,12 @@ def _load_owned_quality_audit_evidence(
     source_base: Path | None = None
     if source_root is not None and isinstance(declared_task_id, str) and declared_task_id:
         candidate_base = source_root.resolve() / "tasks" / declared_task_id
-        if not candidate_base.is_symlink() and candidate_base.is_dir():
+        if (
+            PurePosixPath(declared_task_id).name == declared_task_id
+            and candidate_base.resolve().is_relative_to(source_root.resolve())
+            and not candidate_base.is_symlink()
+            and candidate_base.is_dir()
+        ):
             source_base = candidate_base
     package_binding: dict[str, Any] = {"status": "unbound"}
     if source_base is not None:
@@ -4698,9 +4698,11 @@ def _load_owned_quality_audit_evidence(
         "origin": "external_quality_audit",
         "workbench_version": WORKBENCH_VERSION,
         "audit_path": str(audit_path),
-        "run_id": run_id,
+        "run_id": None,
         "run_uuid": None,
-        "task_dir": None,
+        "condition_id": condition_id,
+        "declaration": dict(declaration),
+        "task_dir": str(source_base / _OWNED_SOURCE_PACKAGE_DIR) if source_base else None,
         "declared_task_id": declared_task_id,
         "declared_source_path": declared_source_path,
         "phase": phase,
@@ -5232,21 +5234,34 @@ def compare_quality_audits(
     *,
     declaration_path: Path | None = None,
     repo_root: Path | None = None,
+    source_root: Path | None = None,
 ) -> dict[str, Any]:
     """Compare retained audit conditions without inferring semantic improvement."""
-    before = load_quality_audit_evidence(before_dir, repo_root=repo_root)
-    after = load_quality_audit_evidence(after_dir, repo_root=repo_root)
+    before = load_quality_audit_evidence(before_dir, repo_root=repo_root, source_root=source_root)
+    after = load_quality_audit_evidence(after_dir, repo_root=repo_root, source_root=source_root)
     if declaration_path is not None and not declaration_path.is_file():
         raise WorkbenchError(f"comparison declaration does not exist: {declaration_path}")
     declaration = _audit_json_object(declaration_path) if declaration_path else {}
+    owned = any(run.get("evidence_format") == "quality_owned" for run in (before, after))
     declared_arms = declaration.get("arms", {})
     if not isinstance(declared_arms, dict):
         raise WorkbenchError("comparison declaration arms must be an object")
+    declaration_rows = declaration.get("rows", [])
+    if not isinstance(declaration_rows, list):
+        raise WorkbenchError("comparison declaration rows must be an array")
+    for row in declaration_rows:
+        if not isinstance(row, dict) or not isinstance(row.get("arm"), str):
+            raise WorkbenchError("comparison declaration row requires an arm identity")
+        if row["arm"] in declared_arms:
+            raise WorkbenchError(f"duplicate comparison declaration arm: {row['arm']}")
+        declared_arms[row["arm"]] = {
+            "expected_reward": row.get("declared_expectation_for_repaired_scope")
+        }
     bindings = [run["provenance_binding"] for run in (before, after)]
     verifier_ids = [binding.get("executed_verifier_sha256") for binding in bindings]
     declared_ids = [
-        declaration.get("upstream_verifier_sha256"),
-        declaration.get("repaired_verifier_sha256"),
+        declaration.get("upstream_verifier_sha256", declaration.get("verifier_before_sha256")),
+        declaration.get("repaired_verifier_sha256", declaration.get("verifier_after_sha256")),
     ]
     declared_ids = [
         value.lower().removeprefix("sha256:")
@@ -5265,6 +5280,13 @@ def compare_quality_audits(
         else "undeclared_verifier_change"
     )
     reasons: list[str] = []
+    for row in declaration_rows:
+        for side, run_dir in (("before", before_dir), ("after", after_dir)):
+            claimed = row.get(f"{side}_path")
+            if not isinstance(claimed, str) or Path(claimed).resolve() != (run_dir / row["arm"]).resolve():
+                reasons.append(f"{side}_declared_evidence_path_mismatch")
+    if owned and not all(run.get("evidence_format") == "quality_owned" for run in (before, after)):
+        reasons.append("evidence_format_changed")
     for side, binding in zip(("before", "after"), bindings, strict=True):
         for identity in ("package_snapshot", "executed_verifier"):
             if binding[f"{identity}_status"] != "verified":
@@ -5280,17 +5302,31 @@ def compare_quality_audits(
     )
     if package_identity["status"] != "same":
         reasons.append(f"package_{package_identity['status']}")
-    images = [run["container_image"] for run in (before, after)]
+    images = [_owned_bare_sha(run["container_image"]) for run in (before, after)]
     if not all(_is_sha256_hex(image) for image in images):
         reasons.append("image_identity_unbound")
     elif images[0] != images[1]:
         reasons.append("image_identity_changed")
-    if declaration.get("image_id") and any(image != declaration["image_id"] for image in images):
+    if declaration.get("image_id") and any(image != _owned_bare_sha(declaration["image_id"]) for image in images):
         reasons.append("declared_image_mismatch")
     # A declaration is an annotation, not proof of execution. Verify its retained
     # runner/instruction bytes when supplied, and keep missing coverage explicit.
     runner_status = "unbound"
-    if declaration_path and _is_sha256_hex(declaration.get("runner_sha256")):
+    if owned:
+        runner_status = "verified"
+        for component in ("runner_binding", "ownership_runner_binding", "controls_binding", "runtime_environment_binding"):
+            records = [binding.get(component, {"status": "unbound"}) for binding in bindings]
+            for side, record in zip(("before", "after"), records, strict=True):
+                if record["status"] != "verified":
+                    reasons.append(f"{side}_{component}_{record['status']}")
+                    if component in ("runner_binding", "ownership_runner_binding"):
+                        runner_status = "unbound" if record["status"] == "unbound" else "mismatched"
+            value_key = "executed_sha256" if component in ("runner_binding", "ownership_runner_binding") else "executed_manifest"
+            if all(record["status"] == "verified" for record in records) and records[0].get(value_key) != records[1].get(value_key):
+                reasons.append(f"{component}_changed")
+                if component in ("runner_binding", "ownership_runner_binding"):
+                    runner_status = "changed"
+    elif declaration_path and _is_sha256_hex(declaration.get("runner_sha256")):
         runner_path = declaration_path.parent / "runner.py"
         runner_status = (
             "verified"
@@ -5408,12 +5444,38 @@ def compare_quality_audits(
             if completed and numeric_rewards
             else None
         )
+        empty_ownership = {"status": "unbound", "files": {}, "issues": []}
+        filesystem_identity = _audit_pair_identity(
+            runtime_before.get("ownership", empty_ownership),
+            runtime_after.get("ownership", empty_ownership),
+            "files",
+        )
+        transports = {
+            "before": runtime_before.get("transport", {"status": "unbound", "issues": []}),
+            "after": runtime_after.get("transport", {"status": "unbound", "issues": []}),
+        }
+        if owned or filesystem_identity["status"] != "unbound":
+            if filesystem_identity["status"] != "same":
+                arm_reasons.append(f"runtime_filesystem_{filesystem_identity['status']}")
+            for side, transfer in transports.items():
+                if transfer["status"] != "verified":
+                    arm_reasons.append(f"{side}_transport_{transfer['status']}")
+        side_declarations = {
+            side: run.get("declaration", {}).get("arms", {}).get(name, {})
+            for side, run in (("before", before), ("after", after))
+        }
+        for (side, arm_decl), action in zip(side_declarations.items(), actions, strict=True):
+            if action is not None and arm_decl.get("action_command") is not None and action != arm_decl["action_command"]:
+                arm_reasons.append(f"{side}_declared_action_mismatch")
         arms[name] = {
             "before": left,
             "after": right,
             "observed_reward_delta": delta,
             "input_identity": input_identity,
             "output_identity": output_identity,
+            "filesystem_identity": filesystem_identity,
+            "transport_identity": transports,
+            "condition_declarations": side_declarations,
             "action_commands": {"before": actions[0], "after": actions[1]},
             "pairing": {
                 "status": "unqualified" if arm_reasons else "matched",
@@ -5430,6 +5492,8 @@ def compare_quality_audits(
             "status": axis_status,
             "before_verifier_sha256": verifier_ids[0],
             "after_verifier_sha256": verifier_ids[1],
+            "before_verifier_manifest": bindings[0].get("executed_verifier_manifest"),
+            "after_verifier_manifest": bindings[1].get("executed_verifier_manifest"),
         },
         "package_identity": package_identity,
         "runner_identity": runner_status,
@@ -5442,6 +5506,7 @@ def compare_quality_audits(
             "Read-only retained-evidence comparison; no admission, certification, or publication.",
             "Matched means retained conditions match outside the declared verifier axis, not a causal or semantic guarantee.",
             "Runtime manifests describe extracted post-action bytes, not proof of unchanged pre-action inputs.",
+            "Archive ownership/modes describe post-action and pre-verifier transport, never pre-action state.",
             "A reward decrease is an observation, not automatic improvement; declarations and reviewer judgments are separate.",
         ],
     }
@@ -5452,7 +5517,7 @@ def render_quality_audit_comparison_text(comparison: Mapping[str, Any]) -> str:
     for side in ("before", "after"):
         run = comparison[side]
         binding = run["provenance_binding"]
-        lines.append(f"{side}: {run['audit_path']} (run={run['run_id']})")
+        lines.append(f"{side}: {run['audit_path']} (run={run['run_id']}; condition={run.get('condition_id', 'unrecorded')})")
         lines.append(f"  image={run['container_image'] or 'missing'}")
         lines.append(
             f"  package={binding['package_snapshot_status']}; "
@@ -5478,9 +5543,14 @@ def render_quality_audit_comparison_text(comparison: Mapping[str, Any]) -> str:
             f"  pairing={row['pairing']['status']}; inputs={row['input_identity']['status']}; "
             f"outputs={row['output_identity']['status']}"
         )
+        lines.append(
+            f"  runtime ownership/modes={row['filesystem_identity']['status']}; "
+            f"action-to-verifier transfer: before={row['transport_identity']['before']['status']}, "
+            f"after={row['transport_identity']['after']['status']}"
+        )
         if row["pairing"]["reasons"]:
             lines.append(f"  Unqualified: {', '.join(row['pairing']['reasons'])}")
-        for field in ("input_identity", "output_identity"):
+        for field in ("input_identity", "output_identity", "filesystem_identity"):
             identity = row[field]
             if identity["changed_paths"] or identity["before_issues"] or identity["after_issues"]:
                 lines.append(
@@ -5491,6 +5561,9 @@ def render_quality_audit_comparison_text(comparison: Mapping[str, Any]) -> str:
             lines.append(
                 f"  Declared (not adjudicated): {json.dumps(row['declaration'], sort_keys=True)}"
             )
+        for side, arm_decl in row["condition_declarations"].items():
+            if arm_decl:
+                lines.append(f"  {side} declared (not adjudicated): {json.dumps(arm_decl, sort_keys=True)}")
     if comparison["declaration"].get("scope_qualification"):
         lines.append(f"Declared scope: {comparison['declaration']['scope_qualification']}")
     lines.extend(comparison["notices"])
@@ -7093,6 +7166,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="output format (default: %(default)s)",
     )
+    audit_cmd.add_argument("--source-root", type=Path, help="explicit retained companion source root")
     compare_cmd = subparsers.add_parser(
         "audit-compare", help="compare retained quality audit conditions read-only"
     )
@@ -7100,7 +7174,17 @@ def build_parser() -> argparse.ArgumentParser:
     compare_cmd.add_argument("after_dir", type=Path)
     compare_cmd.add_argument("--declaration", type=Path, help="explicit comparison declaration JSON")
     compare_cmd.add_argument("--repo-root", type=Path, default=Path.cwd())
+    compare_cmd.add_argument("--source-root", type=Path, help="explicit retained companion source root")
     compare_cmd.add_argument("--format", choices=("text", "json"), default="text")
+    experiment_cmd = subparsers.add_parser("experiment", help="inspect native experiments and evidence capture read-only")
+    experiment_cmd.add_argument("--repo-root", type=Path, default=Path.cwd())
+    selection = experiment_cmd.add_mutually_exclusive_group()
+    selection.add_argument("--experiment-id", help="select the exact Lab spec identity")
+    selection.add_argument("--job-dir", type=Path, help="select an explicit retained Harbor job")
+    experiment_cmd.add_argument("--coverage-report", type=Path, help="existing coverage JSON; supplied context, not a per-job attestation")
+    experiment_cmd.add_argument("--audit-dir", type=Path, action="append", default=[], help="external Quality evidence, kept separate from native jobs")
+    experiment_cmd.add_argument("--source-root", type=Path, help="explicit retained companion source root for external audits")
+    experiment_cmd.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
 
@@ -7113,10 +7197,33 @@ def run_cli(
     args = parser.parse_args(list(argv) if argv is not None else None)
     repo_root = args.repo_root.resolve()
     try:
+        if args.command == "experiment":
+            from evallab.explorer import inspect_experiment, render_experiment_text
+
+            try:
+                report = inspect_experiment(
+                    repo_root, experiment_id=args.experiment_id, job_dir=args.job_dir,
+                    coverage_report_path=args.coverage_report,
+                )
+            except ValueError as exc:
+                raise WorkbenchError(str(exc)) from exc
+            report["external_audits"] = [
+                load_quality_audit_evidence(path, repo_root=repo_root, source_root=args.source_root)
+                for path in args.audit_dir
+            ]
+            if args.format == "text":
+                sys.stdout.write(render_experiment_text(report))
+                for evidence in report["external_audits"]:
+                    sys.stdout.write("\nExternal Quality diagnostics (not native Harbor job/trial evidence)\n")
+                    sys.stdout.write(render_quality_audit_text(evidence))
+            else:
+                sys.stdout.buffer.write(_canonical_bytes(report))
+            return 0
         if args.command == "audit-compare":
             comparison = compare_quality_audits(
                 args.before_dir, args.after_dir,
                 declaration_path=args.declaration, repo_root=repo_root,
+                source_root=args.source_root,
             )
             if args.format == "text":
                 sys.stdout.write(render_quality_audit_comparison_text(comparison))
@@ -7127,6 +7234,7 @@ def run_cli(
             evidence = load_quality_audit_evidence(
                 audit_dir=args.audit_dir,
                 repo_root=repo_root,
+                source_root=args.source_root,
             )
             if getattr(args, "format", "text") == "text":
                 sys.stdout.write(render_quality_audit_text(evidence))

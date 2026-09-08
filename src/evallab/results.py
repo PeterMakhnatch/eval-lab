@@ -92,11 +92,13 @@ class TrialRecord:
 
     @property
     def id(self) -> str:
-        return str(self.result["id"])
+        # Partial intake builds result-less trials; fall back to the directory
+        # name rather than raising KeyError. Identical when result has an id.
+        return str(self.result.get("id") or self.path.name)
 
     @property
     def name(self) -> str:
-        return str(self.result["trial_name"])
+        return str(self.result.get("trial_name") or self.path.name)
 
     @property
     def primary_reward(self) -> float | None:

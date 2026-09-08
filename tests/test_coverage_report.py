@@ -315,6 +315,78 @@ def test_scope_bound_product_wrong_root_excludes(tmp_path: Path) -> None:
     assert repairs["job-b"]["reason"] == "evidence_absent"
 
 
+def _solo_finished_job(tmp_path: Path, job_id: str = "aaaaaaaa-0000-4000-8000-000000000001") -> str:
+    """A finished on-disk job with no catalog row and no partition (the R2 shape)."""
+    job_dir = tmp_path / "runs" / "job-solo"
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": job_id,
+                "started_at": "2026-09-08T00:00:00Z",
+                "finished_at": "2026-09-08T00:01:00Z",
+                "n_total_trials": 1,
+                "stats": {"n_completed_trials": 1},
+            }
+        )
+    )
+    return job_id
+
+
+def test_selected_finished_uncataloged_job_is_not_cataloged(tmp_path: Path) -> None:
+    """A finished disk job with no catalog row reports not_cataloged, never silently absent."""
+    from evallab.coverage_report import build_coverage_report
+
+    job_id = _solo_finished_job(tmp_path)
+
+    def fake_loader(db_url: str | None) -> tuple[dict, dict]:
+        return {}, {}
+
+    report = build_coverage_report(
+        root=tmp_path,
+        derived_root=tmp_path / "derived",
+        database_url="postgresql://invalid:5432/none",
+        catalog_loader=fake_loader,
+        selected_job_ids={job_id},
+    )
+    assert report.catalogued.count == 0
+    assert report.projected.count == 0
+    assert report.reasons.get("not_cataloged", 0) == 1
+    repairs = {entry.job_name: entry for entry in report.repair_path}
+    assert repairs["job-solo"].reason == "not_cataloged"
+    assert repairs["job-solo"].resumable_command == "evallab ingest runs/job-solo"
+    assert "job-solo" in report.excepted.jobs
+
+
+def test_selected_scope_never_lists_unselected_partitions(tmp_path: Path) -> None:
+    """Regression: a singleton scope must not list all 175 lake partitions as projected."""
+    import shutil
+
+    from evallab.coverage_report import build_coverage_report
+
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir(parents=True)
+    shutil.copytree(FIXTURES / "job-pass", runs_dir / "job-a")
+    job = load_job(runs_dir / "job-a")
+    project_jobs([job], tmp_path / "derived")
+    solo_id = _solo_finished_job(tmp_path)
+
+    def fake_loader(db_url: str | None) -> tuple[dict, dict]:
+        return {}, {}
+
+    report = build_coverage_report(
+        root=tmp_path,
+        derived_root=tmp_path / "derived",
+        database_url="postgresql://invalid:5432/none",
+        catalog_loader=fake_loader,
+        selected_job_ids={solo_id},
+    )
+    # job-a is projected on disk but NOT selected: it must not appear anywhere.
+    assert report.projected.count == 0
+    assert "job-a" not in report.native_jobs_present.jobs
+    assert report.reasons.get("not_cataloged", 0) == 1
+
+
 def test_section_counts_agree_with_listed_names(tmp_path: Path) -> None:
     """Regression: count=78 with 20 names and truncated=false must be impossible.
 

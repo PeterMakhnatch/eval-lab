@@ -9,7 +9,9 @@ Reconciles disk, catalog, parquet, and ATIF stores:
 
 from __future__ import annotations
 
+import hashlib
 import json
+import tempfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -206,6 +208,7 @@ def build_coverage_report(
     database_url: str | None = None,
     derived_root: Path | None = None,
     catalog_loader: Any = None,
+    selected_job_ids: frozenset[str] | set[str] | None = None,
 ) -> CoverageReport:
     """Build a complete coverage and reconciliation report across all durable stores.
 
@@ -213,6 +216,10 @@ def build_coverage_report(
     - ``evallab.ingest_verify.verify_ingest`` for disk/catalog/parquet/ATIF reconciliation.
     - ``evallab.storage.paths.discover_parquet_partitions`` for physical partition inventory.
     - ``evallab.storage.attach.TABLES`` for table inventory inspection.
+
+    When ``selected_job_ids`` is set (UUID strings), recorded projection
+    exceptions and their repair entries are restricted to the selection, so a
+    scope-bound product never borrows unrelated jobs' exception counts.
     """
     resolved_root = Path(root).resolve()
     db_url = database_url or database_url_from_environment()
@@ -307,6 +314,12 @@ def build_coverage_report(
                 )
 
     unfinished_jobs_list: list[ExcludedJob] = list(verification.unfinished_jobs)
+    # Partial-intake jobs are accounted separately: their result.json still
+    # lacks finished_at, so without this guard the disk scan below would
+    # double-report them as unfinished.
+    partial_jobs_list: list[ExcludedJob] = list(verification.partial_jobs)
+    partial_names = {p.name for p in partial_jobs_list}
+    partial_ids = {p.job_id for p in partial_jobs_list}
     known_unfinished_names = {u.name for u in unfinished_jobs_list}
     for base in [resolved_root / "runs", resolved_root / "research/evidence/runs"]:
         if not base.is_dir():
@@ -315,6 +328,8 @@ def build_coverage_report(
             if not child.is_dir() or child.name in IGNORED_DIR_NAMES:
                 continue
             res_file = child / "result.json"
+            if child.name in partial_names:
+                continue
             if res_file.is_file() and child.name not in known_unfinished_names:
                 try:
                     payload = json.loads(res_file.read_text())
@@ -382,6 +397,13 @@ def build_coverage_report(
     recorded_exceptions = (
         _recorded_projection_exceptions_map(ev_path) if ev_path.is_file() else {}
     )
+    if selected_job_ids is not None:
+        selected_ids = frozenset(str(jid) for jid in selected_job_ids)
+        recorded_exceptions = {
+            job_id: reason
+            for job_id, reason in recorded_exceptions.items()
+            if str(job_id) in selected_ids
+        }
 
     job_name_lookup: dict[str, str] = {
         job_id: str(info.get("name") or job_id)
@@ -398,6 +420,8 @@ def build_coverage_report(
         excepted_names_set.add(e.name)
     for u in unfinished_jobs_list:
         excepted_names_set.add(u.name)
+    for p in partial_jobs_list:
+        excepted_names_set.add(p.name)
     for job_id in recorded_exceptions:
         excepted_names_set.add(job_name_lookup.get(job_id, job_id))
     excepted_names = sorted(excepted_names_set)
@@ -423,6 +447,11 @@ def build_coverage_report(
     for u in unprojectable_runs:
         if u.reason == "crashed_execution":
             name = u.path.parent.name if (u.path.parent / "result.json").is_file() else u.path.name
+            # Partial-intake jobs already account their crashed trials under
+            # partial_intake with a dedicated repair entry; listing them again
+            # as failed would misread accounted state as a new failure.
+            if name in partial_names:
+                continue
             failed_names_set.add(name)
 
     failed_names = sorted(failed_names_set)
@@ -439,8 +468,18 @@ def build_coverage_report(
 
     if unfinished_jobs_list:
         reasons["job_unfinished"] = len(unfinished_jobs_list)
+    if partial_jobs_list:
+        reasons["partial_intake"] = len(partial_jobs_list)
 
-    for err_type, count in verification.accounted_exceptions_by_reason.items():
+    # verification.accounted_exceptions_by_reason is global to the events file;
+    # under a selection, count the filtered map instead so the product borrows
+    # no unrelated job's exceptions.
+    if selected_job_ids is not None:
+        scoped_exception_counts: Counter[str] = Counter(recorded_exceptions.values())
+        exception_items = scoped_exception_counts.items()
+    else:
+        exception_items = verification.accounted_exceptions_by_reason.items()
+    for err_type, count in exception_items:
         key = (
             err_type
             if err_type.startswith("projection_failed:")
@@ -488,6 +527,14 @@ def build_coverage_report(
         )
         origin = "catalog" if u.name in catalog_unfinished_names else "disk-only"
         add_repair_entry(u.name, u.reason, cmd, origin=origin)
+    # 2b. Partial-intake jobs (accounted, queryable subset only)
+    for p in partial_jobs_list:
+        cmd = (
+            f"already-intaked-partial: {d_root}/job_id={p.job_id}; "
+            f"re-run the job to completion, then evallab ingest {p.path} "
+            f"for full projection"
+        )
+        add_repair_entry(p.name, "partial_intake", cmd, origin="catalog")
 
     # 3. Checkout routing (outside or nested checkouts)
     for e in excluded_jobs_list:
@@ -638,3 +685,155 @@ def build_coverage_report(
         reasons=reasons,
         repair_path=tuple(repair_entries),
     )
+
+
+SCOPE_PRODUCT_VERSION = 1
+
+
+def scoped_catalog_loader(
+    base_loader: Any,
+    job_ids: set[str] | frozenset[str],
+) -> Any:
+    """Return a catalog_loader exposing exactly ``job_ids``.
+
+    Shapes are preserved verbatim; only membership is restricted. Trials whose
+    job is not selected are dropped with their job. Pass the result as
+    ``catalog_loader`` to ``build_coverage_report`` (or ``verify_ingest``) to
+    bind a report to an exact job set instead of the whole shared catalog.
+    """
+    selected = frozenset(str(jid) for jid in job_ids)
+
+    def load(database_url: str) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        jobs, trials = base_loader(database_url)
+        kept_jobs = {jid: info for jid, info in jobs.items() if str(jid) in selected}
+        kept_trials = {
+            tid: info
+            for tid, info in trials.items()
+            if str(info.get("job_id")) in selected
+        }
+        # The minimal default loader omits agent/usage columns, which would
+        # collapse the trajectory-availability dimension to "unknown". Enrich
+        # from the existing trials columns; failure keeps unenriched rows.
+        try:
+            import psycopg
+
+            with psycopg.connect(database_url, connect_timeout=3) as conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, agent_name, input_tokens, output_tokens FROM trials "
+                    "WHERE job_id = ANY(%s)",
+                    (sorted(selected),),
+                )
+                for raw_id, agent, inp, out in cur.fetchall():
+                    info = kept_trials.get(str(raw_id))
+                    if info is not None:
+                        info["agent_name"] = agent
+                        info["input_tokens"] = inp
+                        info["output_tokens"] = out
+        except Exception:
+            pass
+        return kept_jobs, kept_trials
+
+    return load
+
+
+def resolve_job_ids_by_name(
+    database_url: str,
+    names: set[str] | frozenset[str] | list[str],
+) -> dict[str, str]:
+    """Map catalog job names to job-id strings (names are the stable handle)."""
+    import psycopg
+
+    wanted = set(names)
+    resolved: dict[str, str] = {}
+    with psycopg.connect(database_url, connect_timeout=3) as conn, conn.cursor() as cur:
+        cur.execute("SELECT id, job_name FROM jobs")
+        for raw_id, name in cur.fetchall():
+            if str(name) in wanted:
+                resolved[str(name)] = str(raw_id)
+    return resolved
+
+
+def write_scope_bound_product(
+    *,
+    root: Path,
+    derived_root: Path,
+    database_url: str | None = None,
+    job_ids: set[str] | frozenset[str] | list[str],
+    external_links: list[dict[str, Any]] | None = None,
+    out_dir: Path | None = None,
+    wrong_root: Path | None = None,
+    catalog_loader: Any = None,
+) -> Path:
+    """Write an immutable scope-bound coverage product via existing data APIs.
+
+    Builds the report through ``build_coverage_report`` with a scoped loader,
+    then emits canonical JSON (sorted keys, no timestamps) whose sha256 names
+    the file: ``coverage-scope-<sha12>.json``. Rebuilding with the same inputs
+    yields byte-identical output. The product also carries its own binding
+    proof: the same job set evaluated against ``wrong_root`` (default: a fresh
+    empty directory), where every selected job must land excluded with its
+    reason preserved — proving the product is bound to these roots and borrows
+    no unrelated job/root truth.
+    """
+    resolved_root = Path(root).resolve()
+    d_root = Path(derived_root).resolve()
+    db_url = database_url or database_url_from_environment()
+    selected = frozenset(str(jid) for jid in job_ids)
+    links = list(external_links or [])
+    base_loader = catalog_loader if catalog_loader is not None else _default_catalog_loader
+    report = build_coverage_report(
+        root=resolved_root,
+        database_url=db_url,
+        derived_root=d_root,
+        catalog_loader=scoped_catalog_loader(base_loader, selected),
+        selected_job_ids=selected,
+    )
+    payload: dict[str, Any] = {
+        "schema_version": SCOPE_PRODUCT_VERSION,
+        "producer": "evallab.coverage_report.write_scope_bound_product",
+        "source_root": str(resolved_root),
+        "derived_root": str(d_root),
+        "job_ids": sorted(selected),
+        "coverage": report.as_dict(),
+        "external_links": links,
+    }
+    if wrong_root is None:
+        scratch = tempfile.TemporaryDirectory(prefix="evallab-wrong-root-")
+        try:
+            negative = build_coverage_report(
+                root=Path(scratch.name).resolve(),
+                database_url=db_url,
+                derived_root=d_root,
+                catalog_loader=scoped_catalog_loader(base_loader, selected),
+                selected_job_ids=selected,
+            )
+            # Label, not the temp path: the path differs every run, and the
+            # product must rebuild byte-identical. The proof is the exclusion
+            # outcome, not the scratch location.
+            payload["binding_proof"] = {
+                "wrong_root": "<ephemeral-empty-dir>",
+                "excluded": negative.as_dict()["excepted"]["count"],
+                "reasons": negative.as_dict()["reasons"],
+            }
+        finally:
+            scratch.cleanup()
+    else:
+        negative = build_coverage_report(
+            root=Path(wrong_root).resolve(),
+            database_url=db_url,
+            derived_root=d_root,
+            catalog_loader=scoped_catalog_loader(base_loader, selected),
+            selected_job_ids=selected,
+        )
+        payload["binding_proof"] = {
+            "wrong_root": str(Path(wrong_root).resolve()),
+            "excluded": negative.as_dict()["excepted"]["count"],
+            "reasons": negative.as_dict()["reasons"],
+        }
+    canonical = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    digest = hashlib.sha256(canonical.encode()).hexdigest()
+    target = Path(out_dir).resolve() if out_dir is not None else d_root
+    target.mkdir(parents=True, exist_ok=True)
+    path = target / f"coverage-scope-{digest[:12]}.json"
+    path.write_text(canonical)
+    return path

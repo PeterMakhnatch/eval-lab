@@ -4335,15 +4335,436 @@ def _file_sha256_hex(path: Path) -> str:
     return h.hexdigest()
 
 
+# Owned external quality-audit format: metadata.json + observed-summary.json
+# (arm-name mapping) with no summary.json. Recorded manifests use rich
+# {sha256, size, copied_mode} entries; hashes may be bare hex or sha256:-prefixed.
+_OWNED_VERIFIER_CANDIDATES = ("offline-tests", "repaired-tests", "derivative/tests")
+_OWNED_SOURCE_PACKAGE_DIR = "task"
+_OWNED_CONTROLS_DIR = "controls"
+_OWNED_RUNTIME_ENV_DIR = "runtime-environment"
+
+
+def _owned_bare_sha(value: Any) -> str | None:
+    """Normalize a recorded manifest digest to bare lowercase hex, or None."""
+    if not isinstance(value, str):
+        return None
+    bare = value.lower().removeprefix("sha256:")
+    if len(bare) != 64 or any(char not in "0123456789abcdef" for char in bare):
+        return None
+    return bare
+
+
+def _owned_manifest_check(manifest: Mapping[str, Any], root: Path) -> dict[str, Any]:
+    """Verify every recorded manifest entry against retained bytes under root.
+
+    Names alone never bind: each entry must exist as a regular file with
+    matching sha256 and size. A missing candidate root leaves coverage unbound;
+    present-but-differing bytes are mismatched.
+    """
+    detail: dict[str, Any] = {
+        "status": "unbound",
+        "checked_files": 0,
+        "matched_files": 0,
+        "missing_files": [],
+        "mismatched_files": [],
+        "executed_manifest": {},
+    }
+    entries = dict(manifest) if isinstance(manifest, Mapping) else {}
+    if not entries:
+        return detail
+    if root.is_symlink() or not root.is_dir():
+        return detail
+    try:
+        resolved_root = root.resolve()
+    except OSError:
+        return detail
+    missing: list[str] = []
+    mismatched: list[str] = []
+    executed: dict[str, dict[str, Any]] = {}
+    checked = 0
+    matched = 0
+    for rel in sorted(entries):
+        expected = entries[rel]
+        recorded = _owned_bare_sha(expected.get("sha256") if isinstance(expected, Mapping) else None)
+        expected_size = expected.get("size") if isinstance(expected, Mapping) else None
+        relative = PurePosixPath(rel)
+        target = resolved_root / rel
+        if (
+            recorded is None
+            or not isinstance(expected_size, int)
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or str(relative) != rel
+        ):
+            mismatched.append(rel)
+            continue
+        if target.is_symlink() or not target.is_file():
+            missing.append(rel)
+            continue
+        try:
+            target.resolve().relative_to(resolved_root)
+        except ValueError:
+            missing.append(rel)
+            continue
+        checked += 1
+        try:
+            actual_size = target.stat().st_size
+        except OSError:
+            mismatched.append(rel)
+            continue
+        # Host stat modes/owners are never read: only content bytes bind.
+        actual_sha = _file_sha256_hex(target)
+        if actual_sha == recorded and actual_size == expected_size:
+            matched += 1
+            executed[rel] = {"sha256": actual_sha, "size": actual_size}
+        else:
+            mismatched.append(rel)
+    detail["checked_files"] = checked
+    detail["matched_files"] = matched
+    detail["missing_files"] = missing
+    detail["mismatched_files"] = mismatched
+    detail["executed_manifest"] = executed
+    if missing or mismatched:
+        detail["status"] = "mismatched"
+    elif matched == len(entries) and matched > 0:
+        detail["status"] = "verified"
+    else:
+        detail["status"] = "mismatched"
+    return detail
+
+
+def _owned_runner_check(recorded: Any, path: Path) -> dict[str, Any]:
+    """Bind one recorded runner hash against explicit companion source bytes."""
+    bare = _owned_bare_sha(recorded)
+    detail: dict[str, Any] = {
+        "status": "unbound",
+        "recorded_sha256": bare,
+        "executed_sha256": None,
+        "executed_path": None,
+    }
+    if bare is None:
+        return detail
+    if path.is_symlink() or not path.is_file():
+        return detail
+    executed = _file_sha256_hex(path)
+    detail["executed_sha256"] = executed
+    detail["executed_path"] = str(path)
+    detail["status"] = "verified" if executed == bare else "mismatched"
+    return detail
+
+
+def _owned_float(value: Any) -> float | None:
+    try:
+        result = float(value) if value is not None else None
+    except (ValueError, TypeError):
+        return None
+    return result if result is not None and math.isfinite(result) else None
+
+
+def _owned_arm_record(
+    *,
+    arm_name: str,
+    summary_entry: Mapping[str, Any],
+    arm_dir: Path | None,
+    declaration_entry: Mapping[str, Any],
+    runtime_input_paths: list[str],
+) -> dict[str, Any]:
+    """Build one owned arm record from actual compact result fields.
+
+    Reward annotations (accepted/rejected) and declaration labels stay separate
+    from ordinary result execution status. No task scripts are executed.
+    """
+    record: dict[str, Any] = dict(summary_entry) if isinstance(summary_entry, Mapping) else {}
+    disk_record: dict[str, Any] = {}
+    if arm_dir is not None and arm_dir.is_dir():
+        for candidate in ("observed.json", "result.json"):
+            candidate_file = arm_dir / candidate
+            if candidate_file.is_file():
+                try:
+                    value = json.loads(candidate_file.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    value = {}
+                if isinstance(value, Mapping):
+                    disk_record = dict(value)
+                break
+        for key, value in disk_record.items():
+            if key not in record or record[key] is None:
+                record[key] = value
+    has_record = bool(record) or bool(disk_record)
+    digests: dict[str, Any] = {}
+    task_manifest: dict[str, Any] | None = None
+    if arm_dir is not None and arm_dir.is_dir():
+        digests = _audit_json_object(arm_dir / "digests.json")
+        raw_manifest = _audit_json_object(arm_dir / "task-file-manifest.json")
+        task_manifest = dict(raw_manifest) if raw_manifest else None
+    observed_reward = _owned_float(record.get("reward"))
+    ctrf_summary = record.get("ctrf_summary") if isinstance(record.get("ctrf_summary"), Mapping) else {}
+    action_exit = record.get("action_exit")
+    verifier_exit = record.get("verifier_exit")
+    if not has_record:
+        execution_status = "missing"
+    elif action_exit == 0 and verifier_exit == 0 and observed_reward is not None:
+        execution_status = "completed"
+    elif action_exit is None and verifier_exit is None and observed_reward is None:
+        execution_status = "unassessed"
+    else:
+        execution_status = "failed"
+    declared_expected = _owned_float(declaration_entry.get("expected_reward"))
+    inputs = digests.get("inputs") if isinstance(digests.get("inputs"), Mapping) else {}
+    outputs = record.get("output_digests")
+    if not isinstance(outputs, Mapping):
+        outputs = digests.get("outputs") if isinstance(digests.get("outputs"), Mapping) else {}
+    return {
+        "arm": arm_name,
+        "execution_status": execution_status,
+        "observed_reward": observed_reward,
+        "declared_label": declaration_entry.get("declared_validity"),
+        "declared_expected_reward": declared_expected,
+        "declared_rationale": declaration_entry.get("rationale"),
+        "observed_outcome": record.get("outcome"),
+        "elapsed_seconds": record.get("elapsed_seconds"),
+        "action_exit": action_exit,
+        "verifier_exit": verifier_exit,
+        "tests_passed": ctrf_summary.get("passed", 0),
+        "tests_total": ctrf_summary.get("tests", 0),
+        "evidence_path": str(arm_dir) if arm_dir is not None and arm_dir.is_dir() else None,
+        "input_digests": dict(inputs),
+        "output_digests": dict(outputs) if isinstance(outputs, Mapping) else {},
+        "task_file_manifest": task_manifest,
+        "runtime_metadata_required": True,
+        "runtime_input_paths": list(runtime_input_paths),
+    }
+
+
+def _load_owned_quality_audit_evidence(
+    audit_path: Path, *, source_root: Path | None = None
+) -> dict[str, Any]:
+    """Consume an owned-format evidence directory (metadata.json + observed-summary.json)."""
+    try:
+        metadata = json.loads((audit_path / "metadata.json").read_text(encoding="utf-8"))
+        observed = json.loads((audit_path / "observed-summary.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WorkbenchError(f"owned audit directory has unreadable metadata: {audit_path}: {exc}") from exc
+    if not isinstance(metadata, dict) or not isinstance(observed, dict):
+        raise WorkbenchError(f"owned audit directory has malformed metadata: {audit_path}")
+    declaration = metadata.get("declaration")
+    if not isinstance(declaration, Mapping):
+        raise WorkbenchError(f"owned audit directory missing declaration: {audit_path}")
+    declared_arms = declaration.get("arms")
+    if not isinstance(declared_arms, Mapping):
+        raise WorkbenchError(f"owned audit directory missing declared arms: {audit_path}")
+    declared_task_id = declaration.get("task_id")
+    declared_source_path = declaration.get("source_path")
+    phase = metadata.get("phase")
+    task_id = metadata.get("task_id")
+    if isinstance(phase, str) and isinstance(task_id, str) and phase and task_id:
+        run_id: Any = f"{phase}/{task_id}"
+    else:
+        run_id = audit_path.name
+
+    def _recorded_manifest(key: str) -> dict[str, Any]:
+        raw = metadata.get(key)
+        if not isinstance(raw, Mapping):
+            return {}
+        normalized: dict[str, Any] = {}
+        for rel, entry in raw.items():
+            if not isinstance(entry, Mapping):
+                continue
+            bare = _owned_bare_sha(entry.get("sha256"))
+            if bare is None:
+                continue
+            normalized[str(rel)] = {"sha256": bare, "size": entry.get("size")}
+        return normalized
+
+    recorded_verifier = _recorded_manifest("verifier_manifest")
+    recorded_source = _recorded_manifest("source_task_manifest")
+    recorded_controls = _recorded_manifest("controls_manifest")
+    recorded_runtime_env = _recorded_manifest("runtime_environment_manifest")
+    # Exact initial runtime paths, with the task_file/ mount prefix stripped.
+    # These describe the declared initial environment, not pre-action execution proof.
+    runtime_input_paths = sorted(
+        str(rel).removeprefix("task_file/")
+        for rel in recorded_runtime_env
+        if str(rel).startswith("task_file/")
+    )
+    source_base: Path | None = None
+    if source_root is not None and isinstance(declared_task_id, str) and declared_task_id:
+        candidate_base = source_root.resolve() / "tasks" / declared_task_id
+        if not candidate_base.is_symlink() and candidate_base.is_dir():
+            source_base = candidate_base
+    package_binding: dict[str, Any] = {"status": "unbound"}
+    if source_base is not None:
+        package_binding = _owned_manifest_check(
+            metadata.get("source_task_manifest")
+            if isinstance(metadata.get("source_task_manifest"), Mapping)
+            else {},
+            source_base / _OWNED_SOURCE_PACKAGE_DIR,
+        )
+    verifier_candidates: list[dict[str, Any]] = []
+    verifier_status = "unbound"
+    verifier_details: dict[str, Any] = {}
+    if source_base is not None:
+        examined = 0
+        for candidate in _OWNED_VERIFIER_CANDIDATES:
+            candidate_root = source_base / candidate
+            if candidate_root.is_symlink() or not candidate_root.is_dir():
+                continue
+            examined += 1
+            check = _owned_manifest_check(
+                metadata.get("verifier_manifest")
+                if isinstance(metadata.get("verifier_manifest"), Mapping)
+                else {},
+                candidate_root,
+            )
+            if check["status"] == "verified":
+                verifier_candidates.append(
+                    {
+                        "candidate": candidate,
+                        "path": str(candidate_root.resolve()),
+                        "executed_manifest": check["executed_manifest"],
+                    }
+                )
+            else:
+                verifier_details[f"candidate_{candidate}"] = {
+                    "status": check["status"],
+                    "missing_files": check["missing_files"],
+                    "mismatched_files": check["mismatched_files"],
+                }
+        if verifier_candidates:
+            verifier_status = "verified"
+        elif examined > 0:
+            verifier_status = "mismatched"
+    executed_manifest: dict[str, Any] = (
+        verifier_candidates[0]["executed_manifest"] if verifier_candidates else {}
+    )
+    recorded_test_state = recorded_verifier.get("test_state.py", {}).get("sha256")
+    executed_test_state = executed_manifest.get("test_state.py", {}).get("sha256")
+    runner_binding: dict[str, Any] = {"status": "unbound"}
+    ownership_runner_binding: dict[str, Any] = {"status": "unbound"}
+    controls_binding: dict[str, Any] = {"status": "unbound"}
+    runtime_env_binding: dict[str, Any] = {"status": "unbound"}
+    if source_root is not None:
+        lane_root = source_root.resolve()
+        runner_binding = _owned_runner_check(metadata.get("runner_sha256"), lane_root / "runner.py")
+        ownership_runner_binding = _owned_runner_check(
+            metadata.get("ownership_runner_sha256"), lane_root / "ownership_runner.py"
+        )
+        if source_base is not None:
+            controls_binding = _owned_manifest_check(
+                metadata.get("controls_manifest")
+                if isinstance(metadata.get("controls_manifest"), Mapping)
+                else {},
+                source_base / _OWNED_CONTROLS_DIR,
+            )
+            runtime_env_binding = _owned_manifest_check(
+                metadata.get("runtime_environment_manifest")
+                if isinstance(metadata.get("runtime_environment_manifest"), Mapping)
+                else {},
+                source_base / _OWNED_RUNTIME_ENV_DIR,
+            )
+    package_status = package_binding.get("status", "unbound")
+    if package_status == "mismatched" or verifier_status == "mismatched":
+        provenance_status = "mismatched"
+    elif package_status == "verified" and verifier_status == "verified":
+        provenance_status = "verified"
+    elif package_status in ("verified", "partial") or verifier_status in ("verified", "partial"):
+        provenance_status = "partial"
+    else:
+        provenance_status = "unbound"
+    disk_arm_dirs = {
+        path.name: path
+        for path in audit_path.iterdir()
+        if path.is_dir() and not path.name.startswith(".")
+    }
+    all_arm_names = sorted(
+        set(declared_arms.keys()) | set(observed.keys()) | set(disk_arm_dirs.keys())
+    )
+    arms: dict[str, Any] = {}
+    for arm_name in all_arm_names:
+        summary_entry = observed.get(arm_name)
+        declaration_entry = declared_arms.get(arm_name)
+        arms[arm_name] = _owned_arm_record(
+            arm_name=arm_name,
+            summary_entry=summary_entry if isinstance(summary_entry, Mapping) else {},
+            arm_dir=disk_arm_dirs.get(arm_name),
+            declaration_entry=declaration_entry if isinstance(declaration_entry, Mapping) else {},
+            runtime_input_paths=runtime_input_paths,
+        )
+    lead_review = declaration.get("lead_review")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "quality_audit_evidence",
+        "evidence_format": "quality_owned",
+        "origin": "external_quality_audit",
+        "workbench_version": WORKBENCH_VERSION,
+        "audit_path": str(audit_path),
+        "run_id": run_id,
+        "run_uuid": None,
+        "task_dir": None,
+        "declared_task_id": declared_task_id,
+        "declared_source_path": declared_source_path,
+        "phase": phase,
+        "verification_mode": metadata.get("verification_mode"),
+        "container_image": metadata.get("image_id"),
+        "provenance_binding": {
+            "status": provenance_status,
+            "package_snapshot_status": package_status,
+            "expected_files": len(recorded_source),
+            "checked_files": package_binding.get("checked_files", 0),
+            "matched_files": package_binding.get("matched_files", 0),
+            "missing_files": package_binding.get("missing_files", []),
+            "mismatched_files": package_binding.get("mismatched_files", []),
+            "executed_verifier_status": verifier_status,
+            "recorded_verifier_manifest": recorded_verifier,
+            "recorded_verifier_sha256": recorded_test_state,
+            "executed_verifier_sha256": executed_test_state,
+            "executed_verifier_manifest": executed_manifest,
+            "executed_verifier_path": (
+                verifier_candidates[0]["path"] if verifier_candidates else None
+            ),
+            "executed_verifier_candidates": [item["candidate"] for item in verifier_candidates],
+            **verifier_details,
+            "recorded_source_task_manifest": recorded_source,
+            "recorded_controls_manifest": recorded_controls,
+            "recorded_runtime_environment_manifest": recorded_runtime_env,
+            "recorded_runner_sha256": _owned_bare_sha(metadata.get("runner_sha256")),
+            "recorded_ownership_runner_sha256": _owned_bare_sha(
+                metadata.get("ownership_runner_sha256")
+            ),
+            "runner_binding": runner_binding,
+            "ownership_runner_binding": ownership_runner_binding,
+            "controls_binding": controls_binding,
+            "runtime_environment_binding": runtime_env_binding,
+        },
+        "execution_summary": {
+            "arms_discovered": len(arms),
+            "completed_arms": sum(1 for item in arms.values() if item["execution_status"] == "completed"),
+            "failed_arms": sum(1 for item in arms.values() if item["execution_status"] == "failed"),
+        },
+        "arms": arms,
+        "reviewer_findings": {"lead_review": lead_review} if lead_review else {},
+        "admission_authority": "candidate_evidence_only",
+        "notices": [
+            "Direct-Docker candidate evidence only; not Harbor certification.",
+            "Arm names and reviewer labels do not determine validity or admission.",
+            "No tasks admitted, registered, or published.",
+        ],
+    }
+
+
 def load_quality_audit_evidence(
     audit_dir: Path,
     *,
     repo_root: Path | None = None,
+    source_root: Path | None = None,
 ) -> dict[str, Any]:
     """Consume an external quality-audit evidence directory read-only.
 
     Returns a normalized record of per-arm execution outcomes, verifierCTRFFacts,
     and task/verifier provenance bindings without executing tasks or mutating admission state.
+
+    `source_root` optionally points at explicit companion source bytes (the cohort
+    lane root); it is never guessed from host paths baked into the evidence.
     """
     audit_path = audit_dir.resolve()
     if not audit_path.is_dir():
@@ -4351,6 +4772,10 @@ def load_quality_audit_evidence(
 
     summary_file = audit_path / "summary.json"
     if not summary_file.is_file():
+        owned_metadata = audit_path / "metadata.json"
+        owned_observed = audit_path / "observed-summary.json"
+        if owned_metadata.is_file() and owned_observed.is_file():
+            return _load_owned_quality_audit_evidence(audit_path, source_root=source_root)
         raise WorkbenchError(f"audit directory missing summary.json: {audit_path}")
 
     summary_data = json.loads(summary_file.read_text(encoding="utf-8"))

@@ -19,7 +19,7 @@ inputs:
   - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
     digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
   - path: docs/STATUS.md
-    digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
+    digest: sha256:a4f04f180a4020d1f5b8747557241888e82e6a684f9bfc710cc2e17bc49fff56
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
   - path: docs/WHERE-DOES-THIS-GO.md
@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:9f6a6489027054095a1df0936924820ad572ccda28f42b9ff427ec642961ae7e
+    digest: sha256:ceeca6cc7205ecfffb73cbfb3d6c9c2e02a80f0edceaf95645177fbea03fa8b6
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -166,7 +166,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-09-08 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
@@ -277,7 +277,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-09-08 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
@@ -315,7 +315,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-09-08 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |

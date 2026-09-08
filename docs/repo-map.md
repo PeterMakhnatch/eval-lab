@@ -51,13 +51,15 @@ inputs:
   - path: src/evallab/cards.py
     digest: sha256:d31030725476451fd86b36df01916f466cee2e87a77ed8626c7819b4b649f7c0
   - path: src/evallab/cli.py
-    digest: sha256:dbb1a6bcd4fb95f05efaec3443ec85d142243e17001a9a376c3c274c01ebd195
+    digest: sha256:9ec1f8958f19dd5ec140697782d6ac8fdd17c81012c23cfd7193ae0dae6e923d
   - path: src/evallab/cohort.py
     digest: sha256:377b0b2173ea47c893bfd4c8814586349cb5b27e4d23315cf2d077cf2a570545
   - path: src/evallab/contextpack.py
     digest: sha256:fabf9662fb48d5eb787f6074cf357a69445583b1c123de2a1aae81229ad8ff3f
   - path: src/evallab/continuous_control_plane.py
     digest: sha256:199a755dda97d3c2c67ee3e193f73e4e7a8d89a8435f5f77b8d5a50c75e646c8
+  - path: src/evallab/coverage_report.py
+    digest: sha256:c2929f4f9a99dbfa27f0d272d6b680fabf2d2b84369105f902d6daadd3fe711c
   - path: src/evallab/craft.py
     digest: sha256:5cbc8039593a91710cfa4dc6efa60a199c9987af61913b8158ffe8594edbe392
   - path: src/evallab/credentials.py
@@ -65,11 +67,13 @@ inputs:
   - path: src/evallab/curve.py
     digest: sha256:37e2d003a805445288f80f09b5dc634b713bcde6a168dc6ae992b67c255d8310
   - path: src/evallab/database.py
-    digest: sha256:eed815fc6c52ec3747ab533348caf67dd8b12fc1154009e91fd332cddc6f1750
+    digest: sha256:7668ccf9356b8b1a3eb60105d4972e246d59a828f658f4da5527c7bbd65582dc
   - path: src/evallab/deepplanning.py
     digest: sha256:05c41e95d1d05725ecdc16891cef7779dd93defebcb84aeaa1201ddb7e05775e
   - path: src/evallab/digest.py
     digest: sha256:9d776626394c415c295efa6b8ebc6b8c43c7f91b77ecf7281bcd2d497a6ce217
+  - path: src/evallab/dispatch.py
+    digest: sha256:a37466192f558480c8ecd655a901e34fa6f6978870267d84fa7bc6e854fd0a05
   - path: src/evallab/docindex.py
     digest: sha256:8f3394ba7f6796eb0159d887d0ec1ed5132cd0b7310b1e8cb8db5141da317f79
   - path: src/evallab/eventlog.py
@@ -77,17 +81,17 @@ inputs:
   - path: src/evallab/evidence/__init__.py
     digest: sha256:5c49ed41b0413a1cc775bb6dc630f39c929741aa0e6827bd160fdf25af915c31
   - path: src/evallab/evidence/atif.py
-    digest: sha256:95b571345a4c99dec5626ffda4c599b36d81d885b19dd139f31d2307c54bda23
+    digest: sha256:042fbcd8617c0b95c075aa20904f74fb12b36207c7645aee676232d475132e3b
   - path: src/evallab/evidence/capture_authority.py
     digest: sha256:29d5af5b360fdeae162955efc1e9a11ebd8f4a31f3b85079875215a0ee3d4948
   - path: src/evallab/evidence/event_mart.py
-    digest: sha256:7f5c1459f89e840c8d7d912ab96d65bc44124eff8edbdb1b90851d53bf439de4
+    digest: sha256:2dc82f2e7175e460212a16e202cc6841dcbb5d9f30a44fdec3bf148f43444f02
   - path: src/evallab/evidence/facts.py
-    digest: sha256:7057b19fd30443c1660dba1d6cacb4a29aa37377d29db9fcfca0be8531ab0c8c
+    digest: sha256:143b15d176de0ce6e79eea8e0e40edd43a419bd961ea8a9a34d7bdaf33d60023
   - path: src/evallab/evidence/llm_request.py
     digest: sha256:e44ebeeb921a54dee800d72b9cedd40470bd3707c325604108608185036c0518
   - path: src/evallab/evidence/parquet_io.py
-    digest: sha256:7f432cbab7e608847faf09d6be0cbc1276dbad5fb28592ed9dc03a16d434cbba
+    digest: sha256:67ba520f7013a343197cafafc2ed058f61b746558278241e1e6f7d997fc6b4b4
   - path: src/evallab/evidence_store.py
     digest: sha256:b131f6f8550b37a3412375601bf3e1e6fba7e073a995fcf8203a4adbc29cb1a2
   - path: src/evallab/execution_contracts.py
@@ -115,7 +119,7 @@ inputs:
   - path: src/evallab/host_task_staging.py
     digest: sha256:b08be8d788439d13db34d6309376ccbd352d61ee6ca48650a2759e54a13a2733
   - path: src/evallab/ingest_verify.py
-    digest: sha256:50d8b9f0ca17fe48d3d9518e191ffc0c8d1d049ce587852a4f9d4041f364a8ce
+    digest: sha256:f10e75f58a6b473f76d1971b1afcc9b1b911b6bcf8f0e27dfe4472a3d830158e
   - path: src/evallab/inspect_adapter.py
     digest: sha256:0b21bbf840e95fab14f26ff4f267a3b935ee546f52b83e33faab9013349eb03e
   - path: src/evallab/interpretation/__init__.py
@@ -129,7 +133,7 @@ inputs:
   - path: src/evallab/interpretation/evidence_pack.py
     digest: sha256:c43db9dbc4cd2f664087316d1927625ce97709b64dd4406e006a3fd23511511d
   - path: src/evallab/interpretation/feature_registry.py
-    digest: sha256:95890b161322a648298d985c6b18bb01778cc45d1e7cafc3e5915ff2b7886128
+    digest: sha256:e3d46b70e33980d50e31f698fb99baeb8afdefe7f9ac9559a57fef8228af2824
   - path: src/evallab/interpretation/producers/__init__.py
     digest: sha256:00a975a8b304498138e0f239f9a50cccbc91a0b7b14bd9ee5212cc821a871e93
   - path: src/evallab/interpretation/producers/action_memory.py
@@ -165,7 +169,7 @@ inputs:
   - path: src/evallab/interpretation/trajectory_judgment.py
     digest: sha256:c570d2595e0b3c84d08a5c55df60625fd20f483681e75289c0a945523d7351fb
   - path: src/evallab/interpretation/trajectory_quality.py
-    digest: sha256:a05726573cfed11fae5bcb13f21abdd2d2080f260b9f7217499152e4a4340ec4
+    digest: sha256:e1854f0b7f07ee575c23c3caa035b791daeea4a6ec91da59ca6b7fb2ab5358c1
   - path: src/evallab/interpretation/trajectory_readiness.py
     digest: sha256:28fadb4ab32976a37c0e341febd830ab2502dd179b4ea5a3db5401897ae31991
   - path: src/evallab/interpretation/trajectory_recipe_run.py
@@ -202,6 +206,8 @@ inputs:
     digest: sha256:927749bb63e04de8b7652d119f63dce6334957a9a1331a641d4d1010f18fb00d
   - path: src/evallab/ops_continuous.py
     digest: sha256:1d313abe1a7552bad7310e40aaa3f2606a31fdc14f4cfdaa6e47fa9f68c63a9a
+  - path: src/evallab/partial_intake.py
+    digest: sha256:3d321ac2a395b6da0c51ea4a24d707a5c28b8a0e4535550cc908bba73f633385
   - path: src/evallab/phoenix_annotations.py
     digest: sha256:9be391c1859535a8a28fd0fc1f279d10fd2853fc300b6841d5bdb13e38e31464
   - path: src/evallab/power.py
@@ -235,7 +241,7 @@ inputs:
   - path: src/evallab/restraint_canary.py
     digest: sha256:dc7bdad0589795e54ba30e5b1c985651284fae2a354ac7fe178922e3eed36b42
   - path: src/evallab/results.py
-    digest: sha256:9a36013e66e2dbf04e67159504a2c83cd903bf244eead1ea55b8cfff54f735e0
+    digest: sha256:20684a82de7038af5d0ddd074e755818168eba22aa3f4b2a8ca831faf6cd7b9b
   - path: src/evallab/run_preflight.py
     digest: sha256:0d7fe8e81ad448c041237b89d1e16f0e27e4985d57bf3f7f9ecda274bdd2cb3f
   - path: src/evallab/runner.py
@@ -261,7 +267,7 @@ inputs:
   - path: src/evallab/storage/__init__.py
     digest: sha256:25d87c03da7238912ce4cdb6828e00da360c3729b0f9ad217d85d9f41270c6d8
   - path: src/evallab/storage/attach.py
-    digest: sha256:a9aa39deec4dca4182431626f09809b9b3cf93e4fa3ba03071740e5c7cec2de0
+    digest: sha256:447e0cc9d7414b4007eabcc6c5292ec37f15466019298c78b4a0e041f4db6205
   - path: src/evallab/storage/data_backfill.py
     digest: sha256:a115375fc054bdf6d956d46211105bfa0abdf5e32a466606d3877eebc6c764eb
   - path: src/evallab/storage/incremental_ingest.py
@@ -352,25 +358,27 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `capability_contract` | 910 | Typed, evidence-bound P/R/U/C/Y capability admission. | — |
 | `capability_workflow` | 421 | Deterministic, offline M052 integration over four bounded evidence components. | — |
 | `cards` | 649 | E11: eval-card generator with purpose-bound shape and mandatory uncertainty. | — |
-| `cli` | 4869 | Run, inspect, and analyze agent evaluations through Harbor. | `claims`, `pack`, `campaign`, `plan`, `schedule`, `install`, `canary`, `import-terminal-bench`, `curve`, `validate`, `build`, `report`, `family`, `card`, `analyze`, `worker-plan`, `worker-status`, `worker-run-one`, `worker-resolve-ambiguous`, `stub`, `ingest-sidecar`, `review`, `agreement`, `trial`, `batch`, `inspect`, `quality`, `data`, `backfill`, `db`, `init`, `list`, `attach`, `analyst`, `show`, `generate`, `semantic-facts`, `project`, `query`, `semantics`, `coverage`, `evidence`, `archive`, `restore`, `tasks`, `import`, `ladder`, `screen`, `stage1`, `stage2`, `registry`, `audit`, `promote`, `register`, `tidy`, `traj`, `outline`, `queue`, `label`, `ir`, `align`, `benchmark`, `c0-status` |
+| `cli` | 4949 | Run, inspect, and analyze agent evaluations through Harbor. | `claims`, `pack`, `campaign`, `plan`, `schedule`, `install`, `canary`, `import-terminal-bench`, `curve`, `validate`, `build`, `report`, `family`, `card`, `analyze`, `worker-plan`, `worker-status`, `worker-run-one`, `worker-resolve-ambiguous`, `stub`, `ingest-sidecar`, `review`, `agreement`, `trial`, `batch`, `inspect`, `quality`, `data`, `backfill`, `db`, `init`, `list`, `attach`, `analyst`, `show`, `generate`, `semantic-facts`, `project`, `query`, `semantics`, `coverage`, `evidence`, `archive`, `restore`, `tasks`, `import`, `ladder`, `screen`, `stage1`, `stage2`, `registry`, `audit`, `promote`, `register`, `tidy`, `traj`, `outline`, `queue`, `label`, `ir`, `align`, `benchmark`, `c0-status` |
 | `cohort` | 1677 | Percentile interval that resamples the supplied evidence units. | `compare`, `power` |
 | `contextpack` | 1047 | Context Pack Compiler (WS-B). | `python -m evallab.contextpack build`, `python -m evallab.contextpack list-docs` |
 | `continuous_control_plane` | 191 | Campaign ownership adapter for the disabled continuous operator. | — |
+| `coverage_report` | 640 | Coverage and reconciliation report across durable evidence stores (Data Engineer mission). | — |
 | `craft` | 1967 | CRAFT: the deterministic half of the task-corpus analyzer (WS-A). | `python -m evallab.craft scan`, `python -m evallab.craft plan`, `python -m evallab.craft compile` |
 | `credentials` | 188 | Credential availability probes shared by the doctor and executor. | — |
 | `curve` | 558 | Defines `load_curve_spec`, `load_curve_report`, `build_curve`, `write_curve`. | — |
-| `database` | 561 | Count recent failures while treating provider capacity as neutral noise. | — |
+| `database` | 574 | Apply the idempotent schema, once per URL per process. | — |
 | `deepplanning` | 389 | Offline DeepPlanning cohort adapter, deterministic verifier, and executable oracle. | — |
 | `digest` | 858 | True for a run the lab generated to test itself rather than a model. | — |
+| `dispatch` | 150 | Compile queue-ready ExperimentSpecs from (task, agent, model) triples. | `dispatch`, `dispatch-set` |
 | `docindex` | 405 | Documentation index generator and archive sweep (WS-E item 7). | `python -m evallab.docindex generate`, `python -m evallab.docindex check` |
 | `eventlog` | 50 | Serialize event-log operations across both threads and processes. | — |
 | `evidence` | 29 | Canonical evidence projection package. | — |
-| `evidence.atif` | 1101 | Land completed jobs in the catalog, then rebuild their derived Parquet. | — |
+| `evidence.atif` | 1185 | Record every projected table and its row count per trial partition. | — |
 | `evidence.capture_authority` | 773 | Deterministic capture-authority and concordance contract at the ATIF boundary. | — |
-| `evidence.event_mart` | 379 | Canonical event/action projections over Harbor trial evidence. | — |
-| `evidence.facts` | 1691 | Upsert deterministic document/fact records after the base job ingest. | — |
+| `evidence.event_mart` | 381 | Canonical event/action projections over Harbor trial evidence. | — |
+| `evidence.facts` | 1704 | Upsert deterministic document/fact records after the base job ingest. | — |
 | `evidence.llm_request` | 397 | Secure structural projection for Goose ``llm_request.*.jsonl`` records. | — |
-| `evidence.parquet_io` | 46 | Atomic Parquet writes shared by deterministic evidence projections. | — |
+| `evidence.parquet_io` | 69 | Atomic Parquet writes shared by deterministic evidence projections. | — |
 | `evidence_store` | 561 | Content-addressed durable bundles for raw Harbor evidence. | — |
 | `execution_contracts` | 746 | Immutable execution contracts, DTOs, and validation for runner and queue subsystems. | — |
 | `explorer` | 1455 | Read-only run and analysis explorer (M005). | — |
@@ -384,14 +392,14 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `harbor_state_journal` | 293 | Passive filesystem state journal for Harbor Docker trials. | — |
 | `harbor_zai_opencode` | 326 | Harbor adapter for the Z.ai Coding Plan via OpenCode. | — |
 | `host_task_staging` | 592 | Reusable host task staging for Darwin (Docker Desktop) execution lanes. | — |
-| `ingest_verify` | 517 | Ingest completeness verification and gap reconciliation (LOOP-INGEST). | — |
+| `ingest_verify` | 652 | Ingest completeness verification and gap reconciliation (LOOP-INGEST). | — |
 | `inspect_adapter` | 1066 | Inspect AI EvalLog ingestion and normalization into Eval Lab's source evidence tables. | — |
 | `interpretation` | 1 | Interpretation and trajectory analysis domain package. | — |
 | `interpretation.benchmark_events` | 1282 | Strict, versioned benchmark event, final state, and contract ingestion and verification. | — |
 | `interpretation.benchmark_projection` | 310 | Dimension-safe benchmark projection over read-only Data compliance reports. | — |
 | `interpretation.c2_intervention_gate` | 552 | Fail-closed C2 (matched intervention contrast) grade-promotion gate. | — |
 | `interpretation.evidence_pack` | 896 | EvidencePack v1: Hierarchical, bounded, citation-preserving input for interpreting models. | — |
-| `interpretation.feature_registry` | 3082 | Explicit feature registry and producer CI validation for trajectory baseline metrics. | — |
+| `interpretation.feature_registry` | 3127 | Explicit feature registry and producer CI validation for trajectory baseline metrics. | — |
 | `interpretation.producers` | 79 | Benchmark-specific feature producers and extractors. | — |
 | `interpretation.producers.action_memory` | 736 | Isolated feature producer for Context & Actionable Memory (action-memory-v1). | — |
 | `interpretation.producers.mcp_funcdag` | 381 | Isolated feature producer for Tool Selection, Composition, & Value Propagation (mcp-funcdag-v1). | — |
@@ -409,7 +417,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `interpretation.trajectory_hydration` | 723 | CAS/raw-ATIF-backed redacted hydration API for cited trajectory content. | — |
 | `interpretation.trajectory_ir` | 1651 | TrajectoryIR v1: Canonical intermediate representation for agent trajectories. | — |
 | `interpretation.trajectory_judgment` | 177 | Platform-owned MachineJudgment v1 contract. | — |
-| `interpretation.trajectory_quality` | 614 | Durable Trajectory Quality Ledger and Inspection Engine. | — |
+| `interpretation.trajectory_quality` | 636 | Durable Trajectory Quality Ledger and Inspection Engine. | — |
 | `interpretation.trajectory_readiness` | 277 | Trajectory Readiness and HOLD Audit Report Generator. | — |
 | `interpretation.trajectory_recipe_run` | 662 | Run the seven trajectory recipes and write deterministic findings artifacts. | — |
 | `interpretation.trajectory_recipes` | 1961 | Analyst recipe engine v1 (R1–R7). | — |
@@ -428,6 +436,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `multi_eval` | 1414 | Multi-Eval platform layer for fail-closed, digest-bound execution planning and parity reconciliation. | — |
 | `operational_restraint` | 2006 | Operational Restraint Synthetic Evaluation Package (S7 Conflict-Pair V0). | — |
 | `ops_continuous` | 2210 | Disabled-by-default continuous-loop operator validation (Ops/Runner adapters). | — |
+| `partial_intake` | 758 | Partial-job intake for finished_at=null evidence (M029). | — |
 | `phoenix_annotations` | 464 | Optional Phoenix span annotations for reviewed behavior episodes. | — |
 | `power` | 59 | Statistical power planning and sample size estimation for eval-lab comparisons. | — |
 | `preflight` | 646 | `evallab preflight` — is it safe and sensible to run right now? The surface an operator (or the nightly, at tick start) reads *before* anything runs. | `preflight`, `run-preflight`, `tick` |
@@ -444,7 +453,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `report` | 519 | Defines `family_report`, `render_family_report`, `write_family_report`, `load_completed_spec`, …. | — |
 | `researchers` | 1452 | Run schema-constrained Codex with read-only, networkless evidence access. | — |
 | `restraint_canary` | 781 | Cleanroom Single-Delta Operational Restraint Canary Benchmark Family (V1). | `python -m evallab.restraint_canary generate`, `python -m evallab.restraint_canary audit`, `python -m evallab.restraint_canary controls` |
-| `results` | 325 | Best-effort object load used only by job *discovery*. | `summarize` |
+| `results` | 327 | Best-effort object load used only by job *discovery*. | `summarize` |
 | `run_preflight` | 725 | Secret-safe preflight for Z.ai / TB4 overnight campaigns. | — |
 | `runner` | 1450 | Return only containers proven by labels to belong to Harbor for this task. | `dashboard`, `run`, `matrix` |
 | `schemas` | 2336 | Strict base for durable lab contracts. | — |
@@ -457,7 +466,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `status` | 538 | Read-only operator snapshot of completed Harbor evidence and lab stores. | `status` |
 | `status_generator` | 682 | STATUS.md Generator: deterministic projection of live catalog and queue state. | — |
 | `storage` | 1 | Storage subsystem package. | `inspect-ingest`, `behavior` |
-| `storage.attach` | 481 | E04: unified DuckDB attach surface (Z2 + Z3 + Z4). | — |
+| `storage.attach` | 504 | E04: unified DuckDB attach surface (Z2 + Z3 + Z4). | — |
 | `storage.data_backfill` | 672 | Single-command all-durable completed-trial backfill orchestrator. | — |
 | `storage.incremental_ingest` | 676 | Digest-indexed incremental ingestion of promoted ATIF bundles. | — |
 | `storage.inspect_storage` | 250 | Storage writing, manifest generation, and CAS archiving for Inspect AI source evidence. | — |
@@ -517,6 +526,8 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `canary` | `cli` | Manage version-pinned nightly canaries |
 | `import-terminal-bench` | `cli` | Import one task through an immutable Harbor dataset download |
 | `calibrate` | `calibrate` | Measure a judge against one sealed calibration family |
+| `dispatch` | `dispatch` | Compile one (task, agent, model) triple into a queued experiment spec |
+| `dispatch-set` | `dispatch` | Compile a JSON/YAML task set into queued experiment specs |
 | `matrix` | `runner` | Run a checked-in JSON experiment matrix |
 | `summarize` | `results` | Print trial results directly from Harbor job directories |
 | `ingest` | `queue` | Upsert Harbor job metadata into PostgreSQL |
@@ -625,14 +636,14 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `proposed` | `queue/proposed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `pending` | `queue/pending/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `approved` | `queue/approved/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `waiting` | `queue/waiting/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `rejected` | `queue/rejected/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `running` | `queue/running/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `done` | `queue/done/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
-| `failed` | `queue/failed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `proposed` | `queue/proposed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `pending` | `queue/pending/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `approved` | `queue/approved/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `waiting` | `queue/waiting/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `rejected` | `queue/rejected/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `running` | `queue/running/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `done` | `queue/done/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
+| `failed` | `queue/failed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `coverage_report`, `evidence.capture_authority`, `evidence.facts`, `ingest_verify`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm`, `tidy` |
 | `STOP` | `queue/STOP` | `queue` |
 | `events.jsonl` | `queue/events.jsonl` | `evidence.capture_authority`, `interpretation.benchmark_events`, `ops_continuous`, `queue`, `researchers`, `storm` |
 | `calibration-specs` | `queue/calibration-specs` | `calibrate` |
@@ -647,12 +658,12 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `report`, `semantic_facts`, `status`, `status_generator`, `storage.data_backfill`, `storage.incremental_ingest`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `tidy`, `traj` |
-| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `report`, `semantic_facts`, `status`, `status_generator`, `storage.data_backfill`, `storage.incremental_ingest`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `tidy`, `traj` |
+| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `partial_intake`, `report`, `semantic_facts`, `status`, `status_generator`, `storage.data_backfill`, `storage.incremental_ingest`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `tidy`, `traj` |
+| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `partial_intake`, `report`, `semantic_facts`, `status`, `status_generator`, `storage.data_backfill`, `storage.incremental_ingest`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `tidy`, `traj` |
 | `acceptance_decisions.parquet` | `acceptance_decisions/acceptance_decisions.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
-| `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif` |
+| `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif`, `partial_intake` |
 | `action_transition_edges.parquet` | `derived/parquet/**/action_transition_edges.parquet` | `interpretation.trajectory_sequence` |
-| `agent_actions.parquet` | `derived/parquet/**/agent_actions.parquet` | `evidence.atif` |
+| `agent_actions.parquet` | `derived/parquet/**/agent_actions.parquet` | `evidence.atif`, `partial_intake` |
 | `analyses.parquet` | `derived/parquet/**/analyses.parquet` | `analyst`, `lance` |
 | `analyst_trajectories.parquet` | `derived/parquet/**/analyst_trajectories.parquet` | `analyst` |
 | `artifact_facts.parquet` | `derived/parquet/**/artifact_facts.parquet` | `evidence.atif`, `evidence.facts` |
@@ -664,26 +675,26 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `interpretation_artifacts.parquet` | `derived/parquet/**/interpretation_artifacts.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime`, `storage.data_backfill` |
 | `jobs.parquet` | `derived/parquet/**/jobs.parquet` | `evidence.atif`, `interpretation.trajectory_data_quality` |
 | `ledger.parquet` | `qualification/ledger.parquet` | `authoring` |
-| `llm_calls.parquet` | `derived/parquet/**/llm_calls.parquet` | `evidence.atif` |
+| `llm_calls.parquet` | `derived/parquet/**/llm_calls.parquet` | `evidence.atif`, `partial_intake` |
 | `machine_judgments.parquet` | `machine_judgments/machine_judgments.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
 | `motif_summaries.parquet` | `derived/parquet/**/motif_summaries.parquet` | `interpretation.trajectory_sequence` |
 | `observable_motifs.parquet` | `derived/parquet/**/observable_motifs.parquet` | `interpretation.trajectory_sequence` |
-| `observations.parquet` | `derived/parquet/**/observations.parquet` | `evidence.atif`, `report` |
+| `observations.parquet` | `derived/parquet/**/observations.parquet` | `evidence.atif`, `partial_intake`, `report` |
 | `promotion_lineage.parquet` | `derived/parquet/**/promotion_lineage.parquet` | `storage.incremental_ingest` |
 | `promotion_omissions.parquet` | `derived/parquet/**/promotion_omissions.parquet` | `storage.incremental_ingest` |
-| `reward_facts.parquet` | `derived/parquet/**/reward_facts.parquet` | `evidence.atif`, `evidence.facts` |
+| `reward_facts.parquet` | `derived/parquet/**/reward_facts.parquet` | `evidence.atif`, `evidence.facts`, `partial_intake` |
 | `semantic_action_coverage.parquet` | `job_id=*/trial_id=*/semantic_action_coverage.parquet` | `interpretation.trajectory_semantics` |
 | `semantic_action_facts.parquet` | `derived/parquet/**/semantic_action_facts.parquet` | `interpretation.trajectory_semantics` |
-| `state_changes.parquet` | `derived/parquet/**/state_changes.parquet` | `evidence.atif`, `evidence.facts` |
-| `state_events.parquet` | `derived/parquet/**/state_events.parquet` | `evidence.atif`, `evidence.facts` |
-| `steps.parquet` | `derived/parquet/**/steps.parquet` | `evidence.atif`, `interpretation.trajectory_context` |
-| `tool_calls.parquet` | `derived/parquet/**/tool_calls.parquet` | `evidence.atif`, `interpretation.trajectory_context`, `report` |
-| `tool_usage.parquet` | `derived/parquet/**/tool_usage.parquet` | `evidence.atif`, `evidence.facts` |
+| `state_changes.parquet` | `derived/parquet/**/state_changes.parquet` | `evidence.atif`, `evidence.facts`, `partial_intake` |
+| `state_events.parquet` | `derived/parquet/**/state_events.parquet` | `evidence.atif`, `evidence.facts`, `partial_intake` |
+| `steps.parquet` | `derived/parquet/**/steps.parquet` | `evidence.atif`, `interpretation.trajectory_context`, `partial_intake` |
+| `tool_calls.parquet` | `derived/parquet/**/tool_calls.parquet` | `evidence.atif`, `interpretation.trajectory_context`, `partial_intake`, `report` |
+| `tool_usage.parquet` | `derived/parquet/**/tool_usage.parquet` | `evidence.atif`, `evidence.facts`, `partial_intake` |
 | `traj_features.parquet` | `derived/parquet/**/traj_features.parquet` | `traj` |
-| `trajectories.parquet` | `derived/parquet/**/trajectories.parquet` | `evidence.atif`, `evidence.facts`, `ingest_verify`, `storage.incremental_ingest` |
-| `trajectory_events.parquet` | `derived/parquet/**/trajectory_events.parquet` | `evidence.atif` |
-| `trajectory_phases.parquet` | `derived/parquet/**/trajectory_phases.parquet` | `evidence.atif` |
-| `trial_facts.parquet` | `derived/parquet/**/trial_facts.parquet` | `evidence.atif`, `evidence.facts`, `interpretation.trajectory_data_quality`, `lessons`, `report` |
+| `trajectories.parquet` | `derived/parquet/**/trajectories.parquet` | `evidence.atif`, `evidence.facts`, `ingest_verify`, `partial_intake`, `storage.incremental_ingest` |
+| `trajectory_events.parquet` | `derived/parquet/**/trajectory_events.parquet` | `evidence.atif`, `partial_intake` |
+| `trajectory_phases.parquet` | `derived/parquet/**/trajectory_phases.parquet` | `evidence.atif`, `partial_intake` |
+| `trial_facts.parquet` | `derived/parquet/**/trial_facts.parquet` | `evidence.atif`, `evidence.facts`, `interpretation.trajectory_data_quality`, `lessons`, `partial_intake`, `report` |
 
 ### DuckDB views (`sql/`)
 

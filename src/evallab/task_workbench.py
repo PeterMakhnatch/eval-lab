@@ -22,8 +22,10 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
+import tarfile
 import tomllib
 import unicodedata
 import urllib.parse
@@ -5137,37 +5139,358 @@ def _audit_json_object(path: Path) -> dict[str, Any]:
     return value
 
 
+def _archive_entry_matches(entry: Mapping[str, Any], observed: Mapping[str, Any]) -> bool:
+    """Compare one archive manifest entry against the streamed tar observation."""
+    sha256 = entry.get("sha256")
+    size = entry.get("size")
+    uid = entry.get("uid")
+    gid = entry.get("gid")
+    mode = entry.get("mode")
+    return (
+        isinstance(sha256, str)
+        and _is_sha256_hex(sha256)
+        and sha256.lower().removeprefix("sha256:") == observed["sha256"]
+        and isinstance(size, int)
+        and not isinstance(size, bool)
+        and size == observed["size"]
+        and isinstance(uid, int)
+        and not isinstance(uid, bool)
+        and uid == observed["uid"]
+        and isinstance(gid, int)
+        and not isinstance(gid, bool)
+        and gid == observed["gid"]
+        and isinstance(mode, str)
+        and mode == observed["mode"]
+    )
+
+
+def _audit_archive_identity(arm_path: Path, kind: str) -> dict[str, Any]:
+    """Stream-check one retained task_file export archive without extracting it.
+
+    The runner exports ``{kind}-task-file.tar`` from a live container with
+    ``docker cp <cid>:/task_file/. -`` and retains the command digest/exit in
+    ``{kind}-task-file.receipt.json`` plus per-file
+    ``{sha256,size,uid,gid,mode}`` entries in ``{kind}-task-file.manifest.json``.
+    The action archive is exported once the action phase has finished; the
+    verifier archive is exported right after the task_file copy-in and before
+    the verifier starts, so neither archive ever describes pre-action state.
+
+    Members are streamed read-only: regular files are hashed in chunks, and
+    symlinks, hardlinks, device/fifo members, path escapes, duplicate members,
+    and manifest drift become explicit mismatched issues instead of being
+    followed or extracted. Normal directory members are structural and need no
+    manifest entry. Names normalize by dropping exactly one leading ``./``,
+    matching the runner's ``removeprefix('./')``. Archives that a legacy run
+    never retained stay unbound.
+    """
+    result: dict[str, Any] = {"status": "unbound", "files": {}, "issues": []}
+    archive_path = arm_path / f"{kind}-task-file.tar"
+    receipt_path = arm_path / f"{kind}-task-file.receipt.json"
+    manifest_path = arm_path / f"{kind}-task-file.manifest.json"
+    present = [
+        path
+        for path in (archive_path, receipt_path, manifest_path)
+        if path.exists() or path.is_symlink()
+    ]
+    if not present:
+        return result
+    if any(path.is_symlink() for path in present):
+        return {**result, "status": "mismatched", "issues": [f"{kind}_archive_symlinked"]}
+    if not archive_path.is_file():
+        return {**result, "status": "mismatched", "issues": [f"{kind}_archive_missing"]}
+    issues: list[str] = []
+    if not receipt_path.is_file():
+        issues.append(f"{kind}_archive_receipt_missing")
+    else:
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            receipt = None
+        if not isinstance(receipt, dict):
+            issues.append(f"{kind}_archive_receipt_invalid")
+        else:
+            if receipt.get("exit") != 0:
+                issues.append(f"{kind}_archive_receipt_exit_nonzero")
+            recorded = receipt.get("archive_sha256")
+            if not _is_sha256_hex(recorded):
+                issues.append(f"{kind}_archive_receipt_digest_unbound")
+            elif _file_sha256_hex(archive_path) != recorded.lower().removeprefix("sha256:"):
+                issues.append(f"{kind}_archive_digest_mismatch")
+    manifest: dict[str, Any] | None = None
+    if not manifest_path.is_file():
+        issues.append(f"{kind}_archive_manifest_missing")
+    else:
+        try:
+            parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            parsed = None
+        if isinstance(parsed, dict):
+            manifest = parsed
+        else:
+            issues.append(f"{kind}_archive_manifest_invalid")
+    files: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
+    try:
+        with tarfile.open(archive_path, "r:*") as archive:
+            for member in archive:
+                name = member.name.removeprefix("./")
+                parts = PurePosixPath(name).parts
+                if member.name.startswith("/") or name.startswith("/") or ".." in parts:
+                    issues.append(f"{kind}_archive_member_escape:{name}")
+                    continue
+                if name in seen:
+                    issues.append(f"{kind}_archive_member_duplicate:{name}")
+                    continue
+                seen.add(name)
+                if member.isdir():
+                    continue
+                if not member.isfile():
+                    issues.append(f"{kind}_archive_member_unsupported:{name}")
+                    continue
+                entry = manifest.get(name) if manifest is not None else None
+                if not isinstance(entry, Mapping):
+                    issues.append(f"{kind}_archive_file_unmanifested:{name}")
+                    continue
+                stream = archive.extractfile(member)
+                if stream is None:
+                    issues.append(f"{kind}_archive_member_unreadable:{name}")
+                    continue
+                digest = hashlib.sha256()
+                size = 0
+                while chunk := stream.read(65536):
+                    digest.update(chunk)
+                    size += len(chunk)
+                observed = {
+                    "sha256": digest.hexdigest(),
+                    "size": size,
+                    "uid": member.uid,
+                    "gid": member.gid,
+                    "mode": oct(member.mode),
+                }
+                files[name] = observed
+                if not _archive_entry_matches(entry, observed):
+                    issues.append(f"{kind}_archive_file_mismatch:{name}")
+    except (tarfile.TarError, OSError, EOFError):
+        issues.append(f"{kind}_archive_unreadable")
+    if manifest is not None:
+        issues.extend(
+            f"{kind}_archive_manifest_uncovered:{name}"
+            for name in sorted(manifest)
+            if name not in seen
+        )
+    status = "mismatched" if issues else "verified"
+    return {
+        "status": status,
+        "files": files if status == "verified" else {},
+        "issues": sorted(set(issues)),
+    }
+
+
+def _audit_ownership_identity(
+    action: Mapping[str, Any], runtime_path: Path
+) -> dict[str, Any]:
+    """Bind the checked action archive to the retained host copy by bytes only.
+
+    Container uid/gid survive only inside the archives; ``docker cp`` to the
+    host rewrites ownership, so host uid/gid are deliberately never runtime
+    metadata. Agreement is exact file bytes and size, and the returned file map
+    carries the archive's own ``{sha256,size,uid,gid,mode}`` observations.
+    """
+    if action["status"] == "unbound":
+        return {"status": "unbound", "files": {}, "issues": []}
+    issues = list(action["issues"])
+    # The retention comparison is meaningful only against a fully checked map;
+    # a withheld (mismatched) one must not fabricate per-file verdicts.
+    if action["status"] != "verified":
+        return {"status": "mismatched", "files": {}, "issues": sorted(set(issues))}
+    if not runtime_path.is_dir():
+        issues.append("ownership_retention_absent")
+    else:
+        disk_files = {
+            path.relative_to(runtime_path).as_posix()
+            for path in runtime_path.rglob("*")
+            if path.is_file() or path.is_symlink()
+        }
+        for rel, entry in sorted(action["files"].items()):
+            target = runtime_path / rel
+            if target.is_symlink() or not target.is_file():
+                issues.append(f"ownership_retained_missing:{rel}")
+            elif (
+                _file_sha256_hex(target) != entry["sha256"]
+                or target.stat().st_size != entry["size"]
+            ):
+                issues.append(f"ownership_retained_mismatch:{rel}")
+        issues.extend(
+            f"ownership_retained_extra:{rel}"
+            for rel in sorted(disk_files - action["files"].keys())
+        )
+    status = "mismatched" if issues else "verified"
+    return {
+        "status": status,
+        "files": dict(action["files"]) if status == "verified" else {},
+        "issues": sorted(set(issues)),
+    }
+
+
+def _audit_transport_identity(
+    action: Mapping[str, Any], verifier: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Compare copy-in fidelity between the two checked archives.
+
+    The runner streams the action archive into the verifier container and
+    immediately re-exports it, so equality of file bytes, ownership (uid/gid),
+    and modes across the two checked maps is the retained evidence that the
+    transfer changed nothing. It covers the post-action bytes only and never
+    pre-action state.
+    """
+    if action["status"] == "unbound" and verifier["status"] == "unbound":
+        return {"status": "unbound", "issues": []}
+    issues: list[str] = []
+    for side, identity in (("action", action), ("verifier", verifier)):
+        if identity["status"] != "verified":
+            issues.extend(identity["issues"])
+            issues.append(f"transport_{side}_archive_{identity['status']}")
+    # Per-file drift is named only between two fully checked maps; a withheld
+    # (mismatched) side must not fabricate per-file change verdicts.
+    if action["status"] == "verified" and verifier["status"] == "verified":
+        issues.extend(
+            f"transport_changed:{rel}"
+            for rel in sorted(action["files"].keys() | verifier["files"].keys())
+            if action["files"].get(rel) != verifier["files"].get(rel)
+        )
+    return {
+        "status": "mismatched" if issues else "verified",
+        "issues": sorted(set(issues)),
+    }
+
+
 def _audit_runtime_identity(arm: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Check complete retained runtime bytes, never the shared package snapshot."""
-    result: dict[str, Any] = {"status": "unbound", "inputs": {}, "outputs": {}, "issues": []}
+    """Check complete retained runtime bytes, never the shared package snapshot.
+
+    ``status``/``inputs``/``outputs``/``issues`` cover the retained
+    ``task_file`` copy against ``task-file-manifest.json``, whose values are
+    either the legacy plain sha256 mapping or the runner's rich
+    ``{sha256,size,copied_mode}`` entries; host uid/gid are never runtime
+    metadata, and ``copied_mode`` is checked against the retained host file
+    only where the manifest records it. Inputs are the ``input/`` and
+    ``inputs/`` prefixes plus the exact ``runtime_input_paths`` declared for
+    the arm; every other manifest entry is an output.
+
+    ``ownership`` reports container file identity
+    ``{sha256,size,uid,gid,mode}`` from the checked post-action archive bound
+    to the retained copy by bytes, and ``transport`` reports whether the
+    checked verifier-side re-export (taken after copy-in, before the verifier
+    started) equals it. Archives a legacy run never retained leave both
+    unbound.
+    """
+    result: dict[str, Any] = {
+        "status": "unbound",
+        "inputs": {},
+        "outputs": {},
+        "issues": [],
+        "ownership": {"status": "unbound", "files": {}, "issues": []},
+        "transport": {"status": "unbound", "issues": []},
+    }
     if not arm or not arm.get("evidence_path"):
         return result
     arm_path = Path(arm["evidence_path"])
+    action_identity = _audit_archive_identity(arm_path, "action")
+    verifier_identity = _audit_archive_identity(arm_path, "verifier")
+    transport = _audit_transport_identity(action_identity, verifier_identity)
     manifest_path = arm_path / "task-file-manifest.json"
     runtime_path = arm_path / "task_file"
     if arm_path.is_symlink() or runtime_path.is_symlink() or manifest_path.is_symlink():
-        return {**result, "status": "mismatched", "issues": ["symlinked_runtime_retention"]}
+        return {
+            **result,
+            "status": "mismatched",
+            "issues": ["symlinked_runtime_retention"],
+            "ownership": {
+                "status": "mismatched",
+                "files": {},
+                "issues": ["symlinked_runtime_retention"],
+            },
+            "transport": transport,
+        }
     if not manifest_path.is_file() or not runtime_path.is_dir():
-        return result
-    manifest = _audit_json_object(manifest_path)
+        return {
+            **result,
+            "ownership": _audit_ownership_identity(action_identity, runtime_path),
+            "transport": transport,
+        }
+    try:
+        manifest = _audit_json_object(manifest_path)
+    except (WorkbenchError, OSError, ValueError):
+        return {
+            **result,
+            "status": "mismatched",
+            "issues": ["runtime_manifest_unreadable"],
+            "ownership": _audit_ownership_identity(action_identity, runtime_path),
+            "transport": transport,
+            "manifest_path": str(manifest_path),
+        }
     issues: list[str] = []
     inputs: dict[str, str] = {}
     outputs: dict[str, str] = {}
+    runtime_inputs = {
+        value
+        for value in (arm.get("runtime_input_paths") or ())
+        if isinstance(value, str)
+    }
     for rel, expected in sorted(manifest.items()):
-        relative = PurePosixPath(rel)
+        relative = PurePosixPath(rel) if isinstance(rel, str) else None
+        if relative is None:
+            issues.append(str(rel))
+            continue
         target = runtime_path / rel
         if (
             relative.is_absolute()
             or ".." in relative.parts
             or str(relative) != rel
             or not target.resolve().is_relative_to(runtime_path.resolve())
-            or not _is_sha256_hex(expected)
         ):
             issues.append(rel)
             continue
-        digest = expected.lower().removeprefix("sha256:")
-        (inputs if rel.startswith("input/") else outputs)[rel] = digest
-        if target.is_symlink() or not target.is_file() or _file_sha256_hex(target) != digest:
+        if isinstance(expected, str):
+            if not _is_sha256_hex(expected):
+                issues.append(rel)
+                continue
+            digest = expected.lower().removeprefix("sha256:")
+            expected_size = None
+            expected_mode = None
+        elif isinstance(expected, Mapping):
+            recorded_sha = expected.get("sha256")
+            expected_size = expected.get("size")
+            expected_mode = expected.get("copied_mode")
+            if (
+                not _is_sha256_hex(recorded_sha)
+                or isinstance(expected_size, bool)
+                or not isinstance(expected_size, int)
+                or (expected_mode is not None and not isinstance(expected_mode, str))
+            ):
+                issues.append(rel)
+                continue
+            digest = recorded_sha.lower().removeprefix("sha256:")
+        else:
+            issues.append(rel)
+            continue
+        is_input = (
+            rel.startswith("input/")
+            or rel.startswith("inputs/")
+            or rel in runtime_inputs
+        )
+        (inputs if is_input else outputs)[rel] = digest
+        retained_stat = (
+            target.stat() if not target.is_symlink() and target.is_file() else None
+        )
+        if (
+            retained_stat is None
+            or _file_sha256_hex(target) != digest
+            or (expected_size is not None and retained_stat.st_size != expected_size)
+            or (
+                expected_mode is not None
+                and oct(stat.S_IMODE(retained_stat.st_mode)) != expected_mode
+            )
+        ):
             issues.append(rel)
     # Omitted files are missing coverage, not permission to compare a partial manifest.
     disk_files = {
@@ -5181,6 +5504,8 @@ def _audit_runtime_identity(arm: Mapping[str, Any] | None) -> dict[str, Any]:
         "inputs": inputs,
         "outputs": outputs,
         "issues": sorted(set(issues)),
+        "ownership": _audit_ownership_identity(action_identity, runtime_path),
+        "transport": transport,
         "manifest_path": str(manifest_path),
     }
 

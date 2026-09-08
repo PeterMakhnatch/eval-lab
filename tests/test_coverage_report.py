@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 from evallab.coverage_report import build_coverage_report
 from evallab.evidence.atif import project_jobs
@@ -183,3 +184,132 @@ def test_coverage_report_as_dict_json_roundtrip(tmp_path: Path) -> None:
     serialized = json.dumps(data)
     deserialized = json.loads(serialized)
     assert deserialized == data
+
+
+def _scoped_fixture(tmp_path: Path) -> tuple[str, Any]:
+    """Project job-pass under tmp root; return (job_id, fake loader)."""
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir(parents=True)
+    shutil.copytree(FIXTURES / "job-pass", runs_dir / "job-a")
+    job = load_job(runs_dir / "job-a")
+    project_jobs([job], tmp_path / "derived")
+    job_id = str(job.id)
+    jobs = {
+        job_id: {"id": job_id, "name": "job-a", "path": "runs/job-a"},
+        "00000000-0000-0000-0000-000000000000": {
+            "id": "00000000-0000-0000-0000-000000000000",
+            "name": "job-b",
+            "path": "runs/job-b",
+        },
+    }
+
+    def fake_loader(db_url: str | None) -> tuple[dict, dict]:
+        return dict(jobs), {}
+
+    return job_id, fake_loader
+
+
+def test_scoped_loader_keeps_exactly_selected_ids() -> None:
+    """A scoped loader exposes exactly the selected jobs and their trials."""
+    from evallab.coverage_report import scoped_catalog_loader
+
+    def fake_loader(db_url: str | None) -> tuple[dict, dict]:
+        return (
+            {
+                "id-1": {"id": "id-1", "name": "a", "path": "runs/a"},
+                "id-2": {"id": "id-2", "name": "b", "path": "runs/b"},
+            },
+            {
+                "t-1": {"id": "t-1", "job_id": "id-1", "name": "t1"},
+                "t-2": {"id": "t-2", "job_id": "id-2", "name": "t2"},
+            },
+        )
+
+    jobs, trials = scoped_catalog_loader(fake_loader, {"id-1"})("unused-url")
+    assert set(jobs) == {"id-1"}
+    assert set(trials) == {"t-1"}
+
+
+def test_scoped_loader_preserves_agent_fields() -> None:
+    """Enrichment must not clobber agent/usage fields a base loader provides."""
+    from evallab.coverage_report import scoped_catalog_loader
+
+    def fake_loader(db_url: str | None) -> tuple[dict, dict]:
+        return (
+            {"id-1": {"id": "id-1", "name": "a", "path": "runs/a"}},
+            {
+                "t-1": {
+                    "id": "t-1",
+                    "job_id": "id-1",
+                    "name": "t1",
+                    "agent_name": "codex",
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                }
+            },
+        )
+
+    # Invalid DB: enrichment query fails silently, base fields must survive.
+    _, trials = scoped_catalog_loader(fake_loader, {"id-1"})(
+        "postgresql://invalid:5432/none"
+    )
+    assert trials["t-1"]["agent_name"] == "codex"
+    assert trials["t-1"]["input_tokens"] == 10
+
+
+def test_scope_bound_product_is_deterministic(tmp_path: Path) -> None:
+    """Same inputs rebuild byte-identical product whose name matches its sha."""
+    import hashlib
+
+    from evallab.coverage_report import write_scope_bound_product
+
+    job_id, fake_loader = _scoped_fixture(tmp_path)
+    links = [{"kind": "post-training-qualification", "path": "/x/manifest.json"}]
+    kwargs: dict[str, Any] = {
+        "root": tmp_path,
+        "derived_root": tmp_path / "derived",
+        "database_url": "postgresql://invalid:5432/none",
+        "job_ids": {job_id},
+        "external_links": links,
+        "wrong_root": tmp_path / "wrong",
+        "catalog_loader": fake_loader,
+    }
+    first = write_scope_bound_product(out_dir=tmp_path / "out", **kwargs)
+    second = write_scope_bound_product(out_dir=tmp_path / "out2", **kwargs)
+    assert first.read_bytes() == second.read_bytes()
+    payload = json.loads(first.read_text())
+    digest = hashlib.sha256(
+        (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+    ).hexdigest()
+    assert first.name == f"coverage-scope-{digest[:12]}.json"
+    assert payload["external_links"] == links
+    assert payload["job_ids"] == [job_id]
+
+
+def test_scope_bound_product_wrong_root_excludes(tmp_path: Path) -> None:
+    """Same job set under a wrong root lands excluded with reasons preserved."""
+    from evallab.coverage_report import write_scope_bound_product
+
+    job_id, fake_loader = _scoped_fixture(tmp_path)
+    path = write_scope_bound_product(
+        root=tmp_path,
+        derived_root=tmp_path / "derived",
+        database_url="postgresql://invalid:5432/none",
+        job_ids={
+            job_id,
+            "00000000-0000-0000-0000-000000000000",
+        },
+        out_dir=tmp_path / "out",
+        wrong_root=tmp_path / "wrong",
+        catalog_loader=fake_loader,
+    )
+    payload = json.loads(path.read_text())
+    proof = payload["binding_proof"]
+    assert proof["excluded"] == 2
+    assert proof["reasons"].get("evidence_absent", 0) >= 1
+    # The bound product itself still accounts for the missing job explicitly:
+    # selected IDs listed, job-b excepted with its reason and repair entry.
+    assert "00000000-0000-0000-0000-000000000000" in payload["job_ids"]
+    assert "job-b" in payload["coverage"]["excepted"]["jobs"]
+    repairs = {e["job_name"]: e for e in payload["coverage"]["repair_path"]}
+    assert repairs["job-b"]["reason"] == "evidence_absent"

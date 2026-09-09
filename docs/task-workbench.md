@@ -403,6 +403,43 @@ correctness, and training utility require separate adjudication. The existing
 task000008 repair bundle demonstrates two observed 1→0 corruption contrasts and
 four preserved rewards; it does not establish general verifier improvement.
 
+### Compare native Quality review and repair evidence
+
+```bash
+python -m evallab.task_workbench audit-compare \
+  --review-result path/to/review-result.json \
+  --repair-contract path/to/repair-contract.json --format text
+```
+
+This mode also works through
+`compare_quality_audits(review_result_path=..., repair_contract_path=...)`.
+It cannot be mixed with legacy audit directories, `--declaration`, or
+`--source-root`. The repair contract must bind the supplied review through its
+`source_findings` path; relative evidence paths resolve from their containing
+review/contract. JSON uses `kind=quality_native_review_comparison`.
+
+Declared arm pairings point to original native trial records, not synthesized
+legacy audit directories. Only original `result.json` supplies observed rewards;
+retained verifier diagnostics supply resolution and partial-credit context.
+Missing, malformed, incomplete or failed execution cannot borrow a cached review
+reward or produce a completed-pair delta. Declared expectations, semantic labels
+and runtime/image identities remain explicitly separate from observed outcomes.
+
+The view compares retained named pre/post-action file maps and reports image
+differences without treating them as equivalent conditions. Changed or missing
+state, incomplete execution and changed/unbound images remain unqualified.
+Named-state equality is not whole-filesystem, causal or semantic certification.
+Zero deltas stay visible; unresolved fractional credit is not flattened to failure
+or completion. The exercised PR75 contrast preserves `1→0.8` with `resolved=false`,
+`0.466667→1`, `1→0`, and a valid declared `1→1` no-effect arm.
+
+The review's evidence root may supply `instrumentation-failures.json`. Its native
+trial errors form a separate population, with original exceptions and nullable
+rewards; missing records do not acquire inferred exception classes. The PR75
+packet has eight control trials and two such failures. Producer-reported ingestion
+totals remain reported metadata, not a live catalogue check or an expanded
+control denominator. Both formats retain source paths and qualifications.
+
 ### Inspect experiments and capture gaps
 
 ```bash
@@ -436,13 +473,25 @@ usage stay unknown, never zero-filled. Text and JSON retain source/result/
 trajectory links; suggested commands are displayed, never executed.
 
 `--coverage-report` consumes an existing Data Engineer coverage JSON product.
-Its original data, path and SHA-256 are retained. Current reports have no
-attested checkout/experiment scope, so aggregate counts, reasons, agent
-availability and repair advice are **supplied, unbound-scope context**, not a
-per-job completeness certificate. Truncation applies to sampled job names,
-not their aggregate totals. Omission from a sample proves neither presence nor
-absence. Missing reports stay explicitly unavailable. No stores are rebuilt,
-ingestion performed, approvals changed or experiments submitted.
+Its original data, path and SHA-256 are retained. Legacy flat reports remain
+**supplied, unbound-scope context**: sample names cannot certify individual jobs.
+Scope-bound envelopes retain their nested coverage, closed-world native UUIDs,
+root declarations, binding proof and external links. Binding requires the exact
+source root, the configured derived root from the existing Lab path resolver,
+and selected native UUID membership—not run-name samples or spec ULIDs.
+An exact selected UUID set is `bound`; a larger containing set or unselected
+inventory is `cohort_context`, not per-job completeness. Wrong roots, absent
+UUIDs and unsupported/malformed scope identities remain explicitly unbound.
+
+External-link statuses are displayed beside counted coverage, without choosing
+one as a live database truth. For example, the retained R2 product counts one
+catalogued/projected job while its external-link status still says
+`evidence-intact-not-cataloged-not-projected`; neither is rewritten or hidden.
+Count/list/truncation disagreements and source annotations remain in the original
+data. Truncation applies to sampled names, not aggregate totals, and omission
+proves neither presence nor absence. Missing reports stay unavailable. No store
+is rebuilt, advice executed, ingestion performed or experiment submitted.
+
 
 ### Inspect one candidate
 

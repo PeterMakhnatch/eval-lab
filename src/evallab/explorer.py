@@ -1751,46 +1751,20 @@ def _selected_job_row(job_dir: Path) -> tuple[dict[str, Any], list[str]]:
     return row, issues
 
 
-def _detect_annotation_tensions(
-    links: list[dict[str, Any]],
-    summary_sections: dict[str, Any],
-) -> list[str]:
-    """Flag producer annotation/count tension without rewriting either or making DB claims."""
-    tensions: list[str] = []
-    cat_section = summary_sections.get("catalogued") or {}
-    proj_section = summary_sections.get("projected") or {}
-    cat_count = cat_section.get("count")
-    proj_count = proj_section.get("count")
+def _coverage_uuid_set(values: Any) -> set[str] | None:
+    from uuid import UUID
 
-    for link in links:
-        link_status = str(link.get("status") or "")
-        job_label = link.get("job_name") or link.get("job_id") or "job"
-
-        is_not_cataloged = "not-cataloged" in link_status or "not_cataloged" in link_status
-        is_not_projected = "not-projected" in link_status or "not_projected" in link_status
-
-        has_cat = cat_count is not None and cat_count > 0
-        has_proj = proj_count is not None and proj_count > 0
-
-        if is_not_cataloged and is_not_projected and (has_cat or has_proj):
-            tensions.append(
-                f"external link '{job_label}' reports status '{link_status}' alongside counted "
-                f"catalogued={cat_count or 0}, projected={proj_count or 0} "
-                "(producer annotation preserved without rewriting counts or making live DB claims)"
-            )
-        elif is_not_cataloged and has_cat:
-            tensions.append(
-                f"external link '{job_label}' status '{link_status}' indicates not cataloged, "
-                f"while coverage report counts catalogued={cat_count} "
-                "(producer annotation preserved without rewriting counts or making live DB claims)"
-            )
-        elif is_not_projected and has_proj:
-            tensions.append(
-                f"external link '{job_label}' status '{link_status}' indicates not projected, "
-                f"while coverage report counts projected={proj_count} "
-                "(producer annotation preserved without rewriting counts or making live DB claims)"
-            )
-    return tensions
+    if (
+        not isinstance(values, list)
+        or not values
+        or not all(isinstance(value, str) for value in values)
+    ):
+        return None
+    try:
+        identifiers = {str(UUID(value)) for value in values}
+    except ValueError:
+        return None
+    return identifiers if len(identifiers) == len(values) else None
 
 
 def _capture_report_view(
@@ -1855,12 +1829,10 @@ def _capture_report_view(
             "summary": None,
         }, notices
 
-    is_scoped = (
-        "coverage" in payload
-        and isinstance(payload.get("coverage"), dict)
-        and "job_ids" in payload
-    )
-    coverage_dict = payload["coverage"] if is_scoped else payload
+    is_scoped = "coverage" in payload
+    coverage_dict = payload.get("coverage") if is_scoped else payload
+    coverage_valid = isinstance(coverage_dict, dict)
+    coverage_dict = coverage_dict if coverage_valid else {}
 
     summary_sections: dict[str, Any] = {}
     truncated_any = False
@@ -1910,49 +1882,70 @@ def _capture_report_view(
     source_root_str = payload.get("source_root")
     derived_root_str = payload.get("derived_root")
     raw_job_ids = payload.get("job_ids")
-    report_job_ids: list[str] = [str(jid) for jid in raw_job_ids] if isinstance(raw_job_ids, list) else []
-    report_job_ids_set = set(report_job_ids)
+    report_job_ids = raw_job_ids if isinstance(raw_job_ids, list) else []
+    parsed_ids = _coverage_uuid_set(raw_job_ids)
+    report_job_ids_set = parsed_ids or set()
+    valid_scope = (
+        coverage_valid
+        and type(payload.get("schema_version")) is int
+        and payload["schema_version"] == 1
+        and payload.get("producer") == "evallab.coverage_report.write_scope_bound_product"
+        and parsed_ids is not None
+    )
 
     binding_proof = payload.get("binding_proof")
     raw_external_links = payload.get("external_links")
-    external_links: list[dict[str, Any]] = [
-        link for link in raw_external_links if isinstance(link, dict)
-    ] if isinstance(raw_external_links, list) else []
+    external_links: list[dict[str, Any]] = (
+        [link for link in raw_external_links if isinstance(link, dict)]
+        if isinstance(raw_external_links, list)
+        else []
+    )
 
-    # Flag annotation / count tensions without rewriting either or making DB claims
-    tensions = _detect_annotation_tensions(external_links, summary_sections)
-    notices.extend(tensions)
+    if external_links:
+        notices.append(
+            "External-link statuses are retained producer annotations beside counted coverage; "
+            "possible snapshot conflicts are not reconciled or treated as live database facts."
+        )
 
     # Qualify source and derived roots using existing Lab path conventions
     root_qualified = False
-    if root is not None and source_root_str and derived_root_str:
+    expected_derived: Path | None = None
+    if root is not None and isinstance(source_root_str, str) and isinstance(derived_root_str, str):
+        from evallab.storage.paths import derived_root_from_environment
+
         resolved_root = Path(root).resolve()
-        resolved_source = Path(source_root_str).resolve()
-        resolved_derived = Path(derived_root_str).resolve()
-        source_matches = resolved_source == resolved_root
-        derived_matches = (
-            resolved_derived == (resolved_root / "derived" / "parquet").resolve()
-            or resolved_derived.is_relative_to(resolved_root)
+        expected_derived = derived_root_from_environment(
+            resolved_root, notify=notices.append
+        ).resolve()
+        source_path, derived_path = Path(source_root_str), Path(derived_root_str)
+        root_qualified = (
+            source_path.is_absolute()
+            and derived_path.is_absolute()
+            and source_path.resolve() == resolved_root
+            and derived_path.resolve() == expected_derived
         )
-        root_qualified = source_matches and derived_matches
 
     sel_mode = selection.get("mode") if isinstance(selection, dict) else None
     selected_jobs = jobs or []
-    selected_uuids = [
-        str(j["job_id"]) for j in selected_jobs if isinstance(j, dict) and j.get("job_id")
-    ]
-    selected_uuids_set = set(selected_uuids)
+    selected_uuids_set = _coverage_uuid_set([job.get("job_id") for job in selected_jobs]) or set()
 
     membership: dict[str, Any] = {
         "selected_job_ids": sorted(selected_uuids_set),
         "report_job_ids": report_job_ids,
         "root_qualified": root_qualified,
+        "expected_derived_root": str(expected_derived) if expected_derived else None,
     }
 
-    if not root_qualified:
+    if not valid_scope:
+        status, scope = "unbound_invalid_scope", "unbound"
+        membership["status_description"] = "unsupported or malformed scoped coverage identity"
+        notices.append(membership["status_description"])
+    elif not root_qualified:
         status = "unbound_wrong_root"
         scope = "unbound"
-        membership["status_description"] = "wrong root: roots do not qualify against active lab root"
+        membership["status_description"] = (
+            "wrong root: roots do not qualify against active lab root"
+        )
         notices.append(
             f"coverage report source root ({source_root_str}) or derived root ({derived_root_str}) "
             f"does not qualify against active lab root ({root}): scope remains unbound"
@@ -1986,7 +1979,9 @@ def _capture_report_view(
     elif selected_uuids_set == report_job_ids_set:
         status = "bound"
         scope = "bound"
-        membership["status_description"] = f"exact match ({len(selected_uuids_set)} selected job(s) bound)"
+        membership["status_description"] = (
+            f"exact match ({len(selected_uuids_set)} selected job(s) bound)"
+        )
         notices.append(
             f"coverage report closed world matches selected job UUID(s) exactly: scope bound ({len(selected_uuids_set)} job(s))"
         )
@@ -2012,10 +2007,10 @@ def _capture_report_view(
         "membership": membership,
         "binding_proof": binding_proof,
         "external_links": external_links,
-        "tensions": tensions,
         "data": payload,
         "summary": summary,
     }, notices
+
 
 def inspect_experiment(
     root: Path,
@@ -2315,9 +2310,7 @@ def render_experiment_text(report: dict[str, Any]) -> str:
             if len(sel_ids) > _COVERAGE_JOB_NAME_LIMIT
             else ""
         )
-        lines.append(
-            f"  selected native UUIDs ({len(sel_ids)}): [{shown_sel}{extra_sel}]"
-        )
+        lines.append(f"  selected native UUIDs ({len(sel_ids)}): [{shown_sel}{extra_sel}]")
     summary = capture_report.get("summary") or {}
     for section, value in (summary.get("sections") or {}).items():
         names = value.get("jobs") or []
@@ -2374,18 +2367,17 @@ def render_experiment_text(report: dict[str, Any]) -> str:
                     lines.append(f"        chain: {link.get('chain')}")
                 if link.get("done_spec"):
                     lines.append(f"        done spec: {link.get('done_spec')}")
-                if link.get("stale_catalog_id_observed_then_absent"):
-                    lines.append(
-                        f"        stale catalog ID observed then absent: "
-                        f"{link.get('stale_catalog_id_observed_then_absent')}"
-                    )
-                if link.get("identity_note"):
-                    lines.append(f"        identity note: {link.get('identity_note')}")
-    tensions = capture_report.get("tensions")
-    if isinstance(tensions, list) and tensions:
-        lines.append("  annotation tensions:")
-        for tension in tensions:
-            lines.append(f"    - {tension}")
+                for key, value in link.items():
+                    if key not in {
+                        "kind",
+                        "spec_id",
+                        "job_name",
+                        "job_id",
+                        "status",
+                        "chain",
+                        "done_spec",
+                    }:
+                        lines.append(f"        {key}: {value}")
     lines.append("")
     if report.get("notices"):
         lines.append("notices:")

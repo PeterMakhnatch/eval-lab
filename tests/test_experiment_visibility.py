@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from evallab.explorer import inspect_experiment, render_experiment_text
 
 FINISHED_AT = "2026-09-01T00:00:00+00:00"
@@ -333,152 +335,98 @@ def test_spec_selection_retains_failed_attempt_without_result(tmp_path: Path) ->
     assert row["trials"] == []
 
 
-def test_scoped_coverage_wrong_root_never_binds(tmp_path: Path) -> None:
+@pytest.fixture
+def scoped_coverage_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, dict]:
     root = _make_root(tmp_path, specs=[("specA01", "done", "demo-exp")])
-    _make_job(
-        root / "runs",
-        "job-a",
-        job_id="job-a-uuid",
-        spec_id="specA01",
-        trials=[_trial_doc("trial-a", "trial-0", agent_name="oracle", reward=1.0)],
-    )
-    wrong_report = {
-        "schema_version": 1,
-        "producer": "evallab.coverage_report.write_scope_bound_product",
-        "source_root": str(tmp_path / "other-root"),
-        "derived_root": str(tmp_path / "other-root" / "derived" / "parquet"),
-        "job_ids": ["job-a-uuid"],
-        "coverage": {
-            "catalogued": {"count": 1, "jobs": ["job-a"], "truncated": False},
-            "projected": {"count": 1, "jobs": ["job-a"], "truncated": False},
-            "native_jobs_present": {"count": 1, "jobs": ["job-a"], "truncated": False},
-            "excepted": {"count": 0, "jobs": [], "truncated": False},
-            "failed": {"count": 0, "jobs": [], "truncated": False},
-            "reasons": {},
-            "repair_path": [],
-            "trajectory_availability_by_agent": {"oracle": {"trials": 1}},
-        },
-    }
-    report_path = _write_json(root / "wrong-root-coverage.json", wrong_report)
-    result = inspect_experiment(root, experiment_id="specA01", coverage_report_path=report_path)
-    capture = result["capture_report"]
-    assert capture["status"] == "unbound_wrong_root"
-    assert capture["scope"] == "unbound"
-    text = render_experiment_text(result)
-    assert "scope=unbound" in text
-
-
-def test_scoped_coverage_neighboring_uuid_never_binds_and_cohort_is_context(tmp_path: Path) -> None:
-    root = _make_root(tmp_path, specs=[("specA01", "done", "demo-exp")])
-    _make_job(
-        root / "runs",
-        "job-a",
-        job_id="job-a-uuid",
-        spec_id="specA01",
-        trials=[_trial_doc("trial-a", "trial-0", agent_name="oracle", reward=1.0)],
-    )
-    # Neighboring UUID product (missing target selected UUID)
-    neighbor_report = {
-        "schema_version": 1,
-        "producer": "evallab.coverage_report.write_scope_bound_product",
-        "source_root": str(root.resolve()),
-        "derived_root": str((root / "derived" / "parquet").resolve()),
-        "job_ids": ["job-neighbor-uuid"],
-        "coverage": {
-            "catalogued": {"count": 1, "jobs": ["job-neighbor"], "truncated": False},
-            "projected": {"count": 1, "jobs": ["job-neighbor"], "truncated": False},
-            "native_jobs_present": {"count": 1, "jobs": ["job-neighbor"], "truncated": False},
-            "excepted": {"count": 0, "jobs": [], "truncated": False},
-            "failed": {"count": 0, "jobs": [], "truncated": False},
-            "reasons": {},
-            "repair_path": [],
-        },
-    }
-    neighbor_path = _write_json(root / "neighbor-coverage.json", neighbor_report)
-    result_neighbor = inspect_experiment(root, experiment_id="specA01", coverage_report_path=neighbor_path)
-    capture_neighbor = result_neighbor["capture_report"]
-    assert capture_neighbor["status"] == "unbound_missing_uuid"
-    assert capture_neighbor["scope"] == "unbound"
-
-    # Cohort report containing target + neighbor (larger cohort context)
-    cohort_report = {
-        "schema_version": 1,
-        "producer": "evallab.coverage_report.write_scope_bound_product",
-        "source_root": str(root.resolve()),
-        "derived_root": str((root / "derived" / "parquet").resolve()),
-        "job_ids": ["job-a-uuid", "job-neighbor-uuid"],
-        "coverage": {
-            "catalogued": {"count": 2, "jobs": ["job-a", "job-neighbor"], "truncated": False},
-            "projected": {"count": 2, "jobs": ["job-a", "job-neighbor"], "truncated": False},
-            "native_jobs_present": {"count": 2, "jobs": ["job-a", "job-neighbor"], "truncated": False},
-            "excepted": {"count": 0, "jobs": [], "truncated": False},
-            "failed": {"count": 0, "jobs": [], "truncated": False},
-            "reasons": {},
-            "repair_path": [],
-        },
-    }
-    cohort_path = _write_json(root / "cohort-coverage.json", cohort_report)
-    result_cohort = inspect_experiment(root, experiment_id="specA01", coverage_report_path=cohort_path)
-    capture_cohort = result_cohort["capture_report"]
-    assert capture_cohort["status"] == "cohort_context"
-    assert capture_cohort["scope"] == "cohort"
-
-
-def test_scoped_coverage_preserved_conflicting_annotation_and_exact_binding(tmp_path: Path) -> None:
-    root = _make_root(tmp_path, specs=[("specA01", "done", "demo-exp")])
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(root / "derived/parquet"))
+    job_id = "11111111-1111-4111-8111-111111111111"
     _make_job(
         root / "runs",
         "r2-job",
-        job_id="f94f1507-7958-4e08-addb-92b50d97c387",
+        job_id=job_id,
         spec_id="specA01",
         trials=[_trial_doc("trial-r2", "trial-0", agent_name="oracle", reward=1.0)],
     )
-    bound_report = {
+    payload = {
         "schema_version": 1,
         "producer": "evallab.coverage_report.write_scope_bound_product",
-        "source_root": str(root.resolve()),
-        "derived_root": str((root / "derived" / "parquet").resolve()),
-        "job_ids": ["f94f1507-7958-4e08-addb-92b50d97c387"],
+        "source_root": str(root),
+        "derived_root": str(root / "derived/parquet"),
+        "job_ids": [job_id],
         "coverage": {
-            "catalogued": {"count": 1, "jobs": ["r2-job"], "truncated": False},
-            "projected": {"count": 1, "jobs": ["r2-job"], "truncated": False},
-            "native_jobs_present": {"count": 1, "jobs": ["r2-job"], "truncated": False},
-            "excepted": {"count": 0, "jobs": [], "truncated": False},
-            "failed": {"count": 0, "jobs": [], "truncated": False},
+            **{
+                name: {"count": 1, "jobs": ["r2-job"], "truncated": False}
+                for name in ("catalogued", "projected", "native_jobs_present")
+            },
+            **{
+                name: {"count": 0, "jobs": [], "truncated": False}
+                for name in ("excepted", "failed")
+            },
             "reasons": {},
             "repair_path": [],
-            "trajectory_availability_by_agent": {
-                "oracle": {"trials": 1, "with_trajectory": False, "with_usage": False}
-            },
         },
-        "binding_proof": {"wrong_root": "<ephemeral-empty-dir>", "excluded": 1, "reasons": {"evidence_absent": 1}},
         "external_links": [
             {
                 "kind": "lab-spec-binding",
-                "spec_id": "specA01",
-                "job_id": "f94f1507-7958-4e08-addb-92b50d97c387",
+                "job_id": job_id,
                 "job_name": "r2-job",
                 "status": "evidence-intact-not-cataloged-not-projected",
-                "stale_catalog_id_observed_then_absent": "f94f1507-7958-4c80-addb-92b50d97c387",
-                "identity_note": "stale row reported, not substituted",
             }
         ],
     }
-    report_path = _write_json(root / "bound-coverage.json", bound_report)
-    result = inspect_experiment(root, experiment_id="specA01", coverage_report_path=report_path)
-    capture = result["capture_report"]
-    assert capture["status"] == "bound"
+    path = _write_json(root / "coverage.json", payload)
+    return root, path, payload
+
+
+def test_scoped_coverage_preserves_conflicting_annotation(
+    scoped_coverage_case: tuple[Path, Path, dict],
+) -> None:
+    root, path, _ = scoped_coverage_case
+    report = inspect_experiment(root, experiment_id="specA01", coverage_report_path=path)
+    capture = report["capture_report"]
     assert capture["scope"] == "bound"
-    assert capture["summary"]["sections"]["catalogued"]["count"] == 1
     assert capture["summary"]["sections"]["projected"]["count"] == 1
-    link = capture["external_links"][0]
-    assert link["status"] == "evidence-intact-not-cataloged-not-projected"
-    assert link["stale_catalog_id_observed_then_absent"] == "f94f1507-7958-4c80-addb-92b50d97c387"
-    assert len(capture["tensions"]) == 1
-    assert "evidence-intact-not-cataloged-not-projected" in capture["tensions"][0]
-    assert "catalogued=1, projected=1" in capture["tensions"][0]
-    text = render_experiment_text(result)
-    assert "scope=bound" in text
-    assert "evidence-intact-not-cataloged-not-projected" in text
-    assert "catalogued=1" in text
-    assert "annotation tensions:" in text
+    assert capture["external_links"][0]["status"] == "evidence-intact-not-cataloged-not-projected"
+    assert "evidence-intact-not-cataloged-not-projected" in render_experiment_text(report)
+
+
+def test_matching_run_name_cannot_replace_uuid_membership(
+    scoped_coverage_case: tuple[Path, Path, dict],
+) -> None:
+    root, path, payload = scoped_coverage_case
+    target = payload["job_ids"][0]
+    neighbor = "22222222-2222-4222-8222-222222222222"
+    payload["job_ids"] = [neighbor]  # Displayed name still matches the selected job.
+    _write_json(path, payload)
+    rejected = inspect_experiment(root, experiment_id="specA01", coverage_report_path=path)
+    assert rejected["capture_report"]["status"] == "unbound_missing_uuid"
+    payload["job_ids"] = [target, neighbor]
+    _write_json(path, payload)
+    cohort = inspect_experiment(root, experiment_id="specA01", coverage_report_path=path)
+    assert cohort["capture_report"]["scope"] == "cohort"
+
+
+@pytest.mark.parametrize("field", ["source_root", "derived_root"])
+def test_scope_requires_exact_source_and_configured_derived_root(
+    scoped_coverage_case: tuple[Path, Path, dict],
+    field: str,
+) -> None:
+    root, path, payload = scoped_coverage_case
+    payload[field] = str(root / "different-root")  # A descendant is not the configured store.
+    _write_json(path, payload)
+    report = inspect_experiment(root, experiment_id="specA01", coverage_report_path=path)
+    assert report["capture_report"]["status"] == "unbound_wrong_root"
+
+
+@pytest.mark.parametrize("change", [{"schema_version": 99}, {"job_ids": [42]}])
+def test_unsupported_scope_never_binds(
+    scoped_coverage_case: tuple[Path, Path, dict],
+    change: dict,
+) -> None:
+    root, path, payload = scoped_coverage_case
+    payload.update(change)
+    _write_json(path, payload)
+    report = inspect_experiment(root, experiment_id="specA01", coverage_report_path=path)
+    assert report["capture_report"]["status"] == "unbound_invalid_scope"

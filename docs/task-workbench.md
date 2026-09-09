@@ -440,6 +440,36 @@ packet has eight control trials and two such failures. Producer-reported ingesti
 totals remain reported metadata, not a live catalogue check or an expanded
 control denominator. Both formats retain source paths and qualifications.
 
+### Prepare and inspect a paired harness comparison
+
+```bash
+# Compile two linked arm specs from a frozen manifest. Does not submit or run.
+python -m evallab.task_workbench paired-compare prepare \
+  --repo-root path/to/lab --manifest path/to/pair.json --format text
+
+# Submit through DirectoryQueue and PolicyGate. Oracle/nop auto-admit.
+# Billable model arms stay in waiting with paid_run_unauthorized.
+python -m evallab.task_workbench paired-compare submit \
+  --repo-root path/to/lab --manifest path/to/pair.json --format json
+
+# Link queue rows and any native jobs for the comparison_id.
+python -m evallab.task_workbench paired-compare inspect \
+  --repo-root path/to/lab --manifest path/to/pair.json
+```
+
+`paired-compare` is the Lab front door for the harness-first mini-swe-agent
+versus authors-RLM comparison. Both arms share `grid_id`/`question_ref` and
+the manifest digest. Profiles bind adapter, model pin and credential
+*identifiers* only. Unknown profiles fail closed. Adapters missing from
+`HARBOR_AGENT_IMPORT_PATHS` are reported `runtime.unavailable` rather than
+replaced with a fallback agent.
+
+The first launch compiles the single `canary: true` task unless `--all-tasks`
+is passed (still at most four tasks in the manifest). This command does not
+tick Harbor, approve spend, or claim a win. Operator UI:
+`streamlit run dashboard/harness_compare.py`. Approve a held spec with
+`uv run evallab approve <spec-id> --actor <you>` when Peter records approval.
+
 ### Inspect experiments and capture gaps
 
 ```bash

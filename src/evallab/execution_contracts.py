@@ -152,6 +152,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "codex": "evallab.harbor_codex:PinnedCodex",
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+    "authors-rlm": "evallab.harbor_rlm:AuthorsRlmAgent",
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-v4-flash"

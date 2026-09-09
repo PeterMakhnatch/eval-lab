@@ -331,3 +331,154 @@ def test_spec_selection_retains_failed_attempt_without_result(tmp_path: Path) ->
     assert row["execution_status"] == "failed"
     assert row["capture_status"] == "unavailable"
     assert row["trials"] == []
+
+
+def test_scoped_coverage_wrong_root_never_binds(tmp_path: Path) -> None:
+    root = _make_root(tmp_path, specs=[("specA01", "done", "demo-exp")])
+    _make_job(
+        root / "runs",
+        "job-a",
+        job_id="job-a-uuid",
+        spec_id="specA01",
+        trials=[_trial_doc("trial-a", "trial-0", agent_name="oracle", reward=1.0)],
+    )
+    wrong_report = {
+        "schema_version": 1,
+        "producer": "evallab.coverage_report.write_scope_bound_product",
+        "source_root": str(tmp_path / "other-root"),
+        "derived_root": str(tmp_path / "other-root" / "derived" / "parquet"),
+        "job_ids": ["job-a-uuid"],
+        "coverage": {
+            "catalogued": {"count": 1, "jobs": ["job-a"], "truncated": False},
+            "projected": {"count": 1, "jobs": ["job-a"], "truncated": False},
+            "native_jobs_present": {"count": 1, "jobs": ["job-a"], "truncated": False},
+            "excepted": {"count": 0, "jobs": [], "truncated": False},
+            "failed": {"count": 0, "jobs": [], "truncated": False},
+            "reasons": {},
+            "repair_path": [],
+            "trajectory_availability_by_agent": {"oracle": {"trials": 1}},
+        },
+    }
+    report_path = _write_json(root / "wrong-root-coverage.json", wrong_report)
+    result = inspect_experiment(root, experiment_id="specA01", coverage_report_path=report_path)
+    capture = result["capture_report"]
+    assert capture["status"] == "unbound_wrong_root"
+    assert capture["scope"] == "unbound"
+    text = render_experiment_text(result)
+    assert "scope=unbound" in text
+
+
+def test_scoped_coverage_neighboring_uuid_never_binds_and_cohort_is_context(tmp_path: Path) -> None:
+    root = _make_root(tmp_path, specs=[("specA01", "done", "demo-exp")])
+    _make_job(
+        root / "runs",
+        "job-a",
+        job_id="job-a-uuid",
+        spec_id="specA01",
+        trials=[_trial_doc("trial-a", "trial-0", agent_name="oracle", reward=1.0)],
+    )
+    # Neighboring UUID product (missing target selected UUID)
+    neighbor_report = {
+        "schema_version": 1,
+        "producer": "evallab.coverage_report.write_scope_bound_product",
+        "source_root": str(root.resolve()),
+        "derived_root": str((root / "derived" / "parquet").resolve()),
+        "job_ids": ["job-neighbor-uuid"],
+        "coverage": {
+            "catalogued": {"count": 1, "jobs": ["job-neighbor"], "truncated": False},
+            "projected": {"count": 1, "jobs": ["job-neighbor"], "truncated": False},
+            "native_jobs_present": {"count": 1, "jobs": ["job-neighbor"], "truncated": False},
+            "excepted": {"count": 0, "jobs": [], "truncated": False},
+            "failed": {"count": 0, "jobs": [], "truncated": False},
+            "reasons": {},
+            "repair_path": [],
+        },
+    }
+    neighbor_path = _write_json(root / "neighbor-coverage.json", neighbor_report)
+    result_neighbor = inspect_experiment(root, experiment_id="specA01", coverage_report_path=neighbor_path)
+    capture_neighbor = result_neighbor["capture_report"]
+    assert capture_neighbor["status"] == "unbound_missing_uuid"
+    assert capture_neighbor["scope"] == "unbound"
+
+    # Cohort report containing target + neighbor (larger cohort context)
+    cohort_report = {
+        "schema_version": 1,
+        "producer": "evallab.coverage_report.write_scope_bound_product",
+        "source_root": str(root.resolve()),
+        "derived_root": str((root / "derived" / "parquet").resolve()),
+        "job_ids": ["job-a-uuid", "job-neighbor-uuid"],
+        "coverage": {
+            "catalogued": {"count": 2, "jobs": ["job-a", "job-neighbor"], "truncated": False},
+            "projected": {"count": 2, "jobs": ["job-a", "job-neighbor"], "truncated": False},
+            "native_jobs_present": {"count": 2, "jobs": ["job-a", "job-neighbor"], "truncated": False},
+            "excepted": {"count": 0, "jobs": [], "truncated": False},
+            "failed": {"count": 0, "jobs": [], "truncated": False},
+            "reasons": {},
+            "repair_path": [],
+        },
+    }
+    cohort_path = _write_json(root / "cohort-coverage.json", cohort_report)
+    result_cohort = inspect_experiment(root, experiment_id="specA01", coverage_report_path=cohort_path)
+    capture_cohort = result_cohort["capture_report"]
+    assert capture_cohort["status"] == "cohort_context"
+    assert capture_cohort["scope"] == "cohort"
+
+
+def test_scoped_coverage_preserved_conflicting_annotation_and_exact_binding(tmp_path: Path) -> None:
+    root = _make_root(tmp_path, specs=[("specA01", "done", "demo-exp")])
+    _make_job(
+        root / "runs",
+        "r2-job",
+        job_id="f94f1507-7958-4e08-addb-92b50d97c387",
+        spec_id="specA01",
+        trials=[_trial_doc("trial-r2", "trial-0", agent_name="oracle", reward=1.0)],
+    )
+    bound_report = {
+        "schema_version": 1,
+        "producer": "evallab.coverage_report.write_scope_bound_product",
+        "source_root": str(root.resolve()),
+        "derived_root": str((root / "derived" / "parquet").resolve()),
+        "job_ids": ["f94f1507-7958-4e08-addb-92b50d97c387"],
+        "coverage": {
+            "catalogued": {"count": 1, "jobs": ["r2-job"], "truncated": False},
+            "projected": {"count": 1, "jobs": ["r2-job"], "truncated": False},
+            "native_jobs_present": {"count": 1, "jobs": ["r2-job"], "truncated": False},
+            "excepted": {"count": 0, "jobs": [], "truncated": False},
+            "failed": {"count": 0, "jobs": [], "truncated": False},
+            "reasons": {},
+            "repair_path": [],
+            "trajectory_availability_by_agent": {
+                "oracle": {"trials": 1, "with_trajectory": False, "with_usage": False}
+            },
+        },
+        "binding_proof": {"wrong_root": "<ephemeral-empty-dir>", "excluded": 1, "reasons": {"evidence_absent": 1}},
+        "external_links": [
+            {
+                "kind": "lab-spec-binding",
+                "spec_id": "specA01",
+                "job_id": "f94f1507-7958-4e08-addb-92b50d97c387",
+                "job_name": "r2-job",
+                "status": "evidence-intact-not-cataloged-not-projected",
+                "stale_catalog_id_observed_then_absent": "f94f1507-7958-4c80-addb-92b50d97c387",
+                "identity_note": "stale row reported, not substituted",
+            }
+        ],
+    }
+    report_path = _write_json(root / "bound-coverage.json", bound_report)
+    result = inspect_experiment(root, experiment_id="specA01", coverage_report_path=report_path)
+    capture = result["capture_report"]
+    assert capture["status"] == "bound"
+    assert capture["scope"] == "bound"
+    assert capture["summary"]["sections"]["catalogued"]["count"] == 1
+    assert capture["summary"]["sections"]["projected"]["count"] == 1
+    link = capture["external_links"][0]
+    assert link["status"] == "evidence-intact-not-cataloged-not-projected"
+    assert link["stale_catalog_id_observed_then_absent"] == "f94f1507-7958-4c80-addb-92b50d97c387"
+    assert len(capture["tensions"]) == 1
+    assert "evidence-intact-not-cataloged-not-projected" in capture["tensions"][0]
+    assert "catalogued=1, projected=1" in capture["tensions"][0]
+    text = render_experiment_text(result)
+    assert "scope=bound" in text
+    assert "evidence-intact-not-cataloged-not-projected" in text
+    assert "catalogued=1" in text
+    assert "annotation tensions:" in text

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import shutil
+import tarfile
 from pathlib import Path
 from typing import Any
 
@@ -331,3 +333,41 @@ def test_explicit_declaration_cannot_omit_axis_identity(
     row = _compare(audit_pair)["arms"]["probe"]
     assert row["pairing"]["status"] == "unqualified"
     assert "declared_verifier_identity_unbound" in row["pairing"]["reasons"]
+
+
+def test_one_sided_archives_cannot_silently_downgrade_to_byte_only(
+    audit_pair: tuple[Path, Path, Path],
+) -> None:
+    arm = audit_pair[0] / "probe"
+    files = {
+        path.relative_to(arm / "task_file").as_posix(): path.read_bytes()
+        for path in (arm / "task_file").rglob("*")
+        if path.is_file()
+    }
+    manifest = {
+        name: {
+            "sha256": _digest(data),
+            "size": len(data),
+            "uid": 1000,
+            "gid": 1000,
+            "mode": "0o644",
+        }
+        for name, data in files.items()
+    }
+    for kind in ("action", "verifier"):
+        archive_path = arm / f"{kind}-task-file.tar"
+        with tarfile.open(archive_path, "w") as archive:
+            for name, data in files.items():
+                member = tarfile.TarInfo(f"./{name}")
+                member.size, member.uid, member.gid, member.mode = len(data), 1000, 1000, 0o644
+                archive.addfile(member, io.BytesIO(data))
+        _json(arm / f"{kind}-task-file.manifest.json", manifest)
+        _json(
+            arm / f"{kind}-task-file.receipt.json",
+            {"exit": 0, "archive_sha256": _digest(archive_path.read_bytes())},
+        )
+    row = _compare(audit_pair)["arms"]["probe"]
+    assert row["transport_identity"]["before"]["status"] == "verified"
+    assert row["pairing"]["status"] == "unqualified"
+    assert "after_transport_unbound" in row["pairing"]["reasons"]
+    assert row["observed_reward_delta"] == -1

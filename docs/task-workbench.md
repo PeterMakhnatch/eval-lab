@@ -331,6 +331,15 @@ CTRF test counts), provenance bindings verified against task bytes and retained
 hashes, evidence paths, and reviewer annotations (declared labels and expected
 rewards) kept strictly separate from observed execution.
 
+The reader accepts both `summary.json` audits and owned cohort receipts containing
+`metadata.json` plus `observed-summary.json`. For owned receipts, pass
+`--source-root path/to/retained/cohort-lane` to bind the recorded source task,
+complete verifier bundle, controls, runtime environment, and runner digests.
+The reader never guesses that root from machine paths in metadata. Missing
+companion bytes remain explicitly unbound. Cached observations do not replace
+original per-arm `result.json` execution receipts. External conditions retain
+their declared condition identity; no Harbor job UUID is invented.
+
 ### Compare retained audit conditions
 
 ```bash
@@ -339,7 +348,7 @@ python -m evallab.task_workbench audit-compare path/to/before path/to/after \
 ```
 
 `audit-compare` and the Python API
-`compare_quality_audits(before_dir, after_dir, *, declaration_path=None, repo_root=None)`
+`compare_quality_audits(before_dir, after_dir, *, declaration_path=None, repo_root=None, source_root=None)`
 reuse the audit reader. They show the union of observed and explicitly declared
 arms, each side's execution status/reward, and a neutral `after - before` delta.
 Missing arms or incomplete execution retain their coverage row but have no delta.
@@ -359,9 +368,9 @@ independently. A shared task snapshot is not evidence of shared runtime inputs.
 
 Per-arm `task-file-manifest.json` maps relative paths to SHA-256 digests of
 retained `task_file/` bytes. The reader checks every listed file and refuses
-omitted files or escaping paths. `input/` paths are compared as inputs; all other
-files are compared as outputs, including root-level output files missed by older
-runner digest summaries. An intact empty output set is known absence, not missing
+omitted files or escaping paths. `input/`, `inputs/`, and exact initial runtime
+paths declared by an owned cohort manifest are compared as inputs; remaining
+files are outputs. An intact empty output set is known absence, not missing
 evidence. `same` and `changed` mean both retained manifests verified; `mismatched`
 means bytes/coverage disagree with a manifest; `unbound` means identity is absent.
 Changed runtime inputs or outputs make a verifier-only pairing unqualified.
@@ -375,12 +384,114 @@ to task or arm names. Optional declared instruction/image/action identities are
 checked when supplied. Legacy receipts without runtime manifests remain readable
 but unqualified.
 
+For owned cohorts, use the retained `comparison.json` as `--declaration` and
+provide `--source-root`. The comparison checks its before/after evidence paths
+and `verifier_before_sha256` / `verifier_after_sha256` identities, while keeping
+the cohort's expectations and each condition's labels separate from measurement.
+Rich manifests bind retained bytes and recorded copied modes. Stream-checked
+action/verifier tar archives bind file membership, bytes, sizes, UID/GID and
+modes to receipt hashes without extraction. The action archive is post-action;
+the verifier archive is post-transfer, **before verifier execution**. Neither
+is pre-action evidence. Missing, changed or corrupt archive/transport identity
+makes owned-format pairings unqualified; host ownership is never substituted.
+Legacy SHA-only evidence remains readable with its narrower byte-only scope.
+
 This is a retained-evidence comparison, not a causal guarantee: the runner hash
 is a checked declaration, and runtime manifests cover extracted **post-action**
 files, not proof of unchanged pre-action inputs. Semantic validity, task-wide
 correctness, and training utility require separate adjudication. The existing
 task000008 repair bundle demonstrates two observed 1→0 corruption contrasts and
 four preserved rewards; it does not establish general verifier improvement.
+
+### Compare native Quality review and repair evidence
+
+```bash
+python -m evallab.task_workbench audit-compare \
+  --review-result path/to/review-result.json \
+  --repair-contract path/to/repair-contract.json --format text
+```
+
+This mode also works through
+`compare_quality_audits(review_result_path=..., repair_contract_path=...)`.
+It cannot be mixed with legacy audit directories, `--declaration`, or
+`--source-root`. The repair contract must bind the supplied review through its
+`source_findings` path; relative evidence paths resolve from their containing
+review/contract. JSON uses `kind=quality_native_review_comparison`.
+
+Declared arm pairings point to original native trial records, not synthesized
+legacy audit directories. Only original `result.json` supplies observed rewards;
+retained verifier diagnostics supply resolution and partial-credit context.
+Missing, malformed, incomplete or failed execution cannot borrow a cached review
+reward or produce a completed-pair delta. Declared expectations, semantic labels
+and runtime/image identities remain explicitly separate from observed outcomes.
+
+The view compares retained named pre/post-action file maps and reports image
+differences without treating them as equivalent conditions. Changed or missing
+state, incomplete execution and changed/unbound images remain unqualified.
+Named-state equality is not whole-filesystem, causal or semantic certification.
+Zero deltas stay visible; unresolved fractional credit is not flattened to failure
+or completion. The exercised PR75 contrast preserves `1→0.8` with `resolved=false`,
+`0.466667→1`, `1→0`, and a valid declared `1→1` no-effect arm.
+
+The review's evidence root may supply `instrumentation-failures.json`. Its native
+trial errors form a separate population, with original exceptions and nullable
+rewards; missing records do not acquire inferred exception classes. The PR75
+packet has eight control trials and two such failures. Producer-reported ingestion
+totals remain reported metadata, not a live catalogue check or an expanded
+control denominator. Both formats retain source paths and qualifications.
+
+### Inspect experiments and capture gaps
+
+```bash
+# Inventory without loading every job's trajectories.
+python -m evallab.task_workbench experiment --repo-root path/to/lab
+
+# Select the exact Lab spec binding, or use --job-dir for a retained native job.
+python -m evallab.task_workbench experiment --repo-root path/to/lab \
+  --experiment-id SPEC_ID --coverage-report path/to/existing-coverage.json \
+  --format text
+
+# External diagnostics remain a separate section, never synthetic Harbor trials.
+python -m evallab.task_workbench experiment --repo-root path/to/lab \
+  --job-dir path/to/lab/runs/job \
+  --audit-dir path/to/owned-audit --source-root path/to/retained/cohort-lane \
+  --format json
+```
+
+This command reuses `evallab.explorer.inspect_experiment` and existing queue,
+result and trial-fact readers. Without a selector it lists lightweight
+experiment/job inventory; explicit selection loads only matching job payloads.
+Queue states and reason receipts remain visible. Native jobs lacking a Lab
+spec binding are shown as `harbor_unbound`, not external diagnostics.
+Unfinished or malformed selected jobs retain their failure/capture gap and
+source path rather than disappearing.
+
+The view separates execution exceptions from missing/invalid trajectories and
+partial token/cost accounting. Absent model trajectories are capture gaps;
+expected oracle/nop absence is not a model-capture failure. Unknown rewards and
+usage stay unknown, never zero-filled. Text and JSON retain source/result/
+trajectory links; suggested commands are displayed, never executed.
+
+`--coverage-report` consumes an existing Data Engineer coverage JSON product.
+Its original data, path and SHA-256 are retained. Legacy flat reports remain
+**supplied, unbound-scope context**: sample names cannot certify individual jobs.
+Scope-bound envelopes retain their nested coverage, closed-world native UUIDs,
+root declarations, binding proof and external links. Binding requires the exact
+source root, the configured derived root from the existing Lab path resolver,
+and selected native UUID membership—not run-name samples or spec ULIDs.
+An exact selected UUID set is `bound`; a larger containing set or unselected
+inventory is `cohort_context`, not per-job completeness. Wrong roots, absent
+UUIDs and unsupported/malformed scope identities remain explicitly unbound.
+
+External-link statuses are displayed beside counted coverage, without choosing
+one as a live database truth. For example, the retained R2 product counts one
+catalogued/projected job while its external-link status still says
+`evidence-intact-not-cataloged-not-projected`; neither is rewritten or hidden.
+Count/list/truncation disagreements and source annotations remain in the original
+data. Truncation applies to sampled names, not aggregate totals, and omission
+proves neither presence nor absence. Missing reports stay unavailable. No store
+is rebuilt, advice executed, ingestion performed or experiment submitted.
+
 
 ### Inspect one candidate
 

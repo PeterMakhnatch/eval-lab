@@ -1453,3 +1453,940 @@ def next_actions_for_queue() -> tuple[NextAction, ...]:
             "uv run evallab approve SPEC_ID --actor peter",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Native experiment evidence view (Standing Harbor Integration consumer).
+# ---------------------------------------------------------------------------
+# Read-only: queue specs (DirectoryQueue with create=False), lightweight
+# lab-metadata.json / result.json headers for filtering, results.load_job plus
+# evidence.facts.extract_trial_fact for explicitly selected jobs only, and one
+# optional supplied DataEngineer coverage report parsed as plain JSON.
+# Nothing here writes, projects, recomputes coverage, executes commands, or
+# touches the network. Metadata without a spec_id is a native Harbor job that
+# is simply unbound (``harbor_unbound``) — never an external Docker audit;
+# external comparison context is the lead's separate layer.
+
+_EXPERIMENT_VIEW_KIND = "experiment_evidence_view"
+_HARBOR_UNBOUND = "harbor_unbound"
+_COVERAGE_SECTIONS = (
+    "native_jobs_present",
+    "catalogued",
+    "projected",
+    "excepted",
+    "failed",
+)
+_COVERAGE_JOB_NAME_LIMIT = 5
+
+
+def _view_json_dict(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    """Read *path* as a JSON object; (None, reason) on any failure."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, f"absent: {path}"
+    except OSError as exc:
+        return None, f"unreadable {path}: {type(exc).__name__}"
+    except ValueError as exc:
+        return None, f"malformed JSON at {path}: {exc}"
+    if not isinstance(payload, dict):
+        return None, f"malformed JSON at {path}: top-level value is not an object"
+    return payload, None
+
+
+def _reasons_for(queue: Any, spec_id: str | None) -> list[dict[str, Any]]:
+    """Reason receipts matching one spec id: ``reasons/<spec_id>-<ULID>.json``.
+
+    Parsed as text context only. A receipt may name a repair command; it is
+    rendered, never executed (nothing in this module executes anything).
+    """
+    if not spec_id:
+        return []
+    reasons_dir = queue.reasons_dir
+    if not reasons_dir.is_dir():
+        return []
+    receipts: list[dict[str, Any]] = []
+    for path in sorted(reasons_dir.glob(f"{spec_id}-*.json")):
+        payload, error = _view_json_dict(path)
+        if payload is None:
+            receipts.append({"path": str(path), "status": "unreadable", "reason": error})
+            continue
+        receipts.append(
+            {
+                "path": str(path),
+                "status": "observed",
+                "code": payload.get("code"),
+                "message": payload.get("message"),
+            }
+        )
+    return receipts
+
+
+def _queue_rows(
+    queue: Any, *, selected_spec_id: str | None = None
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[str]]:
+    """Read inventory, or validate only queue specs matching the selected identity."""
+    from evallab.queue import QUEUE_STATES
+
+    rows: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    issues: list[str] = []
+    for state in QUEUE_STATES:
+        state_dir = queue.state_dir(state)
+        if not state_dir.is_dir():
+            continue
+        for path in sorted(state_dir.glob("*.json")):
+            if selected_spec_id is not None:
+                header, error = _view_json_dict(path)
+                if header is None:
+                    issues.append(error or f"queued header unreadable: {path}")
+                    continue
+                if header.get("spec_id") != selected_spec_id:
+                    continue
+            try:
+                spec = queue.load(path)
+            except ValueError as exc:
+                cause = exc.__cause__
+                detail = (
+                    "; ".join(
+                        f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
+                        for error in cause.errors(include_input=False, include_url=False)
+                    )
+                    if isinstance(cause, ValidationError)
+                    else type(exc).__name__
+                )
+                issues.append(f"queued spec unreadable: {path} ({detail})")
+                continue
+            spec_id = str(spec.spec_id) if spec.spec_id else _HARBOR_UNBOUND
+            row = {
+                "state": state,
+                "spec_id": spec_id,
+                "name": spec.name,
+                "agent": spec.agent,
+                "path": str(path),
+                "jobs_dir": spec.jobs_dir,
+                "reasons": _reasons_for(queue, spec.spec_id),
+            }
+            rows.append(row)
+            if spec.spec_id:
+                by_id.setdefault(str(spec.spec_id), row)
+    rows.sort(key=lambda item: (item["state"], item["name"]))
+    return rows, by_id, issues
+
+
+def _jobs_roots(root: Path, specs: list[dict[str, Any]]) -> tuple[list[Path], list[str]]:
+    """Filesystem roots worth scanning for Harbor job directories."""
+    candidates = [root / "runs", root / "research" / "evidence" / "runs"]
+    for spec in specs:
+        jobs_dir = spec.get("jobs_dir")
+        if not jobs_dir or not isinstance(jobs_dir, str):
+            continue
+        if jobs_dir.startswith("/") or ".." in jobs_dir.split("/"):
+            continue
+        candidates.append(root / jobs_dir)
+    roots = [candidate for candidate in dict.fromkeys(candidates) if candidate.is_dir()]
+    notices: list[str] = []
+    if (root / "result.json").is_file() and root not in roots:
+        roots.append(root)
+    if not roots:
+        notices.append(f"no jobs roots present under {root}")
+    return roots, notices
+
+
+def _light_job_row(job_dir: Path) -> dict[str, Any]:
+    """Inventory row from headers only — never loads trajectories."""
+    metadata, _ = _view_json_dict(job_dir / "lab-metadata.json")
+    result, _ = _view_json_dict(job_dir / "result.json")
+    experiment = (metadata or {}).get("experiment")
+    experiment = experiment if isinstance(experiment, dict) else {}
+    spec_id = experiment.get("spec_id")
+    bound = spec_id if isinstance(spec_id, str) and spec_id else _HARBOR_UNBOUND
+    native = (
+        metadata is not None
+        or isinstance(result, dict)
+        and "n_total_trials" in result
+        and "stats" in result
+    )
+    finished = isinstance(result, dict) and bool(result.get("finished_at"))
+    expected = result.get("n_total_trials") if isinstance(result, dict) else None
+    return {
+        "job_id": result.get("id") if isinstance(result, dict) else None,
+        "name": job_dir.name,
+        "path": str(job_dir),
+        "origin": "harbor_native" if native else "unrecognized",
+        "experiment_id": bound,
+        "execution_status": "finished" if finished else "unknown",
+        "trial_count": expected
+        if isinstance(expected, int) and not isinstance(expected, bool)
+        else None,
+        "trials": [],
+    }
+
+
+def _refine_status_from_metadata(row: dict[str, Any], job_dir: Path) -> None:
+    metadata, _ = _view_json_dict(job_dir / "lab-metadata.json")
+    exit_code = (metadata or {}).get("exit_code")
+    if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        row["execution_status"] = "succeeded" if exit_code == 0 else "failed"
+
+
+def _trial_row(job: Any, trial: Any) -> dict[str, Any]:
+    """One selected trial: fact-producer values plus explicit capture states."""
+    from evallab.evidence.facts import extract_trial_fact
+
+    try:
+        fact = extract_trial_fact(job, trial)
+    except Exception as exc:
+        return {
+            "trial_id": None,
+            "trial_name": trial.path.name,
+            "trial_state": "unavailable",
+            "reason": f"trial fact extraction failed: {type(exc).__name__}: {exc}",
+            "task": None,
+            "execution_status": "unavailable",
+            "agent": {"name": None, "version": None, "model": None},
+            "reward": {"value": None, "state": "unavailable", "reason": "fact unavailable"},
+            "exception": {"class": None, "phase": None},
+            "links": {
+                "source": str(trial.path),
+                "result": str(trial.path / "result.json"),
+                "trajectory": str(trial.path / "agent" / "trajectory.json"),
+            },
+            "trajectory_present": (trial.path / "agent" / "trajectory.json").is_file(),
+            "usage": {
+                "input_tokens": None,
+                "output_tokens": None,
+                "cost_usd": None,
+                "state": "unavailable",
+            },
+            "capture": {"state": "unavailable", "reason": "fact unavailable"},
+        }
+    agent_name = fact.agent_name
+    reward_value = fact.primary_reward
+    usage_values = (fact.input_tokens, fact.output_tokens, fact.cost_usd)
+    trajectory_present = (trial.path / "agent" / "trajectory.json").is_file()
+    present_usage = sum(value is not None for value in usage_values)
+    if present_usage == len(usage_values):
+        usage_state = "complete"
+    elif present_usage:
+        usage_state = "partial"
+    else:
+        usage_state = "not_applicable" if agent_name in CONTROL_AGENTS else "missing"
+    if fact.invalid_trajectory_count > 0:
+        capture = {
+            "state": "partial",
+            "reason": f"{fact.invalid_trajectory_count} invalid trajectories",
+        }
+    elif fact.trajectory_count == 0:
+        capture = {
+            "state": "not_applicable" if agent_name in CONTROL_AGENTS else "missing",
+            "reason": (
+                f"{agent_name} control has no recorded trajectory; expected absence"
+                if agent_name in CONTROL_AGENTS
+                else "no retained trajectories"
+            ),
+        }
+    elif usage_state in ("missing", "partial"):
+        capture = {"state": "partial", "reason": "trajectory observed; usage incomplete"}
+    else:
+        capture = {
+            "state": "observed",
+            "reason": "trajectory observed; presence is not a validity claim",
+        }
+    reward: dict[str, Any] = {
+        "value": reward_value,
+        "state": "observed" if reward_value is not None else "unavailable",
+    }
+    if reward_value is None:
+        reward["reason"] = "no verifier reward recorded; never defaulted to 0"
+    return {
+        "trial_id": fact.trial_id,
+        "trial_name": fact.trial_name,
+        "trial_state": "observed",
+        "execution_status": "failed" if fact.exception_class else "finished",
+        "task": fact.task_name,
+        "agent": {"name": fact.agent_name, "version": fact.agent_version, "model": fact.model_name},
+        "reward": reward,
+        "exception": {"class": fact.exception_class, "phase": fact.exception_phase},
+        "links": {
+            "source": str(trial.path),
+            "result": str(trial.path / "result.json"),
+            "trajectory": str(trial.path / "agent" / "trajectory.json"),
+        },
+        "trajectory_present": trajectory_present,
+        "trajectory_count": fact.trajectory_count,
+        "invalid_trajectory_count": fact.invalid_trajectory_count,
+        "usage": {
+            "input_tokens": fact.input_tokens,
+            "cache_tokens": fact.cache_tokens,
+            "output_tokens": fact.output_tokens,
+            "cost_usd": fact.cost_usd,
+            "state": usage_state,
+        },
+        "duration_seconds": fact.duration_seconds,
+        "capture": capture,
+    }
+
+
+def _selected_job_row(job_dir: Path) -> tuple[dict[str, Any], list[str]]:
+    """Full row for an explicitly selected job; stays visible on failure."""
+    from evallab.results import load_job
+
+    row = _light_job_row(job_dir)
+    issues: list[str] = []
+    try:
+        job = load_job(job_dir)
+    except Exception as exc:
+        row["capture_status"] = "unavailable"
+        _refine_status_from_metadata(row, job_dir)
+        row["load_issue"] = f"selected job payload unavailable ({type(exc).__name__}): {exc}"
+        issues.append(f"selected job {job_dir.name} unavailable: {row['load_issue']}")
+        return row, issues
+    row["job_id"] = job.id
+    row["trial_count"] = len(job.trials)
+    _refine_status_from_metadata(row, job_dir)
+    if row["execution_status"] == "unknown":
+        row["execution_status"] = "finished"
+    row["trials"] = [_trial_row(job, trial) for trial in job.trials]
+    return row, issues
+
+
+def _coverage_uuid_set(values: Any) -> set[str] | None:
+    from uuid import UUID
+
+    if (
+        not isinstance(values, list)
+        or not values
+        or not all(isinstance(value, str) for value in values)
+    ):
+        return None
+    try:
+        identifiers = {str(UUID(value)) for value in values}
+    except ValueError:
+        return None
+    return identifiers if len(identifiers) == len(values) else None
+
+
+def _capture_report_view(
+    coverage_report_path: Path | None,
+    *,
+    root: Path | None = None,
+    selection: dict[str, Any] | None = None,
+    jobs: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Optional supplied DataEngineer CoverageReport.as_dict JSON, parsed only.
+
+    Supports both legacy flat reports and scope-bound v2 products.
+    Preserves whole original payload, SHA256, path, and all producer annotations.
+    """
+    import hashlib
+
+    notices: list[str] = []
+    if coverage_report_path is None:
+        return {
+            "status": "unavailable",
+            "reason": "no coverage report supplied",
+            "path": None,
+            "sha256": None,
+            "scope": "unbound",
+            "data": None,
+            "summary": None,
+        }, notices
+    path = Path(coverage_report_path)
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        return {
+            "status": "unreadable",
+            "reason": f"coverage report unreadable ({type(exc).__name__})",
+            "path": str(path),
+            "sha256": None,
+            "scope": "unbound",
+            "data": None,
+            "summary": None,
+        }, notices
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except ValueError as exc:
+        return {
+            "status": "unreadable",
+            "reason": f"coverage report malformed JSON: {exc}",
+            "path": str(path),
+            "sha256": digest,
+            "scope": "unbound",
+            "data": None,
+            "summary": None,
+        }, notices
+    if not isinstance(payload, dict):
+        return {
+            "status": "unreadable",
+            "reason": "coverage report top-level value is not an object",
+            "path": str(path),
+            "sha256": digest,
+            "scope": "unbound",
+            "data": None,
+            "summary": None,
+        }, notices
+
+    is_scoped = "coverage" in payload
+    coverage_dict = payload.get("coverage") if is_scoped else payload
+    coverage_valid = isinstance(coverage_dict, dict)
+    coverage_dict = coverage_dict if coverage_valid else {}
+
+    summary_sections: dict[str, Any] = {}
+    truncated_any = False
+    for section in _COVERAGE_SECTIONS:
+        value = coverage_dict.get(section)
+        if not isinstance(value, dict):
+            continue
+        jobs_list = value.get("jobs")
+        truncated = bool(value.get("truncated"))
+        truncated_any = truncated_any or truncated
+        summary_sections[section] = {
+            "count": value.get("count"),
+            "jobs": jobs_list if isinstance(jobs_list, list) else None,
+            "truncated": truncated,
+        }
+    availability = coverage_dict.get("trajectory_availability_by_agent")
+    summary = {
+        "sections": summary_sections,
+        "trajectory_availability_by_agent": availability
+        if isinstance(availability, dict)
+        else None,
+        "reasons": coverage_dict.get("reasons"),
+        "repair_path": coverage_dict.get("repair_path"),
+    }
+
+    if not is_scoped:
+        notices.append(
+            "coverage report is unbound-scope supplied context: it names no attested "
+            "root or experiment, so its job-name samples are never joined into "
+            "per-job truth and it never certifies a selected job"
+        )
+        if truncated_any:
+            notices.append(
+                "coverage report job-name samples are truncated; totals are retained, "
+                "but omission from a sample cannot establish whether a job was covered"
+            )
+        return {
+            "status": "supplied_unbound_scope",
+            "path": str(path),
+            "sha256": digest,
+            "scope": "unbound",
+            "data": payload,
+            "summary": summary,
+        }, notices
+
+    # Scoped v2 product processing
+    source_root_str = payload.get("source_root")
+    derived_root_str = payload.get("derived_root")
+    raw_job_ids = payload.get("job_ids")
+    report_job_ids = raw_job_ids if isinstance(raw_job_ids, list) else []
+    parsed_ids = _coverage_uuid_set(raw_job_ids)
+    report_job_ids_set = parsed_ids or set()
+    valid_scope = (
+        coverage_valid
+        and type(payload.get("schema_version")) is int
+        and payload["schema_version"] == 1
+        and payload.get("producer") == "evallab.coverage_report.write_scope_bound_product"
+        and parsed_ids is not None
+    )
+
+    binding_proof = payload.get("binding_proof")
+    raw_external_links = payload.get("external_links")
+    external_links: list[dict[str, Any]] = (
+        [link for link in raw_external_links if isinstance(link, dict)]
+        if isinstance(raw_external_links, list)
+        else []
+    )
+
+    if external_links:
+        notices.append(
+            "External-link statuses are retained producer annotations beside counted coverage; "
+            "possible snapshot conflicts are not reconciled or treated as live database facts."
+        )
+
+    # Qualify source and derived roots using existing Lab path conventions
+    root_qualified = False
+    expected_derived: Path | None = None
+    if root is not None and isinstance(source_root_str, str) and isinstance(derived_root_str, str):
+        from evallab.storage.paths import derived_root_from_environment
+
+        resolved_root = Path(root).resolve()
+        expected_derived = derived_root_from_environment(
+            resolved_root, notify=notices.append
+        ).resolve()
+        source_path, derived_path = Path(source_root_str), Path(derived_root_str)
+        root_qualified = (
+            source_path.is_absolute()
+            and derived_path.is_absolute()
+            and source_path.resolve() == resolved_root
+            and derived_path.resolve() == expected_derived
+        )
+
+    sel_mode = selection.get("mode") if isinstance(selection, dict) else None
+    selected_jobs = jobs or []
+    selected_uuids_set = _coverage_uuid_set([job.get("job_id") for job in selected_jobs]) or set()
+
+    membership: dict[str, Any] = {
+        "selected_job_ids": sorted(selected_uuids_set),
+        "report_job_ids": report_job_ids,
+        "root_qualified": root_qualified,
+        "expected_derived_root": str(expected_derived) if expected_derived else None,
+    }
+
+    if not valid_scope:
+        status, scope = "unbound_invalid_scope", "unbound"
+        membership["status_description"] = "unsupported or malformed scoped coverage identity"
+        notices.append(membership["status_description"])
+    elif not root_qualified:
+        status = "unbound_wrong_root"
+        scope = "unbound"
+        membership["status_description"] = (
+            "wrong root: roots do not qualify against active lab root"
+        )
+        notices.append(
+            f"coverage report source root ({source_root_str}) or derived root ({derived_root_str}) "
+            f"does not qualify against active lab root ({root}): scope remains unbound"
+        )
+    elif sel_mode == "inventory":
+        status = "cohort_context"
+        scope = "cohort"
+        membership["status_description"] = f"inventory cohort context ({len(report_job_ids)} jobs)"
+        notices.append(
+            f"inventory selection: coverage report retained as cohort context ({len(report_job_ids)} jobs), "
+            "not per-job completeness"
+        )
+    elif not selected_jobs:
+        status = "unbound_no_selected_jobs"
+        scope = "unbound"
+        membership["status_description"] = "no matching jobs found for selection"
+        notices.append("no matching jobs found for selection: scope remains unbound")
+    elif len(selected_uuids_set) < len(selected_jobs):
+        status = "unbound_missing_uuid"
+        scope = "unbound"
+        membership["status_description"] = "one or more selected jobs lack native job UUID"
+        notices.append("one or more selected jobs lack a native job UUID: scope remains unbound")
+    elif not selected_uuids_set.issubset(report_job_ids_set):
+        missing = sorted(selected_uuids_set - report_job_ids_set)
+        status = "unbound_missing_uuid"
+        scope = "unbound"
+        membership["status_description"] = f"missing selected UUID(s): {missing}"
+        notices.append(
+            f"selected job UUID(s) {missing} not present in coverage report closed world: scope remains unbound"
+        )
+    elif selected_uuids_set == report_job_ids_set:
+        status = "bound"
+        scope = "bound"
+        membership["status_description"] = (
+            f"exact match ({len(selected_uuids_set)} selected job(s) bound)"
+        )
+        notices.append(
+            f"coverage report closed world matches selected job UUID(s) exactly: scope bound ({len(selected_uuids_set)} job(s))"
+        )
+    else:
+        status = "cohort_context"
+        scope = "cohort"
+        membership["status_description"] = (
+            f"cohort context ({len(report_job_ids_set)} closed-world jobs contain {len(selected_uuids_set)} selected)"
+        )
+        notices.append(
+            f"coverage report closed world ({len(report_job_ids_set)} jobs) contains selected job(s) "
+            f"({len(selected_uuids_set)}): retained as cohort context, not per-job completeness"
+        )
+
+    return {
+        "status": status,
+        "scope": scope,
+        "path": str(path),
+        "sha256": digest,
+        "source_root": source_root_str,
+        "derived_root": derived_root_str,
+        "job_ids": report_job_ids,
+        "membership": membership,
+        "binding_proof": binding_proof,
+        "external_links": external_links,
+        "data": payload,
+        "summary": summary,
+    }, notices
+
+
+def inspect_experiment(
+    root: Path,
+    *,
+    experiment_id: str | None = None,
+    job_dir: Path | None = None,
+    coverage_report_path: Path | None = None,
+) -> dict[str, Any]:
+    """Read-only native experiment evidence view over one lab root.
+
+    Exactly one of *experiment_id* / *job_dir* may be given, or neither:
+    neither lists lightweight inventory (headers only, no trajectory loads);
+    either loads only the explicitly selected job payload(s).
+    """
+    from evallab.queue import DirectoryQueue
+    from evallab.results import discover_job_dirs
+
+    if experiment_id is not None and job_dir is not None:
+        raise ValueError("pass exactly one of experiment_id or job_dir, not both")
+    root = Path(root).resolve()
+    notices: list[str] = []
+    issues: list[str] = []
+
+    if experiment_id is not None:
+        selection: dict[str, Any] = {
+            "mode": "by_spec",
+            "experiment_id": experiment_id,
+            "job_dir": None,
+        }
+    elif job_dir is not None:
+        resolved = Path(job_dir).resolve()
+        if resolved != root and root not in resolved.parents:
+            raise ValueError(f"job_dir {job_dir} is outside the lab root {root}")
+        selection = {"mode": "by_job", "experiment_id": None, "job_dir": str(resolved)}
+    else:
+        selection = {"mode": "inventory", "experiment_id": None, "job_dir": None}
+    queue = DirectoryQueue(root / "queue", create=False)
+    queue_rows: list[dict[str, Any]] = []
+    specs_by_id: dict[str, dict[str, Any]] = {}
+    selected_spec_id = experiment_id
+    read_queue = job_dir is None
+    if job_dir is not None:
+        metadata, _ = _view_json_dict(Path(job_dir) / "lab-metadata.json")
+        association = (metadata or {}).get("experiment")
+        if isinstance(association, dict):
+            recorded_spec = association.get("spec_id")
+            if isinstance(recorded_spec, str) and recorded_spec:
+                selected_spec_id, read_queue = recorded_spec, True
+    if (root / "queue").is_dir():
+        if read_queue:
+            queue_rows, specs_by_id, queue_issues = _queue_rows(
+                queue, selected_spec_id=selected_spec_id
+            )
+            issues.extend(queue_issues)
+    else:
+        notices.append(f"queue absent at {root / 'queue'}: experiment inventory from jobs only")
+
+    roots, root_notices = _jobs_roots(root, queue_rows)
+    notices.extend(root_notices)
+    if job_dir is not None:
+        discovered = [Path(job_dir).resolve()]
+    else:
+        discovered = discover_job_dirs(roots) if roots else []
+        # Completed-result discovery intentionally skips unfinished attempts.
+        # Retained Lab metadata keeps those bound attempts visible to selection.
+        for jobs_root in roots:
+            for metadata_path in jobs_root.rglob("lab-metadata.json"):
+                relative = metadata_path.relative_to(jobs_root)
+                if not any(part.startswith(".") for part in relative.parts):
+                    candidate = metadata_path.parent.resolve()
+                    if candidate.is_relative_to(root):
+                        discovered.append(candidate)
+        discovered = sorted(set(discovered))
+
+    light_rows = [_light_job_row(path) for path in sorted(discovered)]
+    if selection["mode"] == "by_spec":
+        matched = [row for row in light_rows if row["experiment_id"] == experiment_id]
+        light_rows = matched
+        if experiment_id not in specs_by_id:
+            notices.append(f"spec {experiment_id} not in queue: matching jobs by lab-metadata only")
+        if not matched:
+            notices.append(f"no bound jobs for spec {experiment_id}")
+        jobs = []
+        for row in matched:
+            full, job_issues = _selected_job_row(Path(row["path"]))
+            issues.extend(job_issues)
+            jobs.append(full)
+        if jobs:
+            notices.append(
+                "file presence is evidence availability, never a validity claim: "
+                "a present trajectory file is reported observed, not certified"
+            )
+    elif job_dir is not None:
+        full, job_issues = _selected_job_row(Path(job_dir).resolve())
+        issues.extend(job_issues)
+        jobs = [full]
+        notices.append(
+            "file presence is evidence availability, never a validity claim: "
+            "a present trajectory file is reported observed, not certified"
+        )
+        selected_path = Path(full["path"])
+        if not any(selected_path.is_relative_to(scan_root.resolve()) for scan_root in roots):
+            notices.append(
+                f"selected job {selected_path.name} is outside the scanned jobs "
+                "roots: shown as supplied-path evidence"
+            )
+    else:
+        jobs = light_rows
+
+    bound_names: dict[str, list[str]] = {}
+    for row in light_rows:
+        bound_names.setdefault(row["experiment_id"], []).append(row["name"])
+    experiments: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for queue_row in queue_rows:
+        spec_id = queue_row["spec_id"]
+        if spec_id == _HARBOR_UNBOUND or spec_id in seen:
+            continue
+        seen.add(spec_id)
+        names = sorted(bound_names.get(spec_id, ()))
+        experiments.append(
+            {
+                "spec_id": spec_id,
+                "name": queue_row["name"],
+                "agent": queue_row["agent"],
+                "queue_state": queue_row["state"],
+                "job_names": names,
+                "job_count": len(names),
+                "source": "queue",
+            }
+        )
+    for spec_id in sorted(bound_names):
+        if spec_id in seen or spec_id == _HARBOR_UNBOUND:
+            continue
+        names = sorted(bound_names[spec_id])
+        experiments.append(
+            {
+                "spec_id": spec_id,
+                "name": names[0],
+                "agent": None,
+                "queue_state": "absent",
+                "job_names": names,
+                "job_count": len(names),
+                "source": "jobs_only",
+            }
+        )
+        notices.append(f"spec {spec_id} binds jobs but is absent from the queue")
+    unbound = sorted(bound_names.get(_HARBOR_UNBOUND, ()))
+    if unbound:
+        experiments.append(
+            {
+                "spec_id": _HARBOR_UNBOUND,
+                "name": _HARBOR_UNBOUND,
+                "agent": None,
+                "queue_state": "absent",
+                "job_names": unbound,
+                "job_count": len(unbound),
+                "source": "jobs_only",
+                "note": (
+                    "native Harbor jobs without a lab-metadata spec binding; "
+                    "unbound is not an external Docker audit"
+                ),
+            }
+        )
+    experiments.sort(key=lambda item: item["spec_id"])
+
+    capture_report, report_notices = _capture_report_view(
+        Path(coverage_report_path) if coverage_report_path is not None else None,
+        root=root,
+        selection=selection,
+        jobs=jobs,
+    )
+    notices.extend(report_notices)
+
+    return {
+        "kind": _EXPERIMENT_VIEW_KIND,
+        "selection": selection,
+        "experiments": experiments,
+        "queue": queue_rows,
+        "jobs": jobs,
+        "capture_report": capture_report,
+        "notices": notices,
+        "issues": issues,
+    }
+
+
+def render_experiment_text(report: dict[str, Any]) -> str:
+    """Concise copyable text render of an experiment evidence view.
+
+    Credential-shaped values are redacted with the explorer's existing
+    helpers. Paths and commands are copyable text only; nothing executes.
+    """
+    lines: list[str] = []
+    selection = report.get("selection") or {}
+    lines.append(f"experiment evidence view ({report.get('kind')})")
+    lines.append(
+        f"selection: {selection.get('mode')} "
+        f"{selection.get('experiment_id') or selection.get('job_dir') or 'inventory'}"
+    )
+    lines.append("")
+    lines.append("experiments:")
+    for experiment in report.get("experiments") or ():
+        lines.append(
+            f"  - {experiment.get('spec_id')} name={experiment.get('name')} "
+            f"state={experiment.get('queue_state')} jobs={experiment.get('job_count')}"
+        )
+        for name in experiment.get("job_names") or ():
+            lines.append(f"      job: {name}")
+    if not (report.get("experiments") or ()):
+        lines.append("  (none)")
+    lines.append("")
+    lines.append("queue:")
+    for row in report.get("queue") or ():
+        clean = redact_mapping(
+            {"name": row.get("name"), "agent": row.get("agent"), "jobs_dir": row.get("jobs_dir")}
+        )
+        lines.append(
+            f"  - [{row.get('state')}] {row.get('spec_id')} "
+            f"{clean.get('name')} ({clean.get('agent')}) {row.get('path')}"
+        )
+        for receipt in row.get("reasons") or ():
+            message = redact_text(str(receipt.get("message") or receipt.get("reason") or ""))
+            lines.append(
+                f"      reason {receipt.get('code') or receipt.get('status')}: "
+                f"{message} [{receipt.get('path')}]"
+            )
+    if not (report.get("queue") or ()):
+        lines.append("  (no queued specs)")
+    lines.append("")
+    lines.append("jobs:")
+    for job in report.get("jobs") or ():
+        lines.append(
+            f"  - {job.get('name')} origin={job.get('origin')} "
+            f"experiment={job.get('experiment_id')} status={job.get('execution_status')} "
+            f"{job.get('path')}"
+        )
+        if job.get("load_issue"):
+            lines.append(f"      unavailable: {redact_text(str(job['load_issue']))}")
+        for trial in job.get("trials") or ():
+            reward = trial.get("reward") or {}
+            usage = trial.get("usage") or {}
+            capture = trial.get("capture") or {}
+            exception = trial.get("exception") or {}
+            agent = trial.get("agent") or {}
+            lines.append(
+                f"      trial {trial.get('trial_name')} task={trial.get('task')} "
+                f"agent={agent.get('name')} reward={reward.get('value')} "
+                f"({reward.get('state')}) capture={capture.get('state')}"
+            )
+            if exception.get("class"):
+                lines.append(
+                    f"        exception: {exception.get('class')} "
+                    f"(phase {exception.get('phase')}; execution signal, not a capture state)"
+                )
+            links = trial.get("links") or {}
+            lines.append(
+                f"        source: {links.get('source')} result: {links.get('result')} "
+                f"trajectory: {links.get('trajectory')}"
+            )
+            lines.append(
+                f"        usage: in={usage.get('input_tokens')} "
+                f"out={usage.get('output_tokens')} usd={usage.get('cost_usd')} "
+                f"({usage.get('state')}); capture note: {capture.get('reason')}"
+            )
+        if job.get("origin") == "harbor_native":
+            lines.append(
+                f"      next (copy, do not auto-run): harbor view {shlex.quote(str(job.get('path')))}"
+            )
+    if not (report.get("jobs") or ()):
+        lines.append("  (none)")
+    lines.append("")
+    capture_report = report.get("capture_report") or {}
+    lines.append(
+        f"capture report: {capture_report.get('status')} "
+        f"scope={capture_report.get('scope')} {capture_report.get('path') or ''}".rstrip()
+    )
+    if capture_report.get("source_root") or capture_report.get("derived_root"):
+        lines.append(
+            f"  roots: source={capture_report.get('source_root')} "
+            f"derived={capture_report.get('derived_root')}"
+        )
+    job_ids = capture_report.get("job_ids")
+    if isinstance(job_ids, list) and job_ids:
+        shown_ids = ", ".join(str(jid) for jid in job_ids[:_COVERAGE_JOB_NAME_LIMIT])
+        extra_ids = (
+            f" +{len(job_ids) - _COVERAGE_JOB_NAME_LIMIT} more"
+            if len(job_ids) > _COVERAGE_JOB_NAME_LIMIT
+            else ""
+        )
+        lines.append(f"  closed-world job IDs ({len(job_ids)}): [{shown_ids}{extra_ids}]")
+    membership = capture_report.get("membership")
+    if isinstance(membership, dict) and membership.get("selected_job_ids"):
+        sel_ids = membership["selected_job_ids"]
+        shown_sel = ", ".join(str(jid) for jid in sel_ids[:_COVERAGE_JOB_NAME_LIMIT])
+        extra_sel = (
+            f" +{len(sel_ids) - _COVERAGE_JOB_NAME_LIMIT} more"
+            if len(sel_ids) > _COVERAGE_JOB_NAME_LIMIT
+            else ""
+        )
+        lines.append(f"  selected native UUIDs ({len(sel_ids)}): [{shown_sel}{extra_sel}]")
+    summary = capture_report.get("summary") or {}
+    for section, value in (summary.get("sections") or {}).items():
+        names = value.get("jobs") or []
+        shown = ", ".join(str(name) for name in names[:_COVERAGE_JOB_NAME_LIMIT])
+        extra = (
+            f" +{len(names) - _COVERAGE_JOB_NAME_LIMIT} more"
+            if len(names) > _COVERAGE_JOB_NAME_LIMIT
+            else ""
+        )
+        lines.append(
+            f"  - {section}: count={value.get('count')} "
+            f"truncated={value.get('truncated')} jobs=[{shown}{extra}]"
+        )
+    if summary.get("reasons"):
+        lines.append(f"  capture reasons: {summary['reasons']}")
+    if summary.get("trajectory_availability_by_agent") is not None:
+        clean_availability = redact_mapping(summary["trajectory_availability_by_agent"])
+        lines.append("  availability by agent:")
+        for name, availability in clean_availability.items():
+            lines.append(f"    {name}: {availability}")
+    repairs = summary.get("repair_path")
+    if isinstance(repairs, list) and repairs:
+        lines.append("  supplied repair advice (not execution authorization):")
+        for repair in repairs[:_COVERAGE_JOB_NAME_LIMIT]:
+            if isinstance(repair, dict):
+                lines.append(
+                    f"    {repair.get('job_name')}: {repair.get('reason')} [{repair.get('origin')}]"
+                )
+                lines.append(
+                    f"      {repair.get('resumable_command') or 'No resumable command supplied'}"
+                )
+        if len(repairs) > _COVERAGE_JOB_NAME_LIMIT:
+            lines.append(
+                f"    {len(repairs) - _COVERAGE_JOB_NAME_LIMIT} further entries in {capture_report.get('path')}"
+            )
+    elif repairs:
+        lines.append(f"  supplied repair context: {repairs}")
+    proof = capture_report.get("binding_proof")
+    if isinstance(proof, dict):
+        lines.append(
+            f"  binding proof: wrong_root={proof.get('wrong_root')} "
+            f"excluded={proof.get('excluded')} reasons={proof.get('reasons')}"
+        )
+    links = capture_report.get("external_links")
+    if isinstance(links, list) and links:
+        lines.append("  external links:")
+        for link in links:
+            if isinstance(link, dict):
+                lines.append(
+                    f"    - [{link.get('kind') or 'link'}] spec={link.get('spec_id')} "
+                    f"job={link.get('job_name')} ({link.get('job_id')}) status={link.get('status')}"
+                )
+                if link.get("chain"):
+                    lines.append(f"        chain: {link.get('chain')}")
+                if link.get("done_spec"):
+                    lines.append(f"        done spec: {link.get('done_spec')}")
+                for key, value in link.items():
+                    if key not in {
+                        "kind",
+                        "spec_id",
+                        "job_name",
+                        "job_id",
+                        "status",
+                        "chain",
+                        "done_spec",
+                    }:
+                        lines.append(f"        {key}: {value}")
+    lines.append("")
+    if report.get("notices"):
+        lines.append("notices:")
+        for notice in report["notices"]:
+            lines.append(f"  - {redact_text(notice)}")
+        lines.append("")
+    if report.get("issues"):
+        lines.append("issues:")
+        for issue in report["issues"]:
+            lines.append(f"  - {redact_text(issue)}")
+        lines.append("")
+    return redact_text("\n".join(lines).rstrip() + "\n")

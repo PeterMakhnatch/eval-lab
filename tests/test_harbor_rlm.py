@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+import threading
+import time
 import types
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -83,17 +87,21 @@ sys.path.insert(0, str(_REPO_SRC))
 from evallab.harbor_rlm import (  # noqa: E402
     AGENT_VERSION,
     AUTHORS_RLM_IMPORT,
+    HAR10_BACKEND_GIT_REF,
     MANAGED_BACKEND_IMPORT,
     MINI_SWE_AGENT_IMPORT,
     MINI_SWE_AGENT_VERSION,
     AuthorsRlmAgent,
     HarnessBackendContractError,
+    OpenAICompatibleRootClient,
     ProvidedEnvironmentReplBackend,
     ScriptedRootClient,
+    accounting_contract,
     baseline_import_path,
     candidate_import_path,
     find_repl_blocks,
     managed_backend_factory,
+    serializable_runtime_config,
 )
 
 
@@ -142,10 +150,17 @@ def test_import_paths_and_versions_declared() -> None:
     assert baseline_import_path() == MINI_SWE_AGENT_IMPORT
     assert candidate_import_path() == AUTHORS_RLM_IMPORT
     assert MINI_SWE_AGENT_VERSION == "2.4.6"
-    assert AGENT_VERSION.startswith("0.1.0")
+    assert AGENT_VERSION.startswith("0.1.")
     assert MANAGED_BACKEND_IMPORT == "evallab.rlm_runtime:ManagedReplBackend"
+    assert HAR10_BACKEND_GIT_REF == "00cf4af7496894ac87c64f16117c52666108afc4"
     assert HARBOR_AGENT_IMPORT_PATHS["authors-rlm"] == AUTHORS_RLM_IMPORT
     assert resolve_harbor_agent("authors-rlm") == AUTHORS_RLM_IMPORT
+    config = serializable_runtime_config()
+    assert "aiohttp_wheels" in config["forbidden_kwargs"]
+    assert "root_client" in config["forbidden_kwargs"]
+    contract = accounting_contract()
+    assert contract["fields"]["worker_usage"] is None
+    assert contract["fields"]["agent_result_totals_include_workers"] is False
 
 
 def _script_root() -> ScriptedRootClient:
@@ -356,6 +371,25 @@ def test_managed_factory_requires_worker_pins(monkeypatch: pytest.MonkeyPatch) -
             environment: Any,
             *,
             worker_src: Path,
+            session_id: str = "rlm-managed",
+            work_root: str = "/opt/rlm-managed",
+        ) -> None:
+            del environment, worker_src, session_id, work_root
+
+    module = types.ModuleType("evallab.rlm_runtime")
+    module.ManagedReplBackend = FakeBackend  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "evallab.rlm_runtime", module)
+    with pytest.raises(HarnessBackendContractError, match="worker_src"):
+        managed_backend_factory(object(), session_id="s")  # type: ignore[arg-type]
+
+
+def test_managed_factory_refuses_required_aiohttp_wheels(monkeypatch: pytest.MonkeyPatch) -> None:
+    class LegacyBackend:
+        def __init__(
+            self,
+            environment: Any,
+            *,
+            worker_src: Path,
             aiohttp_wheels: list[Path],
             session_id: str = "rlm-managed",
             work_root: str = "/opt/rlm-managed",
@@ -363,10 +397,42 @@ def test_managed_factory_requires_worker_pins(monkeypatch: pytest.MonkeyPatch) -
             del environment, worker_src, aiohttp_wheels, session_id, work_root
 
     module = types.ModuleType("evallab.rlm_runtime")
-    module.ManagedReplBackend = FakeBackend  # type: ignore[attr-defined]
+    module.ManagedReplBackend = LegacyBackend  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "evallab.rlm_runtime", module)
-    with pytest.raises(HarnessBackendContractError, match="worker_src"):
-        managed_backend_factory(object(), session_id="s")  # type: ignore[arg-type]
+    with pytest.raises(HarnessBackendContractError, match="aiohttp_wheels"):
+        managed_backend_factory(
+            object(),
+            session_id="s",
+            worker_src=Path("/pin/worker.py"),  # type: ignore[arg-type]
+        )
+
+
+def test_managed_factory_constructs_corrected_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    created: dict[str, Any] = {}
+
+    class CorrectedBackend:
+        def __init__(
+            self,
+            environment: Any,
+            *,
+            worker_src: Path,
+            session_id: str = "rlm-managed",
+            work_root: str = "/opt/rlm-managed",
+        ) -> None:
+            created["worker_src"] = worker_src
+            created["session_id"] = session_id
+            del environment, work_root
+
+    module = types.ModuleType("evallab.rlm_runtime")
+    module.ManagedReplBackend = CorrectedBackend  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "evallab.rlm_runtime", module)
+    managed_backend_factory(
+        object(),
+        session_id="authors-rlm",
+        worker_src=Path("/pin/worker.py"),  # type: ignore[arg-type]
+    )
+    assert created["worker_src"] == Path("/pin/worker.py")
+    assert created["session_id"] == "authors-rlm"
 
 
 def test_default_backend_path_fails_closed_without_har10(tmp_path: Path) -> None:
@@ -380,6 +446,109 @@ def test_default_backend_path_fails_closed_without_har10(tmp_path: Path) -> None
             await agent.run("Task", FakeEnvironment(), _STUBS["AgentContext"]())
 
     asyncio.run(scenario())
+
+
+def test_rejects_aiohttp_wheels_kwarg(tmp_path: Path) -> None:
+    with pytest.raises(HarnessBackendContractError, match="aiohttp_wheels"):
+        AuthorsRlmAgent(
+            tmp_path,
+            model_name="deepseek/deepseek-v4-flash",
+            aiohttp_wheels=[],
+        )
+
+
+def test_production_client_binds_from_env_identifier(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-local-only")
+    agent = AuthorsRlmAgent(
+        tmp_path,
+        model_name="deepseek/deepseek-v4-flash",
+        api_base="http://127.0.0.1:9",
+        secret_source="env:DEEPSEEK_API_KEY",
+    )
+    client = agent._bind_production_root_client()
+    assert isinstance(client, OpenAICompatibleRootClient)
+    assert client.model == "deepseek/deepseek-v4-flash"
+    assert "sk-test" not in repr(client)
+    assert client.secret_source == "env:DEEPSEEK_API_KEY"
+
+
+def test_missing_secret_names_identifier(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    agent = AuthorsRlmAgent(
+        tmp_path,
+        model_name="deepseek/deepseek-v4-flash",
+        secret_source="env:DEEPSEEK_API_KEY",
+    )
+    with pytest.raises(HarnessBackendContractError, match="env:DEEPSEEK_API_KEY"):
+        agent._bind_production_root_client()
+
+
+def test_production_http_timeout_preserves_artifact(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = {"n": 0}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            calls["n"] += 1
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            if calls["n"] == 1:
+                body = {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '```repl\nwrite_file("/app/output/summary.json", "kept")\n```'
+                                )
+                            }
+                        }
+                    ]
+                }
+                payload = json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            time.sleep(30)
+
+        def log_message(self, *_args: Any) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-local-only")
+        port = server.server_address[1]
+        environment = FakeEnvironment()
+        backend = ProvidedEnvironmentReplBackend(environment, sub_llm=lambda prompt: prompt)
+        agent = AuthorsRlmAgent(
+            tmp_path,
+            model_name="deepseek/deepseek-v4-flash",
+            backend_factory=lambda env: backend,
+            api_base=f"http://127.0.0.1:{port}",
+            timeout_sec=0.4,
+            max_iterations=2,
+        )
+        context = _STUBS["AgentContext"]()
+        with pytest.raises((TimeoutError, asyncio.TimeoutError)):
+            asyncio.run(agent.run("Task", environment, context))
+        assert environment.files["/app/output/summary.json"] == "kept"
+        assert backend.stopped
+        assert not environment.stopped
+        assert context.n_input_tokens is None
+        assert context.metadata is not None
+        assert context.metadata["worker_usage"] is None
+        assert context.metadata["agent_result_totals_include_workers"] is False
+        log = json.loads((tmp_path / "rlm" / "root-messages.json").read_text())
+        assert log["root_input_tokens"] is None
+        assert "sk-test" not in json.dumps(log)
+    finally:
+        server.shutdown()
 
 
 def test_second_markdown_fence_style_rejected() -> None:

@@ -96,12 +96,22 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
     stats = job.result.get("stats") or {}
     evidence_path = _relative_or_absolute(job.path, root)
     # A named local evidence directory can be intentionally regenerated before
-    # publication. The filesystem remains authoritative, so remove a stale row
-    # that points at the same path but carries the superseded Harbor UUID.
+    # publication. The filesystem remains authoritative, so a stale row that
+    # points at the same path but carries a superseded Harbor UUID is replaced.
+    # The replacement is recorded ON the new row (never silently): without this
+    # link the old identity vanishes with zero forensic trace when its trials
+    # cascade away. Same-id re-ingest (regeneration) records nothing.
+    superseded = connection.execute(
+        "SELECT id FROM jobs WHERE evidence_path = %s AND id <> %s",
+        (evidence_path, job.id),
+    ).fetchall()
     connection.execute(
         "DELETE FROM jobs WHERE evidence_path = %s AND id <> %s",
         (evidence_path, job.id),
     )
+    metadata = dict(job.metadata or {})
+    if superseded and "supersedes" not in metadata:
+        metadata["supersedes"] = str(superseded[0][0])
     connection.execute(
         """
         INSERT INTO jobs (
@@ -146,7 +156,7 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
             "raw_config": Jsonb(job.config),
             "raw_lock": Jsonb(job.lock),
             "raw_result": Jsonb(job.result),
-            "lab_metadata": Jsonb(job.metadata),
+            "lab_metadata": Jsonb(metadata),
         },
     )
 

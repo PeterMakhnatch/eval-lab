@@ -855,6 +855,29 @@ def resolve_job_ids_by_name(
     return resolved
 
 
+def summarize_binding(report: CoverageReport, *, job_name: str) -> str:
+    """Derive a job's binding status from a built report (never hand-written).
+
+    External-link status strings must describe the same state the coverage
+    counts show; a literal written before generation (e.g. claiming
+    not-cataloged while counts say 1/1) is exactly the failure this prevents.
+    """
+    projected = job_name in set(report.projected.jobs)
+    catalogued = job_name in set(report.catalogued.jobs)
+    excepted_reason: str | None = None
+    for entry in report.repair_path:
+        if entry.job_name == job_name:
+            excepted_reason = entry.reason
+            break
+    if projected and catalogued:
+        return "bound-catalogued-projected"
+    if catalogued:
+        return "bound-catalogued-unprojected"
+    if excepted_reason is not None:
+        return f"bound-excepted-{excepted_reason}"
+    return "unbound-unknown"
+
+
 def write_scope_bound_product(
     *,
     root: Path,

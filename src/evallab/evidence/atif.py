@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import shutil
 from collections import defaultdict, deque
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
@@ -1060,22 +1061,30 @@ def project_jobs(
     The full path remains :func:`ingest_and_project`, which catalogs first and
     then delegates here. Keeping one projection implementation lets CI exercise
     real Parquet writes while a local smoke also proves PostgreSQL agreement.
+
+    Each job projects into an inert staging root first and is published with
+    atomic renames, so an interrupted projection (or a concurrent writer) can
+    never leave a half-written partition in the live tree: readers observe
+    either the previous complete version or the new complete version.
     """
     from evallab.evidence.facts import rebuild_from_raw
+    from evallab.evidence.parquet_io import new_staging_root, publish_staged_job
+
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
     tables: list[ExportedTable] = []
     failures: list[ProjectionFailure] = []
     for job in ordered_jobs:
+        staging_root = new_staging_root(derived_root)
         try:
             job_table = _write_parquet(
-                derived_root / f"job_id={job.id}" / JOB_PROJECTION_FILE,
+                staging_root / f"job_id={job.id}" / JOB_PROJECTION_FILE,
                 "jobs",
                 [{"job_id": job.id, "job_name": job.name, "trial_count": len(job.trials)}],
             )
-            tables.append(job_table)
-            rebuilt = rebuild_from_raw([job], derived_root)
+            rebuilt = rebuild_from_raw([job], staging_root)
+            publish_staged_job(derived_root, staging_root, job.id)
         except Exception as exc:  # Projection failure is data, not an agent result.
             failures.append(
                 ProjectionFailure(
@@ -1086,8 +1095,23 @@ def project_jobs(
                 )
             )
             continue
-        tables.extend(rebuilt.tables)
+        finally:
+            shutil.rmtree(staging_root, ignore_errors=True)
+        tables.append(_rebase_table(job_table, staging_root, derived_root))
+        tables.extend(
+            _rebase_table(table, staging_root, derived_root) for table in rebuilt.tables
+        )
     return tuple(tables), tuple(failures)
+
+
+def _rebase_table(table: ExportedTable, staging_root: Path, derived_root: Path) -> ExportedTable:
+    """Point a staged export record at its live location (bytes moved, not rewritten)."""
+    return ExportedTable(
+        table=table.table,
+        path=derived_root / table.path.relative_to(staging_root.resolve()),
+        rows=table.rows,
+        sha256=table.sha256,
+    )
 
 
 def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str | None]]:

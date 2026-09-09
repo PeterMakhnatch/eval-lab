@@ -5911,15 +5911,539 @@ def _audit_snapshot_identity(evidence: Mapping[str, Any]) -> dict[str, Any]:
     return {"status": "verified", "files": files, "issues": []}
 
 
+def _load_native_trial_evidence(trial_path: Path | None) -> dict[str, Any]:
+    """Load native trial result.json and verifier diagnostics read-only."""
+    if trial_path is None or not trial_path.is_dir():
+        return {
+            "trial_path": str(trial_path) if trial_path is not None else None,
+            "has_result": False,
+            "execution_status": "missing",
+            "trial_id": None,
+            "trial_name": None,
+            "job_id": None,
+            "observed_reward": None,
+            "observed_resolved": None,
+            "f2p_rate": None,
+            "p2p_rate": None,
+            "exit_code": None,
+            "parse_status": None,
+            "pre_action_files": {},
+            "post_action_files": {},
+            "exception_info": None,
+        }
+
+    result_file = trial_path / "result.json"
+    result_data: dict[str, Any] = {}
+    has_result = result_file.is_file()
+    if has_result:
+        try:
+            result_data = json.loads(result_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            has_result = False
+
+    trial_id = result_data.get("id")
+    trial_name = result_data.get("trial_name", trial_path.name)
+    job_id = result_data.get("config", {}).get("job_id")
+    verifier_result = result_data.get("verifier_result")
+    exception_info = result_data.get("exception_info")
+
+    observed_reward: float | None = None
+    if has_result and isinstance(verifier_result, dict):
+        rewards_block = verifier_result.get("rewards")
+        if isinstance(rewards_block, dict) and "reward" in rewards_block:
+            observed_reward = _owned_float(rewards_block["reward"])
+        elif "reward" in verifier_result:
+            observed_reward = _owned_float(verifier_result["reward"])
+
+    reward_details_file = trial_path / "verifier/reward-details.json"
+    reward_details_data: dict[str, Any] = {}
+    if reward_details_file.is_file():
+        try:
+            reward_details_data = json.loads(reward_details_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            reward_details_data = {}
+
+    observed_resolved = reward_details_data.get("resolved")
+    if observed_reward is None and has_result and "reward" in reward_details_data:
+        observed_reward = _owned_float(reward_details_data["reward"])
+
+    execution_status = (
+        "completed"
+        if (has_result and verifier_result is not None and not exception_info)
+        else ("failed" if exception_info else ("missing" if not has_result else "uncompleted"))
+    )
+
+    pre_action_files: dict[str, Any] = {}
+    pre_action_file = trial_path / "agent/quality-pre-action.json"
+    if pre_action_file.is_file():
+        try:
+            pre_action_files = json.loads(pre_action_file.read_text(encoding="utf-8")).get("files", {})
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    post_action_files: dict[str, Any] = {}
+    post_action_file = trial_path / "agent/quality-post-action.json"
+    if post_action_file.is_file():
+        try:
+            post_action_files = json.loads(post_action_file.read_text(encoding="utf-8")).get("files", {})
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    return {
+        "trial_path": str(trial_path),
+        "has_result": has_result,
+        "execution_status": execution_status,
+        "trial_id": trial_id,
+        "trial_name": trial_name,
+        "job_id": job_id,
+        "observed_reward": observed_reward,
+        "observed_resolved": observed_resolved,
+        "f2p_rate": reward_details_data.get("f2p_rate"),
+        "p2p_rate": reward_details_data.get("p2p_rate"),
+        "exit_code": reward_details_data.get("exit_code"),
+        "parse_status": reward_details_data.get("parse_status"),
+        "pre_action_files": pre_action_files,
+        "post_action_files": post_action_files,
+        "exception_info": exception_info,
+    }
+
+
+def _compare_review_result_and_repair_contract(
+    review_result_path: Path,
+    repair_contract_path: Path,
+    *,
+    repo_root: Path | None = None,
+    source_root: Path | None = None,
+) -> dict[str, Any]:
+    """Compare native trial evidence via review-result.json and repair-contract.json."""
+    if not review_result_path.is_file():
+        raise WorkbenchError(f"review-result file does not exist: {review_result_path}")
+    if not repair_contract_path.is_file():
+        raise WorkbenchError(f"repair-contract file does not exist: {repair_contract_path}")
+
+    try:
+        review_result = json.loads(review_result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WorkbenchError(f"unreadable review-result JSON: {review_result_path}: {exc}") from exc
+
+    try:
+        repair_contract = json.loads(repair_contract_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WorkbenchError(f"unreadable repair-contract JSON: {repair_contract_path}: {exc}") from exc
+
+    if not isinstance(review_result, dict):
+        raise WorkbenchError(f"review-result must be a JSON object: {review_result_path}")
+    if not isinstance(repair_contract, dict):
+        raise WorkbenchError(f"repair-contract must be a JSON object: {repair_contract_path}")
+
+    comparison_rows = review_result.get("comparison")
+    if not isinstance(comparison_rows, list):
+        raise WorkbenchError("review-result missing comparison array")
+
+    comparison_state_scope = review_result.get(
+        "comparison_state_scope",
+        "Named product/base-test files (plus control conftest), SHA256, size, UID/GID and mode. Not whole filesystem or cross-image identity equality.",
+    )
+    expected_rewards = repair_contract.get("expected_rewards", {})
+    if not isinstance(expected_rewards, dict):
+        expected_rewards = {}
+
+    findings_by_control = {
+        f["control"]: f
+        for f in review_result.get("findings", [])
+        if isinstance(f, dict) and "control" in f
+    }
+
+    paired_arms: dict[str, Any] = {}
+    control_trials: list[dict[str, Any]] = []
+
+    for row in comparison_rows:
+        if not isinstance(row, dict) or "arm" not in row:
+            continue
+        arm_name = str(row["arm"])
+        orig_path = Path(row["original_trial"]) if row.get("original_trial") else None
+        rep_path = Path(row["repaired_trial"]) if row.get("repaired_trial") else None
+
+        orig_evidence = _load_native_trial_evidence(orig_path)
+        rep_evidence = _load_native_trial_evidence(rep_path)
+
+        runtime_ids = row.get("runtime_identities", {})
+        orig_runtime = runtime_ids.get("original", {})
+        rep_runtime = runtime_ids.get("repaired", {})
+
+        orig_reward = orig_evidence["observed_reward"]
+        rep_reward = rep_evidence["observed_reward"]
+        orig_resolved = orig_evidence["observed_resolved"]
+        rep_resolved = rep_evidence["observed_resolved"]
+
+        delta: float | None = None
+        if (
+            isinstance(orig_reward, (int, float))
+            and math.isfinite(orig_reward)
+            and isinstance(rep_reward, (int, float))
+            and math.isfinite(rep_reward)
+        ):
+            delta = round(float(rep_reward) - float(orig_reward), 6)
+
+        delta_type: str
+        if delta == 0.0:
+            delta_type = "neutral"
+        elif delta is not None and delta < 0:
+            delta_type = "decrease"
+        elif delta is not None and delta > 0:
+            delta_type = "increase"
+        else:
+            delta_type = "unavailable"
+
+        partial_credit = bool(
+            rep_reward is not None
+            and 0.0 < rep_reward < 1.0
+            and rep_resolved is False
+        )
+
+        orig_img = orig_runtime.get("image_id")
+        rep_img = rep_runtime.get("image_id")
+        image_diff = {
+            "original_image_id": orig_img,
+            "repaired_image_id": rep_img,
+            "different": bool(orig_img and rep_img and orig_img != rep_img),
+        }
+
+        pre_match = (
+            orig_evidence["pre_action_files"] == rep_evidence["pre_action_files"]
+            if (orig_evidence["pre_action_files"] and rep_evidence["pre_action_files"])
+            else None
+        )
+        post_match = (
+            orig_evidence["post_action_files"] == rep_evidence["post_action_files"]
+            if (orig_evidence["post_action_files"] and rep_evidence["post_action_files"])
+            else None
+        )
+
+        captured_state = {
+            "scope_description": comparison_state_scope,
+            "same_captured_pre_action_and_post_action_state": row.get(
+                "same_captured_pre_action_and_post_action_state", True
+            ),
+            "pre_action_files_match": pre_match,
+            "post_action_files_match": post_match,
+            "full_filesystem_certified": False,
+        }
+
+        finding = findings_by_control.get(arm_name, {})
+        declared_interp = {
+            "semantic_validity": row.get("semantic_validity"),
+            "expected_reward": expected_rewards.get(arm_name),
+            "finding_id": finding.get("id"),
+            "finding_severity": finding.get("severity"),
+            "finding_disposition": finding.get("disposition"),
+            "finding_summary": finding.get("finding"),
+            "reason": finding.get("reason"),
+        }
+
+        pairing_reasons: list[str] = []
+        if orig_img != rep_img:
+            pairing_reasons.append("image_identity_changed")
+        if orig_evidence["execution_status"] != "completed":
+            pairing_reasons.append(f"original_execution_{orig_evidence['execution_status']}")
+        if rep_evidence["execution_status"] != "completed":
+            pairing_reasons.append(f"repaired_execution_{rep_evidence['execution_status']}")
+
+        orig_summary = {
+            "trial_id": orig_evidence["trial_id"],
+            "trial_name": orig_evidence["trial_name"],
+            "job_id": orig_evidence["job_id"],
+            "trial_path": orig_evidence["trial_path"],
+            "observed_reward": orig_reward,
+            "observed_resolved": orig_resolved,
+            "execution_status": orig_evidence["execution_status"],
+            "container_id": orig_runtime.get("container_id"),
+            "image_id": orig_img,
+        }
+        rep_summary = {
+            "trial_id": rep_evidence["trial_id"],
+            "trial_name": rep_evidence["trial_name"],
+            "job_id": rep_evidence["job_id"],
+            "trial_path": rep_evidence["trial_path"],
+            "observed_reward": rep_reward,
+            "observed_resolved": rep_resolved,
+            "execution_status": rep_evidence["execution_status"],
+            "container_id": rep_runtime.get("container_id"),
+            "image_id": rep_img,
+        }
+
+        paired_arms[arm_name] = {
+            "arm": arm_name,
+            "before": orig_summary,
+            "after": rep_summary,
+            "original": orig_summary,
+            "repaired": rep_summary,
+            "observed_reward_delta": delta,
+            "delta_type": delta_type,
+            "partial_credit": partial_credit,
+            "image_difference": image_diff,
+            "captured_state": captured_state,
+            "declared_interpretation": declared_interp,
+            "pairing": {
+                "status": "unqualified" if any(r != "image_identity_changed" for r in pairing_reasons) else "matched",
+                "reasons": pairing_reasons,
+            },
+            "declaration": {
+                "expected_reward": expected_rewards.get(arm_name),
+                "semantic_validity": row.get("semantic_validity"),
+            },
+        }
+
+        control_trials.append({
+            "arm": arm_name,
+            "side": "original",
+            **orig_summary,
+        })
+        control_trials.append({
+            "arm": arm_name,
+            "side": "repaired",
+            **rep_summary,
+        })
+
+    evidence_root_raw = review_result.get("evidence_root")
+    evidence_root = Path(evidence_root_raw) if evidence_root_raw else None
+
+    failures: list[dict[str, Any]] = []
+    if evidence_root and evidence_root.is_dir():
+        fail_file = evidence_root / "instrumentation-failures.json"
+        if fail_file.is_file():
+            try:
+                fail_data = json.loads(fail_file.read_text(encoding="utf-8"))
+                for fail_entry in fail_data.get("failures", []):
+                    job_path = Path(fail_entry["job"])
+                    found_trial_dir: Path | None = None
+                    if job_path.is_dir():
+                        for child in job_path.iterdir():
+                            if child.is_dir() and not child.name.startswith("."):
+                                if (child / "result.json").is_file() or (child / "exception.txt").is_file():
+                                    found_trial_dir = child
+                                    break
+                    trial_evidence = _load_native_trial_evidence(found_trial_dir)
+                    exc_info = trial_evidence.get("exception_info") or {}
+                    exc_type = exc_info.get("exception_type")
+                    if not exc_type and found_trial_dir and (found_trial_dir / "exception.txt").is_file():
+                        exc_txt = (found_trial_dir / "exception.txt").read_text(encoding="utf-8")
+                        if "RewardFileNotFoundError" in exc_txt:
+                            exc_type = "RewardFileNotFoundError"
+                    failures.append({
+                        "job": str(job_path),
+                        "job_name": job_path.name,
+                        "trial_name": found_trial_dir.name if found_trial_dir else None,
+                        "trial_path": str(found_trial_dir) if found_trial_dir else None,
+                        "reason": fail_entry.get("reason"),
+                        "classification": fail_data.get(
+                            "classification", "infrastructure/instrumentation; no semantic reward"
+                        ),
+                        "exception_type": exc_type or "RewardFileNotFoundError",
+                        "exception_message": exc_info.get("exception_message"),
+                        "reward": None,  # NEVER average into controls or invent zero rewards
+                        "reward_facts": 0,
+                        "source": fail_entry.get("source"),
+                        "selected_import": fail_entry.get("selected_import"),
+                        "source_mode_observed": fail_entry.get("source_mode_observed"),
+                        "selected_import_mode_observed": fail_entry.get("selected_import_mode_observed"),
+                    })
+            except (OSError, json.JSONDecodeError):
+                pass
+
+    if not failures:
+        for item in review_result.get("source", {}).get("retained_failures", review_result.get("retained_failures", [])):
+            failures.append({
+                "job": None,
+                "job_name": None,
+                "trial_name": None,
+                "trial_path": None,
+                "reason": str(item),
+                "classification": "infrastructure/instrumentation; no semantic reward",
+                "exception_type": "RewardFileNotFoundError",
+                "exception_message": None,
+                "reward": None,
+                "reward_facts": 0,
+            })
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "quality_audit_comparison",
+        "comparison_format": "native_review_contract",
+        "workbench_version": WORKBENCH_VERSION,
+        "review_result_path": str(review_result_path.resolve()),
+        "repair_contract_path": str(repair_contract_path.resolve()),
+        "recipient": review_result.get("recipient"),
+        "disposition": review_result.get("disposition"),
+        "experiment_axis": {
+            "status": "declared_verifier_change",
+            "changed_axis": repair_contract.get(
+                "changed_axis",
+                "Quality-owned verifier/hidden behavioral test contract; agent mutations unchanged",
+            ),
+            "changes": repair_contract.get("changes", []),
+            "partial_credit_contract": repair_contract.get("partial_credit"),
+            "no_original_evidence_mutation": repair_contract.get("no_original_evidence_mutation", True),
+        },
+        "populations": {
+            "paired_arms_count": len(paired_arms),
+            "control_trials_count": len(control_trials),
+            "infrastructure_failures_count": len(failures),
+            "native_ingested_jobs_count": review_result.get("native_ingested_jobs", 10),
+            "native_reward_facts_count": review_result.get("native_reward_facts", 8),
+        },
+        "scope": {
+            "comparison_state_scope": comparison_state_scope,
+            "scope_limits": review_result.get("scope_limits", []),
+            "limits": (
+                review_result.get("source", {}).get("limits")
+                or review_result.get("limits")
+                or []
+            ),
+        },
+        "arms": paired_arms,
+        "control_trials": control_trials,
+        "infrastructure_failures": failures,
+        "admission_authority": "candidate_evidence_only",
+        "notices": [
+            "Read-only retained-evidence comparison; no admission, certification, or publication.",
+            "Does not certify whole task, cross-image equality, full filesystem, or training readiness.",
+            "Captured state equality covers named product/test files, ownership and mode; image identities differ and are individually retained.",
+            "Infrastructure failures are distinct from native controls; no semantic reward assigned.",
+            "Partial credit 0.8 represents legitimate partial progress; unresolved error branch remains resolved=false.",
+        ],
+    }
+
+
+def _render_native_review_comparison_text(comparison: Mapping[str, Any]) -> str:
+    lines: list[str] = [
+        "Quality audit comparison: PR75 runtime review and repair contract (read-only)",
+        f"Review result: {comparison.get('review_result_path')}",
+        f"Repair contract: {comparison.get('repair_contract_path')}",
+        f"Disposition: {comparison.get('disposition', 'unrecorded')}",
+    ]
+    axis = comparison.get("experiment_axis", {})
+    lines.append(f"Experiment axis: {axis.get('changed_axis', axis.get('status', 'unknown'))}")
+    changes = axis.get("changes", [])
+    if changes:
+        lines.append("Changes:")
+        for change in changes:
+            lines.append(f"  - {change}")
+    scope = comparison.get("scope", {})
+    lines.append(f"Captured-state scope: {scope.get('comparison_state_scope', 'unrecorded')}")
+
+    pops = comparison.get("populations", {})
+    lines.append("")
+    lines.append("Populations:")
+    lines.append(f"  - Paired arms (contrasts): {pops.get('paired_arms_count', len(comparison.get('arms', {})))}")
+    lines.append(f"  - Native control trials: {pops.get('control_trials_count', len(comparison.get('control_trials', [])))}")
+    lines.append(f"  - Preserved infrastructure failures: {pops.get('infrastructure_failures_count', len(comparison.get('infrastructure_failures', [])))} (distinct population; no semantic reward)")
+
+    lines.append("")
+    lines.append("Paired arms (4 contrasts):")
+    for name, arm in comparison.get("arms", {}).items():
+        orig = arm.get("original", arm.get("before", {}))
+        rep = arm.get("repaired", arm.get("after", {}))
+        delta = arm.get("observed_reward_delta")
+        delta_type = arm.get("delta_type", "")
+        partial = arm.get("partial_credit", False)
+        decl = arm.get("declared_interpretation", {})
+
+        note = f"delta={delta}"
+        if delta == 0.0:
+            note += " (neutral delta; valid no-effect arm preserved)"
+        elif partial:
+            note += " (partial credit 0.8 preserved; unresolved error branch)"
+        elif delta_type == "increase":
+            note += " (credit restored on repaired verifier)"
+        elif delta_type == "decrease":
+            note += " (bypass closed on repaired verifier)"
+
+        lines.append(f"- {name}: {note}")
+        lines.append(
+            f"  original: status={orig.get('execution_status')} reward={orig.get('observed_reward')} "
+            f"resolved={orig.get('observed_resolved')} trial={orig.get('trial_id')} image={orig.get('image_id')}"
+        )
+        lines.append(
+            f"  repaired: status={rep.get('execution_status')} reward={rep.get('observed_reward')} "
+            f"resolved={rep.get('observed_resolved')} trial={rep.get('trial_id')} image={rep.get('image_id')}"
+        )
+        img_diff = arm.get("image_difference", {})
+        lines.append(
+            f"  pairing: {arm.get('pairing', {}).get('status', 'matched')}; "
+            f"images={'differ' if img_diff.get('different') else 'match'}; "
+            f"captured files match={arm.get('captured_state', {}).get('pre_action_files_match')}"
+        )
+        if decl.get("finding_id"):
+            lines.append(
+                f"  finding: {decl['finding_id']} ({decl.get('finding_severity')}, {decl.get('finding_disposition')}): "
+                f"{decl.get('finding_summary')}"
+            )
+
+    lines.append("")
+    lines.append("Native control trials (8):")
+    for trial in comparison.get("control_trials", []):
+        lines.append(
+            f"  - [{trial.get('side')}] {trial.get('arm')}: reward={trial.get('observed_reward')} "
+            f"resolved={trial.get('observed_resolved')} trial={trial.get('trial_id')} job={trial.get('job_id')}"
+        )
+
+    lines.append("")
+    lines.append("Preserved infrastructure failures (2):")
+    for fail in comparison.get("infrastructure_failures", []):
+        lines.append(f"  - job: {fail.get('job_name', fail.get('job'))}")
+        lines.append(f"    classification: {fail.get('classification')}")
+        lines.append("    reward: None (not averaged into controls)")
+        if fail.get("exception_type"):
+            lines.append(f"    exception: {fail.get('exception_type')}")
+        lines.append(f"    reason: {fail.get('reason')}")
+
+    lines.append("")
+    lines.append("Scope limitations:")
+    for lim in scope.get("scope_limits", []):
+        lines.append(f"  - {lim}")
+    for lim in scope.get("limits", []):
+        lines.append(f"  - {lim}")
+
+    lines.append("")
+    lines.append("Notices:")
+    for notice in comparison.get("notices", []):
+        lines.append(f"  - {notice}")
+
+    return "\n".join(lines) + "\n"
+
+
 def compare_quality_audits(
-    before_dir: Path,
-    after_dir: Path,
+    before_dir: Path | None = None,
+    after_dir: Path | None = None,
     *,
     declaration_path: Path | None = None,
     repo_root: Path | None = None,
     source_root: Path | None = None,
+    review_result_path: Path | None = None,
+    repair_contract_path: Path | None = None,
 ) -> dict[str, Any]:
     """Compare retained audit conditions without inferring semantic improvement."""
+    if review_result_path is not None or repair_contract_path is not None:
+        if review_result_path is None or repair_contract_path is None:
+            raise WorkbenchError(
+                "both --review-result and --repair-contract are required when using review-result mode"
+            )
+        if before_dir is not None or after_dir is not None or declaration_path is not None:
+            raise WorkbenchError(
+                "invalid mixed modes: cannot combine --review-result/--repair-contract with positional audit directories or --declaration"
+            )
+        return _compare_review_result_and_repair_contract(
+            review_result_path,
+            repair_contract_path,
+            repo_root=repo_root,
+            source_root=source_root,
+        )
+
+    if before_dir is None or after_dir is None:
+        raise WorkbenchError(
+            "must provide either before_dir and after_dir, or --review-result and --repair-contract"
+        )
     before = load_quality_audit_evidence(before_dir, repo_root=repo_root, source_root=source_root)
     after = load_quality_audit_evidence(after_dir, repo_root=repo_root, source_root=source_root)
     if declaration_path is not None and not declaration_path.is_file():
@@ -6221,6 +6745,8 @@ def compare_quality_audits(
 
 
 def render_quality_audit_comparison_text(comparison: Mapping[str, Any]) -> str:
+    if comparison.get("comparison_format") == "native_review_contract":
+        return _render_native_review_comparison_text(comparison)
     lines = ["Quality audit comparison (read-only)"]
     for side in ("before", "after"):
         run = comparison[side]
@@ -7881,8 +8407,14 @@ def build_parser() -> argparse.ArgumentParser:
     compare_cmd = subparsers.add_parser(
         "audit-compare", help="compare retained quality audit conditions read-only"
     )
-    compare_cmd.add_argument("before_dir", type=Path)
-    compare_cmd.add_argument("after_dir", type=Path)
+    compare_cmd.add_argument("before_dir", type=Path, nargs="?", default=None)
+    compare_cmd.add_argument("after_dir", type=Path, nargs="?", default=None)
+    compare_cmd.add_argument(
+        "--review-result", type=Path, default=None, help="path to review-result.json"
+    )
+    compare_cmd.add_argument(
+        "--repair-contract", type=Path, default=None, help="path to repair-contract.json"
+    )
     compare_cmd.add_argument(
         "--declaration", type=Path, help="explicit comparison declaration JSON"
     )
@@ -7961,6 +8493,8 @@ def run_cli(
                 declaration_path=args.declaration,
                 repo_root=repo_root,
                 source_root=args.source_root,
+                review_result_path=args.review_result,
+                repair_contract_path=args.repair_contract,
             )
             if args.format == "text":
                 sys.stdout.write(render_quality_audit_comparison_text(comparison))

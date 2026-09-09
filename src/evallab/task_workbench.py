@@ -8275,6 +8275,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     paired_cmd.add_argument("--repo-root", type=Path, default=Path.cwd())
     paired_cmd.add_argument("--manifest", type=Path, help="frozen paired comparison manifest")
+    paired_cmd.add_argument(
+        "--cohort",
+        type=Path,
+        help="Factory cohort.json; composed into the paired manifest with arm/model bindings",
+    )
+    paired_cmd.add_argument("--baseline-profile", default=None)
+    paired_cmd.add_argument("--candidate-profile", default=None)
+    paired_cmd.add_argument("--root-model", help="shared configured root model id")
+    paired_cmd.add_argument("--root-revision", help="immutable root revision when known")
+    paired_cmd.add_argument(
+        "--worker-model", help="fixed worker id; defaults to root on cohort compose"
+    )
     paired_cmd.add_argument("--comparison-id", help="existing comparison_id for inspect")
     paired_cmd.add_argument("--analysis-report", type=Path)
     paired_cmd.add_argument("--queue-root", type=Path)
@@ -8300,19 +8312,36 @@ def run_cli(
     try:
         if args.command == "paired-compare":
             from evallab.harness_compare import (
+                DEFAULT_BASELINE_PROFILE,
+                DEFAULT_CANDIDATE_PROFILE,
                 HarnessCompareError,
                 compile_pair,
                 inspect_pair,
-                load_manifest,
+                load_pair_inputs,
                 render_pair_text,
                 submit_pair,
             )
 
             try:
+                analysis_rel = None
+                if args.analysis_report is not None:
+                    try:
+                        analysis_rel = (
+                            args.analysis_report.resolve().relative_to(repo_root).as_posix()
+                        )
+                    except ValueError:
+                        analysis_rel = None
                 if args.paired_command in {"prepare", "submit"}:
-                    if args.manifest is None:
-                        raise WorkbenchError("--manifest is required to prepare or submit")
-                    manifest = load_manifest(args.manifest)
+                    manifest = load_pair_inputs(
+                        manifest_path=args.manifest,
+                        cohort_path=args.cohort,
+                        baseline_profile=args.baseline_profile or DEFAULT_BASELINE_PROFILE,
+                        candidate_profile=args.candidate_profile or DEFAULT_CANDIDATE_PROFILE,
+                        root_model=args.root_model,
+                        root_revision=args.root_revision,
+                        worker_model=args.worker_model,
+                        analysis_report=analysis_rel,
+                    )
                     if args.paired_command == "prepare":
                         report = compile_pair(
                             repo_root,
@@ -8332,12 +8361,30 @@ def run_cli(
                     comparison_id = args.comparison_id
                     analysis = args.analysis_report
                     if comparison_id is None:
-                        if args.manifest is None:
-                            raise WorkbenchError("inspect requires --manifest or --comparison-id")
-                        loaded = load_manifest(args.manifest)
-                        comparison_id = loaded.comparison_id
-                        if analysis is None and loaded.analysis_report:
-                            analysis = repo_root / loaded.analysis_report
+                        if (
+                            args.cohort is not None
+                            and args.manifest is None
+                            and not args.root_model
+                        ):
+                            payload = json.loads(args.cohort.read_text(encoding="utf-8"))
+                            comparison_id = str(payload.get("cohort_id") or "")
+                            if not comparison_id:
+                                raise WorkbenchError("cohort.json is missing cohort_id")
+                        else:
+                            loaded = load_pair_inputs(
+                                manifest_path=args.manifest,
+                                cohort_path=args.cohort,
+                                baseline_profile=args.baseline_profile or DEFAULT_BASELINE_PROFILE,
+                                candidate_profile=args.candidate_profile
+                                or DEFAULT_CANDIDATE_PROFILE,
+                                root_model=args.root_model,
+                                root_revision=args.root_revision,
+                                worker_model=args.worker_model,
+                                analysis_report=analysis_rel,
+                            )
+                            comparison_id = loaded.comparison_id
+                            if analysis is None and loaded.analysis_report:
+                                analysis = repo_root / loaded.analysis_report
                     report = inspect_pair(
                         repo_root,
                         comparison_id=comparison_id,

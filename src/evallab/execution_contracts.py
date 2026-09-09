@@ -152,7 +152,9 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "codex": "evallab.harbor_codex:PinnedCodex",
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+    "authors-rlm": "evallab.harbor_rlm:AuthorsRlmAgent",
 }
+DEEPSEEK_LANE_AGENTS: frozenset[str] = frozenset({"mini-swe-agent", "authors-rlm"})
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-v4-flash"
 DEEPSEEK_SECRET_COMPOSE = Path("containers/deepseek-v4-flash-secret.compose.yaml")
@@ -242,6 +244,7 @@ class RunRequest:
                 result.extend(str(s) for s in self.skills)
         return tuple(result)
 
+
 @dataclass(frozen=True)
 class HarborProcessResult:
     """Outcome of running a Harbor subprocess under watchdog supervision."""
@@ -251,6 +254,7 @@ class HarborProcessResult:
     log_path: Path
     timed_out_trial: str | None = None
     proxy_usage: dict[str, Any] | None = None
+
 
 @dataclass(frozen=True)
 class ProxyTrialLimits:
@@ -263,17 +267,19 @@ class ProxyTrialLimits:
     max_cost_micros: int
 
     def __post_init__(self) -> None:
-        if min(
-            self.max_requests,
-            self.max_input_tokens,
-            self.max_output_tokens,
-            self.max_total_tokens,
-            self.max_cost_micros,
-        ) < 1:
+        if (
+            min(
+                self.max_requests,
+                self.max_input_tokens,
+                self.max_output_tokens,
+                self.max_total_tokens,
+                self.max_cost_micros,
+            )
+            < 1
+        ):
             raise ValueError("proxy trial ceilings must be positive")
         if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
             raise ValueError("proxy total-token ceiling exceeds component ceilings")
-
 
 
 @dataclass(frozen=True)
@@ -600,7 +606,7 @@ def validate_request(request: RunRequest) -> None:
         request.cost_limit_usd,
     )
     if any(value is not None for value in proxy_limits):
-        if request.agent != "mini-swe-agent":
+        if request.agent not in DEEPSEEK_LANE_AGENTS:
             raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
         if any(value is None for value in proxy_limits):
             raise ValueError("mini-swe-agent requires every provider ceiling")
@@ -612,22 +618,25 @@ def validate_request(request: RunRequest) -> None:
             or request.cost_limit_usd is None
         ):
             raise AssertionError("validated provider ceilings unexpectedly absent")
-        if min(
-            request.max_requests,
-            request.max_input_tokens,
-            request.max_output_tokens,
-            request.max_total_tokens,
-        ) < 1:
+        if (
+            min(
+                request.max_requests,
+                request.max_input_tokens,
+                request.max_output_tokens,
+                request.max_total_tokens,
+            )
+            < 1
+        ):
             raise ValueError("provider request and token ceilings must be positive")
         if request.cost_limit_usd <= 0:
             raise ValueError("cost_limit_usd must be positive")
         if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
             raise ValueError("total-token ceiling exceeds input plus output ceilings")
-    if request.agent == "mini-swe-agent":
-        if any(value is None for value in proxy_limits):
+    if request.agent in DEEPSEEK_LANE_AGENTS:
+        if request.agent == "mini-swe-agent" and any(value is None for value in proxy_limits):
             raise ValueError("mini-swe-agent requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
-            raise ValueError("mini-swe-agent capabilities bind exactly one trial")
+            raise ValueError(f"{request.agent} capabilities bind exactly one trial")
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
@@ -636,7 +645,6 @@ def validate_request(request: RunRequest) -> None:
     if request.model and request.agent in CONTROL_AGENTS:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
-
         raise ValueError("A model requires --allow-billable")
 
 
@@ -676,9 +684,9 @@ def build_command(request: RunRequest) -> list[str]:
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
-    if request.agent == "mini-swe-agent":
+    if request.agent in DEEPSEEK_LANE_AGENTS:
         if harbor_model != DEEPSEEK_MODEL_SELECTOR:
-            raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
+            raise ValueError(f"{request.agent} requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
         cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
         max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
         command.extend(
@@ -689,12 +697,26 @@ def build_command(request: RunRequest) -> list[str]:
                 "1",
                 "--max-retries",
                 "0",
-                "--agent-kwarg",
-                f"cost_limit={cost_limit}",
-                "--agent-kwarg",
-                f"max_tokens={max_tokens}",
             ]
         )
+        if request.agent == "mini-swe-agent":
+            command.extend(
+                [
+                    "--agent-kwarg",
+                    f"cost_limit={cost_limit}",
+                    "--agent-kwarg",
+                    f"max_tokens={max_tokens}",
+                ]
+            )
+        else:
+            command.extend(
+                [
+                    "--agent-kwarg",
+                    f"worker_model={harbor_model}",
+                    "--agent-kwarg",
+                    f"max_tokens={max_tokens}",
+                ]
+            )
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     for skill_path in request.resolved_skills:

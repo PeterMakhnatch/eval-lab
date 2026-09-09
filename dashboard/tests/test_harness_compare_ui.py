@@ -33,7 +33,10 @@ def test_submit_button_path_holds_unapproved_model(tmp_path: Path) -> None:
                 "schema_version": 1,
                 "comparison_id": "ui-canary",
                 "question": "operator journey",
-                "root_model": {"configured_id": "held", "revision_status": "unknown"},
+                "root_model": {
+                    "configured_id": "deepseek/deepseek-v4-flash",
+                    "revision_status": "unknown",
+                },
                 "baseline": {"profile_id": "oracle", "role": "baseline"},
                 "candidate": {
                     "profile_id": "mini-swe-agent-deepseek-v4-flash",

@@ -517,6 +517,24 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "with zero model trials",
                 ),
             ),
+            AgentProfile(
+                profile_id="authors-rlm-deepseek-v4-flash",
+                adapter="authors-rlm",
+                adapter_version="0.1.0-har12",
+                model="deepseek/deepseek-v4-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:DEEPSEEK_API_KEY,MSWEA_API_KEY",
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-09: HAR-12 published AuthorsRlmAgent "
+                    "(evallab.harbor_rlm:AuthorsRlmAgent, PR #393 @ 3da0c348) "
+                    "with CPU protocol checks and no model trial",
+                ),
+            ),
             # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`
             # reported a live session and `cursor-agent -f -p …` returned the exact
             # requested string, so this lane is observed working rather than declared.

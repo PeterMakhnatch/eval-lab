@@ -15,8 +15,11 @@ import asyncio
 import inspect
 import io
 import json
+import os
 import re
 import shlex
+import urllib.error
+import urllib.request
 from collections.abc import Callable, Sequence
 from contextlib import redirect_stdout
 from dataclasses import dataclass, field
@@ -39,11 +42,16 @@ from evallab.harbor_rlm_prompts import (
     build_user_prompt,
 )
 
-AGENT_VERSION = "0.1.0-har12"
+AGENT_VERSION = "0.1.1-har12"
 MINI_SWE_AGENT_VERSION = "2.4.6"
 MINI_SWE_AGENT_IMPORT = "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
 AUTHORS_RLM_IMPORT = "evallab.harbor_rlm:AuthorsRlmAgent"
 MANAGED_BACKEND_IMPORT = "evallab.rlm_runtime:ManagedReplBackend"
+HAR10_BACKEND_PR = 392
+HAR10_BACKEND_GIT_REF = "00cf4af7496894ac87c64f16117c52666108afc4"
+ADMITTED_SECRET_ENV_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
+DEFAULT_SECRET_SOURCE = "env:DEEPSEEK_API_KEY"
+DEFAULT_API_BASE = "https://api.deepseek.com"
 REPL_CODE_PATTERN = re.compile(r"```repl\s*\n(.*?)\n```", re.DOTALL)
 _MAX_REPL_OUTPUT_CHARS = 20_000
 
@@ -61,6 +69,80 @@ class RootCompletion:
 
 class RootChatClient(Protocol):
     def complete(self, messages: Sequence[dict[str, str]]) -> RootCompletion: ...
+
+
+class OpenAICompatibleRootClient:
+    """Host-side OpenAI-compatible client from serializable Harbor kwargs."""
+
+    def __init__(
+        self,
+        *,
+        model: str,
+        api_base: str,
+        api_key: str,
+        timeout_sec: float,
+        max_tokens: int = 8192,
+        temperature: float | None = None,
+        secret_source: str = DEFAULT_SECRET_SOURCE,
+    ) -> None:
+        self.model = model
+        self.api_base = api_base.rstrip("/")
+        self._api_key = api_key
+        self.timeout_sec = float(timeout_sec)
+        self.max_tokens = int(max_tokens)
+        self.temperature = temperature
+        self.secret_source = secret_source
+
+    def __repr__(self) -> str:
+        return (
+            "OpenAICompatibleRootClient("
+            f"model={self.model!r}, api_base={self.api_base!r}, "
+            f"secret_source={self.secret_source!r})"
+        )
+
+    def complete(self, messages: Sequence[dict[str, str]]) -> RootCompletion:
+        url = f"{self.api_base}/chat/completions"
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": list(messages),
+            "max_tokens": self.max_tokens,
+        }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self._api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_sec) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except TimeoutError as exc:
+            raise TimeoutError(f"root client timed out after {self.timeout_sec:g}s") from exc
+        except urllib.error.URLError as exc:
+            reason = getattr(exc, "reason", exc)
+            if isinstance(reason, TimeoutError):
+                raise TimeoutError(f"root client timed out after {self.timeout_sec:g}s") from exc
+            raise
+        choices = body.get("choices") or []
+        message = choices[0].get("message") if choices else {}
+        text = (message or {}).get("content") or ""
+        usage = body.get("usage")
+        input_tokens = None
+        output_tokens = None
+        if isinstance(usage, dict):
+            if "prompt_tokens" in usage and usage["prompt_tokens"] is not None:
+                input_tokens = int(usage["prompt_tokens"])
+            if "completion_tokens" in usage and usage["completion_tokens"] is not None:
+                output_tokens = int(usage["completion_tokens"])
+        return RootCompletion(text=text, input_tokens=input_tokens, output_tokens=output_tokens)
+
+    def complete_text(self, prompt: str) -> str:
+        return self.complete(({"role": "user", "content": prompt},)).text
 
 
 class ReplBackend(Protocol):
@@ -117,6 +199,83 @@ def candidate_import_path() -> str:
     return AUTHORS_RLM_IMPORT
 
 
+def parse_secret_source(secret_source: str) -> str:
+    if not secret_source.startswith("env:"):
+        raise HarnessBackendContractError(
+            f"secret_source must be an env: identifier, not {secret_source!r}"
+        )
+    name = secret_source.split(":", 1)[1]
+    if name not in ADMITTED_SECRET_ENV_NAMES:
+        raise HarnessBackendContractError(
+            f"secret_source {secret_source!r} is not an admitted host identifier"
+        )
+    return name
+
+
+def serializable_runtime_config() -> dict[str, Any]:
+    """Harbor-kwargs Integration can serialize. No Python callables."""
+    return {
+        "agent": "authors-rlm",
+        "import_path": AUTHORS_RLM_IMPORT,
+        "agent_version": AGENT_VERSION,
+        "baseline_import": MINI_SWE_AGENT_IMPORT,
+        "baseline_version": MINI_SWE_AGENT_VERSION,
+        "backend_import": MANAGED_BACKEND_IMPORT,
+        "backend_pr": HAR10_BACKEND_PR,
+        "backend_git_ref": HAR10_BACKEND_GIT_REF,
+        "kwargs": {
+            "worker_src": "<pinned released worker.py from HAR-10>",
+            "worker_model": "<defaults to --model>",
+            "worker_proxy_url": "<optional host-reachable worker URL>",
+            "secret_source": DEFAULT_SECRET_SOURCE,
+            "api_base": DEFAULT_API_BASE,
+            "extra_instruction_path": "<optional GEPA candidate>",
+            "timeout_sec": 120,
+            "max_tokens": 8192,
+        },
+        "forbidden_kwargs": (
+            "aiohttp_wheels",
+            "root_client",
+            "sub_llm",
+            "backend_factory",
+        ),
+    }
+
+
+def accounting_contract() -> dict[str, Any]:
+    """Source-native file/field contract for HAR-13. Unknowns stay null."""
+    return {
+        "file": "logs_dir/rlm/root-messages.json",
+        "source_format": "authors-rlm-root-messages",
+        "fields": {
+            "schema_version": None,
+            "prompt_source_sha256": PROMPT_SOURCE_SHA256,
+            "parsing_source_sha256": PARSING_SOURCE_SHA256,
+            "root_model": "string or null",
+            "worker_model": "string or null",
+            "root_model_revision": None,
+            "worker_model_revision": None,
+            "root_calls": "int",
+            "worker_calls": "int",
+            "root_input_tokens": "int or null",
+            "root_output_tokens": "int or null",
+            "worker_input_tokens": None,
+            "worker_output_tokens": None,
+            "worker_usage": None,
+            "cost_usd": None,
+            "atif": False,
+            "agent_result_totals_include_workers": False,
+            "exhausted_iterations": "bool",
+            "secret_source": "env identifier only",
+            "messages": "root conversation, no provider secrets",
+        },
+        "lego_capture": (
+            "not emitted unless tokenizer ids/logprobs/mask are actually observed; "
+            "this agent does not invent them from text"
+        ),
+    }
+
+
 def _require_environment_backend(cls: type) -> None:
     try:
         params = inspect.signature(cls.__init__).parameters
@@ -138,29 +297,46 @@ def managed_backend_factory(
     *,
     session_id: str,
     worker_src: Path | None = None,
-    aiohttp_wheels: list[Path] | None = None,
     work_root: str = "/opt/rlm-managed",
 ) -> ReplBackend:
-    """Construct HAR-10's published backend. Fails closed if it is absent or incomplete."""
+    """Construct HAR-10's published backend without obsolete aiohttp_wheels."""
     try:
         from evallab.rlm_runtime import ManagedReplBackend
     except ImportError as exc:
         raise HarnessBackendContractError(
-            "HAR-10 ManagedReplBackend is not importable. Publish "
-            f"{MANAGED_BACKEND_IMPORT} (PR #392). Import error: {exc}"
+            "HAR-10 ManagedReplBackend is not importable. Consume "
+            f"{MANAGED_BACKEND_IMPORT} from PR #{HAR10_BACKEND_PR} @"
+            f"{HAR10_BACKEND_GIT_REF} (corrected constructor: no aiohttp_wheels). "
+            f"Import error: {exc}"
         ) from exc
     _require_environment_backend(ManagedReplBackend)
-    if worker_src is None or aiohttp_wheels is None:
+    parameters = inspect.signature(ManagedReplBackend.__init__).parameters
+    if (
+        "aiohttp_wheels" in parameters
+        and parameters["aiohttp_wheels"].default is inspect.Parameter.empty
+    ):
         raise HarnessBackendContractError(
-            "HAR-10 ManagedReplBackend requires pinned worker_src and "
-            "aiohttp_wheels from the published backend packet"
+            "HAR-10 constructor still requires obsolete aiohttp_wheels; "
+            f"need the corrected pin after {HAR10_BACKEND_GIT_REF}. "
+            "This agent will not pass a dummy empty list."
         )
+    if worker_src is None:
+        raise HarnessBackendContractError(
+            "HAR-10 ManagedReplBackend requires pinned worker_src from the published backend packet"
+        )
+    kwargs: dict[str, Any] = {
+        "worker_src": Path(worker_src),
+        "session_id": session_id,
+        "work_root": work_root,
+    }
+    accepted = {
+        name
+        for name, param in parameters.items()
+        if name != "self" and param.kind is not inspect.Parameter.VAR_KEYWORD
+    }
     return ManagedReplBackend(
         environment,
-        worker_src=Path(worker_src),
-        aiohttp_wheels=[Path(wheel) for wheel in aiohttp_wheels],
-        session_id=session_id,
-        work_root=work_root,
+        **{key: value for key, value in kwargs.items() if key in accepted},
     )
 
 
@@ -379,26 +555,32 @@ class AuthorsRlmAgent(BaseAgent):
         model_name: str | None = None,
         *,
         worker_model: str | None = None,
-        max_iterations: int = 30,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
+        max_iterations: int | str = 30,
+        max_tokens: int | str = 8192,
+        temperature: float | str | None = None,
         extra_instruction: str | None = None,
         extra_instruction_path: str | Path | None = None,
         working_dir: str = "/app",
         backend_factory: Callable[..., ReplBackend] | None = None,
         root_client: RootChatClient | None = None,
         sub_llm: Callable[[str], str] | None = None,
-        timeout_sec: float | None = None,
+        timeout_sec: float | str | None = None,
         worker_src: str | Path | None = None,
-        aiohttp_wheels: list[str | Path] | None = None,
         worker_proxy_url: str | None = None,
+        secret_source: str = DEFAULT_SECRET_SOURCE,
+        api_base: str = DEFAULT_API_BASE,
         **kwargs: Any,
     ) -> None:
+        if "aiohttp_wheels" in kwargs:
+            raise HarnessBackendContractError(
+                "obsolete aiohttp_wheels is not accepted; HAR-10 corrected "
+                "constructor has no dummy empty-list shim"
+            )
         super().__init__(logs_dir=logs_dir, model_name=model_name, **kwargs)
         self._worker_model = worker_model or model_name
-        self._max_iterations = max_iterations
-        self._max_tokens = max_tokens
-        self._temperature = temperature
+        self._max_iterations = int(max_iterations)
+        self._max_tokens = int(max_tokens)
+        self._temperature = None if temperature is None else float(temperature)
         self._extra_instruction = extra_instruction
         if extra_instruction_path is not None:
             path = Path(extra_instruction_path)
@@ -410,19 +592,19 @@ class AuthorsRlmAgent(BaseAgent):
             )
         self._working_dir = working_dir
         self._backend_factory = backend_factory
+        self._injected_root_client = root_client
         self._root_client = root_client
         self._sub_llm = sub_llm
-        self._timeout_sec = timeout_sec
+        self._timeout_sec = None if timeout_sec is None else float(timeout_sec)
         self._worker_src = Path(worker_src) if worker_src is not None else None
-        self._aiohttp_wheels = (
-            [Path(wheel) for wheel in aiohttp_wheels] if aiohttp_wheels is not None else None
-        )
         self._worker_proxy_url = worker_proxy_url
+        self._secret_source = secret_source
+        self._api_base = api_base
         self._backend: ReplBackend | None = None
         self._root_calls = 0
         self._worker_calls = 0
-        self._root_input_tokens = 0
-        self._root_output_tokens = 0
+        self._root_input_tokens: int | None = None
+        self._root_output_tokens: int | None = None
         self._exhausted = False
 
     @staticmethod
@@ -460,7 +642,6 @@ class AuthorsRlmAgent(BaseAgent):
                 environment,
                 session_id=self.session_id or "authors-rlm",
                 worker_src=self._worker_src,
-                aiohttp_wheels=self._aiohttp_wheels,
             )
         try:
             return factory(environment)
@@ -472,22 +653,79 @@ class AuthorsRlmAgent(BaseAgent):
             )
 
     def _require_sub_llm(self) -> Callable[[str], str]:
-        if self._sub_llm is None:
-            raise HarnessBackendContractError(
-                "CPU protocol backend requires an injected sub_llm hook; "
-                "production HAR-10 routing uses the caller-provided worker client"
-            )
-        return self._sub_llm
+        if self._sub_llm is not None:
+            return self._sub_llm
+        worker = self._bind_production_root_client(model=self._worker_model)
+        return worker.complete_text
 
     def _worker_proxy(self) -> str:
         if self._backend_factory is not None:
             return self._worker_proxy_url or "hook://trial-worker"
-        if not self._worker_proxy_url:
+        if self._worker_proxy_url:
+            return self._worker_proxy_url
+        raise HarnessBackendContractError(
+            "serialized config requires worker_proxy_url for HAR-10 sub-LLM transport"
+        )
+
+    def _secret_value(self, name: str) -> str | None:
+        getter = getattr(self, "_get_env", None)
+        if callable(getter):
+            value = getter(name)
+            if value:
+                return value
+        extra = getattr(self, "_extra_env", None) or getattr(self, "extra_env", None) or {}
+        if isinstance(extra, dict) and name in extra:
+            return str(extra[name])
+        return os.environ.get(name)
+
+    def _bind_production_root_client(
+        self, *, model: str | None = None
+    ) -> OpenAICompatibleRootClient:
+        chosen = model or self.model_name
+        if not chosen:
             raise HarnessBackendContractError(
-                "HAR-10 ManagedReplBackend requires worker_proxy_url for sub-LLM "
-                "transport; this packet does not open a model route"
+                "serialized config requires model_name for the OpenAI-compatible root client"
             )
-        return self._worker_proxy_url
+        env_name = parse_secret_source(self._secret_source)
+        api_key = self._secret_value(env_name)
+        if not api_key:
+            raise HarnessBackendContractError(
+                f"secret source {self._secret_source} is unset on the host"
+            )
+        timeout = self._timeout_sec if self._timeout_sec is not None else 120.0
+        return OpenAICompatibleRootClient(
+            model=chosen,
+            api_base=self._api_base,
+            api_key=api_key,
+            timeout_sec=timeout,
+            max_tokens=self._max_tokens,
+            temperature=self._temperature,
+            secret_source=self._secret_source,
+        )
+
+    def _resolve_root_client(self) -> RootChatClient:
+        if self._injected_root_client is not None:
+            return self._injected_root_client
+        if self._root_client is None:
+            self._root_client = self._bind_production_root_client()
+        return self._root_client
+
+    async def _complete_root(
+        self, client: RootChatClient, messages: Sequence[dict[str, str]]
+    ) -> RootCompletion:
+        acomplete = getattr(client, "acomplete", None)
+        if callable(acomplete):
+            result = await acomplete(messages)
+            return result
+        return await asyncio.to_thread(client.complete, list(messages))
+
+    def _record_root_usage(self, completion: RootCompletion) -> None:
+        if completion.input_tokens is not None:
+            current = 0 if self._root_input_tokens is None else self._root_input_tokens
+            self._root_input_tokens = current + completion.input_tokens
+        if completion.output_tokens is not None:
+            current = 0 if self._root_output_tokens is None else self._root_output_tokens
+            self._root_output_tokens = current + completion.output_tokens
 
     async def _loop(
         self,
@@ -509,20 +747,12 @@ class AuthorsRlmAgent(BaseAgent):
             root_prompt=instruction,
             extra_instruction=self._extra_instruction,
         )
-        client = self._root_client
-        if client is None:
-            raise HarnessBackendContractError(
-                "Root OpenAI-compatible client is not bound. Integration must inject "
-                "the approved provider client; this packet does not open a model route."
-            )
+        client = self._resolve_root_client()
         for iteration in range(self._max_iterations):
             history.append(build_user_prompt(iteration, self._max_iterations))
-            completion = client.complete(history)
+            completion = await self._complete_root(client, history)
             self._root_calls += 1
-            if completion.input_tokens is not None:
-                self._root_input_tokens += completion.input_tokens
-            if completion.output_tokens is not None:
-                self._root_output_tokens += completion.output_tokens
+            self._record_root_usage(completion)
             blocks = find_repl_blocks(completion.text)
             outputs: list[str] = []
             final_answer: str | None = None
@@ -560,31 +790,54 @@ class AuthorsRlmAgent(BaseAgent):
             "schema_version": None,
             "prompt_source_sha256": PROMPT_SOURCE_SHA256,
             "parsing_source_sha256": PARSING_SOURCE_SHA256,
+            "root_model": self.model_name,
+            "worker_model": self._worker_model,
+            "root_model_revision": None,
+            "worker_model_revision": None,
             "messages": history,
             "root_calls": self._root_calls,
             "worker_calls": self._worker_calls,
+            "root_input_tokens": self._root_input_tokens,
+            "root_output_tokens": self._root_output_tokens,
+            "worker_input_tokens": None,
+            "worker_output_tokens": None,
+            "worker_usage": None,
+            "cost_usd": None,
+            "atif": False,
+            "agent_result_totals_include_workers": False,
             "exhausted_iterations": self._exhausted,
+            "secret_source": self._secret_source,
+            "backend": MANAGED_BACKEND_IMPORT,
+            "backend_git_ref": HAR10_BACKEND_GIT_REF,
         }
         (directory / "root-messages.json").write_text(
             json.dumps(payload, indent=2) + "\n", encoding="utf-8"
         )
 
     def _publish_context(self, context: AgentContext) -> None:
-        context.n_input_tokens = self._root_input_tokens or None
-        context.n_output_tokens = self._root_output_tokens or None
+        context.n_input_tokens = self._root_input_tokens
+        context.n_output_tokens = self._root_output_tokens
         context.metadata = {
             "agent": self.name(),
             "agent_version": self.version(),
             "root_model": self.model_name,
             "worker_model": self._worker_model,
+            "root_model_revision": None,
+            "worker_model_revision": None,
             "root_calls": self._root_calls,
             "worker_calls": self._worker_calls,
-            "root_input_tokens": self._root_input_tokens or None,
-            "root_output_tokens": self._root_output_tokens or None,
+            "root_input_tokens": self._root_input_tokens,
+            "root_output_tokens": self._root_output_tokens,
+            "worker_input_tokens": None,
+            "worker_output_tokens": None,
             "worker_usage": None,
+            "cost_usd": None,
             "atif": False,
+            "agent_result_totals_include_workers": False,
             "backend": MANAGED_BACKEND_IMPORT,
+            "backend_git_ref": HAR10_BACKEND_GIT_REF,
             "exhausted_iterations": self._exhausted,
+            "secret_source": self._secret_source,
         }
 
 

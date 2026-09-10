@@ -13,6 +13,7 @@ from evallab.harness_compare import (
     load_analysis_product,
     load_manifest,
     load_pair_inputs,
+    readiness_report,
     submit_pair,
 )
 from evallab.task_workbench import run_cli
@@ -298,3 +299,36 @@ def test_inspect_does_not_emit_comparison_spec_without_jobs(tmp_path: Path) -> N
     viewed = inspect_pair(tmp_path, comparison_id=submitted["comparison_id"])
     assert viewed["comparison_spec"] is None
     assert any("CohortComparisonSpec not emitted" in issue for issue in viewed["issues"])
+
+
+def test_readiness_is_blocked_not_approval_only(tmp_path: Path) -> None:
+    _policy(tmp_path)
+    task = _task_package(tmp_path, "event-summary")
+    cohort = _factory_cohort(tmp_path, task)
+    manifest = load_pair_inputs(cohort_path=cohort, root_model="deepseek/deepseek-v4-flash")
+    report = readiness_report(tmp_path, manifest, submitted_by="har-11")
+    assert report["verdict"] == "BLOCKED"
+    assert "READY_FOR_APPROVAL" not in report["verdict"]
+    assert "approval-only" in report["verdict_reason"]
+    by_name = {gate["name"]: gate for gate in report["gates"]}
+    assert by_name["constructor_config"]["status"] == "BLOCKED"
+    assert by_name["execution_authorization"]["status"] == "BLOCKED"
+    assert by_name["source_runtime_pins"]["status"] == "PASS"
+    assert {arm["spec"]["est_cost_usd"] for arm in report["arms"]} == {2.5}
+    assert (
+        run_cli(
+            [
+                "paired-compare",
+                "readiness",
+                "--repo-root",
+                str(tmp_path),
+                "--cohort",
+                str(cohort),
+                "--root-model",
+                "deepseek/deepseek-v4-flash",
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )

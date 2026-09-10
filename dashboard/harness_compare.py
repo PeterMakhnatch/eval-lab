@@ -17,6 +17,7 @@ from evallab.harness_compare import (
     compile_pair,
     inspect_pair,
     load_pair_inputs,
+    readiness_report,
     render_pair_text,
     submit_pair,
 )
@@ -66,6 +67,8 @@ def run_operator_action(
             canary_only=canary_only,
             queue_root=queue_root,
         )
+    if action == "readiness":
+        return readiness_report(root, manifest, submitted_by=submitted_by, queue_root=queue_root)
     if action == "inspect":
         analysis = analysis_report
         if analysis is None and manifest.analysis_report:
@@ -85,9 +88,8 @@ def main() -> None:
     st.set_page_config(page_title="Eval Lab — Paired harness comparison", layout="wide")
     st.title("Paired harness comparison")
     st.caption(
-        "Select a Factory cohort.json or a frozen paired manifest, prepare or submit "
-        "through existing Lab policy, then inspect queue state, jobs, and any HAR-13 "
-        "report. Model runs stay held until `uv run evallab approve <spec-id> --actor <you>`. "
+        "Select a Factory cohort.json or a frozen paired manifest. Readiness is the "
+        "no-spend launch view: it will not call READY_FOR_APPROVAL while HAR-10 is blocked. "
         "This page does not tick Harbor or invent results."
     )
     root = repo_root()
@@ -103,13 +105,15 @@ def main() -> None:
     analysis_value = st.text_input("HAR-13 analysis report or directory", value="")
     submitted_by = st.text_input("Submitted by", value="harness-first-operator")
     canary_only = st.checkbox("Canary only (first launch)", value=True)
-    columns = st.columns(3)
+    columns = st.columns(4)
     action = None
     if columns[0].button("Prepare (compile only)"):
         action = "prepare"
-    if columns[1].button("Submit through policy"):
+    if columns[1].button("Readiness (no spend)"):
+        action = "readiness"
+    if columns[2].button("Submit through policy"):
         action = "submit"
-    if columns[2].button("Inspect results"):
+    if columns[3].button("Inspect results"):
         action = "inspect"
     if action is None:
         st.info("No action yet. Buttons call evallab.harness_compare, not a mock screen.")
@@ -141,9 +145,11 @@ def main() -> None:
         st.caption(f"evidence_kind={analysis.get('evidence_kind')} sha256={analysis.get('sha256')}")
         st.markdown(analysis["markdown"])
     st.json(report)
+    if report.get("verdict") == "BLOCKED":
+        st.error(report.get("verdict_reason") or "Not READY_FOR_APPROVAL")
     for arm in report.get("arms") or ():
         hold = arm.get("hold") or {}
-        if hold.get("approval_command"):
+        if hold.get("approval_command") and report.get("verdict") != "BLOCKED":
             st.warning(hold.get("message") or hold.get("reason_code"))
             st.code(hold["approval_command"], language="bash")
 

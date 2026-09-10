@@ -8297,7 +8297,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="compile the full bounded matrix, not only the canary",
     )
     paired_cmd.add_argument("--format", choices=("text", "json"), default="text")
-    paired_cmd.add_argument("paired_command", choices=("prepare", "submit", "inspect"))
+    paired_cmd.add_argument("paired_command", choices=("prepare", "submit", "inspect", "readiness"))
     return parser
 
 
@@ -8318,6 +8318,7 @@ def run_cli(
                 compile_pair,
                 inspect_pair,
                 load_pair_inputs,
+                readiness_report,
                 render_pair_text,
                 submit_pair,
             )
@@ -8331,7 +8332,7 @@ def run_cli(
                         )
                     except ValueError:
                         analysis_rel = None
-                if args.paired_command in {"prepare", "submit"}:
+                if args.paired_command in {"prepare", "submit", "readiness"}:
                     manifest = load_pair_inputs(
                         manifest_path=args.manifest,
                         cohort_path=args.cohort,
@@ -8348,6 +8349,13 @@ def run_cli(
                             manifest,
                             submitted_by=args.submitted_by,
                             canary_only=not args.all_tasks,
+                        )
+                    elif args.paired_command == "readiness":
+                        report = readiness_report(
+                            repo_root,
+                            manifest,
+                            submitted_by=args.submitted_by,
+                            queue_root=args.queue_root,
                         )
                     else:
                         report = submit_pair(

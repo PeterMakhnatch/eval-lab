@@ -715,6 +715,12 @@ def build_command(request: RunRequest) -> list[str]:
                     f"worker_model={harbor_model}",
                     "--agent-kwarg",
                     f"max_tokens={max_tokens}",
+                    "--agent-kwarg",
+                    "secret_source=env:DEEPSEEK_API_KEY",
+                    "--agent-kwarg",
+                    "api_base=https://api.deepseek.com",
+                    "--agent-kwarg",
+                    "timeout_sec=120",
                 ]
             )
     if request.extra_instruction_path is not None:

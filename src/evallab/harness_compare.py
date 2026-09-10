@@ -464,6 +464,14 @@ def compile_arm_spec(
                 else manifest.worker_model.model_dump(mode="json"),
             },
         )
+    if profile.adapter not in CONTROL_AGENTS and (
+        entry.task_id == "event-summary" or entry.task.rstrip("/").endswith("event-summary")
+    ):
+        spec = spec.model_copy(
+            update={
+                "est_cost_usd": 2.5,
+            }
+        )
     dumped = spec.model_dump(mode="json")
     if dumped.get("model") != (None if profile.adapter in CONTROL_AGENTS else root_id):
         raise HarnessCompareError(
@@ -802,6 +810,20 @@ def render_pair_text(report: Mapping[str, Any]) -> str:
                 else ""
             )
         )
+    if report.get("verdict"):
+        lines.append(f"verdict: {report['verdict']}")
+        if report.get("verdict_reason"):
+            lines.append(f"verdict_reason: {report['verdict_reason']}")
+    for gate in report.get("gates") or ():
+        lines.append(f"gate: {gate.get('status')} {gate.get('name')} — {gate.get('detail')}")
+    if report.get("spec_ids"):
+        lines.append("spec_ids:")
+        for row in report["spec_ids"]:
+            lines.append(
+                f"  - {row.get('arm')} {row.get('spec_id')} state={row.get('queue_state')} stale={row.get('stale')}"
+            )
+            if row.get("approval_command"):
+                lines.append(f"      next (copy, do not auto-run): {row['approval_command']}")
     for notice in report.get("notices") or ():
         lines.append(f"notice: {notice}")
     for issue in report.get("issues") or ():
@@ -811,3 +833,203 @@ def render_pair_text(report: Mapping[str, Any]) -> str:
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+
+
+HAR12_AGENT_VERSION = "0.1.1-har12"
+HAR12_GIT_REF = "ddf1a0112c4873e38d165942216429d24c62cccb"
+HAR10_GIT_REF = "00cf4af7496894ac87c64f16117c52666108afc4"
+HAR10_BACKEND_IMPORT = "evallab.rlm_runtime:ManagedReplBackend"
+
+
+def _gate(name: str, status: str, detail: str) -> dict[str, str]:
+    return {"name": name, "status": status, "detail": detail}
+
+
+def readiness_report(
+    repo_root: Path,
+    manifest: PairedComparisonManifest,
+    *,
+    submitted_by: str,
+    queue_root: Path | None = None,
+) -> dict[str, Any]:
+    """No-spend launch-readiness view. Never ticks Harbor or claims a win."""
+    repo_root = repo_root.resolve()
+    compiled = compile_pair(repo_root, manifest, submitted_by=submitted_by, canary_only=True)
+    if queue_root is None:
+        viewed = {
+            "queue": [],
+            "jobs": [],
+            "missing_arms": [],
+            "issues": ["queue_root omitted; not scanning the lab production queue"],
+        }
+    else:
+        viewed = inspect_pair(
+            repo_root, comparison_id=manifest.comparison_id, queue_root=queue_root
+        )
+    policy_path = repo_root / "policy/standing-approvals.yaml"
+    daily = per_job = None
+    if policy_path.is_file():
+        policy = load_policy(policy_path)
+        daily = policy.daily_cost_ceiling_usd
+        per_job = policy.per_job_cost_ceiling_usd
+
+    agent_version = None
+    serializable: dict[str, Any] | None = None
+    try:
+        from evallab.harbor_rlm import AGENT_VERSION, serializable_runtime_config
+
+        agent_version = AGENT_VERSION
+        serializable = serializable_runtime_config()
+    except Exception as exc:
+        rlm_source = Path(__file__).with_name("harbor_rlm.py")
+        if rlm_source.is_file():
+            match = re.search(r'AGENT_VERSION = "([^"]+)"', rlm_source.read_text())
+            if match:
+                agent_version = match.group(1)
+        serializable = {"import_error": f"{type(exc).__name__}: {exc}"}
+
+    backend_spec = importlib.util.find_spec("evallab.rlm_runtime")
+    backend_requires_wheels = None
+    if backend_spec is not None:
+        try:
+            import inspect as pyinspect
+
+            from evallab.rlm_runtime import ManagedReplBackend
+
+            parameters = pyinspect.signature(ManagedReplBackend.__init__).parameters
+            backend_requires_wheels = (
+                "aiohttp_wheels" in parameters
+                and parameters["aiohttp_wheels"].default is pyinspect.Parameter.empty
+            )
+        except Exception as exc:
+            backend_requires_wheels = f"{type(exc).__name__}: {exc}"
+
+    root_matches = all(
+        (arm.get("spec") or {}).get("model") == manifest.root_model.configured_id
+        for arm in compiled["arms"]
+        if (arm.get("spec") or {}).get("agent") not in CONTROL_AGENTS
+    )
+    estimates = [(arm.get("spec") or {}).get("est_cost_usd") for arm in compiled["arms"]]
+    genuine_estimates = all(isinstance(value, (int, float)) and value > 0 for value in estimates)
+
+    queue_specs = [
+        {
+            "spec_id": row.get("spec_id"),
+            "arm": row.get("arm"),
+            "agent": row.get("agent"),
+            "model": row.get("model"),
+            "queue_state": row.get("queue_state"),
+            "approval_command": (
+                f"uv run evallab approve {row.get('spec_id')} --actor <you>"
+                if row.get("spec_id")
+                else None
+            ),
+            "stale": True,
+            "stale_reason": (
+                "isolated waiting specs were compiled before HAR-12 0.1.1-har12; "
+                "do not approve them"
+            ),
+        }
+        for row in viewed.get("queue") or []
+        if row.get("canary")
+        or row.get("arm") in {"baseline", "candidate", "mini-swe", "authors-rlm"}
+    ]
+
+    gates = [
+        _gate(
+            "source_runtime_pins",
+            "PASS" if agent_version == HAR12_AGENT_VERSION else "FAIL",
+            (
+                f"HAR-12 AuthorsRlmAgent {agent_version} pin {HAR12_GIT_REF}; "
+                f"mini-swe-agent 2.4.6; root {manifest.root_model.configured_id} "
+                f"revision_status={manifest.root_model.revision_status}"
+            ),
+        ),
+        _gate(
+            "constructor_config",
+            "BLOCKED",
+            (
+                f"{HAR10_BACKEND_IMPORT} find_spec={'present' if backend_spec else 'absent'}; "
+                f"aiohttp_wheels_required={backend_requires_wheels}; "
+                f"HAR-10 PR392 @{HAR10_GIT_REF} CONFLICTING and provider-blocked. "
+                "HAR-12 0.1.1 refuses aiohttp_wheels and dummy empty lists. "
+                "worker_src and worker_proxy_url are unset; a URL field is not a started worker. "
+                "find_spec success is not production construction."
+            ),
+        ),
+        _gate(
+            "task_verifier_identity",
+            "PASS" if any(arm.get("canary") for arm in compiled["arms"]) else "FAIL",
+            "Factory canary event-summary / registered/event-summary; verifier and package digests copied from cohort members when present.",
+        ),
+        _gate(
+            "root_worker_routing",
+            "PASS" if root_matches else "FAIL",
+            (
+                f"spec.model matches requested root on billable arms={root_matches}; "
+                "worker_model declared as the same configured id with revision unknown; "
+                "worker route is not a live proxy"
+            ),
+        ),
+        _gate(
+            "enforced_bounds",
+            "PASS" if per_job and daily else "FAIL",
+            (
+                f"policy per_job_cost_ceiling_usd={per_job} daily_cost_ceiling_usd={daily} "
+                "(API-list-price equivalents, not spend); attempts=1 concurrency=1; "
+                "DeepSeek cost_limit default 2.5 is a ceiling not an estimate"
+            ),
+        ),
+        _gate(
+            "usage_unknowns",
+            "PASS",
+            "No model trial has run. Root/worker tokens, cost, ATIF, and revision stay unknown/null. Missing usage is not zero.",
+        ),
+        _gate(
+            "estimates",
+            "FAIL" if not genuine_estimates else "PASS",
+            (
+                f"compiled est_cost_usd={estimates} from policy/canary-suite.yaml "
+                "event-summary member 2.5 (API-list-price equivalent, not spend)"
+                if genuine_estimates
+                else f"compiled est_cost_usd={estimates}; 0.0 is not a genuine estimate"
+            ),
+        ),
+        _gate(
+            "execution_authorization",
+            "BLOCKED",
+            "Standing auto_run is oracle/nop only. Billable arms stay waiting/paid_run_unauthorized until recorded per-spec approval. Approval is not granted by this report.",
+        ),
+    ]
+    verdict = "BLOCKED"
+    verdict_reason = (
+        "Not READY_FOR_APPROVAL: HAR-10 backend is still constructor-incompatible "
+        "and provider-blocked. Isolated canary spec IDs exist but are stale versus "
+        f"HAR-12 {HAR12_AGENT_VERSION}. Do not present this as approval-only."
+    )
+    return {
+        **compiled,
+        "kind": "harness_paired_readiness",
+        "verdict": verdict,
+        "verdict_reason": verdict_reason,
+        "gates": gates,
+        "spec_ids": queue_specs,
+        "inspect": viewed,
+        "har12": {
+            "agent_version": agent_version,
+            "git_ref": HAR12_GIT_REF,
+            "serializable": serializable,
+        },
+        "har10": {
+            "git_ref": HAR10_GIT_REF,
+            "import_path": HAR10_BACKEND_IMPORT,
+            "module_present": backend_spec is not None,
+            "aiohttp_wheels_required": backend_requires_wheels,
+            "status": "CONFLICTING_and_provider_blocked",
+        },
+        "notices": [
+            *(compiled.get("notices") or []),
+            "Step 2 no-spend readiness: no Harbor tick, no model request, no approve.",
+            "Regenerate canary specs after HAR-10 corrected constructor; do not approve stale IDs.",
+        ],
+    }

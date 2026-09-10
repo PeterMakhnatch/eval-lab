@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-16",
+  "updated_at": "2026-09-10",
   "title": "Eval Lab research program ledger",
   "experiments": [
     {
@@ -120,18 +120,18 @@
       },
       "evidence_provenance": {
         "status": "mixed",
-        "basis": "The untreated k=3 control is reviewed primary evidence in the retained baseline and is now citable from the promoted event-summary bundle under research/evidence/runs/. The treatment is design-only and has never been submitted; its runner support remains absent."
+        "basis": "The untreated k=3 control is reviewed primary evidence in the retained baseline and is now citable from the promoted event-summary bundle under research/evidence/runs/. The treatment is design-only and has never been submitted, but its runner support now exists and the treatment spec carries the preamble."
       },
-      "blocker": "ExperimentSpec still has no extra_instruction_path; build_command does not forward --extra-instruction-path (confirmed grep on src/evallab/schemas.py ExperimentSpec).",
-      "next_action": "BUILDER adds the field. Then submit treatment only; pair with 2026-08-15 control. Do not submit a fake second control.",
+      "blocker": "Authorization, not code. The field gap this entry recorded is closed: ExperimentSpec.extra_instruction_path exists (src/evallab/schemas/__init__.py) and build_command emits --extra-instruction-path (src/evallab/execution_contracts.py); both verified working on main. What remains is that the treatment arm is billable codex and needs a named human authorisation before it can be dispatched.",
+      "next_action": "Peter authorises, then submit the treatment only; pair with the 2026-08-15 control. Do not submit a fake second control.",
       "predecessor": "EXP-S01-canary-codex-k3",
       "decision_rule": {
         "declared_k": 3,
         "representative_attempts": null,
         "rule": "Compare a future treatment with the reviewed 2026-08-15 event-summary 3/3 control only after the elicitation tuples match except for the preamble."
       },
-      "stopping_condition": "Stop if BUILDER declines the field.",
-      "notes": "Not submitted. Control cell has now run (was missing when STUDY.md was written)."
+      "stopping_condition": "Stop if the treatment arm cannot be authorised.",
+      "notes": "Not submitted. Control cell has now run (was missing when STUDY.md was written). The spec-level blocker recorded here on 2026-08-16 was cleared by the field landing; this entry was corrected on 2026-09-10 because it still told readers to add a field that already existed."
     },
     {
       "id": "EXP-S04-claude-vs-codex",

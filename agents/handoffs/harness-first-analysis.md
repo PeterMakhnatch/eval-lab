@@ -1,7 +1,7 @@
-Status: building
-Last: HAR-17 integrated after 18 Gemini worker invocations; 67 focused cases and actual CLI/source-preservation checks pass.
-Next: Complete repository publication gates, publish the scoped PR, and return its exact receipt on HAR-17.
-Blockers: none for code publication; experimental dispatch and model interpretation remain separately gated.
+Status: review-wanted
+Last: HAR-17 published as draft PR399 after 18 Gemini worker invocations; 67 focused cases and actual CLI checks pass.
+Next: Research-Harbor reviews HAR-17 and the scoped PR399 receipt; experimental dispatch remains HAR-11's separately gated responsibility.
+Blockers: full-green merge status is not claimed; one unchanged ingest-verification test fails against existing Parquet state.
 
 # HAR-17 — adversarial successor to HAR-13
 
@@ -15,6 +15,9 @@ writing recoverable artifacts; their files were inspected, not assumed accepted.
 Integration lives in `.worktrees/har17-adversarial-main`, branch
 `research/har17-adversarial-validity`, based on PR394
 `14745315bbe447c13021435cdd51836b008edf2d`.
+Published draft PR: https://github.com/PeterMakhnatch/eval-lab/pull/399.
+Implementation commit: `079a2bceba19697822ab1de95c5a158a6ab507d0`.
+Later receipt-only commits do not alter the verified implementation bytes.
 
 ## HAR-17 proof and interpretation
 

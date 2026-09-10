@@ -244,23 +244,76 @@ def test_ingest_verify_accounts_for_exception_in_gaps(tmp_path: Path) -> None:
     assert res.is_complete is True
 
 
-def test_ingest_verify_cli_output(capsys: pytest.CaptureFixture[str]) -> None:
-    """CLI entry point python -m evallab.ingest_verify renders summary and json."""
+def test_ingest_verify_cli_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI entry point main verifies completeness deterministically and reports missing tables."""
+    from typing import Any
+
+    import evallab.ingest_verify as iv
     from evallab.ingest_verify import main
 
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = tmp_path / "repo"
+    derived_root = tmp_path / "derived"
+    job_id = "00000000-0000-0000-0000-000000000001"
+    trial_id = "00000000-0000-0000-0000-000000000002"
 
+    job_rel = Path("runs/mock-job")
+    trial_rel = job_rel / "mock-trial"
+    disk_trial = repo_root / trial_rel
+    disk_trial.mkdir(parents=True, exist_ok=True)
+    (disk_trial.parent / "result.json").write_text("{}", encoding="utf-8")
+    (disk_trial / "result.json").write_text("{}", encoding="utf-8")
+
+    _write_complete_partition(derived_root, job_id, trial_id)
+
+    def fake_catalog_loader(_url: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        jobs = {
+            job_id: {
+                "id": job_id,
+                "name": "mock-job",
+                "path": job_rel.as_posix(),
+            }
+        }
+        trials = {
+            trial_id: {
+                "id": trial_id,
+                "job_id": job_id,
+                "name": "mock-trial",
+                "path": trial_rel.as_posix(),
+            }
+        }
+        return jobs, trials
+
+    monkeypatch.setattr(iv, "_default_catalog_loader", fake_catalog_loader)
+    monkeypatch.setattr(iv, "database_url_from_environment", lambda: "postgresql://mock")
+    monkeypatch.setattr(iv, "derived_root_from_environment", lambda _root: derived_root)
+
+    # 1. Complete run with --json
     code = main(["--root", str(repo_root), "--json"])
     assert code == 0
     out = capsys.readouterr().out
     data = json.loads(out)
-    assert "is_complete" in data
     assert data["is_complete"] is True
     assert data["gaps_count"] == 0
+    assert data["disk_trials_count"] == 1
+    assert data["catalog_trials_count"] == 1
+    assert data["parquet_trials_count"] == 1
 
-    # Table output
-    code_tbl = main(["--root", str(repo_root)])
-    assert code_tbl == 0
-    out_tbl = capsys.readouterr().out
-    assert "Ingest Completeness Verification" in out_tbl
-    assert "COMPLETE (0 gaps)" in out_tbl
+    # Incomplete run: delete one required parquet table.
+    missing_table = sorted(PROJECTED_TABLES)[0]
+    partition_file = derived_root / f"job_id={job_id}" / f"trial_id={trial_id}" / missing_table
+    partition_file.unlink()
+
+    code_incomplete = main(["--root", str(repo_root), "--json"])
+    assert code_incomplete == 1
+    out_incomplete = capsys.readouterr().out
+    data_incomplete = json.loads(out_incomplete)
+    assert data_incomplete["is_complete"] is False
+    assert data_incomplete["gaps_count"] == 1
+    gap = data_incomplete["gaps"][0]
+    assert gap["reason"] == "incomplete_parquet_partition"
+    assert gap["entity_id"] == trial_id
+    assert missing_table in (gap["detail"] or "")

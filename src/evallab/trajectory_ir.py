@@ -243,6 +243,33 @@ def _extract_sampling_params(
     )
 
 
+def _normalize_raw_observation(item: Any) -> Any:
+    """Normalize a raw observation dictionary for consistent equality checks."""
+    if not isinstance(item, dict):
+        return item
+    normalized: dict[str, Any] = {}
+    for k, v in item.items():
+        if k == "extra" and v == {}:
+            continue
+        if k == "source_call_id" and v is None:
+            continue
+        if k == "subagent_trajectory_ref" and (v is None or v == () or v == []):
+            continue
+        normalized[k] = v
+    return normalized
+
+
+def _observation_results_equal(list_a: list[Any], list_b: list[Any]) -> bool:
+    """Check whether two observation result candidate lists contain equal data."""
+    if list_a == list_b:
+        return True
+    if len(list_a) != len(list_b):
+        return False
+    norm_a = [_normalize_raw_observation(item) for item in list_a]
+    norm_b = [_normalize_raw_observation(item) for item in list_b]
+    return norm_a == norm_b
+
+
 def build_trajectory_ir(
     raw_data: dict[str, Any],
     store_root: Path | None = None,
@@ -375,25 +402,59 @@ def build_trajectory_ir(
                         )
                     )
 
-        # Observation results
+        # Observation results ingestion:
+        # Preserves standard native ATIF step.observation.results while retaining
+        # support for normalized flattened step.observation_results.
+        flat_raw = raw_step.get("observation_results")
+        obs_container = raw_step.get("observation")
+        nested_raw = obs_container.get("results") if isinstance(obs_container, dict) else None
+
+        if isinstance(flat_raw, list) and isinstance(nested_raw, list):
+            # Both representations present: equal data not duplicated,
+            # contradictory data rejected rather than silently discarded.
+            if not _observation_results_equal(flat_raw, nested_raw):
+                raise ValueError(
+                    f"Contradictory observation data in step {step_id}: "
+                    "dual flattened and nested representations do not match"
+                )
+            selected_obs = nested_raw
+        elif isinstance(nested_raw, list):
+            selected_obs = nested_raw
+        elif isinstance(flat_raw, list):
+            selected_obs = flat_raw
+        else:
+            selected_obs = []
+
         obs_list: list[ObservationResultRecord] = []
-        obs_raw = raw_step.get("observation_results")
-        if isinstance(obs_raw, list):
-            for obs in obs_raw:
+        if isinstance(selected_obs, list):
+            for obs in selected_obs:
                 if isinstance(obs, dict):
                     content = obs.get("content")
-                    content_str = (
-                        json.dumps(content)
-                        if isinstance(content, list | dict)
-                        else str(content or "")
-                    )
-                    content_bytes = len(content_str.encode("utf-8"))
-                    c_digest = hashlib.sha256(content_str.encode("utf-8")).hexdigest()
-                    c_ref = None
-                    if store_root is not None and content:
-                        c_ref = store_blob(store_root, content_str)
+                    if content is not None:
+                        content_str = (
+                            json.dumps(content)
+                            if isinstance(content, list | dict)
+                            else str(content)
+                        )
+                        content_bytes = len(content_str.encode("utf-8"))
+                        c_digest = hashlib.sha256(content_str.encode("utf-8")).hexdigest()
+                        if store_root is not None and content_str:
+                            c_ref = store_blob(store_root, content_str)
+                        else:
+                            c_ref = obs.get("content_ref") or f"cas://sha256/{c_digest}"
                     else:
-                        c_ref = f"cas://sha256/{c_digest}"
+                        # Content is absent (missing-inline content):
+                        # Preserve supplied raw content_ref; do not synthesize an empty-content CAS hash.
+                        raw_ref = obs.get("content_ref")
+                        c_ref = str(raw_ref) if raw_ref is not None else None
+                        content_bytes = int(obs.get("content_bytes") or 0)
+                        raw_digest = obs.get("content_digest")
+                        if raw_digest is not None:
+                            c_digest = str(raw_digest)
+                        elif c_ref and c_ref.startswith("cas://sha256/"):
+                            c_digest = c_ref.removeprefix("cas://sha256/")
+                        else:
+                            c_digest = None
 
                     obs_list.append(
                         ObservationResultRecord(
@@ -410,7 +471,6 @@ def build_trajectory_ir(
                             else {},
                         )
                     )
-
         step_records.append(
             StepRecord(
                 step_id=step_id,

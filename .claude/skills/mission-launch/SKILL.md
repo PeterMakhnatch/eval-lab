@@ -25,41 +25,25 @@ the brief at the pack path; do not paste a docs crawl.
 
 ## 2. Brief
 
-Five parts, always: identity + worktree setup; exclusive owned paths;
-the mission and acceptance; boundaries; handoff discipline
-(`agents/handoffs/<role>.md`). Copy the relevant workstream section from
-`docs/build-plan.md` when the mission is a WS item.
+For a substantial mission, state identity and worktree, owned paths, acceptance,
+boundaries, and the handoff plan. Use `agents/missions/TEMPLATE.md` when useful;
+do not create a separate brief for a small change already specified by Peter.
 
 ## 3. Worktree and branch
 
-Primary checkout is read-only for this launch. Work only under
-`.worktrees/`:
+Follow `agents/WORKFLOW.md` for native worktree creation and environment setup.
+The primary checkout remains on `main`; work is isolated under `.worktrees/`
+or `/private/tmp/`. Stage only intended paths. Evidence generation and publication
+require their own task scope; launching a mission does not authorize either.
 
-```bash
-cd ~/Developer/eval-lab
-git fetch origin
-git worktree add .worktrees/<role> -b role/<role> origin/main
-cd .worktrees/<role>
-uv sync
-```
+## 4. Claim
 
-Lease: one writer per worktree. Do not edit `~/Developer/eval-lab`
-itself. Stage explicit paths only — never `git add -A`. Never commit
-`research/lessons.md` or `digests/DISCOVERIES.md`.
+Use `research/inbox/board.md` for backlog order and the pull protocol, and
+`research/inbox/claims/README.md` for the existing claim-file format. Sign
+pane/session plus model; write one open claim file, not a competing roster or
+peer assignment. `agents/missions/ACTIVE.md` is navigation only.
 
-## 4. Board entry
-
-Only the integrator edits `agents/missions/ACTIVE.md`. Use
-`agents/missions/TEMPLATE.md`. States: `ready` → `active` → `review` →
-`merged`. The worker owns the lease and the handoff; the board row is
-integrator work. If you are not the integrator, write the proposed row
-in the handoff and stop.
-
-Handoff first four lines, parsed by `scripts/fleet-status.sh`:
-
-```
-Status: building | blocked | review-wanted | done
-Last: <one line>
-Next: <one line>
-Blockers: <one line or none>
-```
+For durable work with a live handoff, link it from the claim. Its four-line
+header and closure/archive procedure are defined in `agents/WORKFLOW.md`.
+Use the actual PR, exact head, and command evidence to distinguish implementation,
+review readiness, and merge; a claim or handoff does not substitute for CI.

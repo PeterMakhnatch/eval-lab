@@ -321,6 +321,77 @@ uv run evallab schedule install
 - `com.petermakhnatch.evallab.tick` runs every 30 minutes.
 - `com.petermakhnatch.evallab.nightly` runs at 02:30 local time.
 
+For a dispatch-only schedule that checks the approved queue every minute:
+
+```bash
+uv run evallab schedule install --interval-seconds 60 --tick-only
+uv run evallab schedule status
+```
+
+`--interval-seconds` must be a positive integer; the default remains 1800.
+`--tick-only` unloads and removes an existing nightly schedule before installing
+the tick schedule. It does not run the nightly researcher, canary-enqueue,
+backup, or digest pipeline. Reinstall without `--tick-only` to restore both jobs.
+Without `--canary-suite`, the timer only consumes existing approved specs: it
+does not replenish an empty queue or authorize paid work. This is periodic
+dispatch while the host is awake and the user session is active, not an
+always-on remote worker.
+
+After explicit deployment approval, opt into replenishment from an existing,
+version-pinned canary suite:
+
+```bash
+uv run evallab tick --canary-suite policy/canary-suite.yaml
+uv run evallab schedule install --interval-seconds 60 --tick-only \
+  --canary-suite policy/canary-suite.yaml
+```
+
+The suite's `interval_seconds` controls enrollment slots, independently of the
+scheduler's polling interval. It defaults to 86400 (daily) and accepts 1–86400
+seconds. `max_cycles_per_day` defaults to 1 and cannot exceed the number of slots
+in a UTC day. A zero-cost `oracle`/`nop` suite can use 3600 and 24, respectively,
+for hourly controls. Billable members still require positive cost estimates;
+the estimate across all members, agents, and permitted cycles must fit the
+existing daily policy ceiling.
+
+Only the current UTC slot is eligible; missed slots never produce a catch-up
+burst. The daily cap counts actual enrolled cycles, so a late start does not
+spend its allowance on missed slots. Names remain deterministic: slot zero
+keeps `canary-<member>-<agent>-<YYYYMMDD>`, and later slots add `-cycle<N>`.
+Every queue state counts for deduplication and the daily cap, including
+`waiting`, `done`, and `failed`. STOP, an active producer lock, or any running
+spec defers enrollment. Task digests are checked before new submissions, not
+rehash-checked on idle or exhausted ticks.
+
+Free controls use the existing matching standing-policy rule; the enqueuer
+does not require a rule named `canary`. The committed paid suite still stages
+only into `waiting/` until Peter authorizes each specific spec. Selecting a
+suite grants no paid-run authority. Invalid enrollment quarantines the tick
+without dispatch. The suite file must parse and validate before installation
+changes any launchd service.
+
+`schedule status` emits JSON under `jobs.<launchd-label>`: installed and loaded
+state, configured cadence/checkout and canary-suite path, process state/PID,
+invocation count, and last exit code when available. Loaded does not mean healthy:
+inspect `last_exit_code` and the logs below. Unavailable probes report unknown rather than absent; an
+unreadable/invalid configuration or failed probe exits 2. Environment values and
+raw launchctl output are not returned.
+
+```bash
+uv run evallab schedule uninstall
+```
+
+Uninstall unloads only the two known Eval Lab scheduler labels and removes their
+plists, preserving logs and unrelated services. Repeating it is safe. A failed
+unload is reported before the corresponding definition is deleted. Reinstalling
+or uninstalling can interrupt a running scheduled command: stop admitting work
+and let active runs settle before changing the schedule.
+
+For testing, a temporary HOME alone is **not** launchd isolation: service
+identity is `gui/<UID>/<Label>`. Use a recording launchctl backend for unit tests,
+or unique labels plus a separate queue, database, and output root for real
+local-control smoke runs. Never test installation with production labels.
+
 Both invoke `/bin/zsh -lc 'cd <repo> && uv run evallab …'`. Logs live under
 `~/Library/Logs/evallab/`. Reinstalling replaces and reloads the definitions.
 Because these are LaunchAgents, not system daemons, they run inside the logged-in
@@ -649,12 +720,22 @@ uv run evallab db list --limit 50
 The first `trajectories` command reports validation and counts without writing.
 Every completed job uses one idempotent ingest-and-project path. Queue completion,
 the nightly backfill, `ingest`, and `trajectories --export` all update
-PostgreSQL first, then write a `jobs.parquet` marker per job and the eight
+PostgreSQL first, then write a `jobs.parquet` marker per job and the
 deterministic trial tables below the configured shared Parquet root at
 `job_id=*/trial_id=*/`. The
 job marker keeps zero-trial completed jobs inside the same invariant. Rebuilds
 replace catalog inventories and Parquet partitions by stable Harbor UUID while
 leaving raw evidence untouched.
+
+Within a raw-data rebuild, each trial's normalized ATIF projection is reused
+across trajectory, fact, and event-table exports. Job facts, including state
+journals and artifact metadata, are built once and shared by the fact and event
+exports rather than reconstructed for each. Normalized source data is released
+after that job. Catalog ingestion likewise reuses its projection while indexing
+that job's facts and documents. There is no process-global or cross-invocation
+cache: subsequent calls reopen source data. This reduces repeated parsing and
+hashing without changing table schemas, source digests, or the
+catalog-before-Parquet failure boundary.
 
 PostgreSQL is shared across linked Git worktrees, so Parquet must be shared too.
 By default, every worktree resolves `derived/parquet` against the repository's

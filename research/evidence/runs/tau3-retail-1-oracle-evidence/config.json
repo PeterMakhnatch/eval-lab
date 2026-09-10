@@ -1,0 +1,10 @@
+{
+    "job_name": "tau3-retail-1-oracle",
+    "jobs_dir": "runs",
+    "n_concurrent_trials": 1,
+    "tasks": [
+        {
+            "path": "library/tasks/tau3-retail-1"
+        }
+    ]
+}

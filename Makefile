@@ -1,9 +1,10 @@
-.PHONY: help sync check premerge smoke smoke-ci db-up db-down db-init doctor controls ingest summarize
+.PHONY: help sync check premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize
 
 help:
 	@echo "sync       Install locked Python dependencies"
 	@echo "check      Run lint, generated-index checks, and tests"
 	@echo "premerge   Mirror the complete CI gate on Python 3.12"
+	@echo "docs       Regenerate committed documentation build products (docs/INDEX.md, docs/repo-map.md)"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
 	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
 	@echo "db-up      Start local PostgreSQL"
@@ -24,6 +25,11 @@ check:
 
 premerge:
 	scripts/premerge.sh
+
+# The documentation index includes the generated repository map's digest.
+docs:
+	uv run python -m evallab.repomap generate -o docs/repo-map.md
+	uv run python -m evallab.docindex generate -o docs/INDEX.md
 
 smoke:
 	uv run python -m evallab.smoke

@@ -563,6 +563,20 @@ def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> 
 
 
 
+def _evidence_lock_version_ok(task_lock: dict[str, Any], version: str, digest: str) -> bool:
+    """Lock version match, with a digest-bound fallback for version-less locks."""
+    locked_version = task_lock.get("version")
+    if locked_version is None:
+        return task_lock.get("digest") == digest
+    return locked_version == version
+
+
+def _evidence_task_name_matches(task_name: str, task_id: str) -> bool:
+    """Trial task-name match across Harbor naming forms."""
+    leaf = task_name.rsplit("/", 1)[-1]
+    return leaf == task_id or leaf.rsplit("__", 1)[-1] == task_id
+
+
 def _verify_control_result(
     data: dict[str, Any],
     lock_data: dict[str, Any],
@@ -599,7 +613,7 @@ def _verify_control_result(
         raise TaskControlEvidenceError("control evidence trial lock is missing task identity")
     if (
         task_lock.get("name") != record.task_id
-        or task_lock.get("version") != record.version
+        or not _evidence_lock_version_ok(task_lock, record.version, evidence_ref.harbor_task_digest)
         or task_lock.get("type") != "local"
         or task_lock.get("digest") != evidence_ref.harbor_task_digest
     ):
@@ -618,7 +632,7 @@ def _verify_control_result(
     config_path = result_task.get("path") if isinstance(result_task, dict) else None
     if (
         not isinstance(task_name, str)
-        or task_name.rsplit("/", 1)[-1] != record.task_id
+        or not _evidence_task_name_matches(task_name, record.task_id)
         or not isinstance(task_path, str)
         or Path(task_path).name != record.task_id
         or not isinstance(config_path, str)
@@ -690,7 +704,7 @@ def discover_control_evidence(
             if (
                 not isinstance(task_lock, dict)
                 or task_lock.get("name") != task_id
-                or task_lock.get("version") != task_version
+                or not _evidence_lock_version_ok(task_lock, task_version, harbor_digest)
                 or task_lock.get("type") != "local"
                 or task_lock.get("digest") != harbor_digest
                 or not isinstance(agent_lock, dict)
@@ -722,7 +736,7 @@ def discover_control_evidence(
             )
             if (
                 not isinstance(data.get("task_name"), str)
-                or data["task_name"].rsplit("/", 1)[-1] != task_id
+                or not _evidence_task_name_matches(data["task_name"], task_id)
                 or any(
                     not isinstance(path, str) or Path(path).name != task_id
                     for path in identity_paths

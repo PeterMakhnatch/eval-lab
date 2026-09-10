@@ -29,17 +29,15 @@ uv run pytest
 uv run python -m evallab.smoke --docker-free
 
 mkdir -p "$(dirname "${TY_OUTPUT}")"
-uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1 || true
+set +e
+uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1
+ty_exit=$?
+set -e
 cat "${TY_OUTPUT}"
 
-count="$(grep -oE 'Found [0-9]+ diagnostic' "${TY_OUTPUT}" | grep -oE '[0-9]+' || echo 0)"
-if [[ "${count}" -gt "${TY_BASELINE}" ]]; then
-  echo "error: ty reports ${count} diagnostics, above baseline ${TY_BASELINE}" >&2
-  exit 1
+if [[ "${ty_exit}" -ne 0 ]]; then
+  echo "error: ty check failed (exit ${ty_exit}); see output above" >&2
+  exit "${ty_exit}"
 fi
 
-if [[ "${count}" -lt "${TY_BASELINE}" ]]; then
-  echo "notice: ty is down to ${count}; lower the baseline from ${TY_BASELINE}"
-fi
-
-echo "premerge green: Python ${PYTHON_FLOOR}; ty ${count} <= ${TY_BASELINE}"
+echo "premerge green: Python ${PYTHON_FLOOR}; ty 0 <= ${TY_BASELINE}"

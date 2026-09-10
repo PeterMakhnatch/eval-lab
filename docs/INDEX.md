@@ -19,7 +19,7 @@ inputs:
   - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
     digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
   - path: docs/STATUS.md
-    digest: sha256:a4f04f180a4020d1f5b8747557241888e82e6a684f9bfc710cc2e17bc49fff56
+    digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
   - path: docs/WHERE-DOES-THIS-GO.md
@@ -144,8 +144,6 @@ inputs:
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
     digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
-  - path: docs/workbench-guide.md
-    digest: sha256:85ce237e6c5eba5ed2b2e4181bbdd38878d7265c3729265526135df115e0e8c0
 ---
 
 <!-- generated-by: docindex v1 -->
@@ -166,7 +164,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-09-08 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
@@ -277,7 +275,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-09-08 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
@@ -315,7 +313,7 @@ an operator can see what is archived.
 | `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
-| `docs/STATUS.md` | Research status — 2026-09-08 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
@@ -351,7 +349,6 @@ an operator can see what is archived.
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
-| `docs/workbench-guide.md` | Workbench Guide: Multi-Agent Terminal Workflow | `living` | `operator` |
 
 ### historical
 

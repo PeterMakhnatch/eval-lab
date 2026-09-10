@@ -1,0 +1,90 @@
+{
+  "schema_version": 2,
+  "task_id": "tau3-retail-1",
+  "task_family": "tau3-bench",
+  "version": "1.0.0",
+  "task_path": "library/tasks/tau3-retail-1",
+  "digests": {
+    "task_toml": "sha256:08f2bab6cf13851d69b3669d2125a2dcac290369cd79feb73a568d27d7d08673",
+    "instruction": "sha256:2d518299c50289183de5a2542a1d9c0a55b02035fdaca53bfa98f6420631e29a",
+    "environment": "sha256:ec67e64792eaa706b9cd56884cfcf2c5c0982e87c7ee4746cfb01a4c4463a154",
+    "verifier": "sha256:25324aaf2e0f434c3f5dfd55a3621d2a419ae2847f923d180e4f0d171abc1d0f",
+    "package": "sha256:c5a8d94c690ca514b4f2d67b9ac1b69681b1644a9899b46e724cf9c984dc9a56"
+  },
+  "source_uri": "sierra-research/tau2-bench",
+  "source_ref": "tau3-bench-v1.0.0",
+  "license": "MIT",
+  "provenance_zone": "01-external",
+  "is_synthetic": false,
+  "limits": {
+    "timeout_seconds": 3900,
+    "max_memory_mb": 8192,
+    "max_cpus": 4.0
+  },
+  "control_evidence": {
+    "oracle": {
+      "job_name": "tau3-retail-1-oracle-evidence",
+      "trial_name": "tau3-retail-1__zXFDUVJ",
+      "reward": 1.0,
+      "evidence_path": "research/evidence/runs/tau3-retail-1-oracle-evidence/tau3-retail-1__zXFDUVJ/result.json",
+      "evidence_digest": "sha256:92498a2726c9e54d730662c753c70aa603efe5d3bc756d5d79c46931eb26a543",
+      "lock_digest": "sha256:0c602908ee5923ec6037a800c86a932d7113e15e932db051bf597cccefceb5e9",
+      "observed_at": "2026-09-03T14:41:48.823362Z",
+      "task_id": "tau3-retail-1",
+      "task_version": "1.0.0",
+      "task_digests": {
+        "task_toml": "sha256:08f2bab6cf13851d69b3669d2125a2dcac290369cd79feb73a568d27d7d08673",
+        "instruction": "sha256:2d518299c50289183de5a2542a1d9c0a55b02035fdaca53bfa98f6420631e29a",
+        "environment": "sha256:ec67e64792eaa706b9cd56884cfcf2c5c0982e87c7ee4746cfb01a4c4463a154",
+        "verifier": "sha256:25324aaf2e0f434c3f5dfd55a3621d2a419ae2847f923d180e4f0d171abc1d0f",
+        "package": "sha256:c5a8d94c690ca514b4f2d67b9ac1b69681b1644a9899b46e724cf9c984dc9a56"
+      },
+      "harbor_task_digest": "sha256:38415cc50674418a59cdf71b35ae05f1a87daa1ac28761fe5e9ff48e0d6e4d74"
+    },
+    "nop": {
+      "job_name": "tau3-retail-1-nop-evidence",
+      "trial_name": "tau3-retail-1__ygLj9MC",
+      "reward": 0.0,
+      "evidence_path": "research/evidence/runs/tau3-retail-1-nop-evidence/tau3-retail-1__ygLj9MC/result.json",
+      "evidence_digest": "sha256:fd5a7ee2e3c9a99c29c82b92ed110aaf190763899c94c6dfff044c7d1a74cb2f",
+      "lock_digest": "sha256:2234037473956718564cfe45f7f20cb8ccfbb4d16abfe23c6833c00bcc98ad36",
+      "observed_at": "2026-09-03T14:42:16.328341Z",
+      "task_id": "tau3-retail-1",
+      "task_version": "1.0.0",
+      "task_digests": {
+        "task_toml": "sha256:08f2bab6cf13851d69b3669d2125a2dcac290369cd79feb73a568d27d7d08673",
+        "instruction": "sha256:2d518299c50289183de5a2542a1d9c0a55b02035fdaca53bfa98f6420631e29a",
+        "environment": "sha256:ec67e64792eaa706b9cd56884cfcf2c5c0982e87c7ee4746cfb01a4c4463a154",
+        "verifier": "sha256:25324aaf2e0f434c3f5dfd55a3621d2a419ae2847f923d180e4f0d171abc1d0f",
+        "package": "sha256:c5a8d94c690ca514b4f2d67b9ac1b69681b1644a9899b46e724cf9c984dc9a56"
+      },
+      "harbor_task_digest": "sha256:38415cc50674418a59cdf71b35ae05f1a87daa1ac28761fe5e9ff48e0d6e4d74"
+    }
+  },
+  "certification": {
+    "state": "legacy_missing",
+    "reason": "legacy_record_has_no_certificate_packet",
+    "certification_id": null,
+    "packet_path": null,
+    "packet_sha256": null,
+    "candidate_id": null,
+    "candidate_record_digest": null,
+    "candidate_package_digest": null,
+    "package_digest": null,
+    "workbench_version": null,
+    "check_vector": null,
+    "control_summary": null,
+    "axes": null,
+    "generator_identity": null,
+    "validator_identity": null
+  },
+  "state": "candidate",
+  "allowed_uses": [
+    "canary"
+  ],
+  "contamination": null,
+  "human_minutes": null,
+  "approved_by": null,
+  "approved_at": null,
+  "state_reason": null
+}

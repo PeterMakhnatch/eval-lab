@@ -9,8 +9,9 @@
 # of the day's commits and forced a rebase, regenerate, re-gate, re-wait-for-CI
 # loop on every pull request.
 #
-# The correct resolution for a generated file is not "pick a side", it is
-# "regenerate from the merged tree". That is what this driver does.
+# The driver produces a provisional snapshot from the currently checked-out tree.
+# Git may not have installed every merged source yet: run `make docs` after the
+# merge and before review. Freshness checks certify the final merged tree.
 #
 # Git calls a merge driver as: driver %O %A %B %P
 #   %O  ancestor version   (unused: a build product has no meaningful ancestor)
@@ -18,46 +19,45 @@
 #   %B  their version      (unused, for the same reason)
 #   %P  the real pathname being merged, which selects the generator
 #
-# Exit 0 means resolved. If regeneration fails we deliberately still exit 0 and
-# leave %A in place: `scripts/premerge.sh` runs `repomap check` and
-# `docindex check`, so a stale file is caught there rather than being turned into
-# a conflict here. Failing loudly at merge time would reintroduce the very stall
-# this driver exists to remove.
-set -uo pipefail
-
-# Git runs hooks and merge drivers with the invoking environment, which routinely
-# lacks `~/.local/bin` (where `uv` is installed). A silent `command not found`
-# here would leave a stale build product with no explanation, so the PATH is
-# bootstrapped and a missing `uv` is reported rather than swallowed.
-PATH="$HOME/.local/bin:$PATH"
-export PATH
-if ! command -v uv >/dev/null 2>&1; then
-  echo "$(basename "$0"): uv not found on PATH; left generated docs untouched" >&2
-  exit 0
-fi
+# Exit 0 means successfully regenerated. If regeneration fails or uv is missing,
+# the driver fails visibly (exit 1 with error on stderr) so git preserves the
+# conflict and the developer is aware of the failure rather than silently
+# swallowing errors.
+set -euo pipefail
 
 ours="${2:?missing %A}"
 path="${4:-}"
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$repo_root" || exit 0
+if ! command -v uv >/dev/null 2>&1; then
+  echo "$(basename "$0"): error: uv not found; cannot regenerate ${path}" >&2
+  exit 1
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
 
 case "$path" in
-  *repo-map.md) module="evallab.repomap" ;;
-  *INDEX.md) module="evallab.docindex" ;;
+  docs/repo-map.md) module="evallab.repomap" ;;
+  docs/INDEX.md) module="evallab.docindex" ;;
   *)
-    # Not a file this driver understands; keep our side rather than guessing.
-    exit 0
+    echo "$(basename "$0"): unsupported generated path: ${path}" >&2
+    exit 1
     ;;
 esac
 
 # Generate into a scratch file first so a failed run cannot truncate %A.
-scratch="$(mktemp)"
+scratch="$(mktemp "${ours}.XXXXXX")"
 trap 'rm -f "$scratch"' EXIT
 
-if uv run python -m "$module" generate -o "$scratch" >/dev/null 2>&1 \
-  && [ -s "$scratch" ]; then
-  cat "$scratch" > "$ours"
+if ! uv run python -m "$module" generate -o "$scratch"; then
+  echo "$(basename "$0"): error: failed to regenerate ${path} with ${module}; leaving merge conflict" >&2
+  exit 1
 fi
 
+if [ ! -s "$scratch" ]; then
+  echo "$(basename "$0"): error: generated output for ${path} is empty; leaving merge conflict" >&2
+  exit 1
+fi
+
+mv "$scratch" "$ours"
 exit 0

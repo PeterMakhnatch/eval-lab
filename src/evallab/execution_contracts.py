@@ -13,7 +13,7 @@ import os
 import re
 import secrets
 import stat
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -211,6 +211,10 @@ class RunRequest:
     lease_path: Path | None = None
     lease_generation: str | None = None
     extra_instruction_path: Path | None = None
+    skill: Path | str | Sequence[Path | str] | None = None
+    skills: Sequence[Path | str] | None = None
+    load_trajectory: Path | str | None = None
+    export_traces: bool = False
     max_requests: int | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
@@ -222,6 +226,21 @@ class RunRequest:
         """Conservative process deadline: one wall-clock allowance per attempt."""
         return self.timeout_seconds * self.attempts
 
+    @property
+    def resolved_skills(self) -> tuple[str, ...]:
+        """Deterministic sequence of skill paths forwarded to the execution command."""
+        result: list[str] = []
+        if self.skill is not None:
+            if isinstance(self.skill, (str, Path)):
+                result.append(str(self.skill))
+            else:
+                result.extend(str(s) for s in self.skill)
+        if self.skills is not None:
+            if isinstance(self.skills, (str, Path)):
+                result.append(str(self.skills))
+            else:
+                result.extend(str(s) for s in self.skills)
+        return tuple(result)
 
 @dataclass(frozen=True)
 class HarborProcessResult:
@@ -678,6 +697,12 @@ def build_command(request: RunRequest) -> list[str]:
         )
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
+    for skill_path in request.resolved_skills:
+        command.extend(["--skill", skill_path])
+    if request.load_trajectory is not None:
+        command.extend(["--load-trajectory", str(request.load_trajectory)])
+    if request.export_traces:
+        command.append("--export-traces")
     return command
 
 

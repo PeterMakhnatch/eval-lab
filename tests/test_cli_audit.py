@@ -60,6 +60,7 @@ TOP_LEVEL_COMMANDS = (
     "tidy",
     "verdict",
     "traj",
+    "regrade",
 )
 NESTED_COMMANDS = (
     ("claims", "pack"),
@@ -68,6 +69,8 @@ NESTED_COMMANDS = (
     ("campaign", "run"),
     ("campaign", "resume"),
     ("schedule", "install"),
+    ("schedule", "status"),
+    ("schedule", "uninstall"),
     ("canary", "import-terminal-bench"),
     ("curve", "validate"),
     ("curve", "build"),
@@ -108,6 +111,8 @@ NESTED_COMMANDS = (
     ("traj", "benchmark"),
     ("semantic-facts", "project"),
     ("semantic-facts", "query"),
+    ("regrade", "verifier"),
+    ("regrade", "trial"),
 )
 HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
 

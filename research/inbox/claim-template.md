@@ -11,8 +11,8 @@
 > are roles, not availability: 🎯 means do not page.
 
 # Round 2+ protocol (claims are files now, not pages — quiet by default)
-To claim: write research/inbox/claims/<pane>-<lane>-<n>.md (two lines:
-what + why-you). Keeper polls the dir on rhythm; grants come back as a
-single page reply. No claim pages, no broadcast storms. DONEs still page
+To claim: write research/inbox/claims/<pane>-<lane>-<n>.md using the
+item/role/why-me fields in claims/README.md. Keeper polls the dir on rhythm;
+grants return as a single page reply. No claim pages or broadcast storms. DONEs page
 the keeper once (output path + sha), blocks page once. Everything else
 goes in files.

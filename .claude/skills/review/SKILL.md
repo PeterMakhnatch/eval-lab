@@ -29,27 +29,27 @@ URL.
 gh pr diff <number>
 gh pr view <number>
 ```
-
 Read the PR body, then the leased paths. Shared files and money paths
-need the actual hunks. Confirm the lease in `agents/missions/ACTIVE.md`
-covers every written path.
-
+need the actual hunks. Confirm the lease in `research/inbox/board.md`
+(referenced via `agents/missions/ACTIVE.md`) covers every written path.
+Verify that explicit `make docs` was run before review if documentation or
+code symbols were touched, so `docs/INDEX.md` and `docs/repo-map.md` are fresh.
 ## 3. Handoff
 
-`agents/handoffs/<role>.md`. First four lines must be `Status:`,
-`Last:`, `Next:`, `Blockers:`. `Status: review-wanted` is the only
-state that asks for this skill. A stale header is unknown — investigate.
+Read the PR's acceptance and verification record and, when linked by its claim,
+the live handoff. `agents/WORKFLOW.md` defines that optional handoff's format.
+Missing or stale evidence is unavailable, not an inferred completed review.
 
 ## 4. Claimed behaviour is real
 
 Trust verification, not prose:
 
 - named acceptance criteria met with a command, test, or artifact path
-- `uv run pytest` / `uv run ruff check .` recorded for code changes
-- `python -m evallab.docindex check` / `python -m evallab.repomap check`
-  when those artifacts moved
-- a claim without a run, log, or test that would fail on the bug is a
-  draft
+- focused tests covering changed behavior recorded for code changes;
+  `uv run pytest` / `uv run ruff check .` run at final premerge checkpoint
+- explicit `make docs` run, and `python -m evallab.docindex check` /
+  `python -m evallab.repomap check` pass cleanly when doc/code topology moved
+- a claim without a run, log, or test that would fail on the bug is a draft
 
 Oracle and nop prove the task and harness, not model capability. Refuse
 to treat them as evidence of skill.

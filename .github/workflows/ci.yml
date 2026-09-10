@@ -2,9 +2,9 @@ name: quality
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "integrate/**"]
   push:
-    branches: [main]
+    branches: [main, "integrate/**"]
   workflow_dispatch:
 
 permissions:

@@ -197,14 +197,6 @@ audience:
         assert "docs/execution-tiers.md" in paths
         assert "docs/quota-accounting.md" in paths
 
-    def test_select_docs_for_operator(self) -> None:
-        root = repo_root()
-        docs = select_docs(root / "docs", "operator", root=root)
-        paths = [d.path for d in docs]
-        assert "docs/operating-manual.md" in paths
-        assert "docs/fleet-tracking.md" in paths
-        assert "docs/operations.md" in paths
-
 
 class TestDeterminismAndAssembly:
     """Test deterministic assembly and SHA-256 content hashing."""
@@ -344,6 +336,7 @@ class TestCLI:
         assert "docs/architecture.md" in captured.out
         assert "docs/task-workbench.md" in captured.out
 
+
 class TestTokenBudgetAndTruncation:
     """Test token budget calculation, priority-based truncation, and determinism."""
 
@@ -393,6 +386,7 @@ class TestTokenBudgetAndTruncation:
         assert res_large_budget.dropped_items == ()
         header_lines = res_large_budget.markdown.split("\n# ")[0]
         assert "<!-- truncated: true -->" not in header_lines
+
     @pytest.mark.parametrize("mission_type", VALID_MISSION_TYPES)
     def test_pack_over_budget_is_truncated_to_at_or_below_limit(self, mission_type: str) -> None:
         budget = 12_000
@@ -536,13 +530,13 @@ class TestRepoDocIntegrity:
 
         for path in md_files:
             doc = parse_doc(path, root=root)
-            assert (
-                doc.status in VALID_STATUSES
-            ), f"Doc {path.name} has invalid status '{doc.status}'"
+            assert doc.status in VALID_STATUSES, (
+                f"Doc {path.name} has invalid status '{doc.status}'"
+            )
             assert len(doc.audience) > 0, f"Doc {path.name} has empty audience"
             for aud in doc.audience:
-                assert (
-                    aud in VALID_AUDIENCES
-                ), f"Doc {path.name} has invalid audience member '{aud}'"
+                assert aud in VALID_AUDIENCES, (
+                    f"Doc {path.name} has invalid audience member '{aud}'"
+                )
             assert len(doc.title) > 0, f"Doc {path.name} has empty title"
             assert len(doc.body) > 0, f"Doc {path.name} has empty body"

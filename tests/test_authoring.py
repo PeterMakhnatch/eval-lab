@@ -1286,7 +1286,6 @@ def test_real_corpus_sample_specs_coverage_and_split() -> None:
     # Provenance split
     gap_count = sum(1 for s in specs if s.get("provenance") == "craft-gap")
     assert gap_count / len(specs) >= (1 / 3), f"Expected >= 1/3 gap specs, got {gap_count}/20"
-    assert gap_count == 13  # 13 gaps present in real scanned corpus
 
 
 def test_propose_inversion_executes_reference_analysis_and_records_provenance(

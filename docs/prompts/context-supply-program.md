@@ -90,6 +90,13 @@ Body: verbatim material clearly fenced and attributed; harvester
 commentary kept to a short "why this matters here" paragraph. X/Twitter
 threads: paraphrase claims with the link — do not reproduce long text.
 
+**Scope in the shared inbox:** the board, ledger, claim template, queue, and
+README are control documents, not harvested notes. Repository-authored reviews,
+briefs, and coordination receipts explicitly declare `source_type: internal`
+in front-matter. That classification confers no external-source provenance,
+license, standards admission, or scientific acceptance. All other notes retain
+the full HARVEST fields above; missing or unknown classification fails the check.
+
 **Acceptance (loop-done).** Intake queue items 1–6 landed conformant;
 conformance test green in CI; every note's `feeds` field names at least
 one STANDARDS target or explicitly `parked`; zero unfetched items remain

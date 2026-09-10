@@ -24,13 +24,17 @@ lint floor; CI also exercises Python 3.14.
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
 
-Run `make premerge` before pushing. `scripts/premerge.sh` pins Python 3.12, checks
-uv 0.9.24, performs the locked install (including the `benchmarks` dependency
-group so the live fastmcp/cryptography contract tests run locally instead of
-skipping via `pytest.importorskip`), runs every gate above, and applies the same
-ty 0.0.71 ratchet. It is the local reproduction of the combined `quality` and
-`typecheck` workflows; GitHub remains the merge authority.
+Run `make premerge` before pushing. Before final review and doc freshness checks,
+run explicit `make docs` to regenerate `docs/INDEX.md` and `docs/repo-map.md`.
+`scripts/premerge.sh` pins Python 3.12, checks uv 0.9.24, performs the locked
+install (including the `benchmarks` dependency group so the live
+fastmcp/cryptography contract tests run locally instead of skipping via
+`pytest.importorskip`), runs every gate above, and applies the same ty 0.0.71
+ratchet. It is the local reproduction of the combined `quality` and `typecheck`
+workflows; GitHub remains the merge authority.
 
+During active local development loops, prefer focused checks for touched modules
+rather than running the entire project-wide test suite on every small edit.
 ## Deterministic-test rule
 
 Tests must inject every external-state probe or seam. They must never depend on a

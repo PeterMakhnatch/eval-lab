@@ -1,10 +1,8 @@
 #!/bin/bash
 # fleet-status.sh — one screen of TRUTHFUL fleet state (M001 rewrite).
 #
-# Derives, never trusts: branch liveness from git, PR state from gh, mission
-# registration from agents/missions/ACTIVE.md, handoff headers from worktrees.
-# Squash-spent branches (tree already contained in main, merged PR head, or
-# zero commits ahead) are reported as SPENT, never as active work.
+# Derives branch/worktree state from git, PR state from gh, and pickup-counter
+# claims from research/inbox/claims/. This report never authorizes cleanup.
 #
 #   scripts/fleet-status.sh
 #
@@ -23,19 +21,31 @@ root="${FLEET_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 stale_hours="${FLEET_STALE_HOURS:-48}"
 cd "$root" || exit 1
 
-board="agents/missions/ACTIVE.md"
+board="research/inbox/board.md"
 bar() { printf '%s\n' "──────────────────────────────────────────────────────"; }
 
 echo "FLEET STATUS  $(date '+%Y-%m-%d %H:%M')  (root: $root)"
 bar
 
-# ---- the board: Now / Review / Next / Needs Peter ---------------------------
+# ---- the board: status & claims ---------------------------------------------
 echo "## board (from $board)"
 if [ -f "$board" ]; then
-    awk '/^---$/{exit} /^## /{on=1} on{print "  " $0}' "$board"
+    awk '/^(# What lives where|---)$/{exit} /^## /{on=1} on{print "  " $0}' "$board"
 else
     echo "  !! $board missing — the sole live board is gone; governance broken"
 fi
+bar
+
+echo "## pickup-counter claims"
+claims_found=0
+for claim in research/inbox/claims/*.md; do
+    [ -f "$claim" ] || continue
+    [ "$claim" = "research/inbox/claims/README.md" ] && continue
+    claims_found=1
+    echo "  $claim"
+    sed -n -E '/^(item|role|why-me|branch|handoff):/s/^/    /p' "$claim"
+done
+[ "$claims_found" = 1 ] || echo "  (no claim files; historical board summaries are not live presence)"
 bar
 
 # ---- merged PR heads (for spent detection); tolerate gh absence -------------
@@ -44,7 +54,7 @@ merged_heads=""
 merged_oids=""
 gh_note=""
 if [ -n "$GH" ] && command -v "${GH%% *}" >/dev/null 2>&1; then
-    merged_refs="$("$GH" pr list --state merged --limit 100 \
+    merged_refs="$("$GH" pr list --state merged --limit 500 \
         --json headRefName,headRefOid \
         --jq '.[] | [.headRefName, .headRefOid] | @tsv' 2>/dev/null || true)"
     merged_heads="$(printf '%s\n' "$merged_refs" | cut -f1)"
@@ -58,14 +68,25 @@ fi
 echo "## branches$gh_note"
 now_epoch="$(date +%s)"
 active_branches=""
-for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | grep '^role/' || true); do
-    ahead="$("$GIT" rev-list --count origin/main.."$branch" 2>/dev/null || echo 0)"
+worktree_inventory="$("$GIT" worktree list --porcelain 2>/dev/null)"
+for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/); do
+    case "$branch" in main|integrate/*) continue ;; esac
+    if ! ahead="$("$GIT" rev-list --count origin/main.."$branch" 2>/dev/null)"; then
+        echo "  $branch  UNKNOWN — cannot compare with origin/main; preserve"
+        continue
+    fi
     branch_oid="$("$GIT" rev-parse "$branch" 2>/dev/null || true)"
-    wt="$("$GIT" worktree list --porcelain 2>/dev/null \
-        | grep -B2 "branch refs/heads/$branch" | grep '^worktree' | cut -d' ' -f2)"
+    wt="$(printf '%s\n' "$worktree_inventory" | awk -v ref="refs/heads/$branch" '
+        /^worktree / { path=substr($0, 10) }
+        /^branch / && substr($0, 8)==ref { print path }
+    ')"
     dirty="0"
     if [ -n "$wt" ] && [ -d "$wt" ]; then
-        dirty="$("$GIT" -C "$wt" status --short 2>/dev/null | wc -l | tr -d ' ')"
+        if ! changes="$("$GIT" -C "$wt" status --short 2>/dev/null)"; then
+            echo "  $branch  UNKNOWN — worktree status unavailable; preserve"
+            continue
+        fi
+        [ -z "$changes" ] || dirty="$(printf '%s\n' "$changes" | wc -l | tr -d ' ')"
     fi
     state="active"
     reason=""
@@ -76,13 +97,10 @@ for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | gr
         state="active"; reason="uncommitted worktree changes"
     elif [ "$ahead" = "0" ]; then
         state="spent"; reason="0 ahead of origin/main"
-    elif "$GIT" diff --quiet "origin/main...$branch" 2>/dev/null; then
-        state="spent"; reason="tree identical to origin/main (squash-merged)"
-    elif [ -n "$merged_heads" ] && {
-        printf '%s\n' "$merged_heads" | grep -qx "$branch" \
-            || { [ -n "$branch_oid" ] \
-                && printf '%s\n' "$merged_oids" | grep -qx "$branch_oid"; }
-    }; then
+    elif "$GIT" diff --quiet origin/main "$branch" 2>/dev/null; then
+        state="spent"; reason="tree identical to origin/main"
+    elif [ -n "$branch_oid" ] && [ -n "$merged_oids" ] \
+        && printf '%s\n' "$merged_oids" | grep -qx "$branch_oid"; then
         state="spent"; reason="head of a merged PR"
     fi
     if [ "$state" = "spent" ]; then
@@ -93,53 +111,19 @@ for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | gr
     last_epoch="$("$GIT" log -1 --format='%ct' "$branch" 2>/dev/null || echo 0)"
     age_h=$(( (now_epoch - last_epoch) / 3600 ))
     flags=""
-    if [ -f "$board" ] && ! grep -q "$branch" "$board"; then
-        flags="$flags UNREGISTERED(not-on-board)"
-    fi
     [ "$age_h" -ge "$stale_hours" ] && flags="$flags STALE(${age_h}h-since-commit)"
     echo "  $branch  active, +$ahead, last commit ${age_h}h ago${flags:+ —$flags}"
 
     if [ -n "$wt" ] && [ -d "$wt" ]; then
         [ "$dirty" != "0" ] && echo "    uncommitted: $dirty file(s) in $wt"
-        handoff="$wt/agents/handoffs/${branch#role/}.md"
-        if [ -f "$handoff" ] && grep -q '^Status:' "$handoff"; then
-            grep -E '^(Status|Last|Next|Blockers):' "$handoff" | sed 's/^/    /'
-        else
-            echo "    handoff: MISSING ($handoff)"
-        fi
+        echo "    worktree: $wt (intent comes from pickup-counter claims above)"
     else
         echo "    worktree: none attached"
     fi
 done
-[ -z "$active_branches" ] && echo "  (no active role/ branches)"
+[ -z "$active_branches" ] && echo "  (no active topic branches)"
 bar
 
-# ---- board entries whose branch/worktree no longer exists -------------------
-if [ -f "$board" ]; then
-    echo "## board hygiene"
-    hygiene_ok=1
-    while IFS= read -r b; do
-        if ! "$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | grep -qx "$b"; then
-            echo "  !! board lists $b but no such local branch — stale entry or remote-only"
-            hygiene_ok=0
-        fi
-    done < <(
-        awk -F'|' '
-            function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
-            /^\|/ {
-                state = trim($11)
-                if (state != "active" && state != "review") next
-                line = $0
-                while (match(line, /role\/[a-z0-9-]+/)) {
-                    print substr(line, RSTART, RLENGTH)
-                    line = substr(line, RSTART + RLENGTH)
-                }
-            }
-        ' "$board" | sort -u
-    )
-    [ "$hygiene_ok" = "1" ] && echo "  active/review board branches all exist locally"
-    bar
-fi
 
 # ---- open PRs ---------------------------------------------------------------
 echo "## open pull requests"

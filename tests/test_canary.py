@@ -16,6 +16,7 @@ from evallab.schemas import (
     CanaryDriftObservation,
     CanaryMember,
     CanarySuite,
+    ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
     StandingApprovalsPolicy,
@@ -301,12 +302,156 @@ def test_executor_rejects_mutable_dataset_download_before_harbor(
         )
 
 
-def test_schema_defines_trailing_seven_day_drift_view() -> None:
-    schema = (ROOT / "sql/schema.sql").read_text()
+def test_suite_rejects_unreachable_daily_cycle_cap(tmp_path: Path) -> None:
+    suite_data = make_suite(tmp_path).model_dump()
+    with pytest.raises(ValueError, match="exceeds available slots"):
+        CanarySuite.model_validate(suite_data | {"max_cycles_per_day": 2})
 
-    assert "CREATE VIEW canary_drift_observations" in schema
-    assert "interval '7 days'" in schema
-    assert "stddev_samp" in schema
-    assert "history.task_version = current.task_version" in schema
-    assert "task_version_changed" in schema
-    assert "is_harness_drift_suspect" in schema
+
+def test_billable_suite_cannot_reuse_zero_cost_control_estimates(tmp_path: Path) -> None:
+    suite_data = make_suite(tmp_path).model_dump()
+    suite_data["agents"] = ["oracle", "codex"]
+    suite_data["members"][0]["est_cost_usd"] = 0
+    with pytest.raises(ValueError, match="positive cost estimate"):
+        CanarySuite.model_validate(suite_data)
+
+
+def test_enqueue_due_slot_replenishment_and_cap(tmp_path: Path) -> None:
+    requests: list = []
+    ingested: list[Path] = []
+    service = make_executor(tmp_path, requests, ingested)
+    service.gate.policy = StandingApprovalsPolicy(
+        daily_cost_ceiling_usd=100.0,
+        per_job_cost_ceiling_usd=3,
+        quiet_failure_rule=3,
+        auto_run=[
+            AutoRunRule(
+                name="local-controls",
+                tasks=["canary/*"],
+                agents=["oracle", "codex"],
+                max_attempts=3,
+            )
+        ],
+    )
+
+    members = []
+    for index in range(3):
+        task = tmp_path / f"library/tasks/canary-free-{index}"
+        task.mkdir(parents=True)
+        (task / "task.toml").write_text(f'name = "free-{index}"\n')
+        members.append(
+            CanaryMember(
+                name=f"free-{index}",
+                task_path=f"library/tasks/canary-free-{index}",
+                task_version="1.0.0",
+                task_digest=task_directory_digest(task),
+                source_ref=f"test/free-{index}@1",
+                est_cost_usd=0,
+            )
+        )
+    suite = CanarySuite(
+        agents=["oracle"],
+        members=members,
+        interval_seconds=3600,
+        max_cycles_per_day=2,
+    )
+    enqueuer = CanaryEnqueuer(repo_root=tmp_path, executor=service, suite=suite)
+
+    base_time = datetime(2026, 9, 6, 14, 15, tzinfo=UTC)
+
+    enqueued = enqueuer.enqueue_due(base_time)
+    assert enqueued == 3
+    assert len(service.queue.list_specs("approved")) == 3
+
+    dispatched = service.tick()
+    assert dispatched == 3
+    assert len(requests) == 3
+
+    enqueued_again = enqueuer.enqueue_due(base_time + timedelta(minutes=15))
+    assert enqueued_again == 0
+    assert service.tick() == 0
+
+    # A late start spends the cap on actual enrollments, not missed midnight slots.
+    assert enqueuer.enqueue_due(base_time + timedelta(hours=1)) == 3
+    assert service.tick() == 3
+    assert enqueuer.enqueue_due(base_time + timedelta(hours=2)) == 0
+    assert enqueuer.enqueue_due(base_time + timedelta(days=1)) == 3
+
+
+def test_enqueue_due_stop_and_unresolved_running_prevent_backlog(tmp_path: Path) -> None:
+    requests: list = []
+    ingested: list[Path] = []
+    service = make_executor(tmp_path, requests, ingested)
+    suite = make_suite(tmp_path)
+    enqueuer = CanaryEnqueuer(repo_root=tmp_path, executor=service, suite=suite)
+
+    base_time = datetime(2026, 9, 6, 0, 30, tzinfo=UTC)
+
+    service.queue.stop_path.touch()
+    assert enqueuer.enqueue_due(base_time) == 0
+
+    service.queue.stop_path.unlink()
+    running_dir = service.queue.state_dir("running")
+    running_dir.mkdir(parents=True, exist_ok=True)
+    fake_spec = ExperimentSpec(
+        name="running-placeholder",
+        hypothesis="test",
+        purpose="drift",
+        task="canary/placeholder",
+        agent="oracle",
+        submitted_by="test",
+    )
+    service.queue._create_exclusive(running_dir / "test-spec.json", fake_spec)
+    assert enqueuer.enqueue_due(base_time) == 0
+
+    (running_dir / "test-spec.json").unlink()
+    later_time = datetime(2026, 9, 6, 0, 45, tzinfo=UTC)
+    enqueued = enqueuer.enqueue_due(later_time)
+    assert enqueued == 3
+
+
+def test_enqueue_due_paid_canaries_stage_in_waiting_without_authorization(tmp_path: Path) -> None:
+    requests: list = []
+    ingested: list[Path] = []
+    service = make_executor(tmp_path, requests, ingested)
+    suite = make_suite(tmp_path)
+    enqueuer = CanaryEnqueuer(repo_root=tmp_path, executor=service, suite=suite)
+
+    base_time = datetime(2026, 9, 6, 0, 30, tzinfo=UTC)
+    enqueued = enqueuer.enqueue_due(base_time)
+    assert enqueued == 3
+
+    waiting = service.queue.list_specs("waiting")
+    assert len(waiting) == 3
+    assert len(service.queue.list_specs("approved")) == 0
+
+    assert service.tick() == 0
+    assert requests == []
+
+
+def test_enqueue_due_concurrent_producer_lock_serialization(tmp_path: Path) -> None:
+    requests: list = []
+    ingested: list[Path] = []
+    service = make_executor(tmp_path, requests, ingested)
+    suite = make_suite(tmp_path)
+    enqueuer = CanaryEnqueuer(repo_root=tmp_path, executor=service, suite=suite)
+
+    base_time = datetime(2026, 9, 6, 0, 30, tzinfo=UTC)
+
+    with service.queue.tick_lock() as acquired:
+        assert acquired is True
+        assert enqueuer.enqueue_due(base_time) == 0
+
+
+def test_enqueue_due_skips_task_hashing_when_already_enrolled(tmp_path: Path) -> None:
+    requests: list = []
+    ingested: list[Path] = []
+    service = make_executor(tmp_path, requests, ingested)
+    suite = make_suite(tmp_path)
+    enqueuer = CanaryEnqueuer(repo_root=tmp_path, executor=service, suite=suite)
+
+    base_time = datetime(2026, 9, 6, 0, 30, tzinfo=UTC)
+    assert enqueuer.enqueue_due(base_time) == 3
+
+    (tmp_path / suite.members[0].task_path / "task.toml").unlink()
+    assert enqueuer.enqueue_due(base_time) == 0

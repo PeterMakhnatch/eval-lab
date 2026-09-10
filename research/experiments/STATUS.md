@@ -1,8 +1,17 @@
-# Research status — 2026-08-15
+---
+status: historical
+as_of: 2026-08-15
+---
 
-Projection of `PROGRAM.json`. Names work, not only queue counts.
-Smoke/oracle operational jobs are counted at the bottom, not in the
-headline.
+# Research status — 2026-08-15 (HISTORICAL SNAPSHOT)
+
+> **Historical Evidence Snapshot (2026-08-15)**: This document is a frozen point-in-time
+> campaign record from August 15, 2026, preserved as immutable research evidence. It is
+> **not** generated or updated by current CLI tools. For living lab and queue status,
+> see `docs/STATUS.md` generated via `evallab status --update` (or `evallab status`).
+
+Historical projection of `PROGRAM.json`. Names work, not only queue counts.
+Smoke/oracle operational jobs are counted at the bottom, not in the headline.
 
 ## RECENT
 

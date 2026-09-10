@@ -37,7 +37,7 @@ from evallab.calibrate import (
     write_calibration_record,
     write_catalog_record,
 )
-from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
+from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter, load_canary_suite
 from evallab.cohort import (
     clustered_minimum_detectable_effect,
     clustered_power_requirements,
@@ -540,13 +540,32 @@ def _tick_command(
         progress=print,
         capacity=capacity,
     )
+    canary_enqueuer = None
+    if getattr(args, "canary_suite", None) is not None:
+        suite_path = _resolve(root, args.canary_suite)
+        try:
+            suite = load_canary_suite(suite_path)
+        except (OSError, ValueError) as exc:
+            print(f"canary suite invalid: {exc}", file=sys.stderr)
+            return 1
+        canary_enqueuer = CanaryEnqueuer(
+            repo_root=root,
+            executor=executor,
+            suite=suite,
+        )
     result = GuardedTick(
         doctor=HeadlessDoctor(root, executor=executor),
         executor=executor,
+        canary_enqueuer=canary_enqueuer.enqueue_due if canary_enqueuer is not None else None,
     ).run()
+    is_quarantined = not result.report.healthy or result.quarantined
     print(f"dispatched {result.dispatched} experiment(s)")
-    print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
-    return 0 if result.report.healthy else 1
+    if result.enqueued:
+        print(f"enqueued {result.enqueued} canary experiment(s)")
+    print(f"quarantined: {'yes' if is_quarantined else 'no'}")
+    if result.quarantine_reason:
+        print(f"quarantine reason: {result.quarantine_reason}", file=sys.stderr)
+    return 1 if is_quarantined else 0
 
 
 def _approve_command(
@@ -728,12 +747,57 @@ def _resume_command(
     return 0
 
 
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Invalid integer: {value!r}") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"Interval must be a positive integer, got {parsed}")
+    return parsed
+
+
 def _schedule_install_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    paths = ScheduleInstaller(root).install()
+    canary_suite = getattr(args, "canary_suite", None)
+    try:
+        installer = ScheduleInstaller(
+            root,
+            interval_seconds=args.interval_seconds,
+            tick_only=args.tick_only,
+            canary_suite=canary_suite,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"canary suite invalid: {exc}", file=sys.stderr)
+        return 1
+    paths = installer.install()
     for path in paths:
         print(f"installed: {path}")
+    return 0
+
+
+def _schedule_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    status_data = ScheduleInstaller(root).status()
+    print(json.dumps(status_data, indent=2))
+    return (
+        2
+        if any(
+            job["loaded"] is None or "config_error" in job or "probe_error" in job
+            for job in status_data["jobs"].values()
+        )
+        else 0
+    )
+
+
+def _schedule_uninstall_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    paths = ScheduleInstaller(root).uninstall()
+    for path in paths:
+        print(f"uninstalled: {path}")
     return 0
 
 
@@ -2207,6 +2271,41 @@ def _evidence_archive_command(
     return 0
 
 
+def _regrade_verifier_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.regrade import verifier_identity
+
+    identity = verifier_identity(_resolve(root, args.task))
+    if args.json:
+        print(json.dumps(identity.model_dump(mode="json"), indent=2, sort_keys=True))
+    else:
+        print(
+            f"{identity.task_name or identity.task_dir} "
+            f"mode={identity.environment_mode} "
+            f"files={identity.context_file_count} {identity.digest}"
+        )
+    return 0 if identity.environment_mode == "separate" else 1
+
+
+def _regrade_trial_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.regrade import regrade_trial, render_receipt
+
+    receipt = regrade_trial(
+        trial_dir=_resolve(root, args.trial),
+        task_dir=_resolve(root, args.task),
+        trials_dir=_resolve(root, args.trials_dir),
+        environment=args.environment,
+    )
+    if args.json:
+        print(json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True))
+    else:
+        print(render_receipt(receipt))
+    return 1 if receipt.refused else 0
+
+
 def _evidence_restore_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3582,6 +3681,13 @@ def parser() -> argparse.ArgumentParser:
         metavar="AGENT=N",
         help="Per-agent concurrent trial slots (repeatable)",
     )
+    tick.add_argument(
+        "--canary-suite",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Optional path to a CanarySuite YAML for opt-in replenishment before dispatch",
+    )
     tick.set_defaults(func=_tick_command)
 
     approve = commands.add_parser(
@@ -3670,7 +3776,41 @@ def parser() -> argparse.ArgumentParser:
     schedule_install = schedule_commands.add_parser(
         "install", help="Install and load tick/nightly LaunchAgents"
     )
+    schedule_install.add_argument(
+        "--interval-seconds",
+        type=_positive_int,
+        default=ScheduleInstaller.DEFAULT_INTERVAL_SECONDS,
+        help="Cadence in seconds for tick schedule (default: 1800)",
+    )
+    schedule_install.add_argument(
+        "--tick-only",
+        action="store_true",
+        help="Schedule queue dispatch only without the nightly research pipeline",
+    )
+    schedule_install.add_argument(
+        "--canary-suite",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Optional path to a CanarySuite YAML for opt-in continuous canary replenishment",
+    )
     schedule_install.set_defaults(func=_schedule_install_command)
+
+    schedule_status = schedule_commands.add_parser(
+        "status", help="Inspect installed and loaded launchd schedule state"
+    )
+    schedule_status.add_argument(
+        "--json",
+        action="store_true",
+        default=True,
+        help="Output status as machine-readable JSON (default)",
+    )
+    schedule_status.set_defaults(func=_schedule_status_command)
+
+    schedule_uninstall = schedule_commands.add_parser(
+        "uninstall", help="Unload and remove installed evallab LaunchAgents"
+    )
+    schedule_uninstall.set_defaults(func=_schedule_uninstall_command)
 
     digest = commands.add_parser("digest", help="Render one daily digest from catalog and events")
     digest.add_argument("--date", dest="report_date", type=date.fromisoformat)
@@ -4918,6 +5058,33 @@ def parser() -> argparse.ArgumentParser:
     )
     traj_c0.add_argument("--json", action="store_true", help="Emit deterministic JSON status")
     traj_c0.set_defaults(func=_traj_c0_status_command)
+    regrade_parser = commands.add_parser(
+        "regrade",
+        help="Re-score recorded trials with a task's current verifier at zero model cost",
+    )
+    regrade_commands = regrade_parser.add_subparsers(dest="regrade_command", required=True)
+    regrade_verifier = regrade_commands.add_parser(
+        "verifier", help="Show a task's verifier content identity digest"
+    )
+    regrade_verifier.add_argument("--task", type=Path, required=True, help="Task directory")
+    regrade_verifier.add_argument("--json", action="store_true")
+    regrade_verifier.set_defaults(func=_regrade_verifier_command)
+    regrade_trial_parser = regrade_commands.add_parser(
+        "trial", help="Re-score one recorded trial and write a typed regrade receipt"
+    )
+    regrade_trial_parser.add_argument("trial", type=Path, help="Recorded trial directory")
+    regrade_trial_parser.add_argument(
+        "--task", type=Path, required=True, help="Task directory providing the verifier"
+    )
+    regrade_trial_parser.add_argument(
+        "--trials-dir",
+        type=Path,
+        default=Path("derived/regrades"),
+        help="Parent directory for the new regrade trial",
+    )
+    regrade_trial_parser.add_argument("--environment", default="docker")
+    regrade_trial_parser.add_argument("--json", action="store_true")
+    regrade_trial_parser.set_defaults(func=_regrade_trial_command)
     return root
 
 

@@ -1,0 +1,18 @@
+{
+  "status": "mismatch",
+  "reward": 0.0,
+  "used_tau2_evaluator": true,
+  "reward_info": {
+    "reward": 0.0,
+    "reward_basis": [
+      "DB",
+      "NL_ASSERTION"
+    ],
+    "info": {
+      "note": "Runtime ended without a valid tau2 stop signal. termination_reason=None",
+      "trajectory_message_count": 0,
+      "tau2_evaluation": false,
+      "runtime_log": true
+    }
+  }
+}

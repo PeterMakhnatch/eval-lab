@@ -12,4 +12,4 @@ certification (`StateCertificate`), and paired-trajectory recovery evaluation pi
 3. Fail-Closed Restoration: Missing or mismatched state artifacts prevent certification.
 
 ## Testing & Verification
-- Targeted unit tests: `pytest tests/test_recovery.py tests/test_recovery_certify.py`
+- Targeted unit tests: `pytest tests/test_recovery_bundle.py tests/test_recovery_certify.py tests/test_recovery_wrapper.py tests/test_recovery_adversarial.py`

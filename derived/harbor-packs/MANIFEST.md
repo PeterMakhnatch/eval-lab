@@ -35,10 +35,48 @@ a task; registration is human-only and separate.
 | Staged | `tasks/` (15 task dirs `task_0000NN`), unzipped from the pinned archive |
 | License | Apache-2.0 (`LICENSE` in this dir) |
 | Sample rule | first 15 task dirs in archive order (`task_000001`–`task_000017`, skipping the two ids the upstream release does not ship: `task_000007`, `task_000015`) — deterministic, no lab-side quality filtering |
-| Loader incompatibility | every `task.toml` sets `[task] name = "FACET-Terminal"`, which harbor 0.21.0 rejects (`TaskConfig` requires `org/name`; `TaskModel.is_valid_dir` False; `harbor run -p …` fails "Either datasets or tasks must be provided"). Decision: `~/Developer/research-context/harbor/corpus/FACET-LOADER-DECISION.md` — the pack is NOT rewritten |
+| Loader incompatibility | every `task.toml` sets `[task] name = "FACET-Terminal"`, which harbor 0.21.0 rejects (`TaskConfig` requires `org/name`; `TaskModel.is_valid_dir` False; `harbor run -p …` fails "Either datasets or tasks must be provided"). Decision: `research/external/harbor-ecosystem/FACET-LOADER-DECISION.md` — the pack is NOT rewritten |
 | Contamination class | synthetic tasks distilled from public Agent Skills via FACET's pipeline; behavior-study only, external-flagged outcomes |
 
+
+## data-agent-harbor-eval
+
+| Field | Value |
+|---|---|
+| Source pin | HuggingFace `HuggingEnvs/data-agent-harbor-eval` (144 tasks), built from `jupyter-agent/jupyter-agent-dataset` |
+| Upstream revision pin | `f931115192a5dec58102aaf9683454c560b61392` |
+| Staged | `tasks/` (144 task dirs), `registry.json`, `manifest.parquet`, `README.md` |
+| License | MIT |
+| Sample rule | official 144-task validation split |
+| Validation observed | built-in `oracle` raises `FileNotFoundError` (upstream pack does not ship `solution/solve.sh`); `nop` scores 0.0 (correctness 0.0, submission 0.0, tool_efficiency 0.0); `cheat` probe scores 0.0 (anti-cheat verifier isolation in Harbor prevents agent access to `/tests` or `EXPECTED_ANSWER`) |
+| Contamination class | Kaggle notebooks reverse-engineered into tasks; behavior-study only, external-flagged outcomes |
+
+## wildclawbench-harbor
+
+| Field | Value |
+|---|---|
+| Source pin | HuggingFace `internlm/WildClawBench-Harbor` (60 tasks), paper arXiv:2605.10912 |
+| Upstream revision pin | `33d06066716dc2666721f08ad2784c96e9b44dc5` |
+| Staged | 60 task dirs, `README.md` |
+| License | MIT |
+| Sample rule | full 60-task benchmark suite across 6 categories |
+| Validation observed | requires pre-built 13.4GB Docker image `wildclawbench-ubuntu:v1.3` (from `internlm/WildClawBench/Images/wildclawbench-ubuntu_v1.3.tar`); without pre-loaded image, Docker compose fails with pull access denied / RuntimeError |
+| Contamination class | long-horizon OS and safety benchmark; behavior-study only, external-flagged outcomes |
+
+## data-eng-bench
+
+| Field | Value |
+|---|---|
+| Source pin | GitHub `Snowflake-Labs/data-eng-bench` (103 tasks) / Harbor Hub `snowflake-labs/data-eng-bench` |
+| Upstream revision pin | git commit `a3278ad102829a6084dde086244a0ef665a8011c` |
+| Staged | `tasks/` (30 tasks matching `configs/fast-30.txt`), `fast-30.txt` |
+| Base Docker image | `ghcr.io/snowflake-labs/data-eng-bench-base:1.0.0` (tagged as `dbt-bench-base:latest`) |
+| License | Apache-2.0 |
+| Sample rule | official 30-task `configs/fast-30.txt` fast subset |
+| Validation observed | `dbt-fix-division-by-zero` and `dbt-cart-abandonment-recovery` oracle runs completed (0 exceptions); verifier requires `DB_TYPE=duckdb` environment config to avoid Snowflake credentials check |
+| Contamination class | dbt enterprise data warehouse benchmarks; behavior-study only, external-flagged outcomes |
 ## Regeneration
+
 Commands to re-derive both packs live with the acquisition notes in
 `research/external/harbor-ecosystem/`. Re-fetch must verify the archive digest
 above before replacing anything under `tasks/`.

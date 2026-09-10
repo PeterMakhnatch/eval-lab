@@ -1,10 +1,17 @@
 # Board — pull, don't push
 
-## status (keeper-maintained TL;DR for humans)
-- Open tops: good-codebase #1 · analysis — none · system-design — none · tooling — unseeded · omp-usability — awaiting Peter seed · training-signal #1/#2
-- Active: census (wK:p7, blocked) · gates (wK:p4, blocked) · live-fire (engineer-lead) · C-repair (wS:p2, blocked) · GPU record (Fable) · evidence-visibility (wS:pA)
-- Review queue (Peter): verl decision · flake verdict · reward branch · visibility branch · triage branch
-- Needs Peter: wK:p7 two yes/no · wK:p4 host call · triage adjudication · tooling seeds
+## status
+
+This is the backlog/protocol authority, not an automatically refreshed presence
+display. The lane summaries below were last keeper-edited on 2026-09-03.
+Current pickup records are `claims/*.md`; an old inline `claims:` entry does not
+prove that a pane is still active. Unclaimed backlog items have no assigned owner.
+Use `scripts/fleet-status.sh` and exact Git/PR refs before acting on a dated claim.
+
+Repository maintenance was authorized by Peter on 2026-09-06. Its disposition
+receipt is `research/maintenance/repository-remediation-2026-09-06.json`;
+closed historical work-order moves are mapped in
+`research/archive/2026-W36/path-map.json`. This does not authorize research runs.
 
 # What lives where
 # - problems: raw pains, anyone appends. Peter promotes to backlog/rules.
@@ -30,7 +37,8 @@
 # problems
 - P1 (Peter): peer pages out of the blue; OMP unusable. Suspect: peer-first
   delegation defaults. Status: quiet protocol live (claims/ + keeper).
-- P2 (Peter): inbox unusable mess. Status: triage branch done, awaiting review.
+- P2 (Peter): inbox unusable mess. Status: approved preservation-first remediation;
+  the 7177e1b0 candidate was reviewed, not blindly replayed against newer inputs.
 - P3 (Peter): role names hide WHO. Status: rule 3 live, ledger format fixed.
 - P4 (system): pane↔model identity unstable. Status: watching; shas on artifacts.
 
@@ -79,7 +87,9 @@ backlog:
   2. (Peter: further gripes)
 claims:
 done:
-  - wH:p1 → #1 triage (branch @7177e1b0, 68 moves, 39-active restore; NOT PUSHED; pending Peter review/integration)
+  - wH:p1 → #1 original triage review candidate @7177e1b0; preserved in Git.
+    The 2026-09-06 remediation uses closure evidence and a per-file path map instead
+    of the old broad move list. Integration status belongs to its exact PR head.
 
 ## training-signal (bar: digest-bound manifest, no held-out claims)
 backlog:

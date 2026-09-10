@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -22,10 +23,12 @@ from typing import Any
 
 import duckdb
 import pyarrow as pa
+import pyarrow.parquet as pq
 
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.evidence.facts import TRIAL_FACT_SCHEMA
+from evallab.interpretation.trajectory_quality import QUALITY_REPORT_TABLE
 from evallab.lineage import compute_file_digest, resolve_lineage
 
 GENERATED_HEADER = "generated-by: lessons v1"
@@ -65,6 +68,21 @@ OBSERVATION_RECORD_SCHEMA = pa.schema(
         pa.field("tool_errors", pa.int64()),
         pa.field("summary", pa.string()),
     ]
+)
+
+
+TRIAL_FACTS_LEDGER_SCHEMA = pa.schema(
+    [
+        *TRIAL_FACT_SCHEMA,
+        pa.field("quality_status", pa.string()),
+    ]
+)
+
+QUALITY_STATUS_COLUMNS = (
+    "quality_pass_n",
+    "quality_warn_n",
+    "quality_fail_n",
+    "quality_quarantine_n",
 )
 
 
@@ -124,7 +142,7 @@ def _relative_path(path: Path, root: Path) -> str:
 def collect_lessons_inputs(
     root: Path,
     sql_path: Path | None = None,
-    *,
+    quality_ledger: QualityLedgerRead | None = None,
     trial_parquet_partition_limit: int = 100,
 ) -> list[dict[str, str]]:
     """Collect all upstream input files aggregated by the lessons generator."""
@@ -199,7 +217,6 @@ def collect_lessons_inputs(
                         "digest": compute_file_digest(path),
                     }
                 )
-
     # 5. Trial facts parquet partitions (if present)
     trial_parquet_files = sorted(root.glob("derived/parquet/**/trial_facts.parquet"))
     if trial_parquet_files:
@@ -224,8 +241,22 @@ def collect_lessons_inputs(
                 }
             )
 
+
+    # 6. Evidence Quality Ledger (shared derived store). When a bound read is
+    # supplied, its digest — taken from the same bytes the rows were parsed
+    # from — is recorded verbatim, closing the read/digest TOCTOU window.
+    bound = quality_ledger if quality_ledger is not None else load_quality_ledger_bound(root)
+    if bound.path is not None and bound.digest is not None:
+        inputs.append(
+            {
+                "path": bound.path,
+                "digest": bound.digest,
+            }
+        )
+
     inputs.sort(key=lambda x: x["path"])
     return inputs
+
 
 # --------------------------------------------------------------------------- #
 # Data Loaders
@@ -433,15 +464,26 @@ def load_analysis_sidecars(root: Path) -> list[dict[str, Any]]:
 
 
 def load_trial_facts(root: Path) -> list[dict[str, Any]]:
-    """Load deterministic trial facts from parquet, refusing annotation substitutes."""
-    trial_parquet_files = list(root.glob("derived/parquet/**/trial_facts.parquet"))
+    """Load deterministic trial facts from committed compact-day snapshots.
+
+    Only ``derived/parquet/compact/dt=*/trial_facts.parquet`` is read. The
+    compactor deduplicates these snapshots by primary key, and they are the
+    tracked subset of the derived store, so a fresh checkout reproduces the
+    exact same rows as a workstation with the full live store. Hot
+    ``job_id=`` partitions are intentionally not read here: they duplicate
+    compact rows during the retention window, which would make counts depend
+    on local retention state.
+    """
+    trial_parquet_files = list(root.glob("derived/parquet/compact/dt=*/trial_facts.parquet"))
     if trial_parquet_files:
         try:
             with duckdb.connect(":memory:") as con:
-                glob_path = str(root / "derived/parquet/**/trial_facts.parquet")
+                glob_path = str(
+                    root / "derived/parquet/compact/dt=*/trial_facts.parquet"
+                )
                 rows = con.execute(
-                    "SELECT * FROM read_parquet(?, hive_partitioning = true, "
-                    "union_by_name = true)",
+                    "SELECT * FROM read_parquet(?, union_by_name = true) "
+                    "ORDER BY job_id, trial_id",
                     [glob_path],
                 ).fetchall()
                 cols = [desc[0] for desc in con.description]
@@ -451,9 +493,98 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
     return []
 
 
-# --------------------------------------------------------------------------- #
-# DuckDB Engine & Statistical Gating
-# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class QualityLedgerRead:
+    """Ledger rows bound to the exact bytes they were parsed from.
+
+    ``digest`` is computed from the same single ``read_bytes()`` payload the
+    rows were deserialized from, so a bytes swap between read and digest
+    recording cannot make the recorded identity describe different content.
+    """
+
+    rows: tuple[dict[str, Any], ...]
+    digest: str | None
+    path: str | None
+
+
+def load_quality_ledger_bound(
+    root: Path,
+    *,
+    derived_root: Path | None = None,
+) -> QualityLedgerRead:
+    """Read the Evidence Quality Ledger once, binding digest to parsed bytes.
+
+    The ledger is read from the tracked repository snapshot
+    (``derived/parquet/trajectory_quality_reports.parquet``), not the live
+    derived store: the snapshot is what the committed lessons.md was rendered
+    from, so every checkout — clean or not — reproduces the artifact
+    byte-for-byte. Updating the projection means refreshing the snapshot and
+    regenerating in the same change.
+    """
+    resolved = (
+        derived_root if derived_root is not None else root / "derived/parquet"
+    )
+    reports_path = resolved / f"{QUALITY_REPORT_TABLE}.parquet"
+    if not reports_path.is_file():
+        return QualityLedgerRead(rows=(), digest=None, path=None)
+    payload = reports_path.read_bytes()
+    digest = f"sha256:{hashlib.sha256(payload).hexdigest()}"
+    relative = _relative_path(reports_path, root)
+    try:
+        rows = tuple(pq.read_table(pa.BufferReader(payload)).to_pylist())
+    except Exception:
+        return QualityLedgerRead(rows=(), digest=digest, path=relative)
+    return QualityLedgerRead(rows=rows, digest=digest, path=relative)
+
+
+def load_quality_ledger(
+    root: Path,
+    *,
+    derived_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Load Evidence Quality Ledger report rows from the shared derived store."""
+    return list(load_quality_ledger_bound(root, derived_root=derived_root).rows)
+
+
+TRAJECTORY_QUALITY_REPORTS_SCHEMA = pa.schema(
+    [
+        pa.field("job_id", pa.string()),
+        pa.field("trial_id", pa.string()),
+        pa.field("status", pa.string()),
+    ]
+)
+
+
+def _canonical_quality_rows(
+    quality_reports: Sequence[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Canonicalize raw ledger rows into a conflict-free quality join table.
+
+    One status per ``(job_id, trial_id)`` identity. Ledger rows that carry no
+    job identity (empty ``job_id``) are kept only while they are the trial's
+    sole identity in the ledger — the SQL-side join may then bind them to the
+    trial under any job. Conflicting statuses for one identity are dropped,
+    never guessed, and the output is deterministic regardless of row order.
+    """
+    pair_statuses: dict[tuple[str, str], set[str]] = {}
+    trial_job_ids: dict[str, set[str]] = {}
+    for report in quality_reports:
+        status = str(report.get("status") or "")
+        trial_id = str(report.get("trial_id") or "")
+        if not status or not trial_id:
+            continue
+        job_id = str(report.get("job_id") or "")
+        pair_statuses.setdefault((job_id, trial_id), set()).add(status)
+        trial_job_ids.setdefault(trial_id, set()).add(job_id)
+
+    rows: list[dict[str, str]] = []
+    for (job_id, trial_id), statuses in sorted(pair_statuses.items()):
+        if len(statuses) != 1:
+            continue  # conflicting authority: unbound, never guessed
+        if job_id == "" and trial_job_ids[trial_id] != {""}:
+            continue  # a real job identity exists: the empty shadow is redundant
+        rows.append({"job_id": job_id, "trial_id": trial_id, "status": next(iter(statuses))})
+    return rows
 
 
 def populate_duckdb(
@@ -463,16 +594,43 @@ def populate_duckdb(
     trial_facts: Sequence[dict[str, Any]],
     analysis_sidecars: Sequence[dict[str, Any]],
     observation_records: Sequence[dict[str, Any]],
+    quality_reports: Sequence[dict[str, Any]] = (),
     sql_path: Path | None = None,
 ) -> None:
-    """Populate DuckDB with in-memory tables and execute view definitions."""
+    """Populate DuckDB with in-memory tables and execute view definitions.
+
+    ``quality_reports`` are the raw Evidence Quality Ledger rows. They are
+    canonicalized into a conflict-free ``trajectory_quality_reports`` table
+    (one status per ``(job_id, trial_id)`` identity; ambiguous or conflicting
+    ledger rows are dropped, never guessed) so ``sql/lessons.sql`` can join
+    quality authority directly inside the frozen views.
+    """
     t_craft = pa.Table.from_pylist(list(craft_records), schema=CRAFT_SCHEMA)
-    t_trials = pa.Table.from_pylist(list(trial_facts), schema=TRIAL_FACT_SCHEMA)
+    t_trials = pa.Table.from_pylist(list(trial_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA)
+    t_quality = pa.Table.from_pylist(
+        _canonical_quality_rows(quality_reports),
+        schema=TRAJECTORY_QUALITY_REPORTS_SCHEMA,
+    )
     t_analysis = pa.Table.from_pylist(list(analysis_sidecars), schema=ANALYSIS_SIDECAR_SCHEMA)
     t_obs = pa.Table.from_pylist(list(observation_records), schema=OBSERVATION_RECORD_SCHEMA)
 
+    # Fail loudly on any schema-driven row loss: a silent mismatch between
+    # loaded rows and registered tables once rendered a vacuous artifact.
+    for name, table, source in (
+        ("craft", t_craft, craft_records),
+        ("trial_facts", t_trials, trial_facts),
+        ("trajectory_quality_reports", t_quality, _canonical_quality_rows(quality_reports)),
+        ("analysis_sidecars", t_analysis, analysis_sidecars),
+        ("observation_records", t_obs, observation_records),
+    ):
+        if table.num_rows != len(source):
+            raise ValueError(
+                f"populate_duckdb: {name} lost rows during Arrow conversion "
+                f"({table.num_rows} of {len(source)}); refusing to render"
+            )
     con.register("craft", t_craft)
     con.register("trial_facts", t_trials)
+    con.register("trajectory_quality_reports", t_quality)
     con.register("analysis_sidecars", t_analysis)
     con.register("observation_records", t_obs)
 
@@ -481,15 +639,41 @@ def populate_duckdb(
         con.execute(resolved_sql.read_text(encoding="utf-8"))
 
 
+# The views end in their own ORDER BY, but restating each frozen ordering and
+# extending it with the remaining group keys keeps row order — and therefore
+# lesson ids — total and deterministic.
+_VIEW_ORDER_BY: dict[str, str] = {
+    "v_outcome_by_verifier_type": "v.source_repo, v.n DESC, v.verifier_type",
+    "v_loop_rate_by_env": (
+        "v.source_repo, v.n DESC, v.loop_rate_pct DESC, "
+        "v.env_services_n, v.env_multi_container, v.env_files_bucket"
+    ),
+    "v_failure_by_facet": (
+        "v.source_repo, v.facet_name, v.n DESC, v.failures_n DESC, v.facet_value, "
+        "v.model_failure_category, v.model_validity, v.model_diagnosis_source, "
+        "v.mechanical_failure_category, v.mechanical_validity, v.mechanical_diagnosis_source"
+    ),
+}
+
+
 def execute_lessons_views(
     con: duckdb.DuckDBPyConnection,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Query each lesson view and return dictionary of row dictionaries."""
+    """Query each lesson view and return dictionary of row dictionaries.
+
+    The views live in ``sql/lessons.sql`` and expose their ledger quality
+    decomposition natively (``quality_pass_n``/``quality_warn_n``/
+    ``quality_fail_n``/``quality_quarantine_n``). The explicit ordering keeps
+    row order — and therefore lesson ids — total and deterministic.
+    """
     views = ["v_failure_by_facet", "v_loop_rate_by_env", "v_outcome_by_verifier_type"]
     results: dict[str, list[dict[str, Any]]] = {}
 
     for view_name in views:
-        cursor = con.execute(f"SELECT * FROM {view_name}")
+        cursor = con.execute(
+            f"SELECT * FROM {view_name} "
+            f"ORDER BY {_VIEW_ORDER_BY[view_name].replace('v.', '')}"
+        )
         cols = [desc[0] for desc in con.description]
         rows = cursor.fetchall()
         results[view_name] = [dict(zip(cols, r, strict=False)) for r in rows]
@@ -767,8 +951,9 @@ def build_lessons(
     craft_records = load_craft_records(root)
     observations = load_observation_records(root)
     sidecars = load_analysis_sidecars(root)
+    ledger = load_quality_ledger_bound(root)
+    quality_reports = list(ledger.rows)
     facts = load_trial_facts(root)
-
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
             con,
@@ -776,6 +961,7 @@ def build_lessons(
             trial_facts=facts,
             analysis_sidecars=sidecars,
             observation_records=observations,
+            quality_reports=quality_reports,
             sql_path=sql_path,
         )
         raw_views = execute_lessons_views(con)
@@ -786,11 +972,19 @@ def build_lessons(
     powered = sum(1 for item in all_lessons if item.powered)
     underpowered = sum(1 for item in all_lessons if not item.powered)
 
+    quality_status_counts = Counter(
+        str(report.get("status") or "") for report in quality_reports
+    )
     records_summary = {
         "craft_records": len(craft_records),
         "trial_facts": len(facts),
         "analysis_sidecars": len(sidecars),
         "observation_records": len(observations),
+        "quality_ledger_evaluated": len(quality_reports),
+        "quality_ledger_pass": quality_status_counts.get("pass", 0),
+        "quality_ledger_warn": quality_status_counts.get("warn", 0),
+        "quality_ledger_fail": quality_status_counts.get("fail", 0),
+        "quality_ledger_quarantine": quality_status_counts.get("quarantine", 0),
     }
 
     rankings_by_view = {
@@ -798,7 +992,7 @@ def build_lessons(
         for view_name, rows in lessons_by_view.items()
     }
 
-    inputs = collect_lessons_inputs(root, sql_path=sql_path)
+    inputs = collect_lessons_inputs(root, sql_path=sql_path, quality_ledger=ledger)
     return LessonsResult(
         generated_at=generated_at if generated_at is not None else datetime.now(UTC),
         power_threshold=power_threshold,
@@ -822,6 +1016,21 @@ def _format_ci(interval: tuple[float, float] | None) -> str:
         return "n/a"
     low, high = interval
     return f"[{low:.1%}, {high:.1%}]"
+
+
+def _quality_counts(details: dict[str, Any]) -> tuple[int, int, int, int]:
+    """Ledger pass/warn/fail/quarantine counts recorded on a view row."""
+    return (
+        int(details.get("quality_pass_n", 0) or 0),
+        int(details.get("quality_warn_n", 0) or 0),
+        int(details.get("quality_fail_n", 0) or 0),
+        int(details.get("quality_quarantine_n", 0) or 0),
+    )
+
+
+def _quality_cells(counts: tuple[int, int, int, int]) -> str:
+    """Render the four ledger count cells of a lesson table row."""
+    return f"{counts[0]} | {counts[1]} | {counts[2]} | {counts[3]}"
 
 
 def render_lessons_markdown(result: LessonsResult) -> str:
@@ -859,6 +1068,20 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"{rec_sum.get('observation_records', 0)} observation records, "
                 f"{rec_sum.get('analysis_sidecars', 0)} analysis sidecars"
             ),
+            *(
+                [
+                    (
+                        "- **Evidence Quality Ledger:** "
+                        f"{rec_sum.get('quality_ledger_evaluated', 0)} evaluated trials "
+                        f"(pass {rec_sum.get('quality_ledger_pass', 0)}, "
+                        f"warn {rec_sum.get('quality_ledger_warn', 0)}, "
+                        f"fail {rec_sum.get('quality_ledger_fail', 0)}, "
+                        f"quarantine {rec_sum.get('quality_ledger_quarantine', 0)})"
+                    )
+                ]
+                if "quality_ledger_evaluated" in rec_sum
+                else []
+            ),
             (
                 f"- **Findings Gate:** {result.powered_lessons} statistically powered finding(s), "
                 f"{result.underpowered_lessons} observation row(s) gated with `insufficient n`"
@@ -876,9 +1099,10 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "",
             (
                 "| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | "
-                "Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Status | Finding |"
+                "Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | "
+                "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
-            "|---|---|---:|---:|---:|---:|---|---:|---:|---|---|",
+            "|---|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|",
         ]
     )
 
@@ -892,7 +1116,8 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                     f"{det.get('verifier_type', 'none')} | "
                     f"{int(det.get('total_trials_n', 0))} | 0 | 0 | 0.0% | n/a | "
                     f"{int(det.get('exceptions_n', 0))} | "
-                    f"{int(det.get('never_measured_n', 0))} | `insufficient n` | "
+                    f"{int(det.get('never_measured_n', 0))} | "
+                    f"{_quality_cells(_quality_counts(det))} | `insufficient n` | "
                     "insufficient n |"
                 )
                 continue
@@ -906,13 +1131,14 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             ci_str = _format_ci(row.wilson_95)
             lines.append(
                 f"| {repo} | {vtype} | {total} | {row.n} | {passed} | {row.rate:.1%} | "
-                f"{ci_str} | {exceptions} | {never_measured} | `{row.status}` | "
+                f"{ci_str} | {exceptions} | {never_measured} | "
+                f"{_quality_cells(_quality_counts(det))} | `{row.status}` | "
                 f"{row.finding} |"
             )
     else:
         lines.append(
-            "| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | `insufficient n` | "
-            "insufficient n |"
+            "| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | 0 | 0 | "
+            "`insufficient n` | insufficient n |"
         )
 
     lines.extend(
@@ -924,14 +1150,16 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 "Observation-annotation loop rates by environment complexity. Markdown "
                 "annotations remain identified and are not substituted for deterministic facts."
             ),
-            "",
             (
                 "| Source Repo | Annotation Source | Services | Container Mode | Env Files | "
                 "Total Trials | Annotated | Unannotated | Eligible n | Loops | Loop Rate | "
                 "Wilson 95% CI | Avg Annotated Steps | Avg Annotated Tool Errors | "
-                "Status | Finding |"
+                "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
-            "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---|---|",
+            (
+                "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|"
+                "---:|---:|---:|---:|---|---|"
+            ),
         ]
     )
 
@@ -959,12 +1187,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"| {repo} | {annotation_source} | {services} | {multi} | {files_b} | "
                 f"{total} | {annotated} | {unannotated} | {row.n} | {loops} | "
                 f"{row.rate:.1%} | {ci_str} | {avg_s_str} | {avg_e_str} | "
-                f"`{row.status}` | {row.finding} |"
+                f"{_quality_cells(_quality_counts(det))} | `{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
             "| - | observation_markdown | 0 | single | 0_files | 0 | 0 | 0 | 0 | 0 | "
-            "0.0% | n/a | n/a | n/a | `insufficient n` | insufficient n |"
+            "0.0% | n/a | n/a | n/a | 0 | 0 | 0 | 0 | `insufficient n` | insufficient n |"
         )
 
     lines.extend(
@@ -981,11 +1209,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 "| Source Repo | Facet Name | Facet Value | Model Category | Model Validity | "
                 "Model Source | Mechanical Category | Mechanical Validity | Mechanical Source | "
                 "Total Trials | Eligible n | Exceptions | Never Measured | Excluded | Failures | "
-                "Failure Rate | Wilson 95% CI | Status | Finding |"
+                "Failure Rate | Wilson 95% CI | "
+                "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
             (
                 "|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|"
-                "---:|---|---|---|"
+                "---:|---|---:|---:|---:|---:|---|---|"
             ),
         ]
     )
@@ -1014,12 +1243,14 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 f"| {repo} | {fname} | {fval} | {model_cat} | {model_val} | {model_source} | "
                 f"{mechanical_cat} | {mechanical_val} | {mechanical_source} | {total} | "
                 f"{row.n} | {exceptions} | {never_measured} | {excluded} | {row.k} | "
-                f"{row.rate:.1%} | {ci_str} | `{row.status}` | {row.finding} |"
+                f"{row.rate:.1%} | {ci_str} | "
+                f"{_quality_cells(_quality_counts(det))} | `{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
             "| - | none | none | none | none | none | none | none | trial_facts | 0 | 0 | "
-            "0 | 0 | 0 | 0 | 0.0% | n/a | `insufficient n` | insufficient n |"
+            "0 | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | `insufficient n` | "
+            "insufficient n |"
         )
 
     lines.extend(

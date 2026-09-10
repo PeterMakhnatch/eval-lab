@@ -164,9 +164,7 @@ class ProposalDraft(ContractModel):
         has_prior = bool(self.builds_on)
         has_new = bool(self.new_thread_justification)
         if has_prior == has_new:
-            raise ValueError(
-                "exactly one of builds_on or new_thread_justification is required"
-            )
+            raise ValueError("exactly one of builds_on or new_thread_justification is required")
         return self
 
 
@@ -301,8 +299,7 @@ class CodexInvoker:
 
         permission_key = _toml_key(str(work_dir.resolve()))
         permission_table = (
-            'permissions.researcher.filesystem={":minimal" = "read", '
-            f'{permission_key} = "read"}}'
+            f'permissions.researcher.filesystem={{":minimal" = "read", {permission_key} = "read"}}'
         )
         command = [
             self.executable,
@@ -505,9 +502,7 @@ class CallLedger:
             try:
                 records.append(CallLedgerRecord.model_validate_json(line))
             except ValidationError as exc:
-                raise ValueError(
-                    f"invalid researcher ledger line {line_number}: {exc}"
-                ) from exc
+                raise ValueError(f"invalid researcher ledger line {line_number}: {exc}") from exc
         descriptor.seek(0, os.SEEK_END)
         return records
 
@@ -1180,7 +1175,7 @@ def append_fleet_section(
         "The status, last, next, and blockers columns are that mission's own four-line "
         "header, self-reported at its last stopping point; they are not verified against "
         "branches, pull requests, or CI. The permanent lanes are `agents/OWNERS.md` and "
-        "the mission board is `agents/missions/ACTIVE.md`; this section restates neither.",
+        "the authoritative work backlog is `research/inbox/board.md` (navigated via `agents/missions/ACTIVE.md`); this section restates neither.",
         "",
     ]
     if live:
@@ -1296,11 +1291,7 @@ def _strict_output_schema(value):
         return [_strict_output_schema(item) for item in value]
     if not isinstance(value, dict):
         return value
-    result = {
-        key: _strict_output_schema(item)
-        for key, item in value.items()
-        if key != "default"
-    }
+    result = {key: _strict_output_schema(item) for key, item in value.items() if key != "default"}
     properties = result.get("properties")
     if isinstance(properties, dict):
         result["required"] = list(properties)
@@ -1319,9 +1310,7 @@ def _researcher_environment(
     work_dir: Path,
 ) -> dict[str, str]:
     environment = {
-        key: os.environ[key]
-        for key in _RESEARCHER_ENVIRONMENT_KEYS
-        if key in os.environ
+        key: os.environ[key] for key in _RESEARCHER_ENVIRONMENT_KEYS if key in os.environ
     }
     executable_path = Path(executable).absolute() if "/" in executable else None
     path_entries = ["/usr/bin", "/bin"]

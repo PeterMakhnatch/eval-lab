@@ -1,0 +1,96 @@
+{
+  "ticket": "HAR-18",
+  "gate_name": "action_memory_wheelhouse_gate",
+  "head_commit": "000750a897b612948067e3d00651f56da501bcbd",
+  "selected_cell": {
+    "cell_id": "dl-semantic-distractor-16384-s42",
+    "base_task_pair_id": "am-dose-ladder-v1-s42-d16384",
+    "arm": "semantic_distractor",
+    "dose_bytes": 16384,
+    "seed": 42,
+    "read_opportunity_count": 65,
+    "step_budget": 3,
+    "matched_control_twin": "dl-neutral-padding-16384-s42"
+  },
+  "environment_variables": {
+    "ACTION_MEMORY_WHEELHOUSE": {
+      "name": "ACTION_MEMORY_WHEELHOUSE",
+      "required": true,
+      "type": "directory_path",
+      "description": "Path to the target-specific offline wheelhouse directory containing FastMCP 3.4.7 and transitive wheels.",
+      "defined_in": "library/benchmarks/action-memory-v1/materializer.py:53",
+      "enforced_in": "library/benchmarks/action-memory-v1/materializer.py:111-129",
+      "behavior": "Checked in _wheelhouse_inputs(). Must be set, non-blank, and point to an existing directory; otherwise raises ValueError('production FastMCP materialization requires both ACTION_MEMORY_WHEELHOUSE and ACTION_MEMORY_RESOLVER_PROVENANCE') or ValueError('target wheelhouse does not exist: ...')."
+    },
+    "ACTION_MEMORY_RESOLVER_PROVENANCE": {
+      "name": "ACTION_MEMORY_RESOLVER_PROVENANCE",
+      "required": true,
+      "type": "file_path",
+      "description": "Path to the resolver-provenance.json file binding the wheelhouse inventory and target architecture.",
+      "defined_in": "library/benchmarks/action-memory-v1/materializer.py:54",
+      "enforced_in": "library/benchmarks/action-memory-v1/materializer.py:111-129",
+      "behavior": "Checked in _wheelhouse_inputs(). Must be set, non-blank, point to an existing file, and parse into ResolverProvenance via ResolverProvenance.from_json()."
+    },
+    "FASTMCP_WHEELHOUSE": {
+      "name": "FASTMCP_WHEELHOUSE",
+      "required": false,
+      "default": "/tmp/fastmcp3_wheelhouse",
+      "description": "Destination directory override consumed by the staging helper script ensure_wheelhouse.py."
+    }
+  },
+  "staging_helper": {
+    "script_path": "scripts/mcp_funcdag/ensure_wheelhouse.py",
+    "description": "The only supported pre-packaging staging helper for Action Memory MCP dependencies.",
+    "locked_resolver": "pip==26.1.2",
+    "target_platform": {
+      "python_tag": "cp312",
+      "platform_tag": "manylinux_2_17_x86_64"
+    },
+    "trusted_manifest": "src/evallab/data/fastmcp-3.4.7-cp312-manylinux_2_17_x86_64-manifest.json",
+    "provenance_filename": "resolver-provenance.json",
+    "staging_contract": [
+      "Rejects any target other than cp312/manylinux_2_17_x86_64 up front.",
+      "Enforces that the executing environment pip version equals pip==26.1.2 exactly.",
+      "Validates destination security (must be non-symlink, owned by user, not group/world writable).",
+      "Downloads exact manifest name==version pins and verifies SHA-256 hashes against trusted manifest.",
+      "Writes resolver-provenance.json inside the destination wheelhouse."
+    ]
+  },
+  "ci_configuration": {
+    "workflow_file": ".github/workflows/action-memory-dose-ladder.yml",
+    "workflow_lines": "47-52",
+    "staging_directory": "/tmp/fastmcp3_wheelhouse",
+    "provenance_path": "/tmp/fastmcp3-resolver-provenance.json",
+    "staging_commands": [
+      "FASTMCP_WHEELHOUSE=/tmp/fastmcp3_wheelhouse uv run python scripts/mcp_funcdag/ensure_wheelhouse.py",
+      "cp /tmp/fastmcp3_wheelhouse/resolver-provenance.json /tmp/fastmcp3-resolver-provenance.json",
+      "echo \"ACTION_MEMORY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse\" >> \"$GITHUB_ENV\"",
+      "echo \"ACTION_MEMORY_RESOLVER_PROVENANCE=/tmp/fastmcp3-resolver-provenance.json\" >> \"$GITHUB_ENV\""
+    ]
+  },
+  "materializer_contract": {
+    "entrypoint": "library/benchmarks/action-memory-v1/materializer.py",
+    "function": "materialize_dose_ladder_cell",
+    "plan_only": false,
+    "plan_only_details": "Action Memory materialization explicitly calls materialize_mcp_sidecar_package(..., plan_only=False) at line 345. Unlike FuncDAG or Recovery, there is no plan-only fallback for Action Memory; production sidecar generation requires actual wheel bytes and validated provenance to build the hash-locked offline Dockerfile."
+  },
+  "derived_package_status": {
+    "derived_task_dir": "derived/harbor-tasks/action-memory-dose-ladder",
+    "repo_status": "absent",
+    "enforcement": "Committed generated tasks are forbidden in repository source. CI workflow (.github/workflows/action-memory-dose-ladder.yml:34-36) executes 'Reject committed generated corpus' which fails if any paths in git ls-files match library/benchmarks/action-memory-v1/tasks/ or derived/harbor-tasks/action-memory-dose-ladder/."
+  },
+  "execution_boundary": {
+    "factory_role": "Factory prepares the admission packet, binds contracts, and documents gates. Factory must not stage wheels, write library/registry, or run materializer, Docker, or model executions in HAR-18.",
+    "integration_role": "Integration-only responsibility for downstream execution: staging wheelhouse, materializing the task package, launching the Docker sidecar container, and executing native Harbor oracle (oracle=1.0) and NOP (nop=0.0) verification before Peter registration.",
+    "oracle_nop_controls": {
+      "oracle_target": 1.0,
+      "nop_target": 0.0,
+      "sidecar_service": "http://mcp-service:8080/mcp",
+      "prerequisite_gate": "ACTION_MEMORY_WHEELHOUSE and ACTION_MEMORY_RESOLVER_PROVENANCE must be populated before invoking Harbor oracle or NOP on the materialized package."
+    }
+  },
+  "acceptance_verification": {
+    "wheels_staged_in_ticket": false,
+    "wheelhouse_gate_status": "documented_and_blocked_until_integration"
+  }
+}

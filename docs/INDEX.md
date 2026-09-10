@@ -9,13 +9,13 @@ inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
     digest: sha256:5aa795040fa3349f80fcb948c007aa4921774fcf537cc9306a0ce60072223e71
   - path: docs/GENERATED-CACHE-POLICY.md
-    digest: sha256:c406a958dfe2a0d7e424f969b82cc43718913a978c674fae6a8079fbf7e9975f
+    digest: sha256:ed5695ece9213e0cd13adc86f755e1e3a5fbd04acc5c73a01c0fa4bc6b183cd6
   - path: docs/GIANT-FILE-SPLIT-PROPOSALS.md
     digest: sha256:f4e5e908877c3f5070fc9fb1cdc865930a515faca56825b075d944c3c26b7ffb
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:31a0d2af45c08183e43373769db59623eeb60889960f27ce5c6d00fff2170051
+    digest: sha256:d8aabe3e434acb4249a6d5ae75f54bbde5a1595ce16335fa0b4f9797d2863250
   - path: docs/PORTFOLIO-ROADMAP-AND-SYSTEM-STATE.md
     digest: sha256:bfc12431fceb1eda96e0fe2d2b0095c02881e2faae214dbb263770741c8d3dbb
   - path: docs/STATUS.md
@@ -75,7 +75,7 @@ inputs:
   - path: docs/execution-tiers.md
     digest: sha256:0f4648452bd835e3ef7ccc4b381527af79aef39ae3ee5cf4fe0c9437e5fdee41
   - path: docs/fleet-tracking.md
-    digest: sha256:614a535c283e61b43dafb4485ababb34e52dd09416919e738ba0054c0ca101a0
+    digest: sha256:e94e7733464f4619208794424249a1df4bb5843b1b0e48d6deb7fa0c2754b44b
   - path: docs/git-estate-inventory.md
     digest: sha256:5bbae3f85105941c3f6fe3f607b2c0b2bfa753548c0ded6e8226071a2c4bd7fc
   - path: docs/join-spine.md
@@ -93,7 +93,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:f6badfdb9aeab10623be2c90820214f90a01ab4c844b34a60e3a700a2ab1738d
+    digest: sha256:2ea898ffa7c1f2feb696dff9de6658e350ca06e76842c2a5d829541602bf3f33
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parallel-work.md
@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:718b14936c745deb7b039c526e07e87c28646a215de4d28fe686f3c9410acabb
+    digest: sha256:4f313e318125737e99cd45e34e29dda306edd77a949e6360b3b61dad6bfdc384
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -118,8 +118,6 @@ inputs:
     digest: sha256:f453a2f026c5b9240e90706d78030db1747af489df79a46b172ec85932a0dde8
   - path: docs/research/external-datasets.md
     digest: sha256:58d428f613cf5cab9258c4e5ce2f057b79d16d803251b62c556b3d18f24a88a3
-  - path: docs/research/harbor-ecosystem-architecture-perspective.md
-    digest: sha256:4611ea9127cb133c78a4b4c8508a3866b23ddc5759639e66faffcc9607759959
   - path: docs/research/literature-survey.md
     digest: sha256:8dd8e6aebe4aa36c02157da5519c9469308be13377bf67b564fc386bcc0bd27e
   - path: docs/research/synthetic-tasks.md
@@ -163,7 +161,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
-| `docs/GENERATED-CACHE-POLICY.md` | Generated products and safe cache policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
@@ -189,7 +187,6 @@ an operator can see what is archived.
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
-| `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
@@ -218,7 +215,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
-| `docs/GENERATED-CACHE-POLICY.md` | Generated products and safe cache policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
@@ -245,7 +242,6 @@ an operator can see what is archived.
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
-| `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
@@ -276,7 +272,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
-| `docs/GENERATED-CACHE-POLICY.md` | Generated products and safe cache policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
@@ -314,7 +310,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
-| `docs/GENERATED-CACHE-POLICY.md` | Generated products and safe cache policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
@@ -335,6 +331,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
+| `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
@@ -363,7 +360,6 @@ an operator can see what is archived.
 | `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
 | `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
 | `docs/design-additions.md` | Design additions: one repo, the tool stack, and the unattended research loop | `historical` | `operator` |
-| `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `historical` | `operator` |
 | `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
 | `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
 | `docs/operator-demo.md` | Operator demo — one truthful analysis loop | `historical` | `operator` |
@@ -384,7 +380,6 @@ Historical documents. These are archived records, not living contracts.
 | `docs/build-plan.md` | Build plan (spec) | `historical` | `builder, analyst, runner, operator` |
 | `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `historical` | `builder, analyst, operator` |
 | `docs/design-additions.md` | Design additions: one repo, the tool stack, and the unattended research loop | `historical` | `operator` |
-| `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `historical` | `operator` |
 | `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `historical` | `builder, analyst, operator` |
 | `docs/mentor-review-2026-08.md` | Mentor review — 2026-08 | `historical` | `analyst, operator` |
 | `docs/operator-demo.md` | Operator demo — one truthful analysis loop | `historical` | `operator` |

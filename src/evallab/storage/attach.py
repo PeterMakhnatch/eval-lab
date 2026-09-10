@@ -16,7 +16,7 @@ import duckdb
 
 from evallab.contextpack import parse_doc
 from evallab.runner import database_url_from_environment
-from evallab.storage.parquet_compaction import PRIMARY_KEYS
+from evallab.storage.parquet_compaction import PRIMARY_KEYS, TABLE_SCHEMAS
 from evallab.storage.paths import (
     ParquetLayout,
     ParquetPartitionDiscovery,
@@ -180,6 +180,35 @@ def _z3_select_sql(
 def _sql_string_literal(value: str) -> str:
     """Return *value* as a safely quoted SQL string literal."""
     return "'" + value.replace("'", "''") + "'"
+
+
+_DUCKDB_TYPES: dict[str, str] = {
+    "string": "VARCHAR",
+    "large_string": "VARCHAR",
+    "int64": "BIGINT",
+    "int32": "INTEGER",
+    "double": "DOUBLE",
+    "float": "FLOAT",
+    "bool": "BOOLEAN",
+}
+
+
+def _empty_table_sql(table: str) -> str:
+    """Return an empty relation for *table*, typed whenever the schema is known.
+
+    Projections prune empty tables, so a table can legitimately have no files
+    at all. An untyped stub would turn ``SELECT <column> FROM <table>`` into a
+    binder error instead of an empty result, so known schemas project their
+    real columns.
+    """
+    schema = TABLE_SCHEMAS.get(table)
+    if schema is None:
+        return "SELECT * FROM (VALUES (NULL)) t LIMIT 0"
+    columns = ", ".join(
+        f'CAST(NULL AS {_DUCKDB_TYPES.get(str(field.type), "VARCHAR")}) AS "{field.name}"'
+        for field in schema
+    )
+    return f"SELECT {columns} LIMIT 0"
 
 
 def _postgres_dsn() -> str:
@@ -349,12 +378,9 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     for table in TABLES:
         view_globs = list(_z3_table_patterns(discovery, table))
         if not view_globs:
-            conn.execute(
-                f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
-            conn.execute(
-                f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
+            empty_sql = _empty_table_sql(table)
+            conn.execute(f"CREATE OR REPLACE VIEW {table} AS {empty_sql}")
+            conn.execute(f"CREATE OR REPLACE VIEW z3.{table} AS {empty_sql}")
             missing.append(table)
             continue
         select_sql = _z3_select_sql(discovery, table, view_globs)
@@ -365,12 +391,9 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             if discovery.table_files(table, layouts=SEMANTIC_COMPARISON_LAYOUTS):
                 available_tables.add(table)
         except Exception:
-            conn.execute(
-                f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
-            conn.execute(
-                f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
-            )
+            empty_sql = _empty_table_sql(table)
+            conn.execute(f"CREATE OR REPLACE VIEW {table} AS {empty_sql}")
+            conn.execute(f"CREATE OR REPLACE VIEW z3.{table} AS {empty_sql}")
             missing.append(table)
     _attach_semantic_comparison(conn, available_tables=available_tables)
     _attach_traj_views(conn)

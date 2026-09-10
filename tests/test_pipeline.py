@@ -117,7 +117,9 @@ def test_catalog_finishes_before_projection_failure_is_returned(
 
     assert calls == ["initialize", "base-catalog", "fact-catalog", "parquet"]
     assert result.cataloged_jobs == 1
-    assert [(table.table, table.rows) for table in result.tables] == [("jobs", 1)]
+    # Atomic projection: a failed job leaves no live tables behind (the old
+    # code persisted jobs.parquet before the trial projection failed).
+    assert [(table.table, table.rows) for table in result.tables] == []
     assert result.failures[0].reason_code == (
         "projection_failed:00000000-0000-0000-0000-000000000001:PermissionError"
     )

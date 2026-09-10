@@ -593,6 +593,15 @@ register_trajectory_feature(
     description="Number of unique tools invoked.",
 )
 register_trajectory_feature(
+    "tool_mix_json",
+    data_type="VARCHAR",
+    category="mechanical_fact",
+    is_screening=False,
+    formula_or_rule="JSON dictionary mapping tool name to invocation count across steps",
+    null_condition="'{}' by default",
+    description="JSON mapping of tool names to invocation frequencies.",
+)
+register_trajectory_feature(
     "repeated_command_count",
     data_type="BIGINT",
     category="mechanical_fact",
@@ -600,6 +609,42 @@ register_trajectory_feature(
     formula_or_rule="Count of consecutive identical command executions",
     null_condition="0 by default",
     description="Count of repeated identical commands.",
+)
+register_trajectory_feature(
+    "step_to_first_tool",
+    data_type="BIGINT",
+    category="mechanical_fact",
+    is_screening=False,
+    formula_or_rule="1-based step ordinal of the first tool invocation",
+    null_condition="NULL when no tools are invoked",
+    description="Step index of first observed tool invocation.",
+)
+register_trajectory_feature(
+    "step_to_first_edit",
+    data_type="BIGINT",
+    category="mechanical_fact",
+    is_screening=False,
+    formula_or_rule="1-based step ordinal of the first file edit or write tool invocation",
+    null_condition="NULL when no edit tools are invoked",
+    description="Step index of first observed file edit action.",
+)
+register_trajectory_feature(
+    "time_to_first_tool_seconds",
+    data_type="DOUBLE",
+    category="mechanical_fact",
+    is_screening=False,
+    formula_or_rule="Elapsed time from start to first tool invocation in seconds",
+    null_condition="NULL when no tools are invoked",
+    description="Elapsed time in seconds before first tool invocation.",
+)
+register_trajectory_feature(
+    "time_to_first_edit_seconds",
+    data_type="DOUBLE",
+    category="mechanical_fact",
+    is_screening=False,
+    formula_or_rule="Elapsed time from start to first file edit or write in seconds",
+    null_condition="NULL when no edit tools are invoked",
+    description="Elapsed time in seconds before first file edit action.",
 )
 
 # 4. Error & Recovery metrics
@@ -729,7 +774,7 @@ register_trajectory_feature(
     data_type="VARCHAR",
     category="mechanical_fact",
     is_screening=False,
-    formula_or_rule="State journal document status: 'available' | 'missing' | 'malformed' | 'not_observed'",
+    formula_or_rule="State journal document status: 'available' | 'incomplete_stream' | 'malformed' | 'not_observed'",
     null_condition="Never NULL ('not_observed' by default)",
     description="Validation status of state-journal and state-diff.",
 )
@@ -810,12 +855,12 @@ register_trajectory_feature(
     data_type="BIGINT",
     category="mechanical_fact",
     is_screening=False,
-    formula_or_rule="Net sum of size deltas (after - before) across all state-diff changes",
+    formula_or_rule="Net byte difference between before and after file sizes across all changed paths",
     null_condition="0 by default",
     description="Net byte size change across all changed paths.",
 )
 register_trajectory_feature(
-    "edit_tool_call_count",
+    "edit_call_count",
     data_type="BIGINT",
     category="mechanical_fact",
     is_screening=False,
@@ -828,11 +873,11 @@ register_trajectory_feature(
     data_type="DOUBLE",
     category="screening_heuristic",
     is_screening=True,
-    formula_or_rule="state_diff_path_count / edit_tool_call_count",
-    null_condition="NULL when edit_tool_call_count == 0",
-    denominator_sibling="edit_tool_call_count",
+    formula_or_rule="state_mutations_count / edit_call_count",
+    null_condition="NULL when edit_call_count == 0",
+    denominator_sibling="edit_call_count",
     null_on_zero_denominator=True,
-    description="Ratio of distinct changed paths to edit tool calls.",
+    description="Ratio of actual state file mutations to edit tool calls.",
 )
 register_trajectory_feature(
     "unobserved_state_mutations_count",

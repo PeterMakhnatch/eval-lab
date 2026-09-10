@@ -16,9 +16,11 @@ Guarantees:
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -28,6 +30,8 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+from evallab.evidence.parquet_io import write_table_atomic
 
 QUALITY_CHECK_VERSION = "v1.0.0"
 CHECK_CODE_DIGEST = "sha256:7e91a0b3f8c2e4d56719a8b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1"
@@ -244,7 +248,11 @@ def evaluate_trial_quality(
         is_analysis_ready = False
 
     # Check result.json error/exception status
-    res_exc = result_data.get("agent_result", {}).get("exception") or result_data.get("exception")
+    # `agent_result` and `agent_info` exist but are null on some real trials
+    # (e.g. oracle runs), so a default only covers a missing key, not a null one.
+    res_exc = (result_data.get("agent_result") or {}).get("exception") or result_data.get(
+        "exception"
+    )
     if res_exc and status != QualityStatus.QUARANTINE:
         quarantine_reason = f"runner_exception:{str(res_exc)[:80]}"
         findings.append(
@@ -266,7 +274,9 @@ def evaluate_trial_quality(
     if not traj_json_path.is_file():
         # Check if it's an oracle or nop control run
         agent_name = (
-            result_data.get("agent_info", {}).get("name") or result_data.get("agent_name") or ""
+            (result_data.get("agent_info") or {}).get("name")
+            or result_data.get("agent_name")
+            or ""
         )
         is_control = any(c in agent_name.lower() for c in ("oracle", "nop", "control"))
         if is_control:
@@ -457,6 +467,20 @@ def evaluate_trial_quality(
     return report, findings
 
 
+@contextmanager
+def _quality_ledger_lock(derived_root: Path, *, exclusive: bool = True) -> Iterator[None]:
+    derived_root = Path(derived_root).resolve()
+    derived_root.mkdir(parents=True, exist_ok=True)
+    lock_path = derived_root / ".trajectory_quality.lock"
+    with lock_path.open("a+b") as lock_file:
+        operation = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+        fcntl.flock(lock_file.fileno(), operation)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def persist_quality_ledger(
     reports: Sequence[TrajectoryQualityReport],
     findings: Sequence[TrajectoryQualityFinding],
@@ -473,50 +497,48 @@ def persist_quality_ledger(
     reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
     findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
 
-    # Merge with existing data if present to ensure idempotency
-    existing_reports: dict[str, dict[str, Any]] = {}
-    if reports_path.is_file():
-        try:
-            old_table = pq.read_table(reports_path)
-            for row in old_table.to_pylist():
-                existing_reports[row["trial_id"]] = row
-        except Exception:
-            existing_reports = {}
+    with _quality_ledger_lock(derived_root, exclusive=True):
+        # Merge with existing data if present to ensure idempotency
+        existing_reports: dict[str, dict[str, Any]] = {}
+        if reports_path.is_file():
+            try:
+                old_table = pq.read_table(reports_path)
+                for row in old_table.to_pylist():
+                    existing_reports[row["trial_id"]] = row
+            except Exception:
+                existing_reports = {}
 
-    for r in reports:
-        existing_reports[r.trial_id] = r.to_dict()
+        for r in reports:
+            existing_reports[r.trial_id] = r.to_dict()
 
-    # Sort deterministically by job_id, trial_id
-    sorted_reports = sorted(
-        existing_reports.values(), key=lambda r: (r.get("job_id", ""), r.get("trial_id", ""))
-    )
-    rep_table = pa.Table.from_pylist(sorted_reports, schema=REPORT_SCHEMA)
-    pq.write_table(rep_table, reports_path)
+        # Sort deterministically by job_id, trial_id
+        sorted_reports = sorted(
+            existing_reports.values(), key=lambda r: (r.get("job_id", ""), r.get("trial_id", ""))
+        )
+        write_table_atomic(reports_path, sorted_reports, REPORT_SCHEMA)
 
-    existing_findings: dict[str, dict[str, Any]] = {}
-    if findings_path.is_file():
-        try:
-            old_f_table = pq.read_table(findings_path)
-            for row in old_f_table.to_pylist():
-                existing_findings[row["finding_id"]] = row
-        except Exception:
-            existing_findings = {}
+        existing_findings: dict[str, dict[str, Any]] = {}
+        if findings_path.is_file():
+            try:
+                old_f_table = pq.read_table(findings_path)
+                for row in old_f_table.to_pylist():
+                    existing_findings[row["finding_id"]] = row
+            except Exception:
+                existing_findings = {}
 
-    for f in findings:
-        existing_findings[f.finding_id] = f.to_dict()
+        for f in findings:
+            existing_findings[f.finding_id] = f.to_dict()
 
-    sorted_findings = sorted(
-        existing_findings.values(),
-        key=lambda f: (
-            f.get("job_id", ""),
-            f.get("trial_id", ""),
-            f.get("step_id") or -1,
-            f.get("finding_id", ""),
-        ),
-    )
-    find_table = pa.Table.from_pylist(sorted_findings, schema=FINDING_SCHEMA)
-    pq.write_table(find_table, findings_path)
-
+        sorted_findings = sorted(
+            existing_findings.values(),
+            key=lambda f: (
+                f.get("job_id", ""),
+                f.get("trial_id", ""),
+                f.get("step_id") or -1,
+                f.get("finding_id", ""),
+            ),
+        )
+        write_table_atomic(findings_path, sorted_findings, FINDING_SCHEMA)
     return reports_path, findings_path
 
 

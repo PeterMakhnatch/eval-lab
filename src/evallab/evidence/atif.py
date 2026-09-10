@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import shutil
 from collections import defaultdict, deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, TypeGuard
@@ -13,7 +14,7 @@ import pyarrow as pa
 from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
-from evallab.evidence.parquet_io import write_table_atomic
+from evallab.evidence.parquet_io import empty_table_sha256, write_table_atomic
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
@@ -205,6 +206,93 @@ PROJECTED_TABLES = frozenset(
         "action_effects.parquet",
     }
 )
+PARTITION_MANIFEST_FILE = "_partition.json"
+PARTITION_MANIFEST_VERSION = 1
+
+
+def write_partition_manifests(tables: Iterable[ExportedTable]) -> tuple[Path, ...]:
+    """Record every projected table and its row count per trial partition.
+
+    Empty tables are pruned from disk, so presence alone can no longer
+    distinguish "this table has no rows" from "the writer never ran". The
+    manifest carries that distinction. It is deterministic by construction
+    (sorted keys, no timestamps) to preserve byte-identical rebuilds.
+    """
+    by_partition: dict[Path, dict[str, int]] = {}
+    for table in tables:
+        if f"{table.table}.parquet" not in PROJECTED_TABLES:
+            continue
+        partition = table.path.parent
+        if not partition.name.startswith("trial_id="):
+            continue
+        by_partition.setdefault(partition, {})[table.table] = table.rows
+    written: list[Path] = []
+    for partition, row_counts in sorted(by_partition.items()):
+        payload = {
+            "schema_version": PARTITION_MANIFEST_VERSION,
+            "tables": dict(sorted(row_counts.items())),
+        }
+        path = partition / PARTITION_MANIFEST_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        temporary.replace(path)
+        written.append(path)
+    return tuple(written)
+
+
+def read_partition_manifest(partition: Path) -> dict[str, int] | None:
+    """Return recorded table row counts, or None when no manifest exists."""
+    path = partition / PARTITION_MANIFEST_FILE
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    tables = payload.get("tables")
+    if not isinstance(tables, dict):
+        return None
+    return {str(name): int(rows) for name, rows in tables.items() if isinstance(rows, int)}
+
+
+def partition_missing_tables(partition: Path) -> frozenset[str]:
+    """Return projected tables that are neither materialized nor accounted empty.
+
+    Partitions written before manifests existed fall back to requiring every
+    file, which is exactly the rule they were built under.
+    """
+    present = {child.name for child in partition.glob("*.parquet") if child.is_file()}
+    manifest = read_partition_manifest(partition)
+    if manifest is None:
+        missing = PROJECTED_TABLES - present
+    else:
+        accounted = present | {
+            f"{name}.parquet" for name, rows in manifest.items() if rows == 0
+        }
+        missing = PROJECTED_TABLES - accounted
+    if not missing:
+        return frozenset()
+    # Partial-job intake: a valid _partial.json marker accounts for tables that
+    # must never exist. Delegate to its predicate (lazy import: that module
+    # imports names from here).
+    from evallab.partial_intake import (
+        PARTIAL_MARKER_FILE,
+        partial_partition_missing_tables,
+    )
+
+    job_root = partition.parent if partition.name.startswith("trial_id=") else partition
+    if not ((job_root / PARTIAL_MARKER_FILE).is_file() or (partition / PARTIAL_MARKER_FILE).is_file()):
+        return frozenset(missing)
+    partial_missing = partial_partition_missing_tables(job_root)
+    mine: set[str] = set()
+    prefix = partition.name + "/"
+    for entry in partial_missing:
+        if entry.startswith(prefix):
+            mine.add(entry[len(prefix):])
+        elif "/" not in entry:
+            mine.add(entry)
+    return frozenset(mine)
 
 
 @dataclass(frozen=True)
@@ -895,12 +983,14 @@ PARQUET_SCHEMAS = {
 
 
 def _write_parquet(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    write_table_atomic(path, rows, PARQUET_SCHEMAS[table_name])
+    schema = PARQUET_SCHEMAS[table_name]
+    written = write_table_atomic(path, rows, schema, keep_empty=False)
+    digest = sha256_file(path) if written else empty_table_sha256(schema)
     return ExportedTable(
         table=table_name,
         path=path,
         rows=len(rows),
-        sha256=f"sha256:{sha256_file(path)}",
+        sha256=f"sha256:{digest}",
     )
 
 
@@ -983,22 +1073,30 @@ def project_jobs(
     The full path remains :func:`ingest_and_project`, which catalogs first and
     then delegates here. Keeping one projection implementation lets CI exercise
     real Parquet writes while a local smoke also proves PostgreSQL agreement.
+
+    Each job projects into an inert staging root first and is published with
+    atomic renames, so an interrupted projection (or a concurrent writer) can
+    never leave a half-written partition in the live tree: readers observe
+    either the previous complete version or the new complete version.
     """
     from evallab.evidence.facts import rebuild_from_raw
+    from evallab.evidence.parquet_io import new_staging_root, publish_staged_job
+
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
     tables: list[ExportedTable] = []
     failures: list[ProjectionFailure] = []
     for job in ordered_jobs:
+        staging_root = new_staging_root(derived_root)
         try:
             job_table = _write_parquet(
-                derived_root / f"job_id={job.id}" / JOB_PROJECTION_FILE,
+                staging_root / f"job_id={job.id}" / JOB_PROJECTION_FILE,
                 "jobs",
                 [{"job_id": job.id, "job_name": job.name, "trial_count": len(job.trials)}],
             )
-            tables.append(job_table)
-            rebuilt = rebuild_from_raw([job], derived_root)
+            rebuilt = rebuild_from_raw([job], staging_root)
+            publish_staged_job(derived_root, staging_root, job.id)
         except Exception as exc:  # Projection failure is data, not an agent result.
             failures.append(
                 ProjectionFailure(
@@ -1009,8 +1107,23 @@ def project_jobs(
                 )
             )
             continue
-        tables.extend(rebuilt.tables)
+        finally:
+            shutil.rmtree(staging_root, ignore_errors=True)
+        tables.append(_rebase_table(job_table, staging_root, derived_root))
+        tables.extend(
+            _rebase_table(table, staging_root, derived_root) for table in rebuilt.tables
+        )
     return tuple(tables), tuple(failures)
+
+
+def _rebase_table(table: ExportedTable, staging_root: Path, derived_root: Path) -> ExportedTable:
+    """Point a staged export record at its live location (bytes moved, not rewritten)."""
+    return ExportedTable(
+        table=table.table,
+        path=derived_root / table.path.relative_to(staging_root.resolve()),
+        rows=table.rows,
+        sha256=table.sha256,
+    )
 
 
 def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str | None]]:
@@ -1084,12 +1197,7 @@ def check_projection_invariant(
             projected_job_ids.add(job_id)
             continue
         if all(
-            {
-                child.name
-                for child in (job_root / f"trial_id={trial_id}").glob("*.parquet")
-                if child.is_file()
-            }
-            >= PROJECTED_TABLES
+            not partition_missing_tables(job_root / f"trial_id={trial_id}")
             for trial_id in trial_ids
         ):
             projected_job_ids.add(job_id)

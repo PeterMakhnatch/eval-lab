@@ -180,8 +180,10 @@ def test_schema_ddl_idempotent(isolated_database_url: str) -> None:
     import psycopg
 
     db_url = isolated_database_url
-    initialize(db_url)
-    initialize(db_url)
+    # force=True bypasses the per-process apply-once cache so this actually
+    # re-executes the DDL, which is the contract under test.
+    initialize(db_url, force=True)
+    initialize(db_url, force=True)
 
     with psycopg.connect(db_url) as conn:
         tables = conn.execute(

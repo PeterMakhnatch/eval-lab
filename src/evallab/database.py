@@ -38,10 +38,23 @@ def views_path() -> Path:
     return Path(__file__).resolve().parents[2] / "sql" / "views.sql"
 
 
-def initialize(database_url: str) -> None:
+_INITIALIZED_URLS: set[str] = set()
+
+
+def initialize(database_url: str, *, force: bool = False) -> None:
+    """Apply the idempotent schema, once per URL per process.
+
+    ``ingest_and_project`` calls this on every ingest. Re-running the full DDL
+    per job costs measurable latency and makes concurrent ingesters contend on
+    PostgreSQL catalog locks, so repeat applications inside one process are
+    skipped. ``force=True`` (used by ``evallab db init``) always applies.
+    """
+    if not force and database_url in _INITIALIZED_URLS:
+        return
     schema = cast(LiteralString, schema_path().read_text())
     with psycopg.connect(database_url) as connection:
         connection.execute(schema)
+    _INITIALIZED_URLS.add(database_url)
 
 
 def _relative_or_absolute(path: Path, root: Path) -> str:
@@ -83,12 +96,22 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
     stats = job.result.get("stats") or {}
     evidence_path = _relative_or_absolute(job.path, root)
     # A named local evidence directory can be intentionally regenerated before
-    # publication. The filesystem remains authoritative, so remove a stale row
-    # that points at the same path but carries the superseded Harbor UUID.
+    # publication. The filesystem remains authoritative, so a stale row that
+    # points at the same path but carries a superseded Harbor UUID is replaced.
+    # The replacement is recorded ON the new row (never silently): without this
+    # link the old identity vanishes with zero forensic trace when its trials
+    # cascade away. Same-id re-ingest (regeneration) records nothing.
+    superseded = connection.execute(
+        "SELECT id FROM jobs WHERE evidence_path = %s AND id <> %s",
+        (evidence_path, job.id),
+    ).fetchall()
     connection.execute(
         "DELETE FROM jobs WHERE evidence_path = %s AND id <> %s",
         (evidence_path, job.id),
     )
+    metadata = dict(job.metadata or {})
+    if superseded and "supersedes" not in metadata:
+        metadata["supersedes"] = str(superseded[0][0])
     connection.execute(
         """
         INSERT INTO jobs (
@@ -133,7 +156,7 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
             "raw_config": Jsonb(job.config),
             "raw_lock": Jsonb(job.lock),
             "raw_result": Jsonb(job.result),
-            "lab_metadata": Jsonb(job.metadata),
+            "lab_metadata": Jsonb(metadata),
         },
     )
 

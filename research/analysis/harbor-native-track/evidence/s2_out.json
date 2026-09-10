@@ -1,0 +1,681 @@
+{
+ "tasks": [
+  {
+   "task": "adapted-syn-funcdag-hard",
+   "n_trials": 1,
+   "n_scored": 1,
+   "n_unscored": 0,
+   "successes": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.7934567085261071
+   ],
+   "curve": [
+    {
+     "k": 1,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    }
+   ],
+   "thin": true,
+   "cohorts": [
+    "local"
+   ],
+   "by_cohort": {
+    "local": {
+     "n": 1,
+     "successes": 0,
+     "rate": 0.0
+    }
+   },
+   "trials": [
+    {
+     "trial": "funcdag-codex-canary/trials-hard/adapted-syn-funcdag-hard__kziNARo",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "runs/funcdag-codex-canary/adapted-syn-funcdag-hard"
+    }
+   ]
+  },
+  {
+   "task": "adapted-syn-funcdag-medium",
+   "n_trials": 1,
+   "n_scored": 1,
+   "n_unscored": 0,
+   "successes": 1,
+   "rate": 1.0,
+   "wilson95": [
+    0.2065432914738929,
+    1.0
+   ],
+   "curve": [
+    {
+     "k": 1,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    }
+   ],
+   "thin": true,
+   "cohorts": [
+    "local"
+   ],
+   "by_cohort": {
+    "local": {
+     "n": 1,
+     "successes": 1,
+     "rate": 1.0
+    }
+   },
+   "trials": [
+    {
+     "trial": "funcdag-codex-canary/trials-medium/adapted-syn-funcdag-medium__NoqKuag",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "runs/funcdag-codex-canary/adapted-syn-funcdag-medium"
+    }
+   ]
+  },
+  {
+   "task": "adapted-task",
+   "n_trials": 1,
+   "n_scored": 1,
+   "n_unscored": 0,
+   "successes": 1,
+   "rate": 1.0,
+   "wilson95": [
+    0.2065432914738929,
+    1.0
+   ],
+   "curve": [
+    {
+     "k": 1,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    }
+   ],
+   "thin": true,
+   "cohorts": [
+    "local"
+   ],
+   "by_cohort": {
+    "local": {
+     "n": 1,
+     "successes": 1,
+     "rate": 1.0
+    }
+   },
+   "trials": [
+    {
+     "trial": "funcdag-codex-canary/trials/adapted-task__PmTen2E",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "runs/funcdag-codex-canary/adapted-task"
+    }
+   ]
+  },
+  {
+   "task": "event-summary",
+   "n_trials": 9,
+   "n_scored": 6,
+   "n_unscored": 3,
+   "successes": 6,
+   "rate": 1.0,
+   "wilson95": [
+    0.6096569663469354,
+    0.9999999999999999
+   ],
+   "curve": [
+    {
+     "k": 1,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    },
+    {
+     "k": 2,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    },
+    {
+     "k": 3,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    },
+    {
+     "k": 4,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    },
+    {
+     "k": 5,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    },
+    {
+     "k": 6,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 1.0
+    }
+   ],
+   "thin": false,
+   "cohorts": [
+    "foreign",
+    "local"
+   ],
+   "by_cohort": {
+    "foreign": {
+     "n": 0,
+     "successes": 0,
+     "rate": null
+    },
+    "local": {
+     "n": 6,
+     "successes": 6,
+     "rate": 1.0
+    }
+   },
+   "trials": [
+    {
+     "trial": "canary-event-summary-codex-20260814/event-summary__7ia4JGg",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260814/event-summary__U9k3VuP",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260814/event-summary__jexwcmy",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260815/event-summary__5E3btLv",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260815/event-summary__EKfePmM",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260815/event-summary__h2D9f6f",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260816/event-summary__EMsZuvy",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260816/event-summary__PbjjFx9",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    },
+    {
+     "trial": "canary-event-summary-codex-20260816/event-summary__qDnf3Zr",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    }
+   ]
+  },
+  {
+   "task": "syn-funcdag-easy",
+   "n_trials": 2,
+   "n_scored": 0,
+   "n_unscored": 2,
+   "successes": null,
+   "rate": null,
+   "wilson95": null,
+   "curve": [],
+   "thin": true,
+   "cohorts": [
+    "local"
+   ],
+   "by_cohort": {
+    "local": {
+     "n": 0,
+     "successes": 0,
+     "rate": null
+    }
+   },
+   "trials": [
+    {
+     "trial": "funcdag-codex-canary/syn-funcdag-easy__Az2rApj",
+     "reward": null,
+     "scored": false,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "local",
+     "full_task_path": "library/tasks/experimental/syn-funcdag-easy"
+    },
+    {
+     "trial": "funcdag-codex-canary/syn-funcdag-easy__F4mA4VR",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "local",
+     "full_task_path": "library/tasks/experimental/syn-funcdag-easy"
+    }
+   ]
+  },
+  {
+   "task": "terminal-bench-html-js-filter",
+   "n_trials": 12,
+   "n_scored": 9,
+   "n_unscored": 3,
+   "successes": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.2991527535509594
+   ],
+   "curve": [
+    {
+     "k": 1,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 2,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 3,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 4,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 5,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 6,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 7,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 8,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 9,
+     "pass_at_k": 0.0,
+     "pass_hat_k": 0.0
+    }
+   ],
+   "thin": false,
+   "cohorts": [
+    "foreign",
+    "local"
+   ],
+   "by_cohort": {
+    "foreign": {
+     "n": 3,
+     "successes": 0,
+     "rate": 0.0
+    },
+    "local": {
+     "n": 6,
+     "successes": 0,
+     "rate": 0.0
+    }
+   },
+   "trials": [
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260814/terminal-bench-html-js-filter__CxwJ5Ho",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260814/terminal-bench-html-js-filter__fWdkA5M",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260814/terminal-bench-html-js-filter__sLaNZ8v",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__aNUyT4o",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__sgumYpo",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260814-r2/terminal-bench-html-js-filter__zUmZJbm",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__5rgjEEt",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__D3GZpFU",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__kzGxL7Q",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__mBmCQGr",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__nippkfd",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/terminal-bench-html-js-filter"
+    },
+    {
+     "trial": "canary-terminal-bench-html-js-filter-codex-20260816/terminal-bench-html-js-filter__wHWnhkY",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/terminal-bench-html-js-filter"
+    }
+   ]
+  },
+  {
+   "task": "transaction-reconciliation",
+   "n_trials": 12,
+   "n_scored": 8,
+   "n_unscored": 4,
+   "successes": 5,
+   "rate": 0.625,
+   "wilson95": [
+    0.30573785458380187,
+    0.863158240538479
+   ],
+   "curve": [
+    {
+     "k": 1,
+     "pass_at_k": 0.625,
+     "pass_hat_k": 0.625
+    },
+    {
+     "k": 2,
+     "pass_at_k": 0.892857,
+     "pass_hat_k": 0.357143
+    },
+    {
+     "k": 3,
+     "pass_at_k": 0.982143,
+     "pass_hat_k": 0.178571
+    },
+    {
+     "k": 4,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 0.071429
+    },
+    {
+     "k": 5,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 0.017857
+    },
+    {
+     "k": 6,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 7,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 0.0
+    },
+    {
+     "k": 8,
+     "pass_at_k": 1.0,
+     "pass_hat_k": 0.0
+    }
+   ],
+   "thin": false,
+   "cohorts": [
+    "foreign",
+    "local"
+   ],
+   "by_cohort": {
+    "foreign": {
+     "n": 3,
+     "successes": 0,
+     "rate": 0.0
+    },
+    "local": {
+     "n": 5,
+     "successes": 5,
+     "rate": 1.0
+    }
+   },
+   "trials": [
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260814/transaction-reconciliation__ATxd53G",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260814/transaction-reconciliation__Ud9QYAu",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260814/transaction-reconciliation__apQpwcE",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__25xUzHN",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__MqaN75z",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260814-r2/transaction-reconciliation__wW5MqQS",
+     "reward": 0.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": true,
+     "checkout": "foreign",
+     "full_task_path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__W5o8QpH",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__ba8ovxZ",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__frxRezo",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__6fPriZT",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__Wy3yHhP",
+     "reward": 1.0,
+     "scored": true,
+     "has_traj": true,
+     "exception": false,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    {
+     "trial": "canary-transaction-reconciliation-codex-20260816/transaction-reconciliation__XB3Bbr8",
+     "reward": null,
+     "scored": false,
+     "has_traj": false,
+     "exception": true,
+     "checkout": "local",
+     "full_task_path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    }
+   ]
+  }
+ ],
+ "k_policy": "k = 1..n_scored per task; null where k > n_scored; n<3 flagged thin (no variance claim)",
+ "note": "pass@k separates agent stochasticity (curve rises with k) from environment flakiness only when n>=3 and c strictly between 0 and n; all-0/all-1 tasks carry no such information"
+}

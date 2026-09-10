@@ -23,8 +23,8 @@ from typing import Any
 
 from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
-    PROJECTED_TABLES,
     _recorded_projection_exceptions_map,
+    partition_missing_tables,
 )
 from evallab.runner import database_url_from_environment
 from evallab.storage.paths import derived_root_from_environment
@@ -33,6 +33,36 @@ from evallab.storage.paths import derived_root_from_environment
 IGNORED_DIR_NAMES = frozenset(
     {".executor", "_premerge", "_smoke", ".git", ".worktrees", "__pycache__"}
 )
+
+
+def _owned_by_nested_checkout(root: Path, relative: Path) -> bool:
+    """Return whether a repo-relative path lives inside a nested git checkout.
+
+    Linked worktrees carry their own git file and their own git-ignored
+    ``derived/`` tree, so the outer checkout can neither project nor verify
+    their jobs.
+    """
+    current = root
+    for part in relative.parts[:-1]:
+        current = current / part
+        if (current / ".git").exists():
+            return True
+    return False
+
+
+def _job_is_unfinished(root: Path, info: dict[str, Any]) -> bool:
+    """Return whether a cataloged job's own result.json reports no completion.
+
+    ``results.load_job`` refuses such a directory, so the projection pipeline
+    can never produce partitions for it.
+    """
+    raw_path = Path(str(info.get("path") or ""))
+    candidate = raw_path if raw_path.is_absolute() else root / raw_path
+    try:
+        payload = json.loads((candidate / "result.json").read_text())
+    except (OSError, ValueError):
+        return False
+    return isinstance(payload, dict) and not payload.get("finished_at")
 
 
 @dataclass(frozen=True)
@@ -59,6 +89,16 @@ class UnprojectableRun:
 
 
 @dataclass(frozen=True)
+class ExcludedJob:
+    """A cataloged job this checkout does not own, with the reason it is out of scope."""
+
+    job_id: str
+    name: str
+    path: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class IngestVerificationResult:
     """Complete reconciliation result across all four durable stores."""
 
@@ -73,6 +113,11 @@ class IngestVerificationResult:
     atif_documents_count: int
     accounted_exceptions_count: int
     accounted_exceptions_by_reason: dict[str, int]
+    excluded_jobs_count: int = 0
+    excluded_jobs_by_reason: dict[str, int] = field(default_factory=dict)
+    excluded_jobs: tuple[ExcludedJob, ...] = field(default_factory=tuple)
+    unfinished_jobs: tuple[ExcludedJob, ...] = field(default_factory=tuple)
+    partial_jobs: tuple[ExcludedJob, ...] = field(default_factory=tuple)
     gaps: tuple[IngestGap, ...] = field(default_factory=tuple)
 
     @property
@@ -100,9 +145,18 @@ class IngestVerificationResult:
             f"{self.parquet_trials_count} trials",
             f"ATIF trajectory documents:    {self.atif_documents_count} indexed",
             f"Accounted exceptions:         {self.accounted_exceptions_count}",
+            f"Catalog jobs out of scope:    {self.excluded_jobs_count} "
+            f"(owned by another checkout or evidence absent here)",
+            f"Cataloged but unfinished:     {len(self.unfinished_jobs)} "
+            f"(no finished_at; nothing to project)",
+            f"Cataloged but partial:        {len(self.partial_jobs)} "
+            f"(intake partial; _partial.json marker present)",
         ]
         if self.accounted_exceptions_by_reason:
             for r, c in sorted(self.accounted_exceptions_by_reason.items()):
+                lines.append(f"  - {r}: {c}")
+        if self.excluded_jobs_by_reason:
+            for r, c in sorted(self.excluded_jobs_by_reason.items()):
                 lines.append(f"  - {r}: {c}")
         if self.disk_unprojectable_by_reason:
             lines.append("Unprojectable disk runs by reason:")
@@ -304,25 +358,47 @@ def verify_ingest(
         catalog_jobs, catalog_trials = loader(db_url)
     except Exception as exc:
         print(f"warning: catalog query failed ({type(exc).__name__}: {exc})", file=sys.stderr)
+    excluded: list[ExcludedJob] = []
     if catalog_loader is None:
-        def retained_in_checkout(info: dict[str, Any]) -> bool:
+        def scope_reason(info: dict[str, Any]) -> str | None:
+            """Return None when this checkout owns the job, else the exclusion reason.
+
+            Derived Parquet is per-checkout while the catalog is shared, so a job
+            ingested from a sibling checkout (a nested worktree, or a path outside
+            this root) has its partitions under *that* checkout's derived root.
+            Counting it here would report a gap this checkout cannot close.
+            """
             raw_path = Path(str(info.get("path") or ""))
             candidate = raw_path if raw_path.is_absolute() else root / raw_path
             try:
-                candidate.resolve().relative_to(root)
+                relative = candidate.resolve().relative_to(root)
             except ValueError:
-                return False
-            return candidate.exists()
+                return "outside_checkout"
+            if _owned_by_nested_checkout(root, relative):
+                return "nested_checkout"
+            if not candidate.exists():
+                return "evidence_absent"
+            return None
 
-        catalog_jobs = {
-            job_id: info
-            for job_id, info in catalog_jobs.items()
-            if retained_in_checkout(info)
-        }
+        retained_jobs: dict[str, dict[str, Any]] = {}
+        for job_id, info in catalog_jobs.items():
+            reason = scope_reason(info)
+            if reason is None:
+                retained_jobs[job_id] = info
+                continue
+            excluded.append(
+                ExcludedJob(
+                    job_id=job_id,
+                    name=str(info.get("name") or job_id),
+                    path=str(info.get("path") or ""),
+                    reason=reason,
+                )
+            )
+        catalog_jobs = retained_jobs
         catalog_trials = {
             trial_id: info
             for trial_id, info in catalog_trials.items()
-            if info.get("job_id") in catalog_jobs and retained_in_checkout(info)
+            if info.get("job_id") in catalog_jobs and scope_reason(info) is None
         }
 
     # 3. Scan Parquet partitions
@@ -332,7 +408,7 @@ def verify_ingest(
 
     for job_id, _job_info in catalog_jobs.items():
         job_dir = d_root / f"job_id={job_id}"
-        if not (job_dir / JOB_PROJECTION_FILE).is_file():
+        if not (job_dir / JOB_PROJECTION_FILE).is_file() or (job_dir / "_partial.json").is_file():
             continue
         parquet_jobs.add(job_id)
 
@@ -341,13 +417,12 @@ def verify_ingest(
             t_id = t["id"]
             t_dir = job_dir / f"trial_id={t_id}"
             if t_dir.is_dir():
-                present = {f.name for f in t_dir.glob("*.parquet")}
-                if present >= PROJECTED_TABLES:
+                missing_tables = partition_missing_tables(t_dir)
+                if not missing_tables:
                     parquet_trials.add(t_id)
                 else:
-                    missing_tables = PROJECTED_TABLES - present
                     missing_parquet_trials.append(
-                        (job_id, t_id, f"missing tables: {missing_tables}")
+                        (job_id, t_id, f"missing tables: {set(missing_tables)}")
                     )
             else:
                 missing_parquet_trials.append((job_id, t_id, "missing trial parquet directory"))
@@ -373,20 +448,46 @@ def verify_ingest(
 
     # 6. Reconcile and detect gaps
     gaps: list[IngestGap] = []
+    unfinished_jobs: list[ExcludedJob] = []
+    partial_jobs: list[ExcludedJob] = []
 
-    # Check for cataloged jobs missing from Parquet
+    # Check for cataloged jobs missing from Parquet. A job whose result.json has
+    # no finished_at never completed, so there is nothing to project: account for
+    # it by reason instead of reporting a gap no re-ingest can ever close.
     for job_id, j_info in catalog_jobs.items():
-        if job_id not in parquet_jobs and job_id not in recorded_exceptions:
-            gaps.append(
-                IngestGap(
-                    store="parquet",
-                    entity_type="job",
-                    entity_id=job_id,
-                    name=j_info["name"],
-                    reason="missing_jobs_parquet",
-                    detail=f"Parquet directory {d_root / f'job_id={job_id}'} missing jobs.parquet",
+        if job_id in parquet_jobs or job_id in recorded_exceptions:
+            continue
+        job_dir = d_root / f"job_id={job_id}"
+        if (job_dir / "_partial.json").is_file():
+            partial_jobs.append(
+                ExcludedJob(
+                    job_id=job_id,
+                    name=str(j_info.get("name") or job_id),
+                    path=str(j_info.get("path") or ""),
+                    reason="partial_intake",
                 )
             )
+            continue
+        if _job_is_unfinished(root, j_info):
+            unfinished_jobs.append(
+                ExcludedJob(
+                    job_id=job_id,
+                    name=str(j_info.get("name") or job_id),
+                    path=str(j_info.get("path") or ""),
+                    reason="job_unfinished",
+                )
+            )
+            continue
+        gaps.append(
+            IngestGap(
+                store="parquet",
+                entity_type="job",
+                entity_id=job_id,
+                name=j_info["name"],
+                reason="missing_jobs_parquet",
+                detail=f"Parquet directory {d_root / f'job_id={job_id}'} missing jobs.parquet",
+            )
+        )
 
     # Check for cataloged trials missing required Parquet tables
     for job_id, trial_id, reason in missing_parquet_trials:
@@ -420,6 +521,11 @@ def verify_ingest(
         atif_documents_count=atif_count,
         accounted_exceptions_count=len(recorded_exceptions),
         accounted_exceptions_by_reason=dict(exceptions_by_reason),
+        excluded_jobs_count=len(excluded),
+        excluded_jobs_by_reason=dict(Counter(item.reason for item in excluded)),
+        excluded_jobs=tuple(excluded),
+        unfinished_jobs=tuple(unfinished_jobs),
+        partial_jobs=tuple(partial_jobs),
         gaps=tuple(gaps),
     )
 
@@ -491,6 +597,35 @@ def main(argv: Sequence[str] | None = None) -> int:
             "atif_documents_count": result.atif_documents_count,
             "accounted_exceptions_count": result.accounted_exceptions_count,
             "accounted_exceptions_by_reason": result.accounted_exceptions_by_reason,
+            "excluded_jobs_count": result.excluded_jobs_count,
+            "excluded_jobs_by_reason": result.excluded_jobs_by_reason,
+            "excluded_jobs": [
+                {
+                    "job_id": e.job_id,
+                    "name": e.name,
+                    "path": e.path,
+                    "reason": e.reason,
+                }
+                for e in result.excluded_jobs
+            ],
+            "unfinished_jobs_count": len(result.unfinished_jobs),
+            "unfinished_jobs": [
+                {
+                    "job_id": e.job_id,
+                    "name": e.name,
+                    "path": e.path,
+                }
+                for e in result.unfinished_jobs
+            ],
+            "partial_jobs_count": len(result.partial_jobs),
+            "partial_jobs": [
+                {
+                    "job_id": e.job_id,
+                    "name": e.name,
+                    "path": e.path,
+                }
+                for e in result.partial_jobs
+            ],
             "gaps_count": len(result.gaps),
             "gaps": [
                 {

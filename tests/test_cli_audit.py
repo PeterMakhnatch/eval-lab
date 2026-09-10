@@ -30,6 +30,8 @@ TOP_LEVEL_COMMANDS = (
     "canary",
     "calibrate",
     "run",
+    "dispatch",
+    "dispatch-set",
     "matrix",
     "summarize",
     "ingest",

@@ -49,6 +49,7 @@ from evallab.cohort import (
     write_comparison,
 )
 from evallab.digest import DigestRenderer
+from evallab.dispatch import DispatchError, compile_set, compile_spec, load_dispatch_set
 from evallab.evidence.atif import check_projection_invariant, ingest_and_project
 from evallab.evidence.facts import (
     AnalyzerCallResult,
@@ -452,6 +453,55 @@ def _submit_command(
     # this spec's real id; repeating one of them here reads as noise.
     if path.parent.name == "waiting" and "evallab approve" not in decision.message:
         print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
+    return 0
+
+
+def _dispatch_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        spec = compile_spec(
+            root,
+            task=args.task,
+            agent=args.agent,
+            model=args.model,
+            name=args.name,
+            submitted_by=args.submitted_by,
+            purpose=args.purpose,
+            hypothesis=args.hypothesis,
+            attempts=args.attempts,
+            timeout_seconds=args.timeout_seconds,
+        )
+    except DispatchError as exc:
+        print(f"dispatch refused: {exc}", file=sys.stderr)
+        return 2
+    executor = Executor.from_repo(root)
+    path, decision = executor.submit(spec)
+    submitted = executor.queue.load(path)
+    print(f"spec_id: {submitted.spec_id}")
+    print(f"state: {path.parent.name}")
+    print(f"path: {path}")
+    print(decision.message)
+    if path.parent.name == "waiting" and "evallab approve" not in decision.message:
+        print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
+    return 0
+
+
+def _dispatch_set_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        entries = load_dispatch_set(_resolve(root, args.path))
+        specs = compile_set(root, entries, submitted_by=args.submitted_by)
+    except DispatchError as exc:
+        print(f"dispatch-set refused: {exc}", file=sys.stderr)
+        return 2
+    executor = Executor.from_repo(root)
+    for spec in specs:
+        path, decision = executor.submit(spec)
+        submitted = executor.queue.load(path)
+        print(f"{submitted.name}: spec_id={submitted.spec_id} state={path.parent.name}")
+    print("approve each with: uv run evallab approve <spec_id> --actor <you>")
     return 0
 
 
@@ -3832,6 +3882,41 @@ def parser() -> argparse.ArgumentParser:
         ),
     )
     run.set_defaults(func=_run_command)
+
+    dispatch = commands.add_parser(
+        "dispatch",
+        help="Compile one (task, agent, model) triple into a queued experiment spec",
+    )
+    dispatch.add_argument("--task", required=True)
+    dispatch.add_argument("--agent", required=True)
+    dispatch.add_argument("--model")
+    dispatch.add_argument("--name", required=True)
+    dispatch.add_argument(
+        "--purpose",
+        default="baseline",
+        choices=[
+            "baseline",
+            "comparison",
+            "elicitation",
+            "drift",
+            "calibration",
+            "craft",
+            "practice",
+        ],
+    )
+    dispatch.add_argument("--hypothesis")
+    dispatch.add_argument("--attempts", type=int, default=1)
+    dispatch.add_argument("--timeout-seconds", type=int, default=None)
+    dispatch.add_argument("--submitted-by", required=True)
+    dispatch.set_defaults(func=_dispatch_command)
+
+    dispatch_set = commands.add_parser(
+        "dispatch-set",
+        help="Compile a JSON/YAML task set into queued experiment specs",
+    )
+    dispatch_set.add_argument("path", type=Path)
+    dispatch_set.add_argument("--submitted-by", required=True)
+    dispatch_set.set_defaults(func=_dispatch_set_command)
 
     matrix = commands.add_parser("matrix", help="Run a checked-in JSON experiment matrix")
     matrix.add_argument("path", type=Path)

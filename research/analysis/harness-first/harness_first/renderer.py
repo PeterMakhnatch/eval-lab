@@ -9,7 +9,7 @@ def cell(value: Any) -> str:
         return "unknown"
     if isinstance(value, float):
         return f"{value:.6g}"
-    return str(value).replace("|", "\\|").replace("\n", " ")
+    return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
 
 
 def render_markdown_report(report: dict[str, Any]) -> str:

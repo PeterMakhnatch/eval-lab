@@ -57,21 +57,57 @@ def _load_spec(spec: CohortComparisonSpec | Path | str | dict[str, Any]) -> Coho
     return CohortComparisonSpec.model_validate_json(Path(spec).read_text())
 
 
-def _input_manifest(root: Path, trials: list[Any]) -> dict[str, str]:
-    paths: set[Path] = set()
-    for trial in trials:
-        directory = safe_repo_path(root, trial.source_path)
-        paths.update(directory.glob("*.json"))
-        if (directory / "agent").is_dir() and not (directory / "agent").is_symlink():
-            paths.update((directory / "agent").glob("*.json"))
-            paths.add(directory / "agent/rlm/root-messages.json")
-        for name in ("result.json", "config.json", "lock.json", "lab-metadata.json"):
-            paths.add(directory.parent / name)
-    result = {}
-    for path in sorted(paths):
-        if path.is_file() and not path.is_symlink():
-            safe = safe_repo_path(root, str(path.relative_to(root)))
-            result[str(safe.relative_to(root))] = hashlib.sha256(safe.read_bytes()).hexdigest()
+def _input_manifest(root: Path, specification: CohortComparisonSpec) -> dict[str, str]:
+    """Hash the selected JSON evidence envelope, not a semantic dependency trace."""
+    envelope_files: set[Path] = set()
+    pending: list[Path] = []
+    visited: set[Path] = set()
+    for cohort in specification.cohorts:
+        for raw_path in cohort.paths:
+            path = safe_repo_path(root, raw_path)
+            if path.is_file() and path.suffix == ".json":
+                envelope_files.add(path)
+            elif path.is_dir():
+                pending.append(path)
+                if (path / "result.json").is_file() and (path.parent / "result.json").is_file():
+                    for name in ("result.json", "config.json", "lock.json", "lab-metadata.json"):
+                        parent_metadata = path.parent / name
+                        if parent_metadata.is_file():
+                            envelope_files.add(parent_metadata)
+
+    while pending:
+        directory = pending.pop()
+        resolved_directory = safe_repo_path(root, str(directory))
+        if resolved_directory in visited:
+            continue
+        visited.add(resolved_directory)
+        try:
+            children = sorted(directory.iterdir())
+        except OSError:
+            continue
+        has_native_result = (directory / "result.json").is_file()
+        for child in children:
+            resolved_child = safe_repo_path(root, str(child))
+            if child.is_dir():
+                if (
+                    has_native_result
+                    and child.is_symlink()
+                    and (child / "result.json").is_file()
+                    and not resolved_child.is_relative_to(resolved_directory)
+                ):
+                    raise ValueError(
+                        f"Native record symlink escapes selected job boundary: {child}"
+                    )
+                pending.append(child)
+            elif child.is_file() and child.suffix == ".json":
+                envelope_files.add(child)
+
+    result: dict[str, str] = {}
+    for path in sorted(envelope_files):
+        resolved = safe_repo_path(root, str(path))
+        digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        result[str(path.relative_to(root))] = digest
+        result[str(resolved.relative_to(root))] = digest
     return result
 
 
@@ -93,6 +129,9 @@ def analyze(
         raise ValueError("HAR-13 is a one-attempt descriptive comparison; pass_k must be [1]")
     if safe_finite_float("pass_threshold", specification.pass_threshold, []) is None:
         raise ValueError("pass_threshold must be a finite number")
+
+    pre_manifest = _input_manifest(root, specification)
+
     baseline, candidate = specification.cohorts
     collection_options = {
         "pass_threshold": specification.pass_threshold,
@@ -105,14 +144,45 @@ def analyze(
         root, candidate, specification.reward_name, **collection_options
     )
     observations = [*left, *right]
+
     if evidence_kind != "fixture" and any(t.evidence_kind == "fixture" for t in observations):
         raise ValueError(
             "CPU fixture records cannot be relabeled as historical or model-run evidence"
         )
+    if evidence_kind == "model-run" and any(t.evidence_kind == "historical" for t in observations):
+        raise ValueError("Historical records cannot be relabeled as model-run evidence")
+    if evidence_kind == "fixture" and any(
+        t.evidence_kind in {"model-run", "historical"} for t in observations
+    ):
+        raise ValueError("Non-fixture records cannot be relabeled as synthetic CPU fixtures")
+    if evidence_kind == "historical" and any(t.evidence_kind == "model-run" for t in observations):
+        raise ValueError("Model-run records cannot be relabeled as historical evidence")
     if evidence_kind == "model-run" and any(
-        t.agent_name in {"oracle", "nop"} for t in observations
+        trial.agent_name in {"oracle", "nop"} for trial in observations
     ):
         raise ValueError("Oracle/nop records are controls, not model-run comparison evidence")
+
+    post_manifest = _input_manifest(root, specification)
+    if pre_manifest != post_manifest:
+        added = sorted(set(post_manifest) - set(pre_manifest))
+        removed = sorted(set(pre_manifest) - set(post_manifest))
+        changed = sorted(
+            k for k in pre_manifest if k in post_manifest and pre_manifest[k] != post_manifest[k]
+        )
+        details = []
+        if added:
+            details.append(f"added {added}")
+        if removed:
+            details.append(f"removed {removed}")
+        if changed:
+            details.append(
+                "changed "
+                + ", ".join(f"{k}: {pre_manifest[k]} -> {post_manifest[k]}" for k in changed)
+            )
+        raise ValueError(
+            f"Detected input mutation during analysis collection window: {'; '.join(details)}"
+        )
+
     pairs = evaluate_pairs(specification, left, right)
     outcomes = {
         kind: sum(p.delta is not None and p.delta.classification == kind for p in pairs)
@@ -153,7 +223,13 @@ def analyze(
             "spec_sha256": hashlib.sha256(
                 json.dumps(specification.model_dump(mode="json"), sort_keys=True).encode()
             ).hexdigest(),
-            "source_inputs_sha256": _input_manifest(root, observations),
+            "source_inputs_sha256": post_manifest,
+            "manifest_stability": "verified_pre_post_collection_stable_window",
+            "manifest_window_guarantee": (
+                "Pre- and post-collection input manifest hashes verified identical; "
+                "attests to stable window during collection, but cannot detect "
+                "concurrent ABA mutations without a frozen filesystem."
+            ),
             "inference_level": "descriptive_only",
             "compute_budget_match": "not_established",
         },
@@ -167,10 +243,14 @@ def analyze(
                     p.pairing_status == "ambiguous_duplicate_attempts" for p in pairs
                 ),
                 "n_partial_baseline_only": sum(
-                    p.pairing_status == "missing_candidate" for p in pairs
+                    (p.baseline is not None or bool(p.baseline_duplicate_attempts))
+                    and (p.candidate is None and not p.candidate_duplicate_attempts)
+                    for p in pairs
                 ),
                 "n_partial_candidate_only": sum(
-                    p.pairing_status == "missing_baseline" for p in pairs
+                    (p.candidate is not None or bool(p.candidate_duplicate_attempts))
+                    and (p.baseline is None and not p.baseline_duplicate_attempts)
+                    for p in pairs
                 ),
                 "n_qualified_pairs": sum(p.qualification.is_qualified for p in pairs),
             },
@@ -196,14 +276,28 @@ def analyze(
 
 
 def _publish(report: dict[str, Any], output: Path, *, spec_path: Path, root: Path) -> None:
+    if output.is_symlink():
+        raise ValueError("Output directory cannot be a symlink")
     specification = _load_spec(spec_path)
+    resolved_output = output.resolve()
+    resolved_spec = spec_path.resolve()
+
     for selector in specification.cohorts:
         for raw in selector.paths:
             source = safe_repo_path(root, raw)
-            if output == source or output.is_relative_to(source) or source.is_relative_to(output):
+            resolved_source = source.resolve()
+            if (
+                resolved_output == resolved_source
+                or resolved_output.is_relative_to(resolved_source)
+                or resolved_source.is_relative_to(resolved_output)
+            ):
                 raise ValueError("Analysis output must not overlap selected source evidence")
-    if any(output / name == spec_path for name in ("report.json", "report.md", "plot.svg")):
+    if resolved_output == resolved_spec or any(
+        (output / name).resolve() == resolved_spec
+        for name in ("report.json", "report.md", "plot.svg")
+    ):
         raise ValueError("Analysis output would overwrite its input spec")
+
     contents = {
         "report.json": json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
         "report.md": render_markdown_report(report) + "\n",
@@ -218,6 +312,7 @@ def _publish(report: dict[str, Any], output: Path, *, spec_path: Path, root: Pat
         ):
             return
         raise FileExistsError(f"Refusing to overwrite differing analysis output: {output}")
+
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=".har13-", dir=output.parent))
     try:

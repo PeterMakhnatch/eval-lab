@@ -1,4 +1,4 @@
-# HAR-13 — independent paired harness analysis
+# Harness-first paired analysis — HAR-13 / HAR-17
 
 A read-only analysis CLI over the existing `CohortComparisonSpec`, native
 `JobRecord`/`TrialRecord`, `extract_trial_fact`, and `project_trial` interfaces.
@@ -31,6 +31,13 @@ output and overlap with input evidence are refused; use a new report directory
 for a changed analysis. Input files are never modified. Reports retain spec,
 analysis-code and input-file digests; analysis Git revision is not model revision.
 
+The selected JSON evidence envelope includes nested trajectories and native
+parent metadata. It is hashed before and after collection; observed additions,
+deletions, changed bytes, or escaping source links refuse the analysis.
+This is an evidence envelope, not a list of exclusively consumed fields.
+Equal pre/post manifests do not establish an atomic filesystem snapshot:
+use frozen inputs to rule out concurrent modification and reversion.
+
 ## Integration contract
 
 ```text
@@ -49,9 +56,10 @@ Constraints and the configured pass threshold are respected.
 An explicitly selected unfinished native job can expose its existing typed
 trial records without being relabeled complete. Directory discovery retains the
 existing completed-job semantics, with a notice: select a partial job explicitly.
-Missing/unreadable paths remain diagnostics; missing arms and partial trials
-remain visible. Conflicting duplicate UUIDs at different source paths are
-refused instead of choosing a favorable record.
+Direct trial selection does not parse unrelated siblings. Explicit job selection
+quarantines malformed children with path diagnostics while retaining valid ones.
+Missing arms and repeat ambiguity are counted independently. UUID spelling
+aliases cannot evade duplicate-source or physical self-comparison checks.
 
 For local Python use, `from harness_first import analyze` exposes
 `analyze(spec, *, repo_root, evidence_kind)`. It accepts the existing schema
@@ -73,23 +81,25 @@ association rather than attach an unrelated report.
   and unfinished trials suppress effective reward. Only an explicitly configured
   completed `AgentTimeoutError` may map to zero as a budget-exhaustion failure;
   infrastructure faults do not become task reward zero.
-- Model names must agree; known conflicting model revisions reject a pair.
+- Model names must agree. Contradictory nonempty identity sources within a trial
+  reject qualification instead of silently choosing a favorable value.
   Missing revisions allow a **configured-only descriptive** comparison labeled
-  `unknown_revision`. Revision fields come from native model metadata, never the
-  analysis checkout's Git revision. Equal recorded revision labels are not
-  independently verified weight bytes.
+  `unknown_revision`; the same normalization applies to native and source-native
+  revision fields. Equal recorded labels are not independently verified weights.
 - Missing task/verifier/harness identities are not equal identities. Explicit
   verifier digests and task/configuration-derived verifier identities have
   different reported strengths. Environment equality is configuration equality,
   not proof of identical container image bytes.
-- Positive, neutral, negative and fractional deltas survive. There are no
+- Positive, neutral, negative and fractional deltas survive, including genuine
+  sub-micro cost differences without calculation-time rounding. There are no
   significance tests, causal improvement claims, or shortest-trace objective.
   This is a whole-agent configuration comparison; matched total budgets are not
   presumed. Native approval or task admission is never established by this tool.
-- A fixture record cannot be relabeled `model-run` or historical. `model-run` is
-  a caller declaration checked against known fixture/control records, not proof
-  of authorized execution. Live model interpretation still requires HAR-11's
-  actual approved native receipts and correct task/runtime bindings.
+- Recognized explicit evidence-origin tags must agree with the requested kind.
+  A fixture cannot become historical/model evidence, and oracle/nop remain
+  controls. Missing origin metadata is not reconstructed from arbitrary names.
+  `model-run` remains a caller declaration, not execution authorization; actual
+  model interpretation requires HAR-11's approved native receipts and bindings.
 
 ## Compute and failures
 
@@ -102,7 +112,8 @@ assuming they are root-only or inclusive of all workers. For supported validated
 ATIF, `root_usage`, `worker_usage`, and `total_usage` use disjoint retained
 **generation-step metrics**, excluding copied context and user messages. They do
 not add inclusive `final_metrics` to worker totals. Missing components remain
-null; unresolved worker references or ambiguous document roles prevent a total.
+null. An unresolved or unsupported worker reference prevents a total even when
+another worker is observed; repeated references do not double-count that worker.
 No observed worker document is not evidence of zero workers.
 
 These role amounts describe the retained capture, **not independently verified
@@ -112,15 +123,15 @@ with physical attempts or requests.
 
 The published HAR-12 source format `authors-rlm-root-messages` (unversioned
 `schema_version: null`) is consumed from `agent/rlm/root-messages.json`.
-`agent_result.metadata` supplies the reported root/worker model identities and
-root-only `root_input_tokens` / `root_output_tokens`. These amounts may be
-incomplete, so they never establish full-episode compute. Root/worker logical
-call counts are not physical request attempts. `worker_usage` remains unknown;
-full total tokens/cost remain null, even when the reported worker-call count is
-zero. The collector exports `source_native_accounting` with the source path and
-retains its hash in `metadata.source_inputs_sha256`, never the messages. A
-conflicting root identity suppresses qualification. Unknown future format
-versions remain explicit rather than being guessed.
+Its payload and `agent_result.metadata` supply reported root/worker identities,
+root-only token amounts, and logical call counts. Conflicting amounts stay
+unknown; contradictory identity or scope declarations are not silently promoted.
+Source-native fields follow the published HAR-12 agent at PR393
+`ddf1a0112c4873e38d165942216429d24c62cccb`, not an invented future schema.
+These amounts may be incomplete and never establish full-episode compute.
+Worker usage and full total tokens/cost remain null even when worker-call count
+is zero. `source_native_accounting` retains source and backend provenance, never
+the messages or physical-request claims. Unknown future formats remain explicit.
 
 The JSON report includes per-task raw/effective reward, success threshold,
 source paths, model/harness/verifier qualification, wall/agent time,

@@ -6,7 +6,7 @@ from typing import Any
 from evallab.explorer import redact_text
 from evallab.schemas import CohortComparisonSpec
 
-from .collector import TrialObservation
+from .collector import TrialObservation, canonical_trial_id
 
 
 @dataclass(frozen=True)
@@ -125,9 +125,9 @@ def _delta_int(cand: int | None, base: int | None) -> int | None:
     return None
 
 
-def _delta_float(cand: float | None, base: float | None, precision: int = 6) -> float | None:
+def _delta_float(cand: float | None, base: float | None) -> float | None:
     if cand is not None and base is not None:
-        return round(cand - base, precision)
+        return cand - base
     return None
 
 
@@ -172,10 +172,14 @@ def evaluate_pairs(
         if len(b_list) > 1 or len(c_list) > 1:
             pairing_status = "ambiguous_duplicate_attempts"
             disqualification_reasons.append("pairing_ambiguity:multiple_attempts_observed")
-            b_dups = b_list
-            c_dups = c_list
+            b_dups = b_list if len(b_list) > 1 else []
+            c_dups = c_list if len(c_list) > 1 else []
             baseline_trial = b_list[0] if b_list else None
             candidate_trial = c_list[0] if c_list else None
+            if len(b_list) == 0:
+                disqualification_reasons.append("missing_baseline_arm")
+            if len(c_list) == 0:
+                disqualification_reasons.append("missing_candidate_arm")
         elif len(b_list) == 1 and len(c_list) == 0:
             pairing_status = "missing_candidate"
             disqualification_reasons.append("missing_candidate_arm")
@@ -208,12 +212,43 @@ def evaluate_pairs(
             and pairing_status == "unambiguous_pair"
         ):
             # 1. Same physical trial across arms
-            if baseline_trial.trial_id == candidate_trial.trial_id:
+            if canonical_trial_id(baseline_trial.trial_id) == canonical_trial_id(
+                candidate_trial.trial_id
+            ):
                 disqualification_reasons.append("same_physical_trial_across_arms")
+
+            # Check for contradictory identity sources in trial issues
+            for issue in baseline_trial.issues:
+                if issue.startswith("identity_conflict:") or "root_identity_conflict" in issue:
+                    disqualification_reasons.append(issue)
+                    disqualification_reasons.append(f"baseline_{issue}")
+            for issue in candidate_trial.issues:
+                if issue.startswith("identity_conflict:") or "root_identity_conflict" in issue:
+                    disqualification_reasons.append(issue)
+                    disqualification_reasons.append(f"candidate_{issue}")
+
+            has_task_conflict = any(
+                i.startswith("identity_conflict:task")
+                for i in baseline_trial.issues + candidate_trial.issues
+            )
+            has_verifier_conflict = any(
+                i.startswith("identity_conflict:verifier")
+                for i in baseline_trial.issues + candidate_trial.issues
+            )
+            has_model_name_conflict = any(
+                i == "identity_conflict:model_name" or "root_identity_conflict" in i
+                for i in baseline_trial.issues + candidate_trial.issues
+            )
+            has_model_rev_conflict = any(
+                i == "identity_conflict:model_revision"
+                for i in baseline_trial.issues + candidate_trial.issues
+            )
 
             # 2. Enforce Task equality: invariant regardless of pairing key!
             # Full missing identities never equated
-            if baseline_trial.task_digest is None or candidate_trial.task_digest is None:
+            if has_task_conflict:
+                task_match = False
+            elif baseline_trial.task_digest is None or candidate_trial.task_digest is None:
                 task_match = False
                 disqualification_reasons.append("task_identity_missing_unequated")
             elif baseline_trial.task_digest != candidate_trial.task_digest:
@@ -224,7 +259,9 @@ def evaluate_pairs(
 
             # 3. Enforce Verifier equality: invariant regardless of pairing key!
             # Derived verifier digest cannot certify missing task/empty lock
-            if (
+            if has_verifier_conflict:
+                verifier_match = False
+            elif (
                 baseline_trial.verifier_identity_kind == "empty_fallback_unverified"
                 or candidate_trial.verifier_identity_kind == "empty_fallback_unverified"
             ):
@@ -242,7 +279,10 @@ def evaluate_pairs(
             # 4. Model matching & revision qualification
             b_model = baseline_trial.model_name
             c_model = candidate_trial.model_name
-            if b_model is None or c_model is None:
+            if has_model_name_conflict:
+                model_match = False
+                model_qualification = "proven_mismatch"
+            elif b_model is None or c_model is None:
                 model_match = False
                 model_qualification = "unknown_missing"
                 disqualification_reasons.append("model_identity_missing_unequated")
@@ -254,7 +294,10 @@ def evaluate_pairs(
                 model_match = True
                 b_rev = baseline_trial.model_revision
                 c_rev = candidate_trial.model_revision
-                if b_rev is not None and c_rev is not None:
+                if has_model_rev_conflict:
+                    model_match = False
+                    model_qualification = "proven_mismatch"
+                elif b_rev is not None and c_rev is not None:
                     if b_rev != c_rev:
                         model_match = False
                         model_qualification = "proven_mismatch"
@@ -264,7 +307,6 @@ def evaluate_pairs(
                 else:
                     # Unknown model revision allows explicitly configured-only descriptive comparison
                     model_qualification = "unknown_revision"
-
             # 5. Agent version qualification
             b_ver = baseline_trial.agent_version
             c_ver = candidate_trial.agent_version
@@ -345,12 +387,12 @@ def evaluate_pairs(
         delta: DeltaMetrics | None = None
         if is_qualified and baseline_trial is not None and candidate_trial is not None:
             eff_delta = candidate_trial.effective_reward - baseline_trial.effective_reward
-            raw_delta = _delta_float(candidate_trial.raw_reward, baseline_trial.raw_reward, 6)
+            raw_delta = _delta_float(candidate_trial.raw_reward, baseline_trial.raw_reward)
             wall_delta = _delta_float(
-                candidate_trial.wall_time_seconds, baseline_trial.wall_time_seconds, 3
+                candidate_trial.wall_time_seconds, baseline_trial.wall_time_seconds
             )
             agent_delta = _delta_float(
-                candidate_trial.agent_execution_seconds, baseline_trial.agent_execution_seconds, 3
+                candidate_trial.agent_execution_seconds, baseline_trial.agent_execution_seconds
             )
 
             # Root deltas
@@ -361,7 +403,7 @@ def evaluate_pairs(
                 candidate_trial.root_usage.output_tokens, baseline_trial.root_usage.output_tokens
             )
             root_cost_d = _delta_float(
-                candidate_trial.root_usage.cost_usd, baseline_trial.root_usage.cost_usd, 6
+                candidate_trial.root_usage.cost_usd, baseline_trial.root_usage.cost_usd
             )
 
             # Worker deltas
@@ -373,7 +415,7 @@ def evaluate_pairs(
                 baseline_trial.worker_usage.output_tokens,
             )
             worker_cost_d = _delta_float(
-                candidate_trial.worker_usage.cost_usd, baseline_trial.worker_usage.cost_usd, 6
+                candidate_trial.worker_usage.cost_usd, baseline_trial.worker_usage.cost_usd
             )
 
             # Total deltas
@@ -384,7 +426,7 @@ def evaluate_pairs(
                 candidate_trial.total_usage.output_tokens, baseline_trial.total_usage.output_tokens
             )
             total_cost_d = _delta_float(
-                candidate_trial.total_usage.cost_usd, baseline_trial.total_usage.cost_usd, 6
+                candidate_trial.total_usage.cost_usd, baseline_trial.total_usage.cost_usd
             )
 
             # Native deltas
@@ -399,7 +441,6 @@ def evaluate_pairs(
             native_cost_d = _delta_float(
                 candidate_trial.native_aggregate_usage.cost_usd,
                 baseline_trial.native_aggregate_usage.cost_usd,
-                6,
             )
 
             if eff_delta > 0:
@@ -490,7 +531,14 @@ def summarize_cohort(
     ]
 
     # Pass count based on spec.pass_threshold
-    n_passed = sum(1 for t in trials if t.passed is True)
+    n_passed = sum(
+        1
+        for t in trials
+        if (
+            (t.effective_reward is not None and t.effective_reward >= pass_threshold)
+            or (t.effective_reward is None and t.passed is True)
+        )
+    )
     pass_rate = round(n_passed / n_total, 4) if n_total > 0 else None
 
     # Native tokens/cost

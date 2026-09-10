@@ -95,7 +95,6 @@ class ManagedReplBackend:
         environment: EnvironmentHandle,
         *,
         worker_src: Path,
-        aiohttp_wheels: list[Path],
         work_root: str = "/opt/rlm-managed",
         bridge_port: int = 8765,
         request_timeout: float = 120.0,
@@ -108,7 +107,6 @@ class ManagedReplBackend:
     ) -> None:
         self._environment = environment
         self._worker_src = Path(worker_src)
-        self._wheels = [Path(w) for w in aiohttp_wheels]
         self._work_root = work_root
         self._bridge_port = bridge_port
         self._request_timeout = request_timeout
@@ -192,7 +190,7 @@ class ManagedReplBackend:
         q_root = shlex.quote(root)
         await env.exec(
             f"mkdir -p {q_root}/reqs {q_root}/resps "
-            f"{q_root}/subreq {q_root}/subresp {q_root}/wheels {q_root}/pylibs",
+            f"{q_root}/subreq {q_root}/subresp",
             timeout_sec=30,
         )
         self._staged = True
@@ -203,18 +201,7 @@ class ManagedReplBackend:
         await put(self._worker_src, f"{root}/worker.py")
         await put(RELAY_SRC, f"{root}/relay.py")
         await put(BRIDGE_SRC, f"{root}/bridge.py")
-        for wheel in self._wheels:
-            await put(wheel, f"{root}/wheels/{wheel.name}")
-        install = await env.exec(
-            f"pip install --no-index --find-links {q_root}/wheels --target {q_root}/pylibs aiohttp",
-            timeout_sec=120,
-        )
-        if install.return_code != 0:
-            raise ManagedReplError(
-                f"in-environment aiohttp install failed: {(install.stderr or '')[-300:]}"
-            )
         env_prefix = (
-            f"PYTHONPATH={q_root}/pylibs "
             f"RLM_TRAIN_PROXY_URL=http://127.0.0.1:{self._bridge_port} "
             f"RLM_TRAIN_ROLLOUT_ID={shlex.quote(rollout_id)} "
             f"RLM_TRAIN_DEPTH={shlex.quote(str(depth))} "

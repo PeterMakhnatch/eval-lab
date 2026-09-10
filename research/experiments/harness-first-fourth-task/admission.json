@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "linear_issue": "HAR-18",
+  "frozen_at_commit": "000750a897b612948067e3d00651f56da501bcbd",
+  "predecessor": "HAR-14",
+  "harness_first_cohort": "research/experiments/harness-first/cohort.json",
+  "scientific_question": "After Peter registration, can one action-memory-v1 development cell fill the HAR-14 fourth-slot gap for same-root mini-swe vs authors-RLM context/delegation? This packet does not register, materialize, or run models.",
+  "selected": {
+    "cell_id": "dl-semantic-distractor-16384-s42",
+    "family": "action-memory-v1",
+    "proposed_task_id": "action-memory-dl-semantic-distractor-16384-s42",
+    "slice": "selected-cell.json"
+  },
+  "slices": {
+    "selected_cell": "selected-cell.json",
+    "rlm_fit": "rlm-fit.json",
+    "substitutes": "substitutes.json",
+    "loca_lean": "loca-lean.json",
+    "wheelhouse_gate": "wheelhouse-gate.json",
+    "registration_checklist": "registration-checklist.json"
+  },
+  "missing_before_eligibility": [
+    "Trusted FastMCP wheelhouse + resolver provenance (ACTION_MEMORY_WHEELHOUSE, ACTION_MEMORY_RESOLVER_PROVENANCE)",
+    "Materialized Harbor package under derived/ (must not be git-tracked)",
+    "Integration-run oracle=1.0 and nop=0.0 promoted into research/evidence/runs",
+    "Bound task_workbench certification packet",
+    "Peter `evallab registry register` with measurement allowed_uses"
+  ],
+  "factory_must_not": [
+    "Write library/registry",
+    "Silently add this cell to the HAR-14 freeze",
+    "Start FACET/SETA/PR-generation",
+    "Inspect sealed finals",
+    "Launch model trials",
+    "Treat dspy-rlm as the authors-RLM arm"
+  ],
+  "request_to_integration": "After wheelhouse staging, materialize dl-semantic-distractor-16384-s42 and run local oracle/nop only. Return job paths and rewards. Do not register.",
+  "request_to_peter": "Registration decision only after those controls and a bound certification packet exist. Until then HAR-14 stays a three-task freeze.",
+  "model_runs": 0,
+  "registry_writes": 0,
+  "admissions": 0
+}

@@ -1,0 +1,91 @@
+{
+  "ticket": "HAR-18",
+  "slice": "rlm_fit",
+  "head_commit": "000750a897b612948067e3d00651f56da501bcbd",
+  "scientific_question": "On identical already-eligible development tasks and the same root model, does an authors-RLM-derived Harbor agent change task reward versus mini-swe-agent? One-attempt cells are operability/descriptive evidence, not a ranking or training result.",
+  "primary_metric": "task-level Harbor reward with pass_threshold 1.0; pairing_key task_digest; k=1; declared_variable agent_name",
+  "metric_specification": {
+    "metric_name": "task-level Harbor reward",
+    "pass_threshold": 1.0,
+    "pairing_key": "task_digest",
+    "k": 1,
+    "declared_variable": "agent_name",
+    "primary_variable": "harness/agent_name; root model, task, verifier, environment, attempts, and extra instruction stay fixed",
+    "mode": "exploratory",
+    "reward_source": "/logs/verifier/reward.txt",
+    "scoring_criteria": {
+      "oracle": 1.0,
+      "nop": 0.0,
+      "stale_mutant": 0.0,
+      "wrong_target_mutant": 0.0,
+      "recall_only_mutant": 0.0
+    }
+  },
+  "candidate_cohort_slot": {
+    "cell_id": "dl-semantic-distractor-16384-s42",
+    "benchmark_family": "action-memory-v1",
+    "base_task_pair_id": "am-dose-ladder-v1-s42-d16384",
+    "arm": "semantic_distractor",
+    "dose_bytes": 16384,
+    "seed": 42,
+    "read_opportunity_count": 65,
+    "step_budget": 3,
+    "matched_control_twin": "dl-neutral-padding-16384-s42",
+    "canary_generator_cell": "clean-baseline-4k (seed 42; CI generator canary only, not the cohort slot)"
+  },
+  "compared_arms": {
+    "baseline": {
+      "arm_id": "mini-swe",
+      "harness": "mini-swe-agent",
+      "role": "baseline",
+      "execution_pattern": "flat_single_loop_react",
+      "description": "Conventional single-thread ReAct loop ingesting tool observations and context chunks directly into a single linear context window."
+    },
+    "candidate": {
+      "arm_id": "authors-rlm",
+      "harness": "authors-rlm-derived-depth-1",
+      "role": "candidate",
+      "execution_pattern": "depth_1_worker_delegation",
+      "architecture": "Root coordinator with depth-1 bounded worker completions for chunk inspection and summarization; workers return structured findings to root.",
+      "not_dspy_rlm": true,
+      "notes": "Existing managed worker, depth-1, plain bounded completions, no recursive worker tools. Explicitly not dspy-rlm and not a DSPy production track."
+    }
+  },
+  "descriptive_fit": {
+    "where_rlm_might_matter": {
+      "regime": "semantic 16k (dl-semantic-distractor-16384-s42)",
+      "dose_bytes": 16384,
+      "read_opportunity_count": 65,
+      "inversion_count": 1,
+      "task_structure": "63 distractor chunks (each 256 bytes) plus 2 identity chunks (initial fact and critical state inversion). Distractors share schema, target attribute 'routing_key', and 'entity_XXXX' naming convention with the true target entity.",
+      "operational_mechanism": {
+        "authors_rlm_depth_1": "Can partition the 65 chunk read set across depth-1 worker completions, scanning chunk partitions in isolated subagent frames. Workers inspect and filter distractor content, returning compact extractions (candidate target mentions, attribute override events, and timestamps) to the root coordinator. The root context remains protected from accumulating ~16KB of distractor tokens, reducing attention dilution and recency bias across the state inversion (K -> V1 -> V2).",
+        "mini_swe": "Flat ReAct loop must sequentially read and ingest all 65 chunk payloads directly into its single active context window. Ingesting ~16KB of syntactically identical distractor chunks with competing entity IDs and routing tokens increases vulnerability to context saturation, distraction, or binding a stale or distractor value prior to executing the final mutation."
+      },
+      "dose_ladder_tradeoff": "16k semantic distractor is the dose regime where recursive/delegated chunk inspection might matter without the 64k (257 read opportunities) or 128k (513 read opportunities) timeout risk."
+    },
+    "where_rlm_should_not_matter": {
+      "regime": "clean 4k (clean-baseline-4k / low-dose clean cells)",
+      "dose_bytes": 4096,
+      "read_opportunity_count": 7,
+      "inversion_count": 1,
+      "task_structure": "Minimal direct facts and single state inversion with zero distractor chunks across 7 read opportunities.",
+      "operational_mechanism": {
+        "authors_rlm_depth_1": "Spawning worker completions introduces prompt formatting overhead, tool-call boundary serialization, and worker coordination latency without providing context-compression value. For a 4k clean payload that fits entirely in prompt context in 2-3 turns, worker delegation is superfluous and introduces extra failure points.",
+        "mini_swe": "Direct sequential ReAct loop reads all 7 chunks in a few steps without context strain. Single-loop execution has lower latency, zero subagent overhead, and lower execution variance."
+      },
+      "matched_neutral_padding_comparison": "In matched neutral padding cells (dl-neutral-padding-16384-s42), chunks contain unstructured diagnostic noise ('[DIAGNOSTIC NOISE]') rather than competing entity schemas. Simple scanning or string filtering suffices without entity ambiguity, reducing the specific benefit of recursive semantic inspection."
+    }
+  },
+  "verifier_constraints": {
+    "verifier_contract": "Deterministic verifier (library/benchmarks/action-memory-v1/verifier.py) enforces full chunk read-set coverage, valid tool event sequencing, and exact target entity value binding on mutation.",
+    "linearity_warning": "If authors-RLM worker delegation emits out-of-order tool events or skips opaque chunk reads in the main session, the run fails verifier criteria (reward 0.0), whereas mini-swe's direct sequential tool loop naturally maintains monotone event order.",
+    "step_budget": 3
+  },
+  "non_claims": [
+    "No performance claim: this analysis describes operational mechanisms, context isolation, and task characteristics; it does not assert or imply empirical win rates, superiority, or benchmark score ranking.",
+    "Not dspy-rlm: the candidate arm strictly specifies authors-rlm-derived-depth-1, not DSPy.",
+    "Cohort freeze: HAR-14 cohort remains frozen at 3 registered tasks until Peter registration of an admitted fourth task; this document provides descriptive fit analysis for admission evaluation only.",
+    "No execution: Factory does not execute models, materializer, or Docker in HAR-18."
+  ]
+}

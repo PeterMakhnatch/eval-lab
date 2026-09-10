@@ -29,7 +29,7 @@ inputs:
   - path: docs/agent-profiles.md
     digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
-    digest: sha256:a9a2f6a7763621408c6964f4bdeace731375b496f051e4386b53b879cc0e32b5
+    digest: sha256:faf560a27cb37bc3e564ce563312c1417db0e94f28db3e9c4424c44c330d4019
   - path: docs/analysis-worker.md
     digest: sha256:9412a6ddfd7e1c416a94100951507afc58911017fd307f73ec551d97aa3c1b63
   - path: docs/architecture-review-2026-08-16.md
@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:718b14936c745deb7b039c526e07e87c28646a215de4d28fe686f3c9410acabb
+    digest: sha256:368552974f52f8fd052f9d019b65a353a42b0433fee783b790912c90617eedef
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

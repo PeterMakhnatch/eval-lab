@@ -225,6 +225,60 @@
       "title": "PreregSpec",
       "type": "object"
     },
+    "ProviderRoute": {
+      "additionalProperties": false,
+      "description": "One pre-authorized provider route for the same logical treatment.",
+      "properties": {
+        "credential_requirement": {
+          "minLength": 1,
+          "title": "Credential Requirement",
+          "type": "string"
+        },
+        "logical_model_revision": {
+          "minLength": 1,
+          "title": "Logical Model Revision",
+          "type": "string"
+        },
+        "max_cost_usd": {
+          "exclusiveMinimum": 0,
+          "title": "Max Cost Usd",
+          "type": "number"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "route_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]+$",
+          "title": "Route Id",
+          "type": "string"
+        },
+        "tool_contract_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Tool Contract Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "route_id",
+        "provider",
+        "model",
+        "credential_requirement",
+        "logical_model_revision",
+        "tool_contract_digest",
+        "max_cost_usd"
+      ],
+      "title": "ProviderRoute",
+      "type": "object"
+    },
     "SyntheticFamilyType": {
       "enum": [
         "family_a_state_inversion",
@@ -590,6 +644,37 @@
       "minimum": 0,
       "title": "Priority",
       "type": "integer"
+    },
+    "provider_exhaustion_behavior": {
+      "default": "fail",
+      "enum": [
+        "fail",
+        "wait"
+      ],
+      "title": "Provider Exhaustion Behavior",
+      "type": "string"
+    },
+    "provider_failover_max_cost_usd": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "maximum cumulative cost authorized across all provider routes",
+      "title": "Provider Failover Max Cost Usd"
+    },
+    "provider_routes": {
+      "description": "ordered, pre-authorized provider routes for one unchanged logical model revision and tool contract",
+      "items": {
+        "$ref": "#/$defs/ProviderRoute"
+      },
+      "title": "Provider Routes",
+      "type": "array"
     },
     "purpose": {
       "enum": [

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -15,7 +16,6 @@ from evallab.results import (
     JobRecord,
     TrialRecord,
     duration_seconds,
-    load_job,
     load_jobs,
     load_trial,
 )
@@ -35,6 +35,97 @@ INFRASTRUCTURE_EXCEPTION_KEYWORDS = (
     "dockertimeouterror",
     "dockerfilebuilderror",
 )
+
+
+def canonical_trial_id(value: str) -> str:
+    """Normalize parseable UUIDs to lowercase 8-4-4-4-12 string; preserve non-UUID strings."""
+    if not isinstance(value, str):
+        value = str(value)
+    try:
+        return str(uuid.UUID(value.strip()))
+    except (ValueError, AttributeError, TypeError):
+        return value
+
+
+def _resolve_relative_path(source_file: Path, trial_dir: Path, target: str) -> str | None:
+    try:
+        candidate = Path(target)
+        if candidate.is_absolute():
+            candidate = trial_dir / candidate.as_posix().lstrip("/")
+        else:
+            candidate = source_file.parent / candidate
+        resolved = candidate.resolve()
+        trial_root = trial_dir.resolve()
+        if resolved == trial_root or trial_root in resolved.parents:
+            return resolved.relative_to(trial_root).as_posix()
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _extract_trajectory_worker_references(
+    trial_path: Path, source_rel_path: str
+) -> list[tuple[Any, Path]]:
+    source_file = trial_path / source_rel_path
+    if not source_file.is_file():
+        return []
+    try:
+        payload = json.loads(source_file.read_text())
+    except (OSError, ValueError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+
+    refs: list[tuple[Any, Path]] = []
+    queue = [payload]
+    while queue:
+        curr = queue.pop()
+        if not isinstance(curr, dict):
+            continue
+        for child in curr.get("subagent_trajectories") or []:
+            if isinstance(child, dict):
+                queue.append(child)
+        steps = curr.get("steps") or []
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            obs = step.get("observation")
+            if not isinstance(obs, dict):
+                continue
+            results = obs.get("results") or []
+            if not isinstance(results, list):
+                continue
+            for res in results:
+                if not isinstance(res, dict):
+                    continue
+                raw_ref = res.get("subagent_trajectory_ref")
+                if raw_ref is None:
+                    continue
+                if isinstance(raw_ref, list):
+                    refs.extend((reference, source_file) for reference in raw_ref)
+                else:
+                    refs.append((None, source_file))
+    return refs
+
+
+def _matches_worker(reference: Any, source_file: Path, trial_path: Path, worker: Any) -> bool:
+    # Native ATIF defines trajectory_id / trajectory_path references. Unknown
+    # shapes cannot establish complete capture, even if a string resembles an ID.
+    if not isinstance(reference, dict):
+        return False
+    trajectory_id = reference.get("trajectory_id")
+    trajectory_path = reference.get("trajectory_path")
+    if trajectory_path is not None:
+        if not isinstance(trajectory_path, str):
+            return False
+        resolved = _resolve_relative_path(source_file, trial_path, trajectory_path)
+        if resolved is None or resolved != worker.source_path:
+            return False
+        if trajectory_id is None:
+            return worker.embedded_path is None
+    return trajectory_id is not None and trajectory_id == worker.trajectory_id
 
 
 def safe_nonnegative_int(name: str, value: Any, issues: list[str]) -> int | None:
@@ -254,7 +345,26 @@ def _identity(
             issues.append(f"{field_name}:invalid_sha256")
             return None
         return "sha256:" + bare.lower()
+    if field_name in {"model_revision", "worker_model_revision"} and value in {
+        "main",
+        "master",
+        "latest",
+        "HEAD",
+    }:
+        issues.append(f"{field_name}:floating_ref")
+        return None
     return value
+
+
+def _consistent_identity(field_name: str, values: tuple[Any, ...], issues: list[str]) -> str | None:
+    identities = []
+    for value in values:
+        identity = _identity(value, field_name, issues)
+        if identity is not None and identity not in identities:
+            identities.append(identity)
+    if len(identities) > 1:
+        issues.append(f"identity_conflict:{field_name}")
+    return identities[0] if identities else None
 
 
 def extract_trial_observation(
@@ -308,6 +418,11 @@ def extract_trial_observation(
         task_name = fact.task_name
 
     task_lock = lock.get("task")
+    if isinstance(task_lock, dict) and task_lock.get("name"):
+        lock_task_name = str(task_lock["name"])
+        if task_name and lock_task_name and task_name.strip() != lock_task_name.strip():
+            issues.append("identity_conflict:task_name")
+
     task_digest = None
     if isinstance(task_lock, dict) and task_lock.get("digest"):
         task_digest = str(task_lock["digest"])
@@ -317,6 +432,12 @@ def extract_trial_observation(
         task_digest = fact.task_digest
     task_digest = _identity(task_digest, "task_digest", issues, digest=True)
 
+    if isinstance(task_lock, dict) and task_lock.get("digest") and result.get("task_checksum"):
+        norm_lock_td = str(task_lock["digest"]).strip().removeprefix("sha256:").lower()
+        norm_res_td = str(result["task_checksum"]).strip().removeprefix("sha256:").lower()
+        if norm_lock_td != norm_res_td:
+            issues.append("identity_conflict:task_digest")
+
     # Verifier identity: strict protection against false equality on empty fallback hashes
     experiment = job.metadata.get("experiment")
     verifier_digest = None
@@ -325,6 +446,17 @@ def extract_trial_observation(
 
     verifier_lock = lock.get("verifier")
     has_verifier_lock = isinstance(verifier_lock, dict) and bool(verifier_lock)
+
+    if (
+        isinstance(experiment, dict)
+        and experiment.get("verifier_digest")
+        and has_verifier_lock
+        and verifier_lock.get("digest")
+    ):
+        norm_exp_vd = str(experiment["verifier_digest"]).strip().removeprefix("sha256:").lower()
+        norm_lock_vd = str(verifier_lock["digest"]).strip().removeprefix("sha256:").lower()
+        if norm_exp_vd != norm_lock_vd:
+            issues.append("identity_conflict:verifier_digest")
 
     if isinstance(experiment, dict) and experiment.get("verifier_digest"):
         verifier_digest = str(experiment["verifier_digest"])
@@ -346,8 +478,6 @@ def extract_trial_observation(
         verifier_identity_kind = "derived_configuration_identity"
         verifier_strength = "derived_configuration"
     else:
-        # Both task_digest is None and verifier lock is empty/absent.
-        # DO NOT return a pseudo-hash that creates false equivalence across empty trials!
         verifier_digest = None
         verifier_identity_kind = "empty_fallback_unverified"
         verifier_strength = "missing"
@@ -375,22 +505,21 @@ def extract_trial_observation(
         agent_version = lock["agent"].get("version")
     agent_version = _identity(agent_version, "agent_version", issues)
 
-    model_name = model_info.get("name") or model_info.get("model_name")
-    if model_name is None and isinstance(lock.get("agent"), dict):
-        model_name = lock["agent"].get("model_name")
-    model_name = _identity(model_name, "model_name", issues)
-
-    # Model revision: MUST come from native model_info.revision/checkpoint_revision or explicit model lock revision
-    model_rev = None
-    if isinstance(model_info, dict):
-        model_rev = model_info.get("revision") or model_info.get("checkpoint_revision")
-    if model_rev is None and isinstance(lock.get("agent"), dict):
-        model_rev = lock["agent"].get("model_revision")
-    model_revision = _identity(model_rev, "model_revision", issues)
-    if model_revision in {"main", "master", "latest", "HEAD"}:
-        issues.append("model_revision:floating_ref")
-        model_revision = None
-
+    agent_lock = lock.get("agent") if isinstance(lock.get("agent"), dict) else {}
+    model_name = _consistent_identity(
+        "model_name",
+        (model_info.get("name"), model_info.get("model_name"), agent_lock.get("model_name")),
+        issues,
+    )
+    model_revision = _consistent_identity(
+        "model_revision",
+        (
+            model_info.get("revision"),
+            model_info.get("checkpoint_revision"),
+            agent_lock.get("model_revision"),
+        ),
+        issues,
+    )
     provenance = experiment if isinstance(experiment, dict) else {}
     task_block_id = provenance.get("task_block_id")
     if task_block_id is not None:
@@ -409,10 +538,32 @@ def extract_trial_observation(
     exc_info = result.get("exception_info")
     exception_class = None
     exception_message = None
+    has_exception = False
     if isinstance(exc_info, dict):
-        exception_class = exc_info.get("exception_type")
-        exception_message = exc_info.get("exception_message")
+        if exc_info:
+            has_exception = True
+            exception_class = (
+                exc_info.get("exception_type")
+                or exc_info.get("error")
+                or exc_info.get("type")
+                or exc_info.get("class")
+                or (
+                    str(exc_info.get("error_code"))
+                    if exc_info.get("error_code") is not None
+                    else None
+                )
+            )
+            exception_message = (
+                exc_info.get("exception_message")
+                or exc_info.get("message")
+                or exc_info.get("detail")
+            )
+            if not exception_class:
+                exception_class = "StructuredException"
+            if not exception_message:
+                exception_message = str(exc_info)
     elif exc_info:
+        has_exception = True
         exception_class = str(exc_info)
 
     if exception_message:
@@ -436,7 +587,7 @@ def extract_trial_observation(
             effective_reward = None
             reward_suppressed = True
             suppression_reason = f"budget_exhaustion_excluded:{exception_class}"
-    elif exception_category != "none" or exception_class is not None:
+    elif has_exception or exception_category != "none" or exception_class is not None:
         effective_reward = None
         reward_suppressed = True
         suppression_reason = f"exception:{exception_class or 'unspecified'}"
@@ -448,7 +599,6 @@ def extract_trial_observation(
         reward_suppressed = False
         effective_reward = raw_reward
         suppression_reason = None
-
     # Passed check based on spec.pass_threshold
     passed: bool | None = None
     if effective_reward is not None:
@@ -521,7 +671,8 @@ def extract_trial_observation(
         roots = [t for t in projection.trajectories if t.embedded_path is None]
         workers = [t for t in projection.trajectories if t.embedded_path is not None]
         for document in projection.trajectories:
-            role_identities[document.document_id] = document.model_name or "unknown_model"
+            model = document.model_name or "unknown_model"
+            role_identities[document.document_id] = model
 
         def step_usage(documents: list[Any], role: str) -> UsageBreakdown:
             if not documents:
@@ -554,16 +705,33 @@ def extract_trial_observation(
                     for step in steps
                 ]
                 values[output_name] = (
-                    sum(observations) if all(v is not None for v in observations) else None
+                    sum(observations) if all(value is not None for value in observations) else None
                 )
             return UsageBreakdown(**values, coverage_reason=f"retained_{role}_step_metrics")
 
         if len(roots) == 1:
             root_usage = step_usage(roots, "root")
             worker_usage = step_usage(workers, "worker")
-            unresolved_workers = not workers and any(
-                item.subagent_ref_count for item in projection.observations
-            )
+            raw_references: list[tuple[Any, Path]] = []
+            seen_sources: set[str] = set()
+            for t in projection.trajectories:
+                if t.source_path not in seen_sources:
+                    seen_sources.add(t.source_path)
+                    raw_references.extend(
+                        _extract_trajectory_worker_references(trial.path, t.source_path)
+                    )
+            has_obs_refs = any(item.subagent_ref_count for item in projection.observations)
+            if raw_references:
+                unresolved_workers = False
+                for ref_item, src_file in raw_references:
+                    if not any(_matches_worker(ref_item, src_file, trial.path, w) for w in workers):
+                        unresolved_workers = True
+                        break
+            elif has_obs_refs:
+                unresolved_workers = True
+            else:
+                unresolved_workers = False
+
             if not unresolved_workers:
                 total_usage = step_usage([*roots, *workers], "total")
             else:
@@ -592,37 +760,172 @@ def extract_trial_observation(
             metadata = agent_result.get("metadata", {}) if isinstance(agent_result, dict) else {}
             if not isinstance(metadata, dict):
                 metadata = {}
-            source_accounting = {
-                "source_format": payload["source_format"],
-                "source_path": str(accounting_path.relative_to(repo_root)),
-                "root_calls": safe_nonnegative_int(
-                    "reported_root_calls", payload.get("root_calls"), issues
-                ),
-                "worker_calls": safe_nonnegative_int(
-                    "reported_worker_calls", payload.get("worker_calls"), issues
-                ),
-                "physical_request_attempts": None,
-                "request_coverage": "logical source-reported counts; not a physical attempt ledger",
-                "worker_usage": None,
-                "worker_model": metadata.get("worker_model"),
-                "root_model": metadata.get("root_model"),
-                "prompt_source_sha256": payload.get("prompt_source_sha256"),
-                "parsing_source_sha256": payload.get("parsing_source_sha256"),
-            }
-            reported_model = metadata.get("root_model")
-            if reported_model is not None and reported_model != model_name:
+            reported_root_model = _consistent_identity(
+                "model_name", (payload.get("root_model"), metadata.get("root_model")), issues
+            )
+            model_name = _consistent_identity(
+                "model_name", (model_name, reported_root_model), issues
+            )
+            source_root_rev = _consistent_identity(
+                "model_revision",
+                (payload.get("root_model_revision"), metadata.get("root_model_revision")),
+                issues,
+            )
+            model_revision = _consistent_identity(
+                "model_revision", (model_revision, source_root_rev), issues
+            )
+            worker_model = _consistent_identity(
+                "worker_model", (payload.get("worker_model"), metadata.get("worker_model")), issues
+            )
+            worker_revision = _consistent_identity(
+                "worker_model_revision",
+                (payload.get("worker_model_revision"), metadata.get("worker_model_revision")),
+                issues,
+            )
+            if "identity_conflict:model_name" in issues:
                 issues.append("source_native_root_identity_conflict")
                 effective_reward, passed = None, None
                 reward_suppressed = True
                 suppression_reason = "source_native_root_identity_conflict"
-            if metadata.get("atif") is False and reported_model == model_name:
+
+            # Token divergence
+            payload_root_in = payload.get("root_input_tokens")
+            meta_root_in = metadata.get("root_input_tokens")
+            has_token_in_divergence = False
+            if (
+                payload_root_in is not None
+                and meta_root_in is not None
+                and (
+                    type(payload_root_in) is not type(meta_root_in)
+                    or payload_root_in != meta_root_in
+                )
+            ):
+                issues.append("root_tokens_divergence_between_payload_and_metadata")
+                has_token_in_divergence = True
+
+            payload_root_out = payload.get("root_output_tokens")
+            meta_root_out = metadata.get("root_output_tokens")
+            has_token_out_divergence = False
+            if (
+                payload_root_out is not None
+                and meta_root_out is not None
+                and (
+                    type(payload_root_out) is not type(meta_root_out)
+                    or payload_root_out != meta_root_out
+                )
+            ):
+                issues.append("root_tokens_divergence_between_payload_and_metadata")
+                has_token_out_divergence = True
+
+            root_in_val = (
+                None
+                if has_token_in_divergence
+                else (meta_root_in if meta_root_in is not None else payload_root_in)
+            )
+            root_out_val = (
+                None
+                if has_token_out_divergence
+                else (meta_root_out if meta_root_out is not None else payload_root_out)
+            )
+
+            # Call counts divergence
+            payload_root_calls = payload.get("root_calls")
+            meta_root_calls = metadata.get("root_calls")
+            has_root_calls_divergence = False
+            if (
+                payload_root_calls is not None
+                and meta_root_calls is not None
+                and (
+                    type(payload_root_calls) is not type(meta_root_calls)
+                    or payload_root_calls != meta_root_calls
+                )
+            ):
+                issues.append("call_count_conflict_between_payload_and_metadata")
+                has_root_calls_divergence = True
+
+            payload_worker_calls = payload.get("worker_calls")
+            meta_worker_calls = metadata.get("worker_calls")
+            has_worker_calls_divergence = False
+            if (
+                payload_worker_calls is not None
+                and meta_worker_calls is not None
+                and (
+                    type(payload_worker_calls) is not type(meta_worker_calls)
+                    or payload_worker_calls != meta_worker_calls
+                )
+            ):
+                issues.append("call_count_conflict_between_payload_and_metadata")
+                has_worker_calls_divergence = True
+
+            root_calls_val = (
+                None
+                if has_root_calls_divergence
+                else (payload_root_calls if payload_root_calls is not None else meta_root_calls)
+            )
+            worker_calls_val = (
+                None
+                if has_worker_calls_divergence
+                else (
+                    payload_worker_calls if payload_worker_calls is not None else meta_worker_calls
+                )
+            )
+
+            source_accounting = {
+                "source_format": payload["source_format"],
+                "source_path": str(accounting_path.relative_to(repo_root)),
+                "root_calls": safe_nonnegative_int("reported_root_calls", root_calls_val, issues),
+                "worker_calls": safe_nonnegative_int(
+                    "reported_worker_calls", worker_calls_val, issues
+                ),
+                "physical_request_attempts": None,
+                "request_coverage": "logical source-reported counts; not a physical attempt ledger",
+                "worker_usage": None,
+                "worker_model": worker_model,
+                "root_model": reported_root_model,
+                "root_model_revision": source_root_rev,
+                "worker_model_revision": worker_revision,
+                "prompt_source_sha256": payload.get("prompt_source_sha256"),
+                "parsing_source_sha256": payload.get("parsing_source_sha256"),
+                "exhausted_iterations": (
+                    payload.get("exhausted_iterations")
+                    if payload.get("exhausted_iterations") is not None
+                    else metadata.get("exhausted_iterations")
+                ),
+                "backend": payload.get("backend") or metadata.get("backend"),
+                "backend_git_ref": payload.get("backend_git_ref")
+                or metadata.get("backend_git_ref"),
+                "agent_result_totals_include_workers": (
+                    payload.get("agent_result_totals_include_workers")
+                    if payload.get("agent_result_totals_include_workers") is not None
+                    else metadata.get("agent_result_totals_include_workers")
+                ),
+                "secret_source": payload.get("secret_source") or metadata.get("secret_source"),
+            }
+
+            has_model_conflict = (
+                "source_native_root_identity_conflict" in issues
+                or "identity_conflict:model_name" in issues
+                or "identity_conflict:model_revision" in issues
+            )
+            atif_flags = [
+                item["atif"] for item in (payload, metadata) if item.get("atif") is not None
+            ]
+            total_flags = [
+                item["agent_result_totals_include_workers"]
+                for item in (payload, metadata)
+                if item.get("agent_result_totals_include_workers") is not None
+            ]
+            source_scope_confirmed = (
+                bool(atif_flags)
+                and all(flag is False for flag in atif_flags)
+                and all(flag is False for flag in total_flags)
+            )
+            if not source_scope_confirmed:
+                issues.append("source_native_root_scope_unconfirmed")
+            if source_scope_confirmed and not has_model_conflict:
                 reported_root = UsageBreakdown(
-                    safe_nonnegative_int(
-                        "har12_root_input_tokens", metadata.get("root_input_tokens"), issues
-                    ),
-                    safe_nonnegative_int(
-                        "har12_root_output_tokens", metadata.get("root_output_tokens"), issues
-                    ),
+                    safe_nonnegative_int("har12_root_input_tokens", root_in_val, issues),
+                    safe_nonnegative_int("har12_root_output_tokens", root_out_val, issues),
                     None,
                     None,
                     "har12_reported_root_only_completeness_unknown",
@@ -686,31 +989,103 @@ def extract_trial_observation(
     )
 
 
+def _selected_trial(path: Path, warnings: list[str]) -> JobRecord:
+    """Direct trial selection: load ONLY the requested trial; do not parse unrelated siblings."""
+    job_dir = path.parent
+    result_file = job_dir / "result.json"
+    job_payload = json.loads(result_file.read_text()) if result_file.is_file() else {}
+    if not isinstance(job_payload, dict):
+        job_payload = {}
+    if not job_payload.get("id"):
+        job_payload["id"] = job_dir.name
+
+    def metadata(name: str) -> dict[str, Any]:
+        source = job_dir / name
+        if not source.exists():
+            return {}
+        try:
+            value = json.loads(source.read_text())
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+
+    try:
+        t_result_file = path / "result.json"
+        if not t_result_file.is_file():
+            warnings.append(f"Malformed trial record quarantined at {path}: missing result.json")
+            trials = ()
+        else:
+            t_content = json.loads(t_result_file.read_text())
+            if not isinstance(t_content, dict):
+                warnings.append(
+                    f"Malformed trial record quarantined at {path}: result.json must contain a JSON object"
+                )
+                trials = ()
+            elif not all(t_content.get(key) for key in ("id", "trial_name", "task_name")):
+                warnings.append(
+                    f"Malformed trial record quarantined at {path}: missing required trial identity keys"
+                )
+                trials = ()
+            else:
+                trial = load_trial(path)
+                trials = (trial,)
+    except Exception as exc:
+        warnings.append(f"Malformed trial record quarantined at {path}: {exc}")
+        trials = ()
+
+    return JobRecord(
+        job_dir,
+        job_payload,
+        metadata("config.json"),
+        metadata("lock.json"),
+        metadata("lab-metadata.json"),
+        trials,
+    )
+
+
 def _selected_job(path: Path, warnings: list[str]) -> JobRecord:
-    """Use completed reader normally; preserve typed partial native records."""
+    """Use completed reader normally; preserve typed partial native records and quarantine malformed siblings."""
     payload = json.loads((path / "result.json").read_text())
-    if payload.get("finished_at"):
-        return load_job(path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path / 'result.json'} must contain a JSON object")
     if not payload.get("id") or "n_total_trials" not in payload or "stats" not in payload:
         raise ValueError("Incomplete path lacks a native job identity")
-    warnings.append(f"Partial native job: {path}; only existing trial records are observed")
-    trials = []
+    if not payload.get("finished_at"):
+        warnings.append(f"Partial native job: {path}; only existing trial records are observed")
+
+    def metadata(name: str) -> dict[str, Any]:
+        source = path / name
+        if not source.exists():
+            return {}
+        try:
+            value = json.loads(source.read_text())
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+
+    trials: list[TrialRecord] = []
     for directory in sorted(path.iterdir()):
         if (
             directory.is_dir()
             and not directory.is_symlink()
             and (directory / "result.json").is_file()
         ):
-            trial = load_trial(directory)
-            if all(trial.result.get(key) for key in ("id", "trial_name", "task_name")):
+            try:
+                t_content = json.loads((directory / "result.json").read_text())
+                if not isinstance(t_content, dict):
+                    warnings.append(
+                        f"Malformed trial record quarantined at {directory}: result.json must contain a JSON object"
+                    )
+                    continue
+                if not all(t_content.get(key) for key in ("id", "trial_name", "task_name")):
+                    warnings.append(
+                        f"Malformed trial record quarantined at {directory}: missing required trial identity keys"
+                    )
+                    continue
+                trial = load_trial(directory)
                 trials.append(trial)
-
-    def metadata(name: str) -> dict[str, Any]:
-        source = path / name
-        value = json.loads(source.read_text()) if source.exists() else {}
-        if not isinstance(value, dict):
-            raise ValueError(f"{source} must contain a JSON object")
-        return value
+            except Exception as exc:
+                warnings.append(f"Malformed trial record quarantined at {directory}: {exc}")
 
     return JobRecord(
         path,
@@ -744,8 +1119,8 @@ def collect_cohort_trials(
             if (path / "result.json").is_file():
                 content = json.loads((path / "result.json").read_text())
                 if "trial_name" in content and "task_name" in content:
-                    trial_scope = {path.name}
-                    jobs = [_selected_job(path.parent, warnings)]
+                    trial_scope = {path.name, str(content.get("trial_name", path.name))}
+                    jobs = [_selected_trial(path, warnings)]
                 else:
                     jobs = [_selected_job(path, warnings)]
             else:
@@ -766,9 +1141,10 @@ def collect_cohort_trials(
                 safe_repo_path(repo_root, source)
                 if source in selected:
                     continue
-                if trial.id in identities and identities[trial.id] != source:
+                canon_id = canonical_trial_id(trial.id)
+                if canon_id in identities and identities[canon_id] != source:
                     raise ValueError(f"Duplicate trial UUID at distinct source paths: {trial.id}")
-                identities[trial.id] = source
+                identities[canon_id] = source
                 observation = extract_trial_observation(
                     job,
                     trial,

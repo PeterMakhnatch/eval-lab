@@ -77,15 +77,15 @@ def decompress_session(raw: bytes) -> str:
     if not looks_compressed(raw):
         return raw.decode("utf-8", errors="replace")
 
-    try:  # Python 3.14+
-        from compression import zstd  # type: ignore[attr-defined]
+    try:  # Python 3.14+; unresolved on the 3.12 lint floor
+        from compression import zstd  # ty: ignore[unresolved-import]
 
         return zstd.decompress(raw).decode("utf-8", errors="replace")
     except Exception:  # noqa: BLE001 - any failure means "try the next one"
         pass
 
     try:
-        import zstandard  # type: ignore[import-not-found]
+        import zstandard  # ty: ignore[unresolved-import]
 
         return zstandard.ZstdDecompressor().decompress(raw).decode("utf-8", errors="replace")
     except Exception:  # noqa: BLE001

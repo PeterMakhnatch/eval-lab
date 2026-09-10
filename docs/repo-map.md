@@ -73,7 +73,7 @@ inputs:
   - path: src/evallab/docindex.py
     digest: sha256:8f3394ba7f6796eb0159d887d0ec1ed5132cd0b7310b1e8cb8db5141da317f79
   - path: src/evallab/dsh.py
-    digest: sha256:459ad6984f00c089505040301f2b5fa7a60eb5d571dd435ef0f63b7cf1f55b57
+    digest: sha256:36bb54d86c7202bc1902afc6568fc7bc78c6716eec75995f135666e5d52bcb8f
   - path: src/evallab/eventlog.py
     digest: sha256:2abb54a59cf5c3e04b10b834df497f7a4c863eb6e773d3ba6b7d0cfaf1f2281b
   - path: src/evallab/evidence/__init__.py

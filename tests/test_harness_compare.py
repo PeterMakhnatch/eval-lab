@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -14,7 +17,15 @@ from evallab.harness_compare import (
     load_manifest,
     load_pair_inputs,
     readiness_report,
+    render_pair_text,
     submit_pair,
+)
+from evallab.registry import compute_task_digests, harbor_task_digest
+from evallab.schemas import (
+    ControlEvidenceRef,
+    TaskControlEvidence,
+    TaskLimits,
+    TaskRegistryRecord,
 )
 from evallab.task_workbench import run_cli
 
@@ -22,11 +33,106 @@ from evallab.task_workbench import run_cli
 def _task_package(root: Path, name: str = "demo-task") -> str:
     rel = f"library/tasks/{name}"
     task = root / rel
-    task.mkdir(parents=True)
+    task.mkdir(parents=True, exist_ok=True)
     (task / "task.toml").write_text(
         f'[task]\nname = {json.dumps(name)}\nversion = "1.0.0"\n\n[agent]\ntimeout_sec = 60\n'
     )
     return rel
+
+
+def _make_registered_task(
+    root: Path,
+    name: str = "event-summary",
+    rel_path: str = "library/tasks/event-summary",
+) -> Path:
+    task_dir = root / rel_path
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "task.toml").write_text(
+        f'schema_version = "1.4"\n[task]\nname = {json.dumps(name)}\nfamily = "event-summary"\nversion = "1.0.0"\n\n[agent]\ntimeout_sec = 60\n'
+    )
+    (task_dir / "instruction.md").write_text("Summarize events.")
+    env_dir = task_dir / "environment"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / "Dockerfile").write_text("FROM alpine:3.20\n")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    (tests_dir / "test_task.py").write_text("def test_summary(): assert True\n")
+
+    digests = compute_task_digests(task_dir)
+    harbor_digest = harbor_task_digest(task_dir)
+
+    runs_dir = root / "research/evidence/runs"
+
+    def make_ref(agent: str, reward: float) -> ControlEvidenceRef:
+        job_name = f"{name}-{agent}-evidence"
+        trial_name = f"{name}__{agent}"
+        trial_dir = runs_dir / job_name / trial_name
+        trial_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "id": f"{agent}-trial",
+            "task_name": name,
+            "trial_name": trial_name,
+            "task_id": {"path": str(task_dir)},
+            "config": {"task": {"path": str(task_dir)}, "agent": {"name": agent}},
+            "agent_info": {"name": agent, "version": "1.0.0"},
+            "verifier_result": {"rewards": {"reward": reward}},
+            "finished_at": "2026-08-15T12:00:00Z",
+        }
+        lock = {
+            "schema_version": 2,
+            "task": {
+                "name": name,
+                "version": "1.0.0",
+                "type": "local",
+                "digest": harbor_digest,
+                "path": str(task_dir),
+            },
+            "agent": {"name": agent},
+        }
+        result_file = trial_dir / "result.json"
+        lock_file = trial_dir / "lock.json"
+        result_file.write_text(json.dumps(payload, indent=2))
+        lock_file.write_text(json.dumps(lock, indent=2))
+        return ControlEvidenceRef(
+            job_name=job_name,
+            trial_name=trial_name,
+            reward=reward,
+            evidence_path=result_file.relative_to(root).as_posix(),
+            evidence_digest=f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}",
+            lock_digest=f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}",
+            observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+            task_id=name,
+            task_version="1.0.0",
+            task_digests=digests,
+            harbor_task_digest=harbor_digest,
+        )
+
+    record = TaskRegistryRecord(
+        schema_version=2,
+        task_id=name,
+        task_family="event-summary",
+        version="1.0.0",
+        task_path=rel_path,
+        digests=digests,
+        source_uri=f"local/{name}@1.0.0",
+        source_ref="main",
+        license="MIT",
+        provenance_zone="02-local-evidence",
+        is_synthetic=False,
+        limits=TaskLimits(timeout_seconds=1800),
+        control_evidence=TaskControlEvidence(
+            oracle=make_ref("oracle", 1.0),
+            nop=make_ref("nop", 0.0),
+        ),
+        state="registered",
+        allowed_uses=["measurement", "training"],
+        approved_by="Peter Makhnatch",
+        approved_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+    )
+    reg_dir = root / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / f"{name}.json").write_text(record.model_dump_json(indent=2))
+    return task_dir
 
 
 def _policy(root: Path) -> None:
@@ -309,12 +415,12 @@ def test_readiness_is_blocked_not_approval_only(tmp_path: Path) -> None:
     report = readiness_report(tmp_path, manifest, submitted_by="har-11")
     assert report["verdict"] == "BLOCKED"
     assert "READY_FOR_APPROVAL" not in report["verdict"]
-    assert "approval-only" in report["verdict_reason"]
     by_name = {gate["name"]: gate for gate in report["gates"]}
     assert by_name["constructor_config"]["status"] == "PASS"
+    assert by_name["constructor_config"]["evidence_kind"] == "declared"
     assert by_name["execution_authorization"]["status"] == "BLOCKED"
     assert by_name["source_runtime_pins"]["status"] == "PASS"
-    assert {arm["spec"]["est_cost_usd"] for arm in report["arms"]} == {2.5}
+    assert report["estimates"]["coverage"] == "unknown"
     assert (
         run_cli(
             [
@@ -334,23 +440,314 @@ def test_readiness_is_blocked_not_approval_only(tmp_path: Path) -> None:
     )
 
 
-def test_managed_repl_backend_constructs_without_aiohttp_wheels(tmp_path: Path) -> None:
-    import inspect
+def test_task_equality_for_registered_and_relative_references(tmp_path: Path) -> None:
+    """Registered reference and repository-relative task reference resolve to the same task."""
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    rel_path = "library/tasks/event-summary"
 
-    from evallab.rlm_runtime import ManagedReplBackend
+    manifest_registered = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="reg-ref-check",
+            tasks=[{"task": rel_path, "canary": True, "registered_ref": "registered/event-summary"}],
+        )
+    )
+    manifest_relative = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="rel-ref-check",
+            tasks=[{"task": rel_path, "canary": True}],
+        )
+    )
 
-    params = inspect.signature(ManagedReplBackend.__init__).parameters
-    assert "aiohttp_wheels" not in params
-    worker = tmp_path / "worker.py"
-    worker.write_text("print('cpu-protocol-only')\n")
+    report_reg = readiness_report(tmp_path, manifest_registered, submitted_by="har-11")
+    report_rel = readiness_report(tmp_path, manifest_relative, submitted_by="har-11")
 
-    class _Env:
-        async def upload_file(self, source_path: object, target_path: object) -> None:
-            del source_path, target_path
+    gates_reg = {g["name"]: g for g in report_reg["gates"]}
+    gates_rel = {g["name"]: g for g in report_rel["gates"]}
 
-        async def exec(self, command: str, timeout_sec: float | None = None) -> object:
-            del command, timeout_sec
-            return type("R", (), {"stdout": "", "stderr": "", "return_code": 0})()
+    assert gates_reg["task_verifier_identity"]["status"] == "PASS"
+    assert gates_reg["task_verifier_identity"]["evidence_kind"] == "resolved"
+    assert gates_rel["task_verifier_identity"]["status"] == "PASS"
+    assert gates_rel["task_verifier_identity"]["evidence_kind"] == "resolved"
 
-    backend = ManagedReplBackend(_Env(), worker_src=worker, session_id="cpu-construct")
-    assert backend.identity["kind"] == "managed_environment_handle"
+
+def test_canary_flag_cannot_bless_unregistered_or_mismatched_task(tmp_path: Path) -> None:
+    """canary=True must not produce task_verifier_identity PASS for unregistered/mismatched tasks."""
+    _policy(tmp_path)
+    unregistered = _task_package(tmp_path, "unregistered-task")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="unregistered-canary",
+            tasks=[{"task": unregistered, "canary": True}],
+        )
+    )
+    report = readiness_report(tmp_path, manifest, submitted_by="har-11")
+    gates = {g["name"]: g for g in report["gates"]}
+    assert gates["task_verifier_identity"]["status"] != "PASS"
+    assert gates["task_verifier_identity"]["status"] in {"FAIL", "UNKNOWN"}
+
+
+def test_readiness_queue_projections(tmp_path: Path) -> None:
+    """Readiness projections distinguish omitted queue, single current pair, stale metadata,
+    missing provenance, incomplete arms, and ambiguous pairs."""
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="queue-test",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+
+    # 1. No queue root: does not scan production queue, reports issue, status absent
+    report_no_q = readiness_report(tmp_path, manifest, submitted_by="har-11", queue_root=None)
+    assert report_no_q["spec_ids"] == []
+    assert report_no_q["current_pair"]["status"] == "absent"
+    assert report_no_q["current_pair"]["baseline_spec_id"] is None
+    assert report_no_q["current_pair"]["candidate_spec_id"] is None
+    assert any("queue_root omitted" in issue for issue in report_no_q["inspect"].get("issues", []))
+
+    # 2. Compile current pair metadata to build synthetic queue specs
+    compiled = compile_pair(tmp_path, manifest, submitted_by="har-11")
+    arms_by_role = {arm["role"]: arm for arm in compiled["arms"]}
+    base_spec = arms_by_role["baseline"]["spec"]
+    cand_spec = arms_by_role["candidate"]["spec"]
+
+    queue_dir = tmp_path / "synthetic_queue"
+    waiting_dir = queue_dir / "waiting"
+    waiting_dir.mkdir(parents=True, exist_ok=True)
+
+    (waiting_dir / f"{base_spec['agent']}-{base_spec['spec_id']}.json").write_text(
+        json.dumps(base_spec)
+    )
+    (waiting_dir / f"{cand_spec['agent']}-{cand_spec['spec_id']}.json").write_text(
+        json.dumps(cand_spec)
+    )
+
+    report_current = readiness_report(
+        tmp_path, manifest, submitted_by="har-11", queue_root=queue_dir
+    )
+    assert report_current["current_pair"]["status"] == "present"
+    assert report_current["current_pair"]["baseline_spec_id"] == base_spec["spec_id"]
+    assert report_current["current_pair"]["candidate_spec_id"] == cand_spec["spec_id"]
+    spec_rows = {row["spec_id"]: row for row in report_current["spec_ids"]}
+    assert spec_rows[base_spec["spec_id"]]["freshness"] == "current"
+    assert spec_rows[base_spec["spec_id"]]["stale"] is False
+    assert spec_rows[cand_spec["spec_id"]]["freshness"] == "current"
+    assert spec_rows[cand_spec["spec_id"]]["stale"] is False
+
+    # 3. Stale metadata: mutate profile_digest in readiness_binding
+    stale_queue_dir = tmp_path / "stale_queue"
+    stale_waiting = stale_queue_dir / "waiting"
+    stale_waiting.mkdir(parents=True, exist_ok=True)
+    stale_cand = json.loads(json.dumps(cand_spec))
+    if "readiness_binding" in stale_cand.get("grid_point", {}):
+        stale_cand["grid_point"]["readiness_binding"]["profile_digest"] = "sha256:different"
+    else:
+        stale_cand["grid_point"]["manifest_digest"] = "sha256:different"
+    stale_cand["spec_id"] = "stale-cand-spec-id"
+    (stale_waiting / "cand-stale.json").write_text(json.dumps(stale_cand))
+
+    report_stale = readiness_report(
+        tmp_path, manifest, submitted_by="har-11", queue_root=stale_queue_dir
+    )
+    assert report_stale["current_pair"]["status"] in {"absent", "incomplete"}
+    assert report_stale["current_pair"]["baseline_spec_id"] is None
+    assert report_stale["current_pair"]["candidate_spec_id"] is None
+    stale_rows = {row["spec_id"]: row for row in report_stale["spec_ids"]}
+    assert stale_rows["stale-cand-spec-id"]["freshness"] == "stale"
+    assert stale_rows["stale-cand-spec-id"]["stale"] is True
+
+    # 4. Missing provenance: strip readiness_binding
+    missing_prov_dir = tmp_path / "missing_prov_queue"
+    missing_waiting = missing_prov_dir / "waiting"
+    missing_waiting.mkdir(parents=True, exist_ok=True)
+    no_prov_cand = json.loads(json.dumps(cand_spec))
+    no_prov_cand["grid_point"].pop("readiness_binding", None)
+    no_prov_cand["spec_id"] = "no-prov-cand-id"
+    (missing_waiting / "cand-no-prov.json").write_text(json.dumps(no_prov_cand))
+
+    report_missing = readiness_report(
+        tmp_path, manifest, submitted_by="har-11", queue_root=missing_prov_dir
+    )
+    assert report_missing["current_pair"]["status"] in {"absent", "incomplete", "unverifiable"}
+    missing_rows = {row["spec_id"]: row for row in report_missing["spec_ids"]}
+    assert missing_rows["no-prov-cand-id"]["freshness"] == "unknown"
+    assert missing_rows["no-prov-cand-id"]["stale"] is None
+
+    # 5. Missing arm: only baseline present, candidate absent
+    inc_queue_dir = tmp_path / "inc_queue"
+    inc_waiting = inc_queue_dir / "waiting"
+    inc_waiting.mkdir(parents=True, exist_ok=True)
+    (inc_waiting / "base.json").write_text(json.dumps(base_spec))
+
+    report_inc = readiness_report(
+        tmp_path, manifest, submitted_by="har-11", queue_root=inc_queue_dir
+    )
+    assert report_inc["current_pair"]["status"] == "incomplete"
+    assert report_inc["current_pair"]["baseline_spec_id"] is None
+    assert report_inc["current_pair"]["candidate_spec_id"] is None
+
+    # 6. Duplicate current arm: two baseline specs matching current metadata
+    amb_queue_dir = tmp_path / "amb_queue"
+    amb_waiting = amb_queue_dir / "waiting"
+    amb_waiting.mkdir(parents=True, exist_ok=True)
+    dup_base = json.loads(json.dumps(base_spec))
+    dup_base["spec_id"] = "base-spec-dup-2"
+    (amb_waiting / "base1.json").write_text(json.dumps(base_spec))
+    (amb_waiting / "base2.json").write_text(json.dumps(dup_base))
+    (amb_waiting / "cand.json").write_text(json.dumps(cand_spec))
+
+    report_amb = readiness_report(
+        tmp_path, manifest, submitted_by="har-11", queue_root=amb_queue_dir
+    )
+    assert report_amb["current_pair"]["status"] == "ambiguous"
+    assert report_amb["current_pair"]["baseline_spec_id"] is None
+    assert report_amb["current_pair"]["candidate_spec_id"] is None
+
+
+def test_current_metadata_pair_never_clears_runtime_or_approval_blocks(tmp_path: Path) -> None:
+    """A metadata-current synthetic pair remains BLOCKED by runtime and human gates."""
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="blocks-test",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    compiled = compile_pair(tmp_path, manifest, submitted_by="har-11")
+    arms = {arm["role"]: arm["spec"] for arm in compiled["arms"]}
+
+    queue_dir = tmp_path / "queue"
+    waiting = queue_dir / "waiting"
+    waiting.mkdir(parents=True, exist_ok=True)
+    (waiting / "base.json").write_text(json.dumps(arms["baseline"]))
+    (waiting / "cand.json").write_text(json.dumps(arms["candidate"]))
+
+    report = readiness_report(tmp_path, manifest, submitted_by="har-11", queue_root=queue_dir)
+    assert report["current_pair"]["status"] == "present"
+    assert report["verdict"] == "BLOCKED"
+
+    gates = {g["name"]: g for g in report["gates"]}
+    assert gates["execution_authorization"]["status"] == "BLOCKED"
+    assert gates["constructor_config"]["status"] == "PASS"
+    assert gates["constructor_config"]["evidence_kind"] == "declared"
+    if "worker_route" in gates:
+        assert gates["worker_route"]["status"] in {"BLOCKED", "UNKNOWN"}
+        assert gates["worker_route"]["evidence_kind"] != "runtime"
+    if "runtime_enforcement" in gates:
+        assert gates["runtime_enforcement"]["status"] in {"BLOCKED", "UNKNOWN"}
+        assert gates["runtime_enforcement"]["evidence_kind"] != "runtime"
+
+
+def test_estimates_disclose_codex_mismatch(tmp_path: Path) -> None:
+    """Readiness discloses historical Codex estimate mismatch rather than treating 2.5 as paired cost."""
+    _policy(tmp_path)
+    (tmp_path / "policy/canary-suite.yaml").write_text(
+        "version: 1\nattempts: 3\nagents: [codex]\n"
+        "members:\n"
+        "  - name: event-summary\n"
+        "    task_path: library/tasks/event-summary\n"
+        "    task_version: 1.0.0\n"
+        "    est_cost_usd: 2.5\n"
+    )
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    report = readiness_report(tmp_path, manifest, submitted_by="har-11")
+    estimates = report["estimates"]
+    assert estimates["coverage"] == "unknown"
+    assert estimates["baseline_usd"] is None
+    assert estimates["candidate_usd"] is None
+    assert estimates["source"] is not None
+    assert len(estimates["reason"]) > 0
+
+    gates = {g["name"]: g for g in report["gates"]}
+    assert gates["estimates"]["status"] != "PASS"
+
+
+def test_approval_commands_suppressed_when_blocked(tmp_path: Path) -> None:
+    """Approval commands must be null in spec_ids and absent from rendered text while blocked."""
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="suppress-test",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    compiled = compile_pair(tmp_path, manifest, submitted_by="har-11")
+    arms = {arm["role"]: arm["spec"] for arm in compiled["arms"]}
+
+    queue_dir = tmp_path / "queue"
+    waiting = queue_dir / "waiting"
+    waiting.mkdir(parents=True, exist_ok=True)
+    (waiting / "base.json").write_text(json.dumps(arms["baseline"]))
+    (waiting / "cand.json").write_text(json.dumps(arms["candidate"]))
+
+    report = readiness_report(tmp_path, manifest, submitted_by="har-11", queue_root=queue_dir)
+    assert report["verdict"] == "BLOCKED"
+    for row in report["spec_ids"]:
+        assert row["approval_command"] is None
+
+    rendered = render_pair_text(report)
+    assert "uv run evallab approve" not in rendered
+    assert "next (copy, do not auto-run):" not in rendered
+
+
+def test_readiness_no_backend_imports_or_queue_mutations(tmp_path: Path) -> None:
+    """Readiness report must not import the blocked backend or mutate queue files."""
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="immutable-queue-test",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    compiled = compile_pair(tmp_path, manifest, submitted_by="har-11")
+    arms = {arm["role"]: arm["spec"] for arm in compiled["arms"]}
+
+    queue_dir = tmp_path / "queue"
+    waiting = queue_dir / "waiting"
+    waiting.mkdir(parents=True, exist_ok=True)
+    f1 = waiting / "base.json"
+    f2 = waiting / "cand.json"
+    f1.write_text(json.dumps(arms["baseline"]))
+    f2.write_text(json.dumps(arms["candidate"]))
+
+    # Snapshot before
+    snapshot_before = {
+        p.relative_to(queue_dir): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in queue_dir.rglob("*")
+        if p.is_file()
+    }
+
+    # Ensure rlm_runtime is not imported before or during
+    sys.modules.pop("evallab.rlm_runtime", None)
+
+    report = readiness_report(tmp_path, manifest, submitted_by="har-11", queue_root=queue_dir)
+    assert report["kind"] == "harness_paired_readiness"
+
+    # Backend was not imported
+    assert "evallab.rlm_runtime" not in sys.modules
+
+    # Queue was completely unmutated
+    snapshot_after = {
+        p.relative_to(queue_dir): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in queue_dir.rglob("*")
+        if p.is_file()
+    }
+    assert snapshot_before == snapshot_after

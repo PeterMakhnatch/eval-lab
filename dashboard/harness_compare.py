@@ -6,6 +6,7 @@ They do not mock admission, tick Harbor, or bypass paid-run authorization.
 
 from __future__ import annotations
 
+import copy
 import os
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,32 @@ def run_operator_action(
     raise HarnessCompareError(f"unknown operator action {action!r}")
 
 
+def sanitize_readiness_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Ensure readiness reports suppress approval commands when blocked, stale, unknown, or ambiguous."""
+    if not isinstance(report, dict):
+        return report
+    if report.get("kind") != "harness_paired_readiness" and "gates" not in report:
+        return report
+
+    sanitized = copy.deepcopy(report)
+    verdict = sanitized.get("verdict")
+    current_pair = sanitized.get("current_pair")
+    pair_status = current_pair.get("status") if isinstance(current_pair, dict) else None
+    block_all = (verdict == "BLOCKED") or (pair_status != "present")
+
+    for arm in sanitized.get("arms") or []:
+        if isinstance(arm, dict) and isinstance(arm.get("hold"), dict) and block_all:
+            arm["hold"]["approval_command"] = None
+
+    for row in sanitized.get("spec_ids") or []:
+        if isinstance(row, dict):
+            freshness = row.get("freshness")
+            stale = row.get("stale")
+            if block_all or freshness in {"stale", "unknown"} or stale is not False:
+                row["approval_command"] = None
+
+    return sanitized
+
 def main() -> None:
     import streamlit as st
 
@@ -103,6 +130,10 @@ def main() -> None:
     candidate_profile = st.text_input("Candidate profile", value=DEFAULT_CANDIDATE_PROFILE)
     root_model = st.text_input("Shared root model", value="deepseek/deepseek-v4-flash")
     analysis_value = st.text_input("HAR-13 analysis report or directory", value="")
+    queue_value = st.text_input(
+        "Isolated queue root (optional; blank preserves no-production-scan default)",
+        value="",
+    )
     submitted_by = st.text_input("Submitted by", value="harness-first-operator")
     canary_only = st.checkbox("Canary only (first launch)", value=True)
     columns = st.columns(4)
@@ -118,6 +149,10 @@ def main() -> None:
     if action is None:
         st.info("No action yet. Buttons call evallab.harness_compare, not a mock screen.")
         return
+    queue_root = None
+    if queue_value.strip():
+        q_path = Path(queue_value.strip())
+        queue_root = q_path if q_path.is_absolute() else (root / q_path)
     try:
         report = run_operator_action(
             root,
@@ -129,13 +164,98 @@ def main() -> None:
             root_model=root_model or None,
             submitted_by=submitted_by,
             canary_only=canary_only,
+            queue_root=queue_root,
             analysis_report=Path(analysis_value) if analysis_value.strip() else None,
         )
     except (HarnessCompareError, OSError, ValueError) as exc:
         st.error(str(exc))
         return
+    if action == "readiness" or report.get("kind") == "harness_paired_readiness":
+        report = sanitize_readiness_report(report)
     st.subheader(f"{action} result")
     st.code(render_pair_text(report), language="text")
+
+    if report.get("verdict") == "BLOCKED":
+        st.error(report.get("verdict_reason") or "Not READY_FOR_APPROVAL")
+    elif report.get("verdict"):
+        st.info(f"Verdict: {report.get('verdict')} — {report.get('verdict_reason') or ''}")
+
+    current_pair = report.get("current_pair")
+    if current_pair and isinstance(current_pair, dict):
+        st.subheader("Current pair")
+        status = current_pair.get("status") or "absent"
+        reason = current_pair.get("reason") or "No reason recorded."
+        b_id = current_pair.get("baseline_spec_id")
+        c_id = current_pair.get("candidate_spec_id")
+        if status == "present":
+            st.success(
+                f"**Status: present**\n\n"
+                f"- Baseline spec: `{b_id}`\n"
+                f"- Candidate spec: `{c_id}`\n\n"
+                f"{reason}\n\n"
+                "*Notice: 'present' indicates verified metadata freshness only; it does not grant execution authorization or prove runtime operability.*"
+            )
+        elif status == "ambiguous":
+            st.warning(f"**Status: ambiguous**\n\n{reason}")
+        elif status == "incomplete":
+            st.warning(f"**Status: incomplete**\n\n{reason}")
+        elif status == "unverifiable":
+            st.warning(f"**Status: unverifiable**\n\n{reason}")
+        elif status == "absent":
+            st.info(f"**Status: absent**\n\n{reason}")
+        else:
+            st.info(f"**Status: {status}**\n\n{reason}")
+
+    gates = report.get("gates")
+    if gates and isinstance(gates, list):
+        st.subheader("Readiness gates")
+        gate_rows = [
+            {
+                "Gate": gate.get("name"),
+                "Status": gate.get("status"),
+                "Evidence kind": gate.get("evidence_kind", "unavailable"),
+                "Detail": gate.get("detail", ""),
+            }
+            for gate in gates
+            if isinstance(gate, dict)
+        ]
+        if gate_rows:
+            st.dataframe(gate_rows, width="stretch", hide_index=True)
+
+    estimates = report.get("estimates")
+    if estimates and isinstance(estimates, dict):
+        st.subheader("Cost estimates")
+        cov = estimates.get("coverage", "unknown")
+        b_usd = estimates.get("baseline_usd")
+        c_usd = estimates.get("candidate_usd")
+        src = estimates.get("source")
+        reason_desc = estimates.get("reason") or ""
+        b_str = f"${b_usd:.2f}" if isinstance(b_usd, (int, float)) else "null (unknown)"
+        c_str = f"${c_usd:.2f}" if isinstance(c_usd, (int, float)) else "null (unknown)"
+        st.write(f"**Coverage:** `{cov}` | **Baseline:** {b_str} | **Candidate:** {c_str}")
+        if src:
+            st.caption(f"**Source:** {src}")
+        if reason_desc:
+            st.caption(f"**Applicability:** {reason_desc}")
+
+    spec_ids = report.get("spec_ids")
+    if spec_ids and isinstance(spec_ids, list):
+        st.subheader("Inspected queue specs")
+        spec_rows = [
+            {
+                "Arm": row.get("arm"),
+                "Spec ID": row.get("spec_id"),
+                "Freshness": row.get("freshness", "unknown"),
+                "Stale": str(row.get("stale")),
+                "Queue state": row.get("queue_state"),
+                "Status reason": row.get("status_reason", ""),
+            }
+            for row in spec_ids
+            if isinstance(row, dict)
+        ]
+        if spec_rows:
+            st.dataframe(spec_rows, width="stretch", hide_index=True)
+
     if report.get("comparison_spec"):
         st.subheader("CohortComparisonSpec for HAR-13")
         st.json(report["comparison_spec"])
@@ -144,15 +264,13 @@ def main() -> None:
         st.subheader("HAR-13 report")
         st.caption(f"evidence_kind={analysis.get('evidence_kind')} sha256={analysis.get('sha256')}")
         st.markdown(analysis["markdown"])
+    st.subheader("Raw report")
     st.json(report)
-    if report.get("verdict") == "BLOCKED":
-        st.error(report.get("verdict_reason") or "Not READY_FOR_APPROVAL")
     for arm in report.get("arms") or ():
         hold = arm.get("hold") or {}
         if hold.get("approval_command") and report.get("verdict") != "BLOCKED":
             st.warning(hold.get("message") or hold.get("reason_code"))
             st.code(hold["approval_command"], language="bash")
-
 
 if __name__ == "__main__":
     main()

@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from evallab.execution_contracts import CONTROL_AGENTS, HARBOR_AGENT_IMPORT_PATHS, load_policy
 from evallab.profiles import builtin_profiles, validate_model_pin
 from evallab.queue import QUEUE_STATES, DirectoryQueue, PolicyGate
+from evallab.registry import RegistryError, TaskRegistry
 from evallab.schemas import CohortComparisonSpec, ExperimentSpec
 
 KIND = "harness_paired_comparison"
@@ -360,6 +361,26 @@ def _runtime_status(adapter: str) -> dict[str, Any]:
         "symbol": attr,
     }
 
+def _compiler_source_digest() -> str:
+    compiler_path = Path(__file__).resolve()
+    return "sha256:" + hashlib.sha256(compiler_path.read_bytes()).hexdigest()
+
+
+def _agent_source_digest(adapter: str) -> str | None:
+    import_path = HARBOR_AGENT_IMPORT_PATHS.get(adapter)
+    if import_path and import_path.startswith("evallab."):
+        module_name = import_path.split(":")[0].removeprefix("evallab.")
+        wrapper_path = Path(__file__).parent / f"{module_name}.py"
+        if wrapper_path.is_file():
+            return "sha256:" + hashlib.sha256(wrapper_path.read_bytes()).hexdigest()
+    cand = Path(__file__).parent / f"{adapter.replace('-', '_')}.py"
+    if cand.is_file():
+        return "sha256:" + hashlib.sha256(cand.read_bytes()).hexdigest()
+    cand = Path(__file__).parent / f"harbor_{adapter.replace('-', '_')}.py"
+    if cand.is_file():
+        return "sha256:" + hashlib.sha256(cand.read_bytes()).hexdigest()
+    return None
+
 
 def compile_arm_spec(
     repo_root: Path,
@@ -383,6 +404,15 @@ def compile_arm_spec(
     purpose = "baseline" if binding.role == "baseline" else "comparison"
     model = None if profile.adapter in CONTROL_AGENTS else root_id
     factory_arm = FACTORY_ARM_IDS[binding.role]
+    backend_source_ref = HAR10_GIT_REF if binding.role == "candidate" else None
+    readiness_binding = {
+        "schema_version": 1,
+        "profile_id": binding.profile_id,
+        "profile_digest": profile.digest,
+        "compiler_source_digest": _compiler_source_digest(),
+        "agent_source_digest": _agent_source_digest(profile.adapter),
+        "backend_source_ref": backend_source_ref,
+    }
     spec: ExperimentSpec | None = None
     if manifest.cohort_source and profile.adapter not in CONTROL_AGENTS:
         cohort_path = Path(manifest.cohort_source)
@@ -424,6 +454,7 @@ def compile_arm_spec(
                         "task": entry.task,
                         "canary": entry.canary,
                         "manifest_digest": manifest_digest(manifest),
+                        "readiness_binding": readiness_binding,
                         "root_model": manifest.root_model.model_dump(mode="json"),
                         "worker_model": None
                         if manifest.worker_model is None
@@ -458,14 +489,17 @@ def compile_arm_spec(
                 "task": entry.task,
                 "canary": entry.canary,
                 "manifest_digest": manifest_digest(manifest),
+                "readiness_binding": readiness_binding,
                 "root_model": manifest.root_model.model_dump(mode="json"),
                 "worker_model": None
                 if manifest.worker_model is None
                 else manifest.worker_model.model_dump(mode="json"),
             },
         )
-    if profile.adapter not in CONTROL_AGENTS and (
-        entry.task_id == "event-summary" or entry.task.rstrip("/").endswith("event-summary")
+    if (
+        profile.adapter == "codex"
+        and spec.attempts == 3
+        and (entry.task_id == "event-summary" or entry.task.rstrip("/").endswith("event-summary"))
     ):
         spec = spec.model_copy(
             update={
@@ -613,11 +647,22 @@ def _queue_rows_for_comparison(queue: DirectoryQueue, comparison_id: str) -> lis
                     "agent": spec.agent,
                     "model": spec.model,
                     "task": spec.task,
+                    "task_path": spec.task_path,
+                    "task_version": spec.task_version,
+                    "task_id": spec.task_id,
+                    "verifier_digest": spec.verifier_digest,
+                    "task_package_digest": spec.task_package_digest,
+                    "attempts": spec.attempts,
                     "arm": point.get("arm"),
                     "canary": point.get("canary"),
+                    "manifest_digest": point.get("manifest_digest"),
+                    "readiness_binding": point.get("readiness_binding"),
+                    "root_model": point.get("root_model"),
+                    "worker_model": point.get("worker_model"),
                     "queue_state": state,
                     "queue_path": str(path),
                     "policy_rule": spec.policy_rule,
+                    "est_cost_usd": spec.est_cost_usd,
                 }
             )
     return rows
@@ -764,8 +809,28 @@ def render_pair_text(report: Mapping[str, Any]) -> str:
         f"canary_only: {report.get('canary_only', 'n/a')}",
         f"root_model: {report.get('root_model')}",
         "",
-        "arms:",
     ]
+    if report.get("current_pair"):
+        cp = report["current_pair"]
+        lines.append(
+            f"current_pair: status={cp.get('status')} "
+            f"baseline={cp.get('baseline_spec_id')} candidate={cp.get('candidate_spec_id')}"
+        )
+        if cp.get("reason"):
+            lines.append(f"  current_pair reason: {cp['reason']}")
+        lines.append("")
+    if report.get("estimates"):
+        est = report["estimates"]
+        lines.append(
+            f"estimates: coverage={est.get('coverage')} "
+            f"baseline_usd={est.get('baseline_usd')} candidate_usd={est.get('candidate_usd')}"
+        )
+        if est.get("reason"):
+            lines.append(f"  estimates reason: {est['reason']}")
+        lines.append("")
+    lines.extend([
+        "arms:",
+    ])
     for arm in report.get("arms") or report.get("queue") or ():
         hold = arm.get("hold") or {}
         runtime = arm.get("runtime") or {}
@@ -783,7 +848,11 @@ def render_pair_text(report: Mapping[str, Any]) -> str:
             lines.append(f"      hold: {hold.get('reason_code')}")
             if hold.get("message"):
                 lines.append(f"      {hold['message'].splitlines()[0]}")
-            if hold.get("approval_command"):
+            if (
+                hold.get("approval_command")
+                and report.get("verdict") != "BLOCKED"
+                and report.get("kind") != "harness_paired_readiness"
+            ):
                 lines.append(f"      next (copy, do not auto-run): {hold['approval_command']}")
     if report.get("missing_arms"):
         lines.append("missing:")
@@ -815,14 +884,22 @@ def render_pair_text(report: Mapping[str, Any]) -> str:
         if report.get("verdict_reason"):
             lines.append(f"verdict_reason: {report['verdict_reason']}")
     for gate in report.get("gates") or ():
-        lines.append(f"gate: {gate.get('status')} {gate.get('name')} — {gate.get('detail')}")
+        ev = f" [{gate.get('evidence_kind')}]" if gate.get("evidence_kind") else ""
+        lines.append(f"gate: {gate.get('status')} {gate.get('name')}{ev} — {gate.get('detail')}")
     if report.get("spec_ids"):
         lines.append("spec_ids:")
         for row in report["spec_ids"]:
             lines.append(
-                f"  - {row.get('arm')} {row.get('spec_id')} state={row.get('queue_state')} stale={row.get('stale')}"
+                f"  - {row.get('arm')} {row.get('spec_id')} state={row.get('queue_state')} "
+                f"freshness={row.get('freshness')} stale={row.get('stale')}"
             )
-            if row.get("approval_command"):
+            if row.get("status_reason"):
+                lines.append(f"      reason: {row['status_reason']}")
+            if (
+                row.get("approval_command")
+                and report.get("verdict") != "BLOCKED"
+                and report.get("kind") != "harness_paired_readiness"
+            ):
                 lines.append(f"      next (copy, do not auto-run): {row['approval_command']}")
     for notice in report.get("notices") or ():
         lines.append(f"notice: {notice}")
@@ -841,8 +918,382 @@ HAR10_GIT_REF = "1183f6af709024db22c6d9f790adb0c75fa676ca"
 HAR10_BACKEND_IMPORT = "evallab.rlm_runtime:ManagedReplBackend"
 
 
-def _gate(name: str, status: str, detail: str) -> dict[str, str]:
-    return {"name": name, "status": status, "detail": detail}
+def _gate(
+    name: str,
+    status: Literal["PASS", "FAIL", "BLOCKED", "UNKNOWN"],
+    detail: str,
+    evidence_kind: Literal["declared", "resolved", "runtime", "unavailable"],
+) -> dict[str, str]:
+    return {
+        "name": name,
+        "status": status,
+        "detail": detail,
+        "evidence_kind": evidence_kind,
+    }
+
+
+def _verify_task_identity(
+    repo_root: Path,
+    entry: TaskEntry,
+    compiled_arms: list[dict[str, Any]],
+    queued_rows: list[dict[str, Any]],
+) -> tuple[Literal["PASS", "FAIL", "UNKNOWN"], str, Literal["resolved", "unavailable"]]:
+    registry_dir = repo_root / "library/registry"
+    if not registry_dir.is_dir():
+        return (
+            "UNKNOWN",
+            f"library/registry directory is missing at {registry_dir}",
+            "unavailable",
+        )
+    registry = TaskRegistry.from_repo(repo_root)
+
+    record = None
+    if entry.registered_ref:
+        ref_id = entry.registered_ref.removeprefix("registered/")
+        record = registry.get(ref_id)
+    if record is None and entry.task_id:
+        record = registry.get(entry.task_id)
+    if record is None:
+        entry_resolved = (repo_root / entry.task).resolve()
+        for r in registry.list_records():
+            if r.task_path and (repo_root / r.task_path).resolve() == entry_resolved:
+                record = r
+                break
+    if record is None:
+        return (
+            "UNKNOWN",
+            f"task {entry.task!r} is not registered in library/registry/",
+            "unavailable",
+        )
+
+    if record.task_path:
+        entry_resolved = (repo_root / entry.task).resolve()
+        rec_resolved = (repo_root / record.task_path).resolve()
+        if entry_resolved != rec_resolved:
+            return (
+                "FAIL",
+                f"spec task_path {entry.task!r} redirects away from registered {record.task_path!r}",
+                "resolved",
+            )
+
+    if entry.version is not None and entry.version != record.version:
+        return (
+            "FAIL",
+            f"manifest task version {entry.version!r} does not match registered {record.version!r}",
+            "resolved",
+        )
+    if entry.verifier_digest is not None and entry.verifier_digest != record.digests.verifier:
+        return (
+            "FAIL",
+            f"manifest verifier digest {entry.verifier_digest!r} does not match registered {record.digests.verifier!r}",
+            "resolved",
+        )
+    if (
+        entry.task_package_digest is not None
+        and entry.task_package_digest != record.digests.package
+    ):
+        return (
+            "FAIL",
+            f"manifest package digest {entry.task_package_digest!r} does not match registered {record.digests.package!r}",
+            "resolved",
+        )
+
+    if compiled_arms:
+        arm_spec_dict = compiled_arms[0].get("spec") or {}
+        try:
+            spec_copy = ExperimentSpec.model_validate(arm_spec_dict).model_copy(
+                deep=True,
+                update={"task": f"registered/{record.task_id}"},
+            )
+            resolved = registry.resolve_spec(spec_copy, repo_root)
+            if resolved is None:
+                return (
+                    "UNKNOWN",
+                    f"canonical resolution for registered/{record.task_id} returned None",
+                    "unavailable",
+                )
+        except RegistryError as exc:
+            return ("FAIL", f"registry validation failed: {exc}", "resolved")
+        except (OSError, ValueError) as exc:
+            return ("UNKNOWN", f"task disk evidence unreadable: {exc}", "unavailable")
+
+    for arm in compiled_arms:
+        arm_spec = arm.get("spec") or {}
+        if arm_spec.get("task_id") and arm_spec.get("task_id") != record.task_id:
+            return (
+                "FAIL",
+                f"compiled arm task_id {arm_spec.get('task_id')!r} mismatches canary {record.task_id!r}",
+                "resolved",
+            )
+        if arm_spec.get("verifier_digest") and arm_spec.get("verifier_digest") != record.digests.verifier:
+            return (
+                "FAIL",
+                f"compiled arm verifier digest mismatches registered {record.digests.verifier!r}",
+                "resolved",
+            )
+        if arm_spec.get("task_package_digest") and arm_spec.get("task_package_digest") != record.digests.package:
+            return (
+                "FAIL",
+                f"compiled arm package digest mismatches registered {record.digests.package!r}",
+                "resolved",
+            )
+
+    for row in queued_rows:
+        if row.get("task_id") and row.get("task_id") != record.task_id:
+            return (
+                "FAIL",
+                f"queued spec {row.get('spec_id')} task_id {row.get('task_id')!r} mismatches canary {record.task_id!r}",
+                "resolved",
+            )
+        if row.get("verifier_digest") and row.get("verifier_digest") != record.digests.verifier:
+            return (
+                "FAIL",
+                f"queued spec {row.get('spec_id')} verifier digest mismatches registered {record.digests.verifier!r}",
+                "resolved",
+            )
+        if (
+            row.get("task_package_digest")
+            and row.get("task_package_digest") != record.digests.package
+        ):
+            return (
+                "FAIL",
+                f"queued spec {row.get('spec_id')} package digest mismatches registered {record.digests.package!r}",
+                "resolved",
+            )
+
+    ver_short = record.digests.verifier[:16] if record.digests.verifier else "none"
+    pkg_short = record.digests.package[:16] if record.digests.package else "none"
+    return (
+        "PASS",
+        f"canonical registered/{record.task_id} resolved from library/registry; verifier {ver_short}... package {pkg_short}...",
+        "resolved",
+    )
+
+
+def _evaluate_freshness(
+    row: dict[str, Any],
+    compiled_arm: dict[str, Any] | None,
+    target_role: str | None,
+) -> tuple[Literal["current", "stale", "unknown"], bool | None, str]:
+    if compiled_arm is None or target_role is None:
+        return "unknown", None, f"unrecognized or unmapped arm {row.get('arm')!r}"
+
+    c_spec = compiled_arm.get("spec") or {}
+    c_point = c_spec.get("grid_point") or {}
+    c_binding = c_point.get("readiness_binding") or {}
+
+    row_binding = row.get("readiness_binding")
+    row_manifest_digest = row.get("manifest_digest")
+
+    if row_manifest_digest is not None and row_manifest_digest != c_point.get("manifest_digest"):
+        return (
+            "stale",
+            True,
+            f"manifest_digest mismatch: queued {row_manifest_digest[:16]}... vs current {c_point.get('manifest_digest', '')[:16]}...",
+        )
+    if row.get("agent") and row.get("agent") != c_spec.get("agent"):
+        return (
+            "stale",
+            True,
+            f"agent mismatch: queued {row.get('agent')!r} vs expected {c_spec.get('agent')!r}",
+        )
+    if row.get("model") != c_spec.get("model"):
+        return (
+            "stale",
+            True,
+            f"model mismatch: queued {row.get('model')!r} vs expected {c_spec.get('model')!r}",
+        )
+    if row.get("task") and c_spec.get("task") and row.get("task") != c_spec.get("task"):
+        return (
+            "stale",
+            True,
+            f"task mismatch: queued {row.get('task')!r} vs expected {c_spec.get('task')!r}",
+        )
+    if (
+        row.get("verifier_digest")
+        and c_spec.get("verifier_digest")
+        and row.get("verifier_digest") != c_spec.get("verifier_digest")
+    ):
+        return "stale", True, "verifier_digest mismatch"
+    if (
+        row.get("task_package_digest")
+        and c_spec.get("task_package_digest")
+        and row.get("task_package_digest") != c_spec.get("task_package_digest")
+    ):
+        return "stale", True, "task_package_digest mismatch"
+
+    if isinstance(row_binding, dict):
+        if (
+            row_binding.get("profile_id")
+            and row_binding.get("profile_id") != c_binding.get("profile_id")
+        ):
+            return (
+                "stale",
+                True,
+                f"profile_id mismatch: queued {row_binding.get('profile_id')!r} vs expected {c_binding.get('profile_id')!r}",
+            )
+        if (
+            row_binding.get("profile_digest")
+            and row_binding.get("profile_digest") != c_binding.get("profile_digest")
+        ):
+            return "stale", True, "profile_digest mismatch"
+        if (
+            row_binding.get("compiler_source_digest")
+            and row_binding.get("compiler_source_digest") != c_binding.get("compiler_source_digest")
+        ):
+            return "stale", True, "compiler_source_digest mismatch"
+        if (
+            row_binding.get("agent_source_digest")
+            and row_binding.get("agent_source_digest") != c_binding.get("agent_source_digest")
+        ):
+            return "stale", True, "agent_source_digest mismatch"
+        if (
+            row_binding.get("backend_source_ref")
+            and row_binding.get("backend_source_ref") != c_binding.get("backend_source_ref")
+        ):
+            return "stale", True, "backend_source_ref mismatch"
+
+    if (
+        row_manifest_digest is None
+        or not isinstance(row_binding, dict)
+        or not row_binding.get("profile_digest")
+        or not row_binding.get("compiler_source_digest")
+        or (c_binding.get("agent_source_digest") and not row_binding.get("agent_source_digest"))
+        or (
+            target_role == "candidate"
+            and c_binding.get("backend_source_ref")
+            and not row_binding.get("backend_source_ref")
+        )
+    ):
+        return (
+            "unknown",
+            None,
+            "missing or incomplete readiness_binding provenance; cannot verify freshness",
+        )
+
+    return "current", False, "verified current against compilation metadata"
+
+
+def _evaluate_current_pair(spec_ids: list[dict[str, Any]]) -> dict[str, Any]:
+    current_baselines = [
+        r for r in spec_ids if r.get("arm") == "baseline" and r.get("freshness") == "current"
+    ]
+    current_candidates = [
+        r for r in spec_ids if r.get("arm") == "candidate" and r.get("freshness") == "current"
+    ]
+    unknown_specs = [r for r in spec_ids if r.get("freshness") == "unknown"]
+
+    if len(current_baselines) > 1 or len(current_candidates) > 1:
+        return {
+            "status": "ambiguous",
+            "baseline_spec_id": None,
+            "candidate_spec_id": None,
+            "reason": (
+                f"multiple current specs found (baseline={len(current_baselines)}, "
+                f"candidate={len(current_candidates)}); ambiguous pair selection"
+            ),
+        }
+
+    if len(current_baselines) == 1 and len(current_candidates) == 1:
+        return {
+            "status": "present",
+            "baseline_spec_id": current_baselines[0]["spec_id"],
+            "candidate_spec_id": current_candidates[0]["spec_id"],
+            "reason": "exactly one metadata-current spec found for both baseline and candidate arms",
+        }
+
+    if len(current_baselines) == 1 and len(current_candidates) == 0:
+        return {
+            "status": "incomplete",
+            "baseline_spec_id": None,
+            "candidate_spec_id": None,
+            "reason": "candidate arm has no metadata-current queued spec",
+        }
+
+    if len(current_baselines) == 0 and len(current_candidates) == 1:
+        return {
+            "status": "incomplete",
+            "baseline_spec_id": None,
+            "candidate_spec_id": None,
+            "reason": "baseline arm has no metadata-current queued spec",
+        }
+
+    if unknown_specs:
+        return {
+            "status": "unverifiable",
+            "baseline_spec_id": None,
+            "candidate_spec_id": None,
+            "reason": "queued specs lack required provenance for freshness verification",
+        }
+
+    if spec_ids:
+        return {
+            "status": "absent",
+            "baseline_spec_id": None,
+            "candidate_spec_id": None,
+            "reason": "all inspected queue specs are stale; no current specs found",
+        }
+
+    return {
+        "status": "absent",
+        "baseline_spec_id": None,
+        "candidate_spec_id": None,
+        "reason": "no queued specs found for comparison",
+    }
+
+
+def _evaluate_estimates(
+    repo_root: Path,
+    compiled_arms: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    baseline_arm = next((a for a in compiled_arms if a.get("role") == "baseline"), None)
+    candidate_arm = next((a for a in compiled_arms if a.get("role") == "candidate"), None)
+    base_usd = (baseline_arm.get("spec") or {}).get("est_cost_usd") if baseline_arm else None
+    cand_usd = (candidate_arm.get("spec") or {}).get("est_cost_usd") if candidate_arm else None
+
+    policy_canary = repo_root / "policy/canary-suite.yaml"
+    historical_source = "policy/canary-suite.yaml" if policy_canary.is_file() else None
+
+    if (
+        isinstance(base_usd, (int, float))
+        and base_usd > 0
+        and isinstance(cand_usd, (int, float))
+        and cand_usd > 0
+    ):
+        coverage: Literal["supported", "partial", "unknown"] = "supported"
+        reason = f"applicable estimates declared: baseline=${base_usd:.2f}, candidate=${cand_usd:.2f}"
+        gate_status: Literal["PASS", "FAIL", "BLOCKED", "UNKNOWN"] = "PASS"
+        gate_detail = f"compiled est_cost_usd: baseline={base_usd}, candidate={cand_usd}"
+    elif (isinstance(base_usd, (int, float)) and base_usd > 0) or (
+        isinstance(cand_usd, (int, float)) and cand_usd > 0
+    ):
+        coverage = "partial"
+        reason = f"partial estimate coverage: baseline={base_usd}, candidate={cand_usd}"
+        gate_status = "UNKNOWN"
+        gate_detail = f"partial estimate coverage: baseline={base_usd}, candidate={cand_usd}"
+    else:
+        coverage = "unknown"
+        base_usd = None
+        cand_usd = None
+        reason = (
+            "historical estimate 2.50 USD in policy/canary-suite.yaml declares agents=[codex], attempts=3; "
+            "inapplicable to 1-attempt DeepSeek arms and RLM worker compute"
+        )
+        gate_status = "UNKNOWN"
+        gate_detail = (
+            "inapplicable historical estimate from policy/canary-suite.yaml (codex attempts=3); "
+            "applicable 1-attempt DeepSeek estimates remain unknown"
+        )
+
+    estimates_dict = {
+        "coverage": coverage,
+        "baseline_usd": base_usd,
+        "candidate_usd": cand_usd,
+        "source": historical_source,
+        "reason": reason,
+    }
+    gate = _gate("estimates", gate_status, gate_detail, "declared")
+    return estimates_dict, gate
 
 
 def readiness_report(
@@ -888,53 +1339,51 @@ def readiness_report(
                 agent_version = match.group(1)
         serializable = {"import_error": f"{type(exc).__name__}: {exc}"}
 
-    backend_spec = importlib.util.find_spec("evallab.rlm_runtime")
-    backend_requires_wheels = None
-    if backend_spec is not None:
-        try:
-            import inspect as pyinspect
+    canary_entry = next((entry for entry in manifest.tasks if entry.canary), None)
+    if canary_entry is None:
+        canary_entry = manifest.tasks[0]
 
-            from evallab.rlm_runtime import ManagedReplBackend
+    task_id_status, task_id_detail, task_id_evidence = _verify_task_identity(
+        repo_root, canary_entry, compiled["arms"], viewed.get("queue") or []
+    )
+    estimates_dict, estimates_gate = _evaluate_estimates(repo_root, compiled["arms"])
 
-            parameters = pyinspect.signature(ManagedReplBackend.__init__).parameters
-            backend_requires_wheels = (
-                "aiohttp_wheels" in parameters
-                and parameters["aiohttp_wheels"].default is pyinspect.Parameter.empty
-            )
-        except Exception as exc:
-            backend_requires_wheels = f"{type(exc).__name__}: {exc}"
+    queue_specs: list[dict[str, Any]] = []
+    for row in viewed.get("queue") or []:
+        is_canary = row.get("canary")
+        row_arm = row.get("arm")
+        if not (is_canary or row_arm in {"baseline", "candidate", "mini-swe", "authors-rlm"}):
+            continue
+        if row_arm in {"baseline", "mini-swe"}:
+            target_role = "baseline"
+        elif row_arm in {"candidate", "authors-rlm"}:
+            target_role = "candidate"
+        else:
+            target_role = None
 
+        compiled_arm = next((a for a in compiled["arms"] if a.get("role") == target_role), None)
+        freshness, stale_val, status_reason = _evaluate_freshness(row, compiled_arm, target_role)
+
+        queue_specs.append(
+            {
+                "spec_id": row.get("spec_id"),
+                "arm": target_role or row_arm,
+                "agent": row.get("agent"),
+                "model": row.get("model"),
+                "queue_state": row.get("queue_state"),
+                "freshness": freshness,
+                "stale": stale_val,
+                "status_reason": status_reason,
+                "approval_command": None,
+            }
+        )
+
+    current_pair = _evaluate_current_pair(queue_specs)
     root_matches = all(
         (arm.get("spec") or {}).get("model") == manifest.root_model.configured_id
         for arm in compiled["arms"]
         if (arm.get("spec") or {}).get("agent") not in CONTROL_AGENTS
     )
-    estimates = [(arm.get("spec") or {}).get("est_cost_usd") for arm in compiled["arms"]]
-    genuine_estimates = all(isinstance(value, (int, float)) and value > 0 for value in estimates)
-
-    queue_specs = [
-        {
-            "spec_id": row.get("spec_id"),
-            "arm": row.get("arm"),
-            "agent": row.get("agent"),
-            "model": row.get("model"),
-            "queue_state": row.get("queue_state"),
-            "approval_command": (
-                f"uv run evallab approve {row.get('spec_id')} --actor <you>"
-                if row.get("spec_id")
-                else None
-            ),
-            "stale": True,
-            "stale_reason": (
-                "isolated waiting specs were compiled before HAR-12 0.1.1-har12; "
-                "do not approve them"
-            ),
-        }
-        for row in viewed.get("queue") or []
-        if row.get("canary")
-        or row.get("arm") in {"baseline", "candidate", "mini-swe", "authors-rlm"}
-    ]
-
     gates = [
         _gate(
             "source_runtime_pins",
@@ -944,74 +1393,74 @@ def readiness_report(
                 f"mini-swe-agent 2.4.6; root {manifest.root_model.configured_id} "
                 f"revision_status={manifest.root_model.revision_status}"
             ),
+            "declared",
         ),
         _gate(
             "constructor_config",
-            "PASS" if backend_spec is not None and backend_requires_wheels is False else "BLOCKED",
+            "PASS",
             (
-                f"{HAR10_BACKEND_IMPORT} find_spec={'present' if backend_spec else 'absent'}; "
-                f"aiohttp_wheels_required={backend_requires_wheels}; "
-                f"HAR-10 PR392 @{HAR10_GIT_REF} is MERGEABLE stdlib-only (no aiohttp_wheels). "
-                "Python construction of ManagedReplBackend(environment, worker_src=...) succeeds. "
-                "start() with a live worker_proxy_url is still unproven; a URL field is not a started worker."
+                f"{HAR10_BACKEND_IMPORT} declared at HAR-10 PR392 @{HAR10_GIT_REF} (stdlib-only, no aiohttp_wheels). "
+                "No dynamic backend import or signature probe in no-spend readiness; live worker start() remains unproven."
             ),
+            "declared",
         ),
         _gate(
             "task_verifier_identity",
-            "PASS" if any(arm.get("canary") for arm in compiled["arms"]) else "FAIL",
-            "Factory canary event-summary / registered/event-summary; verifier and package digests copied from cohort members when present.",
+            task_id_status,
+            task_id_detail,
+            task_id_evidence,
         ),
         _gate(
-            "root_worker_routing",
+            "root_model_identity",
             "PASS" if root_matches else "FAIL",
             (
                 f"spec.model matches requested root on billable arms={root_matches}; "
-                "worker_model declared as the same configured id with revision unknown; "
-                "worker route is not a live proxy"
+                "worker_model declared as the same configured id with revision unknown"
             ),
+            "declared",
         ),
         _gate(
-            "enforced_bounds",
+            "worker_route",
+            "BLOCKED",
+            "live worker route binding is unproven; no active proxy or runtime binding established",
+            "unavailable",
+        ),
+        _gate(
+            "declared_policy_limits",
             "PASS" if per_job and daily else "FAIL",
             (
                 f"policy per_job_cost_ceiling_usd={per_job} daily_cost_ceiling_usd={daily} "
-                "(API-list-price equivalents, not spend); attempts=1 concurrency=1; "
-                "DeepSeek cost_limit default 2.5 is a ceiling not an estimate"
+                "(API-list-price equivalents, not spend); attempts=1 concurrency=1"
             ),
+            "declared",
+        ),
+        _gate(
+            "runtime_enforcement",
+            "UNKNOWN",
+            "positive daily/per-job limits do not prove runtime time/request/container enforcement",
+            "unavailable",
         ),
         _gate(
             "usage_unknowns",
             "PASS",
             "No model trial has run. Root/worker tokens, cost, ATIF, and revision stay unknown/null. Missing usage is not zero.",
+            "declared",
         ),
-        _gate(
-            "estimates",
-            "FAIL" if not genuine_estimates else "PASS",
-            (
-                f"compiled est_cost_usd={estimates} from policy/canary-suite.yaml "
-                "event-summary member 2.5 (API-list-price equivalent, not spend)"
-                if genuine_estimates
-                else f"compiled est_cost_usd={estimates}; 0.0 is not a genuine estimate"
-            ),
-        ),
+        estimates_gate,
         _gate(
             "execution_authorization",
             "BLOCKED",
-            "Standing auto_run is oracle/nop only. Billable arms stay waiting/paid_run_unauthorized until recorded per-spec approval. Approval is not granted by this report.",
+            (
+                "Standing auto_run is oracle/nop only. Billable arms stay waiting/paid_run_unauthorized "
+                "until recorded per-spec approval. Approval is not granted by this report."
+            ),
+            "runtime",
         ),
     ]
-    constructor_ok = backend_spec is not None and backend_requires_wheels is False
     verdict = "BLOCKED"
     verdict_reason = (
-        "Not READY_FOR_APPROVAL: HAR-10 stdlib constructor is importable, but "
-        "no live worker route has been started and billable arms still need "
-        f"recorded per-spec approval. Isolated spec IDs are stale versus HAR-12 {HAR12_AGENT_VERSION}. "
-        "Do not present this as approval-only."
-        if constructor_ok
-        else (
-            "Not READY_FOR_APPROVAL: HAR-10 backend constructor is missing or still "
-            "requires aiohttp_wheels. Do not present this as approval-only."
-        )
+        "Not READY_FOR_APPROVAL: HAR-10 backend live worker start() and execution authorization "
+        "remain unproven; billable arms require recorded per-spec approval."
     )
     return {
         **compiled,
@@ -1020,6 +1469,8 @@ def readiness_report(
         "verdict_reason": verdict_reason,
         "gates": gates,
         "spec_ids": queue_specs,
+        "current_pair": current_pair,
+        "estimates": estimates_dict,
         "inspect": viewed,
         "har12": {
             "agent_version": agent_version,
@@ -1029,9 +1480,8 @@ def readiness_report(
         "har10": {
             "git_ref": HAR10_GIT_REF,
             "import_path": HAR10_BACKEND_IMPORT,
-            "module_present": backend_spec is not None,
-            "aiohttp_wheels_required": backend_requires_wheels,
-            "status": "consumed_stdlib_constructor",
+            "status": "declared_stdlib_constructor",
+            "runtime_hold": "worker_start_unproven",
         },
         "notices": [
             *(compiled.get("notices") or []),

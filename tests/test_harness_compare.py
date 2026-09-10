@@ -311,7 +311,7 @@ def test_readiness_is_blocked_not_approval_only(tmp_path: Path) -> None:
     assert "READY_FOR_APPROVAL" not in report["verdict"]
     assert "approval-only" in report["verdict_reason"]
     by_name = {gate["name"]: gate for gate in report["gates"]}
-    assert by_name["constructor_config"]["status"] == "BLOCKED"
+    assert by_name["constructor_config"]["status"] == "PASS"
     assert by_name["execution_authorization"]["status"] == "BLOCKED"
     assert by_name["source_runtime_pins"]["status"] == "PASS"
     assert {arm["spec"]["est_cost_usd"] for arm in report["arms"]} == {2.5}
@@ -332,3 +332,25 @@ def test_readiness_is_blocked_not_approval_only(tmp_path: Path) -> None:
         )
         == 0
     )
+
+
+def test_managed_repl_backend_constructs_without_aiohttp_wheels(tmp_path: Path) -> None:
+    import inspect
+
+    from evallab.rlm_runtime import ManagedReplBackend
+
+    params = inspect.signature(ManagedReplBackend.__init__).parameters
+    assert "aiohttp_wheels" not in params
+    worker = tmp_path / "worker.py"
+    worker.write_text("print('cpu-protocol-only')\n")
+
+    class _Env:
+        async def upload_file(self, source_path: object, target_path: object) -> None:
+            del source_path, target_path
+
+        async def exec(self, command: str, timeout_sec: float | None = None) -> object:
+            del command, timeout_sec
+            return type("R", (), {"stdout": "", "stderr": "", "return_code": 0})()
+
+    backend = ManagedReplBackend(_Env(), worker_src=worker, session_id="cpu-construct")
+    assert backend.identity["kind"] == "managed_environment_handle"

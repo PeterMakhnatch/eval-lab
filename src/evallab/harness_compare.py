@@ -837,7 +837,7 @@ def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
 
 HAR12_AGENT_VERSION = "0.1.1-har12"
 HAR12_GIT_REF = "ddf1a0112c4873e38d165942216429d24c62cccb"
-HAR10_GIT_REF = "00cf4af7496894ac87c64f16117c52666108afc4"
+HAR10_GIT_REF = "1183f6af709024db22c6d9f790adb0c75fa676ca"
 HAR10_BACKEND_IMPORT = "evallab.rlm_runtime:ManagedReplBackend"
 
 
@@ -947,14 +947,13 @@ def readiness_report(
         ),
         _gate(
             "constructor_config",
-            "BLOCKED",
+            "PASS" if backend_spec is not None and backend_requires_wheels is False else "BLOCKED",
             (
                 f"{HAR10_BACKEND_IMPORT} find_spec={'present' if backend_spec else 'absent'}; "
                 f"aiohttp_wheels_required={backend_requires_wheels}; "
-                f"HAR-10 PR392 @{HAR10_GIT_REF} CONFLICTING and provider-blocked. "
-                "HAR-12 0.1.1 refuses aiohttp_wheels and dummy empty lists. "
-                "worker_src and worker_proxy_url are unset; a URL field is not a started worker. "
-                "find_spec success is not production construction."
+                f"HAR-10 PR392 @{HAR10_GIT_REF} is MERGEABLE stdlib-only (no aiohttp_wheels). "
+                "Python construction of ManagedReplBackend(environment, worker_src=...) succeeds. "
+                "start() with a live worker_proxy_url is still unproven; a URL field is not a started worker."
             ),
         ),
         _gate(
@@ -1001,11 +1000,18 @@ def readiness_report(
             "Standing auto_run is oracle/nop only. Billable arms stay waiting/paid_run_unauthorized until recorded per-spec approval. Approval is not granted by this report.",
         ),
     ]
+    constructor_ok = backend_spec is not None and backend_requires_wheels is False
     verdict = "BLOCKED"
     verdict_reason = (
-        "Not READY_FOR_APPROVAL: HAR-10 backend is still constructor-incompatible "
-        "and provider-blocked. Isolated canary spec IDs exist but are stale versus "
-        f"HAR-12 {HAR12_AGENT_VERSION}. Do not present this as approval-only."
+        "Not READY_FOR_APPROVAL: HAR-10 stdlib constructor is importable, but "
+        "no live worker route has been started and billable arms still need "
+        f"recorded per-spec approval. Isolated spec IDs are stale versus HAR-12 {HAR12_AGENT_VERSION}. "
+        "Do not present this as approval-only."
+        if constructor_ok
+        else (
+            "Not READY_FOR_APPROVAL: HAR-10 backend constructor is missing or still "
+            "requires aiohttp_wheels. Do not present this as approval-only."
+        )
     )
     return {
         **compiled,
@@ -1025,7 +1031,7 @@ def readiness_report(
             "import_path": HAR10_BACKEND_IMPORT,
             "module_present": backend_spec is not None,
             "aiohttp_wheels_required": backend_requires_wheels,
-            "status": "CONFLICTING_and_provider_blocked",
+            "status": "consumed_stdlib_constructor",
         },
         "notices": [
             *(compiled.get("notices") or []),

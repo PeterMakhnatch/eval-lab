@@ -94,7 +94,7 @@ def sanitize_readiness_report(report: dict[str, Any]) -> dict[str, Any]:
     verdict = sanitized.get("verdict")
     current_pair = sanitized.get("current_pair")
     pair_status = current_pair.get("status") if isinstance(current_pair, dict) else None
-    block_all = (verdict == "BLOCKED") or (pair_status != "present")
+    block_all = (verdict != "READY_FOR_APPROVAL") or (pair_status != "present")
 
     for arm in sanitized.get("arms") or []:
         if isinstance(arm, dict) and isinstance(arm.get("hold"), dict) and block_all:

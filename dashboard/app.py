@@ -74,18 +74,14 @@ def load_research_snapshot(
     return {
         "leaderboard": load("leaderboard", lambda: leaderboard(source), []),
         "canaries": load("canaries", lambda: canary_history(source), []),
-        "spend": load(
-            "spend", lambda: spend_history(source, through=report_day, days=7), []
-        ),
+        "spend": load("spend", lambda: spend_history(source, through=report_day, days=7), []),
         "ceiling": load(
             "ceiling", lambda: daily_ceiling(root / "policy/standing-approvals.yaml"), 0.0
         ),
         "queue": load("queue", lambda: queue_funnel(root / "queue"), []),
         "calibrations": load(
             "calibrations",
-            lambda: calibration_history(
-                source, records_root=root / "research/calibration/records"
-            ),
+            lambda: calibration_history(source, records_root=root / "research/calibration/records"),
             [],
         ),
         "atif": load("atif", lambda: atif_activity(source), {}),
@@ -314,7 +310,9 @@ ops_trials = research.get("operations_trials", [])
 refused_trials = [t for t in ops_trials if t.get("outcome_class") == "refused"]
 if refused_trials:
     with st.expander(f"Refusal & unscored trials ({len(refused_trials)} observed)", expanded=False):
-        st.caption("Refusal reasons displayed explicitly rather than coercing missing outcomes to zero.")
+        st.caption(
+            "Refusal reasons displayed explicitly rather than coercing missing outcomes to zero."
+        )
         refusal_table = [
             {
                 "cohort": t.get("cohort"),
@@ -336,9 +334,7 @@ st.caption(
     "table below instead."
 )
 if research["leaderboard"]:
-    st.dataframe(
-        _leaderboard_rows(research["leaderboard"]), width="stretch", hide_index=True
-    )
+    st.dataframe(_leaderboard_rows(research["leaderboard"]), width="stretch", hide_index=True)
 elif "leaderboard" in research["errors"]:
     st.warning(f"Leaderboard unavailable: {research['errors']['leaderboard']}")
 else:
@@ -397,9 +393,7 @@ else:
 
 st.header("Calibration history")
 if research["calibrations"]:
-    st.dataframe(
-        _calibration_rows(research["calibrations"]), width="stretch", hide_index=True
-    )
+    st.dataframe(_calibration_rows(research["calibrations"]), width="stretch", hide_index=True)
 elif "calibrations" in research["errors"]:
     st.warning(f"Calibration history unavailable: {research['errors']['calibrations']}")
 else:
@@ -444,3 +438,13 @@ st.caption(
     "with per-field provenance and copyable next-action commands:"
 )
 st.code("uv run --with streamlit==1.61.1 streamlit run dashboard/explorer.py", language="bash")
+st.subheader("Paired harness comparison")
+st.caption(
+    "HAR-11 operator journey: compile or submit linked baseline/candidate specs "
+    "through existing Lab policy, then inspect queue state and jobs. Buttons on "
+    "that page call evallab.harness_compare; unapproved model jobs remain held."
+)
+st.code(
+    "uv run --with streamlit==1.61.1 streamlit run dashboard/harness_compare.py",
+    language="bash",
+)

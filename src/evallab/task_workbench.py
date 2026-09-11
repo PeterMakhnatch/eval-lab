@@ -8269,7 +8269,35 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="explicit retained companion source root for external audits",
     )
-    experiment_cmd.add_argument("--format", choices=("text", "json"), default="text")
+    paired_cmd = subparsers.add_parser(
+        "paired-compare",
+        help="prepare or inspect a paired harness comparison through existing Lab policy",
+    )
+    paired_cmd.add_argument("--repo-root", type=Path, default=Path.cwd())
+    paired_cmd.add_argument("--manifest", type=Path, help="frozen paired comparison manifest")
+    paired_cmd.add_argument(
+        "--cohort",
+        type=Path,
+        help="Factory cohort.json; composed into the paired manifest with arm/model bindings",
+    )
+    paired_cmd.add_argument("--baseline-profile", default=None)
+    paired_cmd.add_argument("--candidate-profile", default=None)
+    paired_cmd.add_argument("--root-model", help="shared configured root model id")
+    paired_cmd.add_argument("--root-revision", help="immutable root revision when known")
+    paired_cmd.add_argument(
+        "--worker-model", help="fixed worker id; defaults to root on cohort compose"
+    )
+    paired_cmd.add_argument("--comparison-id", help="existing comparison_id for inspect")
+    paired_cmd.add_argument("--analysis-report", type=Path)
+    paired_cmd.add_argument("--queue-root", type=Path)
+    paired_cmd.add_argument("--submitted-by", default="harness-first-integration")
+    paired_cmd.add_argument(
+        "--all-tasks",
+        action="store_true",
+        help="compile the full bounded matrix, not only the canary",
+    )
+    paired_cmd.add_argument("--format", choices=("text", "json"), default="text")
+    paired_cmd.add_argument("paired_command", choices=("prepare", "submit", "inspect", "readiness"))
     return parser
 
 
@@ -8282,6 +8310,102 @@ def run_cli(
     args = parser.parse_args(list(argv) if argv is not None else None)
     repo_root = args.repo_root.resolve()
     try:
+        if args.command == "paired-compare":
+            from evallab.harness_compare import (
+                DEFAULT_BASELINE_PROFILE,
+                DEFAULT_CANDIDATE_PROFILE,
+                HarnessCompareError,
+                compile_pair,
+                inspect_pair,
+                load_pair_inputs,
+                readiness_report,
+                render_pair_text,
+                submit_pair,
+            )
+
+            try:
+                analysis_rel = None
+                if args.analysis_report is not None:
+                    try:
+                        analysis_rel = (
+                            args.analysis_report.resolve().relative_to(repo_root).as_posix()
+                        )
+                    except ValueError:
+                        analysis_rel = None
+                if args.paired_command in {"prepare", "submit", "readiness"}:
+                    manifest = load_pair_inputs(
+                        manifest_path=args.manifest,
+                        cohort_path=args.cohort,
+                        baseline_profile=args.baseline_profile or DEFAULT_BASELINE_PROFILE,
+                        candidate_profile=args.candidate_profile or DEFAULT_CANDIDATE_PROFILE,
+                        root_model=args.root_model,
+                        root_revision=args.root_revision,
+                        worker_model=args.worker_model,
+                        analysis_report=analysis_rel,
+                    )
+                    if args.paired_command == "prepare":
+                        report = compile_pair(
+                            repo_root,
+                            manifest,
+                            submitted_by=args.submitted_by,
+                            canary_only=not args.all_tasks,
+                        )
+                    elif args.paired_command == "readiness":
+                        report = readiness_report(
+                            repo_root,
+                            manifest,
+                            submitted_by=args.submitted_by,
+                            queue_root=args.queue_root,
+                        )
+                    else:
+                        report = submit_pair(
+                            repo_root,
+                            manifest,
+                            submitted_by=args.submitted_by,
+                            canary_only=not args.all_tasks,
+                            queue_root=args.queue_root,
+                        )
+                else:
+                    comparison_id = args.comparison_id
+                    analysis = args.analysis_report
+                    if comparison_id is None:
+                        if (
+                            args.cohort is not None
+                            and args.manifest is None
+                            and not args.root_model
+                        ):
+                            payload = json.loads(args.cohort.read_text(encoding="utf-8"))
+                            comparison_id = str(payload.get("cohort_id") or "")
+                            if not comparison_id:
+                                raise WorkbenchError("cohort.json is missing cohort_id")
+                        else:
+                            loaded = load_pair_inputs(
+                                manifest_path=args.manifest,
+                                cohort_path=args.cohort,
+                                baseline_profile=args.baseline_profile or DEFAULT_BASELINE_PROFILE,
+                                candidate_profile=args.candidate_profile
+                                or DEFAULT_CANDIDATE_PROFILE,
+                                root_model=args.root_model,
+                                root_revision=args.root_revision,
+                                worker_model=args.worker_model,
+                                analysis_report=analysis_rel,
+                            )
+                            comparison_id = loaded.comparison_id
+                            if analysis is None and loaded.analysis_report:
+                                analysis = repo_root / loaded.analysis_report
+                    report = inspect_pair(
+                        repo_root,
+                        comparison_id=comparison_id,
+                        analysis_report=analysis,
+                        queue_root=args.queue_root,
+                    )
+            except HarnessCompareError as exc:
+                raise WorkbenchError(str(exc)) from exc
+            if args.format == "text":
+                sys.stdout.write(render_pair_text(report))
+            else:
+                sys.stdout.buffer.write(_canonical_bytes(report))
+            return 0
         if args.command == "experiment":
             from evallab.explorer import inspect_experiment, render_experiment_text
 

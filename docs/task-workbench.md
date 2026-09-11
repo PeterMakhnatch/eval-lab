@@ -440,6 +440,48 @@ packet has eight control trials and two such failures. Producer-reported ingesti
 totals remain reported metadata, not a live catalogue check or an expanded
 control denominator. Both formats retain source paths and qualifications.
 
+### Prepare and inspect a paired harness comparison
+
+```bash
+# Factory cohort.json is not a paired manifest. Compose it:
+python -m evallab.task_workbench paired-compare prepare \
+  --repo-root path/to/lab \
+  --cohort research/experiments/harness-first/cohort.json \
+  --baseline-profile mini-swe-agent-deepseek-v4-flash \
+  --candidate-profile authors-rlm-deepseek-v4-flash \
+  --root-model deepseek/deepseek-v4-flash \
+  --format text
+
+# Submit through DirectoryQueue and PolicyGate. Oracle/nop auto-admit.
+# Billable model arms stay in waiting with paid_run_unauthorized.
+python -m evallab.task_workbench paired-compare submit \
+  --repo-root path/to/lab --cohort research/experiments/harness-first/cohort.json \
+  --root-model deepseek/deepseek-v4-flash --format json
+
+# Link queue rows, emit CohortComparisonSpec when both arms have jobs,
+# and consume a HAR-13 report.json or analysis directory.
+python -m evallab.task_workbench paired-compare inspect \
+  --repo-root path/to/lab --cohort research/experiments/harness-first/cohort.json \
+  --analysis-report path/to/har13-output
+```
+
+`paired-compare` is the Lab front door for the harness-first mini-swe-agent
+versus authors-RLM comparison. Factory `cohort.json` / `compile.py` own task
+identities and lineage; Integration supplies the arm profiles and shared root
+model. `spec.model` is the requested root id and must match both profile pins.
+A mismatch fails closed instead of echoing a label while compiling a different
+model. Profiles bind adapter, model pin and credential *identifiers* only.
+Unknown profiles fail closed. Import paths that do not resolve stay
+`runtime.unavailable` rather than executing a fallback or stub agent.
+
+The first launch compiles the Factory canary (`event-summary`) unless
+`--all-tasks` is passed. This command does not tick Harbor, approve spend, or
+claim a win. Operator UI: `streamlit run dashboard/harness_compare.py`. Approve
+a held spec with `uv run evallab approve <spec-id> --actor <you>` when Peter
+records approval. HAR-13 consumes the emitted `CohortComparisonSpec`; missing
+jobs keep that spec unset.
+
+
 ### Inspect experiments and capture gaps
 
 ```bash

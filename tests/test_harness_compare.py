@@ -354,3 +354,72 @@ def test_managed_repl_backend_constructs_without_aiohttp_wheels(tmp_path: Path) 
 
     backend = ManagedReplBackend(_Env(), worker_src=worker, session_id="cpu-construct")
     assert backend.identity["kind"] == "managed_environment_handle"
+
+
+def test_managed_repl_backend_start_stop_kills_only_owned_pids(tmp_path: Path) -> None:
+    import asyncio
+    import shutil
+    import socket
+    import subprocess
+    from types import SimpleNamespace
+
+    from evallab.rlm_runtime import ManagedReplBackend
+
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import json, sys\n"
+        "sys.stdout.write(json.dumps({'id': '_init', 'ok': True}) + '\\n')\n"
+        "sys.stdout.flush()\n"
+        "for _ in sys.stdin:\n"
+        "    pass\n"
+    )
+    work_root = tmp_path / "rlm-work"
+    env_marker = tmp_path / "trial-env-survives"
+    env_marker.write_text("keep\n")
+
+    class HostEnv:
+        async def upload_file(self, src: object, dst: object) -> None:
+            destination = Path(str(dst))
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, destination)
+
+        async def exec(self, command: str, timeout_sec: float | None = None) -> object:
+            completed = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec or 30,
+            )
+            return SimpleNamespace(
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                return_code=completed.returncode,
+            )
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    async def exercise() -> None:
+        backend = ManagedReplBackend(
+            HostEnv(),
+            worker_src=worker,
+            work_root=str(work_root),
+            bridge_port=port,
+            session_id="cpu-start",
+            startup_timeout=20,
+            teardown_timeout=10,
+        )
+        await backend.start("http://127.0.0.1:9", "cpu-rollout")
+        assert backend._started is True
+        assert backend._bridge_pid is not None
+        assert backend._relay_pid is not None
+        await backend.stop()
+        assert backend._started is False
+        assert backend.teardown_failed is None
+
+    asyncio.run(exercise())
+    assert env_marker.is_file()
+    assert not work_root.exists()

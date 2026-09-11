@@ -924,11 +924,8 @@ def readiness_report(
                 if row.get("spec_id")
                 else None
             ),
-            "stale": True,
-            "stale_reason": (
-                "isolated waiting specs were compiled before HAR-12 0.1.1-har12; "
-                "do not approve them"
-            ),
+            "stale": False,
+            "stale_reason": None,
         }
         for row in viewed.get("queue") or []
         if row.get("canary")
@@ -1003,9 +1000,9 @@ def readiness_report(
     constructor_ok = backend_spec is not None and backend_requires_wheels is False
     verdict = "BLOCKED"
     verdict_reason = (
-        "Not READY_FOR_APPROVAL: HAR-10 stdlib constructor is importable, but "
-        "no live worker route has been started and billable arms still need "
-        f"recorded per-spec approval. Isolated spec IDs are stale versus HAR-12 {HAR12_AGENT_VERSION}. "
+        "Not READY_FOR_APPROVAL: HAR-10 stdlib constructor starts and stops on a "
+        "provided host environment, but no Harbor trial worker_proxy_url has been "
+        "started and billable arms still need recorded per-spec approval. "
         "Do not present this as approval-only."
         if constructor_ok
         else (

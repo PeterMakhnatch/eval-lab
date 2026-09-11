@@ -951,6 +951,12 @@ def _verify_task_identity(
     if entry.registered_ref:
         ref_id = entry.registered_ref.removeprefix("registered/")
         record = registry.get(ref_id)
+        if record is None:
+            return (
+                "FAIL",
+                f"registered_ref {entry.registered_ref!r} is not in library/registry",
+                "resolved",
+            )
     if record is None and entry.task_id:
         record = registry.get(entry.task_id)
     if record is None:
@@ -1091,7 +1097,9 @@ def _evaluate_freshness(
             True,
             f"manifest_digest mismatch: queued {row_manifest_digest[:16]}... vs current {c_point.get('manifest_digest', '')[:16]}...",
         )
-    if row.get("agent") and row.get("agent") != c_spec.get("agent"):
+    row_agent = row.get("agent") or None
+    compiled_agent = c_spec.get("agent") or None
+    if row_agent != compiled_agent:
         return (
             "stale",
             True,
@@ -1103,7 +1111,9 @@ def _evaluate_freshness(
             True,
             f"model mismatch: queued {row.get('model')!r} vs expected {c_spec.get('model')!r}",
         )
-    if row.get("task") and c_spec.get("task") and row.get("task") != c_spec.get("task"):
+    row_task = row.get("task") or None
+    compiled_task = c_spec.get("task") or None
+    if row_task != compiled_task:
         return (
             "stale",
             True,
@@ -1195,10 +1205,19 @@ def _evaluate_current_pair(spec_ids: list[dict[str, Any]]) -> dict[str, Any]:
         }
 
     if len(current_baselines) == 1 and len(current_candidates) == 1:
+        baseline_id = current_baselines[0].get("spec_id")
+        candidate_id = current_candidates[0].get("spec_id")
+        if not baseline_id or not candidate_id:
+            return {
+                "status": "unverifiable",
+                "baseline_spec_id": None,
+                "candidate_spec_id": None,
+                "reason": "metadata-current arms are missing spec_id; cannot select a pair",
+            }
         return {
             "status": "present",
-            "baseline_spec_id": current_baselines[0]["spec_id"],
-            "candidate_spec_id": current_candidates[0]["spec_id"],
+            "baseline_spec_id": baseline_id,
+            "candidate_spec_id": candidate_id,
             "reason": "exactly one metadata-current spec found for both baseline and candidate arms",
         }
 
@@ -1352,6 +1371,8 @@ def readiness_report(
     for row in viewed.get("queue") or []:
         is_canary = row.get("canary")
         row_arm = row.get("arm")
+        if is_canary is False:
+            continue
         if not (is_canary or row_arm in {"baseline", "candidate", "mini-swe", "authors-rlm"}):
             continue
         if row_arm in {"baseline", "mini-swe"}:
@@ -1442,9 +1463,9 @@ def readiness_report(
         ),
         _gate(
             "usage_unknowns",
-            "PASS",
+            "UNKNOWN",
             "No model trial has run. Root/worker tokens, cost, ATIF, and revision stay unknown/null. Missing usage is not zero.",
-            "declared",
+            "unavailable",
         ),
         estimates_gate,
         _gate(
@@ -1454,7 +1475,7 @@ def readiness_report(
                 "Standing auto_run is oracle/nop only. Billable arms stay waiting/paid_run_unauthorized "
                 "until recorded per-spec approval. Approval is not granted by this report."
             ),
-            "runtime",
+            "declared",
         ),
     ]
     verdict = "BLOCKED"

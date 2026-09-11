@@ -514,8 +514,10 @@ def test_readiness_queue_projections(tmp_path: Path) -> None:
     # 2. Compile current pair metadata to build synthetic queue specs
     compiled = compile_pair(tmp_path, manifest, submitted_by="har-11")
     arms_by_role = {arm["role"]: arm for arm in compiled["arms"]}
-    base_spec = arms_by_role["baseline"]["spec"]
-    cand_spec = arms_by_role["candidate"]["spec"]
+    base_spec = json.loads(json.dumps(arms_by_role["baseline"]["spec"]))
+    cand_spec = json.loads(json.dumps(arms_by_role["candidate"]["spec"]))
+    base_spec["spec_id"] = "base-current"
+    cand_spec["spec_id"] = "cand-current"
 
     queue_dir = tmp_path / "synthetic_queue"
     waiting_dir = queue_dir / "waiting"
@@ -622,7 +624,9 @@ def test_current_metadata_pair_never_clears_runtime_or_approval_blocks(tmp_path:
         )
     )
     compiled = compile_pair(tmp_path, manifest, submitted_by="har-11")
-    arms = {arm["role"]: arm["spec"] for arm in compiled["arms"]}
+    arms = {arm["role"]: json.loads(json.dumps(arm["spec"])) for arm in compiled["arms"]}
+    arms["baseline"]["spec_id"] = "base-current"
+    arms["candidate"]["spec_id"] = "cand-current"
 
     queue_dir = tmp_path / "queue"
     waiting = queue_dir / "waiting"
@@ -751,3 +755,99 @@ def test_readiness_no_backend_imports_or_queue_mutations(tmp_path: Path) -> None
         if p.is_file()
     }
     assert snapshot_before == snapshot_after
+
+
+def test_har24_missing_spec_id_is_unverifiable_not_present(tmp_path: Path) -> None:
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="missing-spec-id",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    compiled = compile_pair(tmp_path, manifest, submitted_by="har-24")
+    arms = {arm["role"]: json.loads(json.dumps(arm["spec"])) for arm in compiled["arms"]}
+    queue_dir = tmp_path / "queue"
+    waiting = queue_dir / "waiting"
+    waiting.mkdir(parents=True)
+    (waiting / "base.json").write_text(json.dumps(arms["baseline"]))
+    (waiting / "cand.json").write_text(json.dumps(arms["candidate"]))
+    report = readiness_report(tmp_path, manifest, submitted_by="har-24", queue_root=queue_dir)
+    assert report["current_pair"]["status"] != "present"
+    assert report["current_pair"]["baseline_spec_id"] is None
+    assert report["current_pair"]["candidate_spec_id"] is None
+
+
+def test_har24_usage_unknowns_are_unknown_without_a_trial(tmp_path: Path) -> None:
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="usage-unknowns",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    report = readiness_report(tmp_path, manifest, submitted_by="har-24")
+    gates = {g["name"]: g for g in report["gates"]}
+    assert gates["usage_unknowns"]["status"] == "UNKNOWN"
+    assert gates["usage_unknowns"]["evidence_kind"] == "unavailable"
+    assert gates["execution_authorization"]["status"] == "BLOCKED"
+    assert gates["execution_authorization"]["evidence_kind"] == "declared"
+    assert gates["constructor_config"]["status"] == "PASS"
+    assert gates["constructor_config"]["evidence_kind"] == "declared"
+    assert report["estimates"]["coverage"] == "unknown"
+    assert report["estimates"]["baseline_usd"] is None
+    assert report["estimates"]["candidate_usd"] is None
+
+
+def test_har24_invalid_registered_ref_does_not_pass(tmp_path: Path) -> None:
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "task-alpha", rel_path="library/tasks/task-alpha")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="bad-ref",
+            tasks=[
+                {
+                    "task": "library/tasks/task-alpha",
+                    "canary": True,
+                    "registered_ref": "registered/nonexistent-ref",
+                }
+            ],
+        )
+    )
+    report = readiness_report(tmp_path, manifest, submitted_by="har-24")
+    gates = {g["name"]: g for g in report["gates"]}
+    assert gates["task_verifier_identity"]["status"] != "PASS"
+
+
+def test_har24_non_canary_mini_swe_alias_is_not_selected(tmp_path: Path) -> None:
+    _policy(tmp_path)
+    _make_registered_task(tmp_path, "event-summary")
+    manifest = load_manifest(
+        _manifest(
+            tmp_path,
+            comparison_id="non-canary-alias",
+            tasks=[{"task": "library/tasks/event-summary", "canary": True}],
+        )
+    )
+    compiled = compile_pair(tmp_path, manifest, submitted_by="har-24")
+    arms = {arm["role"]: json.loads(json.dumps(arm["spec"])) for arm in compiled["arms"]}
+    arms["candidate"]["spec_id"] = "cand-ok"
+    non_canary = json.loads(json.dumps(arms["baseline"]))
+    non_canary["spec_id"] = "mini-swe-noncanary-1"
+    non_canary["grid_point"]["arm"] = "mini-swe"
+    non_canary["grid_point"]["canary"] = False
+    queue_dir = tmp_path / "queue"
+    waiting = queue_dir / "waiting"
+    waiting.mkdir(parents=True)
+    (waiting / "cand.json").write_text(json.dumps(arms["candidate"]))
+    (waiting / "noncanary.json").write_text(json.dumps(non_canary))
+    report = readiness_report(tmp_path, manifest, submitted_by="har-24", queue_root=queue_dir)
+    assert report["current_pair"]["baseline_spec_id"] != "mini-swe-noncanary-1"
+    assert all(row["spec_id"] != "mini-swe-noncanary-1" for row in report["spec_ids"])
+    assert report["current_pair"]["status"] in {"incomplete", "absent", "unverifiable"}
+

@@ -5,7 +5,8 @@ from pathlib import Path
 
 import yaml
 
-from dashboard.harness_compare import run_operator_action
+from dashboard.harness_compare import run_operator_action, sanitize_readiness_report
+from evallab.harness_compare import render_pair_text
 
 
 def test_submit_button_path_holds_unapproved_model(tmp_path: Path) -> None:
@@ -53,3 +54,34 @@ def test_submit_button_path_holds_unapproved_model(tmp_path: Path) -> None:
     assert by_role["baseline"]["admitted"] is True
     assert by_role["candidate"]["hold"]["reason_code"] == "paid_run_unauthorized"
     assert by_role["candidate"]["queue_state"] == "waiting"
+
+
+def test_har24_fail_verdict_with_present_pair_suppresses_approval() -> None:
+    report = {
+        "kind": "harness_paired_readiness",
+        "verdict": "FAIL",
+        "current_pair": {
+            "status": "present",
+            "baseline_spec_id": "b",
+            "candidate_spec_id": "c",
+        },
+        "arms": [
+            {
+                "role": "candidate",
+                "hold": {"approval_command": "uv run evallab approve C --actor you"},
+            }
+        ],
+        "spec_ids": [
+            {
+                "spec_id": "c",
+                "freshness": "current",
+                "stale": False,
+                "approval_command": "uv run evallab approve C --actor you",
+            }
+        ],
+    }
+    sanitized = sanitize_readiness_report(report)
+    assert sanitized["arms"][0]["hold"]["approval_command"] is None
+    assert sanitized["spec_ids"][0]["approval_command"] is None
+    assert "uv run evallab approve" not in render_pair_text(sanitized)
+

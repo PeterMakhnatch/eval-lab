@@ -93,6 +93,7 @@ def test_compile_tb4_produces_complete_66_task_job_plan(tmp_path: Path) -> None:
     assert plan["pin"]["schema_unchanged"] is True
     assert plan["timeout_seconds"] == 28_800
     assert plan["task_count"] == 66
+    assert plan["selected_task_count"] == 66
     assert plan["non_comparable"] is True
     assert plan["floating_refs_forbidden"] is True
     assert plan["provider"]["agent"] == "zai-opencode"
@@ -227,6 +228,7 @@ def test_compile_tb4_provider_and_model_selection(tmp_path: Path) -> None:
     # Permitted flash model
     plan_flash = craft.compile_tb4(v4, model="zai-coding-plan/glm-5.3-flash")
     assert plan_flash["provider"]["selected_model"] == "zai-coding-plan/glm-5.3-flash"
+    assert plan_flash["provider"]["provider_family"] == "zai"
     assert all(t["model"] == "zai-coding-plan/glm-5.3-flash" for t in plan_flash["tasks"])
 
     # Refuse highspeed model
@@ -240,8 +242,81 @@ def test_compile_tb4_provider_and_model_selection(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="invalid model selector"):
         craft.compile_tb4(v4, model="openai/gpt-4o")
 
+    # DeepSeek model with default zai-opencode agent is refused
     with pytest.raises(ValueError, match="invalid model selector"):
         craft.compile_tb4(v4, model="deepseek/deepseek-v4-flash")
+
+    # DeepSeek model with mini-swe-agent is permitted
+    plan_ds_mini = craft.compile_tb4(
+        v4, model="deepseek/deepseek-v4-flash", agent="mini-swe-agent"
+    )
+    assert plan_ds_mini["provider"]["provider_family"] == "deepseek"
+    assert plan_ds_mini["provider"]["selected_agent"] == "mini-swe-agent"
+    assert plan_ds_mini["provider"]["selected_model"] == "deepseek/deepseek-v4-flash"
+    assert all(t["model"] == "deepseek/deepseek-v4-flash" for t in plan_ds_mini["tasks"])
+    assert all(t["agent"] == "mini-swe-agent" for t in plan_ds_mini["tasks"])
+
+    # DeepSeek model with DSH agent is permitted
+    plan_ds_dsh = craft.compile_tb4(
+        v4,
+        model="deepseek/deepseek-v4-flash",
+        agent="evallab.harbor_dsh:DeepSeekHarnessAgent",
+    )
+    assert plan_ds_dsh["provider"]["provider_family"] == "deepseek"
+    assert plan_ds_dsh["provider"]["selected_agent"] == "evallab.harbor_dsh:DeepSeekHarnessAgent"
+
+    # DeepSeek model with unknown agent is refused
+    with pytest.raises(ValueError, match="invalid model selector"):
+        craft.compile_tb4(v4, model="deepseek/deepseek-v4-flash", agent="codex")
+
+
+def test_compile_tb4_include_tasks_subset(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    inventory = craft.load_migration_record()["expected_inventory"]
+    # Pick two tasks: first as short name, second as full ref
+    first_short = inventory[0].split("/", 1)[1]
+    second_full = inventory[1]
+
+    # Full compile for manifest digest baseline
+    full_plan = craft.compile_tb4(v4)
+
+    # Subset compile mixing short name and full ref
+    subset_plan = craft.compile_tb4(
+        v4,
+        include_tasks=[first_short, second_full],
+    )
+
+    assert subset_plan["task_count"] == 66
+    assert subset_plan["selected_task_count"] == 2
+    assert len(subset_plan["tasks"]) == 2
+    assert subset_plan["manifest_digest"] == full_plan["manifest_digest"]
+
+    # Verify task entries order and fields
+    assert subset_plan["tasks"][0]["task_ref"] == inventory[0]
+    assert subset_plan["tasks"][1]["task_ref"] == inventory[1]
+    for task_entry in subset_plan["tasks"]:
+        assert len(task_entry["task_id"]) == 26
+        assert task_entry["task_digest"].startswith("sha256:")
+        assert task_entry["timeout_seconds"] == 28_800
+        assert task_entry["agent"] == "zai-opencode"
+        assert task_entry["model"] == "zai-coding-plan/glm-5.3"
+
+    # Unknown task name raises ValueError naming the unknown entry
+    with pytest.raises(ValueError, match="no-such-task"):
+        craft.compile_tb4(v4, include_tasks=["no-such-task"])
+
+    # 66-task inventory guard still fires under a subset request
+    v4_missing = tmp_path / "v4_missing"
+    v4_missing.mkdir(parents=True)
+    (v4_missing / "dataset.toml").write_text(
+        '[dataset]\nname = "terminal-bench/terminal-bench"\nversion = "4.0.0"\n',
+        encoding="utf-8",
+    )
+    for ref in inventory[:-1]:
+        _tb_task(v4_missing, ref.split("/", 1)[1])
+
+    with pytest.raises(ValueError, match="task count drift|missing expected task"):
+        craft.compile_tb4(v4_missing, include_tasks=[first_short])
 
 
 def test_compile_tb4_refuses_floating_refs_and_unpinned_checkouts(tmp_path: Path) -> None:
@@ -284,6 +359,7 @@ def test_compile_tb4_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture
     data = json.loads(stdout)
     assert data["plan_version"] == "tb4-job-plan/1"
     assert data["task_count"] == 66
+    assert data["selected_task_count"] == 66
     assert out_file.is_file()
 
     # Successful compile via CLI with plain text summary
@@ -300,6 +376,46 @@ def test_compile_tb4_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture
     text_out = capsys.readouterr().out
     assert "craft compile" in text_out
     assert "66 tasks, flat timeout 28800s (8h)" in text_out
+
+    # CLI compile with --include-task
+    inventory = craft.load_migration_record()["expected_inventory"]
+    short_task = inventory[0].split("/", 1)[1]
+    full_task = inventory[1]
+    subset_out = tmp_path / "cli-subset-plan.json"
+    code_subset = craft.main(
+        [
+            "compile",
+            "--tb4-root",
+            str(v4),
+            "--out",
+            str(subset_out),
+            "--include-task",
+            short_task,
+            "--include-task",
+            full_task,
+            "--json",
+        ]
+    )
+    assert code_subset == 0
+    stdout_subset = capsys.readouterr().out
+    data_subset = json.loads(stdout_subset)
+    assert data_subset["task_count"] == 66
+    assert data_subset["selected_task_count"] == 2
+    assert len(data_subset["tasks"]) == 2
+
+    # CLI rejects unknown --include-task with exit 2 and error text naming task
+    code_unknown = craft.main(
+        [
+            "compile",
+            "--tb4-root",
+            str(v4),
+            "--include-task",
+            "non-existent-task-ref",
+        ]
+    )
+    assert code_unknown == 2
+    err_unknown = capsys.readouterr().err
+    assert "non-existent-task-ref" in err_unknown
 
     # CLI refuses TB3 aggregation flag
     v3 = _v3_fixture(tmp_path / "v3")

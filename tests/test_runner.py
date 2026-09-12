@@ -133,7 +133,7 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
     request = RunRequest(
         task=task(tmp_path),
         agent="mini-swe-agent",
-        model="deepseek/deepseek-v4-flash",
+        model="deepseek/deepseek-flash",
         name="deepseek-pinned-test",
         jobs_dir=tmp_path / "runs",
         allow_billable=True,
@@ -145,7 +145,7 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
         "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
     )
     assert command[command.index("--agent") + 1] == resolve_harbor_agent("mini-swe-agent")
-    assert command[command.index("--model") + 1] == "deepseek/deepseek-v4-flash"
+    assert command[command.index("--model") + 1] == "deepseek/deepseek-flash"
     assert command[command.index("--n-concurrent-agents") + 1] == "1"
     assert command[command.index("--n-tasks") + 1] == "1"
     assert command[command.index("--max-retries") + 1] == "0"
@@ -160,7 +160,7 @@ def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
         RunRequest(
             task=task(tmp_path),
             agent="mini-swe-agent",
-            model="deepseek/deepseek-v4-flash",
+            model="deepseek/deepseek-flash",
             name="deepseek-campaign-bounds",
             jobs_dir=tmp_path / "runs",
             allow_billable=True,
@@ -466,7 +466,7 @@ def test_subscription_command_routes_credential_transports(tmp_path: Path) -> No
     deepseek = RunRequest(
         task=claude.task,
         agent="mini-swe-agent",
-        model="deepseek/deepseek-v4-flash",
+        model="deepseek/deepseek-flash",
         name="deepseek-api",
         jobs_dir=tmp_path / "runs",
         allow_billable=True,
@@ -492,7 +492,7 @@ def test_subscription_command_refuses_when_deepseek_proxy_is_missing(tmp_path: P
     deepseek = RunRequest(
         task=task(tmp_path),
         agent="mini-swe-agent",
-        model="deepseek/deepseek-v4-flash",
+        model="deepseek/deepseek-flash",
         name="deepseek-api",
         jobs_dir=tmp_path / "runs",
         allow_billable=True,

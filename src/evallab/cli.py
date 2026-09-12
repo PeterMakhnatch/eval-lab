@@ -2788,6 +2788,28 @@ def _registry_audit_command(
         print(f"       {finding.message}")
     return 0 if report.passed else 1
 
+def _quality_audit_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.quality_audit import audit_cohort
+
+    report = audit_cohort(root, _resolve(root, args.cohort))
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+
+    print(f"Cohort Quality Audit: {report['cohort_id']} ({report['cohort_digest']})")
+    for member in report["members"]:
+        static = member["static_screening"]
+        codes = ", ".join(static.get("codes", [])) or "no error diagnostics"
+        print(f"  {member['task_id'] or '<unnamed>'}")
+        print(f"    static_screening: {static['status']} [{codes}]")
+        print(f"    semantic_validity: {member['semantic_validity']['status']}")
+        print(f"    difficulty: {member['difficulty']['status']}")
+        print(f"    training_utility: {member['training_utility']['status']}")
+    return 0
+
 
 def _tidy_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -3906,6 +3928,28 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument("--index", action="store_true")
     compare.add_argument("--database-url")
     compare.set_defaults(func=_compare_command)
+
+    quality = commands.add_parser(
+        "quality",
+        help="Read-only quality audits that keep static, semantic, difficulty, and training-utility findings separate",
+    )
+    quality_commands = quality.add_subparsers(dest="quality_command", required=True)
+    quality_audit = quality_commands.add_parser(
+        "audit",
+        help="Audit a pinned task cohort; never certifies semantics or training utility",
+    )
+    quality_audit.add_argument(
+        "--cohort",
+        type=Path,
+        required=True,
+        help="Path to the pinned cohort JSON file",
+    )
+    quality_audit.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the full audit record as JSON",
+    )
+    quality_audit.set_defaults(func=_quality_audit_command)
 
     curve = commands.add_parser(
         "curve", help="Validate, build, or read an empirical paired capability curve"

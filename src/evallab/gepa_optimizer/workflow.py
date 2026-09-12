@@ -13,7 +13,13 @@ from typing import Any
 
 from evallab.cohort import write_comparison
 
-from .evaluator import EvaluationPending, LabEvaluator
+from .evaluator import (
+    DEEPSEEK_TARGET_AGENT,
+    PROVIDER_CEILING_FIELDS,
+    EvaluationPending,
+    LabEvaluator,
+    ProviderCeilings,
+)
 from .proposer import JournaledReflectionLM, ProposalUnavailable
 from .release import verify_release
 
@@ -66,6 +72,7 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "timeout_seconds",
         "objective",
         "max_proposer_requests",
+        "provider_ceilings",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -125,6 +132,25 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("Task identifiers must be unique and validation IDs explicitly declared")
     if not set(ids) - set(val_ids):
         raise ValueError("At least one development task must remain in the train pool")
+    ceilings_raw = raw.get("provider_ceilings")
+    if ceilings_raw is not None:
+        if not isinstance(ceilings_raw, dict) or set(ceilings_raw) != set(
+            PROVIDER_CEILING_FIELDS
+        ):
+            raise ValueError(
+                "provider_ceilings must be an object with exactly the keys "
+                f"{sorted(PROVIDER_CEILING_FIELDS)}"
+            )
+        try:
+            ProviderCeilings(**ceilings_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid provider_ceilings: {exc}") from exc
+    if raw["agent"] == DEEPSEEK_TARGET_AGENT and ceilings_raw is None:
+        raise ValueError(
+            f"DeepSeek target '{DEEPSEEK_TARGET_AGENT}' requires explicit provider_ceilings"
+        )
+    if raw["agent"] in {"oracle", "nop"} and ceilings_raw is not None:
+        raise ValueError("Local controls do not accept provider_ceilings")
     _path(repo_root.resolve(), raw["seed_candidate_path"])
     _path(repo_root.resolve(), raw["output_dir"])
     return raw
@@ -206,6 +232,11 @@ def run_campaign(
         _write(binding_path, binding)
     attempt = output / ("attempt-" + uuid.uuid4().hex)
     attempt.mkdir()
+    ceilings = (
+        ProviderCeilings(**config["provider_ceilings"])
+        if config.get("provider_ceilings") is not None
+        else None
+    )
     evaluator = LabEvaluator(
         repo_root=repo_root,
         output_dir=output / "lab",
@@ -214,6 +245,7 @@ def run_campaign(
         model=config.get("model"),
         timeout_seconds=config.get("timeout_seconds", 1200),
         estimated_cost_usd=config.get("estimated_cost_usd"),
+        ceilings=ceilings,
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]

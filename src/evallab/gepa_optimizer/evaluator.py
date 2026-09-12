@@ -19,14 +19,18 @@ Key Invariants:
    - Tasks must reside within the repository root (repo-relative, no traversal).
    - Task package digests are cryptographically verified against declared values.
 3. Execution Policy Boundary:
-   - Permitted agents: local controls (``oracle``, ``nop`` with model=None) or ready native
+   - Permitted agents: local controls (``oracle``, ``nop`` with model=None), ready native
      profiles (``baseline``, ``released``, ``bootstrap-cwd`` with exact native model
-     ``anthropic/claude-opus-4-6``).
+     ``anthropic/claude-opus-4-6``), or the DeepSeek-first target (``mini-swe-agent``
+     with the exact ``DEEPSEEK_MODEL_SELECTOR`` model and explicit ``ProviderCeilings``).
    - Local controls execute directly via ``Executor.execute_direct`` with ``RunProvenance``.
    - Newly executed and resumed jobs are both validated against exact recorded native provenance.
    - Model-backed evaluations require a genuine cost estimate (``estimated_cost_usd > 0``),
      submit an exact ``ExperimentSpec`` with hypothesis and elicitation purpose to the
-     standing-approvals queue, and NEVER approve it.
+     standing-approvals queue, and NEVER approve it. The DeepSeek target's spec also
+     carries its explicit provider ceilings.
+   - The DeepSeek target additionally binds recorded provider ceilings when persisted,
+     and records observed model identity (matched/unknown/mismatch) without inferring it.
    - Resumption checks ONLY the deterministic job name or retained evaluation receipt;
      no broad directory discovery across unrelated runs.
    - Pending evaluations reuse existing queue specs on resume without duplicate submissions.
@@ -56,6 +60,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from evallab.execution_contracts import (
+    DEEPSEEK_ALLOWED_MODEL,
+    DEEPSEEK_MODEL_SELECTOR,
+    HARBOR_AGENT_IMPORT_PATHS,
+)
 from evallab.queue import Executor, new_ulid
 from evallab.registry import task_directory_digest
 from evallab.results import JobRecord, load_job
@@ -70,7 +79,90 @@ NATIVE_ENTRYPOINTS = {
 }
 PERMITTED_NATIVE_PROFILES = frozenset(NATIVE_ENTRYPOINTS)
 PERMITTED_NATIVE_MODEL = "anthropic/claude-opus-4-6"
-PERMITTED_AGENTS = PERMITTED_CONTROLS | PERMITTED_NATIVE_PROFILES
+DEEPSEEK_TARGET_AGENT = "mini-swe-agent"
+DEEPSEEK_TARGET_IMPORT_PATH = HARBOR_AGENT_IMPORT_PATHS[DEEPSEEK_TARGET_AGENT]
+#: Every model-backed target and its exact pinned model. Meta-Harness profiles keep
+#: the native pin; the DeepSeek-first target pins DEEPSEEK_MODEL_SELECTOR symbolically
+#: so a route rename flows through without edits here.
+PERMITTED_TARGET_MODELS: dict[str, str] = {
+    **{profile: PERMITTED_NATIVE_MODEL for profile in PERMITTED_NATIVE_PROFILES},
+    DEEPSEEK_TARGET_AGENT: DEEPSEEK_MODEL_SELECTOR,
+}
+PERMITTED_AGENTS = PERMITTED_CONTROLS | frozenset(PERMITTED_TARGET_MODELS)
+
+#: Exact keys of a provider_ceilings object, shared with workflow.load_campaign.
+PROVIDER_CEILING_FIELDS: tuple[str, ...] = (
+    "max_requests",
+    "max_input_tokens",
+    "max_output_tokens",
+    "max_total_tokens",
+    "cost_limit_usd",
+)
+
+
+@dataclass(frozen=True)
+class ProviderCeilings:
+    """Explicit per-trial provider ceilings for a model-backed evaluation target.
+
+    All five fields are required and positive; max_total_tokens must not exceed
+    max_input_tokens + max_output_tokens, mirroring
+    execution_contracts.validate_request. Unknown values stay unknown elsewhere;
+    here absence is a refusal, never zero.
+    """
+
+    max_requests: int
+    max_input_tokens: int
+    max_output_tokens: int
+    max_total_tokens: int
+    cost_limit_usd: float
+
+    def __post_init__(self) -> None:
+        for field in (
+            "max_requests",
+            "max_input_tokens",
+            "max_output_tokens",
+            "max_total_tokens",
+        ):
+            value = getattr(self, field)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(
+                    f"ProviderCeilings.{field} must be a positive integer, got {value!r}"
+                )
+        cost = self.cost_limit_usd
+        if (
+            isinstance(cost, bool)
+            or not isinstance(cost, (int, float))
+            or not math.isfinite(cost)
+            or cost <= 0
+        ):
+            raise ValueError(
+                "ProviderCeilings.cost_limit_usd must be a genuine positive finite "
+                f"cap, got {cost!r}"
+            )
+        if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
+            raise ValueError("ProviderCeilings.max_total_tokens exceeds input plus output ceilings")
+        if isinstance(cost, int):
+            object.__setattr__(self, "cost_limit_usd", float(cost))
+
+    def to_spec_kwargs(self) -> dict[str, Any]:
+        """Ceilings as ExperimentSpec keyword arguments."""
+        return {
+            "max_requests": self.max_requests,
+            "max_input_tokens": self.max_input_tokens,
+            "max_output_tokens": self.max_output_tokens,
+            "max_total_tokens": self.max_total_tokens,
+            "cost_limit_usd": self.cost_limit_usd,
+        }
+
+    def expected_usage_limits(self) -> dict[str, int]:
+        """Ceilings as the DeepSeek proxy accounting record persists them."""
+        return {
+            "max_requests": self.max_requests,
+            "max_input_tokens": self.max_input_tokens,
+            "max_output_tokens": self.max_output_tokens,
+            "max_total_tokens": self.max_total_tokens,
+            "max_cost_micros": math.ceil(self.cost_limit_usd * 1_000_000),
+        }
 
 
 class EvaluationPending(Exception):
@@ -253,6 +345,7 @@ def _check_job_provenance(
     expected_task_id: str,
     expected_package_digest: str,
     expected_candidate_sha256: str,
+    expected_ceilings: ProviderCeilings | None = None,
 ) -> bool:
     """Bind the single native trial to its recorded request and fixed profile."""
     locked_trials = job.lock.get("trials")
@@ -261,14 +354,31 @@ def _check_job_provenance(
     # config.json intentionally omits defaults in Harbor 0.21; locks retain the
     # effective request. Never reconstruct historical settings from defaults.
     for locked in (locked_trials[0], job.trials[0].lock):
+        if not isinstance(locked, dict):
+            return False
         extras = locked.get("extra_instructions", [])
         if len(extras) != 1 or extras[0].get("digest") != expected_candidate_sha256:
             return False
         agent = locked.get("agent")
         if not isinstance(agent, dict) or agent.get("model_name") != expected_model:
             return False
-        if expected_agent in NATIVE_ENTRYPOINTS:
-            if agent.get("import_path") != NATIVE_ENTRYPOINTS[expected_agent]:
+        expected_import = (
+            DEEPSEEK_TARGET_IMPORT_PATH
+            if expected_agent == DEEPSEEK_TARGET_AGENT
+            else NATIVE_ENTRYPOINTS.get(expected_agent)
+        )
+        if expected_import is not None:
+            # Harbor's --agent stores an import path in name; explicit
+            # AgentConfig.import_path is another valid persisted representation.
+            name, import_path = agent.get("name"), agent.get("import_path")
+            if import_path is None:
+                if name != expected_import:
+                    return False
+            elif import_path != expected_import or name not in (
+                None,
+                expected_agent,
+                expected_import,
+            ):
                 return False
         elif agent.get("name") != expected_agent or agent.get("import_path"):
             return False
@@ -281,7 +391,46 @@ def _check_job_provenance(
         return False
     if exp.get("package_digest") != expected_package_digest:
         return False
-    return exp.get("preamble_sha256") == expected_candidate_sha256
+    if exp.get("preamble_sha256") != expected_candidate_sha256:
+        return False
+    if expected_ceilings is not None:
+        # The runner persists the enforced ceilings in the DeepSeek accounting
+        # report (metadata provider_usage.limits). A missing or differing
+        # record never matches.
+        provider_usage = job.metadata.get("provider_usage")
+        if not isinstance(provider_usage, dict):
+            return False
+        limits = provider_usage.get("limits")
+        if not isinstance(limits, dict):
+            return False
+        expected_limits = expected_ceilings.expected_usage_limits()
+        if any(limits.get(key) != value for key, value in expected_limits.items()):
+            return False
+        if provider_usage.get("unresolved_requests") != 0:
+            return False
+    return True
+
+
+def _returned_deepseek_models(job: JobRecord) -> frozenset[str | None]:
+    """Return the verbatim provider-returned model names for a DeepSeek job.
+
+    Only the secret proxy's per-call accounting (``provider_usage.calls[*]``,
+    persisted by the runner) is provider-side evidence. Harbor's
+    ``agent_info``/``agent_result`` carry the agent's *declared* model and must
+    never be read as an observed identity. Calls without a ``returned_model``
+    retain None so incomplete identity coverage cannot be reported as matched.
+    """
+    provider_usage = job.metadata.get("provider_usage")
+    if not isinstance(provider_usage, dict):
+        return frozenset()
+    calls = provider_usage.get("calls")
+    if not isinstance(calls, list):
+        return frozenset()
+    returned: set[str | None] = set()
+    for call in calls:
+        value = call.get("returned_model") if isinstance(call, dict) else None
+        returned.add(value if isinstance(value, str) and value else None)
+    return frozenset(returned)
 
 
 class LabEvaluator:
@@ -299,6 +448,7 @@ class LabEvaluator:
         *,
         executor: Executor | None = None,
         jobs_dir: Path | None = None,
+        ceilings: ProviderCeilings | None = None,
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
@@ -314,6 +464,11 @@ class LabEvaluator:
         self.estimated_cost_usd = (
             float(estimated_cost_usd) if estimated_cost_usd is not None else None
         )
+        if ceilings is not None and not isinstance(ceilings, ProviderCeilings):
+            raise ValueError(f"ceilings must be a ProviderCeilings, got {type(ceilings).__name__}")
+        self.ceilings = ceilings
+        if ceilings is not None and self.agent != DEEPSEEK_TARGET_AGENT:
+            raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
         # Agent/profile and model validation
         if self.agent in PERMITTED_CONTROLS:
@@ -324,10 +479,19 @@ class LabEvaluator:
                 raise ValueError(
                     f"Native profile '{self.agent}' requires exact native model '{PERMITTED_NATIVE_MODEL}', got {self.model!r}"
                 )
+        elif self.agent == DEEPSEEK_TARGET_AGENT:
+            if self.model != DEEPSEEK_MODEL_SELECTOR:
+                raise ValueError(
+                    f"DeepSeek target '{self.agent}' requires exact model '{DEEPSEEK_MODEL_SELECTOR}', got {self.model!r}"
+                )
+            if self.ceilings is None:
+                raise ValueError(
+                    f"DeepSeek target '{self.agent}' requires explicit provider ceilings"
+                )
         else:
             raise ValueError(
                 f"Agent '{self.agent}' not permitted: must be one of controls {sorted(PERMITTED_CONTROLS)} "
-                f"or native profiles {sorted(PERMITTED_NATIVE_PROFILES)}"
+                f"or targets {sorted(PERMITTED_TARGET_MODELS)}"
             )
 
         # Validate and store immutable copies of declared development examples
@@ -399,6 +563,8 @@ class LabEvaluator:
         trial_name: str | None = None,
     ) -> EvaluationRecord:
         """Shared constructor: build EvaluationRecord, retain in memory, and persist receipt on disk."""
+        if self.ceilings is not None:
+            usage = {**usage, "provider_ceilings": self.ceilings.to_spec_kwargs()}
         record = EvaluationRecord(
             candidate_id=candidate_sha256,
             candidate_sha256=candidate_sha256,
@@ -481,6 +647,24 @@ class LabEvaluator:
         }
         if "provider_usage" in job_record.metadata:
             usage["provider_usage"] = job_record.metadata["provider_usage"]
+        if self.agent == DEEPSEEK_TARGET_AGENT:
+            # Observed identity comes only from the proxy's per-call records;
+            # an unrecorded model is unknown, never inferred as matched, and
+            # calls that disagree with the pin (or each other) are a mismatch.
+            returned = _returned_deepseek_models(job_record)
+            known = {name for name in returned if name is not None}
+            if known - {DEEPSEEK_ALLOWED_MODEL}:
+                raise ProvenanceMismatchError(
+                    f"DeepSeek job at {job_dir} returned model {sorted(known)!r}, "
+                    f"expected provider model {DEEPSEEK_ALLOWED_MODEL!r}"
+                )
+            observed = DEEPSEEK_ALLOWED_MODEL if known else None
+            identity_status = "matched" if returned == {DEEPSEEK_ALLOWED_MODEL} else "unknown"
+            usage["identity"] = {
+                "requested_model": self.model,
+                "observed_model": observed,
+                "status": identity_status,
+            }
         if trial is not None:
             accounting_path = trial.path / "agent" / "request-accounting.json"
             if accounting_path.is_file() and not accounting_path.is_symlink():
@@ -626,6 +810,7 @@ class LabEvaluator:
                 expected_task_id=task_id,
                 expected_package_digest=declared["task_package_digest"],
                 expected_candidate_sha256=candidate_sha256,
+                expected_ceilings=self.ceilings,
             ):
                 raise ProvenanceMismatchError(
                     f"Job at {exact_job_dir} exists but does not match exact candidate/task/model provenance"
@@ -666,6 +851,7 @@ class LabEvaluator:
                 expected_task_id=task_id,
                 expected_package_digest=declared["task_package_digest"],
                 expected_candidate_sha256=candidate_sha256,
+                expected_ceilings=self.ceilings,
             ):
                 raise ProvenanceMismatchError(
                     f"Executed job at {job_dir} failed provenance verification: recorded metadata does not match requested agent/model/task/candidate"
@@ -702,6 +888,14 @@ class LabEvaluator:
                 raise ProvenanceMismatchError("Retained evaluation belongs to a different request")
             existing_spec = artifact_data.get("receipt_paths", {}).get("spec_file")
             if artifact_data.get("status") == "pending" and existing_spec:
+                recorded_usage = artifact_data.get("usage")
+                if self.ceilings is not None and (
+                    not isinstance(recorded_usage, dict)
+                    or recorded_usage.get("provider_ceilings") != self.ceilings.to_spec_kwargs()
+                ):
+                    raise ProvenanceMismatchError(
+                        "Pending evaluation does not match exact provider ceilings"
+                    )
                 existing_spec_path = Path(existing_spec)
                 # Native queue transitions move files. A retained submission must
                 # never be resubmitted merely because its original path moved.
@@ -735,24 +929,27 @@ class LabEvaluator:
             task_id=task_id,
             candidate_sha256=candidate_sha256,
         )
-        spec = ExperimentSpec(
-            spec_id=new_ulid(),
-            name=clean_spec_name,
-            hypothesis=f"Instruction preamble improves performance on {task_id}",
-            purpose="elicitation",
-            task=declared["task_path"],
-            task_path=declared["task_path"],
-            task_id=task_id,
-            task_package_digest=declared["task_package_digest"],
-            agent=self.agent,
-            model=self.model,
-            timeout_seconds=self.timeout_seconds,
-            est_cost_usd=self.estimated_cost_usd,
-            submitted_by="gepa-evaluator",
-            extra_instruction_path=rel_candidate_path,
-            extra_instruction_sha256=candidate_sha256,
-            jobs_dir=self.jobs_dir.relative_to(self.repo_root).as_posix(),
-        )
+        spec_kwargs: dict[str, Any] = {
+            "spec_id": new_ulid(),
+            "name": clean_spec_name,
+            "hypothesis": f"Instruction preamble improves performance on {task_id}",
+            "purpose": "elicitation",
+            "task": declared["task_path"],
+            "task_path": declared["task_path"],
+            "task_id": task_id,
+            "task_package_digest": declared["task_package_digest"],
+            "agent": self.agent,
+            "model": self.model,
+            "timeout_seconds": self.timeout_seconds,
+            "est_cost_usd": self.estimated_cost_usd,
+            "submitted_by": "gepa-evaluator",
+            "extra_instruction_path": rel_candidate_path,
+            "extra_instruction_sha256": candidate_sha256,
+            "jobs_dir": self.jobs_dir.relative_to(self.repo_root).as_posix(),
+        }
+        if self.ceilings is not None:
+            spec_kwargs.update(self.ceilings.to_spec_kwargs())
+        spec = ExperimentSpec(**spec_kwargs)
 
         spec_path, decision = self.executor.submit(spec)
 

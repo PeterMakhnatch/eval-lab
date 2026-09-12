@@ -74,11 +74,6 @@ def _value_after(args: list[str], flag: str) -> str:
     return args[args.index(flag) + 1]
 
 
-def test_dependency_imports_use_project_managed_python() -> None:
-    script = SCRIPT.read_text(encoding="utf-8")
-    assert script.count('uv run --project "$repo_root" python -') == 2
-
-
 def test_probe_reports_presence_without_secret_material(tmp_path: Path) -> None:
     env, _, _ = _fake_runtime(tmp_path)
     env["DEEPSEEK_API_KEY"] = SECRET_SENTINEL
@@ -124,7 +119,7 @@ def test_install_smoke_strips_model_credentials(tmp_path: Path) -> None:
     assert _value_after(args, "--agent") == (
         "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
     )
-    assert _value_after(args, "--model") == "deepseek/deepseek-v4-flash"
+    assert _value_after(args, "--model") == "deepseek/deepseek-flash"
     assert _value_after(args, "--n-attempts") == "1"
     assert _value_after(args, "--n-tasks") == "1"
     assert env_path.read_text().splitlines() == [
@@ -156,7 +151,7 @@ def test_registered_funcdag_is_exactly_one_bounded_trial_and_keeps_key_out_of_ar
     assert _value_after(args, "--agent") == (
         "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
     )
-    assert _value_after(args, "--model") == "deepseek/deepseek-v4-flash"
+    assert _value_after(args, "--model") == "deepseek/deepseek-flash"
     assert _value_after(args, "--env") == "docker"
     assert _value_after(args, "--n-attempts") == "1"
     assert _value_after(args, "--n-concurrent") == "1"

@@ -7,7 +7,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
-readonly MODEL_SELECTOR="deepseek/deepseek-v4-flash"
+readonly MODEL_SELECTOR="deepseek/deepseek-flash"
 readonly AGENT_IMPORT_PATH="evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
 readonly SECRET_COMPOSE="$repo_root/containers/deepseek-v4-flash-secret.compose.yaml"
 readonly INSTALL_TASK="$repo_root/library/tasks/experimental/syn-funcdag-easy"
@@ -173,7 +173,7 @@ SECRETIDENT
         export EVALLAB_DEEPSEEK_SECRET_FILE="$secret_file"
         export EVALLAB_DEEPSEEK_PROXY_SCRIPT="$repo_root/containers/deepseek_secret_proxy.py"
         export EVALLAB_DEEPSEEK_PROXY_CAPABILITY="$capability"
-        export EVALLAB_DEEPSEEK_ALLOWED_MODEL="${EVALLAB_DEEPSEEK_ALLOWED_MODEL:-deepseek-v4-flash}"
+        export EVALLAB_DEEPSEEK_ALLOWED_MODEL="${EVALLAB_DEEPSEEK_ALLOWED_MODEL:-deepseek-flash}"
         export EVALLAB_DEEPSEEK_MAX_REQUESTS="${EVALLAB_DEEPSEEK_MAX_REQUESTS:-8}"
         export EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="${EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS:-32768}"
         export EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="${EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS:-4096}"

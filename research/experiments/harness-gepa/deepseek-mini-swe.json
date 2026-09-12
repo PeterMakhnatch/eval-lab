@@ -1,0 +1,28 @@
+{
+  "name": "harness-gepa-deepseek-target",
+  "engine": "gepa",
+  "agent": "mini-swe-agent",
+  "model": "deepseek/deepseek-flash",
+  "seed_candidate_path": "research/experiments/harness-gepa/seed.txt",
+  "examples": [
+    {
+      "task_id": "event-summary",
+      "task_path": "library/tasks/event-summary",
+      "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+      "split": "development"
+    }
+  ],
+  "validation_task_ids": [],
+  "max_evals": 2,
+  "timeout_seconds": 600,
+  "output_dir": "runs/harness-gepa-deepseek-target",
+  "estimated_cost_usd": 1.5,
+  "provider_ceilings": {
+    "max_requests": 10,
+    "max_input_tokens": 50000,
+    "max_output_tokens": 8192,
+    "max_total_tokens": 58192,
+    "cost_limit_usd": 2.5
+  },
+  "objective": "Qualify the DeepSeek mini-swe-agent target path through released GEPA search; search-visible scores only, no held-out improvement claim"
+}

@@ -65,7 +65,7 @@ inputs:
   - path: docs/data-architecture.md
     digest: sha256:d90ec1143b9ffaa6f8db6402fb3b29ea9f48c80630bc795dbf2969b2f61dbd2c
   - path: docs/deepseek-v4-flash-lane.md
-    digest: sha256:e31ef372f624c59120da22d21ce45ae3ba75277e1981554e3b61720d8a301b8d
+    digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:45aecd5c100df38cb5fee3d358e8f2c44bdeb1f123f86975925ffc193d7f35c7
+    digest: sha256:bc6ab6c1352e6b41d1c764880ba2b67d69e5754524b9780003d0c167cd0e88f7
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

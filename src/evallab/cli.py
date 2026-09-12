@@ -60,6 +60,7 @@ from evallab.evidence.facts import (
     write_failure_taxonomy_agreement,
 )
 from evallab.fetch import (
+    ControlCall,
     FetchError,
     FetchService,
     HarborBackend,
@@ -110,9 +111,10 @@ from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
     RunRequest,
     database_url_from_environment,
-    expected_primary_reward,
+    executor_state_path,
     load_matrix,
-    request_from_matrix,
+    matrix_run_outcome,
+    staged_matrix_request,
     subscription_environment,
 )
 from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
@@ -969,27 +971,73 @@ def _matrix_command(
     matrix_path = _resolve(root, args.path)
     matrix = load_matrix(matrix_path)
     completed: list[JobRecord] = []
-    mismatch = False
-    executor = Executor.from_repo(root)
+    results: list[dict[str, Any]] = []
+    receipt_path = (
+        _resolve(root, Path(matrix.jobs_dir)) / ".executor" / f"{matrix.matrix_id}.matrix.json"
+    )
+    previous = {}
+    if args.reuse_existing and receipt_path.is_file():
+        previous = {
+            result["name"]: result
+            for result in json.loads(receipt_path.read_text()).get("results", [])
+        }
+    executor = Executor.from_repo(root) if harbor is None else None
     for run in matrix.runs:
-        request = request_from_matrix(matrix, run, repo_root=root)
-        job_dir = request.jobs_dir / request.name
-        if args.reuse_existing and job_dir.is_dir():
-            job = load_job(job_dir)
-        else:
-            job = load_job(executor.execute_direct(request))
-        completed.append(job)
-        expected = expected_primary_reward(run)
-        if expected is not None:
-            actual = job.trials[0].primary_reward if len(job.trials) == 1 else None
-            if actual != expected:
-                mismatch = True
-                print(
-                    f"expectation failed for {request.name}: expected {expected:g}, got {actual}",
-                    file=sys.stderr,
-                )
+        result: dict[str, Any] = {"name": run.name, "expect_reward": run.expect_reward}
+        try:
+            with staged_matrix_request(matrix, run, repo_root=root) as (request, provenance):
+                result.update(provenance)
+                job_dir = request.jobs_dir / request.name
+                if args.reuse_existing and job_dir.is_dir():
+                    prior = previous.get(run.name, {})
+                    keys = ("solution_sha256", "staged_task_digest")
+                    if (
+                        any(prior.get(key) != provenance.get(key) for key in keys)
+                        or prior.get("status") == "infra"
+                    ):
+                        raise ValueError("existing job has no matching successful control provenance")
+                    state_path = executor_state_path(request)
+                    if state_path.is_file():
+                        state = json.loads(state_path.read_text())
+                        if state.get("status") != "completed" or state.get("exit_code", 0) != 0:
+                            raise ValueError("existing job has a failed or incomplete Harbor execution")
+                elif harbor is not None:
+                    if request.agent not in {"oracle", "nop"}:
+                        raise ValueError("direct execution is restricted to oracle/nop")
+                    harbor.run_control(
+                        ControlCall(
+                            task_path=request.task,
+                            agent=request.agent,
+                            job_name=request.name,
+                            jobs_dir=request.jobs_dir,
+                            n_concurrent=request.concurrency,
+                            n_attempts=request.attempts,
+                        )
+                    )
+                else:
+                    assert executor is not None
+                    job_dir = executor.execute_direct(request)
+                job = load_job(job_dir)
+                result.update(matrix_run_outcome(job, run))
+                if result["status"] != "infra":
+                    completed.append(job)
+        except Exception as exc:
+            result.update(status="infra", rewards=[], error=f"{type(exc).__name__}: {exc}")
+        results.append(result)
+        status = result["status"]
+        detail = result["error"] or f"expected {run.expect_reward}, got {result['rewards']}"
+        print(
+            f"{run.name}: {status} ({detail})",
+            file=sys.stdout if status == "ok" else sys.stderr,
+        )
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(
+            json.dumps({"matrix": matrix.model_dump(mode="json"), "results": results}, indent=2)
+            + "\n"
+        )
     _print_summary(completed)
-    return 1 if mismatch else 0
+    print(f"matrix receipt: {receipt_path}")
+    return 1 if any(result["status"] != "ok" for result in results) else 0
 
 
 def _summarize_command(

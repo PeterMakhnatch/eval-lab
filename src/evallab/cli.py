@@ -2270,6 +2270,21 @@ def _evidence_restore_command(
     return 0
 
 
+def _tasks_lint_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_lint import discover_tasks, lint_task
+
+    tasks = discover_tasks([_resolve(root, path) for path in args.paths])
+    findings = [finding for task in tasks for finding in lint_task(task)]
+    if args.json:
+        print(json.dumps([asdict(finding) for finding in findings], indent=2))
+    else:
+        for finding in findings:
+            print(f"{finding.severity} {finding.rule} {finding.path}: {finding.message}")
+    return 1 if any(finding.severity == "error" for finding in findings) else 0
+
+
 def _tasks_import_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4417,6 +4432,13 @@ def parser() -> argparse.ArgumentParser:
     tasks_import.add_argument("--limit", type=int)
     tasks_import.add_argument("--json", action="store_true")
     tasks_import.set_defaults(func=_tasks_import_command)
+
+    tasks_lint = tasks_commands.add_parser(
+        "lint", help="Read-only static checks for task verifier trust boundaries"
+    )
+    tasks_lint.add_argument("paths", nargs="+", type=Path, help="Task directories or task collections")
+    tasks_lint.add_argument("--json", action="store_true")
+    tasks_lint.set_defaults(func=_tasks_lint_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

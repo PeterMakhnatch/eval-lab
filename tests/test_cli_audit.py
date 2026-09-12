@@ -99,6 +99,7 @@ NESTED_COMMANDS = (
     ("evidence", "archive"),
     ("evidence", "restore"),
     ("tasks", "import"),
+    ("tasks", "lint"),
     ("ladder", "generate"),
     ("traj", "outline"),
     ("traj", "queue"),

@@ -53,6 +53,8 @@ flat 8-hour timeout, resumable per-task job identity, permitted Z.ai provider
 selection, and fail-closed upstream drift guards. TB3 and TB4 scores are
 **not** comparable.
 
+Harbor compilation supports both the default Z.ai arm and the DeepSeek arm (`deepseek/deepseek-v4-flash`, permitted only when paired with `mini-swe-agent` or `evallab.harbor_dsh:DeepSeekHarnessAgent`). Targeted task evaluation uses `--include-task` (repeatable, accepting short names like `html-js-filter` or full refs like `terminal-bench/html-js-filter`), populating `tasks` with the selected subset and recording `selected_task_count` while `task_count` remains 66 for full-inventory verification and manifest digest computation.
+
 `scan` refuses to write into any root it is scanning (`ValueError`), so a
 mistyped `--out` cannot mutate a read-only corpus.
 

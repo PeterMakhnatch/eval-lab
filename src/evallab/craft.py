@@ -58,7 +58,7 @@ import pyarrow.parquet as pq
 import yaml
 from pydantic import Field
 
-from evallab.execution_contracts import new_ulid
+from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, new_ulid
 from evallab.schemas import ContractModel
 from evallab.storage.paths import derived_root_from_environment
 
@@ -137,6 +137,11 @@ ZAI_ALLOWED_MODELS: frozenset[str] = frozenset(
 ZAI_DEFAULT_MODEL: str = "zai-coding-plan/glm-5.3"
 ZAI_DEFAULT_AGENT: str = "zai-opencode"
 ZAI_MODEL_PREFIX: str = "zai-coding-plan/"
+
+#: Permitted agent identifiers for the DeepSeek arm of TB4 Harbor compilation.
+DEEPSEEK_ALLOWED_AGENTS: frozenset[str] = frozenset(
+    {"mini-swe-agent", "evallab.harbor_dsh:DeepSeekHarnessAgent"}
+)
 
 #: A task directory is one that carries both files. Harbor's own layout adds
 #: `environment/`, `tests/`, and `solution/`, but those are checked per facet
@@ -1365,6 +1370,7 @@ def compile_tb4(
     model: str = ZAI_DEFAULT_MODEL,
     agent: str = ZAI_DEFAULT_AGENT,
     tb3_path: Path | None = None,
+    include_tasks: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Compile the pinned TB4 v4.0.0 adoption lane into an executable Harbor job plan.
 
@@ -1372,7 +1378,7 @@ def compile_tb4(
     - Task count or inventory drift against the immutable 66-task manifest.
     - Upstream digest drift if a prior compiled plan exists at `out`.
     - Accidental TB3/TB4 aggregation (refuses if TB3 root is supplied).
-    - Invalid or highspeed model selector (only permitted Z.ai models allowed).
+    - Invalid or highspeed model selector (only permitted Z.ai and DeepSeek combinations allowed).
     - Floating refs, wrong dataset name, or unpinned version.
     """
     if not tb4_path.is_dir():
@@ -1386,14 +1392,19 @@ def compile_tb4(
         )
 
     # 2. Model & provider validation (fail closed)
-    if (
-        "highspeed" in model.lower()
-        or model not in ZAI_ALLOWED_MODELS
-        or not model.startswith(ZAI_MODEL_PREFIX)
-    ):
+    if "highspeed" in model.lower():
         raise ValueError(
-            f"invalid model selector {model!r}: must be one of {sorted(ZAI_ALLOWED_MODELS)}; "
-            "highspeed and non-Z.ai models are refused at compile time (fail closed)"
+            f"invalid model selector {model!r}: highspeed models are refused at compile time (fail closed)"
+        )
+    if model in ZAI_ALLOWED_MODELS and model.startswith(ZAI_MODEL_PREFIX):
+        provider_family = "zai"
+    elif model == DEEPSEEK_MODEL_SELECTOR and agent in DEEPSEEK_ALLOWED_AGENTS:
+        provider_family = "deepseek"
+    else:
+        raise ValueError(
+            f"invalid model selector {model!r} with agent {agent!r}: model must be one of {sorted(ZAI_ALLOWED_MODELS)} "
+            f"or {DEEPSEEK_MODEL_SELECTOR!r} paired with an agent in {sorted(DEEPSEEK_ALLOWED_AGENTS)}; "
+            "highspeed, non-Z.ai, and unapproved DeepSeek configurations are refused at compile time (fail closed)"
         )
 
     # 3. Pin validation (refuses wrong dataset, floating refs, wrong version)
@@ -1439,7 +1450,23 @@ def compile_tb4(
     ).encode("utf-8")
     manifest_digest = f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}"
 
-    # 7. Construct task entries
+    # 7. Normalize and validate include_tasks
+    expected_set = set(expected_refs)
+    if include_tasks is not None:
+        selected_set: set[str] = set()
+        for item in include_tasks:
+            if item in expected_set:
+                selected_set.add(item)
+            elif f"terminal-bench/{item}" in expected_set:
+                selected_set.add(f"terminal-bench/{item}")
+            else:
+                raise ValueError(
+                    f"unknown include_tasks entry {item!r}: not found in expected TB4 inventory"
+                )
+    else:
+        selected_set = expected_set
+
+    # 8. Construct task entries
     task_entries: list[dict[str, Any]] = []
     current_digests: dict[str, str] = {}
     for task_ref in expected_refs:
@@ -1447,18 +1474,19 @@ def compile_tb4(
         task_id = deterministic_tb4_task_id(effective_ref, task_ref)
         task_digest_val = rec.task_digest
         current_digests[task_ref] = task_digest_val
-        task_entries.append(
-            {
-                "task_id": task_id,
-                "task_ref": task_ref,
-                "task_digest": task_digest_val,
-                "timeout_seconds": TB4_TIMEOUT_SECONDS,
-                "agent": agent,
-                "model": model,
-            }
-        )
+        if task_ref in selected_set:
+            task_entries.append(
+                {
+                    "task_id": task_id,
+                    "task_ref": task_ref,
+                    "task_digest": task_digest_val,
+                    "timeout_seconds": TB4_TIMEOUT_SECONDS,
+                    "agent": agent,
+                    "model": model,
+                }
+            )
 
-    # 8. Upstream digest drift check against existing plan if present
+    # 9. Upstream digest drift check against existing plan if present
     if out is not None and out.is_file():
         try:
             prior_plan = json.loads(out.read_text(encoding="utf-8"))
@@ -1468,25 +1496,50 @@ def compile_tb4(
                     for t in prior_plan["tasks"]
                     if isinstance(t, dict) and "task_ref" in t
                 }
-                # Check for task set drift
-                if set(prior_tasks.keys()) != set(current_digests.keys()):
-                    raise ValueError(
-                        f"upstream task set drift detected against prior plan at {out}"
-                    )
-                # Check for per-task digest drift
-                drifted: list[str] = []
-                for t_ref, cur_dig in current_digests.items():
-                    prior_dig = prior_tasks.get(t_ref, {}).get("task_digest")
-                    if prior_dig and prior_dig != cur_dig:
-                        drifted.append(f"{t_ref} (prior={prior_dig}, current={cur_dig})")
-                if drifted:
-                    raise ValueError(
-                        f"upstream digest drift detected for {len(drifted)} task(s) against prior plan at {out}: {drifted}"
-                    )
+                if include_tasks is None:
+                    # Check for task set drift
+                    if set(prior_tasks.keys()) != set(current_digests.keys()):
+                        raise ValueError(
+                            f"upstream task set drift detected against prior plan at {out}"
+                        )
+                    # Check for per-task digest drift
+                    drifted: list[str] = []
+                    for t_ref, cur_dig in current_digests.items():
+                        prior_dig = prior_tasks.get(t_ref, {}).get("task_digest")
+                        if prior_dig and prior_dig != cur_dig:
+                            drifted.append(f"{t_ref} (prior={prior_dig}, current={cur_dig})")
+                    if drifted:
+                        raise ValueError(
+                            f"upstream digest drift detected for {len(drifted)} task(s) against prior plan at {out}: {drifted}"
+                        )
+                else:
+                    # Check for selected tasks absent from prior plan
+                    missing_from_prior = sorted(selected_set - set(prior_tasks.keys()))
+                    if missing_from_prior:
+                        raise ValueError(
+                            f"upstream task set drift detected against prior plan at {out}: "
+                            f"selected task(s) {missing_from_prior} absent from prior plan"
+                        )
+                    # Check for per-task digest drift on selected tasks
+                    drifted = []
+                    for t_ref in sorted(selected_set):
+                        prior_dig = prior_tasks.get(t_ref, {}).get("task_digest")
+                        cur_dig = current_digests[t_ref]
+                        if prior_dig and prior_dig != cur_dig:
+                            drifted.append(f"{t_ref} (prior={prior_dig}, current={cur_dig})")
+                    if drifted:
+                        raise ValueError(
+                            f"upstream digest drift detected for {len(drifted)} task(s) against prior plan at {out}: {drifted}"
+                        )
         except (json.JSONDecodeError, UnicodeError):
             pass
 
-    # 9. Build complete plan dictionary
+    # 10. Build complete plan dictionary
+    allowed_pairs = sorted(
+        [[m, ZAI_DEFAULT_AGENT] for m in ZAI_ALLOWED_MODELS]
+        + [[DEEPSEEK_MODEL_SELECTOR, a] for a in DEEPSEEK_ALLOWED_AGENTS]
+    )
+
     plan: dict[str, Any] = {
         "plan_version": "tb4-job-plan/1",
         "command": "craft compile",
@@ -1508,14 +1561,18 @@ def compile_tb4(
         ),
         "timeout_seconds": TB4_TIMEOUT_SECONDS,
         "task_count": len(expected_refs),
+        "selected_task_count": len(task_entries),
         "non_comparable": record.get("v3_non_comparable", True),
         "comparability_note": record.get("comparability_note", ""),
         "floating_refs_forbidden": record.get("floating_refs_forbidden", True),
         "provider": {
+            "provider_family": provider_family,
             "agent": agent,
+            "selected_agent": agent,
             "model_prefix": ZAI_MODEL_PREFIX,
             "allowed_models": sorted(ZAI_ALLOWED_MODELS),
             "selected_model": model,
+            "allowed_pairs": allowed_pairs,
             "highspeed": "refused",
         },
         "refuses": {
@@ -1527,7 +1584,7 @@ def compile_tb4(
         "tasks": task_entries,
     }
 
-    # 10. Write plan to disk if out is given
+    # 11. Write plan to disk if out is given
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         rendered_json = json.dumps(plan, indent=2, sort_keys=True) + "\n"
@@ -1835,6 +1892,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=ZAI_DEFAULT_AGENT,
         help=f"agent identifier for trusted-task execution (default: {ZAI_DEFAULT_AGENT})",
     )
+    compile_parser.add_argument(
+        "--include-task",
+        dest="include_tasks",
+        action="append",
+        default=None,
+        help="task ref or short name to include in compiled plan (repeatable, default: all tasks)",
+    )
     compile_parser.add_argument("--json", action="store_true", help="emit the plan as JSON")
 
     return parser
@@ -1894,6 +1958,7 @@ def _main_compile(args: argparse.Namespace) -> int:
             model=args.model,
             agent=args.agent,
             tb3_path=tb3,
+            include_tasks=args.include_tasks,
         )
     except (ValueError, RuntimeError, FileNotFoundError) as error:
         print(f"craft compile: {error}", file=sys.stderr)

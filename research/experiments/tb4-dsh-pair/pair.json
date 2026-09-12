@@ -1,0 +1,28 @@
+{
+  "stage": "canary",
+  "task_ref": "terminal-bench/html-js-filter",
+  "dataset_ref": "terminal-bench/terminal-bench@4.0.0",
+  "task_digest": null,
+  "canary_guid_note": "TB4 task.toml files carry canary GUIDs: benchmark data must never enter training corpora. This pair references the TB4 task by ref only; no TB4 task content is copied into library/ or research/. The task digest stays null until the task is registered.",
+  "declared_variable": "agent_name",
+  "mode": "exploratory",
+  "model_selector": "deepseek/deepseek-v4-flash",
+  "attempts": 1,
+  "agent_timeout_seconds": 1800,
+  "arms": [
+    {
+      "arm": "baseline",
+      "agent": "mini-swe-agent",
+      "agent_kwargs": {}
+    },
+    {
+      "arm": "dsh",
+      "agent": "evallab.harbor_dsh:DeepSeekHarnessAgent",
+      "agent_kwargs": {
+        "reasoning_effort": "max"
+      }
+    }
+  ],
+  "approval_required": true,
+  "submit_owner": "Integration"
+}

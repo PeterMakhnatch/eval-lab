@@ -395,12 +395,22 @@ class ExperimentSpec(ContractModel):
 
 
 class MatrixRun(ContractModel):
+    """A control run may use a repo-relative ``solution`` script with oracle only."""
+
     name: str
     agent: str
     model: str | None = None
     attempts: int = Field(default=1, ge=1)
     expect_reward: float | None = None
     allow_billable: bool = False
+    # Omit absent overrides to preserve the canonical digests of existing matrices.
+    solution: str | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def validate_solution_control(self) -> MatrixRun:
+        if self.solution is not None and (self.agent != "oracle" or self.allow_billable):
+            raise ValueError("solution requires agent='oracle' and allow_billable=False")
+        return self
 
 
 class ExperimentMatrix(ContractModel):

@@ -16,22 +16,29 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 _SPLIT_SUFFIXES = {"train": "train", "dev": "val", "final": "final"}
-_SCHEMA = pa.schema([
-    ("prompt", pa.list_(pa.struct([("role", pa.string()), ("content", pa.string())]))),
-    ("reward_model", pa.struct([("style", pa.string()), ("ground_truth", pa.null())])),
-    ("extra_info", pa.struct([
-        ("harbor_task_path", pa.string()),
-        ("instance_id", pa.string()),
-        ("data_source", pa.string()),
-    ])),
-    ("lab_task_id", pa.string()),
-    ("verifier_sha256", pa.string()),
-    ("harbor_task_sha256", pa.string()),
-    ("runtime_qualified", pa.bool_()),
-    ("admission_source", pa.string()),
-    ("split", pa.string()),
-    ("registry_record_sha256", pa.string()),
-])
+_SCHEMA = pa.schema(
+    [
+        ("prompt", pa.list_(pa.struct([("role", pa.string()), ("content", pa.string())]))),
+        ("reward_model", pa.struct([("style", pa.string()), ("ground_truth", pa.null())])),
+        (
+            "extra_info",
+            pa.struct(
+                [
+                    ("harbor_task_path", pa.string()),
+                    ("instance_id", pa.string()),
+                    ("data_source", pa.string()),
+                ]
+            ),
+        ),
+        ("lab_task_id", pa.string()),
+        ("verifier_sha256", pa.string()),
+        ("harbor_task_sha256", pa.string()),
+        ("runtime_qualified", pa.bool_()),
+        ("admission_source", pa.string()),
+        ("split", pa.string()),
+        ("registry_record_sha256", pa.string()),
+    ]
+)
 
 
 class LegoIndexError(ValueError):
@@ -125,22 +132,24 @@ def build_index_rows(
                 raise LegoIndexError(f"training_use_not_allowed: {task_id}")
         verifier, harbor = _qualified_digests(record, task_id)
         path = _task_path(record, tasks_root, task_id)
-        rows.append({
-            "prompt": [{"role": "user", "content": str(path)}],
-            "reward_model": {"style": "rule", "ground_truth": None},
-            "extra_info": {
-                "harbor_task_path": str(path),
-                "instance_id": path.name,
-                "data_source": "harbor",
-            },
-            "lab_task_id": task_id,
-            "verifier_sha256": verifier,
-            "harbor_task_sha256": harbor,
-            "runtime_qualified": True,
-            "admission_source": "explicit-cli-argument",
-            "split": split,
-            "registry_record_sha256": record_digest,
-        })
+        rows.append(
+            {
+                "prompt": [{"role": "user", "content": str(path)}],
+                "reward_model": {"style": "rule", "ground_truth": None},
+                "extra_info": {
+                    "harbor_task_path": str(path),
+                    "instance_id": path.name,
+                    "data_source": "harbor",
+                },
+                "lab_task_id": task_id,
+                "verifier_sha256": verifier,
+                "harbor_task_sha256": harbor,
+                "runtime_qualified": True,
+                "admission_source": "explicit-cli-argument",
+                "split": split,
+                "registry_record_sha256": record_digest,
+            }
+        )
     return rows
 
 
@@ -167,8 +176,11 @@ def write_index(rows: list[dict], output: Path) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     for split, partition in partitions.items():
         pq.write_table(
-            pa.Table.from_pylist(partition, schema=_SCHEMA), paths[split],
-            compression="zstd", use_dictionary=False, write_statistics=True,
+            pa.Table.from_pylist(partition, schema=_SCHEMA),
+            paths[split],
+            compression="zstd",
+            use_dictionary=False,
+            write_statistics=True,
         )
     return {"row_counts": {split: len(part) for split, part in partitions.items()}, "paths": paths}
 
@@ -190,8 +202,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         rows = build_index_rows(
-            registry_dir=args.registry, tasks_root=args.tasks,
-            assignments=args.assign, admitted=set(args.admit),
+            registry_dir=args.registry,
+            tasks_root=args.tasks,
+            assignments=args.assign,
+            admitted=set(args.admit),
         )
         receipt = write_index(rows, args.output)
     except LegoIndexError as exc:

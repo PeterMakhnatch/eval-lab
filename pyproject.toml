@@ -96,6 +96,8 @@ extend-exclude = [
     # Vendored upstream tools are pinned by commit in each vendor PIN file;
     # linting or reformatting them would desync the copy from its source.
     "research/external/harbor-ecosystem/vendor",
+    # Pinned released RLM worker; linting would rewrite protocol code.
+    "src/evallab/rlm_runtime/worker.py",
 ]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

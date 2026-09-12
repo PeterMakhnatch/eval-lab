@@ -13,6 +13,7 @@ from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,
     RunRequest,
+    build_command,
     new_ulid,
     redact_environment,
     subscription_environment,
@@ -25,6 +26,7 @@ from evallab.harbor_network import (
     adapt_task_toml_for_host,
     with_agent_network_allowlist,
 )
+from evallab.rlm_runtime import RELEASED_WORKER_SRC
 
 
 def _task_dir(tmp_path: Path) -> Path:
@@ -314,3 +316,32 @@ def test_agent_allowlist_is_execution_only_and_exact() -> None:
     assert task_toml == ('[agent]\ntimeout_sec = 60.0\n\n[environment]\nnetwork_mode = "public"\n')
     assert 'network_mode = "allowlist"' in updated
     assert 'allowed_hosts = ["api.deepseek.com"]' in updated
+
+
+def test_authors_rlm_command_pins_released_worker_src(tmp_path: Path) -> None:
+    """authors-rlm passes the released worker_src; mini-swe-agent does not."""
+    rlm_command = build_command(
+        RunRequest(
+            task=_task_dir(tmp_path),
+            agent="authors-rlm",
+            model="deepseek/deepseek-v4-flash",
+            name="rlm-worker-pin",
+            jobs_dir=tmp_path / "jobs",
+            allow_billable=True,
+        )
+    )
+    assert "worker_src=src/evallab/rlm_runtime/worker.py" in rlm_command
+    assert "worker_proxy_url" not in " ".join(rlm_command)
+    assert RELEASED_WORKER_SRC.is_file()
+
+    mini_command = build_command(
+        RunRequest(
+            task=_task_dir(tmp_path),
+            agent="mini-swe-agent",
+            model="deepseek/deepseek-v4-flash",
+            name="mini-no-worker-src",
+            jobs_dir=tmp_path / "jobs",
+            allow_billable=True,
+        )
+    )
+    assert not any("worker_src" in part for part in mini_command)

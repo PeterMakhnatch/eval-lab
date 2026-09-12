@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from evallab.rlm_runtime.backend import (
     EnvironmentHandle,
     ExecResult,
@@ -11,11 +13,14 @@ from evallab.rlm_runtime.backend import (
 from evallab.rlm_runtime.capture import qualify, record_root_turn
 from evallab.rlm_runtime.root import extract_openai_turn
 
+RELEASED_WORKER_SRC = Path(__file__).resolve().parent / "worker.py"
+
 __all__ = [
     "EnvironmentHandle",
     "ExecResult",
     "ManagedReplBackend",
     "ManagedReplError",
+    "RELEASED_WORKER_SRC",
     "extract_openai_turn",
     "qualify",
     "record_root_turn",

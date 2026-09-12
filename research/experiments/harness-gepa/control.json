@@ -1,0 +1,20 @@
+{
+  "name": "harness-gepa-local-interface",
+  "engine": "gepa",
+  "agent": "oracle",
+  "model": null,
+  "seed_candidate_path": "research/experiments/harness-gepa/seed.txt",
+  "examples": [
+    {
+      "task_id": "event-summary",
+      "task_path": "library/tasks/event-summary",
+      "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+      "split": "development"
+    }
+  ],
+  "validation_task_ids": [],
+  "max_evals": 4,
+  "timeout_seconds": 360,
+  "output_dir": "runs/harness-gepa-local-interface",
+  "objective": "Qualify released GEPA instruction-candidate evaluation through Lab; no model improvement claim"
+}

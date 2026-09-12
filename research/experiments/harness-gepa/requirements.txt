@@ -1,0 +1,5 @@
+# Install after uv sync --frozen in the isolated Lab worktree.
+# The integration also verifies the installed Python source-tree digest.
+gepa @ git+https://github.com/gepa-ai/gepa.git@0632cdb5dcc052e690eab439e1b4a7e3e9cfe407
+cloudpickle==3.1.2
+litellm==1.96.0

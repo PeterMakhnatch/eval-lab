@@ -1,0 +1,1 @@
+Solve the task using its stated requirements and the available tools. Preserve required inputs and verify the requested outputs before finishing.

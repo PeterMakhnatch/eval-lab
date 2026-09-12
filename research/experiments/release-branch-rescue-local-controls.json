@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "matrix_id": "01M29SKVBT520WMY2S2EGYSMP9",
+  "name": "release-branch-rescue-local-controls",
+  "hypothesis": "Oracle passes and no-op fails while task, environment, and verifier stay fixed; these are validity controls, not capability evidence.",
+  "benchmark_family": "release-branch-rescue",
+  "task_id": "release-branch-rescue",
+  "task": "library/tasks/release-branch-rescue",
+  "task_package_digest": "sha256:b842a8ec9a07115cc8b9ec5ce7c0b20543f16c2c1e88a330f672da7dc8d4b17e",
+  "verifier_digest": "sha256:07ea11c7aa3f4d0fcf03fe6707f88a6ea5541cb5de2429b6e073086e52a77637",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "runs": [
+    {
+      "name": "release-branch-rescue-lib-matrix-oracle-20260911",
+      "agent": "oracle",
+      "attempts": 1,
+      "expect_reward": 1.0
+    },
+    {
+      "name": "release-branch-rescue-lib-matrix-nop-20260911",
+      "agent": "nop",
+      "attempts": 1,
+      "expect_reward": 0.0
+    }
+  ]
+}

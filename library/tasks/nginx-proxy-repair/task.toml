@@ -1,0 +1,37 @@
+schema_version = "1.4"
+artifacts = ["/etc/nginx", "/var/www/app", "/opt/backend/app.py"]
+
+[task]
+name = "peter/nginx-proxy-repair"
+version = "1.0.0"
+description = "Diagnose and repair a broken nginx reverse proxy in front of a JSON backend."
+keywords = ["nginx", "reverse-proxy", "debugging", "service-recovery", "ops"]
+[[task.authors]]
+name = "Peter Makhnatch"
+
+[metadata]
+category = "service-debugging"
+difficulty = "medium"
+capability = "diagnose a failing service from logs and tooling, then persist a config fix"
+
+[verifier]
+timeout_sec = 120.0
+collect = []
+environment_mode = "separate"
+
+[verifier.env]
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+cpus = 1
+memory_mb = 1024
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

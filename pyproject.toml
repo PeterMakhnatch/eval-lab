@@ -84,6 +84,9 @@ target-version = "py312"
 extend-exclude = [
     "library/adapters/*/generated",
     "library/tasks/terminal-bench-html-js-filter", "library/curated",
+    # Verbatim task verifiers are pinned by matrix verifier_digest; preserve their bytes.
+    "library/tasks/nginx-proxy-repair",
+    "library/tasks/release-branch-rescue",
     "library/tasks/experimental",
     "library/external/terminal-bench-v3.0.0",
     # Generated tau3-bench task code is vendored upstream; editing it would

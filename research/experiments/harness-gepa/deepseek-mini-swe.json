@@ -2,7 +2,7 @@
   "name": "harness-gepa-deepseek-target",
   "engine": "gepa",
   "agent": "mini-swe-agent",
-  "model": "deepseek/deepseek-v4-flash",
+  "model": "deepseek/deepseek-flash",
   "seed_candidate_path": "research/experiments/harness-gepa/seed.txt",
   "examples": [
     {

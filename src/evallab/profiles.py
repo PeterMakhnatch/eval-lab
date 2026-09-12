@@ -504,7 +504,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
             AgentProfile(
                 profile_id="mini-swe-agent-deepseek-v4-flash",
                 adapter="mini-swe-agent",
-                model="deepseek/deepseek-v4-flash",
+                model="deepseek/deepseek-flash",
                 auth_mode="api-key-environment",
                 secret_source="env:DEEPSEEK_API_KEY,MSWEA_API_KEY",
                 limits=ProfileLimits(

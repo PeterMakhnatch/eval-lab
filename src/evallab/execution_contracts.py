@@ -18,6 +18,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import yaml
@@ -113,7 +114,12 @@ DEEPSEEK_PROXY_USAGE_DIR_ENV = "EVALLAB_DEEPSEEK_USAGE_DIR"
 DEEPSEEK_PROXY_ATTEMPT_ID_ENV = "EVALLAB_DEEPSEEK_ATTEMPT_ID"
 DEEPSEEK_PROXY_USAGE_FILE_ENV = "EVALLAB_DEEPSEEK_USAGE_FILE"
 DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
-DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
+DEEPSEEK_ALLOWED_MODEL = "deepseek-flash"
+# DeepSeek V4.1 API tiers map to the trained integer effort control (1–100).
+# Mirrored in containers/deepseek_secret_proxy.py for its stdlib-only image.
+DEEPSEEK_REASONING_EFFORT_TIERS: Mapping[str, int] = MappingProxyType(
+    {"low": 50, "high": 75, "max": 100}
+)
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         DEEPSEEK_PROXY_CAPABILITY_ENV,
@@ -154,7 +160,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
 }
 
-DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-v4-flash"
+DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
 DEEPSEEK_SECRET_COMPOSE = Path("containers/deepseek-v4-flash-secret.compose.yaml")
 
 HARBOR_STATE_JOURNAL_PLUGIN = "evallab.harbor_state_journal:StateJournalPlugin"

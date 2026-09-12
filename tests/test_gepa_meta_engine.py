@@ -8,10 +8,18 @@ from typing import Any
 
 import pytest
 
-gepa_config = pytest.importorskip(
-    "gepa.oa.config", reason="Install the isolated harness-gepa requirements"
+try:
+    import gepa.oa.config as gepa_config
+except ImportError:  # the isolated harness-gepa requirements are optional
+    gepa_config = None
+
+# Skip per test so the module is still collected; a module-level importorskip
+# would omit it from collection and trip tests/test_ci_coverage.py.
+pytestmark = pytest.mark.skipif(
+    gepa_config is None, reason="Install the isolated harness-gepa requirements"
 )
-meta_engine = import_module("evallab.gepa_optimizer.meta_engine")
+if gepa_config is not None:
+    meta_engine = import_module("evallab.gepa_optimizer.meta_engine")
 
 
 def test_example_split_boundary_rejection() -> None:

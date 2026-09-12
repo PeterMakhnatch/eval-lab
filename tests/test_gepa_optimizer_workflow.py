@@ -225,9 +225,9 @@ def test_campaign_loader_rejects_malformed_ceilings(tmp_path: Path) -> None:
         load_campaign(_write_campaign(repo_root, task, ceilings=zeroed), repo_root)
 
     unbounded = dict(CEILINGS)
-    unbounded["max_total_tokens"] = unbounded["max_input_tokens"] + unbounded[
-        "max_output_tokens"
-    ] + 1
+    unbounded["max_total_tokens"] = (
+        unbounded["max_input_tokens"] + unbounded["max_output_tokens"] + 1
+    )
     with pytest.raises(ValueError, match="Invalid provider_ceilings"):
         load_campaign(_write_campaign(repo_root, task, ceilings=unbounded), repo_root)
 
@@ -297,18 +297,14 @@ def test_run_campaign_deepseek_stops_pending_without_approving(
     monkeypatch.setattr(workflow, "LabEvaluator", _factory)
 
     config = load_campaign(config_path, repo_root)
-    seed_sha256 = "sha256:" + hashlib.sha256(
-        (repo_root / "seed.txt").read_bytes()
-    ).hexdigest()
+    seed_sha256 = "sha256:" + hashlib.sha256((repo_root / "seed.txt").read_bytes()).hexdigest()
     binding = {
         "config": config,
         "seed_sha256": seed_sha256,
         "release": pin,
         "qualification": False,
     }
-    binding_sha256 = hashlib.sha256(
-        json.dumps(binding, sort_keys=True).encode()
-    ).hexdigest()
+    binding_sha256 = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
     approval_ref = repo_root / "approval.json"
     approval_ref.write_text(
         json.dumps(

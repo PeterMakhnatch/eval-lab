@@ -134,9 +134,7 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("At least one development task must remain in the train pool")
     ceilings_raw = raw.get("provider_ceilings")
     if ceilings_raw is not None:
-        if not isinstance(ceilings_raw, dict) or set(ceilings_raw) != set(
-            PROVIDER_CEILING_FIELDS
-        ):
+        if not isinstance(ceilings_raw, dict) or set(ceilings_raw) != set(PROVIDER_CEILING_FIELDS):
             raise ValueError(
                 "provider_ceilings must be an object with exactly the keys "
                 f"{sorted(PROVIDER_CEILING_FIELDS)}"

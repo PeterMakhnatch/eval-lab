@@ -921,14 +921,16 @@ def create_deepseek_job_fixture(
     candidate_sha256: str,
     ceilings: ProviderCeilings,
     lock_model: str = DEEPSEEK_MODEL_SELECTOR,
-    observed_model: str | None = None,
+    returned_models: tuple[str, ...] = (),
+    declared_model: str | None = None,
     include_provider_usage: bool = True,
     limits_override: dict[str, Any] | None = None,
     reward: float | None = 1.0,
 ) -> Path:
     """Completed DeepSeek job as the runner persists it: adapter import path in the
-    trial lock, enforced ceilings in the proxy accounting report, and the returned
-    model only where the trial result records it (None omits it: unknown)."""
+    trial lock, enforced ceilings and one reconciled proxy call per entry of
+    ``returned_models`` in the accounting report (empty: no provider-side identity),
+    and ``declared_model`` only in Harbor's agent-declared ``agent_info``."""
     job_dir = jobs_dir / job_name
     trial_name = f"{task_id}__trial01"
     trial_dir = job_dir / trial_name
@@ -978,9 +980,7 @@ def create_deepseek_job_fixture(
             "attempt_id": "gepa-test-attempt",
             "sequence": 0,
             "limits": (
-                limits_override
-                if limits_override is not None
-                else ceilings.expected_usage_limits()
+                limits_override if limits_override is not None else ceilings.expected_usage_limits()
             ),
             "totals": {
                 "requests": 0,
@@ -990,14 +990,24 @@ def create_deepseek_job_fixture(
                 "cost_micros": 0,
             },
             "unresolved_requests": 0,
-            "calls": [],
+            "calls": [
+                {
+                    "call_id": index,
+                    "state": "reconciled",
+                    "status": 200,
+                    "input_tokens": 120,
+                    "output_tokens": 30,
+                    "returned_model": returned_model,
+                }
+                for index, returned_model in enumerate(returned_models, start=1)
+            ],
         }
     write_json(job_dir / "lab-metadata.json", metadata)
     write_json(trial_dir / "config.json", {"agent": agent_config})
     write_json(trial_dir / "lock.json", trial_lock)
     agent_info: dict[str, Any] = {"name": DEEPSEEK_TARGET_AGENT}
-    if observed_model is not None:
-        agent_info["model_info"] = {"name": observed_model}
+    if declared_model is not None:
+        agent_info["model_info"] = {"name": declared_model}
     rewards_dict: dict[str, float] = {}
     if reward is not None:
         rewards_dict["reward"] = float(reward)
@@ -1147,7 +1157,7 @@ def test_deepseek_provenance_mismatch_on_locked_trial_model_differs(tmp_path: Pa
         "Instruction A.",
         ceilings,
         lock_model="deepseek/deepseek-chat",
-        observed_model="deepseek/deepseek-chat",
+        returned_models=("deepseek/deepseek-chat",),
     )
 
     with pytest.raises(ProvenanceMismatchError, match="does not match exact"):
@@ -1163,7 +1173,7 @@ def test_deepseek_provenance_mismatch_on_ceilings_difference(tmp_path: Path) -> 
         tmp_path,
         "Instruction A.",
         ceilings,
-        observed_model=DEEPSEEK_MODEL_SELECTOR,
+        returned_models=(DEEPSEEK_MODEL_SELECTOR,),
         limits_override=tampered,
     )
 
@@ -1178,7 +1188,7 @@ def test_deepseek_provenance_mismatch_on_missing_accounting(tmp_path: Path) -> N
         tmp_path,
         "Instruction A.",
         ceilings,
-        observed_model=DEEPSEEK_MODEL_SELECTOR,
+        returned_models=(DEEPSEEK_MODEL_SELECTOR,),
         include_provider_usage=False,
     )
 
@@ -1201,11 +1211,14 @@ def test_deepseek_identity_unknown_when_no_returned_model(tmp_path: Path) -> Non
     }
 
 
-def test_deepseek_identity_matched_when_equal(tmp_path: Path) -> None:
-    """A verbatim returned model equal to the pin is recorded as matched."""
+def test_deepseek_identity_matched_when_every_call_returns_the_pin(tmp_path: Path) -> None:
+    """Verbatim returned models equal to the pin on every proxy call are matched."""
     ceilings = make_ceilings()
     evaluator, task = _resume_deepseek_job(
-        tmp_path, "Instruction A.", ceilings, observed_model=DEEPSEEK_MODEL_SELECTOR
+        tmp_path,
+        "Instruction A.",
+        ceilings,
+        returned_models=(DEEPSEEK_MODEL_SELECTOR, DEEPSEEK_MODEL_SELECTOR),
     )
 
     score, info = evaluator("Instruction A.", task)
@@ -1218,11 +1231,31 @@ def test_deepseek_identity_matched_when_equal(tmp_path: Path) -> None:
     }
 
 
-def test_deepseek_identity_mismatch_raises(tmp_path: Path) -> None:
-    """A verbatim returned model differing from the pin raises a provenance error."""
+def test_deepseek_identity_ignores_agent_declared_model(tmp_path: Path) -> None:
+    """Harbor's agent-declared model is a request echo, not provider evidence."""
     ceilings = make_ceilings()
     evaluator, task = _resume_deepseek_job(
-        tmp_path, "Instruction A.", ceilings, observed_model="deepseek/deepseek-chat"
+        tmp_path, "Instruction A.", ceilings, declared_model=DEEPSEEK_MODEL_SELECTOR
+    )
+
+    _, info = evaluator("Instruction A.", task)
+
+    assert info["usage"]["identity"]["status"] == "unknown"
+    assert info["usage"]["identity"]["observed_model"] is None
+
+
+@pytest.mark.parametrize(
+    "returned_models",
+    [("deepseek/deepseek-chat",), (DEEPSEEK_MODEL_SELECTOR, "deepseek/deepseek-chat")],
+    ids=["differs-from-pin", "calls-disagree"],
+)
+def test_deepseek_identity_mismatch_raises(
+    tmp_path: Path, returned_models: tuple[str, ...]
+) -> None:
+    """Any proxy call returning a model other than the pin is a provenance error."""
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(
+        tmp_path, "Instruction A.", ceilings, returned_models=returned_models
     )
 
     with pytest.raises(ProvenanceMismatchError, match="returned model"):

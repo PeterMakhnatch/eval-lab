@@ -136,9 +136,7 @@ class ProviderCeilings:
                 f"cap, got {cost!r}"
             )
         if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
-            raise ValueError(
-                "ProviderCeilings.max_total_tokens exceeds input plus output ceilings"
-            )
+            raise ValueError("ProviderCeilings.max_total_tokens exceeds input plus output ceilings")
         if isinstance(cost, int):
             object.__setattr__(self, "cost_limit_usd", float(cost))
 
@@ -400,39 +398,29 @@ def _check_job_provenance(
     return True
 
 
-def _observed_deepseek_model(job: JobRecord) -> str | None:
-    """Return the verbatim returned model for a DeepSeek job, or None when unrecorded.
+def _returned_deepseek_models(job: JobRecord) -> frozenset[str]:
+    """Return the verbatim provider-returned model names for a DeepSeek job.
 
-    Sources only records the runner actually persists: the proxy accounting
-    report under job metadata ``provider_usage`` and the trial result's
-    ``agent_info``/``agent_result``. A missing model is unknown, never inferred.
+    Only the secret proxy's per-call accounting (``provider_usage.calls[*]``,
+    persisted by the runner) is provider-side evidence. Harbor's
+    ``agent_info``/``agent_result`` carry the agent's *declared* model and must
+    never be read as an observed identity. Calls without a ``returned_model``
+    contribute nothing: an unrecorded model is unknown, never inferred.
     """
     provider_usage = job.metadata.get("provider_usage")
-    if isinstance(provider_usage, dict):
-        for key in ("model", "observed_model", "returned_model"):
-            value = provider_usage.get(key)
-            if isinstance(value, str) and value:
-                return value
-    trial_result = job.trials[0].result if job.trials else {}
-    if isinstance(trial_result, dict):
-        agent_info = trial_result.get("agent_info")
-        if isinstance(agent_info, dict):
-            model_info = agent_info.get("model_info")
-            if isinstance(model_info, dict):
-                for key in ("name", "model_name"):
-                    value = model_info.get(key)
-                    if isinstance(value, str) and value:
-                        return value
-            value = agent_info.get("model_name")
-            if isinstance(value, str) and value:
-                return value
-        agent_result = trial_result.get("agent_result")
-        if isinstance(agent_result, dict):
-            for key in ("model", "model_name", "observed_model", "returned_model"):
-                value = agent_result.get(key)
-                if isinstance(value, str) and value:
-                    return value
-    return None
+    if not isinstance(provider_usage, dict):
+        return frozenset()
+    calls = provider_usage.get("calls")
+    if not isinstance(calls, list):
+        return frozenset()
+    returned: set[str] = set()
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        value = call.get("returned_model")
+        if isinstance(value, str) and value:
+            returned.add(value)
+    return frozenset(returned)
 
 
 class LabEvaluator:
@@ -467,9 +455,7 @@ class LabEvaluator:
             float(estimated_cost_usd) if estimated_cost_usd is not None else None
         )
         if ceilings is not None and not isinstance(ceilings, ProviderCeilings):
-            raise ValueError(
-                f"ceilings must be a ProviderCeilings, got {type(ceilings).__name__}"
-            )
+            raise ValueError(f"ceilings must be a ProviderCeilings, got {type(ceilings).__name__}")
         self.ceilings = ceilings
 
         # Agent/profile and model validation
@@ -650,16 +636,19 @@ class LabEvaluator:
         if "provider_usage" in job_record.metadata:
             usage["provider_usage"] = job_record.metadata["provider_usage"]
         if self.agent == DEEPSEEK_TARGET_AGENT:
-            # Observed identity comes only from records the runner persists;
-            # an unrecorded model is unknown, never inferred as matched.
-            observed = _observed_deepseek_model(job_record)
-            if observed is None:
+            # Observed identity comes only from the proxy's per-call records;
+            # an unrecorded model is unknown, never inferred as matched, and
+            # calls that disagree with the pin (or each other) are a mismatch.
+            returned = _returned_deepseek_models(job_record)
+            if not returned:
+                observed: str | None = None
                 identity_status = "unknown"
-            elif observed == self.model:
+            elif returned == {self.model}:
+                observed = self.model
                 identity_status = "matched"
             else:
                 raise ProvenanceMismatchError(
-                    f"DeepSeek job at {job_dir} returned model {observed!r}, "
+                    f"DeepSeek job at {job_dir} returned model {sorted(returned)!r}, "
                     f"expected {self.model!r}"
                 )
             usage["identity"] = {

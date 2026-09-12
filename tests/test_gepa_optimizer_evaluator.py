@@ -39,7 +39,10 @@ from typing import Any
 
 import pytest
 
+from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR
 from evallab.gepa_optimizer.evaluator import (
+    DEEPSEEK_TARGET_AGENT,
+    DEEPSEEK_TARGET_IMPORT_PATH,
     NATIVE_ENTRYPOINTS,
     PERMITTED_NATIVE_MODEL,
     EvaluationPending,
@@ -47,6 +50,7 @@ from evallab.gepa_optimizer.evaluator import (
     ExampleDeclarationError,
     LabEvaluator,
     ProvenanceMismatchError,
+    ProviderCeilings,
     TaskDigestMismatchError,
     deterministic_job_name,
 )
@@ -865,3 +869,361 @@ def test_write_comparison_spec_rejects_prefix_ambiguity(tmp_path: Path) -> None:
         ValueError, match="exact full 'sha256:<64-hex>' digests without prefix ambiguity"
     ):
         evaluator.write_comparison_spec(["short_hash_1", "short_hash_2"])
+
+
+# --- DeepSeek-first target (HAR-23) ---
+
+
+def make_ceilings(**overrides: Any) -> ProviderCeilings:
+    """Valid ceilings with per-test overrides."""
+    values: dict[str, Any] = {
+        "max_requests": 4,
+        "max_input_tokens": 8000,
+        "max_output_tokens": 2000,
+        "max_total_tokens": 10000,
+        "cost_limit_usd": 0.5,
+    }
+    values.update(overrides)
+    return ProviderCeilings(**values)
+
+
+_UNSET: Any = object()
+
+
+def make_deepseek_evaluator(
+    repo_root: Path,
+    task: dict[str, Any],
+    ceilings: Any = _UNSET,
+    **kwargs: Any,
+) -> LabEvaluator:
+    """DeepSeek-targeted evaluator with a recording executor stub."""
+    params: dict[str, Any] = {
+        "repo_root": repo_root,
+        "output_dir": repo_root / "out",
+        "examples": [task],
+        "agent": DEEPSEEK_TARGET_AGENT,
+        "model": DEEPSEEK_MODEL_SELECTOR,
+        "estimated_cost_usd": 0.5,
+        "ceilings": make_ceilings() if ceilings is _UNSET else ceilings,
+        "executor": MockExecutor(repo_root),
+    }
+    params.update(kwargs)
+    return LabEvaluator(**params)
+
+
+def create_deepseek_job_fixture(
+    jobs_dir: Path,
+    *,
+    job_name: str,
+    task_id: str,
+    task_path: str,
+    package_digest: str,
+    candidate_sha256: str,
+    ceilings: ProviderCeilings,
+    lock_model: str = DEEPSEEK_MODEL_SELECTOR,
+    observed_model: str | None = None,
+    include_provider_usage: bool = True,
+    limits_override: dict[str, Any] | None = None,
+    reward: float | None = 1.0,
+) -> Path:
+    """Completed DeepSeek job as the runner persists it: adapter import path in the
+    trial lock, enforced ceilings in the proxy accounting report, and the returned
+    model only where the trial result records it (None omits it: unknown)."""
+    job_dir = jobs_dir / job_name
+    trial_name = f"{task_id}__trial01"
+    trial_dir = job_dir / trial_name
+    agent_config = {
+        "name": DEEPSEEK_TARGET_AGENT,
+        "import_path": DEEPSEEK_TARGET_IMPORT_PATH,
+        "model_name": lock_model,
+    }
+    trial_lock = {
+        "schema_version": 2,
+        "agent": agent_config,
+        "extra_instructions": [{"digest": candidate_sha256}],
+    }
+    write_json(job_dir / "config.json", {"job_name": job_name, "agents": [agent_config]})
+    write_json(job_dir / "lock.json", {"harbor": {"version": "0.21.0"}, "trials": [trial_lock]})
+    write_json(
+        job_dir / "result.json",
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "started_at": "2026-09-08T10:00:00Z",
+            "finished_at": "2026-09-08T10:01:00Z",
+            "n_total_trials": 1,
+            "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+        },
+    )
+    metadata: dict[str, Any] = {
+        "schema_version": 1,
+        "command": ["harbor", "run", "--agent", DEEPSEEK_TARGET_IMPORT_PATH],
+        "started_at": "2026-09-08T10:00:00Z",
+        "finished_at": "2026-09-08T10:01:00Z",
+        "exit_code": 0,
+        "timed_out": False,
+        "timed_out_trial": None,
+        "experiment": {
+            "spec_id": f"spec-{task_id}",
+            "task": task_path,
+            "task_path": task_path,
+            "task_id": task_id,
+            "package_digest": package_digest,
+            "preamble_sha256": candidate_sha256,
+        },
+    }
+    if include_provider_usage:
+        metadata["provider_usage"] = {
+            "schema_version": 1,
+            "capability_id": "sha256:" + "b" * 64,
+            "attempt_id": "gepa-test-attempt",
+            "sequence": 0,
+            "limits": (
+                limits_override
+                if limits_override is not None
+                else ceilings.expected_usage_limits()
+            ),
+            "totals": {
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "cost_micros": 0,
+            },
+            "unresolved_requests": 0,
+            "calls": [],
+        }
+    write_json(job_dir / "lab-metadata.json", metadata)
+    write_json(trial_dir / "config.json", {"agent": agent_config})
+    write_json(trial_dir / "lock.json", trial_lock)
+    agent_info: dict[str, Any] = {"name": DEEPSEEK_TARGET_AGENT}
+    if observed_model is not None:
+        agent_info["model_info"] = {"name": observed_model}
+    rewards_dict: dict[str, float] = {}
+    if reward is not None:
+        rewards_dict["reward"] = float(reward)
+    write_json(
+        trial_dir / "result.json",
+        {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "trial_name": trial_name,
+            "task_name": task_id,
+            "started_at": "2026-09-08T10:00:01Z",
+            "finished_at": "2026-09-08T10:00:55Z",
+            "agent_info": agent_info,
+            "agent_result": {
+                "cost_usd": 0.0025,
+                "n_input_tokens": 120,
+                "n_cache_tokens": 30,
+                "n_output_tokens": 45,
+            },
+            "duration_seconds": 54.0,
+            "verifier_result": {"rewards": rewards_dict},
+            "exception_info": None,
+        },
+    )
+    return job_dir
+
+
+def test_deepseek_target_accepted_with_exact_model_and_ceilings(tmp_path: Path) -> None:
+    """The DeepSeek target requires its exact pinned model plus explicit ceilings."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    ceilings = make_ceilings()
+
+    evaluator = make_deepseek_evaluator(repo_root, task, ceilings)
+
+    assert evaluator.model == DEEPSEEK_MODEL_SELECTOR
+    assert evaluator.ceilings == ceilings
+
+
+def test_deepseek_target_rejects_different_model(tmp_path: Path) -> None:
+    """Any model other than the exact pinned selector is refused."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+
+    with pytest.raises(ValueError, match="requires exact model"):
+        make_deepseek_evaluator(repo_root, task, model="deepseek/deepseek-chat")
+
+
+def test_deepseek_target_rejects_missing_ceilings(tmp_path: Path) -> None:
+    """Unknown ceilings are never coerced: the DeepSeek target refuses to run."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+
+    with pytest.raises(ValueError, match="requires explicit provider ceilings"):
+        make_deepseek_evaluator(repo_root, task, ceilings=None)
+
+
+def test_controls_reject_ceilings(tmp_path: Path) -> None:
+    """Local controls execute with no provider spend, so ceilings are refused."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+
+    with pytest.raises(ValueError, match="does not accept provider ceilings"):
+        LabEvaluator(
+            repo_root=repo_root,
+            output_dir=repo_root / "out",
+            examples=[task],
+            agent="oracle",
+            ceilings=make_ceilings(),
+            executor=MockExecutor(repo_root),
+        )
+
+
+def test_provider_ceilings_reject_non_positive_and_unbounded_totals() -> None:
+    """Ceiling boundaries mirror validate_request: positive, total within components."""
+    with pytest.raises(ValueError, match="must be a positive integer"):
+        make_ceilings(max_requests=0)
+    with pytest.raises(ValueError, match="must be a genuine positive finite"):
+        make_ceilings(cost_limit_usd=0.0)
+    with pytest.raises(ValueError, match="exceeds input plus output"):
+        make_ceilings(max_input_tokens=100, max_output_tokens=100, max_total_tokens=201)
+
+
+def test_deepseek_submitted_spec_carries_ceilings_model_and_digest(tmp_path: Path) -> None:
+    """The queued spec pins the model, the candidate digest, and every ceiling."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    ceilings = make_ceilings()
+    evaluator = make_deepseek_evaluator(repo_root, task, ceilings)
+    candidate_text = "Study the requirements before acting."
+    expected_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
+
+    with pytest.raises(EvaluationPending):
+        evaluator(candidate_text, task)
+
+    executor = evaluator.executor
+    assert isinstance(executor, MockExecutor)
+    assert len(executor.submitted_specs) == 1
+    spec = executor.submitted_specs[0]
+    assert spec.agent == DEEPSEEK_TARGET_AGENT
+    assert spec.model == DEEPSEEK_MODEL_SELECTOR
+    assert spec.extra_instruction_sha256 == expected_hash
+    assert spec.max_requests == ceilings.max_requests
+    assert spec.max_input_tokens == ceilings.max_input_tokens
+    assert spec.max_output_tokens == ceilings.max_output_tokens
+    assert spec.max_total_tokens == ceilings.max_total_tokens
+    assert spec.cost_limit_usd == ceilings.cost_limit_usd
+
+
+def _resume_deepseek_job(
+    tmp_path: Path, candidate_text: str, ceilings: ProviderCeilings, **job_kwargs: Any
+) -> tuple[LabEvaluator, dict[str, Any]]:
+    """Pre-create the deterministic DeepSeek job dir, then evaluate the candidate."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
+    job_name = deterministic_job_name(
+        agent=DEEPSEEK_TARGET_AGENT,
+        model=DEEPSEEK_MODEL_SELECTOR,
+        task_id="task_1",
+        candidate_sha256=cand_hash,
+    )
+    create_deepseek_job_fixture(
+        repo_root / "runs",
+        job_name=job_name,
+        task_id="task_1",
+        task_path="tasks/task_1",
+        package_digest=task["task_package_digest"],
+        candidate_sha256=cand_hash,
+        ceilings=ceilings,
+        **job_kwargs,
+    )
+    evaluator = make_deepseek_evaluator(repo_root, task, ceilings)
+    return evaluator, task
+
+
+def test_deepseek_provenance_mismatch_on_locked_trial_model_differs(tmp_path: Path) -> None:
+    """A resumed job whose locked trial records a different model never matches."""
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(
+        tmp_path,
+        "Instruction A.",
+        ceilings,
+        lock_model="deepseek/deepseek-chat",
+        observed_model="deepseek/deepseek-chat",
+    )
+
+    with pytest.raises(ProvenanceMismatchError, match="does not match exact"):
+        evaluator("Instruction A.", task)
+
+
+def test_deepseek_provenance_mismatch_on_ceilings_difference(tmp_path: Path) -> None:
+    """A resumed job whose accounting report records different ceilings never matches."""
+    ceilings = make_ceilings()
+    tampered = dict(ceilings.expected_usage_limits())
+    tampered["max_requests"] = tampered["max_requests"] + 1
+    evaluator, task = _resume_deepseek_job(
+        tmp_path,
+        "Instruction A.",
+        ceilings,
+        observed_model=DEEPSEEK_MODEL_SELECTOR,
+        limits_override=tampered,
+    )
+
+    with pytest.raises(ProvenanceMismatchError, match="does not match exact"):
+        evaluator("Instruction A.", task)
+
+
+def test_deepseek_provenance_mismatch_on_missing_accounting(tmp_path: Path) -> None:
+    """Missing accounting evidence is never a match for a ceilings-bound target."""
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(
+        tmp_path,
+        "Instruction A.",
+        ceilings,
+        observed_model=DEEPSEEK_MODEL_SELECTOR,
+        include_provider_usage=False,
+    )
+
+    with pytest.raises(ProvenanceMismatchError, match="does not match exact"):
+        evaluator("Instruction A.", task)
+
+
+def test_deepseek_identity_unknown_when_no_returned_model(tmp_path: Path) -> None:
+    """No returned model in the usage record is recorded as unknown, never matched."""
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(tmp_path, "Instruction A.", ceilings)
+
+    score, info = evaluator("Instruction A.", task)
+
+    assert score == 1.0
+    assert info["usage"]["identity"] == {
+        "requested_model": DEEPSEEK_MODEL_SELECTOR,
+        "observed_model": None,
+        "status": "unknown",
+    }
+
+
+def test_deepseek_identity_matched_when_equal(tmp_path: Path) -> None:
+    """A verbatim returned model equal to the pin is recorded as matched."""
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(
+        tmp_path, "Instruction A.", ceilings, observed_model=DEEPSEEK_MODEL_SELECTOR
+    )
+
+    score, info = evaluator("Instruction A.", task)
+
+    assert score == 1.0
+    assert info["usage"]["identity"] == {
+        "requested_model": DEEPSEEK_MODEL_SELECTOR,
+        "observed_model": DEEPSEEK_MODEL_SELECTOR,
+        "status": "matched",
+    }
+
+
+def test_deepseek_identity_mismatch_raises(tmp_path: Path) -> None:
+    """A verbatim returned model differing from the pin raises a provenance error."""
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(
+        tmp_path, "Instruction A.", ceilings, observed_model="deepseek/deepseek-chat"
+    )
+
+    with pytest.raises(ProvenanceMismatchError, match="returned model"):
+        evaluator("Instruction A.", task)

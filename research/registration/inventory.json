@@ -1,6 +1,6 @@
 {
-  "total_packages": 524,
-  "runnable_packages": 504,
+  "total_packages": 526,
+  "runnable_packages": 506,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5198,6 +5198,16 @@
       "registration_state": null
     },
     {
+      "task_id": "nginx-proxy-repair",
+      "path": "library/tasks/nginx-proxy-repair",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
       "task_id": "query-optimize",
       "path": "library/tasks/query-optimize",
       "category": "runnable_task",
@@ -5206,6 +5216,16 @@
       "has_verifier": true,
       "is_canary": false,
       "registration_state": "candidate"
+    },
+    {
+      "task_id": "release-branch-rescue",
+      "path": "library/tasks/release-branch-rescue",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
     },
     {
       "task_id": "tau3-retail-1",

@@ -1,0 +1,37 @@
+schema_version = "1.4"
+artifacts = ["/workspace/release", "/srv/origin.git"]
+
+[task]
+name = "peter/release-branch-rescue"
+version = "1.0.0"
+description = "Recover lost release commits from reflog, integrate offline upstream changes, and restore tracked main branch."
+keywords = ["git", "reflog", "branch-rescue", "git-recovery", "ops"]
+[[task.authors]]
+name = "Peter Makhnatch"
+
+[metadata]
+category = "git-operations"
+difficulty = "medium"
+capability = "recover unreferenced commits via reflog, integrate divergent history, and configure branch tracking"
+
+[verifier]
+timeout_sec = 120.0
+collect = []
+environment_mode = "separate"
+
+[verifier.env]
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+cpus = 1
+memory_mb = 1024
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

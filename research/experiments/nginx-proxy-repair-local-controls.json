@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "matrix_id": "01M29SKVBQMHTKYZNW3S8VD2M6",
+  "name": "nginx-proxy-repair-local-controls",
+  "hypothesis": "Oracle passes and no-op fails while task, environment, and verifier stay fixed; these are validity controls, not capability evidence.",
+  "benchmark_family": "nginx-proxy-repair",
+  "task_id": "nginx-proxy-repair",
+  "task": "library/tasks/nginx-proxy-repair",
+  "task_package_digest": "sha256:43aa504ed31e39faca4e863dcce7bc2566480d9211ead9926c902b8371aa4432",
+  "verifier_digest": "sha256:e9b81f0fc39d3d99340c1019de46c7233107732eaf16e0fdd8895e24ba1b4499",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "runs": [
+    {
+      "name": "nginx-proxy-repair-lib-matrix-oracle-20260911",
+      "agent": "oracle",
+      "attempts": 1,
+      "expect_reward": 1.0
+    },
+    {
+      "name": "nginx-proxy-repair-lib-matrix-nop-20260911",
+      "agent": "nop",
+      "attempts": 1,
+      "expect_reward": 0.0
+    }
+  ]
+}

@@ -721,6 +721,8 @@ def build_command(request: RunRequest) -> list[str]:
                     "api_base=https://api.deepseek.com",
                     "--agent-kwarg",
                     "timeout_sec=120",
+                    "--agent-kwarg",
+                    "worker_src=src/evallab/rlm_runtime/worker.py",
                 ]
             )
     if request.extra_instruction_path is not None:

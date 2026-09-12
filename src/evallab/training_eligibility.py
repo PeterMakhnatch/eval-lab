@@ -99,7 +99,9 @@ def evaluate_trial(trial_dir: Path) -> dict[str, Any]:
             "reasoning_effort": reasoning_effort if isinstance(reasoning_effort, str) else None,
             "tool_protocol": "function_calls"
             if any(step.get("tool_calls") for step in agent_steps)
-            else "text_only" if agent_steps else None,
+            else "text_only"
+            if agent_steps
+            else None,
         },
         "usage": usage,
     }

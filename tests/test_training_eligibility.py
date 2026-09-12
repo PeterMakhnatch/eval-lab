@@ -36,7 +36,9 @@ def test_single_actor_text_and_tool_calls_are_sft_not_online_rl(tmp_path: Path) 
                 "message": "",
                 "model_name": "deepseek-fixture",
                 "reasoning_effort": "high",
-                "tool_calls": [{"tool_call_id": "call-1", "function_name": "exec", "arguments": {}}],
+                "tool_calls": [
+                    {"tool_call_id": "call-1", "function_name": "exec", "arguments": {}}
+                ],
                 "metrics": {"prompt_tokens": 10, "completion_tokens": 2},
             },
             {
@@ -129,7 +131,9 @@ def test_unknown_usage_stays_null_but_recorded_zero_stays_zero(tmp_path: Path) -
     "steps",
     [[{"source": "user", "message": "A"}], [{"source": "agent", "message": "", "model_name": "m"}]],
 )
-def test_only_nonempty_actor_output_supports_sft(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
+def test_only_nonempty_actor_output_supports_sft(
+    tmp_path: Path, steps: list[dict[str, Any]]
+) -> None:
     trial = _trial(tmp_path / "trial", steps)
     assert evaluate_trial(trial)["sft"] == {"eligible": False, "reasons": ["no_agent_steps"]}
 

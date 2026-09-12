@@ -60,7 +60,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, HARBOR_AGENT_IMPORT_PATHS
+from evallab.execution_contracts import (
+    DEEPSEEK_ALLOWED_MODEL,
+    DEEPSEEK_MODEL_SELECTOR,
+    HARBOR_AGENT_IMPORT_PATHS,
+)
 from evallab.queue import Executor, new_ulid
 from evallab.registry import task_directory_digest
 from evallab.results import JobRecord, load_job
@@ -358,16 +362,23 @@ def _check_job_provenance(
         agent = locked.get("agent")
         if not isinstance(agent, dict) or agent.get("model_name") != expected_model:
             return False
-        if expected_agent in NATIVE_ENTRYPOINTS:
-            if agent.get("import_path") != NATIVE_ENTRYPOINTS[expected_agent]:
-                return False
-        elif expected_agent == DEEPSEEK_TARGET_AGENT:
-            # Harbor records the repo-owned adapter import path for the DeepSeek
-            # lane; a lock without it is not evidence for this target.
-            if agent.get("import_path") != DEEPSEEK_TARGET_IMPORT_PATH:
-                return False
-            name = agent.get("name")
-            if name is not None and name != expected_agent:
+        expected_import = (
+            DEEPSEEK_TARGET_IMPORT_PATH
+            if expected_agent == DEEPSEEK_TARGET_AGENT
+            else NATIVE_ENTRYPOINTS.get(expected_agent)
+        )
+        if expected_import is not None:
+            # Harbor's --agent stores an import path in name; explicit
+            # AgentConfig.import_path is another valid persisted representation.
+            name, import_path = agent.get("name"), agent.get("import_path")
+            if import_path is None:
+                if name != expected_import:
+                    return False
+            elif import_path != expected_import or name not in (
+                None,
+                expected_agent,
+                expected_import,
+            ):
                 return False
         elif agent.get("name") != expected_agent or agent.get("import_path"):
             return False
@@ -395,17 +406,19 @@ def _check_job_provenance(
         expected_limits = expected_ceilings.expected_usage_limits()
         if any(limits.get(key) != value for key, value in expected_limits.items()):
             return False
+        if provider_usage.get("unresolved_requests") != 0:
+            return False
     return True
 
 
-def _returned_deepseek_models(job: JobRecord) -> frozenset[str]:
+def _returned_deepseek_models(job: JobRecord) -> frozenset[str | None]:
     """Return the verbatim provider-returned model names for a DeepSeek job.
 
     Only the secret proxy's per-call accounting (``provider_usage.calls[*]``,
     persisted by the runner) is provider-side evidence. Harbor's
     ``agent_info``/``agent_result`` carry the agent's *declared* model and must
     never be read as an observed identity. Calls without a ``returned_model``
-    contribute nothing: an unrecorded model is unknown, never inferred.
+    retain None so incomplete identity coverage cannot be reported as matched.
     """
     provider_usage = job.metadata.get("provider_usage")
     if not isinstance(provider_usage, dict):
@@ -413,13 +426,10 @@ def _returned_deepseek_models(job: JobRecord) -> frozenset[str]:
     calls = provider_usage.get("calls")
     if not isinstance(calls, list):
         return frozenset()
-    returned: set[str] = set()
+    returned: set[str | None] = set()
     for call in calls:
-        if not isinstance(call, dict):
-            continue
-        value = call.get("returned_model")
-        if isinstance(value, str) and value:
-            returned.add(value)
+        value = call.get("returned_model") if isinstance(call, dict) else None
+        returned.add(value if isinstance(value, str) and value else None)
     return frozenset(returned)
 
 
@@ -457,13 +467,13 @@ class LabEvaluator:
         if ceilings is not None and not isinstance(ceilings, ProviderCeilings):
             raise ValueError(f"ceilings must be a ProviderCeilings, got {type(ceilings).__name__}")
         self.ceilings = ceilings
+        if ceilings is not None and self.agent != DEEPSEEK_TARGET_AGENT:
+            raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
         # Agent/profile and model validation
         if self.agent in PERMITTED_CONTROLS:
             if self.model is not None:
                 raise ValueError(f"the {self.agent} control does not accept a model")
-            if self.ceilings is not None:
-                raise ValueError(f"the {self.agent} control does not accept provider ceilings")
         elif self.agent in PERMITTED_NATIVE_PROFILES:
             if self.model != PERMITTED_NATIVE_MODEL:
                 raise ValueError(
@@ -553,6 +563,8 @@ class LabEvaluator:
         trial_name: str | None = None,
     ) -> EvaluationRecord:
         """Shared constructor: build EvaluationRecord, retain in memory, and persist receipt on disk."""
+        if self.ceilings is not None:
+            usage = {**usage, "provider_ceilings": self.ceilings.to_spec_kwargs()}
         record = EvaluationRecord(
             candidate_id=candidate_sha256,
             candidate_sha256=candidate_sha256,
@@ -640,17 +652,14 @@ class LabEvaluator:
             # an unrecorded model is unknown, never inferred as matched, and
             # calls that disagree with the pin (or each other) are a mismatch.
             returned = _returned_deepseek_models(job_record)
-            if not returned:
-                observed: str | None = None
-                identity_status = "unknown"
-            elif returned == {self.model}:
-                observed = self.model
-                identity_status = "matched"
-            else:
+            known = {name for name in returned if name is not None}
+            if known - {DEEPSEEK_ALLOWED_MODEL}:
                 raise ProvenanceMismatchError(
-                    f"DeepSeek job at {job_dir} returned model {sorted(returned)!r}, "
-                    f"expected {self.model!r}"
+                    f"DeepSeek job at {job_dir} returned model {sorted(known)!r}, "
+                    f"expected provider model {DEEPSEEK_ALLOWED_MODEL!r}"
                 )
+            observed = DEEPSEEK_ALLOWED_MODEL if known else None
+            identity_status = "matched" if returned == {DEEPSEEK_ALLOWED_MODEL} else "unknown"
             usage["identity"] = {
                 "requested_model": self.model,
                 "observed_model": observed,
@@ -879,6 +888,14 @@ class LabEvaluator:
                 raise ProvenanceMismatchError("Retained evaluation belongs to a different request")
             existing_spec = artifact_data.get("receipt_paths", {}).get("spec_file")
             if artifact_data.get("status") == "pending" and existing_spec:
+                recorded_usage = artifact_data.get("usage")
+                if self.ceilings is not None and (
+                    not isinstance(recorded_usage, dict)
+                    or recorded_usage.get("provider_ceilings") != self.ceilings.to_spec_kwargs()
+                ):
+                    raise ProvenanceMismatchError(
+                        "Pending evaluation does not match exact provider ceilings"
+                    )
                 existing_spec_path = Path(existing_spec)
                 # Native queue transitions move files. A retained submission must
                 # never be resubmitted merely because its original path moved.

@@ -147,8 +147,8 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError(
             f"DeepSeek target '{DEEPSEEK_TARGET_AGENT}' requires explicit provider_ceilings"
         )
-    if raw["agent"] in {"oracle", "nop"} and ceilings_raw is not None:
-        raise ValueError("Local controls do not accept provider_ceilings")
+    if raw["agent"] != DEEPSEEK_TARGET_AGENT and ceilings_raw is not None:
+        raise ValueError("Only the DeepSeek target accepts provider_ceilings")
     _path(repo_root.resolve(), raw["seed_candidate_path"])
     _path(repo_root.resolve(), raw["output_dir"])
     return raw

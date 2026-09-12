@@ -197,15 +197,22 @@ def test_campaign_loader_requires_ceilings_for_deepseek(tmp_path: Path) -> None:
         load_campaign(path, repo_root)
 
 
-def test_campaign_loader_rejects_ceilings_for_controls(tmp_path: Path) -> None:
-    """Local controls never spend, so ceilings on them are refused at load time."""
+@pytest.mark.parametrize(
+    "agent,model", [("oracle", None), ("baseline", "anthropic/claude-opus-4-6")]
+)
+def test_campaign_refuses_ceilings_without_a_supporting_runtime(
+    tmp_path: Path, agent: str, model: str | None
+) -> None:
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     task = _write_task(repo_root)
-    path = _write_campaign(repo_root, task, agent="oracle", model=None)
-
-    with pytest.raises(ValueError, match="do not accept provider_ceilings"):
+    path = _write_campaign(repo_root, task, agent=agent, model=model)
+    with pytest.raises(ValueError):
         load_campaign(path, repo_root)
+    raw = json.loads(path.read_text())
+    del raw["provider_ceilings"]
+    path.write_text(json.dumps(raw))
+    assert load_campaign(path, repo_root)["agent"] == agent
 
 
 def test_campaign_loader_rejects_malformed_ceilings(tmp_path: Path) -> None:

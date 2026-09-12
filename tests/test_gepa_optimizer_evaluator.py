@@ -39,7 +39,7 @@ from typing import Any
 
 import pytest
 
-from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR
+from evallab.execution_contracts import DEEPSEEK_ALLOWED_MODEL, DEEPSEEK_MODEL_SELECTOR
 from evallab.gepa_optimizer.evaluator import (
     DEEPSEEK_TARGET_AGENT,
     DEEPSEEK_TARGET_IMPORT_PATH,
@@ -925,6 +925,8 @@ def create_deepseek_job_fixture(
     declared_model: str | None = None,
     include_provider_usage: bool = True,
     limits_override: dict[str, Any] | None = None,
+    unresolved_requests: int = 0,
+    lock_agent_override: dict[str, Any] | None = None,
     reward: float | None = 1.0,
 ) -> Path:
     """Completed DeepSeek job as the runner persists it: adapter import path in the
@@ -935,10 +937,11 @@ def create_deepseek_job_fixture(
     trial_name = f"{task_id}__trial01"
     trial_dir = job_dir / trial_name
     agent_config = {
-        "name": DEEPSEEK_TARGET_AGENT,
-        "import_path": DEEPSEEK_TARGET_IMPORT_PATH,
+        "name": DEEPSEEK_TARGET_IMPORT_PATH,
         "model_name": lock_model,
     }
+    if lock_agent_override is not None:
+        agent_config.update(lock_agent_override)
     trial_lock = {
         "schema_version": 2,
         "agent": agent_config,
@@ -989,7 +992,7 @@ def create_deepseek_job_fixture(
                 "total_tokens": 0,
                 "cost_micros": 0,
             },
-            "unresolved_requests": 0,
+            "unresolved_requests": unresolved_requests,
             "calls": [
                 {
                     "call_id": index,
@@ -1067,8 +1070,11 @@ def test_deepseek_target_rejects_missing_ceilings(tmp_path: Path) -> None:
         make_deepseek_evaluator(repo_root, task, ceilings=None)
 
 
-def test_controls_reject_ceilings(tmp_path: Path) -> None:
-    """Local controls execute with no provider spend, so ceilings are refused."""
+@pytest.mark.parametrize("agent,model", [("oracle", None), ("baseline", PERMITTED_NATIVE_MODEL)])
+def test_non_deepseek_targets_reject_ceilings(
+    tmp_path: Path, agent: str, model: str | None
+) -> None:
+    """Only the DeepSeek runtime implements these provider ceilings."""
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     task = create_task_fixture(repo_root, "tasks/task_1")
@@ -1078,7 +1084,8 @@ def test_controls_reject_ceilings(tmp_path: Path) -> None:
             repo_root=repo_root,
             output_dir=repo_root / "out",
             examples=[task],
-            agent="oracle",
+            agent=agent,
+            model=model,
             ceilings=make_ceilings(),
             executor=MockExecutor(repo_root),
         )
@@ -1218,7 +1225,7 @@ def test_deepseek_identity_matched_when_every_call_returns_the_pin(tmp_path: Pat
         tmp_path,
         "Instruction A.",
         ceilings,
-        returned_models=(DEEPSEEK_MODEL_SELECTOR, DEEPSEEK_MODEL_SELECTOR),
+        returned_models=(DEEPSEEK_ALLOWED_MODEL, DEEPSEEK_ALLOWED_MODEL),
     )
 
     score, info = evaluator("Instruction A.", task)
@@ -1226,7 +1233,7 @@ def test_deepseek_identity_matched_when_every_call_returns_the_pin(tmp_path: Pat
     assert score == 1.0
     assert info["usage"]["identity"] == {
         "requested_model": DEEPSEEK_MODEL_SELECTOR,
-        "observed_model": DEEPSEEK_MODEL_SELECTOR,
+        "observed_model": DEEPSEEK_ALLOWED_MODEL,
         "status": "matched",
     }
 
@@ -1246,7 +1253,7 @@ def test_deepseek_identity_ignores_agent_declared_model(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "returned_models",
-    [("deepseek/deepseek-chat",), (DEEPSEEK_MODEL_SELECTOR, "deepseek/deepseek-chat")],
+    [("deepseek-chat",), (DEEPSEEK_ALLOWED_MODEL, "deepseek-chat")],
     ids=["differs-from-pin", "calls-disagree"],
 )
 def test_deepseek_identity_mismatch_raises(
@@ -1260,3 +1267,54 @@ def test_deepseek_identity_mismatch_raises(
 
     with pytest.raises(ProvenanceMismatchError, match="returned model"):
         evaluator("Instruction A.", task)
+
+
+def test_deepseek_partial_identity_coverage_stays_unknown(tmp_path: Path) -> None:
+    ceilings = make_ceilings()
+    evaluator, task = _resume_deepseek_job(
+        tmp_path,
+        "Instruction A.",
+        ceilings,
+        returned_models=(DEEPSEEK_ALLOWED_MODEL, ""),
+    )
+
+    _, info = evaluator("Instruction A.", task)
+
+    assert info["usage"]["identity"]["status"] == "unknown"
+    assert info["usage"]["identity"]["observed_model"] == DEEPSEEK_ALLOWED_MODEL
+
+
+def test_deepseek_resume_rejects_conflicting_adapter_identity(tmp_path: Path) -> None:
+    evaluator, task = _resume_deepseek_job(
+        tmp_path,
+        "Instruction A.",
+        make_ceilings(),
+        lock_agent_override={"import_path": "wrong.module:Agent"},
+    )
+    with pytest.raises(ProvenanceMismatchError, match="does not match exact"):
+        evaluator("Instruction A.", task)
+
+
+def test_deepseek_resume_preserves_unresolved_accounting_hold(tmp_path: Path) -> None:
+    evaluator, task = _resume_deepseek_job(
+        tmp_path,
+        "Instruction A.",
+        make_ceilings(),
+        unresolved_requests=1,
+        returned_models=(DEEPSEEK_ALLOWED_MODEL,),
+    )
+    with pytest.raises(ProvenanceMismatchError, match="does not match exact"):
+        evaluator("Instruction A.", task)
+
+
+def test_pending_deepseek_evaluation_cannot_change_ceilings_on_resume(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    initial = make_deepseek_evaluator(repo_root, task, make_ceilings(max_requests=4))
+    with pytest.raises(EvaluationPending):
+        initial("Instruction A.", task)
+    resumed = make_deepseek_evaluator(repo_root, task, make_ceilings(max_requests=1))
+    with pytest.raises(ProvenanceMismatchError, match="exact provider ceilings"):
+        resumed("Instruction A.", task)
+    assert resumed.executor.submitted_specs == []

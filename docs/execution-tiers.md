@@ -73,6 +73,50 @@ Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:
 through `evallab` wrappers, jobs under `runs/`, ≤2 concurrent. The larger VM
 just means `local-heavy` tasks no longer fail on memory.
 
+## Offline LEGO capture checks (CPU only)
+
+Inspect saved `proxy_capture.json` files without starting Harbor, a proxy,
+a model, or a trainer:
+
+```bash
+uv run python -m evallab.lego_capture \
+  --record-origin cpu_proxy_session_synthetic \
+  /path/to/proxy_capture.json
+```
+
+Pass multiple files to receive per-file assessments and summary counts. Exit
+status is `0` when all requested local checks pass, `1` when any input is
+rejected, and `2` for invalid command options. Source files are read-only;
+reports include their byte digests, not copied token/probability arrays.
+
+Checks cover prompt/response alignment, nonempty trained-token masks, token
+types, finite nonpositive trained-slot log-probabilities (including `0.0`),
+finite numeric excluded-slot placeholders, disabled/error/diagnostic captures,
+and optional routing alignment. Missing or empty routing remains absent.
+Context overflow is retained as termination metadata: it does not by itself
+invalidate correctly captured earlier tokens.
+
+Weight-span completeness is reported separately. To check an explicitly
+chosen learner-step/maximum-lag policy, supply both options:
+
+```bash
+uv run python -m evallab.lego_capture \
+  --learner-step 5 --max-weight-lag 0 \
+  /path/to/proxy_capture.json
+```
+
+This rejects missing, malformed, reversed, future, or stale declared spans;
+lag uses the oldest sampled step. Without those options, no lag policy is
+applied. A dispatch/default step never fills a missing sampled-weight identity.
+
+**Passing is not live-model qualification or training authorization.**
+`--record-origin live_trial` remains an unverified declaration and cannot
+override conflicting synthetic or diagnostic provenance. Model/checkpoint,
+tokenizer, actor and original sampling identities, training rights, task/data
+admission, runtime compatibility, and execution approval remain separate
+requirements. Text/ATIF trajectories cannot recover missing original
+behavior-policy probabilities.
+
 ## Running a paid agent locally (authorised per spec, since 2026-08-16)
 
 Local Docker execution is free only for `oracle` and `nop`. Any other agent —

@@ -28,13 +28,13 @@ def _collect_secrets() -> frozenset[str]:
         from evallab.execution_contracts import collected_secret_values
 
         secrets.update(s for s in collected_secret_values() if s)
-    except Exception:
+    except ImportError:
         pass
     try:
         from evallab.harbor_zai_opencode import collected_zai_secret_values
 
         secrets.update(s for s in collected_zai_secret_values() if s)
-    except Exception:
+    except ImportError:
         pass
     return frozenset(secrets)
 
@@ -84,6 +84,11 @@ def _validate_path_jail(root: Path, target: Path | str, *, label: str) -> Path:
 def _safe_child_file(parent_dir: Path, rel_path: str, *, label: str) -> Path | None:
     """Resolve child file strictly within parent_dir; reject symlink/path traversal escapes."""
     target = parent_dir / rel_path
+    current = target
+    while current != parent_dir:
+        if current.is_symlink():
+            raise ValueError(f"{label} escapes allowed root through an untrusted symlink")
+        current = current.parent
     if not target.exists():
         return None
     resolved = target.resolve()
@@ -142,6 +147,7 @@ def build_feedback(
     _check_task_path_safety(Path(task_path))
 
     resolved_task_path = _validate_path_jail(resolved_repo_root, task_path, label="task_path")
+    _check_task_path_safety(resolved_task_path)
     if not resolved_task_path.exists() or not resolved_task_path.is_dir():
         raise FileNotFoundError(f"task_path '{task_path}' does not exist or is not a directory")
 
@@ -151,6 +157,7 @@ def build_feedback(
 
     sources: dict[str, str] = {}
     coverage_notices: list[str] = []
+    secrets = _collect_secrets()
 
     # 1. Declared Task Instruction (instruction.md only)
     task_instruction: str | None = None
@@ -229,7 +236,7 @@ def build_feedback(
         if isinstance(result_data.get("agent_result"), dict)
         else {}
     )
-    exit_code = agent_result.get("exit_code") or result_data.get("exit_code")
+    exit_code = agent_result.get("exit_code", result_data.get("exit_code"))
 
     # Emitted verifier diagnostics (checks.json, test-stdout.txt)
     verifier_diag: str | None = None
@@ -253,7 +260,7 @@ def build_feedback(
             sources["verifier_stdout"] = stdout_file.relative_to(resolved_repo_root).as_posix()
             raw_stdout = stdout_file.read_text(encoding="utf-8").strip()
             if raw_stdout:
-                verifier_diag = raw_stdout[:_MAX_OBSERVATION_CHARS]
+                verifier_diag = _redact_full_text(raw_stdout, secrets)[:_MAX_OBSERVATION_CHARS]
 
     # 3. Jailed Allowlisted Trajectory via evallab.trajectory_ir.build_trajectory_ir
     traj_file = _safe_child_file(resolved_trial_path, "agent/trajectory.json", label="trajectory")
@@ -308,7 +315,7 @@ def build_feedback(
                         )
                         for obs in step.observation_results:
                             if obs.source_call_id == tc.tool_call_id or not obs.source_call_id:
-                                obs_text = str(obs.content) if obs.content is not None else ""
+                                obs_text = _redact_full_text(str(obs.content), secrets) if obs.content is not None else ""
                                 if len(obs_text) > _MAX_OBSERVATION_CHARS:
                                     obs_text = (
                                         obs_text[:_MAX_OBSERVATION_CHARS]
@@ -380,7 +387,7 @@ def build_feedback(
     raw_text = "\n".join(lines).strip() + "\n"
 
     # 5. Redact Full String Before Truncating
-    secrets = _collect_secrets()
+    # All individual excerpts have already been redacted before their local bounds.
     redacted_text = _redact_full_text(raw_text, secrets)
 
     # 6. Honest Budget Truncation Against max_chars

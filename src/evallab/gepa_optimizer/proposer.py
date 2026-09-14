@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +18,14 @@ class ProposalUnavailable(BaseException):
 
 
 class JournaledReflectionLM:
-    def __init__(self, *, model: str, directory: Path, max_requests: int) -> None:
+    def __init__(
+        self, *, model: str, directory: Path, max_requests: int,
+        before_request: Callable[[], None] | None = None,
+    ) -> None:
         self.model = model
         self.directory = directory
         self.max_requests = max_requests
+        self.before_request = before_request
         directory.mkdir(parents=True, exist_ok=True)
         self.replayed = 0
         self.new_requests = 0
@@ -41,6 +46,8 @@ class JournaledReflectionLM:
         return sum(row.get("upstream_estimated_cost_usd") or 0.0 for row in self._receipts())
 
     def __call__(self, prompt: str | list[dict[str, Any]]) -> str:
+        if self.before_request is not None:
+            self.before_request()
         identity = {"model": self.model, "prompt": prompt}
         key = hashlib.sha256(
             json.dumps(identity, sort_keys=True, ensure_ascii=False).encode()
@@ -63,7 +70,20 @@ class JournaledReflectionLM:
         from gepa.lm import LM  # ty: ignore[unresolved-import]
 
         if self._lm is None:
-            self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60)
+            options: dict[str, Any] = {}
+            if self.model.startswith("zai/"):
+                from evallab.execution_contracts import (
+                    ZAI_OPENCODE_MODEL_SELECTORS, opencode_auth_path, read_zai_opencode_key,
+                )
+
+                target = "zai-coding-plan/" + self.model.removeprefix("zai/")
+                if target not in ZAI_OPENCODE_MODEL_SELECTORS:
+                    raise ValueError("Proposer model is not an admitted Z.ai Coding Plan model")
+                options = {
+                    "api_base": "https://api.z.ai/api/coding/paas/v4",
+                    "api_key": read_zai_opencode_key(opencode_auth_path()),
+                }
+            self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60, **options)
         receipt = {
             "identity": identity,
             "status": "sent_remote_outcome_unknown",

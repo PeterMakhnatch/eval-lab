@@ -1,4 +1,4 @@
-"""Run with python -m evallab.gepa_optimizer; shared Lab CLI is unchanged."""
+"""Opt-in Harbor optimization; ordinary evallab runs never start GEPA."""
 
 from __future__ import annotations
 
@@ -8,14 +8,19 @@ import uuid
 from pathlib import Path
 
 from .evaluator import LabEvaluator
-from .workflow import _path, load_campaign, run_campaign
+from .workflow import (
+    _path, approve_candidate, campaign_status, load_campaign, run_campaign, set_campaign_paused,
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("run", "qualify-meta"))
+    parser.add_argument(
+        "command", choices=("run", "status", "stop", "resume", "approve-candidate", "qualify-meta")
+    )
     parser.add_argument("campaign", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--candidate", help="Full retained candidate SHA-256 for approve-candidate")
     parser.add_argument(
         "--qualification",
         action="store_true",
@@ -33,6 +38,18 @@ def main() -> int:
             repo_root=args.repo_root,
             qualification=args.qualification,
             proposer_approval_ref=args.proposer_approval_ref,
+        )
+    elif args.command == "status":
+        report = campaign_status(args.campaign, repo_root=args.repo_root)
+    elif args.command in {"stop", "resume"}:
+        report = set_campaign_paused(
+            args.campaign, repo_root=args.repo_root, paused=args.command == "stop",
+        )
+    elif args.command == "approve-candidate":
+        if not args.candidate:
+            parser.error("approve-candidate requires --candidate with a complete SHA-256")
+        report = approve_candidate(
+            args.campaign, repo_root=args.repo_root, candidate_id=args.candidate,
         )
     else:
         from .meta_engine import qualify_meta_harness
@@ -61,7 +78,9 @@ def main() -> int:
             max_evals=config["max_evals"],
         )
     print(json.dumps(report, indent=2, allow_nan=False))
-    return 0 if report.get("status") == "completed" or report.get("qualified") else 2
+    return 0 if report.get("status") in {
+        "completed", "disabled", "stopped", "ready", "candidate_reviewed",
+    } or report.get("qualified") else 2
 
 
 if __name__ == "__main__":

@@ -19,21 +19,22 @@ Key Invariants:
    - Tasks must reside within the repository root (repo-relative, no traversal).
    - Task package digests are cryptographically verified against declared values.
 3. Execution Policy Boundary:
-   - Permitted agents: local controls (``oracle``, ``nop`` with model=None), ready native
-     profiles (``baseline``, ``released``, ``bootstrap-cwd`` with exact native model
-     ``anthropic/claude-opus-4-6``), or the DeepSeek-first target (``mini-swe-agent``
-     with the exact ``DEEPSEEK_MODEL_SELECTOR`` model and explicit ``ProviderCeilings``).
+   - Model-backed targets resolve through the normal Lab profile registry, with
+     explicit model pins. Controls use model=None. No lane-local alias registry.
+   - Broker-backed targets require explicit per-trial provider ceilings.
    - Local controls execute directly via ``Executor.execute_direct`` with ``RunProvenance``.
    - Newly executed and resumed jobs are both validated against exact recorded native provenance.
    - Model-backed evaluations require a genuine cost estimate (``estimated_cost_usd > 0``),
      submit an exact ``ExperimentSpec`` with hypothesis and elicitation purpose to the
-     standing-approvals queue, and NEVER approve it. The DeepSeek target's spec also
-     carries its explicit provider ceilings.
+     standing-approvals queue, and NEVER approve it. Broker-backed specs carry
+     the same explicit provider ceilings as the ordinary execution path.
    - The DeepSeek target additionally binds recorded provider ceilings when persisted,
      and records observed model identity (matched/unknown/mismatch) without inferring it.
    - Resumption checks ONLY the deterministic job name or retained evaluation receipt;
      no broad directory discovery across unrelated runs.
    - Pending evaluations reuse existing queue specs on resume without duplicate submissions.
+   - Review-mode candidates are retained without submission until explicitly allowed.
+   - Rejected or failed queue entries are errors, not perpetually pending evaluations.
 4. Reward Fidelity & No NaN:
    - When an evaluation is pending, ``EvaluationPending`` is raised to stop orchestration.
    - When an evaluation has missing reward or infra/runtime errors, the failure is recorded
@@ -68,27 +69,14 @@ from evallab.execution_contracts import (
 from evallab.queue import Executor, new_ulid
 from evallab.registry import task_directory_digest
 from evallab.results import JobRecord, load_job
-from evallab.runner import CONTROL_AGENTS, RunRequest
+from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
 
+from .feedback import build_feedback
+
 PERMITTED_CONTROLS = frozenset({"oracle", "nop"})
-NATIVE_ENTRYPOINTS = {
-    "baseline": "evallab_metaharness.agents:Baseline",
-    "released": "evallab_metaharness.agents:Released",
-    "bootstrap-cwd": "evallab_metaharness.agents:BootstrapCwd",
-}
-PERMITTED_NATIVE_PROFILES = frozenset(NATIVE_ENTRYPOINTS)
-PERMITTED_NATIVE_MODEL = "anthropic/claude-opus-4-6"
 DEEPSEEK_TARGET_AGENT = "mini-swe-agent"
 DEEPSEEK_TARGET_IMPORT_PATH = HARBOR_AGENT_IMPORT_PATHS[DEEPSEEK_TARGET_AGENT]
-#: Every model-backed target and its exact pinned model. Meta-Harness profiles keep
-#: the native pin; the DeepSeek-first target pins DEEPSEEK_MODEL_SELECTOR symbolically
-#: so a route rename flows through without edits here.
-PERMITTED_TARGET_MODELS: dict[str, str] = {
-    **{profile: PERMITTED_NATIVE_MODEL for profile in PERMITTED_NATIVE_PROFILES},
-    DEEPSEEK_TARGET_AGENT: DEEPSEEK_MODEL_SELECTOR,
-}
-PERMITTED_AGENTS = PERMITTED_CONTROLS | frozenset(PERMITTED_TARGET_MODELS)
 
 #: Exact keys of a provider_ceilings object, shared with workflow.load_campaign.
 PROVIDER_CEILING_FIELDS: tuple[str, ...] = (
@@ -98,6 +86,15 @@ PROVIDER_CEILING_FIELDS: tuple[str, ...] = (
     "max_total_tokens",
     "cost_limit_usd",
 )
+
+
+class CandidateReviewRequired(Exception):
+    """A proposal is retained but cannot be submitted until explicitly reviewed."""
+
+    def __init__(self, candidate_id: str, candidate_path: Path) -> None:
+        super().__init__(f"Review candidate {candidate_id} before evaluating it: {candidate_path}")
+        self.candidate_id = candidate_id
+        self.candidate_path = candidate_path
 
 
 @dataclass(frozen=True)
@@ -360,13 +357,9 @@ def _check_job_provenance(
         if len(extras) != 1 or extras[0].get("digest") != expected_candidate_sha256:
             return False
         agent = locked.get("agent")
-        if not isinstance(agent, dict) or agent.get("model_name") != expected_model:
+        if not isinstance(agent, dict) or agent.get("model_name") != resolve_harbor_model(expected_agent, expected_model):
             return False
-        expected_import = (
-            DEEPSEEK_TARGET_IMPORT_PATH
-            if expected_agent == DEEPSEEK_TARGET_AGENT
-            else NATIVE_ENTRYPOINTS.get(expected_agent)
-        )
+        expected_import = HARBOR_AGENT_IMPORT_PATHS.get(expected_agent)
         if expected_import is not None:
             # Harbor's --agent stores an import path in name; explicit
             # AgentConfig.import_path is another valid persisted representation.
@@ -449,6 +442,8 @@ class LabEvaluator:
         executor: Executor | None = None,
         jobs_dir: Path | None = None,
         ceilings: ProviderCeilings | None = None,
+        approved_candidate_ids: frozenset[str] | None = None,
+        feedback_max_chars: int = 24000,
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
@@ -467,32 +462,24 @@ class LabEvaluator:
         if ceilings is not None and not isinstance(ceilings, ProviderCeilings):
             raise ValueError(f"ceilings must be a ProviderCeilings, got {type(ceilings).__name__}")
         self.ceilings = ceilings
-        if ceilings is not None and self.agent != DEEPSEEK_TARGET_AGENT:
+        self.approved_candidate_ids = approved_candidate_ids
+        self.feedback_max_chars = feedback_max_chars
+        if ceilings is not None and self.agent not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
             raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
         # Agent/profile and model validation
         if self.agent in PERMITTED_CONTROLS:
             if self.model is not None:
                 raise ValueError(f"the {self.agent} control does not accept a model")
-        elif self.agent in PERMITTED_NATIVE_PROFILES:
-            if self.model != PERMITTED_NATIVE_MODEL:
-                raise ValueError(
-                    f"Native profile '{self.agent}' requires exact native model '{PERMITTED_NATIVE_MODEL}', got {self.model!r}"
-                )
-        elif self.agent == DEEPSEEK_TARGET_AGENT:
-            if self.model != DEEPSEEK_MODEL_SELECTOR:
-                raise ValueError(
-                    f"DeepSeek target '{self.agent}' requires exact model '{DEEPSEEK_MODEL_SELECTOR}', got {self.model!r}"
-                )
-            if self.ceilings is None:
-                raise ValueError(
-                    f"DeepSeek target '{self.agent}' requires explicit provider ceilings"
-                )
         else:
-            raise ValueError(
-                f"Agent '{self.agent}' not permitted: must be one of controls {sorted(PERMITTED_CONTROLS)} "
-                f"or targets {sorted(PERMITTED_TARGET_MODELS)}"
-            )
+            if self.model is None:
+                raise ValueError("Model-backed evaluations require an explicit registered model")
+            profile_for_request(RunRequest(
+                task=self.repo_root, agent=self.agent, model=self.model,
+                name="gepa-profile", jobs_dir=self.jobs_dir,
+            ))
+            if self.agent in {DEEPSEEK_TARGET_AGENT, "zai-opencode"} and self.ceilings is None:
+                raise ValueError(f"Target '{self.agent}' requires explicit provider ceilings")
 
         # Validate and store immutable copies of declared development examples
         if not examples:
@@ -534,6 +521,8 @@ class LabEvaluator:
         digest_hex = candidate_sha256.split(":", 1)[-1]
 
         local_candidate_file = self.output_dir / "candidates" / f"{digest_hex}.txt"
+        if local_candidate_file.is_symlink():
+            raise ValueError("Candidate files must not be symlinks")
         if local_candidate_file.exists():
             existing_text = local_candidate_file.read_text(encoding="utf-8")
             if existing_text != candidate:
@@ -541,7 +530,8 @@ class LabEvaluator:
                     f"Immutable candidate file collision: {local_candidate_file} exists but content differs from hash {candidate_sha256}"
                 )
         else:
-            local_candidate_file.write_text(candidate, encoding="utf-8")
+            with local_candidate_file.open("x", encoding="utf-8", newline="") as stream:
+                stream.write(candidate)
 
         rel_candidate_path = local_candidate_file.relative_to(self.repo_root).as_posix()
         return candidate_sha256, local_candidate_file, rel_candidate_path
@@ -673,7 +663,7 @@ class LabEvaluator:
                 usage["native_request_totals"] = accounting.get("totals")
                 usage["remote_outcomes_pending"] = accounting.get("remote_outcomes_pending")
                 usage["role_accounting_receipt"] = str(accounting_path)
-            elif self.agent in PERMITTED_NATIVE_PROFILES:
+            elif self.agent not in PERMITTED_CONTROLS:
                 usage["native_request_accounting"] = "missing"
 
         primary_reward = trial.primary_reward if trial is not None else None
@@ -723,6 +713,12 @@ class LabEvaluator:
 
         # Successful evaluation
         score = float(primary_reward)
+        feedback = build_feedback(
+            repo_root=self.repo_root,
+            task_path=Path(example["task_path"]),
+            trial_path=trial.path,
+            max_chars=self.feedback_max_chars,
+        ) if trial is not None else {"feedback": "No trial evidence available."}
         self._record_evaluation(
             candidate_sha256=candidate_sha256,
             local_candidate_file=local_candidate_file,
@@ -749,6 +745,7 @@ class LabEvaluator:
             "usage": usage,
             "error": None,
             "receipt_paths": receipt_paths,
+            **feedback,
         }
         return score, info
 
@@ -791,6 +788,9 @@ class LabEvaluator:
                 f"Current task directory digest for {task_id} has mutated: "
                 f"expected {declared['task_package_digest']}, computed {current_digest}"
             )
+
+        if self.approved_candidate_ids is not None and candidate_sha256 not in self.approved_candidate_ids:
+            raise CandidateReviewRequired(candidate_sha256, local_candidate_file)
 
         job_name = deterministic_job_name(
             agent=self.agent,
@@ -896,9 +896,21 @@ class LabEvaluator:
                     raise ProvenanceMismatchError(
                         "Pending evaluation does not match exact provider ceilings"
                     )
-                existing_spec_path = Path(existing_spec)
-                # Native queue transitions move files. A retained submission must
-                # never be resubmitted merely because its original path moved.
+                retained_spec = Path(existing_spec)
+                spec_id = retained_spec.stem.rsplit("-", 1)[-1]
+                try:
+                    existing_spec_path = self.executor.queue.locate(spec_id)
+                except ValueError as exc:
+                    raise EvaluationUnavailable(
+                        f"Retained evaluation {spec_id} is missing or ambiguous in the queue; "
+                        "inspect its native queue record rather than automatically resubmitting"
+                    ) from exc
+                queue_state = existing_spec_path.parent.name
+                if queue_state in {"rejected", "failed", "done"}:
+                    raise EvaluationUnavailable(
+                        f"Evaluation {spec_id} is {queue_state} without a usable completed job; "
+                        "inspect the native queue reason before continuing"
+                    )
                 self._record_evaluation(
                     candidate_sha256=candidate_sha256,
                     local_candidate_file=local_candidate_file,

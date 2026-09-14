@@ -223,13 +223,14 @@ def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
     return sanitized
 
 
-def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str, int] | None]:
+def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str, int] | None, str | None]:
     """Redact a text/event-stream and extract usage from the final data event.
 
     Returns the sanitized SSE body and, if present, a usage dict with
     ``prompt_tokens`` and ``completion_tokens``.
     """
     usage: dict[str, int] | None = None
+    returned_models: set[str] = set()
     events: list[list[bytes]] = []
     current: list[bytes] = []
     for line in data.splitlines(keepends=True):
@@ -247,8 +248,8 @@ def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str,
         data_lines: list[bytes] = []
         other_lines: list[bytes] = []
         for line in event:
-            if line.startswith(b"data: "):
-                data_lines.append(line[6:])
+            if line.startswith(b"data:"):
+                data_lines.append(line[5:].lstrip(b" "))
             else:
                 other_lines.append(line)
         if not data_lines:
@@ -277,6 +278,9 @@ def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str,
                         "completion_tokens": completion,
                     }
             payload = _scrub_json(payload, key)
+            observed_model = payload.get("model")
+            if isinstance(observed_model, str) and observed_model and "<redacted>" not in observed_model:
+                returned_models.add(observed_model)
         canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("ascii")
         canonical = _redact_key(canonical, key)
         for needle in _key_needles(key):
@@ -290,7 +294,9 @@ def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str,
     body = b"\n\n".join(sanitized_events)
     if body:
         body += b"\n\n"
-    return body, usage
+    if len(returned_models) > 1:
+        raise ValueError("upstream SSE events disagree on model identity")
+    return _redact_key(body, key), usage, next(iter(returned_models), None)
 
 
 def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = False) -> bool:
@@ -982,12 +988,8 @@ class Handler(BaseHTTPRequestHandler):
             usage: dict[str, int] | None = None
             try:
                 if is_stream:
-                    sanitized_body, usage = _canonicalize_sse_and_usage(upstream_body, key)
-                    # Minimal model identification from the first data event is not
-                    # attempted for streams; usage is the authoritative signal.
-                    if usage is not None:
-                        returned_model = model
-                        returned_model_reason = None
+                    sanitized_body, usage, returned_model = _canonicalize_sse_and_usage(upstream_body, key)
+                    returned_model_reason = "model_absent_or_null" if returned_model is None else None
                 else:
                     sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
                     upstream_payload = json.loads(sanitized_body.decode("ascii"))

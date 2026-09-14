@@ -339,3 +339,48 @@ def test_run_campaign_deepseek_stops_pending_without_approving(
     assert spec.max_output_tokens == CEILINGS["max_output_tokens"]
     assert spec.max_total_tokens == CEILINGS["max_total_tokens"]
     assert spec.cost_limit_usd == CEILINGS["cost_limit_usd"]
+
+
+def test_disabled_campaign_never_loads_optimizer_or_creates_outputs(tmp_path, monkeypatch):
+    from evallab.gepa_optimizer import workflow
+
+    path = _write_campaign(tmp_path, _write_task(tmp_path))
+    config = json.loads(path.read_text())
+    config["enabled"] = False
+    path.write_text(json.dumps(config))
+
+    def forbidden():
+        raise AssertionError("Disabled optimization must not even load GEPA")
+
+    monkeypatch.setattr(workflow, "verify_release", forbidden)
+    assert workflow.run_campaign(path, repo_root=tmp_path)["status"] == "disabled"
+    assert not (tmp_path / config["output_dir"]).exists()
+
+
+def test_stopped_campaign_requires_explicit_resume(tmp_path, monkeypatch):
+    from evallab.gepa_optimizer import workflow
+
+    path = _write_campaign(tmp_path, _write_task(tmp_path))
+
+    def forbidden():
+        raise AssertionError("Stopped optimization must not load GEPA")
+
+    monkeypatch.setattr(workflow, "verify_release", forbidden)
+    workflow.set_campaign_paused(path, repo_root=tmp_path, paused=True)
+    assert workflow.run_campaign(path, repo_root=tmp_path)["status"] == "stopped"
+    workflow.set_campaign_paused(path, repo_root=tmp_path, paused=False)
+    assert workflow.campaign_status(path, repo_root=tmp_path)["status"] == "ready"
+    assert not (tmp_path / "out/campaign/proposer").exists()
+
+
+def test_stop_between_evaluations_prevents_next_proposer_request(tmp_path):
+    from evallab.gepa_optimizer.workflow import CampaignStopped, _check_running
+
+    proposer = JournaledReflectionLM(
+        model="test/model", directory=tmp_path / "proposer", max_requests=1,
+        before_request=lambda: _check_running(tmp_path),
+    )
+    (tmp_path / "STOP").touch()
+    with pytest.raises(CampaignStopped):
+        proposer("Feedback from a completed evaluation")
+    assert not list((tmp_path / "proposer").glob("*.json"))

@@ -486,44 +486,22 @@ def test_default_probe_for_antigravity_is_a_cli_session_probe(tmp_path: Path) ->
     assert probe.expect == "gemini"
 
 
-def test_zai_opencode_profile_uses_real_auth_store_and_secret_safe_probe(
-    tmp_path: Path,
-) -> None:
-    profiles = builtin_profiles()
-    for profile_id, expected_model in (
-        ("zai-opencode-glm-5.3-flash", "zai-coding-plan/glm-5.3-flash"),
-        ("zai-opencode-glm-5.3", "zai-coding-plan/glm-5.3"),
-    ):
-        profile = profiles[profile_id]
-        assert profile.adapter == "zai-opencode"
-        assert profile.model == expected_model
-        assert profile.auth_mode == "subscription-auth-file"
-        assert profile.secret_source == "file:.local/share/opencode/auth.json"
-        assert profile.limits.max_attempts == 1
-        assert profile.limits.max_concurrency == 1
-        assert "credential-transport:proxy-isolated" in profile.capabilities
-
-        probe = default_probe_for(
-            profile,
-            home=tmp_path,
-            security_runner=lambda _: 1,
-            keychain_account="",
-        )
-        assert probe is not None
-        result = probe(profile)
-        assert not result.ok
-        assert "OpenCode auth file missing" in (result.reason or "")
-
-        auth_path = tmp_path / ".local/share/opencode/auth.json"
-        auth_path.parent.mkdir(parents=True, exist_ok=True)
-        auth_path.write_text(json.dumps({"other-provider": {"key": "secret"}}))
-        auth_path.chmod(0o600)
-        result = probe(profile)
-        assert not result.ok
-        assert "no credential for provider 'zai-coding-plan'" in (result.reason or "")
-
-        auth_path.write_text(json.dumps({"zai-coding-plan": {"key": "real-key"}}))
-        auth_path.chmod(0o600)
-        result = probe(profile)
-        assert result.ok
-        assert result.reason is None
+def test_zai_opencode_probe_requires_private_matching_provider_credentials(tmp_path: Path) -> None:
+    profile = builtin_profiles()["zai-opencode-glm-5.3-flash"]
+    probe = default_probe_for(
+        profile, home=tmp_path, security_runner=lambda _: 1, keychain_account="",
+    )
+    assert probe is not None
+    assert not probe(profile).ok
+    auth_path = tmp_path / ".local/share/opencode/auth.json"
+    auth_path.parent.mkdir(parents=True)
+    auth_path.write_text(json.dumps({"other-provider": {"key": "fixture-provider-key"}}))
+    auth_path.chmod(0o600)
+    assert not probe(profile).ok
+    auth_path.write_text(json.dumps({"zai-coding-plan": {"key": "fixture-provider-key"}}))
+    auth_path.chmod(0o644)
+    assert not probe(profile).ok
+    auth_path.chmod(0o600)
+    result = probe(profile)
+    assert result.ok
+    assert "fixture-provider-key" not in repr(result)

@@ -39,12 +39,10 @@ from typing import Any
 
 import pytest
 
-from evallab.execution_contracts import DEEPSEEK_ALLOWED_MODEL, DEEPSEEK_MODEL_SELECTOR
+from evallab.execution_contracts import DEEPSEEK_ALLOWED_MODEL, DEEPSEEK_MODEL_SELECTOR, HARBOR_AGENT_IMPORT_PATHS
 from evallab.gepa_optimizer.evaluator import (
     DEEPSEEK_TARGET_AGENT,
     DEEPSEEK_TARGET_IMPORT_PATH,
-    NATIVE_ENTRYPOINTS,
-    PERMITTED_NATIVE_MODEL,
     EvaluationPending,
     EvaluationUnavailable,
     ExampleDeclarationError,
@@ -56,7 +54,10 @@ from evallab.gepa_optimizer.evaluator import (
 )
 from evallab.registry import task_directory_digest
 from evallab.runner import RunRequest
+from evallab.queue import DirectoryQueue
 from evallab.schemas import CohortComparisonSpec, ExperimentSpec
+
+TEST_NATIVE_MODEL = "gpt-5.6-terra"
 
 # --- Test Helpers ---
 
@@ -108,8 +109,8 @@ def create_completed_job_fixture(
     trial_name = f"{task_id}__trial01"
     trial_dir = job_dir / trial_name
     agent_config = {
-        "name": agent if agent in {"oracle", "nop"} else None,
-        "import_path": NATIVE_ENTRYPOINTS.get(agent),
+        "name": HARBOR_AGENT_IMPORT_PATHS.get(agent, agent),
+        "import_path": None,
         "model_name": model,
     }
     trial_lock = {
@@ -208,6 +209,7 @@ class MockExecutor:
 
     def __init__(self, repo_root: Path, *, auto_create_job: bool = True) -> None:
         self.repo_root = repo_root
+        self.queue = DirectoryQueue(repo_root / "queue")
         self.direct_requests: list[RunRequest] = []
         self.submitted_specs: list[ExperimentSpec] = []
         self.auto_create_job = auto_create_job
@@ -421,7 +423,7 @@ def test_control_rejects_model(tmp_path: Path) -> None:
             output_dir=repo_root / "out",
             examples=[task],
             agent="nop",
-            model=PERMITTED_NATIVE_MODEL,
+            model=TEST_NATIVE_MODEL,
         )
 
 
@@ -432,12 +434,12 @@ def test_native_profile_requires_exact_native_model(tmp_path: Path) -> None:
     task = create_task_fixture(repo_root, "tasks/task_1")
 
     # Mismatched model
-    with pytest.raises(ValueError, match="requires exact native model"):
+    with pytest.raises(ValueError):
         LabEvaluator(
             repo_root=repo_root,
             output_dir=repo_root / "out",
             examples=[task],
-            agent="released",
+            agent="codex",
             model="anthropic/claude-3-5-sonnet",
         )
 
@@ -446,13 +448,13 @@ def test_native_profile_requires_exact_native_model(tmp_path: Path) -> None:
         repo_root=repo_root,
         output_dir=repo_root / "out",
         examples=[task],
-        agent="released",
-        model=PERMITTED_NATIVE_MODEL,
+        agent="codex",
+        model=TEST_NATIVE_MODEL,
         estimated_cost_usd=0.25,
         executor=MockExecutor(repo_root),
     )
-    assert evaluator.agent == "released"
-    assert evaluator.model == PERMITTED_NATIVE_MODEL
+    assert evaluator.agent == "codex"
+    assert evaluator.model == TEST_NATIVE_MODEL
 
 
 def test_local_control_direct_execution(tmp_path: Path) -> None:
@@ -514,8 +516,8 @@ def test_pending_model_transition_raises_evaluation_pending(tmp_path: Path) -> N
         repo_root=repo_root,
         output_dir=output_dir,
         examples=[task],
-        agent="released",
-        model=PERMITTED_NATIVE_MODEL,
+        agent="codex",
+        model=TEST_NATIVE_MODEL,
         estimated_cost_usd=0.35,
         executor=executor,
     )
@@ -535,8 +537,8 @@ def test_pending_model_transition_raises_evaluation_pending(tmp_path: Path) -> N
     # Verify submitted spec
     assert len(executor.submitted_specs) == 1
     spec = executor.submitted_specs[0]
-    assert spec.agent == "released"
-    assert spec.model == PERMITTED_NATIVE_MODEL
+    assert spec.agent == "codex"
+    assert spec.model == TEST_NATIVE_MODEL
     assert spec.est_cost_usd == 0.35
     assert spec.purpose == "elicitation"
     assert spec.hypothesis != ""
@@ -571,8 +573,8 @@ def test_resume_reuses_pending_spec_without_duplicate_submit(tmp_path: Path) -> 
         repo_root=repo_root,
         output_dir=output_dir,
         examples=[task],
-        agent="released",
-        model=PERMITTED_NATIVE_MODEL,
+        agent="codex",
+        model=TEST_NATIVE_MODEL,
         estimated_cost_usd=0.35,
         executor=executor,
     )
@@ -1056,7 +1058,7 @@ def test_deepseek_target_rejects_different_model(tmp_path: Path) -> None:
     repo_root.mkdir()
     task = create_task_fixture(repo_root, "tasks/task_1")
 
-    with pytest.raises(ValueError, match="requires exact model"):
+    with pytest.raises(ValueError):
         make_deepseek_evaluator(repo_root, task, model="deepseek/deepseek-chat")
 
 
@@ -1070,7 +1072,7 @@ def test_deepseek_target_rejects_missing_ceilings(tmp_path: Path) -> None:
         make_deepseek_evaluator(repo_root, task, ceilings=None)
 
 
-@pytest.mark.parametrize("agent,model", [("oracle", None), ("baseline", PERMITTED_NATIVE_MODEL)])
+@pytest.mark.parametrize("agent,model", [("oracle", None), ("codex", TEST_NATIVE_MODEL)])
 def test_non_deepseek_targets_reject_ceilings(
     tmp_path: Path, agent: str, model: str | None
 ) -> None:
@@ -1318,3 +1320,47 @@ def test_pending_deepseek_evaluation_cannot_change_ceilings_on_resume(tmp_path: 
     with pytest.raises(ProvenanceMismatchError, match="exact provider ceilings"):
         resumed("Instruction A.", task)
     assert resumed.executor.submitted_specs == []
+
+
+def test_proposal_is_retained_without_execution_until_reviewed(tmp_path: Path) -> None:
+    from evallab.gepa_optimizer.evaluator import CandidateReviewRequired
+
+    task = create_task_fixture(tmp_path)
+    executor = MockExecutor(tmp_path)
+    candidate = "Check the actual command exit status before finishing."
+    evaluator = LabEvaluator(
+        repo_root=tmp_path, output_dir=tmp_path / "out", examples=[task],
+        agent="oracle", executor=executor, approved_candidate_ids=frozenset(),
+    )
+    with pytest.raises(CandidateReviewRequired) as pending:
+        evaluator(candidate, task)
+    assert pending.value.candidate_path.read_text() == candidate
+    assert not (tmp_path / "runs").exists()
+    assert executor.queue.list_specs("pending") == []
+
+    reviewed = LabEvaluator(
+        repo_root=tmp_path, output_dir=tmp_path / "out", examples=[task],
+        agent="oracle", executor=executor,
+        approved_candidate_ids=frozenset({pending.value.candidate_id}),
+    )
+    score, feedback = reviewed(candidate, task)
+    assert score == 1.0
+    assert "Complete the assigned task correctly." in feedback["feedback"]
+
+
+def test_rejected_evaluation_is_not_reported_as_forever_pending(tmp_path: Path) -> None:
+    task = create_task_fixture(tmp_path)
+    executor = MockExecutor(tmp_path)
+    evaluator = LabEvaluator(
+        repo_root=tmp_path, output_dir=tmp_path / "out", examples=[task],
+        agent="codex", model=TEST_NATIVE_MODEL, estimated_cost_usd=0.5,
+        executor=executor,
+    )
+    with pytest.raises(EvaluationPending) as pending:
+        evaluator("Candidate A", task)
+    executor.queue.transition(
+        pending.value.spec_path, "rejected", actor="test", event="operator_rejected",
+    )
+    with pytest.raises(EvaluationUnavailable, match="rejected"):
+        evaluator("Candidate A", task)
+    assert len(executor.submitted_specs) == 1

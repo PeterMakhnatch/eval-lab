@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import math
@@ -16,6 +17,7 @@ from evallab.cohort import write_comparison
 from .evaluator import (
     DEEPSEEK_TARGET_AGENT,
     PROVIDER_CEILING_FIELDS,
+    CandidateReviewRequired,
     EvaluationPending,
     LabEvaluator,
     ProviderCeilings,
@@ -23,6 +25,91 @@ from .evaluator import (
 from .proposer import JournaledReflectionLM, ProposalUnavailable
 from .release import verify_release
 
+
+class CampaignStopped(BaseException):
+    """Stop before the next optimizer request without cancelling an in-flight trial."""
+
+
+def _check_running(output: Path) -> None:
+    if (output / "STOP").exists():
+        raise CampaignStopped("Campaign stopped; resume explicitly before further optimizer work")
+
+
+def set_campaign_paused(config_path: Path, *, repo_root: Path, paused: bool) -> dict[str, Any]:
+    root = repo_root.resolve()
+    config = load_campaign(config_path, root)
+    output = _path(root, config["output_dir"])
+    marker = _path(root, str((output / "STOP").relative_to(root)))
+    if paused:
+        output.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    else:
+        marker.unlink(missing_ok=True)
+    return {
+        "status": "stopped" if paused else "ready",
+        "output_dir": str(output),
+        "in_flight_trials_cancelled": False,
+        "note": "Controls future optimizer requests only; queued trials retain their separate Lab lifecycle.",
+    }
+
+
+def approve_candidate(
+    config_path: Path, *, repo_root: Path, candidate_id: str
+) -> dict[str, Any]:
+    """Allow one retained candidate to reach the ordinary Lab submission gate."""
+    root = repo_root.resolve()
+    config = load_campaign(config_path, root)
+    output = _path(root, config["output_dir"])
+    digest = candidate_id.removeprefix("sha256:")
+    if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        raise ValueError("candidate must be a complete SHA-256 digest")
+    candidate = _path(root, str((output / "lab/candidates" / f"{digest}.txt").relative_to(root)))
+    if hashlib.sha256(candidate.read_bytes()).hexdigest() != digest:
+        raise ValueError("Retained candidate bytes do not match the requested digest")
+    approvals = _path(root, str((output / "reviewed-candidates").relative_to(root)))
+    approvals.mkdir(parents=True, exist_ok=True)
+    approval = _path(root, str((approvals / f"{digest}.json").relative_to(root)))
+    if not approval.exists():
+        _write(approval, {"candidate_id": "sha256:" + digest, "reviewed_at": datetime.now(UTC).isoformat()})
+    return {
+        "status": "candidate_reviewed",
+        "candidate_id": "sha256:" + digest,
+        "candidate_path": str(candidate),
+        "target_execution_authorized": False,
+        "note": "Run the campaign to prepare evaluation; this does not approve spend or adopt instructions.",
+    }
+
+
+def campaign_status(config_path: Path, *, repo_root: Path) -> dict[str, Any]:
+    root = repo_root.resolve()
+    config = load_campaign(config_path, root)
+    output = _path(root, config["output_dir"])
+    candidates = []
+    for path in sorted((output / "lab/candidates").glob("*.txt")):
+        path = _path(root, str(path.relative_to(root)))
+        text = path.read_text(encoding="utf-8")
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        if path.stem != digest:
+            raise ValueError("Retained candidate identity mismatch")
+        candidates.append({
+            "candidate_id": "sha256:" + digest,
+            "path": str(path),
+            "text": text,
+            "reviewed": (output / "reviewed-candidates" / f"{digest}.json").is_file(),
+        })
+    reports = []
+    for path in output.glob("attempt-*/result.json"):
+        path = _path(root, str(path.relative_to(root)))
+        reports.append(json.loads(path.read_text()))
+    latest = max(reports, key=lambda row: row["created_at"]) if reports else None
+    return {
+        "status": "disabled" if not config.get("enabled", True) else
+            ("stopped" if (output / "STOP").exists() else "ready"),
+        "candidate_evaluation": config.get("candidate_evaluation", "review"),
+        "candidates": candidates,
+        "last_attempt": latest,
+        "instructions_automatically_adopted": False,
+    }
 
 class _EvaluationHalt(BaseException):
     """Stop engines that otherwise turn ordinary evaluator errors into bad scores."""
@@ -73,6 +160,9 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "objective",
         "max_proposer_requests",
         "provider_ceilings",
+        "enabled",
+        "candidate_evaluation",
+        "feedback_max_chars",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -89,12 +179,17 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
             raise ValueError(f"Missing campaign field: {key}")
     if raw["engine"] not in {"gepa", "meta_harness"}:
         raise ValueError("Only released gepa and meta_harness engines are supported")
+    if not isinstance(raw.get("enabled", True), bool):
+        raise ValueError("enabled must be a boolean")
+    if raw.get("candidate_evaluation", "review") not in {"review", "automatic"}:
+        raise ValueError("candidate_evaluation must be review or automatic")
     for key in (
         "max_evals",
         "max_iterations",
         "max_candidates_per_iter",
         "timeout_seconds",
         "max_proposer_requests",
+        "feedback_max_chars",
     ):
         value = raw.get(key, 1)
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -143,12 +238,10 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
             ProviderCeilings(**ceilings_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid provider_ceilings: {exc}") from exc
-    if raw["agent"] == DEEPSEEK_TARGET_AGENT and ceilings_raw is None:
-        raise ValueError(
-            f"DeepSeek target '{DEEPSEEK_TARGET_AGENT}' requires explicit provider_ceilings"
-        )
-    if raw["agent"] != DEEPSEEK_TARGET_AGENT and ceilings_raw is not None:
-        raise ValueError("Only the DeepSeek target accepts provider_ceilings")
+    if raw["agent"] in {DEEPSEEK_TARGET_AGENT, "zai-opencode"} and ceilings_raw is None:
+        raise ValueError(f"Target '{raw['agent']}' requires explicit provider_ceilings")
+    if ceilings_raw is not None and raw["agent"] not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
+        raise ValueError(f"Target '{raw['agent']}' does not support provider_ceilings")
     _path(repo_root.resolve(), raw["seed_candidate_path"])
     _path(repo_root.resolve(), raw["output_dir"])
     return raw
@@ -178,14 +271,37 @@ def run_campaign(
     qualification: bool = False,
     proposer_approval_ref: Path | None = None,
 ) -> dict[str, Any]:
-    """Run released search; targets remain governed by Lab approval/dispatch.
+    """Explicit opt-in entrypoint; ordinary Lab runs never invoke optimization."""
+    root = repo_root.resolve()
+    config = load_campaign(config_path, root)
+    if not config.get("enabled", True):
+        return {"status": "disabled", "model_improvement_claimed": False}
+    output = _path(root, config["output_dir"])
+    if (output / "STOP").exists():
+        return {"status": "stopped", "model_improvement_claimed": False}
+    output.mkdir(parents=True, exist_ok=True)
+    lock_path = _path(root, str((output / "campaign.lock").relative_to(root)))
+    with lock_path.open("a") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {"status": "already_running", "model_improvement_claimed": False}
+        try:
+            return _run_campaign(
+                config, repo_root=root, qualification=qualification,
+                proposer_approval_ref=proposer_approval_ref,
+            )
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
-    A proposer approval reference records an operator-supplied authorization;
-    it does not approve target evaluations or constitute a machine-issued grant.
-    Qualification uses oracle/nop plus a deterministic proposal fixture only.
-    """
-    repo_root = repo_root.resolve()
-    config = load_campaign(config_path, repo_root)
+
+def _run_campaign(
+    config: dict[str, Any],
+    *,
+    repo_root: Path,
+    qualification: bool,
+    proposer_approval_ref: Path | None,
+) -> dict[str, Any]:
     pin = verify_release()
     if qualification and (config["engine"] != "gepa" or config["agent"] not in {"oracle", "nop"}):
         raise ValueError("Interface qualification requires gepa and an oracle/nop local control")
@@ -235,6 +351,13 @@ def run_campaign(
         if config.get("provider_ceilings") is not None
         else None
     )
+    reviewed = {binding["seed_sha256"]}
+    for path in (output / "reviewed-candidates").glob("*.json"):
+        path = _path(repo_root, str(path.relative_to(repo_root)))
+        approval = json.loads(path.read_text())
+        if approval.get("candidate_id") != "sha256:" + path.stem:
+            raise ValueError("Candidate review identity mismatch")
+        reviewed.add(approval["candidate_id"])
     evaluator = LabEvaluator(
         repo_root=repo_root,
         output_dir=output / "lab",
@@ -244,6 +367,8 @@ def run_campaign(
         timeout_seconds=config.get("timeout_seconds", 1200),
         estimated_cost_usd=config.get("estimated_cost_usd"),
         ceilings=ceilings,
+        approved_candidate_ids=None if qualification or config.get("candidate_evaluation") == "automatic" else frozenset(reviewed),
+        feedback_max_chars=config.get("feedback_max_chars", 24000),
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]
@@ -255,9 +380,11 @@ def run_campaign(
     status = "running"
     error_type = None
     error = None
+    pending_candidate = None
 
     def evaluate(candidate, example):
         try:
+            _check_running(output)
             return evaluator(candidate, example)
         except Exception as exc:
             raise _EvaluationHalt(exc) from exc
@@ -278,6 +405,7 @@ def run_campaign(
                     model=config["proposer_model"],
                     directory=output / "proposer",
                     max_requests=config.get("max_proposer_requests", 1),
+                    before_request=lambda: _check_running(output),
                 )
             engine_options = {
                 "reflection": {
@@ -328,13 +456,20 @@ def run_campaign(
         )
         status = "completed"
     except _EvaluationHalt as halt:
-        status = (
-            "pending_evaluation"
-            if isinstance(halt.cause, EvaluationPending)
-            else "evaluation_failed"
-        )
+        if isinstance(halt.cause, CandidateReviewRequired):
+            status = "candidate_review_required"
+            pending_candidate = {
+                "candidate_id": halt.cause.candidate_id,
+                "candidate_path": str(halt.cause.candidate_path),
+            }
+        else:
+            status = "pending_evaluation" if isinstance(halt.cause, EvaluationPending) else "evaluation_failed"
         error_type = type(halt.cause).__name__
         error = str(halt.cause)
+    except CampaignStopped as exc:
+        status = "stopped"
+        error_type = type(exc).__name__
+        error = str(exc)
     except ProposalUnavailable as exc:
         status = "proposer_unavailable"
         error_type = type(exc).__name__
@@ -420,6 +555,9 @@ def run_campaign(
         },
         "target_evaluations": records,
         "selection": selection,
+        "pending_candidate": pending_candidate,
+        "candidate_evaluation": config.get("candidate_evaluation", "review"),
+        "instructions_automatically_adopted": False,
         "comparison": comparison_paths,
         "upstream_eval_calls": result.total_evals if result is not None else None,
         "target_trial_jobs": sorted({row["job_path"] for row in records if row["job_path"]}),

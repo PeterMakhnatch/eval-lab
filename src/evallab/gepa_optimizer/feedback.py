@@ -1,29 +1,28 @@
 """Feedback builder for GEPA prompt optimizer and reflection.
 
 Builds bounded, real, agent-visible feedback from task instructions,
-trial trajectories (via established Lab readers), logs, and emitted
+trial trajectories (via normalized TrajectoryIR steps), logs, and emitted
 verifier diagnostics. Enforces path jails, central redaction semantics,
-and character limits.
+and character limits without unbounded duplicates.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from evallab.explorer import redact_text
-from evallab.traj import TrajectoryOutline, _extract_command_string, outline_trajectory
+from evallab.trajectory_ir import build_trajectory_ir
 
 __all__ = ["build_feedback"]
 
 _FORBIDDEN_TASK_PARTS = frozenset({"tests", "solution"})
-_MAX_OBSERVATION_CHARS = 2000
+_MAX_OBSERVATION_CHARS = 1000
 
 
-def _collect_all_known_secrets() -> frozenset[str]:
-    """Collect known host secret values from existing Lab credential handlers."""
+def _collect_secrets() -> frozenset[str]:
+    """Collect known host secret values from existing Lab credential handlers once."""
     secrets: set[str] = set()
     try:
         from evallab.execution_contracts import collected_secret_values
@@ -40,39 +39,31 @@ def _collect_all_known_secrets() -> frozenset[str]:
     return frozenset(secrets)
 
 
-def redact_string(text: str, extra_secrets: frozenset[str] | None = None) -> str:
-    """Redact secret tokens, passwords, bearer headers, and known API keys from text."""
+def _redact_full_text(text: str, secrets: frozenset[str]) -> str:
+    """Redact secret tokens, passwords, bearer headers, and known API keys."""
     if not text:
         return ""
-    # 1. Standard pattern redaction from explorer (Bearer, sk-..., rk-..., password, etc.)
     redacted = redact_text(text)
-    # 2. Known secret string replacement
-    known = _collect_all_known_secrets() if extra_secrets is None else extra_secrets
-    for secret in known:
-        if secret and len(secret) >= 4 and secret in redacted:
-            redacted = redacted.replace(secret, "[redacted]")
+    for s in secrets:
+        if len(s) >= 4 and s in redacted:
+            redacted = redacted.replace(s, "[redacted]")
     return redacted
 
 
-def redact_payload(data: Any, extra_secrets: frozenset[str] | None = None) -> Any:
-    """Recursively redact strings and mappings."""
-    if isinstance(data, str):
-        return redact_string(data, extra_secrets=extra_secrets)
-    if isinstance(data, dict):
-        clean: dict[str, Any] = {}
-        for key, val in data.items():
-            key_str = str(key)
-            if any(
-                marker in key_str.upper()
-                for marker in ("API_KEY", "SECRET", "TOKEN", "PASSWORD", "AUTH")
-            ):
-                clean[key_str] = "[redacted]"
-            else:
-                clean[key_str] = redact_payload(val, extra_secrets=extra_secrets)
-        return clean
-    if isinstance(data, (list, tuple)):
-        return [redact_payload(item, extra_secrets=extra_secrets) for item in data]
-    return data
+def _extract_command(args: Any) -> str | None:
+    """Extract a representative command string from tool call arguments."""
+    if isinstance(args, str):
+        return args.strip()
+    if isinstance(args, dict):
+        for key in ("cmd", "command", "input", "script", "code"):
+            val = args.get(key)
+            if isinstance(val, str):
+                return val.strip()
+        try:
+            return json.dumps(args, sort_keys=True)
+        except Exception:
+            return None
+    return None
 
 
 def _validate_path_jail(root: Path, target: Path | str, *, label: str) -> Path:
@@ -122,15 +113,19 @@ def build_feedback(
 ) -> dict[str, Any]:
     """Build bounded, real agent-visible feedback from task and trial artifacts.
 
+    Reads only declared task instruction.md and jailed allowlisted trial artifacts.
+    Reuses evallab.trajectory_ir.build_trajectory_ir for normalized steps.
+    Redacts full strings before truncating to guarantee a strictly bounded return.
+
     Args:
         repo_root: Base repository root.
-        task_path: Path to the task directory (relative or absolute, under repo_root).
-        trial_path: Path to the trial directory (relative or absolute, under repo_root).
-        max_chars: Upper character bound on total returned textual feedback.
+        task_path: Path to the task directory (under repo_root).
+        trial_path: Path to the trial directory (under repo_root).
+        max_chars: Upper character bound on returned textual feedback.
 
     Returns:
-        Structured feedback dictionary containing bounded text, action/observation traces,
-        outcome metrics, sources, and coverage notices.
+        Dictionary with single bounded 'feedback' string, sources, coverage_notices,
+        truncated flag, char_count, and max_chars.
 
     Raises:
         ValueError: If paths escape the repo root, target forbidden directories, or symlink out.
@@ -144,10 +139,8 @@ def build_feedback(
 
     resolved_repo_root = repo_root.resolve()
 
-    # Reject hidden verification / solution directories in task_path
     _check_task_path_safety(Path(task_path))
 
-    # Path jail enforcement for task_path and trial_path
     resolved_task_path = _validate_path_jail(resolved_repo_root, task_path, label="task_path")
     if not resolved_task_path.exists() or not resolved_task_path.is_dir():
         raise FileNotFoundError(f"task_path '{task_path}' does not exist or is not a directory")
@@ -156,44 +149,21 @@ def build_feedback(
     if not resolved_trial_path.exists() or not resolved_trial_path.is_dir():
         raise FileNotFoundError(f"trial_path '{trial_path}' does not exist or is not a directory")
 
-    task_rel_path = resolved_task_path.relative_to(resolved_repo_root).as_posix()
-    trial_rel_path = resolved_trial_path.relative_to(resolved_repo_root).as_posix()
-
     sources: dict[str, str] = {}
     coverage_notices: list[str] = []
 
-    # -------------------------------------------------------------------------
-    # 1. Declared Task Instruction (instruction.md only, never tests or solution)
-    # -------------------------------------------------------------------------
+    # 1. Declared Task Instruction (instruction.md only)
     task_instruction: str | None = None
     inst_file = _safe_child_file(resolved_task_path, "instruction.md", label="task instruction")
     if inst_file is not None and inst_file.is_file():
-        try:
-            raw_inst = inst_file.read_text(encoding="utf-8")
-            task_instruction = redact_string(raw_inst)
-            sources["task_instruction"] = inst_file.relative_to(resolved_repo_root).as_posix()
-        except Exception as exc:
-            coverage_notices.append(f"task_instruction: read_error ({exc})")
+        task_instruction = inst_file.read_text(encoding="utf-8")
+        sources["task_instruction"] = inst_file.relative_to(resolved_repo_root).as_posix()
     else:
         coverage_notices.append(
             "task_instruction: absent (instruction.md not found in task directory)"
         )
 
-    # -------------------------------------------------------------------------
-    # 2. Trial Result & Outcome
-    # -------------------------------------------------------------------------
-    outcome: dict[str, Any] = {
-        "status": "unknown",
-        "primary_reward": None,
-        "rewards": {},
-        "exit_code": None,
-        "error": None,
-        "verifier_diagnostics": None,
-    }
-    task_id: str | None = None
-    agent_name: str | None = None
-    model_name: str | None = None
-
+    # 2. Trial Result & Outcome (jailed result.json)
     result_file = _safe_child_file(resolved_trial_path, "result.json", label="trial result")
     result_data: dict[str, Any] = {}
     if result_file is not None and result_file.is_file():
@@ -202,70 +172,67 @@ def build_feedback(
             loaded_res = json.loads(result_file.read_text(encoding="utf-8"))
             if isinstance(loaded_res, dict):
                 result_data = loaded_res
-        except Exception as exc:
-            coverage_notices.append(f"trial_result: parse_error ({exc})")
+        except json.JSONDecodeError as exc:
+            coverage_notices.append(f"trial_result: unparseable_json ({exc})")
 
-    if result_data:
-        raw_tid = result_data.get("task_name") or result_data.get("task_id")
-        if isinstance(raw_tid, dict):
-            task_id = str(raw_tid.get("path") or raw_tid.get("name") or resolved_task_path.name)
-        elif raw_tid:
-            task_id = str(raw_tid)
-        else:
-            task_id = resolved_task_path.name
-
-        agent_info = (
-            result_data.get("agent_info")
-            if isinstance(result_data.get("agent_info"), dict)
-            else {}
-        )
-        cfg_agent = (
-            (result_data.get("config") or {}).get("agent")
-            if isinstance(result_data.get("config"), dict)
-            else {}
-        )
-        agent_name = agent_info.get("name") or (
-            cfg_agent.get("name") if isinstance(cfg_agent, dict) else None
-        )
-        model_info = (
-            agent_info.get("model_info") if isinstance(agent_info.get("model_info"), dict) else {}
-        )
-        model_name = model_info.get("name") or (
-            cfg_agent.get("model") if isinstance(cfg_agent, dict) else None
-        )
-
-        verifier_result = (
-            result_data.get("verifier_result")
-            if isinstance(result_data.get("verifier_result"), dict)
-            else {}
-        )
-        raw_rewards = (
-            verifier_result.get("rewards")
-            if isinstance(verifier_result.get("rewards"), dict)
-            else {}
-        )
-        outcome["rewards"] = redact_payload(raw_rewards)
-
-        if "reward" in raw_rewards and isinstance(raw_rewards["reward"], (int, float)):
-            outcome["primary_reward"] = float(raw_rewards["reward"])
-
-        raw_exc = result_data.get("exception_info") or result_data.get("error")
-        if raw_exc:
-            outcome["error"] = redact_payload(raw_exc)
-            outcome["status"] = "error"
-        elif outcome["primary_reward"] is not None:
-            outcome["status"] = "completed"
-
-        agent_result = (
-            result_data.get("agent_result")
-            if isinstance(result_data.get("agent_result"), dict)
-            else {}
-        )
-        outcome["exit_code"] = agent_result.get("exit_code") or result_data.get("exit_code")
+    raw_tid = result_data.get("task_name") or result_data.get("task_id")
+    if isinstance(raw_tid, dict):
+        task_id = str(raw_tid.get("path") or raw_tid.get("name") or resolved_task_path.name)
+    elif raw_tid:
+        task_id = str(raw_tid)
     else:
         task_id = resolved_task_path.name
 
+    agent_info = (
+        result_data.get("agent_info")
+        if isinstance(result_data.get("agent_info"), dict)
+        else {}
+    )
+    cfg_agent = (
+        (result_data.get("config") or {}).get("agent")
+        if isinstance(result_data.get("config"), dict)
+        else {}
+    )
+    agent_name = agent_info.get("name") or (
+        cfg_agent.get("name") if isinstance(cfg_agent, dict) else None
+    )
+
+    verifier_result = (
+        result_data.get("verifier_result")
+        if isinstance(result_data.get("verifier_result"), dict)
+        else {}
+    )
+    rewards = (
+        verifier_result.get("rewards")
+        if isinstance(verifier_result.get("rewards"), dict)
+        else {}
+    )
+    primary_reward: float | None = None
+    if "reward" in rewards and isinstance(rewards["reward"], (int, float)):
+        primary_reward = float(rewards["reward"])
+
+    raw_error = result_data.get("exception_info") or result_data.get("error")
+    error_str = str(raw_error) if raw_error else None
+
+    # Status: reported by result; no status-inferred success
+    if error_str:
+        outcome_status = "error"
+    elif "status" in result_data:
+        outcome_status = str(result_data["status"])
+    elif result_data:
+        outcome_status = "completed"
+    else:
+        outcome_status = "unknown"
+
+    agent_result = (
+        result_data.get("agent_result")
+        if isinstance(result_data.get("agent_result"), dict)
+        else {}
+    )
+    exit_code = agent_result.get("exit_code") or result_data.get("exit_code")
+
     # Emitted verifier diagnostics (checks.json, test-stdout.txt)
+    verifier_diag: str | None = None
     checks_file = _safe_child_file(
         resolved_trial_path, "verifier/checks.json", label="verifier checks"
     )
@@ -274,228 +241,93 @@ def build_feedback(
         try:
             checks_data = json.loads(checks_file.read_text(encoding="utf-8"))
             if isinstance(checks_data, dict):
-                outcome["verifier_diagnostics"] = redact_payload(checks_data)
-        except Exception:
+                verifier_diag = json.dumps(checks_data, sort_keys=True)
+        except json.JSONDecodeError:
             pass
 
-    if outcome["verifier_diagnostics"] is None:
+    if verifier_diag is None:
         stdout_file = _safe_child_file(
             resolved_trial_path, "verifier/test-stdout.txt", label="verifier stdout"
         )
         if stdout_file is not None and stdout_file.is_file():
             sources["verifier_stdout"] = stdout_file.relative_to(resolved_repo_root).as_posix()
-            try:
-                raw_stdout = stdout_file.read_text(encoding="utf-8").strip()
-                if raw_stdout:
-                    excerpt = raw_stdout[:1000]
-                    outcome["verifier_diagnostics"] = redact_string(excerpt)
-            except Exception:
-                pass
+            raw_stdout = stdout_file.read_text(encoding="utf-8").strip()
+            if raw_stdout:
+                verifier_diag = raw_stdout[:_MAX_OBSERVATION_CHARS]
 
-    # -------------------------------------------------------------------------
-    # 3. Established Trajectory Reader (outline_trajectory)
-    # -------------------------------------------------------------------------
-    outline: TrajectoryOutline | None = None
-    try:
-        outline = outline_trajectory(resolved_trial_path, repo_root=resolved_repo_root)
-    except Exception as exc:
-        coverage_notices.append(f"outline_trajectory_notice: {exc}")
-
-    if outline is not None:
-        if agent_name is None and outline.agent_name != "unknown":
-            agent_name = outline.agent_name
-        if model_name is None and outline.model_name != "unknown":
-            model_name = outline.model_name
-        if outcome["primary_reward"] is None and outline.primary_reward is not None:
-            outcome["primary_reward"] = outline.primary_reward
-            if outcome["status"] == "unknown":
-                outcome["status"] = "completed"
-        if outcome["error"] is None and outline.exception_class:
-            outcome["error"] = outline.exception_class
-
+    # 3. Jailed Allowlisted Trajectory via evallab.trajectory_ir.build_trajectory_ir
     traj_file = _safe_child_file(resolved_trial_path, "agent/trajectory.json", label="trajectory")
     if traj_file is None:
         traj_file = _safe_child_file(resolved_trial_path, "trajectory.json", label="trajectory")
 
-    actions: list[dict[str, Any]] = []
-    observations: list[dict[str, Any]] = []
-    final_response: str | None = None
     trace_status: str
+    actions_summary: list[str] = []
+    final_response: str | None = None
 
-    if (
-        traj_file is None
-        or not traj_file.is_file()
-        or (outline is not None and outline.status == "accounted_unavailable")
-    ):
+    if traj_file is None or not traj_file.is_file():
         trace_status = "absent"
-        reason = (
-            outline.unavailable_reason
-            if (outline and outline.unavailable_reason)
-            else "missing_trajectory_file"
-        )
         if agent_name in ("nop", "oracle"):
             coverage_notices.append(
                 f"trajectory: absent (control agent '{agent_name}' has no model trace)"
             )
         else:
-            coverage_notices.append(f"trajectory: absent ({reason})")
+            coverage_notices.append("trajectory: absent (missing trajectory file)")
     else:
         trace_status = "present"
-        sources["trial_trajectory"] = traj_file.relative_to(resolved_repo_root).as_posix()
-        traj_data: dict[str, Any] = {}
+        rel_traj_path = traj_file.relative_to(resolved_repo_root).as_posix()
+        sources["trial_trajectory"] = rel_traj_path
         try:
-            loaded_traj = json.loads(traj_file.read_text(encoding="utf-8"))
-            if isinstance(loaded_traj, dict):
-                traj_data = loaded_traj
-            else:
-                trace_status = "corrupt"
-                coverage_notices.append(
-                    "trajectory: invalid_shape (top-level JSON is not an object)"
-                )
-        except Exception as exc:
+            raw_data = json.loads(traj_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
             trace_status = "corrupt"
             coverage_notices.append(f"trajectory: unparseable_json ({exc})")
+            raw_data = {}
 
-        raw_steps = traj_data.get("steps")
-        if isinstance(raw_steps, list):
-            for raw_step in raw_steps:
-                if not isinstance(raw_step, dict):
-                    continue
-                step_id = raw_step.get("step_id")
-                source = str(raw_step.get("source") or "agent")
-                raw_reasoning = raw_step.get("reasoning_content") or raw_step.get("thought")
-                captured_reasoning = (
-                    redact_string(str(raw_reasoning)) if raw_reasoning is not None else None
-                )
+        if isinstance(raw_data, dict) and raw_data.get("steps"):
+            # Map ATIF step.observation.results into observation_results if needed
+            for step_dict in raw_data.get("steps", []):
+                if (
+                    isinstance(step_dict, dict)
+                    and "observation_results" not in step_dict
+                    and isinstance(step_dict.get("observation"), dict)
+                ):
+                    res = step_dict["observation"].get("results")
+                    if isinstance(res, list):
+                        step_dict["observation_results"] = res
 
-                tool_calls = raw_step.get("tool_calls")
-                calls = [c for c in tool_calls if isinstance(c, dict)] if isinstance(tool_calls, list) else []
+            ir = build_trajectory_ir(raw_data, source_path=rel_traj_path)
 
-                obs_obj = raw_step.get("observation")
-                obs_results_raw = (
-                    obs_obj.get("results")
-                    if isinstance(obs_obj, dict)
-                    else raw_step.get("observation_results") or raw_step.get("observations")
-                )
-                obs_results = (
-                    [item for item in obs_results_raw if isinstance(item, dict)]
-                    if isinstance(obs_results_raw, list)
-                    else []
-                )
-
-                matched_call_ids: set[str] = set()
-
-                for call in calls:
-                    call_id = str(call.get("tool_call_id") or call.get("id") or "")
-                    if call_id:
-                        matched_call_ids.add(call_id)
-                    fn_name = str(
-                        (call.get("function") or {}).get("name")
-                        if isinstance(call.get("function"), dict)
-                        else call.get("function_name") or call.get("name") or "unknown"
-                    )
-                    args = (
-                        (call.get("function") or {}).get("arguments")
-                        if isinstance(call.get("function"), dict)
-                        else call.get("arguments")
-                    )
-                    cmd_str = _extract_command_string(args)
-
-                    matching_obs = None
-                    if call_id:
-                        for obs in obs_results:
-                            if obs.get("source_call_id") == call_id:
-                                matching_obs = obs
-                                break
-
-                    exit_code = None
-                    obs_content = None
-                    if matching_obs is not None:
-                        extra = (
-                            matching_obs.get("extra")
-                            if isinstance(matching_obs.get("extra"), dict)
-                            else {}
+            for step in ir.steps:
+                if step.source == "agent" and step.tool_calls:
+                    for tc in step.tool_calls:
+                        cmd = _extract_command(tc.arguments) or json.dumps(
+                            tc.arguments, sort_keys=True
                         )
-                        raw_exit = extra.get("exit_code") or matching_obs.get("command_exit_code")
-                        if isinstance(raw_exit, int):
-                            exit_code = raw_exit
-                        raw_content = matching_obs.get("content")
-                        if raw_content is not None:
-                            text_repr = str(raw_content)
-                            if len(text_repr) > _MAX_OBSERVATION_CHARS:
-                                obs_content = (
-                                    redact_string(text_repr[:_MAX_OBSERVATION_CHARS])
-                                    + f"\n... [observation truncated to {_MAX_OBSERVATION_CHARS} chars]"
-                                )
-                            else:
-                                obs_content = redact_string(text_repr)
-
-                    is_error = bool(exit_code is not None and exit_code != 0)
-                    action_entry = {
-                        "step_id": step_id,
-                        "source": source,
-                        "tool_name": fn_name,
-                        "tool_command": cmd_str,
-                        "arguments": redact_payload(args),
-                        "exit_code": exit_code,
-                        "is_error": is_error,
-                        "status": "error" if is_error else "ok",
-                    }
-                    if captured_reasoning is not None:
-                        action_entry["reasoning_content"] = captured_reasoning
-                    actions.append(action_entry)
-
-                    if obs_content is not None:
-                        observations.append(
-                            {
-                                "step_id": step_id,
-                                "source_call_id": call_id or None,
-                                "exit_code": exit_code,
-                                "content": obs_content,
-                            }
+                        actions_summary.append(
+                            f"- Step {step.step_id} Action [{tc.function_name}]: {cmd}"
                         )
+                        for obs in step.observation_results:
+                            if obs.source_call_id == tc.tool_call_id or not obs.source_call_id:
+                                obs_text = str(obs.content) if obs.content is not None else ""
+                                if len(obs_text) > _MAX_OBSERVATION_CHARS:
+                                    obs_text = (
+                                        obs_text[:_MAX_OBSERVATION_CHARS]
+                                        + f"\n... [observation truncated to {_MAX_OBSERVATION_CHARS} chars]"
+                                    )
+                                actions_summary.append(f"  Observation: {obs_text}")
+                if step.reasoning_content:
+                    actions_summary.append(f"  Reasoning: {step.reasoning_content}")
 
-                # Unmatched observations
-                for obs in obs_results:
-                    call_ref = obs.get("source_call_id")
-                    if call_ref and call_ref in matched_call_ids:
-                        continue
-                    raw_content = obs.get("content")
-                    if raw_content is not None:
-                        text_repr = str(raw_content)
-                        if len(text_repr) > _MAX_OBSERVATION_CHARS:
-                            bounded_content = (
-                                redact_string(text_repr[:_MAX_OBSERVATION_CHARS])
-                                + f"\n... [observation truncated to {_MAX_OBSERVATION_CHARS} chars]"
-                            )
-                        else:
-                            bounded_content = redact_string(text_repr)
-                        extra = obs.get("extra") if isinstance(obs.get("extra"), dict) else {}
-                        raw_exit = extra.get("exit_code") or obs.get("command_exit_code")
-                        observations.append(
-                            {
-                                "step_id": step_id,
-                                "source_call_id": call_ref,
-                                "exit_code": raw_exit if isinstance(raw_exit, int) else None,
-                                "content": bounded_content,
-                            }
-                        )
+            for step in reversed(ir.steps):
+                if step.source == "agent":
+                    msg = str(step.message).strip() if step.message else ""
+                    if msg and not msg.startswith("<<evallab-redacted:"):
+                        final_response = msg
+                        break
 
-            # Final response: last non-empty agent message
-            for step in reversed(raw_steps):
-                if isinstance(step, dict) and step.get("source") == "agent":
-                    msg = step.get("message")
-                    if msg and isinstance(msg, str) and msg.strip():
-                        # Do not pick placeholder redaction markers as final response
-                        if not msg.startswith("<<evallab-redacted:"):
-                            final_response = redact_string(msg.strip())
-                            break
-
-    # -------------------------------------------------------------------------
-    # 4. Render Structured Human/Model-Readable Feedback Text
-    # -------------------------------------------------------------------------
+    # 4. Format Single Full Text
     lines: list[str] = []
-    lines.append(f"# Evaluation Feedback: {task_id or 'unknown-task'}")
+    lines.append(f"# Evaluation Feedback: {task_id}")
     lines.append("")
 
     lines.append("## Task Instruction")
@@ -505,94 +337,68 @@ def build_feedback(
         lines.append("Task instruction absent (instruction.md not found in declared task directory).")
     lines.append("")
 
-    lines.append("## Outcome Feedback")
-    lines.append(f"- Status: {outcome['status']}")
-    lines.append(
-        f"- Primary Reward: {f'{outcome[\"primary_reward\"]:.4f}' if isinstance(outcome['primary_reward'], float) else outcome['primary_reward']}"
-    )
-    if outcome["rewards"]:
-        lines.append(f"- Reward Dimensions: {json.dumps(outcome['rewards'], sort_keys=True)}")
-    if outcome["exit_code"] is not None:
-        lines.append(f"- Process Exit Code: {outcome['exit_code']}")
-    if outcome["error"]:
-        lines.append(f"- Error: {outcome['error']}")
-    if outcome["verifier_diagnostics"] is not None:
-        diag_str = (
-            json.dumps(outcome["verifier_diagnostics"], sort_keys=True)
-            if isinstance(outcome["verifier_diagnostics"], (dict, list))
-            else str(outcome["verifier_diagnostics"])
+    lines.append("## Outcome")
+    lines.append(f"- Status: {outcome_status}")
+    if primary_reward is not None:
+        lines.append(
+            f"- Primary Reward: {primary_reward:.4f}"
+            if isinstance(primary_reward, float)
+            else f"- Primary Reward: {primary_reward}"
         )
-        lines.append(f"- Verifier Diagnostics: {diag_str}")
+    if rewards:
+        lines.append(f"- Reward Dimensions: {json.dumps(rewards, sort_keys=True)}")
+    if exit_code is not None:
+        lines.append(f"- Exit Code: {exit_code}")
+    if error_str:
+        lines.append(f"- Error: {error_str}")
+    if verifier_diag:
+        lines.append(f"- Verifier Diagnostics: {verifier_diag}")
     lines.append("")
 
-    lines.append("## Agent Execution Trace")
+    lines.append("## Execution Trace")
     if trace_status == "absent":
-        lines.append(f"Trace Status: absent ({'; '.join(coverage_notices) or 'no trajectory recorded'})")
+        lines.append(f"Trace Status: absent ({'; '.join(coverage_notices)})")
         lines.append("No agent model trajectory was recorded for this trial.")
     else:
-        lines.append(
-            f"Trace Status: {trace_status} (actions={len(actions)}, observations={len(observations)})"
-        )
+        lines.append(f"Trace Status: {trace_status} (actions={len(actions_summary)})")
         lines.append("")
-        for act in actions:
-            step_id = act["step_id"]
-            t_name = act["tool_name"]
-            cmd = act["tool_command"] or (
-                json.dumps(act["arguments"], sort_keys=True) if act["arguments"] else ""
-            )
-            exit_txt = f" [exit={act['exit_code']}]" if act["exit_code"] is not None else ""
-            lines.append(f"- Step {step_id}: {t_name}: {cmd}{exit_txt}".strip())
-            if act.get("reasoning_content"):
-                lines.append(f"  Reasoning: {act['reasoning_content']}")
-            matching_obs = [o for o in observations if o["step_id"] == step_id]
-            for o in matching_obs:
-                lines.append(f"  Observation: {o['content']}")
+        for act_line in actions_summary:
+            lines.append(act_line)
         if final_response:
             lines.append("")
             lines.append(f"Final Response:\n{final_response}")
     lines.append("")
 
-    lines.append("## Coverage & Provenance")
+    lines.append("## Sources & Coverage")
     for src_name, src_path in sorted(sources.items()):
         lines.append(f"- Source [{src_name}]: {src_path}")
     if coverage_notices:
-        lines.append("- Coverage Notices:")
+        lines.append("- Notices:")
         for notice in coverage_notices:
             lines.append(f"  * {notice}")
 
-    full_text = "\n".join(lines).strip() + "\n"
+    raw_text = "\n".join(lines).strip() + "\n"
 
-    # -------------------------------------------------------------------------
-    # 5. Honest Budget Truncation against max_chars
-    # -------------------------------------------------------------------------
+    # 5. Redact Full String Before Truncating
+    secrets = _collect_secrets()
+    redacted_text = _redact_full_text(raw_text, secrets)
+
+    # 6. Honest Budget Truncation Against max_chars
     truncated = False
-    if len(full_text) <= max_chars:
-        final_text = full_text
+    if len(redacted_text) <= max_chars:
+        final_text = redacted_text
     else:
         truncated = True
-        trunc_notice = (
-            f"\n\n[Truncated: feedback exceeded max_chars budget of {max_chars} characters]"
-        )
-        coverage_notices.append(f"feedback_text truncated to max_chars={max_chars} budget")
+        coverage_notices.append(f"feedback truncated to max_chars={max_chars} budget")
+        trunc_notice = f"\n\n[Truncated: feedback exceeded max_chars budget of {max_chars} characters]"
         if max_chars <= len(trunc_notice):
-            final_text = full_text[:max_chars]
+            final_text = redacted_text[:max_chars]
         else:
-            allowed_len = max_chars - len(trunc_notice)
-            final_text = full_text[:allowed_len] + trunc_notice
+            allowed = max_chars - len(trunc_notice)
+            final_text = redacted_text[:allowed] + trunc_notice
 
     return {
         "feedback": final_text,
-        "feedback_text": final_text,
-        "text": final_text,
-        "task_id": task_id,
-        "task_path": task_rel_path,
-        "trial_path": trial_rel_path,
-        "task_instruction": task_instruction,
-        "trace_status": trace_status,
-        "actions": actions,
-        "observations": observations,
-        "final_response": final_response,
-        "outcome": outcome,
         "sources": sources,
         "coverage_notices": coverage_notices,
         "truncated": truncated,

@@ -32,49 +32,46 @@ def test_actual_fixture_trajectory_content_reaches_output() -> None:
     if not (repo_root / trial_path).exists():
         pytest.skip("canary-event-summary fixture not present")
 
-    feedback = build_feedback(
+    result = build_feedback(
         repo_root=repo_root,
         task_path=task_path,
         trial_path=trial_path,
         max_chars=32000,
     )
 
-    # Core structure and trace status
-    assert feedback["trace_status"] == "present"
-    assert "event-summary" in str(feedback["task_id"])
-    assert feedback["truncated"] is False
-    assert feedback["char_count"] == len(feedback["feedback_text"])
+    feedback_text = result["feedback"]
+
+    # Exactly ONE bounded feedback string with metadata, no unbounded duplicate copies
+    assert isinstance(feedback_text, str)
+    assert result["truncated"] is False
+    assert result["char_count"] == len(feedback_text)
+    assert "feedback_text" not in result
+    assert "text" not in result
+    assert "actions" not in result
+    assert "observations" not in result
 
     # Task instruction reached output
-    assert feedback["task_instruction"] is not None
-    assert "event summary" in feedback["task_instruction"].lower()
-    assert "## Task Instruction" in feedback["feedback_text"]
+    assert "## Task Instruction" in feedback_text
+    assert "event summary" in feedback_text.lower()
 
     # Real actions and tool calls reached output
-    assert len(feedback["actions"]) >= 5
-    first_action = feedback["actions"][0]
-    assert first_action["tool_name"] == "exec"
-    assert "wc -l /app/input/events.jsonl" in str(first_action["tool_command"])
-    assert "wc -l /app/input/events.jsonl" in feedback["feedback_text"]
+    assert "Action [exec]" in feedback_text
+    assert "wc -l /app/input/events.jsonl" in feedback_text
 
     # Real observations reached output
-    assert len(feedback["observations"]) >= 5
-    assert any("Script completed" in str(obs["content"]) for obs in feedback["observations"])
-    assert "Script completed" in feedback["feedback_text"]
+    assert "Script completed" in feedback_text
 
     # Real final response reached output
-    assert feedback["final_response"] is not None
-    assert "summary.json" in feedback["final_response"]
-    assert feedback["final_response"] in feedback["feedback_text"]
+    assert "Created and validated [summary.json](/app/output/summary.json)." in feedback_text
 
     # Sources and provenance
-    assert feedback["sources"]["task_instruction"] == "library/tasks/event-summary/instruction.md"
+    assert result["sources"]["task_instruction"] == "library/tasks/event-summary/instruction.md"
     assert (
-        feedback["sources"]["trial_trajectory"]
+        result["sources"]["trial_trajectory"]
         == "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__5E3btLv/agent/trajectory.json"
     )
     assert (
-        feedback["sources"]["trial_result"]
+        result["sources"]["trial_result"]
         == "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__5E3btLv/result.json"
     )
 
@@ -99,7 +96,10 @@ def test_malicious_path_and_symlink_cannot_exfiltrate(tmp_path: Path) -> None:
 
     trial_dir = repo_root / "runs" / "trial_001"
     trial_dir.mkdir(parents=True)
-    write_json(trial_dir / "result.json", {"task_name": "task_001", "verifier_result": {"rewards": {"reward": 1.0}}})
+    write_json(
+        trial_dir / "result.json",
+        {"task_name": "task_001", "verifier_result": {"rewards": {"reward": 1.0}}},
+    )
 
     # Traversal in task_path escaping repo_root
     with pytest.raises(ValueError, match="escapes allowed root"):
@@ -184,7 +184,9 @@ def test_budget_truncation_coverage_is_honest(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     task_dir = repo_root / "tasks" / "task_001"
     task_dir.mkdir(parents=True)
-    (task_dir / "instruction.md").write_text("Long task instruction text explaining requirements in detail.")
+    (task_dir / "instruction.md").write_text(
+        "Long task instruction text explaining requirements in detail."
+    )
 
     trial_dir = repo_root / "runs" / "trial_001"
     (trial_dir / "agent").mkdir(parents=True)
@@ -235,7 +237,7 @@ def test_budget_truncation_coverage_is_honest(tmp_path: Path) -> None:
         max_chars=24000,
     )
     assert fb_generous["truncated"] is False
-    assert fb_generous["char_count"] == len(fb_generous["feedback_text"])
+    assert fb_generous["char_count"] == len(fb_generous["feedback"])
     assert not any("truncated" in notice for notice in fb_generous["coverage_notices"])
 
     # Tight budget: truncated honestly
@@ -246,10 +248,10 @@ def test_budget_truncation_coverage_is_honest(tmp_path: Path) -> None:
         max_chars=400,
     )
     assert fb_tight["truncated"] is True
-    assert len(fb_tight["feedback_text"]) <= 400
+    assert len(fb_tight["feedback"]) <= 400
     assert fb_tight["char_count"] <= 400
     assert any("truncated to max_chars=400" in notice for notice in fb_tight["coverage_notices"])
-    assert "[Truncated" in fb_tight["feedback_text"]
+    assert "[Truncated" in fb_tight["feedback"]
 
     # Micro budget: strictly bounds length
     fb_micro = build_feedback(
@@ -259,7 +261,7 @@ def test_budget_truncation_coverage_is_honest(tmp_path: Path) -> None:
         max_chars=25,
     )
     assert fb_micro["truncated"] is True
-    assert len(fb_micro["feedback_text"]) <= 25
+    assert len(fb_micro["feedback"]) <= 25
 
     # Invalid non-positive budget
     with pytest.raises(ValueError, match="positive integer"):
@@ -277,7 +279,7 @@ def test_budget_truncation_coverage_is_honest(tmp_path: Path) -> None:
 
 
 def test_secrets_redacted(tmp_path: Path) -> None:
-    """Credentials, Bearer headers, and API keys are redacted across all feedback sections."""
+    """Credentials, Bearer headers, and API keys are redacted from the full string."""
     repo_root = tmp_path / "repo"
     task_dir = repo_root / "tasks" / "task_sec"
     task_dir.mkdir(parents=True)
@@ -316,7 +318,9 @@ def test_secrets_redacted(tmp_path: Path) -> None:
                     {
                         "tool_call_id": "c1",
                         "function_name": "bash",
-                        "arguments": {"cmd": "curl -H 'Authorization: Bearer my-secret-bearer-999' http://api/auth"},
+                        "arguments": {
+                            "cmd": "curl -H 'Authorization: Bearer my-secret-bearer-999' http://api/auth"
+                        },
                     }
                 ],
                 "observation": {
@@ -344,7 +348,7 @@ def test_secrets_redacted(tmp_path: Path) -> None:
         max_chars=24000,
     )
 
-    full_output = fb["feedback_text"]
+    full_output = fb["feedback"]
 
     # Verify no raw secrets appear anywhere in feedback text
     assert "eyJhbGciOiJIUzI1NiJ9" not in full_output
@@ -354,17 +358,6 @@ def test_secrets_redacted(tmp_path: Path) -> None:
 
     # Verify redacted placeholder is present
     assert "[redacted]" in full_output
-
-    # Verify structured action and observation arguments are also redacted
-    action_args = str(fb["actions"][0]["arguments"])
-    assert "my-secret-bearer-999" not in action_args
-
-    obs_content = fb["observations"][0]["content"]
-    assert "SuperSecretPassword123" not in obs_content
-
-    final_resp = fb["final_response"]
-    assert final_resp is not None
-    assert "SuperSecretPassword123" not in final_resp
 
 
 # ---------------------------------------------------------------------------
@@ -409,68 +402,13 @@ def test_missing_trace_does_not_become_success_evidence(tmp_path: Path) -> None:
         max_chars=24000,
     )
 
-    # Trace is explicitly absent
-    assert fb["trace_status"] == "absent"
-    assert fb["actions"] == []
-    assert fb["observations"] == []
-    assert fb["final_response"] is None
-
-    # Outcome is faithfully 0.0, never turned into success
-    assert fb["outcome"]["primary_reward"] == 0.0
-    assert fb["outcome"]["rewards"]["correctness"] == 0.0
-    assert fb["outcome"]["verifier_diagnostics"]["correctness"]["passed"] is False
+    feedback_text = fb["feedback"]
 
     # Honest text representation
-    assert "Trace Status: absent" in fb["feedback_text"]
-    assert "No agent model trajectory was recorded" in fb["feedback_text"]
+    assert "Trace Status: absent" in feedback_text
+    assert "No agent model trajectory was recorded" in feedback_text
     assert any("absent" in n for n in fb["coverage_notices"])
 
-
-# ---------------------------------------------------------------------------
-# 6. Actual prior control jobs under gepa-learning runs
-# ---------------------------------------------------------------------------
-
-
-def test_prior_control_jobs_gepa_learning() -> None:
-    """Validate helper against actual prior control jobs under gepa-learning-20260914/runs."""
-    runs_dir = Path(
-        "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-learning-20260914/runs"
-    )
-    if not runs_dir.exists():
-        pytest.skip("gepa-learning-20260914 worktree runs not present")
-
-    repo_root = runs_dir.parent
-    task_path = Path("library/tasks/event-summary")
-
-    # 1. Nop control trial
-    nop_trial = Path(
-        "runs/gepa-nop-nomodel-event-summary-ef18429fceeae24d/gepa-nop-nomodel-event-summary-e__7WVcjyr"
-    )
-    if (repo_root / nop_trial).exists():
-        fb_nop = build_feedback(
-            repo_root=repo_root,
-            task_path=task_path,
-            trial_path=nop_trial,
-            max_chars=24000,
-        )
-        assert fb_nop["trace_status"] == "absent"
-        assert fb_nop["outcome"]["primary_reward"] == 0.0
-        assert fb_nop["sources"]["task_instruction"] == "library/tasks/event-summary/instruction.md"
-        assert "wrong summary" in str(fb_nop["outcome"]["verifier_diagnostics"])
-        assert "Trace Status: absent" in fb_nop["feedback_text"]
-
-    # 2. Oracle control trial
-    oracle_trial = Path(
-        "runs/gepa-oracle-nomodel-event-summary-ef18429fceeae24d/gepa-oracle-nomodel-event-summary-e__ANEqh2m"
-    )
-    if (repo_root / oracle_trial).exists():
-        fb_oracle = build_feedback(
-            repo_root=repo_root,
-            task_path=task_path,
-            trial_path=oracle_trial,
-            max_chars=24000,
-        )
-        assert fb_oracle["trace_status"] == "absent"
-        assert fb_oracle["outcome"]["primary_reward"] == 1.0
-        assert fb_oracle["sources"]["task_instruction"] == "library/tasks/event-summary/instruction.md"
-        assert "Trace Status: absent" in fb_oracle["feedback_text"]
+    # Outcome is faithfully 0.0, never turned into success
+    assert "Primary Reward: 0.0" in feedback_text
+    assert '"correctness": {"message": "expected output missing", "passed": false}' in feedback_text

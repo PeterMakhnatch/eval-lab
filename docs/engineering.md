@@ -115,15 +115,13 @@ aligned whenever the supported range changes.
 | Tests | `uv run pytest` | `.github/workflows/ci.yml` | yes |
 | Types | `uvx ty@0.0.71 check src/` | `.github/workflows/typecheck.yml` | **ratchet — see below** |
 
-`typecheck.yml` is a separate workflow file on purpose. `ci.yml` was being
-rewritten concurrently while this landed (by `codex/restore-green-ci`, since
-merged as `65ef29c`, and by a second uncommitted edit in the FORGE worktree —
-see `agents/handoffs/forge.md`). A separate workflow merges cleanly regardless
-of who touches `ci.yml`, and runs in parallel so it costs no extra wall-clock.
-
-Consolidating the two into one workflow is a reasonable daytime follow-up, but
-only after the ty-versus-mypy question in the FORGE handoff is settled. Do not
-ship two type checkers.
+`typecheck.yml` remains separate so the zero-diagnostic result is independently
+visible and runs alongside `quality`. Each workflow has an unconditional,
+directly dependent required gate: `quality-required` and `typecheck-required`.
+Both workflows run for every PR target branch and for merge groups. Required
+check names, GitHub settings, and the distinction between enforcement and process
+live in `agents/CHECKS.md`; review and native auto-merge live in
+`agents/WORKFLOW.md`. Do not ship a second type checker.
 
 ### The type-check baseline
 

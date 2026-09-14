@@ -69,7 +69,7 @@ inputs:
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
-    digest: sha256:002c22f07e6ec24ecb02567abfb1cbba2e34975c1898730e91e11131f8794519
+    digest: sha256:1f703535a274d1b0d4924c2d19a565aa64065bf00d9d9207bc4d0149057e0dd0
   - path: docs/eval-cards.md
     digest: sha256:562c8c0fd75ff5265c7082cefc1699eff3670e875a1df02488e434272c3ef074
   - path: docs/execution-tiers.md

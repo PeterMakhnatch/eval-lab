@@ -74,10 +74,11 @@ def tree_digest(root: Path) -> dict[str, str]:
 
 
 @pytest.fixture
-def tidy_fixture_repo(tmp_path: Path) -> Path:
+def tidy_fixture_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create a realistic repository tree with all 5 classes of findings."""
     root = tmp_path / "repo"
     root.mkdir()
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(root / "derived/parquet"))
     init_git_repo(root)
 
     # 1. Stale worktree setup (clean merged vs dirty)

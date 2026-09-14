@@ -76,11 +76,70 @@ it does not grant ownership or authorize deletion.
 3. Push the topic branch and open a PR against its declared integration target.
    Report the exact head, verification, and any unavailable evidence honestly.
 4. The author does not self-approve. Peter or a different reviewer reviews the
-   exact head. Merge only after all required GitHub checks succeed for that head.
-   Local green, a different head's CI, or a merge to an integration branch is not
-   a merge to `main`.
+   exact head; native GitHub approval requires an eligible principal other than
+   the PR author. Merge only after the explicit core gates and every reported
+   check succeed for the current head/base pair (`agents/CHECKS.md`). Local green,
+   a different head's CI, or a merge to an integration branch is not a merge to
+   `main`.
 5. Leave the primary checkout and other workers' uncommitted files untouched during
    reconciliation. Never force-push `main` or silently resolve an ownership conflict.
+
+### Independent review and native auto-merge
+
+An independent native OMP review is an actual review by a worker other than the
+author, with findings and disposition tied to the PR head. It is useful evidence,
+but it is not a GitHub `APPROVED` review. Multiple agents authenticated as
+`PeterMakhnatch` are one GitHub principal, not independent GitHub reviewers.
+GitHub does not let a PR author approve their own PR; changing agent/session names,
+writing an approval comment, or inventing another identity does not satisfy a
+required review. Never fabricate approval events.
+
+Before opting a PR into native auto-merge:
+
+1. Obtain and resolve an independent review of the exact head, including CI
+   workflow changes. Record the reviewer, head SHA, findings, and disposition.
+   Publish an `independent-review` success status on that exact SHA with the
+   review receipt's GitHub URL. This attests to an actual completed review; it
+   must never be issued by the author alone or by a workflow merely because
+   tests passed. The attestor remains accountable for the review's authenticity.
+2. Verify the live target-branch protection enforces the required gates in
+   `agents/CHECKS.md`, with no admin bypass. Where required native approvals are
+   configured, obtain one from a real eligible independent reviewer.
+3. Only then may the integration owner enable repository auto-merge and opt in
+   that reviewed PR. Native auto-merge waits for configured requirements, not
+   for an agent's written process or for every optional check. If optional checks
+   remain outstanding, wait for them before opting in.
+4. A changed head/base invalidates the process review receipt. Disable auto-merge,
+   rerun/review the new combination, and opt in again only after acceptance.
+   Do not rely on GitHub to disable it for every writer: automatic disabling is
+   documented for updates by users without write permission.
+
+When all agents share the PR author's GitHub principal, use the required
+`independent-review` commit status to enforce a fresh integration-owner
+attestation of the separate OMP review. Native approving-review count is zero
+in this configuration; the independent review itself is still mandatory.
+GitHub enforces the status on the exact commit, but does not authenticate the
+identity of the reviewing OMP worker. A new head therefore blocks auto-merge
+until a new reviewed-head attestation exists. Do not create another account,
+forge a native approval, give an untrusted PR workflow status-write permission,
+or automatically turn successful CI into successful review.
+
+After checking the live PR head still matches the reviewed SHA, the integration
+owner records the review using the existing GitHub commit-status API:
+
+```bash
+gh api --method POST repos/PeterMakhnatch/eval-lab/statuses/REVIEWED_SHA \
+  -f state=success -f context=independent-review \
+  -f description="Independent review accepted; see exact-head receipt" \
+  -f target_url=GITHUB_REVIEW_RECEIPT_URL
+```
+
+Use GitHub's native auto-merge, not a privileged custom merger, fabricated check,
+or `pull_request_target` workflow executing PR code. Workflow tokens remain
+read-only and actions remain SHA-pinned.
+
+See GitHub's [native auto-merge semantics](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request)
+and [required review semantics](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-pull-request-reviews-before-merging).
 
 ## Integration and sunset
 

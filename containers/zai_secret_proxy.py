@@ -1013,6 +1013,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
+            if status >= 400 and not isinstance(usage, dict):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason=f"provider_http_{status}_usage_unknown",
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
+                )
+                self._reject(status, sanitized_body)
+                return
+
             if not isinstance(usage, dict) or not all(
                 k in usage for k in ("prompt_tokens", "completion_tokens")
             ):
@@ -1025,9 +1035,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
-            used_input = int(usage["prompt_tokens"])
-            used_output = int(usage["completion_tokens"])
-            if min(used_input, used_output) < 0:
+            used_input = usage["prompt_tokens"]
+            used_output = usage["completion_tokens"]
+            if any(
+                isinstance(value, bool) or not isinstance(value, int) or value < 0
+                for value in (used_input, used_output)
+            ):
                 self._budget().mark_unresolved(
                     call_id=call_id,
                     reason="negative_upstream_usage",

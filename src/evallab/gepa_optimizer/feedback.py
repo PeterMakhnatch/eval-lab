@@ -190,26 +190,21 @@ def build_feedback(
     else:
         task_id = resolved_task_path.name
 
-    agent_info = (
-        result_data.get("agent_info") if isinstance(result_data.get("agent_info"), dict) else {}
-    )
-    cfg_agent = (
-        (result_data.get("config") or {}).get("agent")
-        if isinstance(result_data.get("config"), dict)
-        else {}
-    )
+    agent_info = result_data.get("agent_info")
+    if not isinstance(agent_info, dict):
+        agent_info = {}
+    config = result_data.get("config")
+    cfg_agent = config.get("agent") if isinstance(config, dict) else None
     agent_name = agent_info.get("name") or (
         cfg_agent.get("name") if isinstance(cfg_agent, dict) else None
     )
 
-    verifier_result = (
-        result_data.get("verifier_result")
-        if isinstance(result_data.get("verifier_result"), dict)
-        else {}
-    )
-    rewards = (
-        verifier_result.get("rewards") if isinstance(verifier_result.get("rewards"), dict) else {}
-    )
+    verifier_result = result_data.get("verifier_result")
+    if not isinstance(verifier_result, dict):
+        verifier_result = {}
+    rewards = verifier_result.get("rewards")
+    if not isinstance(rewards, dict):
+        rewards = {}
     primary_reward: float | None = None
     if "reward" in rewards and isinstance(rewards["reward"], (int, float)):
         primary_reward = float(rewards["reward"])
@@ -227,9 +222,9 @@ def build_feedback(
     else:
         outcome_status = "unknown"
 
-    agent_result = (
-        result_data.get("agent_result") if isinstance(result_data.get("agent_result"), dict) else {}
-    )
+    agent_result = result_data.get("agent_result")
+    if not isinstance(agent_result, dict):
+        agent_result = {}
     exit_code = agent_result.get("exit_code", result_data.get("exit_code"))
 
     # Emitted verifier diagnostics (checks.json, test-stdout.txt)

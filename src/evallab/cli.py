@@ -60,6 +60,7 @@ from evallab.evidence.facts import (
     write_failure_taxonomy_agreement,
 )
 from evallab.fetch import (
+    ControlCall,
     FetchError,
     FetchService,
     HarborBackend,
@@ -110,9 +111,10 @@ from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
     RunRequest,
     database_url_from_environment,
-    expected_primary_reward,
+    executor_state_path,
     load_matrix,
-    request_from_matrix,
+    matrix_run_outcome,
+    staged_matrix_request,
     subscription_environment,
 )
 from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
@@ -969,27 +971,90 @@ def _matrix_command(
     matrix_path = _resolve(root, args.path)
     matrix = load_matrix(matrix_path)
     completed: list[JobRecord] = []
-    mismatch = False
-    executor = Executor.from_repo(root)
+    results: list[dict[str, Any]] = []
+    receipt_path = (
+        _resolve(root, Path(matrix.jobs_dir)) / ".executor" / f"{matrix.matrix_id}.matrix.json"
+    )
+    invocation_path = receipt_path.with_suffix(".invocations.jsonl")
+    saved_receipt: dict[str, Any] = {"matrix": matrix.model_dump(mode="json"), "results": []}
+    if receipt_path.is_file():
+        saved_receipt = json.loads(receipt_path.read_text())
+    previous = {result["name"]: result for result in saved_receipt.get("results", [])}
+    saved_results = dict(previous)
+    executor = Executor.from_repo(root) if harbor is None else None
     for run in matrix.runs:
-        request = request_from_matrix(matrix, run, repo_root=root)
-        job_dir = request.jobs_dir / request.name
-        if args.reuse_existing and job_dir.is_dir():
-            job = load_job(job_dir)
-        else:
-            job = load_job(executor.execute_direct(request))
-        completed.append(job)
-        expected = expected_primary_reward(run)
-        if expected is not None:
-            actual = job.trials[0].primary_reward if len(job.trials) == 1 else None
-            if actual != expected:
-                mismatch = True
-                print(
-                    f"expectation failed for {request.name}: expected {expected:g}, got {actual}",
-                    file=sys.stderr,
-                )
+        result: dict[str, Any] = {"name": run.name, "expect_reward": run.expect_reward}
+        try:
+            with staged_matrix_request(matrix, run, repo_root=root) as (request, provenance):
+                result.update(provenance)
+                job_dir = request.jobs_dir / request.name
+                if args.reuse_existing and job_dir.is_dir():
+                    prior = previous.get(run.name, {})
+                    keys = ("solution_sha256", "staged_task_digest")
+                    if (
+                        any(prior.get(key) != provenance.get(key) for key in keys)
+                        or prior.get("status") == "infra"
+                    ):
+                        raise ValueError("existing job has no matching successful control provenance")
+                    state_path = executor_state_path(request)
+                    if state_path.is_file():
+                        state = json.loads(state_path.read_text())
+                        if state.get("status") != "completed" or state.get("exit_code", 0) != 0:
+                            raise ValueError("existing job has a failed or incomplete Harbor execution")
+                elif job_dir.exists():
+                    raise FileExistsError(
+                        f"Refusing to reuse existing job directory: {job_dir}. "
+                        "Use --reuse-existing to validate its evidence."
+                    )
+                elif harbor is not None:
+                    if request.agent not in {"oracle", "nop"}:
+                        raise ValueError("direct execution is restricted to oracle/nop")
+                    harbor.run_control(
+                        ControlCall(
+                            task_path=request.task,
+                            agent=request.agent,
+                            job_name=request.name,
+                            jobs_dir=request.jobs_dir,
+                            n_concurrent=request.concurrency,
+                            n_attempts=request.attempts,
+                        )
+                    )
+                else:
+                    assert executor is not None
+                    job_dir = executor.execute_direct(request)
+                job = load_job(job_dir)
+                result.update(matrix_run_outcome(job, run))
+                if result["status"] != "infra":
+                    completed.append(job)
+        except Exception as exc:
+            result.update(status="infra", rewards=[], error=f"{type(exc).__name__}: {exc}")
+        results.append(result)
+        status = result["status"]
+        detail = result["error"] or f"expected {run.expect_reward}, got {result['rewards']}"
+        print(
+            f"{run.name}: {status} ({detail})",
+            file=sys.stdout if status == "ok" else sys.stderr,
+        )
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        # The job receipt is evidence, not the status of the latest invocation.
+        # Refusing a rerun must not erase the binding used by --reuse-existing.
+        if saved_results.get(run.name, {}).get("status") not in {"ok", "mismatch"}:
+            saved_results[run.name] = result
+            saved_receipt["results"] = list(saved_results.values())
+            receipt_path.write_text(json.dumps(saved_receipt, indent=2) + "\n")
+        with invocation_path.open("a") as stream:
+            stream.write(
+                json.dumps({
+                    "recorded_at": datetime.now(UTC).isoformat(),
+                    "matrix": matrix.model_dump(mode="json"),
+                    "reuse_existing": args.reuse_existing,
+                    "result": result,
+                }) + "\n"
+            )
     _print_summary(completed)
-    return 1 if mismatch else 0
+    print(f"matrix receipt: {receipt_path}")
+    print(f"matrix invocations: {invocation_path}")
+    return 1 if any(result["status"] != "ok" for result in results) else 0
 
 
 def _summarize_command(
@@ -2270,6 +2335,21 @@ def _evidence_restore_command(
     return 0
 
 
+def _tasks_lint_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_lint import discover_tasks, lint_task
+
+    tasks = discover_tasks([_resolve(root, path) for path in args.paths])
+    findings = [finding for task in tasks for finding in lint_task(task)]
+    if args.json:
+        print(json.dumps([asdict(finding) for finding in findings], indent=2))
+    else:
+        for finding in findings:
+            print(f"{finding.severity} {finding.rule} {finding.path}: {finding.message}")
+    return 1 if any(finding.severity == "error" for finding in findings) else 0
+
+
 def _tasks_import_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2787,6 +2867,49 @@ def _registry_audit_command(
         print(f"[{icon}] {finding.category} -> {finding.target}")
         print(f"       {finding.message}")
     return 0 if report.passed else 1
+
+def _quality_audit_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.quality_audit import audit_cohort
+
+    report = audit_cohort(root, _resolve(root, args.cohort))
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+
+    print(f"Cohort Quality Audit: {report['cohort_id']} ({report['cohort_digest']})")
+    for member in report["members"]:
+        static = member["static_screening"]
+        codes = ", ".join(static.get("codes", [])) or "no error diagnostics"
+        print(f"  {member['task_id'] or '<unnamed>'}")
+        print(f"    static_screening: {static['status']} [{codes}]")
+        identity = static["cohort_identity"]
+        print(f"    cohort_identity: {identity['status']}")
+        inspected = identity["inspected"]
+        if inspected:
+            print(
+                f"      inspected: {inspected['task_id']}@{inspected['task_version']} "
+                f"({inspected['candidate_id']}) at {inspected['task_path']}"
+            )
+        if identity["actual_digests"]:
+            for component, digest in identity["actual_digests"].items():
+                print(f"      actual {component}: {digest}")
+        for mismatch in identity["mismatches"]:
+            print(
+                f"      drift {mismatch['component']}: "
+                f"frozen {mismatch['expected']} != inspected {mismatch['actual']}"
+            )
+        if identity.get("reason"):
+            print(f"      {identity['reason']}")
+        print(
+            f"    semantic_validity: {member['semantic_validity']['status']} "
+            "(cohort declaration only; not authenticated for inspected bytes)"
+        )
+        print(f"    difficulty: {member['difficulty']['status']}")
+        print(f"    training_utility: {member['training_utility']['status']}")
+    return 0
 
 
 def _tidy_command(
@@ -3907,6 +4030,28 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument("--database-url")
     compare.set_defaults(func=_compare_command)
 
+    quality = commands.add_parser(
+        "quality",
+        help="Read-only quality audits that keep static, semantic, difficulty, and training-utility findings separate",
+    )
+    quality_commands = quality.add_subparsers(dest="quality_command", required=True)
+    quality_audit = quality_commands.add_parser(
+        "audit",
+        help="Audit a pinned task cohort; never certifies semantics or training utility",
+    )
+    quality_audit.add_argument(
+        "--cohort",
+        type=Path,
+        required=True,
+        help="Path to the pinned cohort JSON file",
+    )
+    quality_audit.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the full audit record as JSON",
+    )
+    quality_audit.set_defaults(func=_quality_audit_command)
+
     curve = commands.add_parser(
         "curve", help="Validate, build, or read an empirical paired capability curve"
     )
@@ -4417,6 +4562,13 @@ def parser() -> argparse.ArgumentParser:
     tasks_import.add_argument("--limit", type=int)
     tasks_import.add_argument("--json", action="store_true")
     tasks_import.set_defaults(func=_tasks_import_command)
+
+    tasks_lint = tasks_commands.add_parser(
+        "lint", help="Read-only static checks for task verifier trust boundaries"
+    )
+    tasks_lint.add_argument("paths", nargs="+", type=Path, help="Task directories or task collections")
+    tasks_lint.add_argument("--json", action="store_true")
+    tasks_lint.set_defaults(func=_tasks_lint_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

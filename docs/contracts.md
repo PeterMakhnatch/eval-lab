@@ -22,6 +22,13 @@ All pydantic v2 contract models live in `src/evallab/schemas.py` per platform-ar
 | `TaskRegistryRecord` | task_id | version, task_path, digests, source_uri, limits, control_evidence, state, allowed_uses, contamination, human_minutes | state invariants; contamination ({public_since, in_pretrain ∈ {y, n, unknown}, basis}); optional human_minutes |
 | `CapabilityCurveSpec` / `CapabilityCurveReport` | curve_id | ordered factor levels, reference, one preregistered primary contrast, paired cohort sources, per-level task intervals/deltas/refusals | strict execution-vs-task-generator provenance; `task_block_id` pairing; no fit or aggregate score |
 
+A frozen comparison digest establishes byte identity, not scientific compatibility.
+Both live and frozen curve inputs must declare `factor_values_digest`, use
+`task_block_id` pairing, and provide the preregistered primary contrast's `k`.
+Missing primary metrics produce a validation error. A comparison that fails its
+controlled-identity or pair-set checks cannot retain a rankable primary contrast;
+its descriptive outcomes remain available with the refusal.
+
 ## Other §2.1 entities (already modelled — do not re-declare)
 
 | Entity | Location | Key |

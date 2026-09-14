@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import shutil
 from datetime import UTC, datetime
@@ -10,7 +12,7 @@ import pytest
 
 from evallab import cli
 from evallab.cohort import compare
-from evallab.curve import build_curve, load_curve_spec
+from evallab.curve import build_curve, load_curve_report, load_curve_spec, write_curve
 from evallab.report import build_eval_card
 from evallab.schemas import CapabilityCurveSpec, CohortComparisonSpec
 
@@ -406,3 +408,133 @@ def test_report_card_comparison_cannot_bypass_prereg(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="require a prereg block"):
         build_eval_card(spec, repo_root=tmp_path)
+
+
+def _frozen_artifact_digest(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _comparison_reports(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        compare(CohortComparisonSpec.model_validate(item["comparison_spec"]), repo_root=REPO_ROOT)
+        for item in payload["comparisons"]
+    ]
+
+
+def _freeze_comparisons(
+    payload: dict[str, Any], reports: list[dict[str, Any]], root: Path, name: str
+) -> CapabilityCurveSpec:
+    """Pin actual compare() outputs as digest-bound frozen artifacts under ``root``."""
+    frozen = copy.deepcopy(payload)
+    for source, report in zip(frozen["comparisons"], reports, strict=True):
+        artifact = root / name / f"comparison-level-{source['level']}.json"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        source.pop("comparison_spec")
+        source["comparison_artifact"] = artifact.relative_to(root).as_posix()
+        source["comparison_artifact_digest"] = _frozen_artifact_digest(artifact)
+    return CapabilityCurveSpec.model_validate(frozen)
+
+
+def test_frozen_comparison_artifacts_qualify_and_match_the_live_curve(
+    tmp_path: Path,
+) -> None:
+    payload = _spec_payload()
+    live = _build(payload)
+    frozen_spec = _freeze_comparisons(
+        payload, _comparison_reports(payload), tmp_path, "frozen"
+    )
+    frozen = build_curve(
+        frozen_spec,
+        repo_root=tmp_path,
+        produced_by="test-curve",
+        produced_at=PRODUCED_AT,
+    )
+
+    assert frozen.rankable is True
+    assert frozen.refuse_to_rank_reasons == []
+    assert frozen.levels == live.levels
+    assert frozen.common_controlled_fingerprint == live.common_controlled_fingerprint
+    assert _level(frozen, 3).contrasts[0].rankable is True
+
+    spec_path = tmp_path / "frozen-curve-spec.json"
+    spec_path.write_text(frozen_spec.model_dump_json(indent=2), encoding="utf-8")
+    output_path = tmp_path / "frozen-curve.json"
+    _, written = write_curve(
+        spec_path, repo_root=tmp_path, output_path=output_path, produced_by="test-curve"
+    )
+    assert load_curve_report(output_path) == written
+    assert written.rankable is True
+    assert written.levels == live.levels
+
+
+def test_hash_pinned_contract_violations_are_refused_at_the_consumer_boundary(
+    tmp_path: Path,
+) -> None:
+    payload = _spec_payload()
+
+    wrong_variable = _comparison_reports(payload)
+    wrong_variable[-1]["declared_variable"] = "model_name"
+    with pytest.raises(
+        ValueError,
+        match=r"comparison-level-3\.json.*declared_variable='factor_values_digest'",
+    ):
+        build_curve(
+            _freeze_comparisons(payload, wrong_variable, tmp_path, "wrong-variable"),
+            repo_root=tmp_path,
+            produced_by="test-curve",
+            produced_at=PRODUCED_AT,
+        )
+
+    wrong_pairing = _comparison_reports(payload)
+    wrong_pairing[0]["pairing_key"] = "task_digest"
+    with pytest.raises(ValueError, match="pairing_key='task_block_id'"):
+        build_curve(
+            _freeze_comparisons(payload, wrong_pairing, tmp_path, "wrong-pairing"),
+            repo_root=tmp_path,
+            produced_by="test-curve",
+            produced_at=PRODUCED_AT,
+        )
+
+
+def test_missing_primary_k_is_an_actionable_refusal_not_stopiteration(
+    tmp_path: Path,
+) -> None:
+    payload = _spec_payload()
+    reports = _comparison_reports(payload)
+    single_k = copy.deepcopy(payload["comparisons"][-1]["comparison_spec"])
+    single_k["pass_k"] = [1]
+    reports[-1] = compare(CohortComparisonSpec.model_validate(single_k), repo_root=REPO_ROOT)
+
+    spec = _freeze_comparisons(payload, reports, tmp_path, "missing-primary-k")
+    with pytest.raises(ValueError, match="k=2"):
+        build_curve(
+            spec, repo_root=tmp_path, produced_by="test-curve", produced_at=PRODUCED_AT
+        )
+
+
+def test_failed_controlled_comparison_cannot_keep_a_rankable_primary_contrast(
+    tmp_path: Path,
+) -> None:
+    payload = _spec_payload()
+    reports = _comparison_reports(payload)
+    for member in reports[-1]["cohorts"][1]["members"]:
+        member["simulator_digest"] = "sha256:" + "e" * 64
+
+    report = build_curve(
+        _freeze_comparisons(payload, reports, tmp_path, "wrong-controls"),
+        repo_root=tmp_path,
+        produced_by="test-curve",
+        produced_at=PRODUCED_AT,
+    )
+
+    assert report.rankable is False
+    assert report.common_controlled_fingerprint is None
+    primary = _level(report, 3).contrasts[0]
+    assert primary.rankable is False
+    assert set(report.refuse_to_rank_reasons) <= set(primary.refusal_reasons)
+    # descriptive evidence survives the refusal
+    assert primary.n_pairs == 2
+    assert primary.paired_delta == -1.0
+    assert primary.paired_interval_95 == [-1.0, -1.0]
+    assert _level(report, 3).pass_any_first_k[0].rate == 0.0

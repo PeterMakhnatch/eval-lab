@@ -159,3 +159,59 @@ The audit verifies:
 5. No queue proposals attempt `task_path` redirection or version/verifier mismatches.
 6. Malformed JSON in queue specs or registry files is reported as error findings without swallowing parse errors.
 7. Curated cards that are pointer-only documentation are identified.
+
+## 4. Export a registered task pool for LEGO-RL
+
+`evallab.training_pool` writes a task index for online rollouts, **not SFT
+examples or saved RL trajectories**. It reads the registry without admitting
+tasks, changing permissions, or starting Harbor, a model, or a trainer:
+
+```bash
+uv run python -m evallab.training_pool \
+  --repo-root . \
+  --output derived/training-pools/event-summary \
+  --train event-summary
+```
+
+Repeat `--train TASK_ID` and `--validation TASK_ID` to select the development
+splits explicitly. Training requires registered tasks with `training` permission;
+validation requires `measurement` permission. Neither accepts `heldout` tasks.
+The complete request is rejected before publication if any selected package,
+control evidence, certificate binding, permission, or source path is invalid.
+An existing legacy-missing certificate remains explicitly legacy-missing; an
+export does not upgrade it to independent semantic certification.
+
+The bundle contains `train.parquet`, `validation.parquet`, and `manifest.json`.
+Rows use LEGO's `prompt`, `reward_model`, and `extra_info.harbor_task_path`
+contract. The manifest binds output digests and records the registry snapshots,
+task/component/control digests, source references, license metadata,
+certification state, and contamination unknowns. Repeating an identical
+request preserves the bundle; nonidentical output is never overwritten.
+
+Cross-split checks reject shared task IDs, resolved paths, package digests,
+recorded task families, and exact source URIs. They cannot discover unrecorded
+parent/generator relationships. Review that missing lineage before using a pool
+for a learning comparison; requiring license metadata does not interpret or
+grant training rights.
+
+For an explicitly configured mixed-harness runtime:
+
+```bash
+uv run python -m evallab.training_pool \
+  --repo-root . \
+  --output derived/training-pools/event-summary-opencode \
+  --train event-summary=opencode
+```
+
+All training selections in one bundle must either name a harness or use the
+runtime default. This avoids nullable Parquet metadata that LEGO treats as an
+invalid explicit override. Validation never carries a per-row override: the
+runtime's fixed `val_harness` controls it.
+
+The metadata contract is pinned to
+[LEGO-RL `b1e5662f`](https://github.com/LegoX/Lego-RL/tree/b1e5662f5a8545d4f444712a0ec6375cb4355731).
+The local capture-repair derivative named in the manifest predates that
+mixed-harness support; their integration is still required. Task paths point
+to this exact checkout, with no copying or remote-path remapping. Recheck task
+bytes at execution time. A readable index does not prove runtime compatibility,
+reward validity, training utility, or permission to spend.

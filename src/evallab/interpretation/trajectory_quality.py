@@ -183,10 +183,15 @@ def evaluate_trial_quality(
     """Deterministically audit a single trial directory.
 
     Re-ingestion and evaluation are guaranteed idempotent.
+    Select ``agent/trajectory.json`` when present, otherwise ``trajectory.json``,
+    matching the readiness and runtime IR readers. A malformed preferred file
+    remains a quality failure rather than being replaced by the fallback.
     """
     trial_dir = Path(trial_dir).resolve()
     result_json_path = trial_dir / "result.json"
     traj_json_path = trial_dir / "agent" / "trajectory.json"
+    if not traj_json_path.is_file():
+        traj_json_path = trial_dir / "trajectory.json"
     exception_txt_path = trial_dir / "exception.txt"
 
     # 1. Resolve trial and job identities
@@ -296,7 +301,7 @@ def evaluate_trial_quality(
                     severity=FindingSeverity.ERROR,
                     category="atif",
                     code="ATIF_MISSING",
-                    message="agent/trajectory.json is missing for billable/eval trial",
+                    message="Neither agent/trajectory.json nor trajectory.json exists for billable/eval trial",
                 )
             )
             quarantine_reason = "missing_trajectory_file"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 
 from evallab.cohort import (
     NOT_COMPARABLE,
+    assemble_members,
     compare,
     pass_at_k_probability,
     pass_at_k_unbiased,
@@ -508,3 +510,366 @@ def test_planning_transform_is_not_chen_or_realized() -> None:
     assert pass_at_k_unbiased(5, 3, 2) == pytest.approx(0.9)
     assert pass_at_k_probability(3 / 5, 2) == pytest.approx(0.84)
     assert pass_at_k_unbiased(5, 3, 2) != pass_at_k_probability(3 / 5, 2)
+
+
+def _content_digest(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def _preamble_job(
+    root: Path,
+    *,
+    suffix: int,
+    reward: float = 1.0,
+    instruction_paths: list[str] | None = None,
+    lock_instructions: list[dict[str, object]] | None = None,
+    provenance_path: str | None = None,
+    provenance_sha256: str | None = None,
+) -> Path:
+    """A completed synthetic trial plus retained preamble evidence.
+
+    ``instruction_paths`` writes the declared ``extra_instruction_paths``
+    list into the frozen trial lock, ``lock_instructions`` Harbor's digest
+    bearing ``extra_instructions`` entries, and the provenance pair the
+    queue's ``lab-metadata.json`` run-time record.
+    """
+    job = _synthetic_job(root, suffix=suffix, agent="oracle", reward=reward)
+    trial = next(path for path in job.iterdir() if path.is_dir())
+    if instruction_paths is not None or lock_instructions is not None:
+        trial_lock_path = trial / "lock.json"
+        trial_lock = json.loads(trial_lock_path.read_text())
+        if instruction_paths is not None:
+            trial_lock["extra_instruction_paths"] = instruction_paths
+        if lock_instructions is not None:
+            trial_lock["extra_instructions"] = lock_instructions
+        trial_lock_path.write_text(json.dumps(trial_lock))
+    experiment = {
+        key: value
+        for key, value in (
+            ("preamble_path", provenance_path),
+            ("preamble_sha256", provenance_sha256),
+        )
+        if value is not None
+    }
+    if experiment:
+        (job / "lab-metadata.json").write_text(json.dumps({"experiment": experiment}))
+    return job
+
+
+def _preamble_identities(
+    root: Path,
+    probe_paths: list[str],
+    *,
+    anchor_path: str = "anchor/sample-job",
+) -> dict[str, str | None]:
+    """Assemble probe-cohort members and return their retained identities."""
+    spec = CohortComparisonSpec.model_validate(
+        {
+            "comparison_id": "retained-preamble-identity",
+            "experiment_id": "synthetic-experiment",
+            "declared_variable": "preamble_hash",
+            "pass_k": [1],
+            "cohorts": [
+                {"label": "probe", "paths": probe_paths},
+                {"label": "anchor", "paths": [anchor_path]},
+            ],
+        }
+    )
+    return {
+        member.trial_id: member.preamble_hash
+        for member in assemble_members(root, spec)
+        if member.cohort == "probe"
+    }
+
+
+def test_retained_candidate_identity_survives_source_mutation_and_removal(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate.txt"
+    candidate.write_text("Retained candidate at execution time.\n")
+    retained = _content_digest(candidate.read_bytes())
+    for label, suffix in (("left", 1), ("right", 2)):
+        _preamble_job(
+            tmp_path / label,
+            suffix=suffix,
+            instruction_paths=["candidate.txt"],
+            provenance_path="candidate.txt",
+            provenance_sha256=retained,
+        )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+    probe = ["left/sample-job", "right/sample-job"]
+
+    before = _preamble_identities(tmp_path, probe)
+    candidate.write_text("Edited after the completed trial.\n")
+    after_edit = _preamble_identities(tmp_path, probe)
+    candidate.unlink()
+    after_remove = _preamble_identities(tmp_path, probe)
+
+    assert len(set(before.values())) == 1
+    assert next(iter(before.values())) is not None
+    assert before == after_edit == after_remove
+
+
+def test_distinct_retained_candidates_and_relocated_content_identity(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first.txt"
+    first.write_text("first retained candidate\n")
+    second = tmp_path / "second.txt"
+    second.write_text("second retained candidate\n")
+    _preamble_job(
+        tmp_path / "left",
+        suffix=1,
+        instruction_paths=["first.txt"],
+        provenance_path="first.txt",
+        provenance_sha256=_content_digest(first.read_bytes()),
+    )
+    _preamble_job(
+        tmp_path / "right",
+        suffix=2,
+        instruction_paths=["second.txt"],
+        provenance_path="second.txt",
+        provenance_sha256=_content_digest(second.read_bytes()),
+    )
+    _preamble_job(
+        tmp_path / "moved",
+        suffix=3,
+        instruction_paths=["elsewhere/renamed.txt"],
+        provenance_path="elsewhere/renamed.txt",
+        provenance_sha256=_content_digest(first.read_bytes()),
+    )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    left = next(iter(_preamble_identities(tmp_path, ["left/sample-job"]).values()))
+    right = next(iter(_preamble_identities(tmp_path, ["right/sample-job"]).values()))
+    moved = next(iter(_preamble_identities(tmp_path, ["moved/sample-job"]).values()))
+
+    assert left != right
+    assert moved == left
+
+
+def test_declared_instruction_path_without_retained_provenance_is_unknown(
+    tmp_path: Path,
+) -> None:
+    _preamble_job(
+        tmp_path / "left",
+        suffix=1,
+        instruction_paths=["candidate.txt"],
+        provenance_path="candidate.txt",
+    )
+    _preamble_job(tmp_path / "right", suffix=2, instruction_paths=["candidate.txt"])
+    spec = _synthetic_spec(
+        left_paths=["left/sample-job"],
+        right_paths=["right/sample-job"],
+    ).model_copy(update={"declared_variable": "preamble_hash"})
+
+    report = compare(spec, repo_root=tmp_path)
+
+    assert all(
+        member["preamble_hash"] is None
+        for cohort in report["cohorts"]
+        for member in cohort["members"]
+    )
+    assert any(
+        "controlled preamble identity is unknown" in warning
+        for warning in report["validity_warnings"]
+    )
+    assert (
+        "controlled preamble provenance is missing content sha256"
+        in report["validity_warnings"]
+    )
+    assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
+
+
+def test_multiple_ordered_instructions_require_complete_retained_digests(
+    tmp_path: Path,
+) -> None:
+    one = tmp_path / "one.txt"
+    one.write_text("first ordered instruction\n")
+    two = tmp_path / "two.txt"
+    two.write_text("second ordered instruction\n")
+    first_digest = _content_digest(one.read_bytes())
+    second_digest = _content_digest(two.read_bytes())
+    _preamble_job(
+        tmp_path / "complete",
+        suffix=1,
+        lock_instructions=[
+            {"path": "/abs/one.txt", "digest": first_digest},
+            {"path": "/abs/two.txt", "digest": second_digest},
+        ],
+    )
+    _preamble_job(
+        tmp_path / "partial",
+        suffix=2,
+        instruction_paths=["/abs/one.txt", "/abs/two.txt"],
+        lock_instructions=[{"path": "/abs/one.txt", "digest": first_digest}],
+        provenance_path="/abs/one.txt",
+        provenance_sha256=first_digest,
+    )
+    _preamble_job(
+        tmp_path / "reversed",
+        suffix=3,
+        lock_instructions=[
+            {"path": "/abs/two.txt", "digest": second_digest},
+            {"path": "/abs/one.txt", "digest": first_digest},
+        ],
+    )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identity = _preamble_identities(tmp_path, ["complete/sample-job"])
+    one.write_text("mutated after the completed trial\n")
+    two.unlink()
+
+    assert next(iter(identity.values())) is not None
+    assert _preamble_identities(tmp_path, ["complete/sample-job"]) == identity
+    # One retained digest cannot certify a two-file effective preamble.
+    assert (
+        next(iter(_preamble_identities(tmp_path, ["partial/sample-job"]).values()))
+        is None
+    )
+    # Ordered files are part of the identity: reversal is a different preamble.
+    assert (
+        next(iter(_preamble_identities(tmp_path, ["reversed/sample-job"]).values()))
+        != next(iter(identity.values()))
+    )
+
+
+def test_contradictory_retained_identity_is_unknown(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate.txt"
+    candidate.write_text("candidate at execution time\n")
+    _preamble_job(
+        tmp_path / "conflict",
+        suffix=1,
+        instruction_paths=["candidate.txt"],
+        lock_instructions=[{"path": "candidate.txt", "digest": "sha256:" + "0" * 64}],
+        provenance_path="candidate.txt",
+        provenance_sha256=_content_digest(candidate.read_bytes()),
+    )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identity = _preamble_identities(tmp_path, ["conflict/sample-job"])
+
+    assert next(iter(identity.values())) is None
+
+
+def test_no_preamble_baseline_stays_distinct_from_unknown_identity(
+    tmp_path: Path,
+) -> None:
+    _synthetic_job(tmp_path / "plain", suffix=1, agent="oracle", reward=1.0)
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+    _preamble_job(tmp_path / "missing", suffix=2, instruction_paths=["gone.txt"])
+
+    plain = _preamble_identities(tmp_path, ["plain/sample-job"])
+    missing = _preamble_identities(tmp_path, ["missing/sample-job"])
+
+    assert next(iter(plain.values())) is not None
+    assert next(iter(missing.values())) is None
+
+
+@pytest.mark.parametrize(
+    ("declared", "retained"),
+    [
+        ("intended/candidate.txt", "other/candidate.txt"),
+        ("/repo/link/../candidate.txt", "/repo/candidate.txt"),
+    ],
+)
+def test_same_basename_does_not_certify_another_candidate(
+    tmp_path: Path, declared: str, retained: str,
+) -> None:
+    _preamble_job(
+        tmp_path / "foreign",
+        suffix=1,
+        instruction_paths=[declared],
+        provenance_path=retained,
+        provenance_sha256=_content_digest(b"other candidate"),
+    )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identity = _preamble_identities(tmp_path, ["foreign/sample-job"])
+
+    assert next(iter(identity.values())) is None
+
+
+def test_repeated_instruction_content_is_not_deduplicated(tmp_path: Path) -> None:
+    instruction = {"path": "candidate.txt", "digest": _content_digest(b"retained")}
+    _preamble_job(tmp_path / "once", suffix=1, lock_instructions=[instruction])
+    _preamble_job(
+        tmp_path / "twice", suffix=2, lock_instructions=[instruction, instruction]
+    )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    once = next(iter(_preamble_identities(tmp_path, ["once/sample-job"]).values()))
+    twice = next(iter(_preamble_identities(tmp_path, ["twice/sample-job"]).values()))
+
+    assert once is not None and twice is not None
+    assert once != twice
+
+
+def test_provenance_path_alone_is_not_a_no_preamble_baseline(tmp_path: Path) -> None:
+    _preamble_job(tmp_path / "missing", suffix=1, provenance_path="candidate.txt")
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identity = _preamble_identities(tmp_path, ["missing/sample-job"])
+
+    assert next(iter(identity.values())) is None
+
+
+def test_conflicting_retained_instruction_order_is_unknown(tmp_path: Path) -> None:
+    _preamble_job(
+        tmp_path / "conflict",
+        suffix=1,
+        lock_instructions=[
+            {"path": "first.txt", "digest": _content_digest(b"first")},
+            {"path": "second.txt", "digest": _content_digest(b"second")},
+        ],
+        instruction_paths=["second.txt", "first.txt"],
+    )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identity = _preamble_identities(tmp_path, ["conflict/sample-job"])
+
+    assert next(iter(identity.values())) is None
+
+
+def test_parent_components_preserve_distinct_retained_instruction_files(tmp_path: Path) -> None:
+    first = _content_digest(b"symlink parent content")
+    second = _content_digest(b"root content")
+    for label, suffix, first_path in (
+        ("symlink", 1, "link/../p.txt"),
+        ("canonical", 2, "sub/p.txt"),
+    ):
+        _preamble_job(
+            tmp_path / label,
+            suffix=suffix,
+            lock_instructions=[
+                {"path": first_path, "digest": first},
+                {"path": "p.txt", "digest": second},
+            ],
+        )
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identities = _preamble_identities(
+        tmp_path, ["symlink/sample-job", "canonical/sample-job"],
+    )
+    assert None not in identities.values()
+    assert len(set(identities.values())) == 1
+
+
+def test_unmodeled_nested_instruction_declaration_is_not_no_preamble(tmp_path: Path) -> None:
+    job = _preamble_job(tmp_path / "nested", suffix=1)
+    trial = next(path for path in job.iterdir() if path.is_dir())
+    lock_path = trial / "lock.json"
+    lock = json.loads(lock_path.read_text())
+    lock["agent"] = {
+        "name": "oracle",
+        "kwargs": {
+            "extra_instructions": [
+                {"path": "candidate.txt", "digest": _content_digest(b"retained")},
+            ],
+        },
+    }
+    lock_path.write_text(json.dumps(lock))
+    _synthetic_job(tmp_path / "anchor", suffix=9, agent="oracle", reward=1.0)
+
+    identity = _preamble_identities(tmp_path, ["nested/sample-job"])
+    assert next(iter(identity.values())) is None

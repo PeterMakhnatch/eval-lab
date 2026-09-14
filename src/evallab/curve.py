@@ -48,6 +48,34 @@ def _safe_path(root: Path, relative: str) -> Path:
     return path
 
 
+def _qualify_comparison_report(
+    report: JsonObject, *, source: CurveComparisonSource
+) -> None:
+    """Enforce the curve's applicable comparison contract at the consumer boundary.
+
+    A pinned digest proves bytes, not compatibility: live and frozen comparison
+    sources must both declare the curve's factor variable and task-block pairing
+    before their reports can qualify as curve inputs.
+    """
+    if source.comparison_artifact is not None:
+        origin = (
+            f"frozen comparison artifact {source.comparison_artifact!r} "
+            f"for level {source.level!r}"
+        )
+    else:
+        origin = f"comparison {report.get('comparison_id')!r} for level {source.level!r}"
+    if report.get("declared_variable") != "factor_values_digest":
+        raise ValueError(
+            f"{origin} declares variable {report.get('declared_variable')!r}; "
+            "curve comparisons require declared_variable='factor_values_digest'"
+        )
+    if report.get("pairing_key") != "task_block_id":
+        raise ValueError(
+            f"{origin} pairs on {report.get('pairing_key')!r}; "
+            "curve comparisons require pairing_key='task_block_id'"
+        )
+
+
 def _comparison_report(
     source: CurveComparisonSource, *, repo_root: Path
 ) -> tuple[JsonObject, dict[str, str]]:
@@ -67,6 +95,7 @@ def _comparison_report(
                 for path in files:
                     relative = path.resolve().relative_to(repo_root.resolve()).as_posix()
                     digests[relative] = _sha256_bytes(path.read_bytes())
+        _qualify_comparison_report(report, source=source)
         return report, digests
 
     assert source.comparison_artifact is not None
@@ -84,6 +113,7 @@ def _comparison_report(
         raise ValueError(f"invalid frozen comparison artifact {path}: {exc}") from exc
     if not isinstance(report, dict):
         raise ValueError(f"frozen comparison artifact is not an object: {path}")
+    _qualify_comparison_report(report, source=source)
     return report, {source.comparison_artifact: observed}
 
 
@@ -329,8 +359,6 @@ def build_curve(
     built_levels: dict[str, CurveLevelReport] = {}
 
     for source, report in reports:
-        if report.get("pairing_key") != "task_block_id":
-            reasons.append(f"level {source.level!r} does not use task_block_id pairing")
         cohorts = report.get("cohorts")
         paired_rows = report.get("paired")
         if not isinstance(cohorts, list) or len(cohorts) != 2 or not isinstance(paired_rows, list):
@@ -346,23 +374,27 @@ def build_curve(
                 f"comparison for level {source.level!r} lacks pass-all-first-k metrics"
             )
 
+        level_integrity_reasons: list[str] = []
         pair_sets = [
             sorted(str(pair["key"]) for pair in row.get("pairs", [])) for row in paired_rows
         ]
         if not pair_sets:
             pair_sets = [[]]
         if any(pair_set != pair_sets[0] for pair_set in pair_sets[1:]):
-            reasons.append(f"level {source.level!r} does not have one exact pair set across k")
+            level_integrity_reasons.append(
+                f"level {source.level!r} does not have one exact pair set across k"
+            )
         pair_set = pair_sets[0]
         if expected_pair_set is None:
             expected_pair_set = pair_set
         elif pair_set != expected_pair_set:
-            reasons.append(f"level {source.level!r} does not share the common exact pair set")
+            level_integrity_reasons.append(
+                f"level {source.level!r} does not share the common exact pair set"
+            )
 
         members = _members_by_label(report)
         baseline_label = str(baseline["label"])
         level_label = str(level_cohort["label"])
-        level_integrity_reasons: list[str] = []
         if json.dumps(source.level, sort_keys=True) == json.dumps(
             spec.reference_level, sort_keys=True
         ):
@@ -387,7 +419,6 @@ def build_curve(
                 spec=spec,
             )
         )
-        reasons.extend(level_integrity_reasons)
         budget_failure = bool(report.get("budget_exhaustion_is_failure", False))
         baseline_control = _control_fingerprint(
             members.get(baseline_label, []),
@@ -402,16 +433,18 @@ def build_curve(
             budget_exhaustion_is_failure=budget_failure,
         )
         if baseline_control != level_control:
-            reasons.append(f"level {source.level!r} has a controlled fingerprint mismatch")
+            level_integrity_reasons.append(
+                f"level {source.level!r} has a controlled fingerprint mismatch"
+            )
         if expected_control is None:
             expected_control = baseline_control
         elif baseline_control != expected_control:
-            reasons.append(
+            level_integrity_reasons.append(
                 f"level {source.level!r} does not share the common controlled fingerprint"
             )
 
         if budget_failure != (spec.treatment_binding == "timeout_seconds"):
-            reasons.append(
+            level_integrity_reasons.append(
                 f"level {source.level!r} budget exhaustion policy does not match the treatment"
             )
         base_exclusions = _exclusions(
@@ -433,7 +466,9 @@ def build_curve(
         if reference_exclusions is None:
             reference_exclusions = base_exclusions
         elif base_exclusions != reference_exclusions:
-            reasons.append(f"level {source.level!r} changes reference censoring/exceptions")
+            level_integrity_reasons.append(
+                f"level {source.level!r} changes reference censoring/exceptions"
+            )
 
         pass_any = [_metric(item) for item in level_cohort["pass_any_first_k"]]
         pass_all = [_metric(item) for item in level_cohort["pass_all_first_k"]]
@@ -443,7 +478,14 @@ def build_curve(
         if reference_metrics is None:
             reference_metrics = current_reference
         elif current_reference != reference_metrics:
-            reasons.append(f"level {source.level!r} changes reference metrics")
+            level_integrity_reasons.append(f"level {source.level!r} changes reference metrics")
+
+        # Every integrity failure attributed to this source must reach both the
+        # nested primary contrast and the curve-level refusal list: a comparison
+        # that failed its own controlled-identity, pair-set, or reference
+        # contract cannot keep a rankable sub-result just because its bytes are
+        # digest-pinned.
+        reasons.extend(level_integrity_reasons)
 
         primary_level = source.level == spec.primary_contrast.level
         contrasts = [
@@ -515,7 +557,15 @@ def build_curve(
     built_levels[json.dumps(spec.reference_level, sort_keys=True)] = reference_report
 
     primary = built_levels[json.dumps(spec.primary_contrast.level, sort_keys=True)]
-    primary_result = next(item for item in primary.contrasts if item.k == spec.primary_contrast.k)
+    primary_result = next(
+        (item for item in primary.contrasts if item.k == spec.primary_contrast.k), None
+    )
+    if primary_result is None:
+        reported_k = sorted({item.k for item in primary.contrasts})
+        raise ValueError(
+            f"curve primary contrast requests level {spec.primary_contrast.level!r} at "
+            f"k={spec.primary_contrast.k}, but its comparison reports k values {reported_k}"
+        )
     reasons.extend(primary_result.refusal_reasons)
     reasons = list(dict.fromkeys(reasons))
     levels = [built_levels[json.dumps(level, sort_keys=True)] for level in spec.ordered_levels]

@@ -4,12 +4,13 @@ import hashlib
 import json
 import math
 import random
+import re
 import statistics
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import psycopg
@@ -225,58 +226,207 @@ def _configured_toolset(
     }
     return toolset, digest_json(toolset)
 
+_CONTENT_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
-def _preamble_entries(config: dict[str, Any]) -> list[tuple[str, Any]]:
-    entries: list[tuple[str, Any]] = []
-    for key in ("preamble", "system_prompt", "extra_instructions"):
-        value = config.get(key)
-        if value not in (None, "", []):
-            entries.append((key, value))
-    paths = config.get("extra_instruction_paths")
-    if isinstance(paths, list):
-        entries.extend(("path", value) for value in paths)
-    agent = _json_object(config.get("agent"))
-    kwargs = _json_object(agent.get("kwargs"))
-    for key in ("preamble", "system_prompt", "extra_instructions"):
-        value = kwargs.get(key)
-        if value not in (None, "", []):
-            entries.append((key, value))
+
+def _valid_content_digest(value: Any) -> bool:
+    return isinstance(value, str) and _CONTENT_DIGEST_PATTERN.fullmatch(value) is not None
+
+
+def _path_key(value: str) -> str:
+    """Normalize separators and dots without resolving symlink-sensitive parents."""
+    return PurePosixPath(value).as_posix()
+
+
+def _declared_instruction_files(source: dict[str, Any]) -> list[tuple[str, str | None]] | None:
+    """Ordered ``(path, retained content digest)`` instruction files in a source.
+
+    Harbor freezes each extra instruction file of a trial in the lock as an
+    ``extra_instructions`` entry carrying the run-time content digest. A digest
+    of ``None`` means the declaration survived without content provenance.
+    ``None`` is returned for malformed declarations.
+    """
+    value = source.get("extra_instructions")
+    if value in (None, "", []) or isinstance(value, str):
+        # A bare string is inline preamble text classified by
+        # ``_declared_inline_preambles``; only the ordered list/dict shapes
+        # declare instruction files.
+        return []
+    if isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, list):
+        return None
+    entries: list[tuple[str, str | None]] = []
+    for item in value:
+        if isinstance(item, str):
+            if not item.strip():
+                return None
+            entries.append((item, None))
+            continue
+        if not isinstance(item, dict):
+            return None
+        path = item.get("path")
+        digest = item.get("digest")
+        if not isinstance(path, str) or not path.strip():
+            return None
+        if digest is not None and not _valid_content_digest(digest):
+            return None
+        entries.append((path, digest))
     return entries
 
 
-def _configured_preamble_hash(root: Path, trial: TrialRecord) -> str | None:
-    result_config = _json_object(trial.result.get("config"))
-    sources = (trial.lock, result_config, trial.config)
-    entries: list[tuple[str, Any]] = []
-    for source in sources:
-        entries = _preamble_entries(source)
-        if entries:
-            break
-    if not entries:
-        return digest_json({"preamble": "none"})
+def _declared_instruction_paths(source: dict[str, Any]) -> list[str] | None:
+    """Read ordered file declarations without conflating repeated instructions."""
+    declared: list[str] = []
+    kwargs = _json_object(_json_object(source.get("agent")).get("kwargs"))
+    for holder in (source, kwargs):
+        for name in ("extra_instruction_paths", "extra_instruction_path"):
+            value = holder.get(name)
+            if value in (None, "", []):
+                continue
+            values = [value] if isinstance(value, str) else value
+            if not isinstance(values, list) or any(
+                not isinstance(item, str) or not item.strip() for item in values
+            ):
+                return None
+            paths = [_path_key(item) for item in values]
+            if declared and paths != declared:
+                return None
+            declared = paths
+    return declared
 
-    normalized: list[dict[str, Any]] = []
-    for kind, value in entries:
-        if kind != "path":
-            normalized.append({"kind": kind, "sha256": digest_json(value)})
-            continue
-        if not isinstance(value, str):
+
+def _declared_inline_preambles(source: dict[str, Any]) -> list[tuple[str, str]] | None:
+    """Inline preamble text declared in one retained source.
+
+    ``extra_instructions`` values that are lists or dicts are file declarations
+    classified by ``_declared_instruction_files`` instead. ``None`` is returned
+    for unsupported declaration shapes.
+    """
+    entries: list[tuple[str, str]] = []
+    kwargs = _json_object(_json_object(source.get("agent")).get("kwargs"))
+    for holder in (source, kwargs):
+        for key in ("preamble", "system_prompt"):
+            value = holder.get(key)
+            if value in (None, "", []):
+                continue
+            if not isinstance(value, str):
+                return None
+            entries.append((key, value))
+        value = holder.get("extra_instructions")
+        if isinstance(value, str) and value != "":
+            entries.append(("extra_instructions", value))
+        elif holder is kwargs and value not in (None, "", []):
+            # Only Harbor's top-level frozen file entries have a defined
+            # content-binding contract. Never erase an unmodeled declaration.
             return None
-        candidate = Path(value)
-        if not candidate.is_absolute():
-            candidate = root / candidate
-        candidate = candidate.resolve()
-        resolved_root = root.resolve()
-        if resolved_root not in candidate.parents or not candidate.is_file():
+    return entries
+
+
+def _retained_preamble_hash(trial: TrialRecord, fact: TrialFact) -> str | None:
+    """Retained identity of a completed trial's effective extra preamble.
+
+    Only immutable run evidence is consulted; the present-day filesystem is
+    never read, so editing, moving, or removing an instruction file cannot
+    relabel a completed trial. Precedence:
+
+    * the queue's execution-time provenance (``fact.preamble_path`` and
+      ``fact.preamble_content_sha256``, from ``lab-metadata.json``) — the
+      singular producer's validated content digest;
+    * Harbor's frozen lock ``extra_instructions`` entries, each carrying the
+      run-time content digest of one ordered instruction file;
+    * declared ``extra_instruction_paths`` and inline preamble text retained
+      in the lock/result/config records.
+
+    Conservative cases return ``None`` (identity UNKNOWN — never the
+    no-preamble digest):
+
+    * a declared instruction path without any retained content digest;
+    * multiple ordered instruction files where any entry lacks a retained
+      digest, because the singular provenance digest cannot certify the whole
+      effective preamble;
+    * contradictory retained digests (lock entries disagreeing with each other
+      or with provenance) and malformed declaration shapes.
+
+    The identity is content-based: declared paths only match declarations to
+    digests and never enter the digest itself, so the same retained content
+    compares equal under different paths.
+    """
+    sources = (trial.lock, _json_object(trial.result.get("config")), trial.config)
+    file_order: list[str] = []
+    retained_digests: dict[str, str] = {}
+    for source in sources:
+        files = _declared_instruction_files(source)
+        paths = _declared_instruction_paths(source)
+        if files is None or paths is None:
             return None
-        normalized.append(
-            {
-                "kind": "path",
-                "path": candidate.relative_to(resolved_root).as_posix(),
-                "sha256": f"sha256:{hashlib.sha256(candidate.read_bytes()).hexdigest()}",
-            }
+        for path, digest in files:
+            key = _path_key(path)
+            if digest is not None:
+                previous = retained_digests.get(key)
+                if previous is not None and previous != digest:
+                    return None
+                retained_digests[key] = digest
+        for sequence in ([_path_key(path) for path, _ in files], paths):
+            if not sequence:
+                continue
+            if file_order and sequence != file_order:
+                return None
+            file_order = sequence
+
+    inline: list[tuple[str, str]] = []
+    for source in sources:
+        entries = _declared_inline_preambles(source)
+        if entries is None:
+            return None
+        if entries:
+            inline = entries
+            break
+
+    provenance_digest = fact.preamble_content_sha256
+    if provenance_digest is not None and not _valid_content_digest(provenance_digest):
+        return None
+
+    file_digests: list[str]
+    if not file_order:
+        if fact.preamble_path is not None and provenance_digest is None:
+            return None
+        file_digests = [provenance_digest] if provenance_digest is not None else []
+    else:
+        file_digests = []
+        provenance_path = (
+            _path_key(fact.preamble_path) if fact.preamble_path is not None else None
         )
-    return digest_json(normalized)
+        for key in file_order:
+            retained = retained_digests.get(key)
+            if retained is None:
+                # Without a lock digest, provenance must identify this exact
+                # single file. Matching basenames cannot establish identity.
+                if len(file_order) != 1 or key != provenance_path:
+                    return None
+                retained = provenance_digest
+            if retained is None:
+                return None
+            if (
+                provenance_digest is not None
+                and (len(file_order) == 1 or key == provenance_path)
+                and retained != provenance_digest
+            ):
+                return None
+            file_digests.append(retained)
+        if provenance_digest is not None and provenance_digest not in file_digests:
+            return None
+
+    if not inline and not file_digests:
+        return digest_json({"preamble": "none"})
+    return digest_json(
+        {
+            "inline": [
+                {"kind": kind, "sha256": digest_json(text)} for kind, text in inline
+            ],
+            "files": file_digests,
+        }
+    )
 
 
 def _member(
@@ -340,7 +490,7 @@ def _member(
         agent_version=agent_version,
         model_name=model_name,
         model_settings_digest=digest_json(model_settings),
-        preamble_hash=_configured_preamble_hash(root, trial),
+        preamble_hash=_retained_preamble_hash(trial, fact),
         toolset=toolset,
         toolset_digest=toolset_digest,
         harness_policy_digest=digest_json(
@@ -426,6 +576,12 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
         for member in members
     ):
         warnings.append("controlled preamble provenance is missing content sha256")
+    if spec.declared_variable in {"preamble_hash", "preamble_content_sha256"} and any(
+        member.preamble_hash is None for member in members
+    ):
+        warnings.append(
+            "controlled preamble identity is unknown (missing or conflicting retained evidence)"
+        )
     for field, expected in spec.constraints.items():
         actual = set(observed[field])
         if actual != {expected}:

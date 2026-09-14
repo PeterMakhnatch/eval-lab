@@ -173,6 +173,65 @@ def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
     assert "max_tokens=1234" in command
 
 
+def test_zai_opencode_routes_through_proxy_isolated_pinned_adapter(
+    tmp_path: Path,
+) -> None:
+    task_path = task(tmp_path)
+    (task_path / "task.toml").write_text(
+        'schema_version = "1.4"\n[agent]\ntimeout_sec = 60.0\n'
+    )
+    request = RunRequest(
+        task=task_path,
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3-flash",
+        name="zai-opencode-pinned-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+        attempts=1,
+        concurrency=1,
+        timeout_seconds=300,
+        max_requests=10,
+        max_input_tokens=1000,
+        max_output_tokens=500,
+        max_total_tokens=1500,
+        cost_limit_usd=1.0,
+    )
+    command = build_command(request)
+    assert command[command.index("--agent") + 1] == (
+        "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent"
+    )
+    assert command[command.index("--model") + 1] == "zai-coding-plan/glm-5.3-flash"
+    assert command[command.index("--n-concurrent-agents") + 1] == "1"
+    assert command[command.index("--n-tasks") + 1] == "1"
+    assert command[command.index("--max-retries") + 1] == "0"
+    assert "--agent-timeout-multiplier" in command
+
+    subscription = subscription_command(request, command, repo_root=Path.cwd())
+    assert "--extra-docker-compose" in subscription
+    assert "containers/zai-secret.compose.yaml" in subscription[-1]
+
+
+def test_zai_opencode_rejects_unsupported_models(tmp_path: Path) -> None:
+    task_path = task(tmp_path)
+    request = RunRequest(
+        task=task_path,
+        agent="zai-opencode",
+        model="unsupported/model",
+        name="zai-opencode-bad-model",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+        attempts=1,
+        concurrency=1,
+        max_requests=10,
+        max_input_tokens=1000,
+        max_output_tokens=500,
+        max_total_tokens=1500,
+        cost_limit_usd=1.0,
+    )
+    with pytest.raises(ValueError, match="zai-opencode requires one of the exact models"):
+        build_command(request)
+
+
 def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
     source_root = tmp_path / "src"
     source_root.mkdir()

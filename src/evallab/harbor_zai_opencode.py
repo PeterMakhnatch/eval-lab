@@ -27,6 +27,12 @@ from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-im
 
 from evallab.execution_contracts import (
     REDACTED_SECRET_VALUE,
+    ZAI_CREDENTIAL_ENVIRONMENT_KEYS,
+    ZAI_PROXY_CAPABILITY_ENV,
+    ZAI_PROXY_TOKEN,
+    ZAI_PROXY_URL,
+    ZAI_SECRET_FILE_ENV,
+    ZAI_SECRET_PATH_ENV,
     collected_secret_values,
     persist_private_bytes,
 )
@@ -56,20 +62,14 @@ REMOVE_AUTH_LINK_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 # --------------------------------------------------------------------------
 
 ZAI_PROXY_HOST = "zai-secret-proxy"
-ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
-ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
-ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
-ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
-ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
-ZAI_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
-    {
-        "ZAI_CODING_PLAN_API_KEY",
-        "ZAI_API_KEY",
-        "ZAI_CODING_PLAN_KEY",
-        "ZAI_KEY",
-    }
-)
 ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
+
+CREATE_PROXY_AUTH_COMMAND = (
+    f"mkdir -p {AUTH_LINK_DIR} && umask 077 && "
+    """printf '{"zai-coding-plan":{"type":"api","key":"%s"}}\\n' """
+    f'"$ZAI_CODING_PLAN_API_KEY" > {AUTH_LINK_PATH}'
+)
+REMOVE_PROXY_AUTH_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 
 SENSITIVE_CONFIG_KEYS = frozenset(
     {
@@ -261,6 +261,23 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
         model_name = getattr(self, "model_name", None)
         if model_name is not None:
             validate_model_name(model_name)
+
+    async def run(self, instruction, environment, context) -> None:  # type: ignore[no-untyped-def]
+        validate_model_name(self.model_name)
+        await self.exec_as_agent(
+            environment,
+            command=CREATE_PROXY_AUTH_COMMAND,
+            env=_scrubbed_connection_env(self.model_connection),
+        )
+        try:
+            await super().run(instruction, environment, context)
+        finally:
+            with contextlib.suppress(Exception):
+                await self.exec_as_agent(
+                    environment,
+                    command=REMOVE_PROXY_AUTH_COMMAND,
+                    env=_scrubbed_connection_env(self.model_connection),
+                )
 
     @property
     def model_connection(self) -> ResolvedModelConnection:

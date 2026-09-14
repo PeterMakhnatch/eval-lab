@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "matrix_id": "01M2GZAN46TXEQP1B6H81CF7CK",
+  "name": "release-verifier-repair-controls",
+  "hypothesis": "Bounded local verifier repair controls, not model capability or whole-task certification.",
+  "benchmark_family": "release-branch-rescue",
+  "task_id": "release-branch-rescue",
+  "task": "library/tasks/release-branch-rescue",
+  "task_package_digest": "sha256:e6918289f7a5840e96ae7547de8eac4840a9fc01a1ba0cf83315e52cce890c9d",
+  "verifier_digest": "sha256:c415b3e1efbf5beee2866c97de1dcbc7582a05e72f39a9e4f55706dea40f7c31",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "timeout_seconds": 300,
+  "runs": [
+    {
+      "name": "verify-release-oracle-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false
+    },
+    {
+      "name": "verify-release-nop-20260914-r2",
+      "agent": "nop",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false
+    },
+    {
+      "name": "verify-release-alt-rebase-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false,
+      "solution": "library/tasks/release-branch-rescue/controls/alt-rebase.sh"
+    },
+    {
+      "name": "verify-release-alt-reverse-merge-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false,
+      "solution": "library/tasks/release-branch-rescue/controls/alt-reverse-merge.sh"
+    },
+    {
+      "name": "verify-release-shadow-pytest-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false,
+      "solution": "library/tasks/release-branch-rescue/controls/game-shadow-pytest.sh"
+    }
+  ]
+}

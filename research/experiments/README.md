@@ -10,7 +10,7 @@ and are not committed.
 | `STATUS.md` | Human page: RECENT / RUNNING NOW / NEXT / TASK DECISIONS |
 | `JOURNAL.md` | Running scientific thread: what / why / status / results / links |
 | `specs/` | One study per directory; JSON files are `ExperimentSpec` documents |
-| `preambles/` | Extra-instruction files for studies the runner cannot yet express |
+| `preambles/` | Retained extra-instruction inputs for declared interventions |
 | `baselines/` | Free oracle/nop matrices (`evallab matrix` only) |
 | `local-controls.json` | Original event-summary oracle/nop matrix (kept; tests load it) |
 
@@ -21,22 +21,14 @@ uv run python research/experiments/validate_program.py
 uv run pytest -q research/experiments/tests/test_validate_program.py
 ```
 
-Standing policy that admits work, copied from `policy/standing-approvals.yaml`
-and not stretched:
+Execution authority comes from the current `policy/standing-approvals.yaml`,
+registry records and per-spec approval ledger, not a copied list in this README.
+Local `oracle`/`nop` controls do not establish model capability or task admission.
+Billable work follows the existing explicit approval path.
 
-- `local-controls` — any `oracle` / `nop` spec
-- `canary` — `task` matches `canary/*`, agent `codex` or `claude-code`, attempts ≤ 3
-- `researcher-followups` — `task` matches `registered/*`, attempts ≤ 5, and
-  `requires` includes `schema_valid`, `dedup_pass`, `calibrated_judges_only`
-
-Nothing in this checkout is registered. Using `registered/*` or putting a
-non-member under `canary/` would be a policy stretch; those questions go to
-Peter in the handoff.
-
-Harbor 0.21 accepts `--extra-instruction-path`. `evallab.runner.build_command`
-does not forward it, and `ExperimentSpec` forbids unknown fields. Preamble A/B
-is designed here and is not executable through the queue until BUILDER adds
-that field.
+`ExperimentSpec.extra_instruction_path` is supported and forwarded to Harbor.
+Changing an instruction remains a declared experimental intervention; retaining
+or compiling a specification is not execution approval or a completed comparison.
 
 ## Matrix solution controls
 
@@ -76,3 +68,33 @@ Each invocation's per-run outcome, including refusals, is appended separately to
 `.executor/<matrix_id>.matrix.invocations.jsonl`. Reuse still checks the actual
 job evidence and any executor failure state; a preserved receipt does not turn
 failed or incomplete execution into a pass.
+
+## September 14 task-verifier repair controls
+
+The current `release-branch-rescue-local-controls.json` and
+`nginx-proxy-repair-local-controls.json` bind the final repaired package and
+verifier bytes. They were executed serially through `evallab matrix`, including
+normal ingestion, with installed Harbor 0.21.0 and local Docker. No model was
+invoked and no task was registered or admitted.
+
+| Task | Final control conditions | Observed outcome |
+|---|---|---|
+| `peter/release-branch-rescue` | Oracle, nop, two valid alternatives, submitted `pytest.py` bypass | 5/5 expected outcomes; valid solutions 1, nop/shadow bypass 0 |
+| `peter/nginx-proxy-repair` | Oracle, nop, two valid alternatives, redirect bypass, fabricated items | 6/6 expected outcomes; valid solutions 1, nop/bypasses 0 |
+
+The shadow control ran the real nine-test verifier and failed five recovery
+checks rather than bypassing pytest. The redirect control ran fourteen tests
+and was rejected on its first HTTP 302 responses. The fabricated-items control
+ran fourteen tests and failed six substantive body/query comparisons.
+These are bounded controls, not proof against every reward-hacking strategy or
+measurements of model difficulty.
+
+Raw evidence is retained in `.worktrees/landing-tasks-20260914/runs/`; matrix
+receipts are `.executor/01M2GZAN46TXEQP1B6H81CF7CK.matrix.json` and
+`.executor/01M2GZAN4AQX7K704N25T1JXWH.matrix.json`. Their run names end in
+`20260914-r2`. Earlier `r1` controls precede final documentation/style changes
+and are not counted as additional independent control conditions.
+
+The original `rl-envs` revision/license could not be independently recovered.
+The task metadata's Peter authorship and source reference remain declarations;
+no new license grant or external dataset publication is inferred.

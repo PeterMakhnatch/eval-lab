@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "matrix_id": "01M2GZAN4AQX7K704N25T1JXWH",
+  "name": "nginx-verifier-repair-controls",
+  "hypothesis": "Bounded local verifier repair controls, not model capability or whole-task certification.",
+  "benchmark_family": "nginx-proxy-repair",
+  "task_id": "nginx-proxy-repair",
+  "task": "library/tasks/nginx-proxy-repair",
+  "task_package_digest": "sha256:22548d64da8372eb2dc62c35337d677f02a5939e117ece691c6a7352ff98b1fa",
+  "verifier_digest": "sha256:bb9a76092d0c0b3b73218a963ec64b86ee1711ac9898ed3368589619ccbe7b7f",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "timeout_seconds": 300,
+  "runs": [
+    {
+      "name": "verify-nginx-oracle-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false
+    },
+    {
+      "name": "verify-nginx-nop-20260914-r2",
+      "agent": "nop",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false
+    },
+    {
+      "name": "verify-nginx-alt-delete-body-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false,
+      "solution": "library/tasks/nginx-proxy-repair/controls/alt-delete-body-size.sh"
+    },
+    {
+      "name": "verify-nginx-alt-inherit-root-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false,
+      "solution": "library/tasks/nginx-proxy-repair/controls/alt-inherit-root.sh"
+    },
+    {
+      "name": "verify-nginx-redirect-api-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false,
+      "solution": "library/tasks/nginx-proxy-repair/controls/game-redirect-api.sh"
+    },
+    {
+      "name": "verify-nginx-fabricate-items-20260914-r2",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false,
+      "solution": "library/tasks/nginx-proxy-repair/controls/game-fabricate-items.sh"
+    }
+  ]
+}

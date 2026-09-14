@@ -301,6 +301,7 @@ class RunRequest:
                 result.extend(str(s) for s in self.skills)
         return tuple(result)
 
+
 @dataclass(frozen=True)
 class HarborProcessResult:
     """Outcome of running a Harbor subprocess under watchdog supervision."""
@@ -310,6 +311,7 @@ class HarborProcessResult:
     log_path: Path
     timed_out_trial: str | None = None
     proxy_usage: dict[str, Any] | None = None
+
 
 @dataclass(frozen=True)
 class ProxyTrialLimits:
@@ -322,17 +324,19 @@ class ProxyTrialLimits:
     max_cost_micros: int
 
     def __post_init__(self) -> None:
-        if min(
-            self.max_requests,
-            self.max_input_tokens,
-            self.max_output_tokens,
-            self.max_total_tokens,
-            self.max_cost_micros,
-        ) < 1:
+        if (
+            min(
+                self.max_requests,
+                self.max_input_tokens,
+                self.max_output_tokens,
+                self.max_total_tokens,
+                self.max_cost_micros,
+            )
+            < 1
+        ):
             raise ValueError("proxy trial ceilings must be positive")
         if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
             raise ValueError("proxy total-token ceiling exceeds component ceilings")
-
 
 
 @dataclass(frozen=True)

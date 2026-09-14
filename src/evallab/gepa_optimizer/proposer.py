@@ -19,7 +19,11 @@ class ProposalUnavailable(BaseException):
 
 class JournaledReflectionLM:
     def __init__(
-        self, *, model: str, directory: Path, max_requests: int,
+        self,
+        *,
+        model: str,
+        directory: Path,
+        max_requests: int,
         before_request: Callable[[], None] | None = None,
     ) -> None:
         self.model = model
@@ -73,7 +77,9 @@ class JournaledReflectionLM:
             options: dict[str, Any] = {}
             if self.model.startswith("zai/"):
                 from evallab.execution_contracts import (
-                    ZAI_OPENCODE_MODEL_SELECTORS, opencode_auth_path, read_zai_opencode_key,
+                    ZAI_OPENCODE_MODEL_SELECTORS,
+                    opencode_auth_path,
+                    read_zai_opencode_key,
                 )
 
                 target = "zai-coding-plan/" + self.model.removeprefix("zai/")

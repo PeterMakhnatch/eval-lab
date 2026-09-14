@@ -1,6 +1,7 @@
 {
   "name": "harness-gepa-nop-interface",
   "engine": "gepa",
+  "candidate_evaluation": "automatic",
   "agent": "nop",
   "model": null,
   "seed_candidate_path": "research/experiments/harness-gepa/seed.txt",

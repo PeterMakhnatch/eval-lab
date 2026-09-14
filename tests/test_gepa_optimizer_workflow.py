@@ -377,7 +377,9 @@ def test_stop_between_evaluations_prevents_next_proposer_request(tmp_path):
     from evallab.gepa_optimizer.workflow import CampaignStopped, _check_running
 
     proposer = JournaledReflectionLM(
-        model="test/model", directory=tmp_path / "proposer", max_requests=1,
+        model="test/model",
+        directory=tmp_path / "proposer",
+        max_requests=1,
         before_request=lambda: _check_running(tmp_path),
     )
     (tmp_path / "STOP").touch()

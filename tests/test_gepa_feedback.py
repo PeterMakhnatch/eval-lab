@@ -41,7 +41,6 @@ def test_actual_fixture_trajectory_content_reaches_output() -> None:
 
     feedback_text = result["feedback"]
 
-
     # Real actions and tool calls reached output
     assert "wc -l /app/input/events.jsonl" in feedback_text
 

@@ -53,9 +53,7 @@ def set_campaign_paused(config_path: Path, *, repo_root: Path, paused: bool) -> 
     }
 
 
-def approve_candidate(
-    config_path: Path, *, repo_root: Path, candidate_id: str
-) -> dict[str, Any]:
+def approve_candidate(config_path: Path, *, repo_root: Path, candidate_id: str) -> dict[str, Any]:
     """Allow one retained candidate to reach the ordinary Lab submission gate."""
     root = repo_root.resolve()
     config = load_campaign(config_path, root)
@@ -70,7 +68,10 @@ def approve_candidate(
     approvals.mkdir(parents=True, exist_ok=True)
     approval = _path(root, str((approvals / f"{digest}.json").relative_to(root)))
     if not approval.exists():
-        _write(approval, {"candidate_id": "sha256:" + digest, "reviewed_at": datetime.now(UTC).isoformat()})
+        _write(
+            approval,
+            {"candidate_id": "sha256:" + digest, "reviewed_at": datetime.now(UTC).isoformat()},
+        )
     return {
         "status": "candidate_reviewed",
         "candidate_id": "sha256:" + digest,
@@ -91,25 +92,29 @@ def campaign_status(config_path: Path, *, repo_root: Path) -> dict[str, Any]:
         digest = hashlib.sha256(text.encode()).hexdigest()
         if path.stem != digest:
             raise ValueError("Retained candidate identity mismatch")
-        candidates.append({
-            "candidate_id": "sha256:" + digest,
-            "path": str(path),
-            "text": text,
-            "reviewed": (output / "reviewed-candidates" / f"{digest}.json").is_file(),
-        })
+        candidates.append(
+            {
+                "candidate_id": "sha256:" + digest,
+                "path": str(path),
+                "text": text,
+                "reviewed": (output / "reviewed-candidates" / f"{digest}.json").is_file(),
+            }
+        )
     reports = []
     for path in output.glob("attempt-*/result.json"):
         path = _path(root, str(path.relative_to(root)))
         reports.append(json.loads(path.read_text()))
     latest = max(reports, key=lambda row: row["created_at"]) if reports else None
     return {
-        "status": "disabled" if not config.get("enabled", True) else
-            ("stopped" if (output / "STOP").exists() else "ready"),
+        "status": "disabled"
+        if not config.get("enabled", True)
+        else ("stopped" if (output / "STOP").exists() else "ready"),
         "candidate_evaluation": config.get("candidate_evaluation", "review"),
         "candidates": candidates,
         "last_attempt": latest,
         "instructions_automatically_adopted": False,
     }
+
 
 class _EvaluationHalt(BaseException):
     """Stop engines that otherwise turn ordinary evaluator errors into bad scores."""
@@ -288,7 +293,9 @@ def run_campaign(
             return {"status": "already_running", "model_improvement_claimed": False}
         try:
             return _run_campaign(
-                config, repo_root=root, qualification=qualification,
+                config,
+                repo_root=root,
+                qualification=qualification,
                 proposer_approval_ref=proposer_approval_ref,
             )
         finally:
@@ -367,7 +374,9 @@ def _run_campaign(
         timeout_seconds=config.get("timeout_seconds", 1200),
         estimated_cost_usd=config.get("estimated_cost_usd"),
         ceilings=ceilings,
-        approved_candidate_ids=None if qualification or config.get("candidate_evaluation") == "automatic" else frozenset(reviewed),
+        approved_candidate_ids=None
+        if config.get("candidate_evaluation") == "automatic"
+        else frozenset(reviewed),
         feedback_max_chars=config.get("feedback_max_chars", 24000),
     )
     validation_ids = set(config.get("validation_task_ids", []))
@@ -414,7 +423,10 @@ def _run_campaign(
                     "reflection_minibatch_size": 1,
                     "skip_perfect_score": False,
                 },
-                "engine": {"seed": 0},
+                "engine": {
+                    "seed": 0,
+                    "max_candidate_proposals": config.get("max_proposer_requests", 1),
+                },
             }
         else:
             engine_options = {
@@ -463,7 +475,11 @@ def _run_campaign(
                 "candidate_path": str(halt.cause.candidate_path),
             }
         else:
-            status = "pending_evaluation" if isinstance(halt.cause, EvaluationPending) else "evaluation_failed"
+            status = (
+                "pending_evaluation"
+                if isinstance(halt.cause, EvaluationPending)
+                else "evaluation_failed"
+            )
         error_type = type(halt.cause).__name__
         error = str(halt.cause)
     except CampaignStopped as exc:

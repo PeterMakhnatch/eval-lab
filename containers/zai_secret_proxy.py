@@ -201,9 +201,7 @@ def _scrub_json(value: Any, key: str) -> Any:
         return [_scrub_json(item, key) for item in value]
     if isinstance(value, dict):
         return {
-            _redact_key(str(name).encode("utf-8"), key).decode("utf-8"): _scrub_json(
-                item, key
-            )
+            _redact_key(str(name).encode("utf-8"), key).decode("utf-8"): _scrub_json(item, key)
             for name, item in value.items()
         }
     return value
@@ -215,7 +213,9 @@ def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("unsupported upstream body") from exc
 
-    canonical = json.dumps(_scrub_json(payload, key), ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    canonical = json.dumps(
+        _scrub_json(payload, key), ensure_ascii=True, separators=(",", ":")
+    ).encode("ascii")
     sanitized = _redact_key(canonical, key)
     for needle in _key_needles(key):
         if needle in sanitized:
@@ -223,7 +223,9 @@ def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
     return sanitized
 
 
-def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str, int] | None, str | None]:
+def _canonicalize_sse_and_usage(
+    data: bytes, key: str
+) -> tuple[bytes, dict[str, int] | None, str | None]:
     """Redact a text/event-stream and extract usage from the final data event.
 
     Returns the sanitized SSE body and, if present, a usage dict with
@@ -279,7 +281,11 @@ def _canonicalize_sse_and_usage(data: bytes, key: str) -> tuple[bytes, dict[str,
                     }
             payload = _scrub_json(payload, key)
             observed_model = payload.get("model")
-            if isinstance(observed_model, str) and observed_model and "<redacted>" not in observed_model:
+            if (
+                isinstance(observed_model, str)
+                and observed_model
+                and "<redacted>" not in observed_model
+            ):
                 returned_models.add(observed_model)
         canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("ascii")
         canonical = _redact_key(canonical, key)
@@ -415,9 +421,7 @@ class TrialBudget:
             "max_cost_micros": _int_env("EVALLAB_ZAI_MAX_COST_MICROS"),
         }
         self._pricing = {
-            "input_cost_micros_per_million": _int_env(
-                "EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION"
-            ),
+            "input_cost_micros_per_million": _int_env("EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION"),
             "output_cost_micros_per_million": _int_env(
                 "EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION"
             ),
@@ -490,10 +494,7 @@ class TrialBudget:
             if self._output_tokens + output_tokens > self._limits["max_output_tokens"]:
                 return None
             if (
-                self._input_tokens
-                + self._output_tokens
-                + input_tokens
-                + output_tokens
+                self._input_tokens + self._output_tokens + input_tokens + output_tokens
                 > self._limits["max_total_tokens"]
             ):
                 return None
@@ -877,8 +878,7 @@ class Handler(BaseHTTPRequestHandler):
         headers = {
             name: value
             for name, value in self.headers.items()
-            if name.casefold() not in HOP_BY_HOP
-            and name.casefold() not in STRIP_INBOUND_HEADERS
+            if name.casefold() not in HOP_BY_HOP and name.casefold() not in STRIP_INBOUND_HEADERS
         }
 
         forwarded = {
@@ -894,7 +894,9 @@ class Handler(BaseHTTPRequestHandler):
         forwarded["n"] = 1
         forwarded["stream"] = False
 
-        forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
         headers["Authorization"] = f"Bearer {key}"
         headers["Content-Length"] = str(len(forwarded_body))
         headers["Accept-Encoding"] = "identity"
@@ -988,8 +990,12 @@ class Handler(BaseHTTPRequestHandler):
             usage: dict[str, int] | None = None
             try:
                 if is_stream:
-                    sanitized_body, usage, returned_model = _canonicalize_sse_and_usage(upstream_body, key)
-                    returned_model_reason = "model_absent_or_null" if returned_model is None else None
+                    sanitized_body, usage, returned_model = _canonicalize_sse_and_usage(
+                        upstream_body, key
+                    )
+                    returned_model_reason = (
+                        "model_absent_or_null" if returned_model is None else None
+                    )
                 else:
                     sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
                     upstream_payload = json.loads(sanitized_body.decode("ascii"))
@@ -1053,11 +1059,7 @@ class Handler(BaseHTTPRequestHandler):
             # Budget overruns are recorded as exceeded and still emitted so the
             # runner can reconcile the call.
             used_cost = _cost_micros(used_input, used_output)
-            if (
-                used_input > input_tokens
-                or used_output > output_tokens
-                or used_cost > cost
-            ):
+            if used_input > input_tokens or used_output > output_tokens or used_cost > cost:
                 self._budget().mark_exceeded(
                     call_id=call_id,
                     reason="provider_usage_exceeded_reservation",

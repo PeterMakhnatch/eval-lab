@@ -36,10 +36,15 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 
-from evallab.execution_contracts import DEEPSEEK_ALLOWED_MODEL, DEEPSEEK_MODEL_SELECTOR, HARBOR_AGENT_IMPORT_PATHS
+from evallab.execution_contracts import (
+    DEEPSEEK_ALLOWED_MODEL,
+    DEEPSEEK_MODEL_SELECTOR,
+    HARBOR_AGENT_IMPORT_PATHS,
+)
 from evallab.gepa_optimizer.evaluator import (
     DEEPSEEK_TARGET_AGENT,
     DEEPSEEK_TARGET_IMPORT_PATH,
@@ -52,9 +57,9 @@ from evallab.gepa_optimizer.evaluator import (
     TaskDigestMismatchError,
     deterministic_job_name,
 )
+from evallab.queue import DirectoryQueue
 from evallab.registry import task_directory_digest
 from evallab.runner import RunRequest
-from evallab.queue import DirectoryQueue
 from evallab.schemas import CohortComparisonSpec, ExperimentSpec
 
 TEST_NATIVE_MODEL = "gpt-5.6-terra"
@@ -130,7 +135,7 @@ def create_completed_job_fixture(
     write_json(
         job_dir / "result.json",
         {
-            "id": "00000000-0000-0000-0000-000000000001",
+            "id": str(uuid5(NAMESPACE_URL, job_name)),
             "started_at": "2026-09-08T10:00:00Z",
             "finished_at": "2026-09-08T10:01:00Z",
             "n_total_trials": 1,
@@ -183,7 +188,7 @@ def create_completed_job_fixture(
     write_json(
         trial_dir / "result.json",
         {
-            "id": "00000000-0000-0000-0000-000000000002",
+            "id": str(uuid5(NAMESPACE_URL, job_name + "/" + trial_name)),
             "trial_name": trial_name,
             "task_name": task_id,
             "started_at": "2026-09-08T10:00:01Z",
@@ -954,7 +959,7 @@ def create_deepseek_job_fixture(
     write_json(
         job_dir / "result.json",
         {
-            "id": "00000000-0000-0000-0000-000000000001",
+            "id": str(uuid5(NAMESPACE_URL, job_name)),
             "started_at": "2026-09-08T10:00:00Z",
             "finished_at": "2026-09-08T10:01:00Z",
             "n_total_trials": 1,
@@ -1019,7 +1024,7 @@ def create_deepseek_job_fixture(
     write_json(
         trial_dir / "result.json",
         {
-            "id": "00000000-0000-0000-0000-000000000002",
+            "id": str(uuid5(NAMESPACE_URL, job_name + "/" + trial_name)),
             "trial_name": trial_name,
             "task_name": task_id,
             "started_at": "2026-09-08T10:00:01Z",
@@ -1329,8 +1334,12 @@ def test_proposal_is_retained_without_execution_until_reviewed(tmp_path: Path) -
     executor = MockExecutor(tmp_path)
     candidate = "Check the actual command exit status before finishing."
     evaluator = LabEvaluator(
-        repo_root=tmp_path, output_dir=tmp_path / "out", examples=[task],
-        agent="oracle", executor=executor, approved_candidate_ids=frozenset(),
+        repo_root=tmp_path,
+        output_dir=tmp_path / "out",
+        examples=[task],
+        agent="oracle",
+        executor=executor,
+        approved_candidate_ids=frozenset(),
     )
     with pytest.raises(CandidateReviewRequired) as pending:
         evaluator(candidate, task)
@@ -1339,8 +1348,11 @@ def test_proposal_is_retained_without_execution_until_reviewed(tmp_path: Path) -
     assert executor.queue.list_specs("pending") == []
 
     reviewed = LabEvaluator(
-        repo_root=tmp_path, output_dir=tmp_path / "out", examples=[task],
-        agent="oracle", executor=executor,
+        repo_root=tmp_path,
+        output_dir=tmp_path / "out",
+        examples=[task],
+        agent="oracle",
+        executor=executor,
         approved_candidate_ids=frozenset({pending.value.candidate_id}),
     )
     score, feedback = reviewed(candidate, task)
@@ -1352,15 +1364,56 @@ def test_rejected_evaluation_is_not_reported_as_forever_pending(tmp_path: Path) 
     task = create_task_fixture(tmp_path)
     executor = MockExecutor(tmp_path)
     evaluator = LabEvaluator(
-        repo_root=tmp_path, output_dir=tmp_path / "out", examples=[task],
-        agent="codex", model=TEST_NATIVE_MODEL, estimated_cost_usd=0.5,
+        repo_root=tmp_path,
+        output_dir=tmp_path / "out",
+        examples=[task],
+        agent="codex",
+        model=TEST_NATIVE_MODEL,
+        estimated_cost_usd=0.5,
         executor=executor,
     )
     with pytest.raises(EvaluationPending) as pending:
         evaluator("Candidate A", task)
     executor.queue.transition(
-        pending.value.spec_path, "rejected", actor="test", event="operator_rejected",
+        pending.value.spec_path,
+        "rejected",
+        actor="test",
+        event="operator_rejected",
     )
     with pytest.raises(EvaluationUnavailable, match="rejected"):
         evaluator("Candidate A", task)
     assert len(executor.submitted_specs) == 1
+
+
+def test_campaign_proposal_budget_returns_selection_without_requesting_again(tmp_path, monkeypatch):
+    pytest.importorskip("gepa")
+    from evallab.gepa_optimizer import workflow
+
+    task = create_task_fixture(tmp_path)
+    (tmp_path / "seed.txt").write_text("Original instruction.")
+    executor = MockExecutor(tmp_path)
+    monkeypatch.setattr(
+        workflow,
+        "LabEvaluator",
+        lambda **kwargs: LabEvaluator(**kwargs, executor=executor),
+    )
+    config = tmp_path / "campaign.json"
+    write_json(
+        config,
+        {
+            "name": "bounded-proposal",
+            "engine": "gepa",
+            "agent": "oracle",
+            "seed_candidate_path": "seed.txt",
+            "output_dir": "out/campaign",
+            "examples": [task],
+            "max_evals": 10,
+            "max_proposer_requests": 1,
+            "candidate_evaluation": "automatic",
+        },
+    )
+    report = workflow.run_campaign(config, repo_root=tmp_path, qualification=True)
+    assert report["status"] == "completed"
+    assert report["proposer"]["calls"] == 1
+    assert report["selection"]["text"] == "Original instruction."
+    assert len(report["target_trial_jobs"]) == 2

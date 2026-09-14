@@ -191,9 +191,7 @@ def build_feedback(
         task_id = resolved_task_path.name
 
     agent_info = (
-        result_data.get("agent_info")
-        if isinstance(result_data.get("agent_info"), dict)
-        else {}
+        result_data.get("agent_info") if isinstance(result_data.get("agent_info"), dict) else {}
     )
     cfg_agent = (
         (result_data.get("config") or {}).get("agent")
@@ -210,9 +208,7 @@ def build_feedback(
         else {}
     )
     rewards = (
-        verifier_result.get("rewards")
-        if isinstance(verifier_result.get("rewards"), dict)
-        else {}
+        verifier_result.get("rewards") if isinstance(verifier_result.get("rewards"), dict) else {}
     )
     primary_reward: float | None = None
     if "reward" in rewards and isinstance(rewards["reward"], (int, float)):
@@ -232,9 +228,7 @@ def build_feedback(
         outcome_status = "unknown"
 
     agent_result = (
-        result_data.get("agent_result")
-        if isinstance(result_data.get("agent_result"), dict)
-        else {}
+        result_data.get("agent_result") if isinstance(result_data.get("agent_result"), dict) else {}
     )
     exit_code = agent_result.get("exit_code", result_data.get("exit_code"))
 
@@ -315,7 +309,11 @@ def build_feedback(
                         )
                         for obs in step.observation_results:
                             if obs.source_call_id == tc.tool_call_id or not obs.source_call_id:
-                                obs_text = _redact_full_text(str(obs.content), secrets) if obs.content is not None else ""
+                                obs_text = (
+                                    _redact_full_text(str(obs.content), secrets)
+                                    if obs.content is not None
+                                    else ""
+                                )
                                 if len(obs_text) > _MAX_OBSERVATION_CHARS:
                                     obs_text = (
                                         obs_text[:_MAX_OBSERVATION_CHARS]
@@ -341,7 +339,9 @@ def build_feedback(
     if task_instruction:
         lines.append(task_instruction.strip())
     else:
-        lines.append("Task instruction absent (instruction.md not found in declared task directory).")
+        lines.append(
+            "Task instruction absent (instruction.md not found in declared task directory)."
+        )
     lines.append("")
 
     lines.append("## Outcome")
@@ -397,7 +397,9 @@ def build_feedback(
     else:
         truncated = True
         coverage_notices.append(f"feedback truncated to max_chars={max_chars} budget")
-        trunc_notice = f"\n\n[Truncated: feedback exceeded max_chars budget of {max_chars} characters]"
+        trunc_notice = (
+            f"\n\n[Truncated: feedback exceeded max_chars budget of {max_chars} characters]"
+        )
         if max_chars <= len(trunc_notice):
             final_text = redacted_text[:max_chars]
         else:

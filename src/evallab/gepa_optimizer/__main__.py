@@ -20,14 +20,20 @@ from pathlib import Path
 from .evaluator import LabEvaluator
 from .paired_analysis import analyze_campaign
 from .workflow import (
-    _path, approve_candidate, campaign_status, load_campaign, run_campaign, set_campaign_paused,
+    _path,
+    approve_candidate,
+    campaign_status,
+    load_campaign,
+    run_campaign,
+    set_campaign_paused,
 )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("run", "status", "stop", "resume", "approve-candidate", "qualify-meta", "analyze")
+        "command",
+        choices=("run", "status", "stop", "resume", "approve-candidate", "qualify-meta", "analyze"),
     )
     parser.add_argument("campaign", type=Path, nargs="?")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -129,13 +135,17 @@ def main() -> int:
         report = campaign_status(args.campaign, repo_root=args.repo_root)
     elif args.command in {"stop", "resume"}:
         report = set_campaign_paused(
-            args.campaign, repo_root=args.repo_root, paused=args.command == "stop",
+            args.campaign,
+            repo_root=args.repo_root,
+            paused=args.command == "stop",
         )
     elif args.command == "approve-candidate":
         if not args.candidate:
             parser.error("approve-candidate requires --candidate with a complete SHA-256")
         report = approve_candidate(
-            args.campaign, repo_root=args.repo_root, candidate_id=args.candidate,
+            args.campaign,
+            repo_root=args.repo_root,
+            candidate_id=args.candidate,
         )
     else:
         from .meta_engine import qualify_meta_harness
@@ -164,9 +174,19 @@ def main() -> int:
             max_evals=config["max_evals"],
         )
     print(json.dumps(report, indent=2, allow_nan=False))
-    return 0 if report.get("status") in {
-        "completed", "disabled", "stopped", "ready", "candidate_reviewed",
-    } or report.get("qualified") else 2
+    return (
+        0
+        if report.get("status")
+        in {
+            "completed",
+            "disabled",
+            "stopped",
+            "ready",
+            "candidate_reviewed",
+        }
+        or report.get("qualified")
+        else 2
+    )
 
 
 if __name__ == "__main__":

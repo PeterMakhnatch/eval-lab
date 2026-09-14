@@ -177,9 +177,7 @@ def test_zai_opencode_routes_through_proxy_isolated_pinned_adapter(
     tmp_path: Path,
 ) -> None:
     task_path = task(tmp_path)
-    (task_path / "task.toml").write_text(
-        'schema_version = "1.4"\n[agent]\ntimeout_sec = 60.0\n'
-    )
+    (task_path / "task.toml").write_text('schema_version = "1.4"\n[agent]\ntimeout_sec = 60.0\n')
     request = RunRequest(
         task=task_path,
         agent="zai-opencode",
@@ -300,6 +298,7 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
     assert control.returncode == 0
     assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
 
+
 def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -409,6 +408,8 @@ def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
     assert result.timed_out is False
     assert result.returncode != 0
     assert time.monotonic() - started < 2
+
+
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
     tmp_path: Path,
 ) -> None:
@@ -1171,6 +1172,7 @@ def test_existing_argv_order_is_preserved_with_passthrough_flags(tmp_path: Path)
     assert "--skill" in with_all
     assert "--load-trajectory" in with_all
     assert "--export-traces" in with_all
+
 
 def test_antigravity_model_translation_for_harbor(tmp_path: Path) -> None:
     """Harbor requires provider/model format (e.g. google/gemini-3.7-flash).

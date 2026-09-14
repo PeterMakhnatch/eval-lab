@@ -489,7 +489,10 @@ def test_default_probe_for_antigravity_is_a_cli_session_probe(tmp_path: Path) ->
 def test_zai_opencode_probe_requires_private_matching_provider_credentials(tmp_path: Path) -> None:
     profile = builtin_profiles()["zai-opencode-glm-5.3-flash"]
     probe = default_probe_for(
-        profile, home=tmp_path, security_runner=lambda _: 1, keychain_account="",
+        profile,
+        home=tmp_path,
+        security_runner=lambda _: 1,
+        keychain_account="",
     )
     assert probe is not None
     assert not probe(profile).ok

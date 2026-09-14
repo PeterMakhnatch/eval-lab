@@ -206,24 +206,26 @@ class _MockZaiUpstream(BaseHTTPRequestHandler):
             return
 
         # Success response for allowed models
-        resp = json.dumps({
-            "id": "chatcmpl-mock-001",
-            "object": "chat.completion",
-            "created": 1710000000,
-            "model": model or "glm-5.3-flash",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": "ok"},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
-                "total_tokens": 15,
-            },
-        }).encode("utf-8")
+        resp = json.dumps(
+            {
+                "id": "chatcmpl-mock-001",
+                "object": "chat.completion",
+                "created": 1710000000,
+                "model": model or "glm-5.3-flash",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "ok"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            }
+        ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(resp)))
@@ -322,7 +324,10 @@ def test_proxy_requires_valid_capability(tmp_path: Path, monkeypatch: pytest.Mon
         req = urllib.request.Request(
             f"{base_url}/api/paas/v4/chat/completions",
             data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": "Bearer wrong-capability", "Content-Type": "application/json"},
+            headers={
+                "Authorization": "Bearer wrong-capability",
+                "Content-Type": "application/json",
+            },
             method="POST",
         )
         with pytest.raises(urllib.error.HTTPError) as exc:
@@ -386,9 +391,7 @@ def test_proxy_unauthenticated_request_rejected_before_reading_body(
         upstream.shutdown()
 
 
-def test_proxy_incomplete_body_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_proxy_incomplete_body_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Incomplete body (declared 1000 bytes, sends 10 then closes) is rejected."""
     capability = "valid-cap"
     proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch, capability=capability)
@@ -418,6 +421,7 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Legitimate upstream response taking >15s is not aborted by the inbound deadline timer."""
+
     class DelayedUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -427,14 +431,22 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
             self.rfile.read(length)
             # Sleep 16s (longer than 15s inbound timer, shorter than 120s upstream timeout)
             time.sleep(16.0)
-            resp = json.dumps({
-                "id": "chatcmpl-delayed-001",
-                "object": "chat.completion",
-                "created": 1710000000,
-                "model": "glm-5.3-flash",
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-            }).encode("utf-8")
+            resp = json.dumps(
+                {
+                    "id": "chatcmpl-delayed-001",
+                    "object": "chat.completion",
+                    "created": 1710000000,
+                    "model": "glm-5.3-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(resp)))
@@ -471,8 +483,13 @@ def test_proxy_forwards_allowed_flash_and_full_models(
         for model in ("zai-coding-plan/glm-5.3-flash", "zai-coding-plan/glm-5.3"):
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
-                data=json.dumps({"model": model, "messages": [{"role": "user", "content": "hi"}]}).encode(),
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                data=json.dumps(
+                    {"model": model, "messages": [{"role": "user", "content": "hi"}]}
+                ).encode(),
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
@@ -512,7 +529,10 @@ def test_proxy_rejects_disallowed_models_and_providers_fail_closed(
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=json.dumps({"model": model, "messages": []}).encode(),
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             with pytest.raises(urllib.error.HTTPError) as exc:
@@ -539,10 +559,12 @@ def test_proxy_forwards_highspeed_verbatim_without_fallback(
     try:
         req = urllib.request.Request(
             f"{base_url}/api/paas/v4/chat/completions",
-            data=json.dumps({
-                "model": "zai-coding-plan/glm-5.3-highspeed",
-                "messages": [{"role": "user", "content": "hi"}],
-            }).encode(),
+            data=json.dumps(
+                {
+                    "model": "zai-coding-plan/glm-5.3-highspeed",
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
             headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
             method="POST",
         )
@@ -607,18 +629,22 @@ def test_proxy_redacts_secret_reflection_from_upstream(
         def do_POST(self) -> None:  # noqa: N802
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
-            payload = json.dumps({
-                "choices": [{
-                    "message": {
-                        "content": f"reflected {SECRET_SENTINEL}",
-                        "escaped": json.dumps(SECRET_SENTINEL),
-                        "b64": base64.b64encode(SECRET_SENTINEL.encode()).decode(),
-                        "url_enc": urllib.parse.quote(SECRET_SENTINEL),
-                        "bearer_hdr": f"Bearer {SECRET_SENTINEL}",
-                    }
-                }],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
-            }).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": f"reflected {SECRET_SENTINEL}",
+                                "escaped": json.dumps(SECRET_SENTINEL),
+                                "b64": base64.b64encode(SECRET_SENTINEL.encode()).decode(),
+                                "url_enc": urllib.parse.quote(SECRET_SENTINEL),
+                                "bearer_hdr": f"Bearer {SECRET_SENTINEL}",
+                            }
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
@@ -652,6 +678,7 @@ def test_proxy_upstream_oversized_response_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Upstream response exceeding MAX_RESPONSE_BYTES is rejected with sanitized 502."""
+
     class HugeResponseUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -690,6 +717,7 @@ def test_proxy_upstream_truncated_valid_json_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Upstream delivering fewer bytes than declared Content-Length is rejected (sanitized 502) even if valid JSON."""
+
     class TruncatedValidJsonUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -730,6 +758,7 @@ def test_proxy_upstream_read_error_sanitized_to_502(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Upstream transport disconnect during body read is sanitized to 502."""
+
     class DroppingUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -769,6 +798,7 @@ def test_proxy_worker_pool_503_content_length_and_body(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Worker capacity limits connections before spawning threads, returning exact 503 without stalling accept loop."""
+
     class SlowUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -777,14 +807,22 @@ def test_proxy_worker_pool_503_content_length_and_body(
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
             time.sleep(1.0)
-            resp = json.dumps({
-                "id": "chatcmpl-slow-001",
-                "object": "chat.completion",
-                "created": 1710000000,
-                "model": "glm-5.3-flash",
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-            }).encode("utf-8")
+            resp = json.dumps(
+                {
+                    "id": "chatcmpl-slow-001",
+                    "object": "chat.completion",
+                    "created": 1710000000,
+                    "model": "glm-5.3-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(resp)))
@@ -796,11 +834,15 @@ def test_proxy_worker_pool_503_content_length_and_body(
         tmp_path, monkeypatch, upstream_handler=SlowUpstream, capability=capability, max_workers=1
     )
     try:
+
         def _slow_request() -> int:
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             try:
@@ -858,7 +900,10 @@ def test_proxy_worker_pool_503_content_length_and_body(
             req3 = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             try:
@@ -874,7 +919,9 @@ def test_proxy_worker_pool_503_content_length_and_body(
             except (urllib.error.URLError, OSError) as exc3:
                 # Treat only transient socket disconnects/resets during release window as retryable
                 reason = getattr(exc3, "reason", exc3)
-                if isinstance(reason, (BrokenPipeError, ConnectionResetError, ConnectionRefusedError)):
+                if isinstance(
+                    reason, (BrokenPipeError, ConnectionResetError, ConnectionRefusedError)
+                ):
                     time.sleep(0.02)
                     continue
                 if isinstance(reason, OSError) and reason.errno in (
@@ -990,20 +1037,29 @@ def test_proxy_refuses_symlink_secret(tmp_path: Path, monkeypatch: pytest.Monkey
         proxy.shutdown()
         upstream.shutdown()
 
+
 def test_proxy_pinned_upstream_url_enforces_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
     proxy_module = _load_proxy_module()
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "https://api.z.ai")
-    assert proxy_module._pinned_upstream_url() == f"https://api.z.ai:443{proxy_module.UPSTREAM_PATH}"
+    assert (
+        proxy_module._pinned_upstream_url() == f"https://api.z.ai:443{proxy_module.UPSTREAM_PATH}"
+    )
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://evallab-smoke-upstream:8099")
-    assert proxy_module._pinned_upstream_url() == f"http://evallab-smoke-upstream:8099{proxy_module.UPSTREAM_PATH}"
+    assert (
+        proxy_module._pinned_upstream_url()
+        == f"http://evallab-smoke-upstream:8099{proxy_module.UPSTREAM_PATH}"
+    )
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://127.0.0.1:9000")
-    assert proxy_module._pinned_upstream_url() == f"http://127.0.0.1:9000{proxy_module.UPSTREAM_PATH}"
+    assert (
+        proxy_module._pinned_upstream_url() == f"http://127.0.0.1:9000{proxy_module.UPSTREAM_PATH}"
+    )
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "https://evil.com")
     with pytest.raises(RuntimeError, match="upstream host is not pinned"):
         proxy_module._pinned_upstream_url()
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://untrusted-remote.com:8080")
     with pytest.raises(RuntimeError, match="http upstream is not pinned"):
         proxy_module._pinned_upstream_url()
+
 
 # ==========================================================================
 # 2. Adapter Tests (SecretSafeZaiOpenCodeAgent)
@@ -1116,11 +1172,13 @@ def test_adapter_sanitizes_trajectories(
     agent.logs_dir = tmp_path
     traj = tmp_path / "trajectory.json"
     traj.write_text(
-        json.dumps({
-            "authorization": f"Bearer {SECRET_SENTINEL}",
-            "apiKey": SECRET_SENTINEL,
-            "steps": [{"content": SECRET_SENTINEL}],
-        })
+        json.dumps(
+            {
+                "authorization": f"Bearer {SECRET_SENTINEL}",
+                "apiKey": SECRET_SENTINEL,
+                "steps": [{"content": SECRET_SENTINEL}],
+            }
+        )
     )
     agent.populate_context_post_run(object())
     sanitized = json.loads(traj.read_text())
@@ -1202,7 +1260,11 @@ def test_proxy_sse_provider_identity_and_missing_stays_unknown(
     _FakeSSEUpstream.mode = "normal"
     _FakeSSEUpstream.seen = []
     proxy, upstream, base_url = _setup_proxy(
-        tmp_path, monkeypatch, upstream_handler=_FakeSSEUpstream, capability=capability, usage_file=usage_file
+        tmp_path,
+        monkeypatch,
+        upstream_handler=_FakeSSEUpstream,
+        capability=capability,
+        usage_file=usage_file,
     )
     try:
         # 1. Normal SSE: response identity comes from provider ("glm-5.3-flash")
@@ -1259,7 +1321,11 @@ def test_proxy_sse_conflicting_identity_refuses(
     _FakeSSEUpstream.mode = "conflicting_model"
     _FakeSSEUpstream.seen = []
     proxy, upstream, base_url = _setup_proxy(
-        tmp_path, monkeypatch, upstream_handler=_FakeSSEUpstream, capability=capability, usage_file=usage_file
+        tmp_path,
+        monkeypatch,
+        upstream_handler=_FakeSSEUpstream,
+        capability=capability,
+        usage_file=usage_file,
     )
     try:
         req = urllib.request.Request(

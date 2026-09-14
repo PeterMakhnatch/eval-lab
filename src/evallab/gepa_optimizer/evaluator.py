@@ -63,7 +63,6 @@ from typing import Any
 
 from evallab.execution_contracts import (
     DEEPSEEK_ALLOWED_MODEL,
-    DEEPSEEK_MODEL_SELECTOR,
     HARBOR_AGENT_IMPORT_PATHS,
 )
 from evallab.queue import Executor, new_ulid
@@ -357,7 +356,9 @@ def _check_job_provenance(
         if len(extras) != 1 or extras[0].get("digest") != expected_candidate_sha256:
             return False
         agent = locked.get("agent")
-        if not isinstance(agent, dict) or agent.get("model_name") != resolve_harbor_model(expected_agent, expected_model):
+        if not isinstance(agent, dict) or agent.get("model_name") != resolve_harbor_model(
+            expected_agent, expected_model
+        ):
             return False
         expected_import = HARBOR_AGENT_IMPORT_PATHS.get(expected_agent)
         if expected_import is not None:
@@ -474,10 +475,15 @@ class LabEvaluator:
         else:
             if self.model is None:
                 raise ValueError("Model-backed evaluations require an explicit registered model")
-            profile_for_request(RunRequest(
-                task=self.repo_root, agent=self.agent, model=self.model,
-                name="gepa-profile", jobs_dir=self.jobs_dir,
-            ))
+            profile_for_request(
+                RunRequest(
+                    task=self.repo_root,
+                    agent=self.agent,
+                    model=self.model,
+                    name="gepa-profile",
+                    jobs_dir=self.jobs_dir,
+                )
+            )
             if self.agent in {DEEPSEEK_TARGET_AGENT, "zai-opencode"} and self.ceilings is None:
                 raise ValueError(f"Target '{self.agent}' requires explicit provider ceilings")
 
@@ -641,7 +647,11 @@ class LabEvaluator:
             # Observed identity comes only from the proxy's per-call records;
             # an unrecorded model is unknown, never inferred as matched, and
             # calls that disagree with the pin (or each other) are a mismatch.
-            expected_model = DEEPSEEK_ALLOWED_MODEL if self.agent == DEEPSEEK_TARGET_AGENT else str(self.model).rsplit("/", 1)[-1]
+            expected_model = (
+                DEEPSEEK_ALLOWED_MODEL
+                if self.agent == DEEPSEEK_TARGET_AGENT
+                else str(self.model).rsplit("/", 1)[-1]
+            )
             returned = _returned_provider_models(job_record)
             known = {name for name in returned if name is not None}
             if known - {expected_model}:
@@ -714,12 +724,16 @@ class LabEvaluator:
 
         # Successful evaluation
         score = float(primary_reward)
-        feedback = build_feedback(
-            repo_root=self.repo_root,
-            task_path=Path(example["task_path"]),
-            trial_path=trial.path,
-            max_chars=self.feedback_max_chars,
-        ) if trial is not None else {"feedback": "No trial evidence available."}
+        feedback = (
+            build_feedback(
+                repo_root=self.repo_root,
+                task_path=Path(example["task_path"]),
+                trial_path=trial.path,
+                max_chars=self.feedback_max_chars,
+            )
+            if trial is not None
+            else {"feedback": "No trial evidence available."}
+        )
         self._record_evaluation(
             candidate_sha256=candidate_sha256,
             local_candidate_file=local_candidate_file,
@@ -790,7 +804,10 @@ class LabEvaluator:
                 f"expected {declared['task_package_digest']}, computed {current_digest}"
             )
 
-        if self.approved_candidate_ids is not None and candidate_sha256 not in self.approved_candidate_ids:
+        if (
+            self.approved_candidate_ids is not None
+            and candidate_sha256 not in self.approved_candidate_ids
+        ):
             raise CandidateReviewRequired(candidate_sha256, local_candidate_file)
 
         job_name = deterministic_job_name(

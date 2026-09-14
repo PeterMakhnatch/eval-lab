@@ -1,6 +1,7 @@
 {
   "name": "harness-gepa-local-interface",
   "engine": "gepa",
+  "candidate_evaluation": "automatic",
   "agent": "oracle",
   "model": null,
   "seed_candidate_path": "research/experiments/harness-gepa/seed.txt",

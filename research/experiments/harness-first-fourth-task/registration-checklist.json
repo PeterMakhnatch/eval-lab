@@ -1,0 +1,354 @@
+{
+  "$schema_note": "HAR-18 fourth-task admission packet slice: Peter-only registration checklist and contract specification",
+  "ticket": "HAR-18",
+  "worktree_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harness-first-fourth-task",
+  "head_commit": "000750a897b612948067e3d00651f56da501bcbd",
+  "status": "proposal_needs_admission",
+  "scope": "Source-only gate description, not a registry record or certification packet. All execution steps below remain deferred and require separate authorization; this correction grants none.",
+  "contract_correction": {
+    "date": "2026-09-14",
+    "basis": "PR398 review and current materializer, package_layout, CLI, registry, schema and task_workbench producers in this tree",
+    "supersedes": "Earlier prospective no-seed registry/control IDs and hand-authored certification/license claims only; original source pins, receipts, authorizations and the three-task HAR-14 freeze are unchanged.",
+    "identity_rule": "Keep cell_id=dl-semantic-distractor-16384-s42 as the generator selector. The proposed registry ID, default materialized directory basename, native result/lock suffix and workbench task_id are action-memory-dl-semantic-distractor-16384-s42-seed42; task.toml declares evallab/action-memory-dl-semantic-distractor-16384-s42-seed42.",
+    "identity_sources": [
+      "library/benchmarks/action-memory-v1/materializer.py:dose_ladder_output_path",
+      "library/benchmarks/action-memory-v1/package_layout.py:task_toml",
+      "src/evallab/task_workbench.py:inspect_candidate",
+      "src/evallab/registry.py:_verify_control_result"
+    ]
+  },
+  "target_cell": {
+    "cell_id": "dl-semantic-distractor-16384-s42",
+    "base_task_pair_id": "am-dose-ladder-v1-s42-d16384",
+    "arm": "semantic_distractor",
+    "dose_bytes": 16384,
+    "seed": 42,
+    "task_family": "action-memory-v1",
+    "version": "1.0.0"
+  },
+  "peter_registration_gate": {
+    "sole_registration_actor": "Peter Makhnatch",
+    "actor_flag_required": true,
+    "factory_write_restriction": "Factory, subagents, and automated runners are strictly prohibited from writing to library/registry. Any automated modification of library/registry violates Eval Lab trust and admission policy.",
+    "cli_command": "After a candidate record exists and Peter approves: evallab registry register action-memory-dl-semantic-distractor-16384-s42-seed42 --actor \"Peter Makhnatch\" --certification-packet research/registration/candidates/<candidate_id>/certification.json",
+    "implementation_references": {
+      "cli_handler": "src/evallab/cli.py:2723-2752 (_registry_register_command)",
+      "parser_definition": "src/evallab/cli.py:4753-4779 (registry_register parser)",
+      "core_function": "src/evallab/registry.py:1112-1199 (register_task)",
+      "schema_validation": "src/evallab/schemas/__init__.py:1560-1607 (validate_state_invariants)"
+    },
+    "registration_invariants": [
+      "actor must be non-empty and specify approving human actor (--actor 'Peter Makhnatch')",
+      "task must already exist as candidate record in library/registry or be promoted via explicit candidate flow",
+      "certification envelope state must be 'bound' for any new task registration (legacy_missing is prohibited for new tasks)",
+      "task package directory must exist at task_path with all components: task.toml, instruction, environment, and verifier",
+      "on-disk package digests must match record.digests byte-for-byte across all component hashes",
+      "control evidence must be committed and present with oracle.reward == 1.0 and nop.reward == 0.0",
+      "control evidence paths, trial locks, and harbor_task_digests must match current disk package bytes",
+      "state transitions strictly to 'registered', approved_by becomes actor, approved_at is recorded in UTC, and state_reason is set to null"
+    ]
+  },
+  "har14_cohort_freeze_gate": {
+    "status": "frozen_pending_registration",
+    "rule": "HAR-14 active evaluation cohort remains frozen until Peter completes explicit registration of the fourth-slot task.",
+    "cohort_constraints": [
+      "dl-semantic-distractor-16384-s42 must NOT be referenced in active experiment matrices or evaluation specs prior to registration.",
+      "The fourth slot remains strictly in candidate/staged status; no automated runner or benchmark dispatch may consume it as a registered task.",
+      "TaskRegistry.resolve_spec refuses missing records with TaskNotRegisteredError and non-registered records with TaskStateInvalidError.",
+      "Peter registration is the gating event that unfreezes the evaluation cohort to admit the fourth task alongside existing cohort members."
+    ]
+  },
+  "task_registry_record_v2_fields": {
+    "schema_contract": "src/evallab/schemas/__init__.py:1500-1545 (TaskRegistryRecord)",
+    "golden_fixture": "tests/fixtures/contracts/TaskRegistryRecord.json",
+    "fields": {
+      "schema_version": {
+        "type": "integer",
+        "value": 2,
+        "required": true,
+        "description": "Literal[2] indicating TaskRegistryRecord v2 format."
+      },
+      "task_id": {
+        "type": "string",
+        "value": "action-memory-dl-semantic-distractor-16384-s42-seed42",
+        "pattern": "^[a-z0-9][a-z0-9-]+$",
+        "required": true,
+        "description": "Proposed registry identity matching the default materialized directory basename and namespaced task.toml name suffix (3-80 chars), not the generator cell_id."
+      },
+      "task_family": {
+        "type": "string",
+        "value": "action-memory-v1",
+        "pattern": "^[a-z0-9][a-z0-9_-]+$",
+        "required": true,
+        "description": "Explicit --task-family action-memory-v1 is required: the generated task.toml declares neither task.family nor metadata.task_family."
+      },
+      "version": {
+        "type": "string",
+        "value": "1.0.0",
+        "required": true,
+        "description": "Semantic version of the task package."
+      },
+      "task_path": {
+        "type": "string",
+        "value": "derived/harbor-tasks/action-memory-dose-ladder/<dose_ladder_contract_digest>/action-memory-dl-semantic-distractor-16384-s42-seed42",
+        "required": true,
+        "description": "Repository-relative path to task package directory; no leading slash, no '..'."
+      },
+      "digests": {
+        "type": "TaskDigests",
+        "required": true,
+        "properties": {
+          "task_toml": "sha256:[0-9a-f]{64}",
+          "instruction": "sha256:[0-9a-f]{64}",
+          "environment": "sha256:[0-9a-f]{64}",
+          "verifier": "sha256:[0-9a-f]{64}",
+          "package": "sha256:[0-9a-f]{64}"
+        },
+        "description": "Canonical SHA-256 digests of all package files and the aggregate package directory."
+      },
+      "source_uri": {
+        "type": "string",
+        "value": "synthetic/action-memory-v1/dl-semantic-distractor-16384-s42@1.0.0",
+        "required": true,
+        "description": "Canonical source provenance URI."
+      },
+      "source_ref": {
+        "type": "string | null",
+        "value": null,
+        "required": false,
+        "description": "External repository commit hash or release tag; null for local/synthetic tasks."
+      },
+      "license": {
+        "type": "string | null",
+        "value": "Apache-2.0",
+        "required": false,
+        "description": "Inferred from metadata.license emitted by library/benchmarks/action-memory-v1/package_layout.py:task_toml. Do not override the selected unmodified package's license."
+      },
+      "provenance_zone": {
+        "type": "string",
+        "value": "03-synthetic",
+        "allowed_values": ["01-external", "02-local-evidence", "03-synthetic", "04-curated"],
+        "required": true,
+        "description": "Zone classification; 03-synthetic for dose-ladder generated tasks."
+      },
+      "is_synthetic": {
+        "type": "boolean",
+        "value": true,
+        "required": true,
+        "description": "Flag marking whether the task is synthetically generated."
+      },
+      "limits": {
+        "type": "TaskLimits",
+        "required": true,
+        "default": {
+          "timeout_seconds": 1800,
+          "max_memory_mb": 2048,
+          "max_cpus": 1.0
+        },
+        "description": "Execution limits enforcing runtime constraints (timeout 1-21600 seconds, memory, CPUs)."
+      },
+      "control_evidence": {
+        "type": "TaskControlEvidence",
+        "required": true,
+        "description": "Promoted oracle and nop evidence references; required when state is registered."
+      },
+      "certification": {
+        "type": "TaskCertificationEnvelope",
+        "required": true,
+        "description": "Workbench certification packet envelope; state must be 'bound' for new registrations."
+      },
+      "state": {
+        "type": "string",
+        "value": "registered",
+        "allowed_values": ["candidate", "registered", "retired"],
+        "required": true,
+        "description": "Admission state; 'registered' upon completion of Peter's approval."
+      },
+      "allowed_uses": {
+        "type": "array[string]",
+        "value": ["measurement"],
+        "allowed_items": ["canary", "measurement", "heldout", "foundry-seed", "training"],
+        "required": true,
+        "description": "Schema permits these items, but this proposal requests measurement only. Pass --allowed-uses measurement explicitly; the promote default also includes training and is not authorized here."
+      },
+      "contamination": {
+        "type": "TaskContamination | null",
+        "value": {
+          "public_since": null,
+          "in_pretrain": "unknown",
+          "basis": "synthetically generated Action Memory dose-ladder cell; not in pretrain data"
+        },
+        "required": false,
+        "description": "Pre-training contamination assessment."
+      },
+      "human_minutes": {
+        "type": "integer | null",
+        "value": 30,
+        "ge": 0,
+        "required": false,
+        "description": "Expert human completion time estimate in minutes."
+      },
+      "approved_by": {
+        "type": "string",
+        "value": "Peter Makhnatch",
+        "required": true,
+        "description": "Approving human actor; strictly required when state == 'registered'."
+      },
+      "approved_at": {
+        "type": "string (ISO 8601 UTC timestamp)",
+        "required": true,
+        "description": "Timestamp of Peter's approval; strictly required when state == 'registered'."
+      },
+      "state_reason": {
+        "type": "null",
+        "value": null,
+        "required": false,
+        "description": "Machine-readable reason for non-registered states; must be null when state == 'registered'."
+      }
+    }
+  },
+  "control_evidence_shape": {
+    "schema_contract": "src/evallab/schemas/__init__.py:1313-1342 (ControlEvidenceRef, TaskControlEvidence)",
+    "verification_function": "src/evallab/registry.py:1201-1289 (verify_control_evidence)",
+    "durable_prefix": "research/evidence/runs/",
+    "oracle_contract": {
+      "role": "Positive control verification",
+      "required_reward": 1.0,
+      "fields": {
+        "job_name": "dl-semantic-distractor-16384-s42-oracle-evidence",
+        "trial_name": "<generated-harbor-trial-id>",
+        "reward": 1.0,
+        "evidence_path": "research/evidence/runs/dl-semantic-distractor-16384-s42-oracle-evidence/<trial_name>/result.json",
+        "evidence_digest": "sha256:[0-9a-f]{64}",
+        "lock_digest": "sha256:[0-9a-f]{64}",
+        "observed_at": "ISO 8601 UTC datetime",
+        "task_id": "action-memory-dl-semantic-distractor-16384-s42-seed42",
+        "task_version": "1.0.0",
+        "task_digests": {
+          "task_toml": "sha256:[0-9a-f]{64}",
+          "instruction": "sha256:[0-9a-f]{64}",
+          "environment": "sha256:[0-9a-f]{64}",
+          "verifier": "sha256:[0-9a-f]{64}",
+          "package": "sha256:[0-9a-f]{64}"
+        },
+        "harbor_task_digest": "sha256:[0-9a-f]{64}"
+      },
+      "execution_notes": "Native Harbor oracle executes against the materialized package with live FastMCP sidecar container (solve_via_mcp) or direct solver (solve_direct). Reward must equal 1.0 exactly."
+    },
+    "nop_contract": {
+      "role": "Negative baseline control verification",
+      "required_reward": 0.0,
+      "fields": {
+        "job_name": "dl-semantic-distractor-16384-s42-nop-evidence",
+        "trial_name": "<generated-harbor-trial-id>",
+        "reward": 0.0,
+        "evidence_path": "research/evidence/runs/dl-semantic-distractor-16384-s42-nop-evidence/<trial_name>/result.json",
+        "evidence_digest": "sha256:[0-9a-f]{64}",
+        "lock_digest": "sha256:[0-9a-f]{64}",
+        "observed_at": "ISO 8601 UTC datetime",
+        "task_id": "action-memory-dl-semantic-distractor-16384-s42-seed42",
+        "task_version": "1.0.0",
+        "task_digests": {
+          "task_toml": "sha256:[0-9a-f]{64}",
+          "instruction": "sha256:[0-9a-f]{64}",
+          "environment": "sha256:[0-9a-f]{64}",
+          "verifier": "sha256:[0-9a-f]{64}",
+          "package": "sha256:[0-9a-f]{64}"
+        },
+        "harbor_task_digest": "sha256:[0-9a-f]{64}"
+      },
+      "execution_notes": "NOP agent takes zero action or immediate return; verifier must score exactly 0.0 with no leakage or default-pass bugs."
+    },
+    "evidence_verification_checks": [
+      "evidence_path must be relative to repo and begin with 'research/evidence/runs/'",
+      "evidence result.json must exist and its SHA-256 match evidence_digest",
+      "sibling trial lock.json must exist and its SHA-256 match lock_digest",
+      "evidence ref task_id and task_version must match TaskRegistryRecord",
+      "evidence ref task_digests must match TaskRegistryRecord.digests",
+      "harbor_task_digest must match fresh harbor_task_digest() computed from on-disk package",
+      "native result task_name suffix and result/config/lock task path basenames must match the proposed registry task_id, including -seed42",
+      "trial lock task version or digest must match registered package"
+    ]
+  },
+  "certification_bound_shape": {
+    "schema_contract": "src/evallab/schemas/__init__.py:1400-1459 (TaskCertificationEnvelope)",
+    "verification_function": "src/evallab/registry.py:546-560 (verify_certification_packet)",
+    "required_state": "bound",
+    "durable_prefix": "research/registration/candidates/",
+    "producer_contract": "src/evallab/task_workbench.py:_certification_record produces the packet; src/evallab/registry.py:certification_envelope_from_packet validates it and rebuilds the stored envelope. Never hand-author or copy this gate description as an envelope.",
+    "fields": {
+      "state": "bound",
+      "reason": "bound_workbench_certificate_packet",
+      "workbench_version": "m049-v1",
+      "check_vector": {
+        "all_controls_completed": true,
+        "static": true,
+        "oracle_exact_1_x3": true,
+        "oracle_stable_output": true,
+        "nop_exact_0_x2": true,
+        "invalid_outputs_rejected": true,
+        "fair_alternative_exact_1": true,
+        "please_hack_executed": true,
+        "hack_detected": false,
+        "leakage_scan_clean": true,
+        "isolation": true
+      }
+    },
+    "producer_derived_fields": {
+      "certification_id": "Use the content-derived cert- ID from the actual certified packet.",
+      "packet_path": "Use its durable repo-relative research/registration/candidates/<candidate_id>/certification.json path.",
+      "packet_sha256": "Computed from actual packet bytes by certification_envelope_from_packet.",
+      "candidate_id": "Use the candidate- ID derived by inspect_candidate from the exact task identity.",
+      "candidate_record_digest": "Use the verified candidate.json digest.",
+      "candidate_package_digest": "Use the verified task_binding.candidate_package_digest, not an invented or substituted registry digest.",
+      "package_digest": "Use the verified task_binding.package_digest matching TaskRegistryRecord.digests.package.",
+      "control_summary": "Copy the producer's observation-derived counts and result_digests; no control count or digest in this proposal is evidence.",
+      "axes": "Copy the emitted axes with their actual reasons and cited control IDs. The first four axes must pass. m049-v1 emits difficulty_calibration=not_applicable and realism_review=not_assessed; local controls neither calibrate difficulty nor establish realism.",
+      "generator_identity": "Copy the candidate's solution digest/local execution identity.",
+      "validator_identity": "Copy the candidate's distinct verifier digest/local execution identity."
+    },
+    "envelope_invariants": [
+      "packet_path must stay repo-relative, start with 'research/registration/candidates/', and end in '/certification.json'",
+      "package_digest in envelope must match TaskRegistryRecord.digests.package exactly",
+      "generator_identity and validator_identity must be distinct (self-check prohibition)",
+      "stored certification envelope must equal the envelope rebuilt from the hash-bound packet; it is not byte-identical to the packet's different schema",
+      "please_hack_executed must be true and hack_detected false; all other listed check_vector flags must be true and must match digest-verified observations"
+    ]
+  },
+  "pre_registration_execution_pipeline": {
+    "step_1_staging": {
+      "owner": "Integration",
+      "action": "Execute scripts/mcp_funcdag/ensure_wheelhouse.py to stage FastMCP 3.4.7 wheels at /tmp/fastmcp3_wheelhouse and generate resolver-provenance.json.",
+      "environment": {
+        "ACTION_MEMORY_WHEELHOUSE": "/tmp/fastmcp3_wheelhouse",
+        "ACTION_MEMORY_RESOLVER_PROVENANCE": "/tmp/fastmcp3-resolver-provenance.json"
+      }
+    },
+    "step_2_materialization": {
+      "owner": "Integration",
+      "action": "Call materialize_dose_ladder_cell(seed=42, dose_bytes=16384, arm='semantic_distractor'). Do not pass a cell_id string or plan_only. Default output is derived/harbor-tasks/action-memory-dose-ladder/<digest>/action-memory-dl-semantic-distractor-16384-s42-seed42.",
+      "prerequisite": "Step 1 complete with verified wheels and provenance."
+    },
+    "step_3_control_evidence": {
+      "owner": "Integration",
+      "action": "Run native Harbor oracle and nop trials on materialized task package to collect durable evidence under research/evidence/runs/.",
+      "verification": "Confirm oracle reward == 1.0 and nop reward == 0.0."
+    },
+    "step_4_certification_packet": {
+      "owner": "Integration",
+      "action": "Run task_workbench certification suite to produce research/registration/candidates/candidate-<id>/certification.json.",
+      "verification": "Use certification_envelope_from_packet on the actual producer packet: required flags are true except hack_detected=false, workbench_version is m049-v1, and the rebuilt envelope is bound. Do not replace emitted axes, reasons, identities or digests with this proposal."
+    },
+    "step_5_candidate_record": {
+      "owner": "Peter Makhnatch",
+      "action": "Only after separate authorization and the deferred prerequisites, Peter may run cli_command with the actual materialized path. This creates a candidate, not an admission. Factory must not write library/registry.",
+      "cli_command": "evallab registry promote <materialized-package> --task-id action-memory-dl-semantic-distractor-16384-s42-seed42 --task-family action-memory-v1 --source-uri synthetic/action-memory-v1/dl-semantic-distractor-16384-s42@1.0.0 --provenance-zone 03-synthetic --synthetic --allowed-uses measurement --state candidate",
+      "result": "library/registry/action-memory-dl-semantic-distractor-16384-s42-seed42.json exists as a candidate with durable discovered controls. License is inferred from the package; certification is bound from the actual packet at Peter's later register step."
+    },
+    "step_6_peter_registration": {
+      "owner": "Peter Makhnatch",
+      "action": "Only after Peter's separate approval, execute 'evallab registry register action-memory-dl-semantic-distractor-16384-s42-seed42 --actor \"Peter Makhnatch\" --certification-packet research/registration/candidates/<candidate_id>/certification.json'.",
+      "result": "Transitions the existing candidate record to state='registered'. Does not create the file from nothing. HAR-14 freeze may then add this task by a new Factory cohort revision, not by rewriting history."
+    }
+  }
+}

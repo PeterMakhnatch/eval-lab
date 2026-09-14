@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import posixpath
 import re
 from datetime import date, datetime
@@ -218,6 +219,22 @@ class PowerSpec(ContractModel):
     )
 
 
+class ProviderRoute(ContractModel):
+    """One pre-authorized provider route for the same logical treatment."""
+
+    route_id: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]+$",
+    )
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    credential_requirement: str = Field(min_length=1)
+    logical_model_revision: str = Field(min_length=1)
+    tool_contract_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    max_cost_usd: float = Field(gt=0)
+
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
@@ -258,6 +275,19 @@ class ExperimentSpec(ContractModel):
     )
     agent: str = Field(min_length=1)
     model: str | None = None
+    provider_routes: list[ProviderRoute] = Field(
+        default_factory=list,
+        description=(
+            "ordered, pre-authorized provider routes for one unchanged logical "
+            "model revision and tool contract"
+        ),
+    )
+    provider_failover_max_cost_usd: float | None = Field(
+        default=None,
+        gt=0,
+        description="maximum cumulative cost authorized across all provider routes",
+    )
+    provider_exhaustion_behavior: Literal["fail", "wait"] = "fail"
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
@@ -356,6 +386,40 @@ class ExperimentSpec(ContractModel):
             raise ValueError(f"the {self.agent} control does not accept a model")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
+        if self.provider_routes:
+            if not self.billable:
+                raise ValueError("control specs cannot declare provider routes")
+            if self.model is None:
+                raise ValueError("provider routes require an exact model")
+            if self.provider_failover_max_cost_usd is None:
+                raise ValueError("provider routes require provider_failover_max_cost_usd")
+            route_ids = [route.route_id for route in self.provider_routes]
+            providers = [route.provider for route in self.provider_routes]
+            if len(route_ids) != len(set(route_ids)):
+                raise ValueError("provider route ids must be unique")
+            if len(providers) != len(set(providers)):
+                raise ValueError("provider routes must name distinct providers")
+            first = self.provider_routes[0]
+            if first.model != self.model:
+                raise ValueError("the first provider route must match the spec model selector")
+            logical_revisions = {route.logical_model_revision for route in self.provider_routes}
+            tool_contracts = {route.tool_contract_digest for route in self.provider_routes}
+            if len(logical_revisions) != 1 or len(tool_contracts) != 1:
+                raise ValueError(
+                    "all provider routes must preserve the exact logical model revision "
+                    "and tool contract"
+                )
+            route_maximum = sum(route.max_cost_usd for route in self.provider_routes)
+            if not math.isclose(route_maximum, self.provider_failover_max_cost_usd):
+                raise ValueError(
+                    "provider route costs must equal provider_failover_max_cost_usd"
+                )
+            if self.est_cost_usd < self.provider_failover_max_cost_usd:
+                raise ValueError(
+                    "est_cost_usd must cover the full authorized provider failover maximum"
+                )
+        elif self.provider_failover_max_cost_usd is not None:
+            raise ValueError("provider_failover_max_cost_usd requires provider_routes")
         campaign_fields = (
             self.campaign_ledger,
             self.campaign_cell_id,

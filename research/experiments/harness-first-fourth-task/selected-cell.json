@@ -1,0 +1,76 @@
+{
+  "$schema_note": "HAR-18 fourth-task admission packet slice: selected cell specification",
+  "ticket": "HAR-18",
+  "frozen_at_commit": "000750a897b612948067e3d00651f56da501bcbd",
+  "selected_cell": {
+    "cell_id": "dl-semantic-distractor-16384-s42",
+    "arm": "semantic_distractor",
+    "dose_bytes": 16384,
+    "seed": 42,
+    "base_task_pair_id": "am-dose-ladder-v1-s42-d16384",
+    "dose_axis_version": "am-dose-ladder-v1",
+    "declared_delta": "fill_chunk_semantics",
+    "padding_position": "suffix",
+    "read_opportunity_count": 65,
+    "step_budget": 3,
+    "inversion_count": 1,
+    "mutation_opportunity_count": 1,
+    "update_opportunity_count": 1,
+    "selection_rationale": "16384 bytes (16k) semantic distractor is the critical threshold where recursive chunk inspection might matter versus mini-swe baselines, presenting realistic distraction load while fitting safely within step budget (3) and latency/timeout envelopes."
+  },
+  "matched_control_twin": {
+    "cell_id": "dl-neutral-padding-16384-s42",
+    "arm": "neutral_padding",
+    "dose_bytes": 16384,
+    "seed": 42,
+    "base_task_pair_id": "am-dose-ladder-v1-s42-d16384",
+    "dose_axis_version": "am-dose-ladder-v1",
+    "declared_delta": "fill_chunk_semantics",
+    "padding_position": "suffix",
+    "read_opportunity_count": 65,
+    "step_budget": 3,
+    "inversion_count": 1,
+    "mutation_opportunity_count": 1,
+    "update_opportunity_count": 1,
+    "twin_relationship": "Shares identical 16384 byte count, identical opaque chunk IDs, identical inversion facts, and identical step budget (3) with the selected cell; differs strictly on fill chunk semantics (neutral diagnostic noise versus semantic distractors)."
+  },
+  "contracts": {
+    "benchmark_contract": {
+      "path": "library/benchmarks/action-memory-v1/benchmark_contract.json",
+      "sha256": "3490ad396bd39271079adcf5cede23e1c4920e7d70b4877464c4e7735aafb861"
+    },
+    "dose_ladder_contract": {
+      "path": "library/benchmarks/action-memory-v1/dose_ladder_contract.json",
+      "sha256": "7133cecc3b3f0473e429bb8f6cf83ebdd6793ae286cf5fe7e8e353e4269e2f91"
+    }
+  },
+  "dose_rejections": {
+    "4096": {
+      "dose_bytes": 4096,
+      "status": "rejected",
+      "reason": "4k dose is too small; insufficient distraction load to differentiate recursive chunk inspection from flat context windows or mini-swe baselines."
+    },
+    "65536": {
+      "dose_bytes": 65536,
+      "status": "rejected_for_this_slot",
+      "reason": "257 read opportunities at this dose. Contract step_budget is 3; Harbor agent timeouts in CI are 120-600s. Too large for a first admitted development cell."
+    },
+    "131072": {
+      "dose_bytes": 131072,
+      "status": "rejected_for_this_slot",
+      "reason": "513 read opportunities. Same timeout risk, not the first admission cell."
+    }
+  },
+  "ci_canary_distinction": {
+    "canary_cell_id": "clean-baseline-4k",
+    "seed": 42,
+    "is_cohort_slot": false,
+    "role": "CI generator smoke canary",
+    "distinction": "clean-baseline-4k (seed 42) is used exclusively in .github/workflows/action-memory.yml and materializer defaults as a pipeline health and Docker sidecar smoke test; it is NOT the cohort slot."
+  },
+  "derived_output": {
+    "package_digest": null,
+    "status": "absent",
+    "reason": "No package digest is available because derived output is absent from the worktree (derived/harbor-tasks/action-memory has not been materialized). Factory rules strictly prohibit running the materializer, invoking docker, or writing to library/registry."
+  }
+}

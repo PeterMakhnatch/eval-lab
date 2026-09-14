@@ -53,6 +53,24 @@ flat 8-hour timeout, resumable per-task job identity, permitted Z.ai provider
 selection, and fail-closed upstream drift guards. TB3 and TB4 scores are
 **not** comparable.
 
+Harbor compilation supports both the default Z.ai arm and the DeepSeek arm,
+using `DEEPSEEK_MODEL_SELECTOR` from `evallab.execution_contracts` (the official
+selector after PR409 integration is `deepseek/deepseek-flash`). DeepSeek is
+permitted only with `mini-swe-agent` or
+`evallab.harbor_dsh:DeepSeekHarnessAgent`. This is an offline compiler contract,
+not DSH runtime readiness or study authorization; the DSH experiment and HAR-10
+runtime remain held.
+
+Targeted task selection uses `--include-task` (repeatable, accepting short names
+like `html-js-filter` or full refs like `terminal-bench/html-js-filter`). It
+populates `tasks` with the selected subset and records `selected_task_count`,
+while `task_count` remains 66. Every plan retains the full inventory's byte
+digests in `task_digests`; recompiling against `--out` compares all 66, including
+unselected tasks, independently of the metadata-only `manifest_digest`.
+Existing full plans can supply their digests from `tasks`; an older subset plan
+without full-inventory digests is refused rather than treated as a complete
+baseline. Task selection does not relax the source pin or inventory guards.
+
 `scan` refuses to write into any root it is scanning (`ValueError`), so a
 mistyped `--out` cannot mutate a read-only corpus.
 

@@ -1129,33 +1129,79 @@ def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> N
     )
 
 
-def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path: Path) -> None:
-    task_dir = _make_dummy_task(tmp_path, "library/tasks/event-summary")
+def test_promote_task_discovers_control_evidence_and_creates_candidate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import shlex
+
+    from evallab.cli import parser
+
+    packet_root = (
+        Path(__file__).resolve().parents[1]
+        / "research/experiments/harness-first-fourth-task"
+    )
+    checklist = json.loads((packet_root / "registration-checklist.json").read_text())
+    admission = json.loads((packet_root / "admission.json").read_text())
+    fields = checklist["task_registry_record_v2_fields"]["fields"]
+    task_id = admission["selected"]["proposed_task_id"]
+    rel_path = fields["task_path"]["value"].replace(
+        "<dose_ladder_contract_digest>", "fixture-contract"
+    )
+    task_dir = _make_dummy_task(tmp_path, rel_path)
+    # Model the producer's identity/license surface, not a materialized benchmark:
+    # the namespaced name and directory agree, and no family is inferred.
+    (task_dir / "task.toml").write_text(
+        f'schema_version = "1.4"\n[task]\nname = "evallab/{task_dir.name}"\n'
+        'version = "1.0.0"\n[metadata]\nlicense = "Apache-2.0"\n'
+    )
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
 
-    record = promote_task("library/tasks/event-summary", tmp_path)
-    assert record.task_id == "event-summary"
-    assert record.version == "1.0.0"
-    assert record.state == "candidate"
-    assert record.approved_by is None
-    assert record.approved_at is None
-    assert record.control_evidence.oracle.reward == 1.0
-    assert record.control_evidence.nop.reward == 0.0
-    assert record.digests.package.startswith("sha256:")
-    assert record.digests.verifier.startswith("sha256:")
-    assert record.digests.task_toml.startswith("sha256:")
-    assert record.digests.instruction.startswith("sha256:")
-    assert record.digests.environment.startswith("sha256:")
+    command = checklist["pre_registration_execution_pipeline"]["step_5_candidate_record"][
+        "cli_command"
+    ]
+    argv = [
+        rel_path if item == "<materialized-package>" else item
+        for item in shlex.split(command)[1:]
+    ]
+    args = parser().parse_args(argv)
+    assert args.func(args, tmp_path) == 0
+    capsys.readouterr()
 
-    record_file = tmp_path / "library/registry/event-summary.json"
-    assert record_file.is_file()
-
-    reg = TaskRegistry.from_repo(tmp_path)
-    loaded = reg.get("event-summary")
+    loaded = TaskRegistry.from_repo(tmp_path).get(task_id)
     assert loaded is not None
     assert loaded.state == "candidate"
-    assert loaded.digests.package == record.digests.package
+    assert loaded.approved_by is None
+    assert loaded.approved_at is None
+    assert loaded.certification.state == "legacy_missing"
+    assert loaded.task_id == fields["task_id"]["value"] == task_dir.name
+    assert loaded.task_family == fields["task_family"]["value"]
+    assert loaded.license == fields["license"]["value"]
+    assert loaded.allowed_uses == ["measurement"]
+    assert loaded.source_uri == fields["source_uri"]["value"]
+    assert loaded.provenance_zone == "03-synthetic"
+    assert loaded.is_synthetic
+    assert loaded.digests == compute_task_digests(task_dir)
+    assert loaded.control_evidence is not None
+    for role, reward in (("oracle", 1.0), ("nop", 0.0)):
+        evidence = getattr(loaded.control_evidence, role)
+        contract = checklist["control_evidence_shape"][f"{role}_contract"]["fields"]
+        assert evidence.task_id == contract["task_id"] == loaded.task_id
+        assert evidence.task_version == contract["task_version"] == loaded.version
+        assert evidence.task_digests == loaded.digests
+        assert evidence.reward == reward
+    with pytest.raises(TaskStateInvalidError):
+        TaskRegistry.from_repo(tmp_path).resolve_spec(
+            ExperimentSpec(
+                name="test-proposed-candidate",
+                hypothesis="A promotion recipe does not admit the fourth task.",
+                purpose="practice",
+                task=f"registered/{task_id}",
+                agent="oracle",
+                submitted_by="test",
+            ),
+            tmp_path,
+        )
 
 
 def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> None:

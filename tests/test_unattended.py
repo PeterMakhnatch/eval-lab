@@ -1356,3 +1356,95 @@ def test_guarded_tick_canary_digest_mismatch_quarantines_without_dispatch(tmp_pa
         e.event == "tick_quarantined" and "canary_enqueue_failed" in (e.reason_code or "")
         for e in events
     )
+
+
+def _provider_route_queue_payload(name: str) -> dict:
+    """A queued spec as the metered-screening lane actually wrote it.
+
+    Field-for-field from `queue/waiting/zai-opencode-01M1KXAY7CHKF9YGXV2NAE1R6J.json`.
+    That lane ran with `provider_routes` and `provider_exhaustion_behavior` on
+    `ExperimentSpec`. While a checkout's schema rejected those names as
+    `extra_forbidden`, `QueueBoard.list_specs` re-raised for the *whole* state,
+    so `CanaryEnqueuer` could not enumerate the queue and the nightly aborted
+    before dispatch — `nightly_quarantined` / `canary_enqueue_failed:ValueError`
+    on seven consecutive nights (2026-09-04 .. 2026-09-10 in `queue/events.jsonl`).
+    """
+    return {
+        "schema_version": 1,
+        "spec_id": "01M1KXAY7CHKF9YGXV2NAE1R6J",
+        "name": name,
+        "hypothesis": "metered-ceiling baseline on the reconciled zai proxy lane",
+        "purpose": "baseline",
+        "task": "registered/action-memory-clean4k",
+        "agent": "zai-opencode",
+        "model": "zai-coding-plan/glm-5.3-flash",
+        "provider_routes": [],
+        "provider_exhaustion_behavior": "fail",
+        "environment": "docker",
+        "jobs_dir": "runs",
+        "attempts": 1,
+        "concurrency": 1,
+        "timeout_seconds": 1800,
+        "submitted_by": "autopilot-researcher",
+        "priority": 80,
+        "est_cost_usd": 0.0,
+        "requires": [],
+        "max_requests": 64,
+        "cost_limit_usd": 2.5,
+    }
+
+
+def test_nightly_enqueue_survives_a_provider_route_spec_in_the_queue(tmp_path: Path) -> None:
+    """One lane's spec format must not be able to kill the whole nightly.
+
+    `CanaryEnqueuer` enumerates every queue state before it stages anything, so
+    a single unreadable file anywhere in the queue ends the run. This pins that
+    the provider-route fields a shipped lane writes stay readable, and that the
+    canaries are still staged afterwards.
+    """
+    _create_fixture_suite(tmp_path, name="policy/canary-suite")
+    queue = DirectoryQueue(tmp_path / "queue")
+    waiting = queue.state_dir("waiting")
+    waiting.mkdir(parents=True, exist_ok=True)
+    (waiting / "zai-opencode-01M1KXAY7CHKF9YGXV2NAE1R6J.json").write_text(
+        json.dumps(_provider_route_queue_payload("screening-metered-funcdag-easy-k1"))
+    )
+
+    dispatched_requests: list = []
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=StandingApprovalsPolicy(
+            daily_cost_ceiling_usd=20,
+            per_job_cost_ceiling_usd=3,
+            quiet_failure_rule=3,
+            auto_run=[
+                AutoRunRule(
+                    name="canary",
+                    tasks=["canary/*"],
+                    agents=["oracle"],
+                    max_attempts=3,
+                )
+            ],
+        ),
+        runner=lambda req: (dispatched_requests.append(req), tmp_path / "runs" / req.name)[1],
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    enqueuer = CanaryEnqueuer.from_repo(tmp_path, service)
+    guarded = GuardedTick(
+        doctor=StaticDoctor(health_report()),
+        executor=service,
+        canary_enqueuer=lambda: enqueuer.enqueue_due(datetime(2026, 9, 6, 14, 15, tzinfo=UTC)),
+    )
+
+    result = guarded.run()
+
+    assert result.quarantined is False
+    assert result.enqueued == 3
+    assert result.dispatched == 3
+    assert not any(
+        "canary_enqueue_failed" in (event.reason_code or "")
+        for event in load_events(service.queue.events_path)
+    )

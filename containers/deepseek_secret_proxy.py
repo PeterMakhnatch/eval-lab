@@ -23,10 +23,15 @@ import urllib.request
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 DEFAULT_SECRET_PATH = Path("/run/secrets/evallab_deepseek_api_key")
 DEFAULT_UPSTREAM = "https://api.deepseek.com"
+# Mirrored from execution_contracts: the isolated stdlib-only image cannot import
+# the lab's Pydantic/YAML dependencies. Behavioral tests bind both tier tables.
+REASONING_EFFORT_TIERS = MappingProxyType({"low": 50, "high": 75, "max": 100})
+ALLOWED_MODEL = "deepseek-flash"
 ALLOWED_PATH = "/v1/chat/completions"
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
@@ -233,7 +238,7 @@ class TrialBudget:
         self._output_tokens = 0
         self._cost_micros = 0
         self._nonces: set[bytes] = set()
-        self._calls: list[dict[str, int | str]] = []
+        self._calls: list[dict[str, Any]] = []
         self._sequence = 0
         self._path = Path(usage_path)
         self._attempt_id = attempt_id
@@ -302,6 +307,7 @@ class TrialBudget:
         input_tokens: int,
         output_tokens: int,
         cost_micros: int,
+        reasoning_effort: str | None,
     ) -> int | None:
         with self._lock:
             if self._requests + 1 > self._limits["max_requests"]:
@@ -329,6 +335,17 @@ class TrialBudget:
                 {
                     "call_id": call_id,
                     "state": "reserved",
+                    "requested_model": ALLOWED_MODEL,
+                    "reasoning_effort": reasoning_effort,
+                    "reasoning_effort_integer": (
+                        REASONING_EFFORT_TIERS[reasoning_effort]
+                        if reasoning_effort is not None else None
+                    ),
+                    "reasoning_effort_reason": (
+                        "not_requested" if reasoning_effort is None else None
+                    ),
+                    "returned_model": None,
+                    "returned_model_reason": "response_not_observed",
                     "reserved_input_tokens": input_tokens,
                     "reserved_output_tokens": output_tokens,
                     "reserved_cost_micros": cost_micros,
@@ -346,6 +363,8 @@ class TrialBudget:
         used_output: int,
         used_cost: int,
         status: int,
+        returned_model: Any = None,
+        returned_model_reason: str | None = "response_not_observed",
     ) -> None:
         if min(used_input, used_output, used_cost) < 0:
             raise ValueError("negative provider usage")
@@ -363,6 +382,8 @@ class TrialBudget:
                 {
                     "state": "reconciled",
                     "status": status,
+                    "returned_model": returned_model,
+                    "returned_model_reason": returned_model_reason,
                     "input_tokens": used_input,
                     "output_tokens": used_output,
                     "cost_micros": used_cost,
@@ -371,12 +392,23 @@ class TrialBudget:
             self._sequence += 1
             self._persist_locked()
 
-    def mark_unresolved(self, *, call_id: int, reason: str) -> None:
+    def mark_unresolved(
+        self,
+        *,
+        call_id: int,
+        reason: str,
+        returned_model: Any = None,
+        returned_model_reason: str | None = "response_not_observed",
+    ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
             if call["call_id"] != call_id or call["state"] != "reserved":
                 raise ValueError("provider call accounting state is invalid")
             call.update({"state": "unresolved", "reason": reason})
+            call.update(
+                returned_model=returned_model,
+                returned_model_reason=returned_model_reason,
+            )
             self._sequence += 1
             self._persist_locked()
 
@@ -490,8 +522,19 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(400, b"invalid json\n")
             return
         allowed_model = os.environ.get("EVALLAB_DEEPSEEK_ALLOWED_MODEL", "")
-        if not allowed_model or payload.get("model") != allowed_model:
-            self._reject(403, b"model not allowed\n")
+        if allowed_model != ALLOWED_MODEL or payload.get("model") != ALLOWED_MODEL:
+            self._reject(
+                403,
+                b"model not allowed; use official deepseek-flash; "
+                b"deepseek-v4-flash is retired; deepseek-v4-pro is not admitted\n",
+            )
+            return
+        reasoning_effort = payload.get("reasoning_effort")
+        if "reasoning_effort" in payload and (
+            not isinstance(reasoning_effort, str)
+            or reasoning_effort not in REASONING_EFFORT_TIERS
+        ):
+            self._reject(400, b"reasoning_effort must be one of low, high, max\n")
             return
         try:
             input_tokens = _estimate_tokens(payload)
@@ -515,6 +558,7 @@ class Handler(BaseHTTPRequestHandler):
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_micros=cost,
+                reasoning_effort=reasoning_effort,
             )
         except (OSError, ValueError):
             self._reject(503, b"budget accounting unavailable\n")
@@ -558,6 +602,8 @@ class Handler(BaseHTTPRequestHandler):
         forwarded["max_tokens"] = output_tokens
         forwarded["n"] = 1
         forwarded["stream"] = False
+        if reasoning_effort is not None:
+            forwarded["reasoning_effort"] = reasoning_effort
         body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         headers["Authorization"] = f"Bearer {key}"
         headers["Content-Length"] = str(len(body))
@@ -631,11 +677,21 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return
+            returned_model = None
+            returned_model_reason = "response_not_observed"
             try:
                 sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
                 upstream_payload = json.loads(sanitized_body.decode("ascii"))
                 if not isinstance(upstream_payload, dict):
                     raise ValueError("upstream payload is not an object")
+                returned_model = upstream_payload.get("model")
+                returned_model_reason = (
+                    "model_absent_or_null" if returned_model is None else None
+                )
+                # Existing secret redaction still wins over identity capture.
+                if "<redacted>" in json.dumps(returned_model):
+                    returned_model = None
+                    returned_model_reason = "model_redacted"
                 usage = upstream_payload.get("usage")
                 if not isinstance(usage, dict):
                     raise ValueError("upstream usage is missing")
@@ -650,11 +706,15 @@ class Handler(BaseHTTPRequestHandler):
                     used_output=used_output,
                     used_cost=used_cost,
                     status=status,
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
                 )
             except (KeyError, TypeError, ValueError):
                 self._budget().mark_unresolved(
                     call_id=call_id,
                     reason="unreconciled_upstream_usage",
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return

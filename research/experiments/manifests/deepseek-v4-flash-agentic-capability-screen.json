@@ -7,7 +7,7 @@
   "claim_boundary": "This k=1 canary establishes execution-lane and trajectory-data viability only. It does not support comparative capability or benchmark-level performance claims.",
   "model_lane": {
     "agent": "mini-swe-agent",
-    "model": "deepseek/deepseek-v4-flash",
+    "model": "deepseek/deepseek-flash",
     "reasoning_effort": "high",
     "max_output_tokens": 32768,
     "credential_env": "DEEPSEEK_API_KEY",

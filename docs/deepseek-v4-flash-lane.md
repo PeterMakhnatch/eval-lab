@@ -11,7 +11,44 @@ This lane runs the registered `syn-funcdag-easy` task through a narrow
 credential-transport subclass of Harbor's generic `mini-swe-agent` adapter.
 Installation, execution, trajectory conversion, and model routing remain Harbor's
 mini-swe-agent + LiteLLM path with the exact selector
-`deepseek/deepseek-v4-flash`.
+`deepseek/deepseek-flash`.
+
+The `mini-swe-agent-deepseek-v4-flash` profile id and lane filenames are historical;
+they do not identify the model that answered.
+
+## 2026-09-11 API route cutover
+
+The [2026-09-10 release announcement](https://www.deepseek.com/en/news/deepseek-v4-1-flash/)
+names `deepseek-flash` as the official API route for V4.1-Flash. The retired
+`deepseek-v4-flash` name temporarily routes to V4.1-Flash. Starting
+**2026-09-14 04:00 UTC**, `deepseek-v4-pro` also routes to V4.1-Flash until
+V4.1-Pro launches. This lane rejects both old names, including an old name
+supplied through the proxy allow-list environment override.
+
+The [model card](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) describes
+the trained integer reasoning control, 1–100. The API tier contract is:
+
+| Requested `reasoning_effort` | Trained integer |
+|---|---:|
+| `low` | 50 |
+| `high` | 75 |
+| `max` | 100 |
+
+The adapter and proxy validate explicit tiers; other tiers such as `medium` and
+raw integers are not admitted. The capability-screen manifest requests `high`.
+The proxy forwards the requested tier unchanged and extends each existing
+`deepseek-proxy-usage.json` call record with `reasoning_effort` and
+`reasoning_effort_integer`. Omitted effort stays null with `not_requested`;
+we do not infer the provider's default.
+
+Each call also records `requested_model` separately from `returned_model`.
+The latter is the response's `model` field, captured without model-name
+normalization from the already-parsed response, even if usage cannot be
+reconciled. Missing or unobserved identity stays null with a reason. Existing
+credential redaction remains authoritative: a redacted identity is null with
+`model_redacted`, never a fabricated model name. A requested route is not
+evidence of an immutable checkpoint, nor is a provider-returned alias a weight
+hash. No live model response was obtained for this cutover.
 
 ## Credential contract
 
